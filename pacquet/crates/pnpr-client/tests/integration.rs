@@ -2,9 +2,11 @@
 //!
 //! Topology: a shared [`TestRegistry`] serves the package fixtures; a
 //! per-test in-process `pnpr` hosts the `/-/pnpr` handshake +
-//! `/v1/install` + `/v1/files` endpoints. The client sends the registry
-//! it wants resolved from, so the pnpr server's *own* uplink is left at
-//! the default — proving resolution uses the client-supplied registry.
+//! `/v1/install` endpoints. The client sends the registry it wants
+//! resolved from, so the pnpr server's *own* uplink is left at the
+//! default — proving resolution uses the client-supplied registry. pnpr
+//! serves no file content; the client receives only the resolved
+//! lockfile.
 
 use std::{
     collections::BTreeMap,
@@ -13,7 +15,6 @@ use std::{
 };
 
 use pacquet_pnpr_client::{InstallOptions, PnprClient, PnprClientError};
-use pacquet_store_dir::StoreDir;
 use pacquet_testing_utils::registry::TestRegistry;
 use tempfile::TempDir;
 use tokio::net::TcpListener;
@@ -75,13 +76,8 @@ async fn register_token(registry_url: &str, username: &str) -> String {
     json["token"].as_str().expect("token in adduser response").to_string()
 }
 
-fn options<'a>(
-    store: &'a StoreDir,
-    registry: &str,
-    dependencies: BTreeMap<String, String>,
-) -> InstallOptions<'a> {
+fn options(registry: &str, dependencies: BTreeMap<String, String>) -> InstallOptions {
     InstallOptions {
-        store_dir: store,
         dependencies,
         dev_dependencies: BTreeMap::new(),
         registry: registry.to_string(),
@@ -93,7 +89,6 @@ fn options<'a>(
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
-        lockfile_only: false,
         trust_lockfile: false,
         minimum_release_age: None,
         minimum_release_age_exclude: None,
@@ -106,11 +101,10 @@ fn options<'a>(
 
 /// The forwarded per-registry credentials and the pnpr-server identity
 /// header must travel on the wire: `authHeaders` in the body (so the
-/// server resolves/fetches private content as the caller) and
-/// `Authorization` on the request (so pnpr's gate + grant table key on
-/// the right user). A `mockito` server captures the request and asserts
-/// both are present; the canned 500 just short-circuits the client after
-/// the match.
+/// server resolves private content as the caller) and `Authorization` on
+/// the request (so pnpr identifies the caller). A `mockito` server
+/// captures the request and asserts both are present; the canned 500 just
+/// short-circuits the client after the match.
 #[tokio::test]
 async fn forwards_credentials_and_the_identity_header() {
     let mut server = mockito::Server::new_async().await;
@@ -125,11 +119,9 @@ async fn forwards_credentials_and_the_identity_header() {
         .create_async()
         .await;
 
-    let client_store = TempDir::new().unwrap();
-    let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(format!("{}/", server.url()));
 
-    let mut opts = options(&store, "https://npm.acme.test/", deps([("@acme/foo", "1.0.0")]));
+    let mut opts = options("https://npm.acme.test/", deps([("@acme/foo", "1.0.0")]));
     opts.auth_headers = deps([("//npm.acme.test/", "Bearer upstream-token")]);
     opts.authorization = Some("Bearer pnpr-token".to_string());
 
@@ -141,18 +133,16 @@ async fn forwards_credentials_and_the_identity_header() {
 /// End-to-end: the test registry gates `@pnpm.e2e/needs-auth` behind
 /// `$authenticated`, so resolving it through the accelerator only works
 /// when the caller's upstream token is forwarded and the server fetches
-/// the packument + tarball as the caller.
+/// the packument as the caller.
 #[tokio::test]
 async fn a_forwarded_credential_resolves_a_private_package() {
     let registry = TestRegistry::start();
     let token = register_token(&registry.url(), "needs-auth-forwarder").await;
     let (pnpr_url, _storage) = start_pnpr().await;
 
-    let client_store = TempDir::new().unwrap();
-    let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(pnpr_url);
 
-    let mut opts = options(&store, &registry.url(), deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let mut opts = options(&registry.url(), deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
     let mut auth = BTreeMap::new();
     auth.insert(nerf_key(&registry.url()), format!("Bearer {token}"));
     opts.auth_headers = auth;
@@ -164,7 +154,6 @@ async fn a_forwarded_credential_resolves_a_private_package() {
         "lockfile should contain the authed package, got: {:?}",
         packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
     );
-    assert!(outcome.files_written >= 1, "its files should be materialized");
 }
 
 /// The same install without a forwarded credential fails: the registry
@@ -175,11 +164,9 @@ async fn a_private_package_fails_without_a_forwarded_credential() {
     let registry = TestRegistry::start();
     let (pnpr_url, _storage) = start_pnpr().await;
 
-    let client_store = TempDir::new().unwrap();
-    let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(pnpr_url);
 
-    let opts = options(&store, &registry.url(), deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let opts = options(&registry.url(), deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
     let Err(PnprClientError::Server(message)) = client.install(opts).await else {
         panic!("expected the gated install to fail with a server error");
     };
@@ -190,16 +177,14 @@ async fn a_private_package_fails_without_a_forwarded_credential() {
 }
 
 #[tokio::test]
-async fn resolves_and_downloads_a_package() {
+async fn resolves_a_package() {
     let registry = TestRegistry::start();
     let (pnpr_url, _storage) = start_pnpr().await;
 
-    let client_store = TempDir::new().unwrap();
-    let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(pnpr_url);
 
     let outcome = client
-        .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .install(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("install should succeed");
 
@@ -211,101 +196,6 @@ async fn resolves_and_downloads_a_package() {
     );
 
     assert!(outcome.stats.total_packages >= 1);
-    assert!(outcome.stats.packages_to_fetch >= 1, "first run should fetch the package");
-    assert!(outcome.files_written >= 1, "at least package.json should be written");
-    assert!(outcome.index_entries_written >= 1, "the package's index entry should be written");
-
-    let store_keys = pacquet_store_dir::StoreIndex::open_readonly_in(&store)
-        .expect("open client index")
-        .keys()
-        .expect("read keys");
-    assert!(
-        store_keys.iter().any(|key| key.contains("@foo/no-deps@1.0.0")),
-        "client store index should hold the package, got: {store_keys:?}",
-    );
-}
-
-#[tokio::test]
-async fn lockfile_only_resolves_without_fetching_files() {
-    let registry = TestRegistry::start();
-    let (pnpr_url, _storage) = start_pnpr().await;
-
-    let client_store = TempDir::new().unwrap();
-    let store = StoreDir::new(client_store.path().to_path_buf());
-    let client = PnprClient::new(pnpr_url);
-
-    // `--lockfile-only`: the server resolves and returns the lockfile but
-    // fetches nothing and serves no files, so the client store stays
-    // empty. Mirrors pnpm's resolve + write, fetch nothing, link nothing.
-    let mut opts = options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")]));
-    opts.lockfile_only = true;
-    let outcome = client.install(opts).await.expect("lockfile-only install should succeed");
-
-    let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
-    assert!(
-        packages.keys().any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
-        "lockfile should still contain @foo/no-deps@1.0.0",
-    );
-    assert_eq!(outcome.files_written, 0, "lockfile-only should download no files");
-    assert_eq!(outcome.index_entries_written, 0, "lockfile-only should write no index entries");
-    assert!(
-        pacquet_store_dir::StoreIndex::open_readonly_in(&store)
-            .map(|index| index.keys().unwrap_or_default().is_empty())
-            .unwrap_or(true),
-        "client store index should stay empty after a lockfile-only install",
-    );
-}
-
-#[tokio::test]
-async fn warm_store_skips_already_present_files() {
-    let registry = TestRegistry::start();
-    let (pnpr_url, _storage) = start_pnpr().await;
-
-    let client_store = TempDir::new().unwrap();
-    let store = StoreDir::new(client_store.path().to_path_buf());
-    let client = PnprClient::new(pnpr_url);
-
-    let cold = client
-        .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
-        .await
-        .expect("cold install");
-    assert!(cold.files_written >= 1);
-
-    let warm = client
-        .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
-        .await
-        .expect("warm install");
-
-    assert!(warm.stats.already_in_store >= 1, "package should be recognized as cached");
-    assert_eq!(warm.files_written, 0, "warm run should download no files");
-    assert_eq!(warm.index_entries_written, 0, "warm run should write no index entries");
-}
-
-#[tokio::test]
-async fn resolves_a_multi_file_package() {
-    let registry = TestRegistry::start();
-    let (pnpr_url, _storage) = start_pnpr().await;
-
-    let client_store = TempDir::new().unwrap();
-    let store = StoreDir::new(client_store.path().to_path_buf());
-    let client = PnprClient::new(pnpr_url);
-
-    let outcome = client
-        .install(options(
-            &store,
-            &registry.url(),
-            deps([("@pnpm.e2e/hello-world-js-bin", "1.0.0")]),
-        ))
-        .await
-        .expect("install should succeed");
-
-    let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
-    assert!(
-        packages
-            .keys()
-            .any(|key| key.to_string().starts_with("@pnpm.e2e/hello-world-js-bin@1.0.0")),
-    );
-    assert!(outcome.files_written >= 2, "expected multiple files, got {}", outcome.files_written);
 }
 
 #[tokio::test]
@@ -313,20 +203,18 @@ async fn verifies_and_accepts_a_clean_input_lockfile() {
     let registry = TestRegistry::start();
     let (pnpr_url, _storage) = start_pnpr().await;
 
-    let client_store = TempDir::new().unwrap();
-    let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(pnpr_url);
 
     // A first install with no lockfile produces a valid resolved one.
     let first = client
-        .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .install(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
     // Sending it back as the input lockfile makes the server verify it
     // under the (default, policy-free) client policy before resolving;
     // a clean lockfile passes and the install succeeds.
-    let mut opts = options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(&registry.url(), deps([("@foo/no-deps", "1.0.0")]));
     opts.lockfile = Some(first.lockfile.clone());
     let second = client.install(opts).await.expect("verified-input install should succeed");
     assert!(second.lockfile.packages.is_some(), "resolution still produced a lockfile");
@@ -337,19 +225,17 @@ async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
     let registry = TestRegistry::start();
     let (pnpr_url, _storage) = start_pnpr().await;
 
-    let client_store = TempDir::new().unwrap();
-    let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .install(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
     // Re-send the same lockfile under a ~100-year minimumReleaseAge: no
     // real publish time can satisfy it, so the server rejects the input
     // lockfile and the client rebuilds the identical `VerifyError`.
-    let mut opts = options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(&registry.url(), deps([("@foo/no-deps", "1.0.0")]));
     opts.lockfile = Some(first.lockfile.clone());
     opts.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.minimum_release_age_ignore_missing_time = false;
@@ -368,12 +254,10 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     let registry = TestRegistry::start();
     let (pnpr_url, _storage) = start_pnpr().await;
 
-    let client_store = TempDir::new().unwrap();
-    let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .install(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
@@ -381,7 +265,7 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     // trips on, but with the client's `trustLockfile` opt-out set: the
     // server must skip the verify gate and resolve normally, matching the
     // local `--trust-lockfile` path.
-    let mut opts = options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(&registry.url(), deps([("@foo/no-deps", "1.0.0")]));
     opts.lockfile = Some(first.lockfile.clone());
     opts.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.minimum_release_age_ignore_missing_time = false;

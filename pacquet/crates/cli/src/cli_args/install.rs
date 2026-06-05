@@ -425,11 +425,13 @@ struct PnprLink<'a> {
 /// Resolve a single project through a `pnpr` server, then link it.
 ///
 /// Sends the client's registries to the server, which resolves against
-/// them and streams back the missing files; writes the server-produced
-/// lockfile, then runs a frozen install to materialize `node_modules`
-/// from it — the equivalent of pnpm's `installFromPnpmRegistry` handing
-/// off to `headlessInstall`. Under `--lockfile-only` it stops after
-/// writing the lockfile (fetch nothing, link nothing).
+/// them and returns the resolved lockfile; writes that lockfile, then
+/// runs a frozen install to materialize `node_modules` from it — the
+/// frozen install fetches every tarball from the registries itself, like
+/// a normal install. This is the equivalent of pnpm's
+/// `installFromPnpmRegistry` handing off to `headlessInstall`. Under
+/// `--lockfile-only` it stops after writing the lockfile (fetch nothing,
+/// link nothing).
 async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     state: &State,
     pnpr_server: &str,
@@ -464,7 +466,6 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     // gate, since the policy is wired into the server's config).
     let outcome = match PnprClient::new(pnpr_server)
         .install(InstallOptions {
-            store_dir: &state.config.store_dir,
             dependencies,
             dev_dependencies,
             registry: state.config.registry.clone(),
@@ -484,7 +485,6 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             frozen_lockfile: link.frozen_lockfile,
             prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
             ignore_manifest_check: link.ignore_manifest_check,
-            lockfile_only: link.lockfile_only,
             trust_lockfile: link.trust_lockfile,
             minimum_release_age: state.config.minimum_release_age,
             minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
