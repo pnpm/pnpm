@@ -157,7 +157,8 @@ async fn a_forwarded_credential_resolves_a_private_package() {
     auth.insert(nerf_key(&registry.url()), format!("Bearer {token}"));
     opts.auth_headers = auth;
 
-    let outcome = client.install(opts).await.expect("forwarded credential should resolve it");
+    let mut outcome = client.install(opts).await.expect("forwarded credential should resolve it");
+    outcome.finish_index_writes().await;
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
         packages.keys().any(|key| key.to_string().starts_with("@pnpm.e2e/needs-auth@1.0.0")),
@@ -198,10 +199,11 @@ async fn resolves_and_downloads_a_package() {
     let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(pnpr_url);
 
-    let outcome = client
+    let mut outcome = client
         .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("install should succeed");
+    outcome.finish_index_writes().await;
 
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
@@ -239,7 +241,8 @@ async fn lockfile_only_resolves_without_fetching_files() {
     // empty. Mirrors pnpm's resolve + write, fetch nothing, link nothing.
     let mut opts = options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")]));
     opts.lockfile_only = true;
-    let outcome = client.install(opts).await.expect("lockfile-only install should succeed");
+    let mut outcome = client.install(opts).await.expect("lockfile-only install should succeed");
+    outcome.finish_index_writes().await;
 
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
@@ -265,16 +268,18 @@ async fn warm_store_skips_already_present_files() {
     let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(pnpr_url);
 
-    let cold = client
+    let mut cold = client
         .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("cold install");
+    cold.finish_index_writes().await;
     assert!(cold.files_written >= 1);
 
-    let warm = client
+    let mut warm = client
         .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("warm install");
+    warm.finish_index_writes().await;
 
     assert!(warm.stats.already_in_store >= 1, "package should be recognized as cached");
     assert_eq!(warm.files_written, 0, "warm run should download no files");
@@ -290,7 +295,7 @@ async fn resolves_a_multi_file_package() {
     let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(pnpr_url);
 
-    let outcome = client
+    let mut outcome = client
         .install(options(
             &store,
             &registry.url(),
@@ -298,6 +303,7 @@ async fn resolves_a_multi_file_package() {
         ))
         .await
         .expect("install should succeed");
+    outcome.finish_index_writes().await;
 
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
@@ -318,17 +324,19 @@ async fn verifies_and_accepts_a_clean_input_lockfile() {
     let client = PnprClient::new(pnpr_url);
 
     // A first install with no lockfile produces a valid resolved one.
-    let first = client
+    let mut first = client
         .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
+    first.finish_index_writes().await;
 
     // Sending it back as the input lockfile makes the server verify it
     // under the (default, policy-free) client policy before resolving;
     // a clean lockfile passes and the install succeeds.
     let mut opts = options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")]));
     opts.lockfile = Some(first.lockfile.clone());
-    let second = client.install(opts).await.expect("verified-input install should succeed");
+    let mut second = client.install(opts).await.expect("verified-input install should succeed");
+    second.finish_index_writes().await;
     assert!(second.lockfile.packages.is_some(), "resolution still produced a lockfile");
 }
 
@@ -341,10 +349,11 @@ async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
     let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(pnpr_url);
 
-    let first = client
+    let mut first = client
         .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
+    first.finish_index_writes().await;
 
     // Re-send the same lockfile under a ~100-year minimumReleaseAge: no
     // real publish time can satisfy it, so the server rejects the input
@@ -372,10 +381,11 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     let store = StoreDir::new(client_store.path().to_path_buf());
     let client = PnprClient::new(pnpr_url);
 
-    let first = client
+    let mut first = client
         .install(options(&store, &registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
+    first.finish_index_writes().await;
 
     // Same policy that `rejects_an_input_lockfile_that_violates_the_clients_policy`
     // trips on, but with the client's `trustLockfile` opt-out set: the
@@ -387,7 +397,8 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     opts.minimum_release_age_ignore_missing_time = false;
     opts.trust_lockfile = true;
 
-    let outcome = client.install(opts).await.expect("trustLockfile should skip verification");
+    let mut outcome = client.install(opts).await.expect("trustLockfile should skip verification");
+    outcome.finish_index_writes().await;
     assert!(outcome.lockfile.packages.is_some(), "install still resolved a lockfile");
 }
 

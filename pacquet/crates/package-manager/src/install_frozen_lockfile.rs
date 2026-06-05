@@ -26,6 +26,7 @@ use pacquet_patching::{
 };
 use pacquet_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_store_dir::StoreIndexWriter;
+use pacquet_tarball::PrefetchResult;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ffi::OsStr,
@@ -140,6 +141,7 @@ where
     /// exists yet). Upstream's `nodeLinker: 'pnp'` is also
     /// out-of-scope for [#438](https://github.com/pnpm/pacquet/issues/438); tracked separately.
     pub node_linker: NodeLinker,
+    pub prefetched_from_pnpr: Option<&'a PrefetchResult>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -276,6 +278,7 @@ where
             supported_architectures,
             skip_runtimes,
             node_linker,
+            prefetched_from_pnpr,
         } = self;
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Cloned so the iterator can be reused below for hoist's
@@ -595,6 +598,7 @@ where
             skipped: &skipped,
             workspace_root,
             node_linker,
+            prefetched_from_pnpr,
         }
         .run::<Reporter>()
         .await
