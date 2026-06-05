@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.runtime.bun-resolver",
-  "version": "1101.1.4",
+  "version": "1101.1.5",
   "description": "Resolves the Bun runtime",
   "keywords": [
     "pnpm",

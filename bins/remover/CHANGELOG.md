@@ -1,5 +1,15 @@
 # @pnpm/remove-bins
 
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/bins.resolver@1100.0.6
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/pkg-manifest.reader@1100.0.6
+
 ## 1100.0.6
 
 ### Patch Changes

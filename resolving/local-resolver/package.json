@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.local-resolver",
-  "version": "1101.1.2",
+  "version": "1101.1.3",
   "description": "Resolver for local packages",
   "keywords": [
     "pnpm",

@@ -1,5 +1,15 @@
 # @pnpm/pick-fetcher
 
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [6d17b66]
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/fetching.fetcher-base@1100.1.7
+  - @pnpm/hooks.types@1100.0.10
+  - @pnpm/store.cafs-types@1100.0.1
+
 ## 1100.0.9
 
 ### Patch Changes

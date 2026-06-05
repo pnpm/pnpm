@@ -1,5 +1,22 @@
 # @pnpm/building.commands
 
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [4e740d5]
+- Updated dependencies [a017bf3]
+  - @pnpm/building.after-install@1101.0.19
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/installing.commands@1100.7.2
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.writer@1100.0.11
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/workspace.projects-sorter@1100.0.5
+
 ## 1100.1.1
 
 ### Patch Changes

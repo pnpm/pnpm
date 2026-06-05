@@ -1,5 +1,32 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.3.4
+
+### Patch Changes
+
+- Updated dependencies [60a1eec]
+- Updated dependencies [5192edf]
+- Updated dependencies [a017bf3]
+- Updated dependencies [722b9cd]
+- Updated dependencies [6d17b66]
+  - @pnpm/network.fetch@1100.1.0
+  - @pnpm/network.auth-header@1101.1.0
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.5.0
+  - @pnpm/resolving.default-resolver@1100.3.5
+  - @pnpm/global.commands@1100.0.25
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.pick-registry-for-package@1100.0.7
+  - @pnpm/deps.inspection.list@1100.0.15
+  - @pnpm/deps.inspection.outdated@1100.1.5
+  - @pnpm/deps.inspection.peers-checker@1100.0.12
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.4
+  - @pnpm/global.packages@1100.0.6
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/resolving.registry.types@1100.1.1
+
 ## 1100.3.3
 
 ### Patch Changes

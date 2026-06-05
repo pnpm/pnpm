@@ -1,5 +1,24 @@
 # @pnpm/building.during-install
 
+## 1101.0.16
+
+### Patch Changes
+
+- Updated dependencies [3b76b8e]
+- Updated dependencies [a017bf3]
+  - @pnpm/worker@1100.1.9
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/bins.linker@1100.0.11
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/deps.graph-hasher@1100.2.3
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/exec.lifecycle@1100.0.15
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/store.controller-types@1100.1.3
+  - @pnpm/fs.hard-link-dir@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.1
+
 ## 1101.0.15
 
 ### Patch Changes

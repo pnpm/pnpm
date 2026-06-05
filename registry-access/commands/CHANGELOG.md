@@ -1,5 +1,21 @@
 # @pnpm/registry-access.commands
 
+## 1100.3.1
+
+### Patch Changes
+
+- Updated dependencies [60a1eec]
+- Updated dependencies [5192edf]
+- Updated dependencies [a017bf3]
+  - @pnpm/network.fetch@1100.1.0
+  - @pnpm/network.auth-header@1101.1.0
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/registry-access.client@1100.1.1
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.pick-registry-for-package@1100.0.7
+  - @pnpm/resolving.registry.types@1100.1.1
+
 ## 1100.3.0
 
 ### Minor Changes

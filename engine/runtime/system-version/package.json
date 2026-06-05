@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.runtime.system-version",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Detects the current system version of supported runtimes (Node.js, Deno, Bun)",
   "keywords": [
     "pnpm",

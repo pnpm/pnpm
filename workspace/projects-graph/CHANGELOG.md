@@ -1,5 +1,15 @@
 # @pnpm/workspace.pkgs-graph
 
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [722b9cd]
+- Updated dependencies [6d17b66]
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.5.0
+
 ## 1100.0.14
 
 ### Patch Changes

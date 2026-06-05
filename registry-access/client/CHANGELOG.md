@@ -1,5 +1,12 @@
 # @pnpm/registry-access.client
 
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [60a1eec]
+  - @pnpm/network.fetch@1100.1.0
+
 ## 1100.1.0
 
 ### Minor Changes
