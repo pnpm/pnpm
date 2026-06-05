@@ -41,7 +41,7 @@ pnpm config set registry http://127.0.0.1:4873/
 | `-c, --config <path>` | Path to a verdaccio-shaped YAML config. When omitted, the bundled default is used. |
 | `--listen <addr>` | Address to bind to. Defaults to `127.0.0.1:4873`. |
 | `--storage <path>` | Override the storage directory from the loaded config. |
-| `--cache <path>` | Override the disposable proxy-cache directory (the mirror of upstream registries plus the install-accelerator store). Defaults to a `.pnpr-cache` subdirectory of `--storage`. |
+| `--cache <path>` | Override the disposable proxy-cache directory (the mirror of upstream registries plus the resolver cache). Defaults to a `.pnpr-cache` subdirectory of `--storage`. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` in served packuments. Defaults to `http://<listen>`. |
 | `--packument-ttl-secs <n>` | Seconds before a cached packument is considered stale and refetched. |
 
@@ -85,13 +85,13 @@ pnpr -c ./pnpr.yaml
 - **Hosted** — the source of truth: packages published to this server
   plus anything served in static mode. This lives under `storage`.
 - **Cache** — the disposable mirror of upstream registries plus the
-  install-accelerator store. This lives under `cache` (defaults to
+  resolver cache. This lives under `cache` (defaults to
   `<storage>/.pnpr-cache`).
 
 By default both are local directories. Adding an `s3:` block moves the
 **hosted** store into an S3-compatible object store, so the durable data
 is replicated by the provider and can be shared by several stateless
-`pnpr` replicas. The cache and the install-accelerator databases always
+`pnpr` replicas. The cache and the resolver databases always
 stay on local disk — only the hosted store is pluggable.
 
 Because any S3-compatible endpoint works, this also covers **Cloudflare

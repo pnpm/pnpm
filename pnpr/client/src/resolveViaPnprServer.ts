@@ -16,7 +16,7 @@ export interface PnprProject {
   optionalDependencies?: Record<string, string>
 }
 
-export interface FetchFromPnpmRegistryOptions {
+export interface ResolveViaPnprServerOptions {
   /** URL of the pnpr server */
   registryUrl: string
   /** Dependencies to resolve (single project) */
@@ -59,12 +59,12 @@ export interface FetchFromPnpmRegistryOptions {
   lockfile?: LockfileFile
 }
 
-export interface FetchFromPnpmRegistryResult {
+export interface ResolveViaPnprServerResult {
   lockfile: LockfileObject
   stats: ResponseMetadata['stats']
 }
 
-interface InstallResponse {
+interface ResolveResponse {
   lockfile: LockfileFile
   stats: ResponseMetadata['stats']
   violations?: Array<{ name: string, version: string, code: string, reason: string }>
@@ -74,15 +74,15 @@ interface InstallResponse {
  * Resolve a project against a pnpr server and return the resolved
  * lockfile.
  *
- * `POST /v1/install` answers with one gzipped JSON object carrying the
+ * `POST /v1/resolve` answers with one gzipped JSON object carrying the
  * server-resolved, server-verified lockfile (and stats). pnpr serves no
  * file content — the caller fetches every tarball itself, in parallel,
  * like a normal install
  * ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
  */
-export async function fetchFromPnpmRegistry (
-  opts: FetchFromPnpmRegistryOptions
-): Promise<FetchFromPnpmRegistryResult> {
+export async function resolveViaPnprServer (
+  opts: ResolveViaPnprServerOptions
+): Promise<ResolveViaPnprServerResult> {
   const projects = opts.projects ?? [{
     dir: '.',
     dependencies: opts.dependencies,
@@ -106,8 +106,8 @@ export async function fetchFromPnpmRegistry (
     lockfile: opts.lockfile,
   })
 
-  const body = await postInstall(opts.registryUrl, requestBody, opts.authorization)
-  const response = JSON.parse(body.toString('utf-8')) as InstallResponse
+  const body = await postResolve(opts.registryUrl, requestBody, opts.authorization)
+  const response = JSON.parse(body.toString('utf-8')) as ResolveResponse
 
   if (response.violations != null && response.violations.length > 0) {
     const rendered = response.violations
@@ -127,15 +127,15 @@ export async function fetchFromPnpmRegistry (
 const REQUEST_TIMEOUT = 600_000 // 10 minutes — server-side resolution can be slow on first run
 
 /**
- * `POST /v1/install` and return the full response body, decompressed.
+ * `POST /v1/resolve` and return the full response body, decompressed.
  *
  * `urlPath` resolution normalizes the base to end with "/" so a path
  * prefix configured on the pnpr server URL (e.g. https://host/pnpr/) is
  * preserved.
  */
-async function postInstall (registryUrl: string, body: string, authorization?: string): Promise<Buffer> {
+async function postResolve (registryUrl: string, body: string, authorization?: string): Promise<Buffer> {
   const base = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
-  const url = new URL('v1/install', base)
+  const url = new URL('v1/resolve', base)
   const requestFn = url.protocol === 'https:' ? https.request : http.request
 
   const headers: http.OutgoingHttpHeaders = {

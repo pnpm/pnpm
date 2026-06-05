@@ -64,8 +64,8 @@ pub struct Config {
     /// keep it on a durable volume.
     pub storage: PathBuf,
     /// Directory under which the disposable proxy cache lives —
-    /// the mirror of upstream registries plus the install-accelerator
-    /// store. Safe to wipe at any time; it self-heals on the next
+    /// the mirror of upstream registries plus the resolver's cache.
+    /// Safe to wipe at any time; it self-heals on the next
     /// request. Defaults to a `.pnpr-cache` subdirectory of
     /// [`Self::storage`]; set the YAML `cache:` key (or `--cache`) to
     /// an absolute path to put it on separate, ephemeral disk.

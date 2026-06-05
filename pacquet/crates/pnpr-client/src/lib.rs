@@ -1,6 +1,6 @@
 //! Client for pnpr's server-side resolver.
 //!
-//! Given a set of dependencies, it `POST`s them to `/v1/install`, where
+//! Given a set of dependencies, it `POST`s them to `/v1/resolve`, where
 //! the server resolves against the client's registries, verifies the
 //! input lockfile under the client's policy, and answers with the
 //! resolved lockfile as a gzipped JSON object. The caller then fetches
@@ -31,7 +31,7 @@ pub struct PnprClient {
 }
 
 /// Inputs for a single-project resolution.
-pub struct InstallOptions {
+pub struct ResolveOptions {
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
@@ -77,9 +77,9 @@ pub struct InstallOptions {
     pub trust_policy_ignore_after: Option<u64>,
 }
 
-/// Result of [`PnprClient::install`].
+/// Result of [`PnprClient::resolve`].
 #[must_use]
-pub struct InstallOutcome {
+pub struct ResolveOutcome {
     /// The resolved lockfile, ready for a headless install.
     pub lockfile: Lockfile,
     pub stats: Stats,
@@ -167,7 +167,7 @@ impl PnprClient {
     /// Resolve a single project against the server and return the
     /// resolved lockfile. The server serves no file content — the caller
     /// fetches every tarball itself.
-    pub async fn install(&self, opts: InstallOptions) -> Result<InstallOutcome, PnprClientError> {
+    pub async fn resolve(&self, opts: ResolveOptions) -> Result<ResolveOutcome, PnprClientError> {
         let request = serde_json::json!({
             "projects": [{
                 "dir": ".",
@@ -192,7 +192,7 @@ impl PnprClient {
             "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
         });
 
-        let mut post = self.http.post(format!("{}v1/install", self.base_url)).json(&request);
+        let mut post = self.http.post(format!("{}v1/resolve", self.base_url)).json(&request);
         if let Some(authorization) = opts.authorization.as_deref() {
             post = post.header("authorization", authorization);
         }
@@ -200,7 +200,7 @@ impl PnprClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::Server(format!("/v1/install returned {status}: {body}")));
+            return Err(PnprClientError::Server(format!("/v1/resolve returned {status}: {body}")));
         }
 
         let raw = response.bytes().await?;
@@ -226,8 +226,8 @@ fn decompress(raw: &[u8]) -> Result<Vec<u8>, PnprClientError> {
 /// Parse the install response: a JSON object carrying the resolved
 /// lockfile and stats, or — when the server rejected the input lockfile
 /// under the client's policy — the rendered verification violations.
-fn parse_response(payload: &[u8]) -> Result<InstallOutcome, PnprClientError> {
-    let response: InstallResponse = serde_json::from_slice(payload)
+fn parse_response(payload: &[u8]) -> Result<ResolveOutcome, PnprClientError> {
+    let response: ResolveResponse = serde_json::from_slice(payload)
         .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
 
     if let Some(violations) = response.violations.filter(|list| !list.is_empty()) {
@@ -238,12 +238,12 @@ fn parse_response(payload: &[u8]) -> Result<InstallOutcome, PnprClientError> {
         .lockfile
         .ok_or_else(|| PnprClientError::Protocol("install response had no lockfile".to_string()))?;
 
-    Ok(InstallOutcome { lockfile, stats: response.stats })
+    Ok(ResolveOutcome { lockfile, stats: response.stats })
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct InstallResponse {
+struct ResolveResponse {
     lockfile: Option<Lockfile>,
     #[serde(default)]
     stats: Stats,

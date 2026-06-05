@@ -177,7 +177,7 @@ export async function install (
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
   if (opts.pnprServer) {
-    return installFromPnpmRegistry(manifest, rootDir, opts)
+    return installViaPnprServer(manifest, rootDir, opts)
   }
 
   const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations } = await mutateModules(
@@ -2287,10 +2287,10 @@ async function mutateModulesViaPnpr (
   const pnprProjects = await preparePnprProjects(projects, opts)
   if (!pnprProjects) return null
 
-  // installFromPnpmRegistry runs the headless install for the first
+  // installViaPnprServer runs the headless install for the first
   // project's root and the workspace path for the rest. Pass the
   // pre-processed manifests so resolution sees the post-mutation state.
-  const result = await installFromPnpmRegistry(
+  const result = await installViaPnprServer(
     pnprProjects[0].manifest,
     pnprProjects[0].rootDir,
     opts,
@@ -2323,11 +2323,11 @@ async function mutateModulesViaPnpr (
 }
 
 /**
- * When a pnpr server is configured, resolve dependencies server-side
- * and download only the missing files. Then run a headless install to link
- * packages into node_modules.
+ * When a pnpr server is configured, resolve dependencies server-side,
+ * then run a headless install that fetches tarballs from the registries
+ * and links packages into node_modules — like a normal install.
  */
-async function installFromPnpmRegistry (
+async function installViaPnprServer (
   manifest: ProjectManifest,
   rootDir: ProjectRootDir,
   opts: Opts,
@@ -2345,7 +2345,7 @@ async function installFromPnpmRegistry (
       { hint: 'Unset `trustPolicy` for this install, or disable the pnpr server (unset `--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) so resolution runs locally and the trust check applies.' }
     )
   }
-  const { fetchFromPnpmRegistry } = await import('@pnpm/pnpr.client')
+  const { resolveViaPnprServer } = await import('@pnpm/pnpr.client')
   const { createGetAuthHeaderByURI, getAuthHeadersFromCreds } = await import('@pnpm/network.auth-header')
 
   // Forward the whole credential map (the registries a graph touches
@@ -2380,7 +2380,7 @@ async function installFromPnpmRegistry (
       }))
       : undefined
 
-    const { lockfile, stats: pnprStats } = await fetchFromPnpmRegistry({
+    const { lockfile, stats: pnprStats } = await resolveViaPnprServer({
       registryUrl: opts.pnprServer!,
       dependencies: projectsList ? undefined : manifest.dependencies,
       devDependencies: projectsList ? undefined : manifest.devDependencies,

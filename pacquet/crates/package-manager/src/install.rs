@@ -179,7 +179,7 @@ where
     pub update_seed_policy: UpdateSeedPolicy,
     /// Per-invocation `Authorization`-header override for resolve/verify;
     /// `None` (every local install) uses `config.auth_headers`. The pnpr
-    /// accelerator threads request-scoped [`AuthHeaders`] here so it
+    /// resolver threads request-scoped [`AuthHeaders`] here so it
     /// resolves a caller's private content without baking per-user auth
     /// into the shared `&'static Config`.
     pub auth_override: Option<Arc<AuthHeaders>>,

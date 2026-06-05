@@ -2,7 +2,7 @@
 //!
 //! Topology: a shared [`TestRegistry`] serves the package fixtures; a
 //! per-test in-process `pnpr` hosts the `/-/pnpr` handshake +
-//! `/v1/install` endpoints. The client sends the registry it wants
+//! `/v1/resolve` endpoints. The client sends the registry it wants
 //! resolved from, so the pnpr server's *own* uplink is left at the
 //! default — proving resolution uses the client-supplied registry. pnpr
 //! serves no file content; the client receives only the resolved
@@ -14,7 +14,7 @@ use std::{
     time::Duration,
 };
 
-use pacquet_pnpr_client::{InstallOptions, PnprClient, PnprClientError};
+use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions};
 use pacquet_testing_utils::registry::TestRegistry;
 use tempfile::TempDir;
 use tokio::net::TcpListener;
@@ -76,8 +76,8 @@ async fn register_token(registry_url: &str, username: &str) -> String {
     json["token"].as_str().expect("token in adduser response").to_string()
 }
 
-fn options(registry: &str, dependencies: BTreeMap<String, String>) -> InstallOptions {
-    InstallOptions {
+fn options(registry: &str, dependencies: BTreeMap<String, String>) -> ResolveOptions {
+    ResolveOptions {
         dependencies,
         dev_dependencies: BTreeMap::new(),
         optional_dependencies: BTreeMap::new(),
@@ -110,7 +110,7 @@ fn options(registry: &str, dependencies: BTreeMap<String, String>) -> InstallOpt
 async fn forwards_credentials_and_the_identity_header() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("POST", "/v1/install")
+        .mock("POST", "/v1/resolve")
         .match_header("authorization", "Bearer pnpr-token")
         .match_body(mockito::Matcher::PartialJsonString(
             r#"{"authHeaders":{"//npm.acme.test/":"Bearer upstream-token"}}"#.to_string(),
@@ -126,13 +126,13 @@ async fn forwards_credentials_and_the_identity_header() {
     opts.auth_headers = deps([("//npm.acme.test/", "Bearer upstream-token")]);
     opts.authorization = Some("Bearer pnpr-token".to_string());
 
-    let result = client.install(opts).await;
+    let result = client.resolve(opts).await;
     assert!(result.is_err(), "the canned 500 should surface as an error");
     mock.assert_async().await;
 }
 
 /// End-to-end: the test registry gates `@pnpm.e2e/needs-auth` behind
-/// `$authenticated`, so resolving it through the accelerator only works
+/// `$authenticated`, so resolving it through the resolver only works
 /// when the caller's upstream token is forwarded and the server fetches
 /// the packument as the caller.
 #[tokio::test]
@@ -148,7 +148,7 @@ async fn a_forwarded_credential_resolves_a_private_package() {
     auth.insert(nerf_key(&registry.url()), format!("Bearer {token}"));
     opts.auth_headers = auth;
 
-    let outcome = client.install(opts).await.expect("forwarded credential should resolve it");
+    let outcome = client.resolve(opts).await.expect("forwarded credential should resolve it");
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
         packages.keys().any(|key| key.to_string().starts_with("@pnpm.e2e/needs-auth@1.0.0")),
@@ -168,7 +168,7 @@ async fn a_private_package_fails_without_a_forwarded_credential() {
     let client = PnprClient::new(pnpr_url);
 
     let opts = options(&registry.url(), deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
-    let Err(PnprClientError::Server(message)) = client.install(opts).await else {
+    let Err(PnprClientError::Server(message)) = client.resolve(opts).await else {
         panic!("expected the gated install to fail with a server error");
     };
     assert!(
@@ -185,7 +185,7 @@ async fn resolves_a_package() {
     let client = PnprClient::new(pnpr_url);
 
     let outcome = client
-        .install(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("install should succeed");
 
@@ -211,7 +211,7 @@ async fn forwards_optional_dependencies() {
     let mut opts = options(&registry.url(), BTreeMap::new());
     opts.optional_dependencies = deps([("@foo/no-deps", "1.0.0")]);
 
-    let outcome = client.install(opts).await.expect("install should succeed");
+    let outcome = client.resolve(opts).await.expect("install should succeed");
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
         packages.keys().any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
@@ -229,7 +229,7 @@ async fn verifies_and_accepts_a_clean_input_lockfile() {
 
     // A first install with no lockfile produces a valid resolved one.
     let first = client
-        .install(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
@@ -238,7 +238,7 @@ async fn verifies_and_accepts_a_clean_input_lockfile() {
     // a clean lockfile passes and the install succeeds.
     let mut opts = options(&registry.url(), deps([("@foo/no-deps", "1.0.0")]));
     opts.lockfile = Some(first.lockfile.clone());
-    let second = client.install(opts).await.expect("verified-input install should succeed");
+    let second = client.resolve(opts).await.expect("verified-input install should succeed");
     assert!(second.lockfile.packages.is_some(), "resolution still produced a lockfile");
 }
 
@@ -250,7 +250,7 @@ async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .install(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
@@ -262,7 +262,7 @@ async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
     opts.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.minimum_release_age_ignore_missing_time = false;
 
-    let Err(PnprClientError::Verification(verify_err)) = client.install(opts).await else {
+    let Err(PnprClientError::Verification(verify_err)) = client.resolve(opts).await else {
         panic!("expected a verification error rejecting the input lockfile");
     };
     assert!(
@@ -279,7 +279,7 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .install(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
@@ -293,7 +293,7 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     opts.minimum_release_age_ignore_missing_time = false;
     opts.trust_lockfile = true;
 
-    let outcome = client.install(opts).await.expect("trustLockfile should skip verification");
+    let outcome = client.resolve(opts).await.expect("trustLockfile should skip verification");
     assert!(outcome.lockfile.packages.is_some(), "install still resolved a lockfile");
 }
 

@@ -1,4 +1,4 @@
-//! Wire types for the pnpr install-accelerator endpoints, matching the
+//! Wire types for the pnpr resolver endpoints, matching the
 //! `@pnpm/pnpr.client` TypeScript client's request shapes.
 
 use std::collections::BTreeMap;
@@ -9,7 +9,7 @@ pub type DepMap = BTreeMap<String, String>;
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct InstallRequestProject {
+pub struct ResolveRequestProject {
     /// The importer's directory relative to the lockfile dir, in POSIX
     /// form (`.` for the root, `packages/foo` for a workspace member).
     #[serde(default = "root_dir")]
@@ -26,7 +26,7 @@ fn root_dir() -> String {
     ".".to_string()
 }
 
-/// Body of `POST /v1/install`. The registry fields carry the *client's*
+/// Body of `POST /v1/resolve`. The registry fields carry the *client's*
 /// resolution configuration so the server resolves against the same
 /// registries the client would, and the policy fields carry the
 /// client's verification policy so the server verifies the input
@@ -35,7 +35,7 @@ fn root_dir() -> String {
 /// parse.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct InstallRequest {
+pub struct ResolveRequest {
     #[serde(default)]
     pub dependencies: Option<DepMap>,
     #[serde(default)]
@@ -43,7 +43,7 @@ pub struct InstallRequest {
     #[serde(default)]
     pub optional_dependencies: Option<DepMap>,
     #[serde(default)]
-    pub projects: Option<Vec<InstallRequestProject>>,
+    pub projects: Option<Vec<ResolveRequestProject>>,
     /// The client's default registry. Falls back to npmjs when absent.
     #[serde(default)]
     pub registry: Option<String>,
@@ -123,7 +123,7 @@ pub struct ProjectDeps {
     pub optional_dependencies: DepMap,
 }
 
-impl InstallRequest {
+impl ResolveRequest {
     /// Every project to resolve, keyed by importer dir. The legacy
     /// single-project body (top-level `dependencies`/`devDependencies`)
     /// maps to a single root (`.`) importer; an empty/absent `projects`

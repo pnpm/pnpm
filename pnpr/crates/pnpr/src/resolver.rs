@@ -1,12 +1,12 @@
-//! pnpr install accelerator: server-side dependency resolution exposed as
-//! an additive, opt-in protocol alongside pnpr's npm-compatible API. The
+//! pnpr resolver: server-side dependency resolution exposed as an
+//! additive, opt-in protocol alongside pnpr's npm-compatible API. The
 //! handshake + endpoint are served under one base URL (the `pnprServer`).
 //!
 //! Two routes, built on pacquet's resolver:
 //!
 //! * `GET /-/pnpr` — capability handshake; advertises the supported
 //!   protocol versions so a client can negotiate or fail fast.
-//! * `POST /v1/install` — resolve a project **against the registries
+//! * `POST /v1/resolve` — resolve a project **against the registries
 //!   the client sends** (so the server uses the same source of truth as
 //!   the client), verify the client's input lockfile under the client's
 //!   policy, and return the resolved lockfile as a gzipped JSON body.
@@ -40,6 +40,7 @@ use std::{
     io::Write as _,
     path::PathBuf,
     sync::{Arc, Mutex, OnceLock},
+    time::{Duration, Instant},
 };
 
 use crate::config::Config as RegistryConfig;
@@ -59,8 +60,9 @@ use pacquet_package_manager::build_resolution_verifiers;
 use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, PackageMetaCache};
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::StoreDir;
+use sha2::{Digest, Sha256};
 
-use self::{protocol::InstallRequest, verdict_cache::VerdictCache};
+use self::{protocol::ResolveRequest, verdict_cache::VerdictCache};
 
 /// Per-server engine backing the pnpr install endpoint: it holds the
 /// store, cache, and HTTP client used to resolve a client's project. The
@@ -73,10 +75,12 @@ use self::{protocol::InstallRequest, verdict_cache::VerdictCache};
 /// Held lazily in a [`OnceLock`] on the server's state so servers that
 /// never receive such a request pay nothing, and so each server in
 /// a multi-server test process keeps its own store.
-pub(crate) struct InstallAccelerator {
+pub(crate) struct Resolver {
     store_dir: StoreDir,
     cache_dir: PathBuf,
     client: Arc<ThrottledClient>,
+    resolution_cache: Mutex<HashMap<String, CachedResolution>>,
+    resolution_cache_ttl: Duration,
     /// One leaked `Config` per distinct client registry configuration,
     /// keyed by its canonical JSON. Bounds the leak to the number of
     /// distinct client setups the server sees (typically one).
@@ -87,15 +91,20 @@ pub(crate) struct InstallAccelerator {
     verdict_cache: Option<VerdictCache>,
 }
 
-impl InstallAccelerator {
+struct CachedResolution {
+    lockfile: Lockfile,
+    inserted: Instant,
+}
+
+impl Resolver {
     pub(crate) fn get_or_init<'a>(
-        cell: &'a OnceLock<InstallAccelerator>,
+        cell: &'a OnceLock<Resolver>,
         config: &RegistryConfig,
-    ) -> &'a InstallAccelerator {
-        cell.get_or_init(|| InstallAccelerator::build(config))
+    ) -> &'a Resolver {
+        cell.get_or_init(|| Resolver::build(config))
     }
 
-    fn build(config: &RegistryConfig) -> InstallAccelerator {
+    fn build(config: &RegistryConfig) -> Resolver {
         let store_dir = config.cache_storage.join("pnpr-store");
         let cache_dir = config.cache_storage.join("pnpr-cache");
         // Best-effort: a real failure here (e.g. a permission problem)
@@ -104,10 +113,12 @@ impl InstallAccelerator {
         let _ = std::fs::create_dir_all(&store_dir);
         let _ = std::fs::create_dir_all(&cache_dir);
         let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
-        InstallAccelerator {
+        Resolver {
             store_dir: StoreDir::new(store_dir),
             cache_dir,
             client: Arc::new(ThrottledClient::new_for_installs()),
+            resolution_cache: Mutex::new(HashMap::new()),
+            resolution_cache_ttl: config.packument_ttl,
             configs: Mutex::new(HashMap::new()),
             verdict_cache,
         }
@@ -117,7 +128,7 @@ impl InstallAccelerator {
     /// registry configuration. Pacquet's install path resolves against
     /// `config.registry` / `named_registries` / `overrides`, so a request
     /// from a client with a different registry setup gets its own Config.
-    fn config_for(&self, request: &InstallRequest) -> &'static PacquetConfig {
+    fn config_for(&self, request: &ResolveRequest) -> &'static PacquetConfig {
         let registry =
             request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
         let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
@@ -169,12 +180,12 @@ impl InstallAccelerator {
     }
 }
 
-/// Handle `POST /v1/install`: verify the client's input lockfile under
+/// Handle `POST /v1/resolve`: verify the client's input lockfile under
 /// the client's policy, resolve against the client's registries, and
 /// return the resolved lockfile. No tarball leaves the server — the
 /// client fetches them itself.
-pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) -> Response {
-    let request: InstallRequest = match serde_json::from_slice(&body) {
+pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response {
+    let request: ResolveRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
@@ -209,12 +220,108 @@ pub(crate) async fn handle_install(runtime: &InstallAccelerator, body: Bytes) ->
         };
     }
 
-    let lockfile = match resolve::resolve(config, &runtime.client, &request, &request_auth).await {
-        Ok(lockfile) => lockfile,
-        Err(err) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
+    let lockfile = if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
+        lockfile
+    } else {
+        let resolution_cache_key = if request.auth_headers.is_empty() && request.lockfile.is_none()
+        {
+            resolution_cache_key(config, &request)
+        } else {
+            None
+        };
+        if let Some(key) = resolution_cache_key.as_ref()
+            && let Some(lockfile) = cached_resolution(runtime, key)
+        {
+            lockfile
+        } else {
+            let lockfile =
+                match resolve::resolve(config, &runtime.client, &request, &request_auth).await {
+                    Ok(lockfile) => lockfile,
+                    Err(err) => {
+                        return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string());
+                    }
+                };
+            if let Some(key) = resolution_cache_key {
+                store_resolution(runtime, key, &lockfile);
+            }
+            lockfile
+        }
     };
 
     resolve_response(&lockfile)
+}
+
+const MAX_RESOLUTION_CACHE_ENTRIES: usize = 1024;
+
+fn cached_resolution(runtime: &Resolver, key: &str) -> Option<Lockfile> {
+    if runtime.resolution_cache_ttl.is_zero() {
+        return None;
+    }
+    let mut cache = runtime.resolution_cache.lock().expect("resolution cache poisoned");
+    match cache.get(key) {
+        Some(cached) if cached.inserted.elapsed() <= runtime.resolution_cache_ttl => {
+            Some(cached.lockfile.clone())
+        }
+        Some(_) => {
+            cache.remove(key);
+            None
+        }
+        None => None,
+    }
+}
+
+fn store_resolution(runtime: &Resolver, key: String, lockfile: &Lockfile) {
+    if runtime.resolution_cache_ttl.is_zero() {
+        return;
+    }
+    let mut cache = runtime.resolution_cache.lock().expect("resolution cache poisoned");
+    if cache.len() >= MAX_RESOLUTION_CACHE_ENTRIES {
+        let ttl = runtime.resolution_cache_ttl;
+        cache.retain(|_, cached| cached.inserted.elapsed() <= ttl);
+    }
+    if cache.len() >= MAX_RESOLUTION_CACHE_ENTRIES
+        && let Some(oldest) =
+            cache.iter().min_by_key(|(_, cached)| cached.inserted).map(|(key, _)| key.clone())
+    {
+        cache.remove(&oldest);
+    }
+    cache.insert(key, CachedResolution { lockfile: lockfile.clone(), inserted: Instant::now() });
+}
+
+fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Option<String> {
+    let projects: Vec<serde_json::Value> = request
+        .projects_normalized()
+        .into_iter()
+        .map(|project| {
+            serde_json::json!({
+                "dir": project.dir,
+                "dependencies": project.dependencies,
+                "devDependencies": project.dev_dependencies,
+                "optionalDependencies": project.optional_dependencies,
+            })
+        })
+        .collect();
+    let input = serde_json::json!({
+        "registry": &config.registry,
+        "namedRegistries": &request.named_registries,
+        "overrides": &request.overrides,
+        "projects": projects,
+        "lockfile": &request.lockfile,
+        "frozenLockfile": request.frozen_lockfile,
+        "preferFrozenLockfile": request.prefer_frozen_lockfile,
+        "ignoreManifestCheck": request.ignore_manifest_check,
+        "trustLockfile": request.trust_lockfile,
+        "minimumReleaseAge": request.minimum_release_age,
+        "minimumReleaseAgeExclude": &request.minimum_release_age_exclude,
+        "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
+        "trustPolicy": request.trust_policy,
+        "trustPolicyExclude": &request.trust_policy_exclude,
+        "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
+    });
+    let bytes = serde_json::to_vec(&input).ok()?;
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    Some(format!("{:x}", hasher.finalize()))
 }
 
 /// gzip level for the response body. Level 6 (the gzip default) shrinks
@@ -278,7 +385,7 @@ enum VerifyFailure {
 /// build-verifiers failure (e.g. an invalid exclude pattern) returns a
 /// ready-made 500.
 async fn verify_input_lockfile(
-    runtime: &InstallAccelerator,
+    runtime: &Resolver,
     config: &'static PacquetConfig,
     auth_headers: &Arc<AuthHeaders>,
     lockfile: &Lockfile,
@@ -357,3 +464,6 @@ fn json_error(status: StatusCode, message: &str) -> Response {
         .body(Body::from(body))
         .expect("static json error response is always valid")
 }
+
+#[cfg(test)]
+mod tests;

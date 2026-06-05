@@ -13,14 +13,14 @@ use std::{
 
 use dashmap::DashMap;
 use pacquet_config::{Config, NodeLinker};
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, check_lockfile_settings, satisfies_package_manifest};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manager::{Install, ResolvedPackages};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::SilentReporter;
 use pacquet_tarball::MemCache;
 
-use super::protocol::InstallRequest;
+use super::protocol::ResolveRequest;
 
 #[derive(Debug)]
 pub enum ResolveError {
@@ -60,7 +60,7 @@ impl From<std::io::Error> for ResolveError {
 pub async fn resolve(
     config: &'static Config,
     client: &Arc<ThrottledClient>,
-    request: &InstallRequest,
+    request: &ResolveRequest,
     auth_headers: &Arc<AuthHeaders>,
 ) -> Result<Lockfile, ResolveError> {
     let projects = request.projects_normalized();
@@ -173,7 +173,7 @@ pub async fn resolve(
         ignore_manifest_check: request.ignore_manifest_check,
         skip_runtimes: false,
         // The lockfile was already verified under the client's policy
-        // (in `handle_install`) before we get here, so the install path
+        // (in `handle_resolve`) before we get here, so the install path
         // must not re-verify it.
         trust_lockfile: true,
         update_checksums: false,
@@ -195,6 +195,71 @@ pub async fn resolve(
         .ok_or(ResolveError::NoLockfile)?;
 
     Ok(lockfile)
+}
+
+/// Return the caller's frozen input lockfile when pacquet's freshness
+/// checks prove the server's lockfile-only resolve would return it
+/// unchanged.
+pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) -> Option<Lockfile> {
+    if !request.frozen_lockfile || request.prefer_frozen_lockfile == Some(false) {
+        return None;
+    }
+    if request.overrides.as_ref().is_some_and(|value| match value {
+        serde_json::Value::Object(map) => !map.is_empty(),
+        serde_json::Value::Null => false,
+        _ => true,
+    }) {
+        return None;
+    }
+    if config.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
+        || config
+            .ignored_optional_dependencies
+            .as_ref()
+            .is_some_and(|patterns| !patterns.is_empty())
+        || config.inject_workspace_packages
+    {
+        return None;
+    }
+
+    let lockfile = request.lockfile.as_ref()?;
+    check_lockfile_settings(
+        lockfile,
+        None,
+        None,
+        None,
+        config.inject_workspace_packages,
+        config.peers_suffix_max_length,
+    )
+    .ok()?;
+
+    if request.ignore_manifest_check {
+        return Some(lockfile.clone());
+    }
+
+    let mut projects = request.projects_normalized();
+    if projects.len() != 1 {
+        return None;
+    }
+    let project = projects.pop()?;
+    if project.dir != "." && !project.dir.is_empty() {
+        return None;
+    }
+    let importer = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY)?;
+    let temp = tempfile::Builder::new().prefix("pnpr-frozen-").tempdir().ok()?;
+    let manifest_path = temp.path().join("package.json");
+    let manifest_json = serde_json::json!({
+        "name": "pnpr-resolve",
+        "version": "0.0.0",
+        "dependencies": project.dependencies,
+        "devDependencies": project.dev_dependencies,
+        "optionalDependencies": project.optional_dependencies,
+    });
+    std::fs::write(&manifest_path, serde_json::to_vec(&manifest_json).ok()?).ok()?;
+    let manifest = PackageManifest::from_path(manifest_path).ok()?;
+    satisfies_package_manifest(importer, &manifest, Lockfile::ROOT_IMPORTER_KEY, &|_: &str| false)
+        .ok()?;
+
+    Some(lockfile.clone())
 }
 
 /// Validate a client-supplied importer dir before joining it onto the
