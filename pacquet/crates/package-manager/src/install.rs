@@ -476,14 +476,14 @@ where
         // `KeepAll` keeps `install` / `add` on the fast path.
         if matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !frozen_lockfile
-            && let OptimisticRepeatInstallDecision::UpToDate = check_optimistic_repeat_install(
+            && check_optimistic_repeat_install(
                 &workspace_root,
                 config,
                 node_linker,
                 included,
                 &project_manifests,
                 workspace_manifest.is_some(),
-            )
+            ) == OptimisticRepeatInstallDecision::UpToDate
         {
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,

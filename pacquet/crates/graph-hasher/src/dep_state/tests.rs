@@ -214,7 +214,7 @@ fn transitively_requires_build_self_in_built_set() {
         },
     );
     let built: std::collections::HashSet<String> =
-        ["builder@1.0.0".to_string()].into_iter().collect();
+        std::iter::once("builder@1.0.0".to_string()).collect();
     let mut cache = HashMap::new();
     let mut parents = std::collections::HashSet::new();
     assert!(transitively_requires_build(
@@ -246,7 +246,7 @@ fn transitively_requires_build_walks_to_descendant_builder() {
         },
     );
     let built: std::collections::HashSet<String> =
-        ["builder@1.0.0".to_string()].into_iter().collect();
+        std::iter::once("builder@1.0.0".to_string()).collect();
     let mut cache = HashMap::new();
     let mut parents = std::collections::HashSet::new();
     assert!(transitively_requires_build(
@@ -276,7 +276,7 @@ fn transitively_requires_build_returns_false_for_unrelated_tree() {
         DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-l".to_string(), children: HashMap::new() },
     );
     let built: std::collections::HashSet<String> =
-        ["builder@9.9.9".to_string()].into_iter().collect();
+        std::iter::once("builder@9.9.9".to_string()).collect();
     let mut cache = HashMap::new();
     let mut parents = std::collections::HashSet::new();
     assert!(!transitively_requires_build(
@@ -378,7 +378,7 @@ fn transitively_requires_build_cycle_does_not_mask_sibling_builder() {
         },
     );
     let built: std::collections::HashSet<String> =
-        ["builder@1.0.0".to_string()].into_iter().collect();
+        std::iter::once("builder@1.0.0".to_string()).collect();
     let mut cache = HashMap::new();
     let mut parents = std::collections::HashSet::new();
     assert!(transitively_requires_build(

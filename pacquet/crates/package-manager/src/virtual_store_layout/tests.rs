@@ -234,7 +234,7 @@ fn slot_dir_engine_specific_when_snapshot_is_built() {
     let mut snapshots = HashMap::new();
     snapshots.insert(key.clone(), SnapshotEntry::default());
     let allowed: std::collections::HashSet<String> =
-        ["native-pkg".to_string()].into_iter().collect();
+        std::iter::once("native-pkg".to_string()).collect();
     let policy = crate::AllowBuildPolicy::new(allowed, std::collections::HashSet::new(), false);
     let darwin = VirtualStoreLayout::new(
         &config,

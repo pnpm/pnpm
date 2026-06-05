@@ -370,7 +370,7 @@ fn external_dependencies_are_stripped_from_the_result() {
     };
 
     let opts = HoistOpts {
-        external_dependencies: ["bit-managed".to_string()].into_iter().collect(),
+        external_dependencies: std::iter::once("bit-managed".to_string()).collect(),
         ..HoistOpts::default()
     };
     let result = hoist(&lockfile, &opts).expect("hoist should succeed");

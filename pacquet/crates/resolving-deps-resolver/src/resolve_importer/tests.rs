@@ -905,7 +905,7 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
     let mut catalogs = pacquet_catalogs_types::Catalogs::new();
     catalogs.insert(
         "default".to_string(),
-        [("foo".to_string(), "^1.0.0".to_string())].into_iter().collect(),
+        std::iter::once(("foo".to_string(), "^1.0.0".to_string())).collect(),
     );
 
     let opts = ResolveImporterOptions { catalogs, ..default_opts() };

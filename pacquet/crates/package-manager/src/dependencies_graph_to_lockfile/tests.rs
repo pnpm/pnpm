@@ -352,7 +352,7 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
         children: react_dom_children,
         peer_dependencies: react_dom_peers,
         transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: ["react".to_string()].into_iter().collect(),
+        resolved_peer_names: std::iter::once("react".to_string()).collect(),
         depth: 1,
         installable: true,
         is_pure: false,

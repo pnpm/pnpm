@@ -447,9 +447,10 @@ async fn authorize_upstream_package(
     // Classify before gating per user: a package the registry serves
     // anonymously is public — record it globally so no one probes it
     // again. Only a token-gated package takes the per-user path below.
-    if let UpstreamAccess::Authorized =
-        probe_upstream_access(&runtime.client, None, registry, name).await
-    {
+    if matches!(
+        probe_upstream_access(&runtime.client, None, registry, name).await,
+        UpstreamAccess::Authorized,
+    ) {
         if let Some(public) = runtime.public_packages.as_ref() {
             public.record(name);
         }

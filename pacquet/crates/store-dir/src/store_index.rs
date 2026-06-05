@@ -154,7 +154,7 @@ impl StoreIndexWriter {
                 let mut pending: HashMap<String, PackageFilesIndex> =
                     HashMap::with_capacity(batch.len());
                 for msg in batch.drain(..) {
-                    apply_write_msg(&mut index, &mut pending, msg);
+                    apply_write_msg(&index, &mut pending, msg);
                 }
                 if let Err(error) = index.set_many(pending.drain()) {
                     // Drop the batch and keep going. One failed flush
@@ -190,7 +190,7 @@ impl StoreIndexWriter {
 /// flushes — see the docs on
 /// [`WriteMsg::SideEffectsUpload`].
 fn apply_write_msg(
-    index: &mut StoreIndex,
+    index: &StoreIndex,
     pending: &mut HashMap<String, PackageFilesIndex>,
     msg: WriteMsg,
 ) {
@@ -224,7 +224,7 @@ fn apply_write_msg(
 /// read fails — both cases mean the caller should skip the
 /// side-effects mutation without disturbing `pending`.
 fn load_pending_row<'a>(
-    index: &mut StoreIndex,
+    index: &StoreIndex,
     pending: &'a mut HashMap<String, PackageFilesIndex>,
     key: &str,
 ) -> Option<&'a mut PackageFilesIndex> {
