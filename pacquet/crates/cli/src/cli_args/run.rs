@@ -5,6 +5,7 @@ use pacquet_config::Config;
 use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
 use serde_json::Value;
+use std::fmt::Write as _;
 use std::{
     collections::HashMap,
     env,
@@ -443,16 +444,14 @@ fn render_project_commands(manifest: &Value) -> String {
 
     let mut output = String::new();
     if !lifecycle.is_empty() {
-        output.push_str(&format!("Lifecycle scripts:\n{}", render_commands(&lifecycle)));
+        write!(output, "Lifecycle scripts:\n{}", render_commands(&lifecycle)).unwrap();
     }
     if !other.is_empty() {
         if !output.is_empty() {
             output.push_str("\n\n");
         }
-        output.push_str(&format!(
-            "Commands available via \"pnpm run\":\n{}",
-            render_commands(&other),
-        ));
+        write!(output, "Commands available via \"pnpm run\":\n{}", render_commands(&other))
+            .unwrap();
     }
     output
 }

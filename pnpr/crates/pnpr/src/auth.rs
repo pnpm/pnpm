@@ -34,6 +34,7 @@ use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use libsql_backend::LibsqlAuth;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
+use std::fmt::Write as _;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -764,7 +765,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 fn hex_encode(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
-        out.push_str(&format!("{byte:02x}"));
+        write!(out, "{byte:02x}").unwrap();
     }
     out
 }

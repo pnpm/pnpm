@@ -1,5 +1,6 @@
 use crate::{capabilities::FsReadHead, path_util::lexical_normalize};
 use std::{
+    fmt::Write as _,
     io,
     path::{Path, PathBuf},
 };
@@ -195,20 +196,22 @@ pub fn generate_sh_shim(
             // It always carries the leading `$basedir/` and quotes; never
             // just the program name on its own.
             let sh_long_prog = format!("\"$basedir/{prog}\"");
-            sh.push_str(&format!(
-                "if [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi\n",
-            ));
+            writeln!(
+                sh,
+                "if [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi"
+            )
+            .unwrap();
         }
         // No runtime detected, so exec the target directly. Upstream still
         // emits `exit $?` on this branch for parity with non-execve POSIX
         // shells.
         runtime_opt => {
             let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
-            sh.push_str(&format!("{quoted_target} {args} \"$@\"\nexit $?\n"));
+            writeln!(sh, "{quoted_target} {args} \"$@\"\nexit $?").unwrap();
         }
     }
 
-    sh.push_str(&format!("# {}\n", shim_target_marker(target_path)));
+    writeln!(sh, "# {}", shim_target_marker(target_path)).unwrap();
     sh
 }
 
@@ -237,14 +240,16 @@ pub fn generate_cmd_shim(
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
             let long_prog = format!("\"%~dp0\\{prog}.exe\"");
-            cmd.push_str(&format!(
-                "@IF EXIST {long_prog} (\r\n  {long_prog} {args} {quoted_target} %*\r\n) ELSE (\r\n  @SET PATHEXT=%PATHEXT:;.JS;=;%\r\n  {prog} {args} {quoted_target} %*\r\n)\r\n",
-            ));
+            writeln!(
+                cmd,
+                "@IF EXIST {long_prog} (\r\n  {long_prog} {args} {quoted_target} %*\r\n) ELSE (\r\n  @SET PATHEXT=%PATHEXT:;.JS;=;%\r\n  {prog} {args} {quoted_target} %*\r\n)\r"
+            )
+            .unwrap();
         }
         runtime_opt => {
             let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
             // No runtime detected, so exec the target directly.
-            cmd.push_str(&format!("@{quoted_target} {args} %*\r\n"));
+            writeln!(cmd, "@{quoted_target} {args} %*\r").unwrap();
         }
     }
 

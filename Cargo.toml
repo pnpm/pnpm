@@ -206,7 +206,6 @@ needless_pass_by_value                    = "allow"
 unused_async                              = "allow" # deferred: audit each async signature (trait/seam-required?) before enabling
 similar_names                             = "allow" # names ported verbatim from pnpm
 items_after_statements                    = "allow"
-format_push_string                        = "allow"
 needless_continue                         = "allow"
 many_single_char_names                    = "allow" # perfectionist's single_letter_* lints already cover this with finer per-position control
 large_stack_arrays                        = "allow"

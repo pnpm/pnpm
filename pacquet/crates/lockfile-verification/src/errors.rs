@@ -17,6 +17,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use std::fmt::Write as _;
 
 /// Upstream's `MAX_VIOLATIONS_TO_PRINT`. Keeps a poisoned lockfile
 /// from flooding the terminal with hundreds of rejection lines.
@@ -99,24 +100,28 @@ impl VerifyError {
         let mut breakdown = String::new();
         for violation in violations.iter().take(visible_count) {
             if mixed {
-                breakdown.push_str(&format!(
-                    "  {name}@{version} [{code}] {reason}\n",
+                writeln!(
+                    breakdown,
+                    "  {name}@{version} [{code}] {reason}",
                     name = violation.name,
                     version = violation.version,
                     code = violation.code,
                     reason = violation.reason,
-                ));
+                )
+                .unwrap();
             } else {
-                breakdown.push_str(&format!(
-                    "  {name}@{version} {reason}\n",
+                writeln!(
+                    breakdown,
+                    "  {name}@{version} {reason}",
                     name = violation.name,
                     version = violation.version,
                     reason = violation.reason,
-                ));
+                )
+                .unwrap();
             }
         }
         if omitted > 0 {
-            breakdown.push_str(&format!("  …and {omitted} more"));
+            write!(breakdown, "  …and {omitted} more").unwrap();
         } else if breakdown.ends_with('\n') {
             // Drop the final newline so the formatted error doesn't
             // carry trailing whitespace into log lines.

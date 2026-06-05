@@ -19,6 +19,8 @@
 //! other character that `encodeURIComponent` would touch is
 //! percent-encoded.
 
+use std::fmt::Write as _;
+
 /// Compose the metadata-fetch URL: `<registry-with-trailing-slash><encoded-name>`.
 #[must_use]
 pub fn to_registry_url(registry: &str, pkg_name: &str) -> String {
@@ -44,7 +46,7 @@ pub(crate) fn encode_pkg_name_path(pkg_name: &str) -> String {
         if is_uri_component_unreserved(byte) {
             out.push(byte as char);
         } else {
-            out.push_str(&format!("%{byte:02X}"));
+            write!(out, "%{byte:02X}").unwrap();
         }
     }
     out

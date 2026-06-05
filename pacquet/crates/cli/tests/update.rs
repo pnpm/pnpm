@@ -3,6 +3,7 @@ use command_extra::CommandExtra;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
+use std::fmt::Write as _;
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
 
@@ -53,7 +54,7 @@ fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
     }
     yaml.push_str("updateConfig:\n  ignoreDependencies:\n");
     for name in names {
-        yaml.push_str(&format!("    - \"{name}\"\n"));
+        writeln!(yaml, "    - \"{name}\"").unwrap();
     }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
@@ -422,7 +423,7 @@ fn set_strict_catalog(workspace: &Path, entries: &[(&str, &str)]) {
     }
     yaml.push_str("catalogMode: strict\ncatalog:\n");
     for (name, spec) in entries {
-        yaml.push_str(&format!("  \"{name}\": \"{spec}\"\n"));
+        writeln!(yaml, "  \"{name}\": \"{spec}\"").unwrap();
     }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }

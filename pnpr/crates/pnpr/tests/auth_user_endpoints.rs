@@ -12,6 +12,7 @@ use pnpr::{
     AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router, router_with_auth,
 };
 use serde_json::{Value, json};
+use std::fmt::Write as _;
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::PathBuf,
@@ -233,7 +234,7 @@ async fn uses_token(app: &axum::Router, raw_token: &str, candidate_key: &str) ->
     let digest = hasher.finalize();
     let mut hex = String::with_capacity(64);
     for byte in &digest {
-        hex.push_str(&format!("{byte:02x}"));
+        write!(hex, "{byte:02x}").unwrap();
     }
     let _ = app; // app is unused but kept for symmetry with the other helpers
     hex == candidate_key

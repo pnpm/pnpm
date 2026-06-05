@@ -14,6 +14,7 @@ use derive_more::{Display, Error};
 use indexmap::IndexSet;
 use miette::Diagnostic;
 use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry};
+use std::fmt::Write as _;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
@@ -549,7 +550,7 @@ pub fn percent_encode_path(text: &str) -> String {
                 // verbatim — pacquet's lockfile doesn't currently
                 // hand the wrapper non-ASCII paths.
                 if (other as u32) < 0x80 {
-                    out.push_str(&format!("%{:02X}", other as u32));
+                    write!(out, "%{:02X}", other as u32).unwrap();
                 } else {
                     out.push(other);
                 }

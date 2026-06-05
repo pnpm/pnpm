@@ -12,6 +12,7 @@ use os_display::Quotable;
 use pacquet_fs::file_mode::make_file_executable;
 use pacquet_registry_mock::pick_unused_port;
 use pipe_trait::Pipe;
+use std::fmt::Write as _;
 use std::{
     borrow::Cow,
     fmt,
@@ -713,7 +714,7 @@ where
         for (dst, src) in cleanup.restore {
             let src_path = dir.join(src).maybe_quote().to_string();
             let dst_path = dir.join(dst).maybe_quote().to_string();
-            command.push_str(&format!(" && cp {src_path} {dst_path}"));
+            write!(command, " && cp {src_path} {dst_path}").unwrap();
         }
     }
 

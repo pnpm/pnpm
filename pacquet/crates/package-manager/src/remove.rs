@@ -7,6 +7,7 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_tarball::MemCache;
+use std::fmt::Write as _;
 use std::{collections::HashSet, sync::Arc};
 
 /// This subroutine does everything `pacquet remove` is supposed to do.
@@ -207,7 +208,7 @@ fn cannot_remove_missing_deps(
     if available_dependencies.is_empty() {
         match target_dependencies_field {
             Some(field) => {
-                message.push_str(&format!("project has no '{}'", <&str>::from(field)));
+                write!(message, "project has no '{}'", <&str>::from(field)).unwrap();
             }
             None => message.push_str("project has no dependencies of any kind"),
         }
@@ -217,7 +218,7 @@ fn cannot_remove_missing_deps(
     let in_field = target_dependencies_field
         .map(|field| format!(" in '{}'", <&str>::from(field)))
         .unwrap_or_default();
-    message.push_str(&format!("no such {noun} found{in_field}"));
+    write!(message, "no such {noun} found{in_field}").unwrap();
     let hint = format!("Available dependencies: {}", available_dependencies.join(", "));
     RemoveValidationError::CannotRemoveMissingDeps { message, hint: Some(hint) }
 }
