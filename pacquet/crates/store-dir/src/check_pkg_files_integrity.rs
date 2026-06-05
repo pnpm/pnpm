@@ -448,7 +448,7 @@ fn verify_file_integrity(path: &Path, digest: &str, algo: &str) -> bool {
     };
     let mut reader = BufReader::with_capacity(64 * 1024, file);
     let mut hasher = Sha512::new();
-    let mut buf = [0u8; 64 * 1024];
+    let mut buf = vec![0u8; 64 * 1024];
     loop {
         match reader.read(&mut buf) {
             Ok(0) => break,
