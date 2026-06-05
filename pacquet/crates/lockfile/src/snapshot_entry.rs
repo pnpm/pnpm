@@ -50,6 +50,10 @@ pub struct SnapshotEntry {
     pub optional: bool,
 }
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if is called as f(&field)"
+)]
 fn is_false(value: &bool) -> bool {
     !*value
 }

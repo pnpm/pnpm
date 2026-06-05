@@ -1314,7 +1314,7 @@ impl From<FreshnessCheckError> for InstallError {
 /// [`pacquet_modules_yaml::NodeLinker`] enum used on disk. The two
 /// enums share the same variant set (`isolated`, `hoisted`, `pnp`),
 /// matching upstream's `nodeLinker` string.
-fn map_node_linker(linker: &NodeLinker) -> ModulesNodeLinker {
+fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
     match linker {
         NodeLinker::Isolated => ModulesNodeLinker::Isolated,
         NodeLinker::Hoisted => ModulesNodeLinker::Hoisted,
@@ -1346,7 +1346,7 @@ fn is_modules_yaml_consistent(
         return false;
     };
     modules.layout_version == Some(LayoutVersion)
-        && modules.node_linker == Some(map_node_linker(&node_linker))
+        && modules.node_linker == Some(map_node_linker(node_linker))
         && modules.included == included
         && modules.hoist_pattern == config.hoist_pattern
         && modules.public_hoist_pattern == config.public_hoist_pattern
@@ -1412,7 +1412,7 @@ fn build_modules_manifest(
         hoisted_locations: (!hoisted_locations.is_empty()).then_some(hoisted_locations),
         included,
         layout_version: Some(LayoutVersion),
-        node_linker: Some(map_node_linker(&node_linker)),
+        node_linker: Some(map_node_linker(node_linker)),
         // `${name}@${version}` per upstream. `CARGO_PKG_VERSION`
         // resolves at compile time to this crate's package version.
         package_manager: concat!("pacquet@", env!("CARGO_PKG_VERSION")).to_string(),
