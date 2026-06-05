@@ -1,7 +1,7 @@
 use super::{
     BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, LogFormat,
-    LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkFile, config_file_in, pattern_matches,
-    resolve_relative, resolve_uplink,
+    LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkFile, config_file_in,
+    pattern_matches, resolve_relative, resolve_uplink,
 };
 use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;

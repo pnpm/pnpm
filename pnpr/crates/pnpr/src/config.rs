@@ -9,6 +9,7 @@ use pacquet_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
 use std::{
+    fmt,
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
@@ -323,12 +324,33 @@ impl LogLevel {
 /// parse-time shape lives in `UplinkFile`; `resolve_uplink` turns
 /// one into the other. Verdaccio fields pnpr doesn't model yet
 /// (timeouts, agent options, `maxage`) are accepted and dropped.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct UplinkConfig {
     pub url: String,
     /// Auth + custom headers, fully resolved and ready to attach to
     /// every request pnpr makes to this uplink.
     pub headers: HeaderMap,
+}
+
+impl fmt::Debug for UplinkConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UplinkConfig")
+            .field("url", &self.url)
+            .field("headers", &RedactedHeaders(&self.headers))
+            .finish()
+    }
+}
+
+/// Wraps a [`HeaderMap`] so its `Debug` lists header names with values
+/// redacted. Uplink headers carry credentials (an `Authorization`, or
+/// an API key in a custom header), and those must never reach a log
+/// line, span, or diagnostic dump.
+pub(crate) struct RedactedHeaders<'a>(pub(crate) &'a HeaderMap);
+
+impl fmt::Debug for RedactedHeaders<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map().entries(self.0.keys().map(|name| (name.as_str(), "<redacted>"))).finish()
+    }
 }
 
 /// Disk shape of one `uplinks:` entry. Mirrors verdaccio's uplink
