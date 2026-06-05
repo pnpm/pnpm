@@ -123,11 +123,14 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   pnpmfile: string[]
   /**
    * Alternative install engine (today: pacquet) the deps-installer
-   * delegates the materialization phase to. Built in `installDeps`
-   * when `configDependencies.pacquet` is declared, threaded through
-   * here so the recursive workspace path picks it up too.
+   * delegates the install to. Built in `installDeps` when
+   * `configDependencies.pacquet` is declared, threaded through here so
+   * the recursive workspace path picks it up too.
    */
-  runPacquet?: () => Promise<void>
+  runPacquet?: {
+    supportsResolution: boolean
+    run: (opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>
+  }
 } & Partial<
   Pick<Config,
 | 'ci'

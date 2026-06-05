@@ -235,21 +235,30 @@ export interface StrictInstallOptions {
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
   /**
-   * Optional alternative install engine. When set, the frozen-install
-   * path invokes this callback instead of `headlessInstall`. The CLI
-   * layer constructs it (today: spawning the pacquet binary installed
-   * via `configDependencies` and forwarding pnpm's own CLI argv); the
-   * installer treats it as an opaque "do the install" hook so it
-   * doesn't need to know about pacquet's binary path, CLI surface, or
-   * any settings that only pacquet consumes.
+   * Optional alternative install engine. When set, the installer
+   * delegates the install to `run` instead of calling `headlessInstall`.
+   * The CLI layer constructs it (today: the pacquet binary installed via
+   * `configDependencies`, forwarding pnpm's own CLI argv); the installer
+   * treats it as an opaque "do the install" hook so it doesn't need to
+   * know about pacquet's binary path, CLI surface, or any settings that
+   * only pacquet consumes.
    *
-   * `filterResolvedProgress` tells the helper to drop the engine's
-   * own `pnpm:progress status:resolved` events because pnpm already
-   * emitted one per package during a preceding lockfileOnly resolve
-   * pass. The frozen-install path passes `false` (or nothing): no
-   * resolve pass ran, so the engine's events are the only source.
+   * `supportsResolution` is `true` when the engine can resolve
+   * dependencies itself (pacquet >= 0.11). When `false` the installer
+   * runs its own resolve pass first and the engine only materializes the
+   * written lockfile.
+   *
+   * `run`'s `filterResolvedProgress` tells the helper to drop the
+   * engine's own `pnpm:progress status:resolved` events because pnpm
+   * already emitted one per package during a preceding lockfileOnly
+   * resolve pass. `resolve` tells the engine to do the resolution
+   * itself (non-frozen install). The frozen/materialize paths leave
+   * both unset.
    */
-  runPacquet?: (opts?: { filterResolvedProgress?: boolean }) => Promise<void>
+  runPacquet?: {
+    supportsResolution: boolean
+    run: (opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>
+  }
   /**
    * If true, `mutateModules` does not emit the per-install `summary` log
    * event. Used by `pnpm add -g` when it runs multiple isolated installs

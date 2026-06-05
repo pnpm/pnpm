@@ -390,8 +390,17 @@ export async function mutateModules (
     !opts.fixLockfile &&
     !opts.dedupe &&
     !ctx.lockfileHadConflicts &&
-    ctx.existsNonEmptyWantedLockfile &&
-    (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)
+    (
+      // Frozen materialization: pacquet reads the existing lockfile and
+      // re-applies the resolver-policy gate as it walks it.
+      (ctx.existsNonEmptyWantedLockfile &&
+        (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)) ||
+      // Resolving install: pacquet (>= 0.11) re-resolves from the
+      // manifests itself — applying the policy during fresh resolution —
+      // so the existing lockfile entries verified here would just be
+      // discarded.
+      (opts.runPacquet.supportsResolution && opts.frozenLockfile !== true && opts.nodeLinker !== 'hoisted')
+    )
   let verifyLockfilePromise: Promise<void> | undefined
   if (!willDelegateToPacquet && !opts.trustLockfile) {
     const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
@@ -1046,7 +1055,7 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     if (opts.runPacquet != null) {
       try {
-        await opts.runPacquet()
+        await opts.runPacquet.run()
       } catch (err) {
         // Same reasoning as the verifyLockfileResolutions catch above: this
         // is the user-facing failure path, so detach the reporter listener
@@ -1922,6 +1931,28 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
 }
 
 /**
+ * The `InstallFunctionResult` for an install pacquet resolved and
+ * materialized end-to-end. pacquet wrote `pnpm-lock.yaml` and the
+ * `node_modules` tree itself and reports its own stats / ignored-builds
+ * via NDJSON, so there's nothing to recover here: the caller doesn't read
+ * `newLockfile` on this path, and `stats` / `ignoredBuilds` fall back to
+ * their no-op defaults (same as the frozen delegation). Manifests are
+ * returned unchanged — this path only runs for plain installs, which
+ * don't rewrite `package.json`.
+ */
+function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): InstallFunctionResult {
+  return {
+    newLockfile: ctx.wantedLockfile,
+    projects: projects.map((project) => ({
+      manifest: project.originalManifest ?? project.manifest,
+      rootDir: project.rootDir,
+    })),
+    depsRequiringBuild: [],
+    resolutionPolicyViolations: [],
+  }
+}
+
+/**
  * Run the pacquet binary if it's configured, otherwise run the JS
  * `headlessInstall`. Callers can hand off any code path that materializes
  * an already-resolved lockfile (workspace partial install, hoisted
@@ -1937,7 +1968,7 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
  * stats record and a no-op ignoredBuilds iteration).
  */
 async function materializeOrDelegate (
-  opts: { runPacquet?: (opts?: { filterResolvedProgress?: boolean }) => Promise<void> },
+  opts: { runPacquet?: { run: (opts?: { filterResolvedProgress?: boolean }) => Promise<void> } },
   runHeadlessInstall: () => Promise<{ stats: InstallationResultStats, ignoredBuilds: IgnoredBuilds | undefined }>
 ): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
   if (opts.runPacquet != null) {
@@ -1946,7 +1977,7 @@ async function materializeOrDelegate (
     // lockfileOnly resolve pass that emitted one
     // `pnpm:progress status:resolved` per package, so pacquet's
     // duplicate `resolved` events would double the reporter's count.
-    await opts.runPacquet({ filterResolvedProgress: true })
+    await opts.runPacquet.run({ filterResolvedProgress: true })
     return {}
   }
   return runHeadlessInstall()
@@ -2036,20 +2067,28 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ignoredBuilds,
       }
     }
-    // Isolated `nodeLinker` (the default) with a non-frozen install:
-    // pacquet doesn't ship a resolver yet, so split the install in two —
-    // ask `_installInContext` for a `lockfileOnly` resolve pass (writes
-    // `pnpm-lock.yaml`), then hand the freshly-written lockfile to
-    // pacquet for the fetch / import / link / build phases. The frozen
-    // branch is handled earlier in `tryFrozenInstall`; the hoisted
-    // branch above already runs the same resolve-then-materialize
-    // sequence (it had to even before pacquet existed). When no pacquet
-    // is configured this falls through to the full single-pass install.
+    // Isolated `nodeLinker` (the default) with a non-frozen install.
+    // The frozen branch is handled earlier in `tryFrozenInstall`; the
+    // hoisted branch above runs a resolve-then-materialize sequence.
     if (opts.runPacquet != null && !opts.lockfileOnly) {
+      // pacquet >= 0.11 resolves itself: hand it the whole install
+      // (resolve + fetch + import + link + build, writing the lockfile)
+      // in a single non-frozen pass. Only for plain installs — `add` /
+      // `update` / `remove` need pnpm to mutate the manifests and
+      // resolve the new specs first (pacquet's `install` reads
+      // package.json from disk, which pnpm hasn't rewritten yet).
+      if (opts.runPacquet.supportsResolution && !opts.frozenLockfile && allMutationsAreInstalls(projects)) {
+        await opts.runPacquet.run({ resolve: true })
+        return pacquetResolveResult(projects, ctx)
+      }
+      // Older pacquet can only materialize: split the install in two —
+      // ask `_installInContext` for a `lockfileOnly` resolve pass (writes
+      // `pnpm-lock.yaml`), then hand the freshly-written lockfile to
+      // pacquet for the fetch / import / link / build phases. The resolve
+      // pass emitted a `pnpm:progress status:resolved` per package; ask
+      // pacquet to drop its own duplicates.
       const result = await _installInContext(projects, ctx, { ...opts, lockfileOnly: true })
-      // The resolve pass above emitted a `pnpm:progress status:resolved`
-      // per package; ask pacquet to drop its own duplicates.
-      await opts.runPacquet({ filterResolvedProgress: true })
+      await opts.runPacquet.run({ filterResolvedProgress: true })
       return result
     }
     return await _installInContext(projects, ctx, opts)
