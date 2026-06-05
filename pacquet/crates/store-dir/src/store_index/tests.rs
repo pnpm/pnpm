@@ -1,11 +1,25 @@
 use super::{
     CafsFileInfo, GET_MANY_CHUNK, PackageFilesIndex, StoreIndex, git_hosted_store_index_key,
-    pick_store_index_key, store_index_key,
+    immutable_sqlite_uri, pick_store_index_key, store_index_key,
 };
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
+use std::path::Path;
 use tempfile::tempdir;
+
+#[test]
+fn immutable_uri_percent_encodes_sqlite_path_delimiters() {
+    // `/` stays literal; `?`, `#`, and `%` (the escape introducer) are encoded.
+    assert_eq!(
+        immutable_sqlite_uri(Path::new("/store/index.db")),
+        "file:/store/index.db?immutable=1",
+    );
+    assert_eq!(
+        immutable_sqlite_uri(Path::new("/a?b/c#d/100%/index.db")),
+        "file:/a%3fb/c%23d/100%25/index.db?immutable=1",
+    );
+}
 
 fn sample_index() -> PackageFilesIndex {
     let mut files = HashMap::new();
@@ -126,6 +140,24 @@ fn reopening_the_same_db_sees_prior_writes() {
     }
 
     let idx = StoreIndex::open(dir.path()).unwrap();
+    assert_eq!(idx.get(&key).unwrap().unwrap(), payload);
+}
+
+/// `?` is a legal filename byte on Unix but a SQLite URI delimiter, so a raw
+/// `file:{path}?immutable=1` would truncate the path here. (`?` is illegal in
+/// Windows filenames, so this case cannot arise there.)
+#[cfg(unix)]
+#[test]
+fn open_readonly_handles_a_store_path_containing_a_question_mark() {
+    let root = tempdir().unwrap();
+    let store_dir = root.path().join("weird?store");
+    std::fs::create_dir_all(&store_dir).unwrap();
+    let key = store_index_key("sha512-q", "q-pkg@1.0.0");
+    let payload = sample_index();
+
+    StoreIndex::open(&store_dir).unwrap().set(&key, &payload).unwrap();
+
+    let idx = StoreIndex::open_readonly(&store_dir).unwrap();
     assert_eq!(idx.get(&key).unwrap().unwrap(), payload);
 }
 

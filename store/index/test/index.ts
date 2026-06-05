@@ -96,3 +96,24 @@ testOnPosix('StoreIndex frozen mode reads a WAL db on a read-only directory and 
     fs.chmodSync(storeDir, 0o755)
   }
 })
+
+// `?` is a legal filename character on POSIX but a SQLite URI delimiter, so a
+// raw `file:${path}?immutable=1` would truncate the path here. (`?` is illegal
+// in Windows filenames, so this case cannot arise there.)
+testOnPosix('StoreIndex frozen mode opens under a store path containing a "?"', () => {
+  const storeDir = path.join(temporaryDirectory(), 'weird?store', 'v11')
+  const key = storeIndexKey('sha512-q', 'q-pkg@1.0.0')
+  const data = { algo: 'sha512', files: new Map([['index.js', { digest: 'q', size: 1, mode: 0o644 }]]) }
+
+  const seed = new StoreIndex(storeDir)
+  seed.set(key, data)
+  seed.close()
+
+  const idx = new StoreIndex(storeDir, { frozen: true })
+  try {
+    expect(idx.has(key)).toBe(true)
+    expect((idx.get(key) as typeof data).algo).toBe('sha512')
+  } finally {
+    idx.close()
+  }
+})

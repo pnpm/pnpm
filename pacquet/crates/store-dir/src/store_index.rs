@@ -450,7 +450,7 @@ impl StoreIndex {
     /// triggers a full re-download. 5 s matches the writer side.
     pub fn open_readonly(store_dir: &Path) -> Result<Self, StoreIndexError> {
         let db_path = store_dir.join("index.db");
-        let uri = format!("file:{}?immutable=1", db_path.to_string_lossy());
+        let uri = immutable_sqlite_uri(&db_path);
         let conn = Connection::open_with_flags(
             &uri,
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
@@ -881,6 +881,19 @@ pub struct SideEffectsDiff {
     pub added: Option<HashMap<String, CafsFileInfo>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted: Option<Vec<String>>,
+}
+
+/// Build the `file:…?immutable=1` URI used to open `index.db` read-only (see
+/// [`StoreIndex::open_readonly`] for why immutable). Only three characters are
+/// delimiters inside a SQLite URI path — `%` (the escape introducer), `#`
+/// (fragment), and `?` (query) — so percent-encode just those and leave the
+/// rest of the path literal (notably `/`). Without this, a store path
+/// containing `?` or `#` would truncate the path or inject a spurious query
+/// parameter. See <https://sqlite.org/uri.html>.
+fn immutable_sqlite_uri(db_path: &Path) -> String {
+    let encoded =
+        db_path.to_string_lossy().replace('%', "%25").replace('?', "%3f").replace('#', "%23");
+    format!("file:{encoded}?immutable=1")
 }
 
 #[cfg(test)]

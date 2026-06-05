@@ -48,6 +48,23 @@ function sleepSync (ms: number): void {
 }
 
 /**
+ * Build the `file:…?immutable=1` URI used to open `index.db` read-only (see the
+ * frozen-store rationale at the call site). Only three characters are
+ * delimiters inside a SQLite URI path — `%` (the escape introducer), `#`
+ * (fragment), and `?` (query) — so percent-encode just those and leave the rest
+ * of the path literal (notably `/`). Without this, a store path containing `?`
+ * or `#` would truncate the path or inject a spurious query parameter.
+ * See https://sqlite.org/uri.html.
+ */
+function immutableSqliteUri (dbPath: string): string {
+  const encodedPath = dbPath
+    .replace(/%/g, '%25')
+    .replace(/\?/g, '%3f')
+    .replace(/#/g, '%23')
+  return `file:${encodedPath}?immutable=1`
+}
+
+/**
  * Pack data for storage using msgpackr.
  * Use this when data will be packed in one thread and stored by another,
  * to ensure the same Packr instance is used for pack and unpack within each thread.
@@ -135,7 +152,7 @@ export class StoreIndex {
       // file cannot change, so it bypasses the WAL/shm machinery and reads the
       // file directly, creating no sidecars. The store is assumed complete; any
       // write is a programming error and the mutators below throw.
-      this.db = new DatabaseSync(`file:${dbPath}?immutable=1`)
+      this.db = new DatabaseSync(immutableSqliteUri(dbPath))
       this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
       this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
       this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
