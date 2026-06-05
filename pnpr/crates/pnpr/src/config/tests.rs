@@ -22,6 +22,7 @@ impl EnvVar for FakeEnv {
         match name {
             "NPM_TOKEN" => Some("default-env-token".to_string()),
             "CUSTOM_TOKEN" => Some("custom-env-token".to_string()),
+            "EMPTY_TOKEN" => Some(String::new()),
             _ => None,
         }
     }
@@ -127,6 +128,30 @@ fn uplink_auth_without_resolvable_token_is_a_config_error() {
     };
     let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
         .expect_err("missing token must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn uplink_auth_with_empty_literal_token_is_a_config_error() {
+    let auth = UplinkAuthFile {
+        r#type: UplinkAuthType::Bearer,
+        token: Some(String::new()),
+        token_env: None,
+    };
+    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
+        .expect_err("an empty token must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn uplink_auth_with_empty_env_token_is_a_config_error() {
+    let auth = UplinkAuthFile {
+        r#type: UplinkAuthType::Bearer,
+        token: None,
+        token_env: Some(TokenEnv::Named("EMPTY_TOKEN".to_string())),
+    };
+    let err = resolve_uplink::<FakeEnv>("npmjs", uplink_file(Some(auth), IndexMap::new()))
+        .expect_err("an empty env token must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 

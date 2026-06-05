@@ -465,10 +465,14 @@ fn resolve_uplink<Sys: EnvVar>(
 /// `token` wins; otherwise read the env var named by `token_env`.
 fn resolve_uplink_token<Sys: EnvVar>(auth: &UplinkAuthFile) -> Option<String> {
     if let Some(token) = &auth.token {
-        return Some(token.clone());
+        return non_empty_token(token);
     }
     let var_name = auth.token_env.as_ref()?.var_name()?;
-    Sys::var(var_name)
+    Sys::var(var_name).and_then(|token| non_empty_token(&token))
+}
+
+fn non_empty_token(token: &str) -> Option<String> {
+    (!token.trim().is_empty()).then(|| token.to_string())
 }
 
 /// Per-package routing and access rules. `access` / `publish` are
