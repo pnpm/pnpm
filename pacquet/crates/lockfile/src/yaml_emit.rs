@@ -342,7 +342,7 @@ fn write_scalar(string: &str, level: usize, single_line: bool, inblock: bool) ->
             format!(
                 "|{}{}",
                 block_header(string),
-                drop_ending_newline(&indent_string(string, indent))
+                drop_ending_newline(&indent_string(string, indent)),
             )
         }
     }
@@ -397,27 +397,27 @@ const CHAR_LEFT_CURLY_BRACKET: u32 = 0x7B; // {
 const CHAR_RIGHT_CURLY_BRACKET: u32 = 0x7D; // }
 const CHAR_BOM: u32 = 0xFEFF;
 
-fn is_whitespace(c: u32) -> bool {
-    c == CHAR_SPACE || c == CHAR_TAB
+fn is_whitespace(code: u32) -> bool {
+    code == CHAR_SPACE || code == CHAR_TAB
 }
 
-fn is_printable(c: u32) -> bool {
-    (0x00020..=0x00007E).contains(&c)
-        || ((0x000A1..=0x00D7FF).contains(&c) && c != 0x2028 && c != 0x2029)
-        || ((0x0E000..=0x00FFFD).contains(&c) && c != CHAR_BOM)
-        || (0x10000..=0x10FFFF).contains(&c)
+fn is_printable(code: u32) -> bool {
+    (0x00020..=0x00007E).contains(&code)
+        || ((0x000A1..=0x00D7FF).contains(&code) && code != 0x2028 && code != 0x2029)
+        || ((0x0E000..=0x00FFFD).contains(&code) && code != CHAR_BOM)
+        || (0x10000..=0x10FFFF).contains(&code)
 }
 
-fn is_ns_char_or_whitespace(c: u32) -> bool {
-    is_printable(c) && c != CHAR_BOM && c != CHAR_CARRIAGE_RETURN && c != CHAR_LINE_FEED
+fn is_ns_char_or_whitespace(code: u32) -> bool {
+    is_printable(code) && code != CHAR_BOM && code != CHAR_CARRIAGE_RETURN && code != CHAR_LINE_FEED
 }
 
-fn is_plain_safe_first(c: u32) -> bool {
-    is_printable(c)
-        && c != CHAR_BOM
-        && !is_whitespace(c)
+fn is_plain_safe_first(code: u32) -> bool {
+    is_printable(code)
+        && code != CHAR_BOM
+        && !is_whitespace(code)
         && !matches!(
-            c,
+            code,
             0x2D | // -
             0x3F | // ?
             CHAR_COLON
@@ -437,39 +437,40 @@ fn is_plain_safe_first(c: u32) -> bool {
             0x22 | // "
             0x25 | // %
             0x40 | // @
-            0x60 // `
+            0x60, // `
         )
 }
 
-fn is_plain_safe_last(c: u32) -> bool {
-    !is_whitespace(c) && c != CHAR_COLON
+fn is_plain_safe_last(code: u32) -> bool {
+    !is_whitespace(code) && code != CHAR_COLON
 }
 
-fn is_plain_safe(c: u32, prev: Option<u32>, inblock: bool) -> bool {
-    let c_is_ns_or_ws = is_ns_char_or_whitespace(c);
-    let c_is_ns = c_is_ns_or_ws && !is_whitespace(c);
+fn is_plain_safe(code: u32, prev: Option<u32>, inblock: bool) -> bool {
+    let code_is_ns_or_ws = is_ns_char_or_whitespace(code);
+    let code_is_ns = code_is_ns_or_ws && !is_whitespace(code);
     let base = if inblock {
-        c_is_ns_or_ws
+        code_is_ns_or_ws
     } else {
-        c_is_ns_or_ws
-            && c != CHAR_COMMA
-            && c != CHAR_LEFT_SQUARE_BRACKET
-            && c != CHAR_RIGHT_SQUARE_BRACKET
-            && c != CHAR_LEFT_CURLY_BRACKET
-            && c != CHAR_RIGHT_CURLY_BRACKET
+        code_is_ns_or_ws
+            && code != CHAR_COMMA
+            && code != CHAR_LEFT_SQUARE_BRACKET
+            && code != CHAR_RIGHT_SQUARE_BRACKET
+            && code != CHAR_LEFT_CURLY_BRACKET
+            && code != CHAR_RIGHT_CURLY_BRACKET
     };
     let prev_is_colon = prev == Some(CHAR_COLON);
-    let prev_is_ns = prev.is_some_and(|p| is_ns_char_or_whitespace(p) && !is_whitespace(p));
+    let prev_is_ns =
+        prev.is_some_and(|prev| is_ns_char_or_whitespace(prev) && !is_whitespace(prev));
     // change to true on '[^ ]#'
-    if prev_is_ns && c == CHAR_SHARP {
+    if prev_is_ns && code == CHAR_SHARP {
         return true;
     }
     // change to true on ':[^ ]'
-    if prev_is_colon && c_is_ns {
+    if prev_is_colon && code_is_ns {
         return true;
     }
     // ns-plain-char: a non-`#` base character that isn't the `: ` sequence.
-    base && c != CHAR_SHARP && (!prev_is_colon || c_is_ns)
+    base && code != CHAR_SHARP && (!prev_is_colon || code_is_ns)
 }
 
 /// Mirrors the fork's `escapeString` (with `escapeSeq` table and hex fallback).
@@ -490,21 +491,21 @@ fn escape_string(string: &str) -> String {
 
 fn escape_sequence(code: u32) -> Option<&'static str> {
     Some(match code {
-        0x00 => "\\0",
-        0x07 => "\\a",
-        0x08 => "\\b",
-        0x09 => "\\t",
-        0x0A => "\\n",
-        0x0B => "\\v",
-        0x0C => "\\f",
-        0x0D => "\\r",
-        0x1B => "\\e",
-        0x22 => "\\\"",
-        0x5C => "\\\\",
-        0x85 => "\\N",
-        0xA0 => "\\_",
-        0x2028 => "\\L",
-        0x2029 => "\\P",
+        0x00 => r"\0",
+        0x07 => r"\a",
+        0x08 => r"\b",
+        0x09 => r"\t",
+        0x0A => r"\n",
+        0x0B => r"\v",
+        0x0C => r"\f",
+        0x0D => r"\r",
+        0x1B => r"\e",
+        0x22 => r#"\""#,
+        0x5C => r"\\",
+        0x85 => r"\N",
+        0xA0 => r"\_",
+        0x2028 => r"\L",
+        0x2029 => r"\P",
         _ => return None,
     })
 }
@@ -617,16 +618,16 @@ fn resolves_int(string: &str) -> bool {
         }
         index += 1;
         match bytes[index] {
-            b'b' => return digits_match(&bytes[index + 1..], |c| matches!(c, b'0' | b'1')),
-            b'x' => return digits_match(&bytes[index + 1..], |c| c.is_ascii_hexdigit()),
-            b'o' => return digits_match(&bytes[index + 1..], |c| matches!(c, b'0'..=b'7')),
+            b'b' => return digits_match(&bytes[index + 1..], |byte| matches!(byte, b'0' | b'1')),
+            b'x' => return digits_match(&bytes[index + 1..], |byte| byte.is_ascii_hexdigit()),
+            b'o' => return digits_match(&bytes[index + 1..], |byte| matches!(byte, b'0'..=b'7')),
             _ => {}
         }
     }
     if bytes[index] == b'_' {
         return false;
     }
-    digits_match(&bytes[index..], |c| c.is_ascii_digit())
+    digits_match(&bytes[index..], |byte| byte.is_ascii_digit())
 }
 
 /// A run of `_`-separated digits accepted by `predicate`, with at least one
@@ -672,20 +673,21 @@ fn float_matches(string: &str) -> bool {
         }
         let (mantissa, exponent) = split_exponent(after_dot);
         return !mantissa.is_empty()
-            && mantissa.bytes().all(|b| b.is_ascii_digit() || b == b'_')
+            && mantissa.bytes().all(|byte| byte.is_ascii_digit() || byte == b'_')
             && exponent_ok(exponent);
     }
     let mut cursor = body;
     let first = cursor.as_bytes().first().copied();
-    if !first.is_some_and(|b| b.is_ascii_digit()) {
+    if !first.is_some_and(|byte| byte.is_ascii_digit()) {
         return false;
     }
     // [0-9][0-9_]*
-    let int_len = cursor.bytes().take_while(|b| b.is_ascii_digit() || *b == b'_').count();
+    let int_len = cursor.bytes().take_while(|byte| byte.is_ascii_digit() || *byte == b'_').count();
     cursor = &cursor[int_len..];
     // (\.[0-9_]*)?
     if let Some(rest) = cursor.strip_prefix('.') {
-        let frac_len = rest.bytes().take_while(|b| b.is_ascii_digit() || *b == b'_').count();
+        let frac_len =
+            rest.bytes().take_while(|byte| byte.is_ascii_digit() || *byte == b'_').count();
         cursor = &rest[frac_len..];
     }
     // ([eE][-+]?[0-9]+)? — and nothing left over.
@@ -716,7 +718,7 @@ fn exponent_consumes_all(tail: &str) -> bool {
         return false;
     };
     let rest = rest.strip_prefix(['-', '+']).unwrap_or(rest);
-    !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit())
+    !rest.is_empty() && rest.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// Port of `type/timestamp.js`'s `resolveYamlTimestamp` (date and full forms).
@@ -736,187 +738,92 @@ fn matches_date(string: &str) -> bool {
 
 fn matches_timestamp(string: &str) -> bool {
     let bytes = string.as_bytes();
-    let mut i = 0;
-    let take_digits = |bytes: &[u8], i: &mut usize, min: usize, max: usize| -> bool {
-        let start = *i;
-        while *i < bytes.len() && *i - start < max && bytes[*i].is_ascii_digit() {
-            *i += 1;
+    let mut index = 0;
+    let take_digits = |bytes: &[u8], index: &mut usize, min: usize, max: usize| -> bool {
+        let start = *index;
+        while *index < bytes.len() && *index - start < max && bytes[*index].is_ascii_digit() {
+            *index += 1;
         }
-        *i - start >= min
+        *index - start >= min
     };
-    if !take_digits(bytes, &mut i, 4, 4) {
+    if !take_digits(bytes, &mut index, 4, 4) {
         return false;
     }
-    if bytes.get(i) != Some(&b'-') {
+    if bytes.get(index) != Some(&b'-') {
         return false;
     }
-    i += 1;
-    if !take_digits(bytes, &mut i, 1, 2) {
+    index += 1;
+    if !take_digits(bytes, &mut index, 1, 2) {
         return false;
     }
-    if bytes.get(i) != Some(&b'-') {
+    if bytes.get(index) != Some(&b'-') {
         return false;
     }
-    i += 1;
-    if !take_digits(bytes, &mut i, 1, 2) {
+    index += 1;
+    if !take_digits(bytes, &mut index, 1, 2) {
         return false;
     }
     // (?:[Tt]|[ \t]+)
-    match bytes.get(i) {
-        Some(b'T' | b't') => i += 1,
+    match bytes.get(index) {
+        Some(b'T' | b't') => index += 1,
         Some(b' ' | b'\t') => {
-            while matches!(bytes.get(i), Some(b' ' | b'\t')) {
-                i += 1;
+            while matches!(bytes.get(index), Some(b' ' | b'\t')) {
+                index += 1;
             }
         }
         _ => return false,
     }
-    if !take_digits(bytes, &mut i, 1, 2) {
+    if !take_digits(bytes, &mut index, 1, 2) {
         return false;
     }
-    if bytes.get(i) != Some(&b':') {
+    if bytes.get(index) != Some(&b':') {
         return false;
     }
-    i += 1;
-    if !take_digits(bytes, &mut i, 2, 2) {
+    index += 1;
+    if !take_digits(bytes, &mut index, 2, 2) {
         return false;
     }
-    if bytes.get(i) != Some(&b':') {
+    if bytes.get(index) != Some(&b':') {
         return false;
     }
-    i += 1;
-    if !take_digits(bytes, &mut i, 2, 2) {
+    index += 1;
+    if !take_digits(bytes, &mut index, 2, 2) {
         return false;
     }
     // (?:\.([0-9]*))?
-    if bytes.get(i) == Some(&b'.') {
-        i += 1;
-        while matches!(bytes.get(i), Some(b) if b.is_ascii_digit()) {
-            i += 1;
+    if bytes.get(index) == Some(&b'.') {
+        index += 1;
+        while matches!(bytes.get(index), Some(byte) if byte.is_ascii_digit()) {
+            index += 1;
         }
     }
     // (?:[ \t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?
-    while matches!(bytes.get(i), Some(b' ' | b'\t')) {
-        i += 1;
+    while matches!(bytes.get(index), Some(b' ' | b'\t')) {
+        index += 1;
     }
-    if i == bytes.len() {
+    if index == bytes.len() {
         return true;
     }
-    match bytes.get(i) {
+    match bytes.get(index) {
         Some(b'Z') => {
-            i += 1;
+            index += 1;
         }
         Some(b'-' | b'+') => {
-            i += 1;
-            if !take_digits(bytes, &mut i, 1, 2) {
+            index += 1;
+            if !take_digits(bytes, &mut index, 1, 2) {
                 return false;
             }
-            if bytes.get(i) == Some(&b':') {
-                i += 1;
-                if !take_digits(bytes, &mut i, 2, 2) {
+            if bytes.get(index) == Some(&b':') {
+                index += 1;
+                if !take_digits(bytes, &mut index, 2, 2) {
                     return false;
                 }
             }
         }
         _ => return false,
     }
-    i == bytes.len()
+    index == bytes.len()
 }
 
 #[cfg(test)]
-mod tests {
-    use super::to_string;
-    use serde_json::json;
-
-    #[test]
-    fn version_like_floats_are_single_quoted() {
-        // `9.0` resolves as a YAML float, so it must be quoted; `11.5.2` and
-        // `1.0.0` are plain strings.
-        let yaml = to_string(&json!({ "a": "9.0", "b": "11.5.2", "c": "1.0.0" })).unwrap();
-        // Top-level entries are blank-line separated.
-        assert_eq!(yaml, "a: '9.0'\n\nb: 11.5.2\n\nc: 1.0.0\n");
-    }
-
-    #[test]
-    fn leading_indicator_and_at_force_single_quotes() {
-        let yaml = to_string(&json!({
-            "node": ">=10",
-            "name": "@scope/pkg@1.0.0",
-        }))
-        .unwrap();
-        // Keys are sorted (`name` before `node`).
-        assert_eq!(yaml, "name: '@scope/pkg@1.0.0'\n\nnode: '>=10'\n");
-    }
-
-    #[test]
-    fn booleans_and_numbers_render_plain() {
-        let yaml = to_string(&json!({ "hasBin": true, "max": 1000 })).unwrap();
-        assert_eq!(yaml, "hasBin: true\n\nmax: 1000\n");
-    }
-
-    #[test]
-    fn ambiguous_words_are_quoted() {
-        let yaml = to_string(&json!({ "a": "true", "b": "null", "c": "yes", "d": "no" })).unwrap();
-        // `true`/`null` are reserved words and get quoted; `yes`/`no` are plain
-        // in the core schema (no legacy-bool resolving), matching pnpm's
-        // noCompatMode dumper.
-        assert_eq!(yaml, "a: 'true'\n\nb: 'null'\n\nc: yes\n\nd: no\n");
-    }
-
-    #[test]
-    fn blank_lines_between_top_level_and_named_section_entries() {
-        let yaml = to_string(&json!({
-            "lockfileVersion": "9.0",
-            "packages": {
-                "a@1.0.0": { "x": 1 },
-                "b@2.0.0": { "y": 2 },
-            },
-        }))
-        .unwrap();
-        assert_eq!(
-            yaml,
-            "lockfileVersion: '9.0'\n\npackages:\n\n  a@1.0.0:\n    x: 1\n\n  b@2.0.0:\n    y: 2\n"
-        );
-    }
-
-    #[test]
-    fn single_line_keys_render_flow() {
-        let yaml = to_string(&json!({
-            "resolution": { "integrity": "sha512-abc" },
-            "engines": { "node": ">=10" },
-            "cpu": ["x64"],
-            "os": ["darwin", "linux"],
-        }))
-        .unwrap();
-        // Keys are sorted (cpu, engines, os, resolution); array elements keep
-        // their order.
-        assert_eq!(
-            yaml,
-            "cpu: [x64]\n\nengines: {node: '>=10'}\n\nos: [darwin, linux]\n\nresolution: {integrity: sha512-abc}\n"
-        );
-    }
-
-    #[test]
-    fn variations_resolution_renders_block_not_flow() {
-        // `resolution` is single-line except when its `type` is variations/binary.
-        let yaml = to_string(&json!({
-            "resolution": { "type": "variations", "variants": ["a"] },
-        }))
-        .unwrap();
-        assert_eq!(yaml, "resolution:\n  type: variations\n  variants:\n    - a\n");
-    }
-
-    #[test]
-    fn nan_resolves_as_float() {
-        assert!(super::resolves_float(".nan"));
-        assert!(super::resolves_float("-.inf"));
-        assert!(super::resolves_float("3.14"));
-        assert!(!super::resolves_float("3.14.15"));
-    }
-
-    #[test]
-    fn timestamp_strings_are_quoted() {
-        let yaml = to_string(&json!({ "t": "2021-01-01" })).unwrap();
-        assert_eq!(yaml, "t: '2021-01-01'\n");
-    }
-}
+mod tests;
