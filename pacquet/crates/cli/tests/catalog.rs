@@ -90,7 +90,7 @@ fn add_strict_catalogs_a_new_dependency() {
         "lockfile missing the resolved catalog entry:\n{lockfile}",
     );
     assert!(
-        lockfile.contains(r#"specifier: "catalog:""#),
+        lockfile.contains(r"specifier: 'catalog:'"),
         "importer specifier not catalog:\n{lockfile}",
     );
 

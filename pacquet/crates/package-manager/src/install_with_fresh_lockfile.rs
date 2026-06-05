@@ -1332,6 +1332,24 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // adapter shape); `hoisted_locations` carries the walker's
         // placements so `.modules.yaml` round-trips them.
         let (hoisted_dependencies, hoisted_locations) = if is_hoisted {
+            // The hoisted walker runs the installability check, which
+            // consults `engines.node`. Detect the host node version (as the
+            // frozen path does) whenever a package carries an installability
+            // constraint, so the engine check resolves against a real version
+            // instead of erroring on an empty one. Skip the `node --version`
+            // probe entirely when nothing constrains it.
+            let host_node = if built_lockfile
+                .packages
+                .as_ref()
+                .is_some_and(crate::any_installability_constraint)
+            {
+                tokio::task::spawn_blocking(crate::InstallabilityHost::detect)
+                    .await
+                    .ok()
+                    .map(|host| (host.node_detected, host.node_version))
+            } else {
+                None
+            };
             let output = crate::install_frozen_lockfile::run_hoisted_linker::<Reporter>(
                 crate::install_frozen_lockfile::HoistedLinkerInputs {
                     config,
@@ -1345,11 +1363,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     dependency_groups: &dependency_groups,
                     walker_lockfile_dir: lockfile_dir,
                     symlink_workspace_root: symlink_root,
-                    // No installability host was probed on the fresh
-                    // path (the resolver's `PackageVersion` carries no
-                    // engine/cpu/os/libc constraints), so the walker
-                    // falls back to its default host triple.
-                    host_node: None,
+                    host_node: host_node.as_ref(),
                     supported_architectures,
                     cas_paths_by_pkg_id,
                     logged_methods,

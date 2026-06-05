@@ -70,7 +70,15 @@ fn package_integrity(lockfile: &str, package_key: &str) -> Option<String> {
             !trimmed.starts_with("snapshots:")
                 && (!trimmed.ends_with(':') || (line.len() - trimmed.len()) > header_indent)
         })
-        .find_map(|line| line.trim().strip_prefix("integrity:").map(|rest| rest.trim().to_string()))
+        // `integrity:` appears either on its own line (block style) or inside
+        // the single-line `resolution: {integrity: ..., tarball: ...}` flow map,
+        // so extract the value up to the next `,` / `}` / end-of-line.
+        .find_map(|line| {
+            let start = line.find("integrity:")? + "integrity:".len();
+            let rest = line[start..].trim_start();
+            let end = rest.find([',', '}']).unwrap_or(rest.len());
+            Some(rest[..end].trim().to_string())
+        })
 }
 
 /// A remote-tarball dependency keeps its integrity when an unrelated
