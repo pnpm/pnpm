@@ -1,12 +1,13 @@
 use crate::{
+    config::RedactedHeaders,
     error::{RegistryError, Result},
     package_name::PackageName,
 };
 use chrono::{DateTime, Duration, Timelike, Utc};
 use pacquet_network::ThrottledClient;
-use reqwest::StatusCode;
+use reqwest::{StatusCode, header::HeaderMap};
 use serde_json::Value;
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 /// Wraps a shared [`ThrottledClient`] (so the registry inherits pnpm's
 /// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, hickory DNS,
@@ -14,10 +15,23 @@ use std::sync::Arc;
 /// routing if it's ever wired in later) and adds the small bit of
 /// glue specific to a proxy: building the upstream URL and fishing
 /// the packument or tarball response out of it.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Upstream {
     client: Arc<ThrottledClient>,
     base: String,
+    /// Resolved per-uplink request headers (auth + custom) attached to
+    /// every fetch. Empty for an uplink with no `auth:`/`headers:`.
+    headers: HeaderMap,
+}
+
+impl fmt::Debug for Upstream {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Upstream")
+            .field("client", &self.client)
+            .field("base", &self.base)
+            .field("headers", &RedactedHeaders(&self.headers))
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -29,8 +43,8 @@ pub enum FetchOutcome<Payload> {
 }
 
 impl Upstream {
-    pub fn new(base: String) -> Self {
-        Self { client: Arc::new(ThrottledClient::new_for_installs()), base }
+    pub fn new(base: String, headers: HeaderMap) -> Self {
+        Self { client: Arc::new(ThrottledClient::new_for_installs()), base, headers }
     }
 
     pub async fn fetch_packument(&self, name: &PackageName) -> Result<FetchOutcome<Vec<u8>>> {
@@ -51,6 +65,7 @@ impl Upstream {
         let client = self.client.acquire_for_url(&url).await;
         let response = client
             .get(&url)
+            .headers(self.headers.clone())
             .send()
             .await
             .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
@@ -65,6 +80,7 @@ impl Upstream {
         let client = self.client.acquire_for_url(url).await;
         let response = client
             .get(url)
+            .headers(self.headers.clone())
             .send()
             .await
             .map_err(|source| RegistryError::Upstream { url: url.to_string(), source })?;

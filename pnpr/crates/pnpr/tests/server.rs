@@ -78,6 +78,33 @@ async fn packument_is_proxied_cached_and_rewritten() {
 }
 
 #[tokio::test]
+async fn uplink_auth_and_custom_headers_are_forwarded_upstream() {
+    let mut upstream = mockito::Server::new_async().await;
+    // The mock only matches when both headers are present, so a passing
+    // request proves the resolved per-uplink headers reached upstream.
+    let mock = upstream
+        .mock("GET", "/foo")
+        .match_header("authorization", "Bearer secret-token")
+        .match_header("x-org", "acme")
+        .with_status(200)
+        .with_body(json!({ "name": "foo", "versions": {} }).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let uplink = config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink");
+    uplink.headers.insert("authorization", "Bearer secret-token".parse().unwrap());
+    uplink.headers.insert("x-org", "acme".parse().unwrap());
+    let app = router(config);
+
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn scoped_packument_is_served() {
     let mut upstream = mockito::Server::new_async().await;
     let packument = json!({ "name": "@types/node", "versions": {} });
