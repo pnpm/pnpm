@@ -185,6 +185,13 @@ export interface HeadlessOptions {
   supportedArchitectures?: SupportedArchitectures
   hoistWorkspacePackages?: boolean
   modulesFile?: Modules | null
+  /**
+   * Awaited right before dependency lifecycle scripts run. Lets the caller
+   * overlap lockfile verification with fetching and linking while still
+   * guaranteeing no dependency script executes on an unverified lockfile:
+   * the returned promise rejects when verification failed.
+   */
+  verifyLockfile?: () => Promise<void>
 }
 
 export interface InstallationResultStats {
@@ -573,6 +580,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
       }
     }
+    // Dependency lifecycle scripts must not run on an unverified lockfile.
+    await opts.verifyLockfile?.()
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       allowBuild,
       childConcurrency: opts.childConcurrency,

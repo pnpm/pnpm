@@ -1,7 +1,10 @@
+import fs from 'node:fs'
+
 import { expect, test } from '@jest/globals'
-import { install } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
+import { rimrafSync } from '@zkochan/rimraf'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -52,4 +55,28 @@ test('install skips lockfile verification when trustLockfile is true even if a v
       })
     )
   ).resolves.toBeDefined()
+})
+
+test('dependency lifecycle scripts do not run when lockfile verification fails', async () => {
+  prepareEmpty()
+
+  const pkgName = '@pnpm.e2e/pre-and-postinstall-scripts-example'
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    [`${pkgName}@1.0.0`],
+    testDefaults({ fastUnpack: false, allowBuilds: { [pkgName]: true } })
+  )
+  rimrafSync('node_modules')
+
+  await expect(
+    install(manifest, testDefaults({
+      fastUnpack: false,
+      frozenLockfile: true,
+      allowBuilds: { [pkgName]: true },
+      resolutionVerifiers: [rejectingVerifier],
+    }))
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_TEST_REJECT' })
+
+  // The postinstall script is what writes this file; its absence proves the
+  // build phase was gated behind the (failed) verification.
+  expect(fs.existsSync(`node_modules/${pkgName}/generated-by-postinstall.js`)).toBeFalsy()
 })

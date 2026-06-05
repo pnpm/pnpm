@@ -359,9 +359,17 @@ export async function mutateModules (
   // attaching their own verifiers). The threat model is a lockfile that
   // someone else resolved — committed to the repo, restored from a CI
   // cache, etc. — bypassing the local resolver's policy filters; the local
-  // resolver's own filters already cover fresh resolution. We run this
-  // exactly once, right after the lockfile is loaded from disk, before any
-  // path branches.
+  // resolver's own filters already cover fresh resolution.
+  //
+  // The verification is kicked off here, right after the lockfile is loaded,
+  // but not awaited inline — it would otherwise block every later install
+  // stage on per-entry registry round trips. Its synchronous prologue (cache
+  // lookup, lockfile hashing, candidate collection) runs now against the
+  // pristine lockfile, so the async fan-out reads a stable snapshot even
+  // while the install mutates `ctx.wantedLockfile` concurrently. The verdict
+  // is reconciled with the install in `settleInstall`: a failure aborts the
+  // install even mid-flight, and an install that finishes first is held back
+  // until the verdict arrives.
   //
   // Skipped when we already know pacquet will run the install: pacquet's
   // frozen-install path applies the same resolver-policy gate (port of
@@ -384,6 +392,7 @@ export async function mutateModules (
     !ctx.lockfileHadConflicts &&
     ctx.existsNonEmptyWantedLockfile &&
     (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)
+  let verifyLockfilePromise: Promise<void> | undefined
   if (!willDelegateToPacquet && !opts.trustLockfile) {
     const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
     const wantedLockfilePath = cacheActive
@@ -392,20 +401,22 @@ export async function mutateModules (
         mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
       }))
       : undefined
-    try {
-      await verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
-        cacheDir: opts.cacheDir,
-        lockfilePath: wantedLockfilePath,
-      })
-    } catch (err) {
-      // verifyLockfileResolutions is the one throw site in this function
-      // that's part of normal user-facing operation (a rejected lockfile);
-      // other throws here are unexpected. Detach the reporter listener so
-      // long-lived processes don't leak it on every rejected install.
-      detachReporter()
-      throw err
-    }
+    verifyLockfilePromise = verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
+      cacheDir: opts.cacheDir,
+      lockfilePath: wantedLockfilePath,
+    })
+    // Keep the rejection from going unhandled in the window before
+    // `settleInstall` awaits the verdict — a preResolution hook or the
+    // install kickoff below could throw and bail out before we get there.
+    verifyLockfilePromise.catch(() => {})
   }
+
+  // Gate passed down to the build phase: fetching and linking overlap with
+  // verification, but no dependency lifecycle script may run until the verdict
+  // is in. Awaiting the promise here throws if verification failed, aborting
+  // before any script executes. `settleInstall` is the catch-all that still
+  // reconciles the verdict on paths that never reach the build phase.
+  const verifyLockfile = verifyLockfilePromise && (() => verifyLockfilePromise)
 
   if (opts.hooks.preResolution) {
     for (const preResolution of opts.hooks.preResolution) {
@@ -451,7 +462,7 @@ export async function mutateModules (
     }
   }
 
-  const result = await _install()
+  const result = await settleInstall(_install(), verifyLockfilePromise)
 
   // @ts-expect-error
   if (global['verifiedFileIntegrity'] > 1000) {
@@ -515,6 +526,27 @@ export async function mutateModules (
     readonly depsRequiringBuild?: DepPath[]
     readonly ignoredBuilds: IgnoredBuilds | undefined
     readonly resolutionPolicyViolations?: ResolutionPolicyViolation[]
+  }
+
+  // Reconcile the install with the lockfile verification that runs alongside
+  // it. A verification rejection aborts as soon as it happens, even while the
+  // install is still in flight; otherwise the install's result (or error) is
+  // surfaced only after the verdict confirms the lockfile. detachReporter
+  // mirrors the success path's cleanup so a long-lived process doesn't leak
+  // the stream listener on a rejected install.
+  async function settleInstall (
+    install: Promise<InnerInstallResult>,
+    verification: Promise<void> | undefined
+  ): Promise<InnerInstallResult> {
+    if (verification == null) return install
+    try {
+      await Promise.race([install, verification])
+      await verification
+      return await install
+    } catch (err) {
+      detachReporter()
+      throw err
+    }
   }
 
   async function _install (): Promise<InnerInstallResult> {
@@ -853,6 +885,7 @@ export async function mutateModules (
       scriptsOpts,
       updateLockfileMinorVersion: true,
       patchedDependencies: patchGroups,
+      verifyLockfile,
     })
 
     return {
@@ -1042,6 +1075,7 @@ Note that in CI environments, this setting is enabled by default.`,
         pruneVirtualStore,
         wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+        verifyLockfile,
       })
       if (
         opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
@@ -1324,6 +1358,7 @@ type InstallFunction = (
     scriptsOpts: RunLifecycleHooksConcurrentlyOptions
     currentLockfileIsUpToDate: boolean
     hoistWorkspacePackages?: boolean
+    verifyLockfile?: () => Promise<void>
   }
 ) => Promise<InstallFunctionResult>
 
@@ -1627,6 +1662,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
           }
         }
+        // Dependency lifecycle scripts must not run on an unverified lockfile.
+        await opts.verifyLockfile?.()
         ignoredBuilds = (await buildModules(dependenciesGraph, rootNodes, {
           allowBuild: opts.allowBuild,
           childConcurrency: opts.childConcurrency,
