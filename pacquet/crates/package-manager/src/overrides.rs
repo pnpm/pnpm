@@ -112,7 +112,7 @@ impl<'a> VersionsOverrider<'a> {
         // Mirrors upstream's `versionOverrides.filter(({ parentPkg }) => ...)`
         // restricting the parent-scoped set to those whose `parentPkg`
         // matches *this* manifest.
-        let applicable_parent_scoped: Vec<&ResolvedOverride<'_>> = self
+        let applicable_parent_scoped: Vec<&ResolvedOverride<'a>> = self
             .parent_scoped
             .iter()
             .filter(|entry| {
@@ -148,7 +148,7 @@ impl<'a> VersionsOverrider<'a> {
         &self,
         value: &mut Value,
         group: DependencyGroup,
-        applicable_parent_scoped: &[&ResolvedOverride<'_>],
+        applicable_parent_scoped: &[&ResolvedOverride<'a>],
         manifest_dir: Option<&Path>,
     ) {
         let key: &'static str = group.into();
@@ -162,8 +162,7 @@ impl<'a> VersionsOverrider<'a> {
             .collect();
 
         for (name, spec) in entries {
-            let Some(chosen) = self
-                .pick_most_specific(applicable_parent_scoped, &name, &spec)
+            let Some(chosen) = Self::pick_most_specific(applicable_parent_scoped, &name, &spec)
                 .or_else(|| self.pick_most_specific_generic(&name, &spec))
             else {
                 continue;
@@ -184,7 +183,6 @@ impl<'a> VersionsOverrider<'a> {
     }
 
     fn pick_most_specific<'b>(
-        &'b self,
         candidates: &[&'b ResolvedOverride<'a>],
         dep_name: &str,
         dep_spec: &str,

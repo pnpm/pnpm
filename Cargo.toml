@@ -206,7 +206,6 @@ needless_pass_by_value                    = "allow"
 ref_option                                = "allow"
 trivially_copy_pass_by_ref                = "allow"
 unused_async                              = "allow" # deferred: audit each async signature (trait/seam-required?) before enabling
-unused_self                               = "allow"
 similar_names                             = "allow" # names ported verbatim from pnpm
 default_trait_access                      = "allow"
 items_after_statements                    = "allow"
