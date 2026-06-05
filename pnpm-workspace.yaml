@@ -234,6 +234,7 @@ catalog:
   msgpackr: 1.11.8
   nm-prune: ^5.0.0
   nock: 13.3.4
+  node: runtime:^26.3.0
   normalize-newline: 5.0.0
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
