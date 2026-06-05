@@ -187,7 +187,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfec
 # application, suggestions that fight the cardinal rule (port pnpm 1:1), and
 # opinionated style not worth the churn. Everything not listed here is
 # enforced as a warning (and `just lint` runs with `--deny warnings`).
-pedantic                     = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
 
 # --- Bucket 1: false positives (the lint misfires on correct code) ---
 # Fires on markdown link *titles* such as `[`install.ts` "the title"](url)`,
@@ -215,11 +215,11 @@ return_self_not_must_use = "allow"
 # --- Bucket 3: conflicts with the cardinal rule (mirror pnpm's TS 1:1) ---
 # pnpm's functions are long and its options objects carry many boolean flags
 # by design; pacquet keeps the same shape for cross-referencing.
-too_many_lines         = "allow"
-struct_excessive_bools = "allow"
+too_many_lines            = "allow"
+struct_excessive_bools    = "allow"
 fn_params_excessive_bools = "allow"
 # pnpm uses explicit `switch` cases; collapsing/merging arms diverges from it.
-match_same_arms = "allow"
+match_same_arms                    = "allow"
 match_wildcard_for_single_variants = "allow"
 # Mirror JavaScript value shapes: `Option<Option<T>>` encodes
 # missing-vs-null-vs-present, and `-> Option<T>` mirrors pnpm's `T | undefined`.
@@ -237,11 +237,11 @@ unnecessary_debug_formatting = "allow"
 # Ownership and reference shapes match pnpm's interfaces and pacquet's trait
 # seams (async resolver/fetcher traits, method-based APIs); flipping them
 # ripples through ported signatures for no behavioral gain.
-needless_pass_by_value    = "allow"
-ref_option                = "allow"
+needless_pass_by_value     = "allow"
+ref_option                 = "allow"
 trivially_copy_pass_by_ref = "allow"
-unused_async              = "allow"
-unused_self               = "allow"
+unused_async               = "allow"
+unused_self                = "allow"
 # Variable names are ported verbatim from pnpm; the "too similar" pairs
 # (e.g. `manifest`/`manifests`) match the TS source on purpose.
 similar_names = "allow"
@@ -252,12 +252,12 @@ default_trait_access = "allow"
 # `const`/helper items declared mid-function (mostly in tests) read fine.
 items_after_statements = "allow"
 # Stylistic rewrites with no behavioral benefit.
-manual_let_else      = "allow"
-format_push_string   = "allow"
-needless_continue    = "allow"  # explicit `continue` documents loop intent
-assigning_clones     = "allow"  # `clone_from` is a micro-optimization only
+manual_let_else        = "allow"
+format_push_string     = "allow"
+needless_continue      = "allow" # explicit `continue` documents loop intent
+assigning_clones       = "allow" # `clone_from` is a micro-optimization only
 many_single_char_names = "allow"
-large_stack_arrays   = "allow"
+large_stack_arrays     = "allow"
 
 clone_on_ref_ptr             = "warn"
 if_then_some_else_none       = "warn"
