@@ -181,6 +181,63 @@ s3:
   secretAccessKey: minioadmin
 ```
 
+### Storing users and tokens in a networked SQLite database
+
+Auth state — the registered users and their bearer tokens — is the other
+piece of per-instance disk state. By default users live in an
+htpasswd file and tokens in a local SQLite database (see `auth:` above),
+so two `pnpr` replicas don't see each other's accounts. Adding a
+`backend:` block moves both into one **networked SQLite** database
+(libsql / [Turso](https://turso.tech)), so several stateless replicas
+share a consistent set of logins and tokens — the auth half of running
+`pnpr` horizontally scaled.
+
+The schema is the same SQLite the local backend uses (the `tokens` table
+is identical; users move from the htpasswd file into a `users` table), so
+a database can be migrated between the two. Token lookups happen on the
+request hot path, so the database should be low-latency from the server.
+
+```yaml
+storage: ./storage
+
+backend:
+  libsql:
+    # libsql/Turso database URL. `libsql://…` for Turso, or
+    # `http://127.0.0.1:8080` for a local `sqld`.
+    url: ${PNPR_LIBSQL_URL}
+    # Bearer token for the database. Omit for an unauthenticated local
+    # `sqld`.
+    authToken: ${PNPR_LIBSQL_TOKEN}
+```
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `url` | yes | Database URL — `libsql://<db>.turso.io` (Turso) or `http://<host>:<port>` (self-hosted `sqld`). |
+| `authToken` | no | Bearer token for the database. Omit for an unauthenticated local `sqld`. |
+| `replicaPath` | no | Path to a local **embedded replica**. When set, reads (token lookups) hit this local file instead of a network round-trip; writes still go to the primary. Absent ⇒ every read is a remote query. |
+| `syncIntervalSecs` | no | How often (seconds) the embedded replica pulls from the primary. Only meaningful with `replicaPath`; bounds how stale a read can be (token-revocation lag). `0` disables background sync. Defaults to `60`. |
+
+Token lookups happen on the request hot path, so for a remote primary
+(e.g. Turso) set `replicaPath` to serve reads from a local replica:
+
+```yaml
+backend:
+  libsql:
+    url: ${PNPR_LIBSQL_URL}
+    authToken: ${PNPR_LIBSQL_TOKEN}
+    replicaPath: ./auth-replica.db
+    syncIntervalSecs: 60
+```
+
+The trade-off is read freshness: an embedded replica reflects another
+replica's writes (a token issued or revoked elsewhere) only after the
+next background sync, so lower `syncIntervalSecs` means less
+revocation lag. Omit `replicaPath` to always read the primary directly.
+
+When the `backend:` block is absent, auth stays on local disk and the
+`auth.htpasswd` / `auth.tokens` settings apply as before. The
+`auth.htpasswd.max_users` registration cap is honored either way.
+
 ## License
 
 Source-available under the [PolyForm Shield License 1.0.0](https://github.com/pnpm/pnpm/blob/main/pnpr/LICENSE.md) — **not** open source. You may run, modify, and self-host pnpr for any purpose except providing a product that competes with it. Commercial / non-compete licenses are available from Zoltan Kochan (<https://kochan.io>).

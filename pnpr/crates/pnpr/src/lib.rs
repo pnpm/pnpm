@@ -21,11 +21,14 @@ mod storage;
 mod streaming;
 mod upstream;
 
-pub use auth::{AuthState, TokenStore, UserStore, identify};
+pub use auth::{
+    AuthState, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend, UserStore,
+    identify,
+};
 pub use config::{
-    AuthConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, HtpasswdConfig,
-    LogConfig, LogFormat, LogLevel, MaxUsers, PackageAccess, TokensConfig, UplinkConfig,
-    default_cache_dir,
+    AuthConfig, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig,
+    HtpasswdConfig, LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, PackageAccess,
+    TokensConfig, UplinkConfig, default_cache_dir,
 };
 pub use error::{RegistryError, Result};
 pub use policy::{AccessList, AccessToken, Identity, PackagePolicies, PackagePolicy};

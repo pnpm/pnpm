@@ -409,7 +409,7 @@ async fn revocation_survives_restart() {
 
     let config =
         persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
-    let auth = AuthState::load(&config.auth).expect("first boot");
+    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
     let app = router_with_auth(config.clone(), auth);
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
@@ -419,7 +419,7 @@ async fn revocation_survives_restart() {
     assert_eq!(response.status(), StatusCode::OK);
 
     drop(app);
-    let auth = AuthState::load(&config.auth).expect("reload after restart");
+    let auth = AuthState::load(&config.auth, &config.backend).await.expect("reload after restart");
     let app = router_with_auth(config, auth);
 
     // Token must remain revoked after restart.

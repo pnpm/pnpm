@@ -80,6 +80,7 @@ pnpr-fixtures = { path = "pnpr/crates/pnpr-fixtures" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }
+async-trait = { version = "0.1.83" }
 axum = { version = "0.8.7", default-features = false, features = [
   "http1",
   "tokio",
@@ -104,6 +105,7 @@ ignore = { version = "0.4.25" }
 indexmap = { version = "2.14.0", features = ["serde"] }
 insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.14.0" }
+libsql = { version = "0.9.30", default-features = false, features = ["core", "remote", "replication"] }
 futures-util = { version = "0.3.32" }
 flate2 = { version = "1.1.9" }
 gethostname = { version = "1" }
