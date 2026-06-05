@@ -65,6 +65,24 @@ function immutableSqliteUri (dbPath: string): string {
 }
 
 /**
+ * Whether the running Node.js can open a `file:…?immutable=1` SQLite URI.
+ *
+ * `node:sqlite` only passes `SQLITE_OPEN_URI` to SQLite — so the `immutable=1`
+ * query is honored rather than treated as part of a literal filename — starting
+ * in v22.15.0 (22.x line), v23.11.0 (23.x line), and every v24+. On older
+ * runtimes the URI is opened as a literal path and fails with a cryptic
+ * "unable to open database file"; we detect that up front to give actionable
+ * guidance instead.
+ */
+function nodeSupportsImmutableSqliteUri (): boolean {
+  const [major, minor] = process.versions.node.split('.', 2).map(Number)
+  if (major < 22) return false
+  if (major === 22) return minor >= 15
+  if (major === 23) return minor >= 11
+  return true
+}
+
+/**
  * Pack data for storage using msgpackr.
  * Use this when data will be packed in one thread and stored by another,
  * to ensure the same Packr instance is used for pack and unpack within each thread.
@@ -152,6 +170,12 @@ export class StoreIndex {
       // file cannot change, so it bypasses the WAL/shm machinery and reads the
       // file directly, creating no sidecars. The store is assumed complete; any
       // write is a programming error and the mutators below throw.
+      if (!nodeSupportsImmutableSqliteUri()) {
+        throw new PnpmError(
+          'FROZEN_STORE_UNSUPPORTED_NODE',
+          `frozenStore opens the store index read-only via a SQLite "immutable" URI, which requires Node.js >=22.15.0 (or >=24), but the current version is ${process.versions.node}. Upgrade Node.js, or run without frozenStore.`
+        )
+      }
       this.db = new DatabaseSync(immutableSqliteUri(dbPath))
       this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
       this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')

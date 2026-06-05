@@ -48,11 +48,25 @@ test('StoreIndex entries() iterates all SQLite entries', () => {
   }
 })
 
-// chmod 0555 has no effect on Windows, so the read-only-directory
-// assertion below cannot hold there.
-const testOnPosix = process.platform === 'win32' ? test.skip : test
+// The `immutable=1` URI open only works on Node.js that passes
+// SQLITE_OPEN_URI to SQLite: v22.15.0+, v23.11.0+, and every v24+. On older
+// runtimes (including pnpm's `engines` floor of 22.13) the open throws a clear
+// ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE instead — asserted separately below.
+function nodeSupportsImmutableSqliteUri (): boolean {
+  const [major, minor] = process.versions.node.split('.', 2).map(Number)
+  if (major < 22) return false
+  if (major === 22) return minor >= 15
+  if (major === 23) return minor >= 11
+  return true
+}
 
-testOnPosix('StoreIndex frozen mode reads a WAL db on a read-only directory and refuses writes', () => {
+// chmod 0555 has no effect on Windows, so the read-only-directory
+// assertion below cannot hold there. The frozen open also needs a runtime that
+// honors the immutable URI.
+const frozenOpenSupported = process.platform !== 'win32' && nodeSupportsImmutableSqliteUri()
+const testFrozenOpen = frozenOpenSupported ? test : test.skip
+
+testFrozenOpen('StoreIndex frozen mode reads a WAL db on a read-only directory and refuses writes', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
   const key = storeIndexKey('sha512-frozen', 'frozen-pkg@1.0.0')
   const data = { algo: 'sha512', files: new Map([['index.js', { digest: 'abc', size: 100, mode: 0o644 }]]) }
@@ -100,7 +114,7 @@ testOnPosix('StoreIndex frozen mode reads a WAL db on a read-only directory and 
 // `?` is a legal filename character on POSIX but a SQLite URI delimiter, so a
 // raw `file:${path}?immutable=1` would truncate the path here. (`?` is illegal
 // in Windows filenames, so this case cannot arise there.)
-testOnPosix('StoreIndex frozen mode opens under a store path containing a "?"', () => {
+testFrozenOpen('StoreIndex frozen mode opens under a store path containing a "?"', () => {
   const storeDir = path.join(temporaryDirectory(), 'weird?store', 'v11')
   const key = storeIndexKey('sha512-q', 'q-pkg@1.0.0')
   const data = { algo: 'sha512', files: new Map([['index.js', { digest: 'q', size: 1, mode: 0o644 }]]) }
@@ -116,4 +130,15 @@ testOnPosix('StoreIndex frozen mode opens under a store path containing a "?"', 
   } finally {
     idx.close()
   }
+})
+
+// On a runtime that cannot honor the immutable URI, a frozen open must fail
+// fast with actionable guidance rather than SQLite's cryptic "unable to open
+// database file". Only meaningful where the capability is actually absent.
+const testUnsupportedNode = frozenOpenSupported ? test.skip : test
+
+testUnsupportedNode('StoreIndex frozen mode refuses to open on a Node.js without immutable-URI support', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  expect(() => new StoreIndex(storeDir, { frozen: true }))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE' }))
 })
