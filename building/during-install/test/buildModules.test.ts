@@ -87,6 +87,31 @@ test('frozenStore + GVS: a build-requiring package that is not approved does not
   ).resolves.toBeDefined()
 })
 
+test('frozenStore + GVS: an approved build under ignoreScripts is not blocked (the script never runs)', async () => {
+  await expect(
+    buildModules(singlePkgGraph('foo@1.0.0', { requiresBuild: true, isBuilt: false }), ['foo@1.0.0'], {
+      ...baseOpts,
+      allowBuild: allowFoo,
+      enableGlobalVirtualStore: true,
+      frozenStore: true,
+      ignoreScripts: true,
+    })
+  ).resolves.toBeDefined()
+})
+
+test('frozenStore + GVS: a patched package under ignoreScripts still refuses (the patch is applied regardless)', async () => {
+  await expect(
+    buildModules(singlePkgGraph('foo@1.0.0', { patch: { hash: 'h', path: '/p' }, isBuilt: false }), ['foo@1.0.0'], {
+      ...baseOpts,
+      enableGlobalVirtualStore: true,
+      frozenStore: true,
+      ignoreScripts: true,
+    })
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_FROZEN_STORE_NEEDS_BUILD',
+  })
+})
+
 test('frozenStore without GVS: an approved build is not blocked (builds write to the writable project store)', async () => {
   await expect(
     buildModules(singlePkgGraph('foo@1.0.0', { requiresBuild: true, isBuilt: false }), ['foo@1.0.0'], {

@@ -102,7 +102,12 @@ export async function buildModules<T extends string> (
     if (frozenStoreBlocked != null) {
       for (const depPath of chunk) {
         const node = depGraph[depPath]
-        if (node.patch != null || (node.requiresBuild && allowBuild(node.name, node.version) === true)) {
+        // A patch is applied even under `ignoreScripts`, but a lifecycle script
+        // is not — so only the patch write counts as blocking when scripts are
+        // suppressed.
+        const willPatch = node.patch != null
+        const willRunScripts = !opts.ignoreScripts && Boolean(node.requiresBuild) && allowBuild(node.name, node.version) === true
+        if (willPatch || willRunScripts) {
           frozenStoreBlocked.add(`${node.name}@${node.version}`)
         }
       }
