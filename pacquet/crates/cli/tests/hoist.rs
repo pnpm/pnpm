@@ -61,6 +61,10 @@ fn write_workspace_yaml(workspace: &Path, extra: &str) {
 }
 
 /// Write a one-dependency `package.json` and return the manifest path.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called many times with json!(...) literals; owned arg keeps call sites clean"
+)]
 fn write_manifest(workspace: &Path, deps: serde_json::Value) {
     let manifest = serde_json::json!({ "dependencies": deps });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");

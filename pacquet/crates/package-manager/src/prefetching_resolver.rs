@@ -111,6 +111,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// per-`resolve` spawn has all the data it needs without
     /// re-borrowing the install scope.
     #[must_use]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "destructures PrefetchContext and clones its Arc fields out by value"
+    )]
     pub fn new(inner: Box<dyn Resolver>, prefetch_ctx: PrefetchContext<'_>) -> Self {
         let PrefetchContext {
             http_client,

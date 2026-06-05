@@ -140,6 +140,10 @@ pub type DirectDepsByImporter = HashMap<String, HashMap<String, PackageKey>>;
 /// loop.
 ///
 /// [#443]: https://github.com/pnpm/pacquet/pull/443
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "dependency_groups is cloned per importer; the owned `impl IntoIterator + Clone` avoids a parenthesized `&(… + …)` borrow"
+)]
 pub fn build_direct_deps_by_importer<'a, Iter>(
     importers: Iter,
     dependency_groups: impl IntoIterator<Item = pacquet_package_manifest::DependencyGroup> + Clone,

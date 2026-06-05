@@ -120,6 +120,10 @@ fn make_node_with_optional(
 }
 
 /// Write a `package.json` to a temp dir and return the loaded manifest.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn write_manifest(deps_value: serde_json::Value) -> (TempDir, PackageManifest) {
     let tmp = TempDir::new().expect("create tempdir");
     let manifest_path = tmp.path().join("package.json");

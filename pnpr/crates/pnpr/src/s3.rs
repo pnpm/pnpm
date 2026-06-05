@@ -131,6 +131,10 @@ pub struct S3Store {
 const STAGING_SUBDIR: &str = "pnpr-hosted-staging";
 
 impl S3Store {
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "constructor; cache_root seeds staging_dir without threading &Path through storage::new and its construction sites"
+    )]
     pub fn new(store: Arc<dyn ObjectStore>, prefix: String, cache_root: PathBuf) -> Self {
         Self { store, prefix, staging_dir: cache_root.join(STAGING_SUBDIR) }
     }

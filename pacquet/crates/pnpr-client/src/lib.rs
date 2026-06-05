@@ -371,7 +371,7 @@ fn build_verify_error(mut violations: Vec<WireViolation>) -> VerifyError {
     violations.sort_by(|left, right| {
         format!("{}@{}", left.name, left.version).cmp(&format!("{}@{}", right.name, right.version))
     });
-    let rendered = violations
+    let rendered: Vec<RenderedViolation> = violations
         .into_iter()
         .map(|violation| RenderedViolation {
             name: violation.name,
@@ -380,7 +380,7 @@ fn build_verify_error(mut violations: Vec<WireViolation>) -> VerifyError {
             reason: violation.reason,
         })
         .collect();
-    VerifyError::from_rendered(rendered)
+    VerifyError::from_rendered(&rendered)
 }
 
 /// Map a wire violation code back to the `&'static str` constant

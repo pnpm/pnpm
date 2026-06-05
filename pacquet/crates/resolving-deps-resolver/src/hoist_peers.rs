@@ -70,7 +70,7 @@ pub struct HoistPeersOptions<'a> {
 /// 5. Otherwise → omit (caller leaves the missing peer alone).
 #[must_use]
 pub fn hoist_peers(
-    opts: HoistPeersOptions<'_>,
+    opts: &HoistPeersOptions<'_>,
     missing_required_peers: &[(String, MissingPeerInfo)],
 ) -> BTreeMap<String, String> {
     let mut dependencies = BTreeMap::new();

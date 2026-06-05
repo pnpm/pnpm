@@ -181,6 +181,10 @@ fn get_valid_cache_dir_honors_max_age() {
     assert!(get_valid_cache_dir(&link, 1440, past).is_none(), "an expired link must be rejected");
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn write_pkg(dir: &std::path::Path, name: &str, manifest: serde_json::Value) {
     let pkg_dir = dir.join("node_modules").join(name);
     fs::create_dir_all(&pkg_dir).expect("create pkg dir");

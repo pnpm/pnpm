@@ -404,6 +404,10 @@ fn add_dependency_errors_when_field_is_not_an_object() {
     }
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn manifest_from_json(value: serde_json::Value) -> (PackageManifest, tempfile::TempDir) {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json");

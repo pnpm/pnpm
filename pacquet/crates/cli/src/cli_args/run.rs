@@ -323,7 +323,7 @@ pub(super) fn run_stage(
         return Ok(None);
     }
 
-    let status = run_script(RunScript {
+    let status = run_script(&RunScript {
         manifest: ctx.manifest.value(),
         stage,
         script,

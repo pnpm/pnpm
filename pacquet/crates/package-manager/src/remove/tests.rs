@@ -11,6 +11,10 @@ use pretty_assertions::assert_eq;
 use serde_json::json;
 use tempfile::TempDir;
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn manifest(value: serde_json::Value) -> (PackageManifest, TempDir) {
     let dir = tempfile::tempdir().expect("create tempdir");
     let path = dir.path().join("package.json");

@@ -88,7 +88,7 @@ impl VerifyError {
     /// (the runner sorts before calling). Empty input is a logic
     /// error — callers must check before constructing.
     #[must_use]
-    pub fn from_rendered(violations: Vec<RenderedViolation>) -> Self {
+    pub fn from_rendered(violations: &[RenderedViolation]) -> Self {
         debug_assert!(!violations.is_empty(), "no violations → no error");
         let distinct_codes: std::collections::BTreeSet<&str> =
             violations.iter().map(|violation| violation.code).collect();

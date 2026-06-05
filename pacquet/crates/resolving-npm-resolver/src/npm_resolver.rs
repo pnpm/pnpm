@@ -554,6 +554,10 @@ pub(crate) struct BuildResolveResult<'a> {
     pub picked_manifest_cache: &'a crate::PickedManifestCache,
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "destructures BuildResolveResult and consumes its fields by value downstream"
+)]
 pub(crate) fn build_resolve_result(
     args: BuildResolveResult<'_>,
 ) -> Result<ResolveResult, ResolveError> {

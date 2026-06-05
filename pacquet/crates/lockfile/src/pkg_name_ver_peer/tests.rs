@@ -1,3 +1,8 @@
+#![allow(
+    clippy::needless_pass_by_value,
+    reason = "nested test helpers take owned fixture values; by-value keeps call sites and assert ergonomics simple"
+)]
+
 use super::PkgNameVerPeer;
 use pretty_assertions::assert_eq;
 

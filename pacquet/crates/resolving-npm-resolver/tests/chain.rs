@@ -28,9 +28,9 @@ use pacquet_resolving_resolver_base::{ResolveOptions, WantedDependency};
 use tempfile::TempDir;
 
 fn named_registry_resolver(
-    user: HashMap<String, String>,
+    user: &HashMap<String, String>,
 ) -> NamedRegistryResolver<InMemoryPackageMetaCache> {
-    let merged = merge_named_registries(&user).expect("URLs are valid");
+    let merged = merge_named_registries(user).expect("URLs are valid");
     let registry_names: HashSet<String> = merged.keys().cloned().collect();
     NamedRegistryResolver {
         named_registries: merged,
@@ -76,7 +76,7 @@ async fn link_scheme_wins_over_named_registry_alias() {
     let local_ctx = LocalResolverContext::default();
     let resolver = DefaultResolver::new(vec![
         Box::new(LocalSchemeResolver::new(local_ctx)),
-        Box::new(named_registry_resolver(user)),
+        Box::new(named_registry_resolver(&user)),
         Box::new(LocalPathResolver::new(local_ctx)),
     ]);
 
@@ -108,7 +108,7 @@ async fn workspace_scheme_wins_over_named_registry_alias() {
     let local_ctx = LocalResolverContext::default();
     let resolver = DefaultResolver::new(vec![
         Box::new(LocalSchemeResolver::new(local_ctx)),
-        Box::new(named_registry_resolver(user)),
+        Box::new(named_registry_resolver(&user)),
         Box::new(LocalPathResolver::new(local_ctx)),
     ]);
 
@@ -139,7 +139,7 @@ async fn file_scheme_wins_over_named_registry_alias() {
     let local_ctx = LocalResolverContext::default();
     let resolver = DefaultResolver::new(vec![
         Box::new(LocalSchemeResolver::new(local_ctx)),
-        Box::new(named_registry_resolver(user)),
+        Box::new(named_registry_resolver(&user)),
         Box::new(LocalPathResolver::new(local_ctx)),
     ]);
 

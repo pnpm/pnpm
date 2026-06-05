@@ -686,7 +686,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     };
 
     let has_side_effects = if should_run_scripts {
-        let result = run_postinstall_hooks::<Reporter>(RunPostinstallHooks {
+        let result = run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
             dep_path: &snapshot_key.to_string(),
             pkg_root: &pkg_dir,
             root_modules_dir: modules_dir,

@@ -1496,7 +1496,7 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
     for (project_dir, _manifest) in project_manifests {
         let root_modules_dir = project_dir.join(modules_dir_basename);
         let dep_path = project_dir.to_string_lossy();
-        run_project_lifecycle_scripts::<Reporter>(RunPostinstallHooks {
+        run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
             dep_path: &dep_path,
             pkg_root: project_dir,
             root_modules_dir: &root_modules_dir,

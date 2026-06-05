@@ -43,6 +43,10 @@ async fn body_json(body: Body) -> Value {
     serde_json::from_slice(&body_bytes(body).await).expect("body parses as JSON")
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn put_json(path: &str, body: Value) -> Request<Body> {
     Request::put(path)
         .header("content-type", "application/json")

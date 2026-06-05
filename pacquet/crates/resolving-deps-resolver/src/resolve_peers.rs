@@ -258,7 +258,7 @@ pub fn resolve_peers_workspace(
         let mut direct_by_alias = BTreeMap::new();
         for dep in &importer.direct {
             let output =
-                walker.resolve_node(dep.node_id.clone(), &importer_parents, &parent_chain_names, 0);
+                walker.resolve_node(&dep.node_id, &importer_parents, &parent_chain_names, 0);
             direct_by_alias.insert(dep.alias.clone(), output.dep_path);
         }
         direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
@@ -470,8 +470,7 @@ impl Walker<'_> {
         // `self.tree.direct`.
         let direct: Vec<DirectDep> = self.tree.direct.clone();
         for dep in &direct {
-            let output =
-                self.resolve_node(dep.node_id.clone(), &importer_parents, &parent_chain_names, 0);
+            let output = self.resolve_node(&dep.node_id, &importer_parents, &parent_chain_names, 0);
             direct_by_alias.insert(dep.alias.clone(), output.dep_path);
         }
         self.patch_pending_peer_edges();
@@ -548,7 +547,7 @@ impl Walker<'_> {
     )]
     fn resolve_node(
         &mut self,
-        node_id: NodeId,
+        node_id: &NodeId,
         parent_parent_refs: &ParentRefs,
         parent_chain_names: &[String],
         depth: i32,
@@ -569,9 +568,9 @@ impl Walker<'_> {
         // mirrors the post-`in_progress` clone the rest of the
         // function already does — peer resolution is single-threaded
         // and the clones are cheap.
-        if self.tree.dependencies_tree.contains_key(&node_id) {
-            let tree_node_depth = self.tree.dependencies_tree[&node_id].depth;
-            let pkg_id = self.tree.dependencies_tree[&node_id].resolved_package_id.clone();
+        if self.tree.dependencies_tree.contains_key(node_id) {
+            let tree_node_depth = self.tree.dependencies_tree[node_id].depth;
+            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.clone();
             // Workspace-link short-circuit: mirrors upstream's
             // [`if (node.depth === -1) return ...`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/installing/deps-resolver/src/resolvePeers.ts#L396)
             // in `resolvePeersOfNode`. The linked package's depPath is
@@ -612,7 +611,7 @@ impl Walker<'_> {
             }
         }
 
-        if self.in_progress.contains(&node_id) {
+        if self.in_progress.contains(node_id) {
             // Cycle: bottom out with the bare `pkgIdWithPatchHash` as
             // the depPath. The original visit (still on the stack) will
             // compute the real depPath and insert it into
@@ -620,7 +619,7 @@ impl Walker<'_> {
             // current ancestor's peer-suffix construction can use a
             // `name@version` PeerId — see [`build_peer_id`] for the
             // cycle handling.
-            let tree_node = &self.tree.dependencies_tree[&node_id];
+            let tree_node = &self.tree.dependencies_tree[node_id];
             let pkg = &self.tree.packages[&tree_node.resolved_package_id];
             return NodeOutput {
                 dep_path: DepPath::from(pkg.id.clone()),
@@ -635,8 +634,8 @@ impl Walker<'_> {
         // over it doesn't hold a borrow on `self.tree`, so the
         // recursion below can mutate the tree (realising
         // grandchildren) freely.
-        let children_map = self.realize_children(&node_id);
-        let tree_node = self.tree.dependencies_tree[&node_id].clone();
+        let children_map = self.realize_children(node_id);
+        let tree_node = self.tree.dependencies_tree[node_id].clone();
         let pkg = self.tree.packages[&tree_node.resolved_package_id].clone();
         let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
 
@@ -731,7 +730,7 @@ impl Walker<'_> {
             {
                 node.depth = tree_node.depth;
             }
-            self.in_progress.remove(&node_id);
+            self.in_progress.remove(node_id);
             return NodeOutput {
                 dep_path,
                 external_resolved_peers: resolved,
@@ -749,12 +748,8 @@ impl Walker<'_> {
         let mut missing_from_children: HashMap<String, MissingPeerInfo> = HashMap::new();
         let mut child_dep_paths: BTreeMap<String, DepPath> = BTreeMap::new();
         for (alias, child_node_id) in &children_map {
-            let child_output = self.resolve_node(
-                child_node_id.clone(),
-                &child_parent_refs,
-                &child_chain_names,
-                depth + 1,
-            );
+            let child_output =
+                self.resolve_node(child_node_id, &child_parent_refs, &child_chain_names, depth + 1);
             child_dep_paths.insert(alias.clone(), child_output.dep_path);
             for (peer_alias, peer_node_id) in child_output.external_resolved_peers {
                 if children_map.values().any(|id| id == &peer_node_id) {
@@ -922,7 +917,7 @@ impl Walker<'_> {
                 optional: pkg.optional,
             });
 
-        self.in_progress.remove(&node_id);
+        self.in_progress.remove(node_id);
 
         // External resolved peers reported up: this node's collected
         // peers minus any that map to this node's own children

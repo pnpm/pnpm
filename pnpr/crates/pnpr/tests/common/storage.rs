@@ -30,6 +30,10 @@ pub fn build_storage() -> TempDir {
     dir
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn write_package(storage: &Path, name: &str, tarball: &str, packument: Value) {
     let package_dir = storage.join(name);
     std::fs::create_dir_all(&package_dir).expect("create package dir");
