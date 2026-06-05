@@ -529,18 +529,24 @@ export async function mutateModules (
   }
 
   // Reconcile the install with the lockfile verification that runs alongside
-  // it. A verification rejection aborts as soon as it happens, even while the
-  // install is still in flight; otherwise the install's result (or error) is
-  // surfaced only after the verdict confirms the lockfile. detachReporter
-  // mirrors the success path's cleanup so a long-lived process doesn't leak
-  // the stream listener on a rejected install.
+  // it. The verification verdict is awaited first so it takes precedence and
+  // aborts as soon as it fails, even while the install is still in flight —
+  // matching the original sequencing where verification gated the install, so
+  // a rejected lockfile surfaces its own error rather than whatever the
+  // concurrent install happened to throw. Only once verification passes is the
+  // install's result (or error) surfaced. detachReporter mirrors the success
+  // path's cleanup so a long-lived process doesn't leak the stream listener on
+  // a rejected install.
   async function settleInstall (
     install: Promise<InnerInstallResult>,
     verification: Promise<void> | undefined
   ): Promise<InnerInstallResult> {
     if (verification == null) return install
+    // Handle the install's eventual rejection up front so a fail-fast
+    // verification throw below doesn't leave the still-running install
+    // unhandled.
+    install.catch(() => {})
     try {
-      await Promise.race([install, verification])
       await verification
       return await install
     } catch (err) {
