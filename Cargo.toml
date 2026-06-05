@@ -180,6 +180,7 @@ allow_branch = "main"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfectionist"))'] }
 
 [workspace.lints.clippy]
+pedantic                     = { level = "warn", priority = -1 }
 clone_on_ref_ptr             = "warn"
 if_then_some_else_none       = "warn"
 needless_collect             = "warn"
