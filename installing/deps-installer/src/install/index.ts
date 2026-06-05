@@ -38,7 +38,7 @@ import {
   type WantedDependency,
 } from '@pnpm/installing.deps-resolver'
 import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
-import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
+import { readModulesManifest, type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
@@ -493,10 +493,12 @@ export async function mutateModules (
     await cleanGitBranchLockfiles(ctx.lockfileDir)
   }
 
-  let ignoredBuilds = result.ignoredBuilds
+  const ignoredBuildsFromInstall = result.ignoredBuilds
+  let ignoredBuilds = ignoredBuildsFromInstall
   if (!opts.ignoreScripts && ignoredBuilds?.size) {
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, ctx.wantedLockfile, allowBuild)
   }
+  let revokedBuilds = false
   // Detect packages whose build approval was revoked between the previous
   // and current install. A package is considered revoked when it was
   // previously allowed (true) but is now undecided (undefined). Packages
@@ -519,8 +521,26 @@ export async function mutateModules (
         if (allowBuild?.(depPath) === undefined) {
           ignoredBuilds ??= new Set()
           ignoredBuilds.add(depPath)
+          revokedBuilds = true
         }
       }
+    }
+  }
+  if (revokedBuilds && !opts.lockfileOnly && opts.enableModulesDir) {
+    // The install path already wrote .modules.yaml with the current
+    // install's state, but it captured ignoredBuilds before the revocation
+    // scan above added to it. Re-read the manifest from disk so we only
+    // update ignoredBuilds and don't clobber fields (hoistedDependencies,
+    // pendingBuilds, etc.) the install just wrote. The current computed
+    // set is authoritative — runUnignoredDependencyBuilds may have removed
+    // entries (for packages it successfully rebuilt) that the on-disk
+    // manifest still records, and those must not be re-introduced.
+    const writtenManifest = await readModulesManifest(ctx.rootModulesDir)
+    if (writtenManifest) {
+      // writeModulesManifest converts ignoredBuilds to an array before
+      // serializing, so a Set is fine here.
+      writtenManifest.ignoredBuilds = ignoredBuilds
+      await writeModulesManifest(ctx.rootModulesDir, writtenManifest as StrictModules)
     }
   }
   ignoredScriptsLogger.debug({

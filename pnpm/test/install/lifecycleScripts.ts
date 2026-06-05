@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
+import { parse } from '@pnpm/deps.path'
 import { prepare } from '@pnpm/prepare'
 import type { PackageManifest, ProjectManifest } from '@pnpm/types'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
@@ -406,4 +407,39 @@ test('--allow-build flag should error when conflicting with allowBuilds: false',
 
   expect(result.status).toBe(1)
   expect(result.stdout.toString()).toContain('The following dependencies are ignored by the root project, but are allowed to be built by the current command: @pnpm.e2e/install-script-example')
+})
+
+test('approve-builds works after stashing and re-adding a dependency (#12221)', async () => {
+  const project = prepare({})
+
+  const pkgName = '@pnpm.e2e/pre-and-postinstall-scripts-example'
+
+  const firstAdd = execPnpmSync(['add', `${pkgName}@1.0.0`])
+  expect(firstAdd.status).toBe(1)
+  expect(firstAdd.stdout.toString()).toContain('Ignored build scripts:')
+
+  const firstApprove = execPnpmSync(['approve-builds', '--all'])
+  expect(firstApprove.status).toBe(0)
+
+  const wsManifest = await readWorkspaceManifest(process.cwd())
+  expect((wsManifest!.allowBuilds as Record<string, unknown>)[pkgName]).toBe(true)
+
+  fs.rmSync('package.json', { force: true })
+  fs.rmSync('pnpm-workspace.yaml', { force: true })
+  fs.rmSync('pnpm-lock.yaml', { force: true })
+
+  fs.writeFileSync('package.json', '{}')
+  writeYamlFileSync('pnpm-workspace.yaml', {})
+
+  const secondAdd = execPnpmSync(['add', `${pkgName}@1.0.0`])
+  expect(secondAdd.status).toBe(1)
+  expect(secondAdd.stdout.toString()).toContain('Ignored build scripts:')
+
+  const modulesManifest = project.readModulesManifest()
+  expect(modulesManifest?.ignoredBuilds).toBeDefined()
+  expect(Array.from(modulesManifest!.ignoredBuilds!).some((dp) => parse(dp).name === pkgName)).toBe(true)
+
+  const secondApprove = execPnpmSync(['approve-builds', '--all'])
+  expect(secondApprove.status).toBe(0)
+  expect(secondApprove.stdout.toString()).not.toContain('No packages awaiting approval')
 })
