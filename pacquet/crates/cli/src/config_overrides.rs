@@ -55,7 +55,7 @@ impl ConfigOverrides {
     /// Mirrors pnpm 11's "CLI > yaml > .npmrc > defaults" precedence.
     pub fn apply(&self, config: &mut Config) {
         if let Some(registry) = &self.registry {
-            config.registry = registry.clone();
+            config.registry.clone_from(registry);
         }
     }
 }

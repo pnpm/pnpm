@@ -252,7 +252,7 @@ pub fn resolve_peers_workspace(
         // Swap the per-importer `modules_dir` in before the walk so
         // the `excludeLinksFromLockfile` link-remap inside
         // `resolve_node` uses the correct importer-scoped target.
-        walker.opts.modules_dir = importer.modules_dir.clone();
+        walker.opts.modules_dir.clone_from(&importer.modules_dir);
         let importer_parents = walker.build_importer_parents_from(&importer.direct);
         let parent_chain_names: Vec<String> = Vec::new();
         let mut direct_by_alias = BTreeMap::new();

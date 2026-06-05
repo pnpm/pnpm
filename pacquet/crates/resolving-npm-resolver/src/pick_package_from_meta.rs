@@ -234,7 +234,7 @@ where
         // `@owner/foo` while the per-version `name` is just `foo`.
         // Match upstream's shim that pins the manifest name to the
         // packument-level name.
-        manifest.name = meta_ref.name.clone();
+        manifest.name.clone_from(&meta_ref.name);
     }
     Ok(Some(manifest))
 }

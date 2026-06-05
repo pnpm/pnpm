@@ -225,6 +225,6 @@ fn into_chain_result(
     wanted_dependency: &WantedDependency,
 ) -> ResolveResult {
     let mut chain: ResolveResult = result.into();
-    chain.alias = wanted_dependency.alias.clone();
+    chain.alias.clone_from(&wanted_dependency.alias);
     chain
 }
