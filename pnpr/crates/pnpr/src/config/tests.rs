@@ -197,7 +197,7 @@ fn uplink_invalid_custom_header_value_is_a_config_error() {
 
 #[test]
 fn from_yaml_str_resolves_uplink_auth_and_headers() {
-    let yaml = r#"
+    let yaml = r"
 uplinks:
   npmjs:
     url: https://registry.npmjs.org/
@@ -209,7 +209,7 @@ uplinks:
 packages:
   '**':
     proxy: npmjs
-"#;
+";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let uplink = &config.uplinks["npmjs"];
     assert_eq!(uplink.headers.get(AUTHORIZATION).unwrap().to_str().unwrap(), "Bearer secret-token");
@@ -218,12 +218,12 @@ packages:
 
 #[test]
 fn from_yaml_str_tolerates_unresolved_env_var_references() {
-    let yaml = r#"
+    let yaml = r"
 storage: ${PNPR_UNSET_VAR_FOR_TEST}./store
 packages:
   '**':
     proxy: npmjs
-"#;
+";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect("an unresolved ${VAR} is replaced with empty, not an error");
     assert!(config.storage.ends_with("store"));

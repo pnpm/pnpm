@@ -111,7 +111,7 @@ pub struct Config {
     pub hosted_store: HostedStoreConfig,
     /// Which record store backs the auth state (users + tokens).
     /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
-    /// plus SQLite token database. The YAML `backend.libsql:` block
+    /// plus `SQLite` token database. The YAML `backend.libsql:` block
     /// switches both to a shared networked-SQLite database so several
     /// stateless pnpr replicas see a consistent set of accounts.
     pub backend: BackendConfig,
@@ -136,11 +136,11 @@ pub enum HostedStoreConfig {
 /// config-parse time.
 #[derive(Debug, Default, Clone)]
 pub enum BackendConfig {
-    /// Local htpasswd users + SQLite tokens (or in-memory when no file
+    /// Local htpasswd users + `SQLite` tokens (or in-memory when no file
     /// is configured). Today's behaviour.
     #[default]
     Local,
-    /// Networked SQLite (libsql / Turso): both records live in one
+    /// Networked `SQLite` (libsql / Turso): both records live in one
     /// shared database reachable over the network.
     Libsql(LibsqlSettings),
 }
@@ -535,7 +535,7 @@ struct ConfigFile {
     #[serde(default)]
     s3: Option<S3Settings>,
     /// pnpr-only block: back the auth record stores (users + tokens)
-    /// with a networked SQLite database. Absent on a stock verdaccio
+    /// with a networked `SQLite` database. Absent on a stock verdaccio
     /// config (silently ignored there).
     #[serde(default)]
     backend: Option<BackendFile>,

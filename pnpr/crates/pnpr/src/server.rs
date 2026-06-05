@@ -88,7 +88,7 @@ struct AppInner {
 ///
 /// This guards concurrency **within one instance**. Across replicas
 /// sharing one hosted store, the same race needs a conditional write
-/// (S3 `If-Match` / ETag); that is the cross-replica half tracked in
+/// (S3 `If-Match` / `ETag`); that is the cross-replica half tracked in
 /// [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199).
 struct PackageLocks {
     stripes: Box<[tokio::sync::Mutex<()>]>,
