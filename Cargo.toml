@@ -201,7 +201,6 @@ too_many_lines                            = "allow" # pacquet mirrors pnpm's fun
 struct_excessive_bools                    = "allow" # option structs mirror pnpm's
 fn_params_excessive_bools                 = "allow" # mirrors pnpm's option parameters
 match_same_arms                           = "allow" # arms kept explicit to mirror pnpm's switch cases
-match_wildcard_for_single_variants        = "allow"
 unnecessary_wraps                         = "allow"
 needless_pass_by_value                    = "allow"
 ref_option                                = "allow"

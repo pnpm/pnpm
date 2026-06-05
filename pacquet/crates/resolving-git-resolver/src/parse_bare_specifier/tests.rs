@@ -51,7 +51,7 @@ fn parses_plain_https_dot_git_to_direct() {
             assert_eq!(spec.fetch_spec, "https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git");
             assert_eq!(spec.git_committish.as_deref(), Some("abc"));
         }
-        _ => panic!("expected Direct"),
+        PartialSpec::Hosted(_) => panic!("expected Direct"),
     }
 }
 
