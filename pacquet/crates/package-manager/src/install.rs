@@ -34,6 +34,7 @@ use pacquet_reporter::{
     Stage, StageLog, SummaryLog,
 };
 use pacquet_resolving_npm_resolver::InMemoryPackageMetaCache;
+use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_tarball::MemCache;
 use pacquet_workspace_state::{
     ProjectEntry, UpdateWorkspaceStateError, WorkspaceState, now_millis, update_workspace_state,
@@ -44,6 +45,34 @@ use std::{
     sync::{Arc, atomic::AtomicU8},
     time::SystemTime,
 };
+
+/// Run the lockfile verification fan-out to completion, blocking the
+/// caller on the verdict. Used by the install paths that have no fetch
+/// to overlap verification with (fresh resolve, the lockfile-only and
+/// up-to-date short-circuits); the frozen materialization path instead
+/// runs verification concurrently with the fetch inside
+/// [`InstallFrozenLockfile`]. A no-op when `verifiers` is empty.
+async fn verify_lockfile_eagerly<Reporter: pacquet_reporter::Reporter>(
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    lockfile_path: Option<&Path>,
+    cache_dir: &Path,
+) -> Result<(), InstallError> {
+    if verifiers.is_empty() {
+        return Ok(());
+    }
+    verify_lockfile_resolutions::<Reporter>(
+        lockfile,
+        verifiers,
+        &VerifyLockfileResolutionsOptions {
+            concurrency: None,
+            lockfile_path,
+            cache_dir: Some(cache_dir),
+        },
+    )
+    .await
+    .map_err(InstallError::LockfileVerification)
+}
 
 /// This subroutine does everything `pacquet install` is supposed to do.
 #[must_use]
@@ -643,31 +672,44 @@ where
         // install short-circuit the verifier's own fetch chain, and
         // vice versa. Mirrors pnpm's `installing/client` wiring.
         let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
-        let resolution_verifiers = build_resolution_verifiers(
-            config,
-            Arc::clone(&http_client_arc),
-            Some(Arc::clone(&meta_cache)
-                as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
-            auth_override.clone(),
-            None,
-        )
-        .map_err(InstallError::BuildVerifiers)?;
-
-        if let Some(loaded_lockfile) = lockfile.filter(|_| !trust_lockfile) {
-            let derived_lockfile_path = lockfile_path
-                .map_or_else(|| workspace_root.join(Lockfile::FILE_NAME), Path::to_path_buf);
-            verify_lockfile_resolutions::<Reporter>(
-                loaded_lockfile,
-                &resolution_verifiers,
-                &VerifyLockfileResolutionsOptions {
-                    concurrency: None,
-                    lockfile_path: Some(&derived_lockfile_path),
-                    cache_dir: Some(&config.cache_dir),
-                },
+        // Resolution verifiers re-apply `minimumReleaseAge` /
+        // `trustPolicy='no-downgrade'` (plus the tarball-URL anti-tamper
+        // check) to every entry in the loaded `pnpm-lock.yaml`. They are
+        // built here — cheap, no I/O — but the verification fan-out itself
+        // is dispatched per path below: on the frozen materialization path
+        // it runs concurrently with the fetch (see [`InstallFrozenLockfile`])
+        // so the per-entry registry round trips overlap the download;
+        // every other path (fresh resolve, the lockfile-only / up-to-date
+        // short-circuits) verifies eagerly via [`verify_lockfile_eagerly`]
+        // before it proceeds. `trust_lockfile` (or no active resolution
+        // policy) leaves the list empty, making every gate a no-op — fresh
+        // local resolution is already filtered by the resolver's own
+        // per-version gate. The list is built whenever a policy could
+        // apply, independent of whether a lockfile is loaded, so the
+        // fresh-resolve path can record the freshly written lockfile as
+        // already-verified (see `record_lockfile_verified` below). Mirrors
+        // pnpm's wiring at
+        // <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/index.ts#L355-L383>
+        // and its concurrent verification + build gate.
+        //
+        // [#11860]: <https://github.com/pnpm/pnpm/issues/11860>
+        let resolution_verifiers = if trust_lockfile {
+            Vec::new()
+        } else {
+            build_resolution_verifiers(
+                config,
+                Arc::clone(&http_client_arc),
+                Some(Arc::clone(&meta_cache)
+                    as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
+                auth_override.clone(),
+                None,
             )
-            .await
-            .map_err(InstallError::LockfileVerification)?;
-        }
+            .map_err(InstallError::BuildVerifiers)?
+        };
+        let derived_lockfile_path = lockfile.map(|_| {
+            lockfile_path
+                .map_or_else(|| workspace_root.join(Lockfile::FILE_NAME), Path::to_path_buf)
+        });
 
         // `pnpm:context` carries the directories pnpm's reporter prints
         // in the install header. `currentLockfileExists` mirrors
@@ -803,6 +845,15 @@ where
             // Re-persist it so a brand-new project still lands a file, then
             // return without touching `node_modules`.
             let lockfile = lockfile.expect("frozen dispatch verified lockfile is present");
+            // This path materializes nothing, so there's no fetch to overlap;
+            // verify eagerly to keep the gate before the early return.
+            verify_lockfile_eagerly::<Reporter>(
+                lockfile,
+                &resolution_verifiers,
+                derived_lockfile_path.as_deref(),
+                &config.cache_dir,
+            )
+            .await?;
             if config.lockfile {
                 lockfile
                     .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
@@ -833,6 +884,15 @@ where
             && wanted_lockfile == current
             && is_modules_yaml_consistent(&config.modules_dir, config, node_linker, included)
         {
+            // Nothing to materialize means no fetch to overlap; verify
+            // eagerly before the up-to-date early return.
+            verify_lockfile_eagerly::<Reporter>(
+                wanted_lockfile,
+                &resolution_verifiers,
+                derived_lockfile_path.as_deref(),
+                &config.cache_dir,
+            )
+            .await?;
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,
                 message: "Lockfile is up to date, resolution step is skipped".to_string(),
@@ -874,6 +934,8 @@ where
                 packages: packages.as_ref(),
                 snapshots: snapshots.as_ref(),
                 lockfile,
+                resolution_verifiers: &resolution_verifiers,
+                lockfile_path: derived_lockfile_path.as_deref(),
                 current_lockfile: current_lockfile.as_ref(),
                 current_snapshots: current_lockfile
                     .as_ref()
@@ -892,7 +954,16 @@ where
             }
             .run::<Reporter>()
             .await
-            .map_err(InstallError::FrozenLockfile)?;
+            // Surface a verification failure as the same top-level
+            // `LockfileVerification` variant the eager paths use, rather
+            // than nesting it under `FrozenLockfile` — the concurrent gate
+            // is the same gate, just run alongside the fetch.
+            .map_err(|error| match error {
+                InstallFrozenLockfileError::LockfileVerification(verify_error) => {
+                    InstallError::LockfileVerification(verify_error)
+                }
+                other => InstallError::FrozenLockfile(other),
+            })?;
 
             (
                 frozen_result.hoisted_dependencies,
@@ -901,6 +972,22 @@ where
                 None,
             )
         } else {
+            // Re-verify the existing lockfile before the fresh resolve,
+            // matching the pre-resolution gate: a committed lockfile that
+            // bypassed the policy locally is caught here even though the
+            // resolver re-resolves from it. No-op when there's no lockfile
+            // (state 4) or verification is disabled. The fresh path's own
+            // resolution is the slow part, so this stays a blocking gate.
+            if let Some(loaded_lockfile) = lockfile {
+                verify_lockfile_eagerly::<Reporter>(
+                    loaded_lockfile,
+                    &resolution_verifiers,
+                    derived_lockfile_path.as_deref(),
+                    &config.cache_dir,
+                )
+                .await?;
+            }
+
             // Flag combinations the fresh-lockfile path doesn't honor
             // yet are validated here, after the dispatch decision so an
             // auto-frozen install (state 2 of [`Install::run`]) doesn't

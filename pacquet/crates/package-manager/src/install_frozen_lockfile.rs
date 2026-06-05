@@ -18,6 +18,9 @@ use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_lockfile::{
     Lockfile, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
 };
+use pacquet_lockfile_verification::{
+    VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
+};
 use pacquet_modules_yaml::{Host, read_modules_manifest};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
@@ -25,6 +28,7 @@ use pacquet_patching::{
     ExtendedPatchInfo, PatchKeyConflictError, ResolvePatchedDependenciesError, get_patch_info,
 };
 use pacquet_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::StoreIndexWriter;
 use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
@@ -62,6 +66,18 @@ where
     /// direct deps plus the full `packages` / `snapshots` maps in
     /// one borrow). Isolated installs ignore the field.
     pub lockfile: &'a Lockfile,
+    /// Resolution verifiers to re-apply to every lockfile entry. Run
+    /// concurrently with the fetch phase ([`crate::CreateVirtualStore`])
+    /// and awaited before any dependency lifecycle script executes, so a
+    /// rejected lockfile aborts before [`crate::BuildModules`] runs. Empty
+    /// when verification is disabled (`trustLockfile`), in which case the
+    /// gate is a no-op. The non-blocking sequencing mirrors pnpm's
+    /// concurrent `verifyLockfileResolutions` + `verifyLockfile` build gate.
+    pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
+    /// Absolute path of the lockfile being verified, for the on-disk
+    /// verification cache. `None` disables the cache (and is set when
+    /// there are no verifiers to run).
+    pub lockfile_path: Option<&'a Path>,
     /// The previous install's persisted current lockfile, threaded
     /// through to the hoisted walker for `prev_graph` (orphan
     /// diff). Mirrors upstream's
@@ -154,6 +170,9 @@ where
 /// Error type of [`InstallFrozenLockfile`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallFrozenLockfileError {
+    #[diagnostic(transparent)]
+    LockfileVerification(#[error(source)] VerifyError),
+
     #[diagnostic(transparent)]
     CreateVirtualStore(#[error(source)] CreateVirtualStoreError),
 
@@ -275,6 +294,8 @@ where
             packages,
             snapshots,
             lockfile,
+            resolution_verifiers,
+            lockfile_path,
             current_lockfile,
             current_snapshots,
             current_packages,
@@ -592,35 +613,64 @@ where
         // leaves every warm package reported as `found_in_store`.
         let progress_reported = SharedReportedProgressKeys::default();
 
+        // Run lockfile verification concurrently with the fetch instead of
+        // blocking the install on it: the per-entry registry round trips
+        // overlap `CreateVirtualStore`'s downloads. `try_join!` fails fast,
+        // so a rejected lockfile aborts the fetch in flight, and a verdict
+        // is always reached before linking and the build phase below — no
+        // dependency lifecycle script runs on an unverified lockfile. A
+        // no-op when `resolution_verifiers` is empty (`trustLockfile`).
+        let verify_fut = async {
+            if resolution_verifiers.is_empty() {
+                return Ok(());
+            }
+            verify_lockfile_resolutions::<Reporter>(
+                lockfile,
+                resolution_verifiers,
+                &VerifyLockfileResolutionsOptions {
+                    concurrency: None,
+                    lockfile_path,
+                    cache_dir: Some(&config.cache_dir),
+                },
+            )
+            .await
+            .map_err(InstallFrozenLockfileError::LockfileVerification)
+        };
+        let create_virtual_store_fut = async {
+            CreateVirtualStore {
+                http_client,
+                config,
+                packages,
+                snapshots,
+                current_snapshots,
+                current_packages,
+                layout: &layout,
+                logged_methods,
+                requester,
+                store_index_writer: &store_index_writer,
+                allow_build_policy: &allow_build_policy,
+                skipped: &skipped,
+                workspace_root,
+                node_linker,
+                progress_reported: &progress_reported,
+                tarball_mem_cache,
+                #[cfg(test)]
+                link_concurrency_probe: None,
+            }
+            .run::<Reporter>()
+            .await
+            .map_err(InstallFrozenLockfileError::CreateVirtualStore)
+        };
         let phase_start = std::time::Instant::now();
-        let CreateVirtualStoreOutput {
-            package_manifests,
-            side_effects_maps_by_snapshot,
-            fetch_failed,
-            cas_paths_by_pkg_id,
-        } = CreateVirtualStore {
-            http_client,
-            config,
-            packages,
-            snapshots,
-            current_snapshots,
-            current_packages,
-            layout: &layout,
-            logged_methods,
-            requester,
-            store_index_writer: &store_index_writer,
-            allow_build_policy: &allow_build_policy,
-            skipped: &skipped,
-            workspace_root,
-            node_linker,
-            progress_reported: &progress_reported,
-            tarball_mem_cache,
-            #[cfg(test)]
-            link_concurrency_probe: None,
-        }
-        .run::<Reporter>()
-        .await
-        .map_err(InstallFrozenLockfileError::CreateVirtualStore)?;
+        let (
+            (),
+            CreateVirtualStoreOutput {
+                package_manifests,
+                side_effects_maps_by_snapshot,
+                fetch_failed,
+                cas_paths_by_pkg_id,
+            },
+        ) = tokio::try_join!(verify_fut, create_virtual_store_fut)?;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "create_virtual_store",
