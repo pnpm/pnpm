@@ -751,9 +751,6 @@ catalogs:
     nock:
       specifier: 13.3.4
       version: 13.3.4
-    node:
-      specifier: runtime:^26.3.0
-      version: 26.3.0
     normalize-newline:
       specifier: 5.0.0
       version: 5.0.0
@@ -1135,7 +1132,7 @@ importers:
         specifier: 'catalog:'
         version: 5.0.1
       node:
-        specifier: 'catalog:'
+        specifier: runtime:26.3.0
         version: runtime:26.3.0
       rimraf:
         specifier: 'catalog:'
