@@ -215,7 +215,7 @@ manual_let_else                           = "allow"
 format_push_string                        = "allow"
 needless_continue                         = "allow"
 assigning_clones                          = "allow"
-many_single_char_names                    = "allow"
+many_single_char_names                    = "allow" # perfectionist's single_letter_* lints already cover this with finer per-position control
 large_stack_arrays                        = "allow"
 
 clone_on_ref_ptr             = "warn"
