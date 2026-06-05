@@ -447,6 +447,11 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         .dependencies([DependencyGroup::Dev])
         .map(|(name, spec)| (name.to_string(), spec.to_string()))
         .collect();
+    let optional_dependencies = state
+        .manifest
+        .dependencies([DependencyGroup::Optional])
+        .map(|(name, spec)| (name.to_string(), spec.to_string()))
+        .collect();
 
     let overrides = state
         .config
@@ -468,6 +473,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         .install(InstallOptions {
             dependencies,
             dev_dependencies,
+            optional_dependencies,
             registry: state.config.registry.clone(),
             named_registries: state.config.named_registries.clone(),
             // Forward the whole credential map: the registries a graph

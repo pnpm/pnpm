@@ -80,6 +80,7 @@ fn options(registry: &str, dependencies: BTreeMap<String, String>) -> InstallOpt
     InstallOptions {
         dependencies,
         dev_dependencies: BTreeMap::new(),
+        optional_dependencies: BTreeMap::new(),
         registry: registry.to_string(),
         named_registries: BTreeMap::new(),
         auth_headers: BTreeMap::new(),
@@ -196,6 +197,27 @@ async fn resolves_a_package() {
     );
 
     assert!(outcome.stats.total_packages >= 1);
+}
+
+/// Optional dependencies must reach the server in the request, not be
+/// silently dropped, so the resolved lockfile includes their edges.
+#[tokio::test]
+async fn forwards_optional_dependencies() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client = PnprClient::new(pnpr_url);
+
+    let mut opts = options(&registry.url(), BTreeMap::new());
+    opts.optional_dependencies = deps([("@foo/no-deps", "1.0.0")]);
+
+    let outcome = client.install(opts).await.expect("install should succeed");
+    let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
+    assert!(
+        packages.keys().any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+        "the optional dependency should be resolved into the lockfile, got: {:?}",
+        packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+    );
 }
 
 #[tokio::test]

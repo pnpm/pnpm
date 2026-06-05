@@ -34,6 +34,7 @@ pub struct PnprClient {
 pub struct InstallOptions {
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
+    pub optional_dependencies: DepMap,
     /// The client's default registry. The server resolves against this
     /// (and `named_registries`) rather than its own configuration.
     pub registry: String,
@@ -172,6 +173,7 @@ impl PnprClient {
                 "dir": ".",
                 "dependencies": opts.dependencies,
                 "devDependencies": opts.dev_dependencies,
+                "optionalDependencies": opts.optional_dependencies,
             }],
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
