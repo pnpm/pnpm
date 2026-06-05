@@ -1,11 +1,9 @@
 import { packageManager } from '@pnpm/cli.meta'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, shouldPersistLockfile } from '@pnpm/config.reader'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import semver from 'semver'
-
-import { shouldPersistLockfile } from './shouldPersistLockfile.js'
 
 /**
  * Records the currently running pnpm version in the env lockfile's

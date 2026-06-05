@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { packageManager } from '@pnpm/cli.meta'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, shouldPersistLockfile } from '@pnpm/config.reader'
 import { installPnpmToStore } from '@pnpm/engine.pm.commands'
 import { PnpmError } from '@pnpm/error'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
@@ -13,8 +13,6 @@ import spawn from 'cross-spawn'
 import semver from 'semver'
 
 import { exit } from './exit.js'
-import { shouldPersistLockfile } from './shouldPersistLockfile.js'
-
 export async function switchCliVersion (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return

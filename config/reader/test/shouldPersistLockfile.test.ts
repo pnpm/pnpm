@@ -1,6 +1,5 @@
 import { describe, expect, test } from '@jest/globals'
-
-import { shouldPersistLockfile } from './shouldPersistLockfile.js'
+import { shouldPersistLockfile } from '@pnpm/config.reader'
 
 describe('shouldPersistLockfile', () => {
   test('devEngines.packageManager persists unless onFail is ignore', () => {
@@ -29,8 +28,8 @@ describe('shouldPersistLockfile', () => {
   test('missing or invalid version does not persist', () => {
     expect(shouldPersistLockfile({ version: undefined })).toBe(false)
     expect(shouldPersistLockfile({ version: 'not-a-version' })).toBe(false)
-    // Ranges are not valid for the legacy packageManager field — its parser
-    // rejects them, but we still guard defensively here.
+    // Ranges are not valid for the legacy packageManager field. Its parser
+    // rejects them, but the persistence gate still treats them as non-pinning.
     expect(shouldPersistLockfile({ version: '^12.0.0' })).toBe(false)
   })
 })

@@ -184,7 +184,7 @@ export async function handler (
           }
         }
         if (manifestChanged) await writeProjectManifest(manifest)
-        if (shouldPersistLockfile(opts.wantedPackageManager)) {
+        if (shouldPersistLockfile({ ...opts.wantedPackageManager, fromDevEngines: true })) {
           const store = await createStoreController(opts)
           await resolvePackageManagerIntegrities(resolution.manifest.version, {
             registries: opts.registries,
