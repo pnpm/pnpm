@@ -72,10 +72,15 @@ fn package_integrity(lockfile: &str, package_key: &str) -> Option<String> {
         })
         // `integrity:` appears either on its own line (block style) or inside
         // the single-line `resolution: {integrity: ..., tarball: ...}` flow map,
-        // so extract the value up to the next `,` / `}` / end-of-line.
+        // so extract the value up to the next `,` / `}` / end-of-line. Match
+        // only the YAML key token (start-of-line, indent, `{`, or `,` before
+        // it) so a tarball URL/path containing the substring can't masquerade
+        // as the field and hide a genuinely missing `integrity`.
         .find_map(|line| {
-            let start = line.find("integrity:")? + "integrity:".len();
-            let rest = line[start..].trim_start();
+            let key_at = line.match_indices("integrity:").find(|(idx, _)| {
+                matches!(line[..*idx].chars().next_back(), None | Some(' ' | '{' | ','))
+            })?;
+            let rest = line[key_at.0 + "integrity:".len()..].trim_start();
             let end = rest.find([',', '}']).unwrap_or(rest.len());
             Some(rest[..end].trim().to_string())
         })
