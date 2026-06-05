@@ -330,8 +330,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(None);
         };
 
-        let registry =
-            self.registries.get("@jsr").map(String::as_str).unwrap_or(DEFAULT_JSR_REGISTRY);
+        let registry = self.registries.get("@jsr").map_or(DEFAULT_JSR_REGISTRY, String::as_str);
 
         let optional = wanted_dependency.optional.unwrap_or(false);
         let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts, optional).await?
@@ -506,7 +505,7 @@ fn try_workspace_shadow(
 /// fallback helper expects. `registry` and `default_tag` are unused on
 /// the fallback path (the spec has already been parsed against the
 /// registry) so dummy values are passed through.
-fn workspace_fallback_options<'a>(opts: &'a ResolveOptions) -> ResolveFromWorkspaceOptions<'a> {
+fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWorkspaceOptions<'_> {
     const UNUSED: &str = "";
     ResolveFromWorkspaceOptions {
         project_dir: opts.project_dir.as_path(),
@@ -600,15 +599,13 @@ pub(crate) fn build_resolve_result(
     // wrong peers, wrong lockfile metadata. Matches `meta_cache`'s
     // `{registry}\x00{name}` scoping shape.
     let manifest_cache_key = format!("{registry}\x00{}@{version_str}", picked.name);
-    let manifest = match picked_manifest_cache.get(&manifest_cache_key) {
-        Some(cached) => Some(Arc::clone(cached.value())),
-        None => {
-            let arc = Arc::new(
-                serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?,
-            );
-            picked_manifest_cache.insert(manifest_cache_key, Arc::clone(&arc));
-            Some(arc)
-        }
+    let manifest = if let Some(cached) = picked_manifest_cache.get(&manifest_cache_key) {
+        Some(Arc::clone(cached.value()))
+    } else {
+        let arc =
+            Arc::new(serde_json::to_value(picked).map_err(|err| Box::new(err) as ResolveError)?);
+        picked_manifest_cache.insert(manifest_cache_key, Arc::clone(&arc));
+        Some(arc)
     };
     let policy_violation = detect_min_release_age_violation(
         &pkg_name,

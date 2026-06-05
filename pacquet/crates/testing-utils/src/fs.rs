@@ -1,6 +1,7 @@
 use std::{fs, io, path::Path};
 use walkdir::WalkDir;
 
+#[must_use]
 pub fn get_filenames_in_folder(path: &Path) -> Vec<String> {
     let mut files = fs::read_dir(path)
         .unwrap()
@@ -19,6 +20,7 @@ fn normalized_suffix(path: &Path, prefix: &Path) -> String {
         .replace('\\', "/")
 }
 
+#[must_use]
 pub fn get_all_folders(root: &Path) -> Vec<String> {
     WalkDir::new(root)
         .sort_by_file_name()
@@ -30,6 +32,7 @@ pub fn get_all_folders(root: &Path) -> Vec<String> {
         .collect()
 }
 
+#[must_use]
 pub fn get_all_files(root: &Path) -> Vec<String> {
     WalkDir::new(root)
         .sort_by_file_name()
@@ -60,6 +63,7 @@ pub fn is_symlink_or_junction(path: &Path) -> io::Result<bool> {
 
 /// Check if a file is executable.
 #[cfg(unix)]
+#[must_use]
 pub fn is_path_executable(path: &Path) -> bool {
     use std::{fs::File, os::unix::prelude::*};
     let mode = File::open(path)

@@ -20,6 +20,7 @@
 //! percent-encoded.
 
 /// Compose the metadata-fetch URL: `<registry-with-trailing-slash><encoded-name>`.
+#[must_use]
 pub fn to_registry_url(registry: &str, pkg_name: &str) -> String {
     let registry =
         if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };

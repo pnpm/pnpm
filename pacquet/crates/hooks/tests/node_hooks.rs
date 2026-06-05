@@ -44,7 +44,7 @@ async fn test_node_js_hooks_read_package() {
     let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
     std::fs::write(
         &pnpmfile_path,
-        r#"
+        r"
 module.exports = {
   hooks: { readPackage }
 }
@@ -55,7 +55,7 @@ function readPackage(pkg) {
   }
   return pkg;
 }
-"#,
+",
     )
     .expect("write pnpmfile");
 
@@ -80,7 +80,7 @@ async fn test_node_js_hooks_read_package_no_match() {
     let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
     std::fs::write(
         &pnpmfile_path,
-        r#"
+        r"
 module.exports = {
   hooks: { readPackage }
 }
@@ -88,7 +88,7 @@ module.exports = {
 function readPackage(pkg) {
   return pkg;
 }
-"#,
+",
     )
     .expect("write pnpmfile");
 
@@ -113,7 +113,7 @@ async fn test_node_js_hooks_filter_log() {
     let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
     std::fs::write(
         &pnpmfile_path,
-        r#"
+        r"
 module.exports = {
   hooks: { filterLog }
 }
@@ -121,7 +121,7 @@ module.exports = {
 function filterLog(log) {
   return log.level === 'debug' || log.level === 'error';
 }
-"#,
+",
     )
     .expect("write pnpmfile");
 
@@ -156,7 +156,7 @@ async fn test_node_js_hooks_read_package_mjs() {
     let pnpmfile_path = tmp.path().join(".pnpmfile.mjs");
     std::fs::write(
         &pnpmfile_path,
-        r#"
+        r"
 export const hooks = { readPackage };
 
 function readPackage(pkg) {
@@ -165,7 +165,7 @@ function readPackage(pkg) {
   }
   return pkg;
 }
-"#,
+",
     )
     .expect("write pnpmfile");
 
@@ -195,7 +195,7 @@ async fn test_node_js_hooks_pre_resolution() {
     let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
     std::fs::write(
         &pnpmfile_path,
-        r#"
+        r"
 module.exports = {
   hooks: { preResolution }
 }
@@ -207,7 +207,7 @@ function preResolution(ctx, logger) {
   if (typeof logger.info !== 'function') throw new Error('missing logger.info');
   if (typeof logger.warn !== 'function') throw new Error('missing logger.warn');
 }
-"#,
+",
     )
     .expect("write pnpmfile");
 
@@ -241,7 +241,7 @@ async fn test_node_js_hooks_pre_resolution_mjs() {
     let pnpmfile_path = tmp.path().join(".pnpmfile.mjs");
     std::fs::write(
         &pnpmfile_path,
-        r#"
+        r"
 export const hooks = { preResolution };
 
 function preResolution(ctx, logger) {
@@ -251,7 +251,7 @@ function preResolution(ctx, logger) {
   if (typeof logger.info !== 'function') throw new Error('missing logger.info');
   if (typeof logger.warn !== 'function') throw new Error('missing logger.warn');
 }
-"#,
+",
     )
     .expect("write pnpmfile");
 
@@ -343,13 +343,13 @@ async fn read_package_normalizes_missing_dependency_fields() {
     // directly, relying on pnpm's normalization that defaults each to `{}`
     // before the hook runs.
     let (hooks, _tmp) = cjs_hooks(
-        r#"module.exports = { hooks: { readPackage (pkg) {
+        r"module.exports = { hooks: { readPackage (pkg) {
   pkg.dependencies['is-positive'] = '*';
   pkg.optionalDependencies['is-negative'] = '*';
   pkg.peerDependencies['is-negative'] = '*';
   pkg.devDependencies['is-positive'] = '*';
   return pkg;
-} } }"#,
+} } }",
     );
 
     let updated = hooks
@@ -383,10 +383,10 @@ async fn read_package_fails_when_pnpmfile_requires_missing_module() {
 #[tokio::test]
 async fn worker_multiplexes_concurrent_read_package_calls() {
     let (hooks, _tmp) = cjs_hooks(
-        r#"module.exports = { hooks: { readPackage (pkg) {
+        r"module.exports = { hooks: { readPackage (pkg) {
   pkg.dependencies['self'] = pkg.name;
   return pkg;
-} } }"#,
+} } }",
     );
     let hooks = Arc::new(hooks);
 
@@ -417,10 +417,10 @@ async fn worker_multiplexes_concurrent_read_package_calls() {
 #[tokio::test]
 async fn worker_forwards_read_package_context_log() {
     let (hooks, _tmp) = cjs_hooks(
-        r#"module.exports = { hooks: { readPackage (pkg, context) {
+        r"module.exports = { hooks: { readPackage (pkg, context) {
   context.log('hello from ' + pkg.name);
   return pkg;
-} } }"#,
+} } }",
     );
 
     let logs = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));

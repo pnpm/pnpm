@@ -185,7 +185,7 @@ fn returns_none_for_unmatched_url_in_empty_map() {
 /// `//registry.npmjs.org/:_authToken=B` (per-URI for the default
 /// registry), upstream guarantees the *default* (A) wins on the
 /// default registry. Without the two-phase build in `from_creds_map`,
-/// pacquet's HashMap iteration would let either value win
+/// pacquet's `HashMap` iteration would let either value win
 /// non-deterministically.
 #[test]
 fn default_creds_win_over_per_uri_on_default_registry() {

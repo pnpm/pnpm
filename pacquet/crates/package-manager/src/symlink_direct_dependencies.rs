@@ -142,7 +142,7 @@ pub enum SymlinkDirectDependenciesError {
     },
 }
 
-impl<'a, DependencyGroupList> SymlinkDirectDependencies<'a, DependencyGroupList>
+impl<DependencyGroupList> SymlinkDirectDependencies<'_, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {

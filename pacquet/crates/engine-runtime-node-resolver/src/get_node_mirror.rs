@@ -23,6 +23,7 @@ pub const UNOFFICIAL_NODE_MIRROR_BASE_URL: &str =
 /// A missing entry falls back to the official nodejs.org tree. The
 /// returned URL always ends with `/` so callers can concatenate
 /// `v<version>/...` without a defensive check.
+#[must_use]
 pub fn get_node_mirror(
     node_download_mirrors: Option<&HashMap<String, String>>,
     release_channel: &str,

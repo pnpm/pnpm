@@ -17,7 +17,7 @@ use crate::{
 
 /// Context log serializes with the camelCase field names
 /// `@pnpm/cli.default-reporter` expects (`currentLockfileExists`,
-/// `storeDir`, `virtualStoreDir`); snake_case names would silently
+/// `storeDir`, `virtualStoreDir`); `snake_case` names would silently
 /// fail to render even though the JSON is structurally valid.
 #[test]
 fn context_event_matches_pnpm_wire_shape() {
@@ -635,7 +635,7 @@ fn ignored_scripts_event_matches_pnpm_wire_shape() {
 
 /// `pnpm:skipped-optional-dependency` matches upstream's wire
 /// shape: top-level `details`, `package: { id, name, version }`,
-/// `prefix`, and `reason` (snake_case). Mirrors
+/// `prefix`, and `reason` (`snake_case`). Mirrors
 /// `SkippedOptionalDependencyMessage` at
 /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/core/core-loggers/src/skippedOptionalDependencyLogger.ts>.
 #[test]
@@ -777,7 +777,7 @@ fn skipped_optional_resolution_failure_omits_absent_name_and_version() {
     assert_eq!(json["package"]["bareSpecifier"], "git+ssh://broken-url");
 }
 
-/// All four reason variants serialize as the snake_case strings
+/// All four reason variants serialize as the `snake_case` strings
 /// pnpm's reporter dispatches on.
 #[test]
 fn skipped_optional_reason_serializes_in_pnpm_form() {
@@ -793,7 +793,7 @@ fn skipped_optional_reason_serializes_in_pnpm_form() {
     }
 }
 
-/// Phase markers serialize as the snake_case strings pnpm uses.
+/// Phase markers serialize as the `snake_case` strings pnpm uses.
 #[test]
 fn stage_phases_serialize_in_pnpm_form() {
     let cases = [

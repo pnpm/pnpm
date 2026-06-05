@@ -20,7 +20,7 @@ use tempfile::tempdir;
 /// module pin specific config-cascade behaviours, none of which
 /// turn on cross-volume detection, so the test fakes return
 /// `false` for every probe. The probe failing collapses to the
-/// pre-existing SmartDefault `store_dir` value, which is what the
+/// pre-existing `SmartDefault` `store_dir` value, which is what the
 /// pre-port assertions already assume.
 ///
 /// `inert_link_probe!(Name)` wires the impl onto a local test
@@ -1130,7 +1130,7 @@ pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
 /// `!virtual_store_dir_explicit` guard on the re-anchor, the
 /// workspace-root default (`<workspace>/node_modules/.pnpm`)
 /// would overwrite the global value any time a `pnpm-workspace.yaml`
-/// is present. Regression test for a CodeRabbit review finding on
+/// is present. Regression test for a `CodeRabbit` review finding on
 /// pnpm/pnpm#11752.
 #[test]
 pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {

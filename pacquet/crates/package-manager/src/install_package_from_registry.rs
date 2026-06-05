@@ -52,7 +52,7 @@ pub struct InstallPackageFromRegistry<'a> {
     /// Arc<cas_paths>`. When `Some`, the
     /// `DownloadTarballToStore::run_without_mem_cache` cache-lookup
     /// branch reads from here before falling back to the per-snapshot
-    /// SQLite lookup, avoiding `Arc<Mutex<StoreIndex>>` contention on
+    /// `SQLite` lookup, avoiding `Arc<Mutex<StoreIndex>>` contention on
     /// the resolve hot path.
     pub prefetched_cas_paths: Option<&'a pacquet_tarball::PrefetchedCasPaths>,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
@@ -103,7 +103,7 @@ pub enum InstallPackageFromRegistryError {
     },
 }
 
-impl<'a> InstallPackageFromRegistry<'a> {
+impl InstallPackageFromRegistry<'_> {
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter>(
         self,

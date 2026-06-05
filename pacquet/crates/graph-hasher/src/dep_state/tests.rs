@@ -3,7 +3,7 @@ use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 
 /// Engine-only key (no dep graph, no patch). Pure prefix path
-/// for the cheapest cache lookup. Mirrors the "include_dep_graph_hash:
+/// for the cheapest cache lookup. Mirrors the "`include_dep_graph_hash`:
 /// false" path at
 /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L36>.
 #[test]

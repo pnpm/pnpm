@@ -18,20 +18,17 @@ impl PackageName {
         if raw.is_empty() || raw.len() > 214 {
             return Err(invalid());
         }
-        let basename = match raw.strip_prefix('@') {
-            Some(rest) => {
-                let (scope, name) = rest.split_once('/').ok_or_else(invalid)?;
-                if !is_safe_segment(scope) || !is_safe_segment(name) {
-                    return Err(invalid());
-                }
-                name.to_string()
+        let basename = if let Some(rest) = raw.strip_prefix('@') {
+            let (scope, name) = rest.split_once('/').ok_or_else(invalid)?;
+            if !is_safe_segment(scope) || !is_safe_segment(name) {
+                return Err(invalid());
             }
-            None => {
-                if !is_safe_segment(raw) {
-                    return Err(invalid());
-                }
-                raw.to_string()
+            name.to_string()
+        } else {
+            if !is_safe_segment(raw) {
+                return Err(invalid());
             }
+            raw.to_string()
         };
         Ok(Self { raw: raw.to_string(), basename })
     }

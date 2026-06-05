@@ -158,7 +158,7 @@ fn original_path_is_appended_last() {
 }
 
 /// `scripts_prepend_node_path: Always` appends `dirname(node)` after
-/// extra_bin_paths but before originalPath.
+/// `extra_bin_paths` but before originalPath.
 #[test]
 fn scripts_prepend_node_path_always_appends_dirname_of_node() {
     let wd = Path::new("/proj");

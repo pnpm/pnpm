@@ -1,7 +1,7 @@
 //! Per-`(user, name@version)` allow-list gating externally-resolved
 //! private content ([pnpm/pnpm#12184](https://github.com/pnpm/pnpm/issues/12184)):
 //! the store dedups the bytes globally, but possession must not authorize
-//! a user the owning registry never cleared. Backed by SQLite (WAL) like
+//! a user the owning registry never cleared. Backed by `SQLite` (WAL) like
 //! [`super::verdict_cache::VerdictCache`]; every method is best-effort (a
 //! DB error never fails the request, at worst one extra re-verify).
 
@@ -98,10 +98,7 @@ fn evict_overflow(conn: &Connection) {
 }
 
 fn now_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_millis() as i64)
-        .unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis() as i64)
 }
 
 #[cfg(test)]

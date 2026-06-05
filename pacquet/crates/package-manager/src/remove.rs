@@ -78,7 +78,7 @@ pub enum RemoveError {
     Install(#[error(source)] InstallError),
 }
 
-impl<'a> Remove<'a> {
+impl Remove<'_> {
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), RemoveError> {
         let Remove {
             tarball_mem_cache,

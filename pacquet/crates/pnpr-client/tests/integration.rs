@@ -250,8 +250,7 @@ async fn lockfile_only_resolves_without_fetching_files() {
     assert_eq!(outcome.index_entries_written, 0, "lockfile-only should write no index entries");
     assert!(
         pacquet_store_dir::StoreIndex::open_readonly_in(&store)
-            .map(|index| index.keys().unwrap_or_default().is_empty())
-            .unwrap_or(true),
+            .map_or(true, |index| index.keys().unwrap_or_default().is_empty()),
         "client store index should stay empty after a lockfile-only install",
     );
 }

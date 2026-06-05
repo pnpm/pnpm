@@ -86,6 +86,7 @@ impl VerifyError {
     /// violations. The list is **already sorted** by `name@version`
     /// (the runner sorts before calling). Empty input is a logic
     /// error — callers must check before constructing.
+    #[must_use]
     pub fn from_rendered(violations: Vec<RenderedViolation>) -> Self {
         debug_assert!(!violations.is_empty(), "no violations → no error");
         let distinct_codes: std::collections::BTreeSet<&str> =

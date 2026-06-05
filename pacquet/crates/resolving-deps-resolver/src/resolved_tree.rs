@@ -118,7 +118,7 @@ pub struct ResolvedPackage {
     /// the peer-resolution pass does when it carves
     /// `DependenciesGraphNode`s out of the resolved tree) is an
     /// `Arc::clone` instead of a deep copy of every `String` field
-    /// on `ResolveResult` (id, alias, resolved_via, name_ver, ...).
+    /// on `ResolveResult` (id, alias, `resolved_via`, `name_ver`, ...).
     pub result: std::sync::Arc<ResolveResult>,
     /// `peerDependencies` from the package's manifest, with names that
     /// also appear in the package's own `dependencies` /
@@ -224,6 +224,7 @@ pub enum TreeChildren {
 impl TreeChildren {
     /// Empty realized children. Used for leaves so callers don't have
     /// to construct an empty `BTreeMap` themselves.
+    #[must_use]
     pub fn empty() -> Self {
         TreeChildren::Realized(BTreeMap::new())
     }
@@ -235,6 +236,7 @@ impl TreeChildren {
     /// via `Walker::realize_children`). Consumers that genuinely
     /// can't realize (e.g. the dependency-tree walker writing a
     /// fresh map) should match on the enum directly.
+    #[must_use]
     pub fn realized(&self) -> &BTreeMap<String, NodeId> {
         match self {
             TreeChildren::Realized(map) => map,

@@ -91,6 +91,7 @@ fn is_valid_http_url(url: &str) -> bool {
 /// - Output is sorted longest-first so two registries sharing a host
 ///   but differing by path (`https://npm/team-a/` vs
 ///   `https://npm/team-b/`) route to the deeper match.
+#[must_use]
 pub fn build_named_registry_prefixes(named_registries: &HashMap<String, String>) -> Vec<String> {
     let mut merged: HashMap<&str, String> = HashMap::new();
     for (name, url) in BUILTIN_NAMED_REGISTRIES {
@@ -130,6 +131,7 @@ pub fn build_named_registry_prefixes(named_registries: &HashMap<String, String>)
 ///    the `registries[@scope]` entry if present, else
 ///    `registries.default`. Ports upstream's
 ///    [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/pick-registry-for-package/src/index.ts#L3-L6).
+#[must_use]
 pub fn pick_registry_for_version(
     registries: &HashMap<String, String>,
     named_registry_prefixes: &[String],
@@ -163,6 +165,7 @@ pub fn pick_registry_for_version(
 ///      unscoped and doesn't live on a scoped registry.
 /// 2. **Plain spec.** Falls back to `pkg_name`'s scope when present;
 ///    otherwise `registries["default"]`.
+#[must_use]
 pub fn pick_registry_for_package(
     registries: &HashMap<String, String>,
     pkg_name: &str,

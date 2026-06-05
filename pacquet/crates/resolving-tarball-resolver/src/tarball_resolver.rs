@@ -40,7 +40,7 @@ pub struct TarballFetchContext {
     pub store_index: Option<SharedReadonlyStoreIndex>,
     pub verify_store_integrity: bool,
     pub verified_files_cache: SharedVerifiedFilesCache,
-    /// Tarball URL → `(integrity, <integrity>\t<pkg_id>` store-index key)`
+    /// Tarball URL → `(integrity, "<integrity>\t<pkg_id>" store-index key)`
     /// for every remote-tarball entry the prior lockfile recorded. Lets a
     /// re-resolve reuse the already-extracted store content instead of
     /// re-downloading. Empty on a first install.

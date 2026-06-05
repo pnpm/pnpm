@@ -264,6 +264,7 @@ fn detect_strongest_trust_evidence_before(
 /// otherwise the publisher flag is ignored and the version falls back
 /// to the provenance rank or `None`. Mirrors pnpm's
 /// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/trustChecks.ts#L123-L134).
+#[must_use]
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
     let has_approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref()).is_some();
     if has_approver {
@@ -283,7 +284,7 @@ pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
 }
 
 fn is_prerelease(version: &str) -> bool {
-    Version::parse(version).map(|parsed| !parsed.pre_release.is_empty()).unwrap_or(false)
+    Version::parse(version).is_ok_and(|parsed| !parsed.pre_release.is_empty())
 }
 
 #[cfg(test)]

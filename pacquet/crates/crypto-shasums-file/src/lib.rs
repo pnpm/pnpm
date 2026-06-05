@@ -124,6 +124,7 @@ pub async fn fetch_shasums_file_raw(
 /// Split out from [`fetch_shasums_file`] so verifier-side code that
 /// already has the body in hand can decode it without re-issuing the
 /// network request.
+#[must_use]
 pub fn parse_shasums_file(body: &str) -> Vec<ShasumsFileItem> {
     body.lines()
         .filter_map(|line| {

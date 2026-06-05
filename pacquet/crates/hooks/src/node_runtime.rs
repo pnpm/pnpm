@@ -25,6 +25,7 @@ pub struct NodeJsHooks {
 const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl NodeJsHooks {
+    #[must_use]
     pub fn new(file: PathBuf) -> Self {
         NodeJsHooks { file, worker: OnceCell::new() }
     }
@@ -68,7 +69,6 @@ const logger = {{
 }};
 await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 "#,
-                    file_path_escaped = file_path_escaped,
                 ),
             )
         } else {
@@ -85,12 +85,11 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
   await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 }})();
 "#,
-                    file_path_escaped = file_path_escaped,
                 ),
             )
         };
 
-        let mut child = match Command::new("node")
+        let mut child = if let Ok(child) = Command::new("node")
             .arg("--input-type")
             .arg(input_type)
             .arg("-e")
@@ -99,11 +98,10 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             .stdin(std::process::Stdio::piped())
             .spawn()
         {
-            Ok(child) => child,
-            Err(_) => {
-                (logger.warn)("pnpmfile hook failed to start".to_string());
-                return;
-            }
+            child
+        } else {
+            (logger.warn)("pnpmfile hook failed to start".to_string());
+            return;
         };
 
         if let Some(mut stdin) = child.stdin.take()
@@ -113,17 +111,16 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             return;
         }
 
-        let output = match timeout(HOOK_TIMEOUT, child.wait_with_output()).await {
-            Ok(Ok(output)) => output,
-            Ok(Err(_)) | Err(_) => {
-                (logger.warn)("pnpmfile hook timed out or failed to execute".to_string());
-                return;
-            }
+        let output = if let Ok(Ok(output)) = timeout(HOOK_TIMEOUT, child.wait_with_output()).await {
+            output
+        } else {
+            (logger.warn)("pnpmfile hook timed out or failed to execute".to_string());
+            return;
         };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            (logger.warn)(format!("pnpmfile hook failed: {}", stderr));
+            (logger.warn)(format!("pnpmfile hook failed: {stderr}"));
         }
     }
 }

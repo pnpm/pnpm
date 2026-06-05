@@ -905,7 +905,7 @@ async fn search_augments_with_upstream_when_local_misses_exact_name() {
     let mut config = Config::proxy(listen, tmp.path().to_path_buf());
     config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.url();
     config.public_url = "http://example.test".to_string();
-    config.packument_ttl = Duration::from_secs(60);
+    config.packument_ttl = Duration::from_mins(1);
     let app = router(config);
 
     let response = app
@@ -950,7 +950,7 @@ async fn search_augment_skips_when_upstream_404s() {
     let mut config = Config::proxy(listen, tmp.path().to_path_buf());
     config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.url();
     config.public_url = "http://example.test".to_string();
-    config.packument_ttl = Duration::from_secs(60);
+    config.packument_ttl = Duration::from_mins(1);
     let app = router(config);
 
     let response = app

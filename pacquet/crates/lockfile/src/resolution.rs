@@ -214,6 +214,7 @@ pub struct PlatformSelector {
 /// scanned linearly — `targets[]` is typically 1–3 entries (one per
 /// architecture combo that shares an artifact), so the nested-loop
 /// cost is negligible.
+#[must_use]
 pub fn select_platform_variant<'a>(
     variants: &'a [PlatformAssetResolution],
     selector: &PlatformSelector,
@@ -257,6 +258,7 @@ pub enum LockfileResolution {
 
 impl LockfileResolution {
     /// Get the integrity field if available.
+    #[must_use]
     pub fn integrity(&self) -> Option<&'_ Integrity> {
         match self {
             LockfileResolution::Tarball(resolution) => resolution.integrity.as_ref(),

@@ -62,7 +62,7 @@ fn version_spec(name: &str, version: &str) -> RegistryPackageSpec {
     }
 }
 
-fn default_opts<'a>(registry: &'a str) -> PickPackageOptions<'a> {
+fn default_opts(registry: &str) -> PickPackageOptions<'_> {
     PickPackageOptions {
         registry,
         preferred_version_selectors: None,
@@ -567,7 +567,7 @@ fn parse_cutoff(rfc3339: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(rfc3339).expect("parse cutoff").with_timezone(&Utc)
 }
 
-/// Default-mode pick (full_metadata=false, no opts.optional) hits
+/// Default-mode pick (`full_metadata=false`, no opts.optional) hits
 /// the abbreviated install-v1 endpoint and caches under
 /// `ABBREVIATED_META_DIR`. The full mirror stays untouched.
 #[tokio::test]

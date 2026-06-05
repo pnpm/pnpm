@@ -29,6 +29,7 @@ const YAML_DOCUMENT_START: &str = "---\n";
 ///   present) means the file is env-only.
 /// - Otherwise the file is single-document and the input is returned
 ///   verbatim.
+#[must_use]
 pub fn extract_main_document(content: &str) -> &str {
     let Some(rest) = content.strip_prefix(YAML_DOCUMENT_START) else {
         return content;

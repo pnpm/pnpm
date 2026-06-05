@@ -82,6 +82,7 @@ pub struct SkippedSnapshots {
 }
 
 impl SkippedSnapshots {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -171,16 +172,19 @@ impl SkippedSnapshots {
     /// (installability, fetch-failure, or `--no-optional`).
     /// Downstream consumers want the union: a dropped snapshot is
     /// equally absent from the install regardless of origin.
+    #[must_use]
     pub fn contains(&self, key: &PackageKey) -> bool {
         self.installability.contains(key)
             || self.fetch_failed.contains(key)
             || self.optional_excluded.contains(key)
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.installability.len() + self.fetch_failed.len() + self.optional_excluded.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.installability.is_empty()
             && self.fetch_failed.is_empty()
@@ -248,6 +252,7 @@ impl InstallabilityHost {
     /// synthetic. Slice 2 will wire a proper `nodeVersion` config
     /// setting and surface `ERR_PNPM_INVALID_NODE_VERSION` to match
     /// upstream's throw-on-detection-failure behavior.
+    #[must_use]
     pub fn detect() -> Self {
         let detected = pacquet_graph_hasher::detect_node_version();
         let node_detected = detected.is_some();

@@ -40,7 +40,7 @@ fn snapshot_with_dep(child: &str, ref_str: &str) -> SnapshotEntry {
 }
 
 /// `emit_warm_snapshot_progress` fires `resolved` then
-/// `found_in_store` in that order for one (package_id, requester)
+/// `found_in_store` in that order for one (`package_id`, requester)
 /// pair. Both events carry the same identifiers — pnpm's per-package
 /// counter relies on the pair to pin the tick to the right package
 /// row.

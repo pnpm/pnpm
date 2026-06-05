@@ -25,7 +25,7 @@
 //! parser cache against the home store and then can't find the same
 //! source files in the case-sensitive TypeScript program loaded from
 //! the workspace volume, so `eslint --fix` fails with a
-//! "TSConfig does not include this file" error on every project file.
+//! "`TSConfig` does not include this file" error on every project file.
 //!
 //! The hardlink attempt itself is threaded through the
 //! [`LinkProbe`] capability so tests can answer the linkability
@@ -53,7 +53,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-/// Resolve where to place the default pnpm store given the SmartDefault
+/// Resolve where to place the default pnpm store given the `SmartDefault`
 /// home-based path and the project root.
 ///
 /// Returns `home_default` unchanged when the project's volume can be
@@ -197,7 +197,7 @@ pub(crate) fn host_can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool
 /// once and removes it.
 fn path_temp_in(folder: &Path) -> PathBuf {
     let pid = std::process::id();
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(0);
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.subsec_nanos());
     folder.join(format!("_tmp_{pid}_{nanos:08x}"))
 }
 

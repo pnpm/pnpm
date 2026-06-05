@@ -192,6 +192,7 @@ pub async fn resolve_from_local_path(
 /// [`LatestInfo`] so the dispatcher stops there instead of routing
 /// the dep into a user-configured named-registry alias of the same
 /// name.
+#[must_use]
 pub fn resolve_latest_from_local(query: &LatestQuery) -> Option<LatestInfo> {
     let bare = query.wanted_dependency.bare_specifier.as_deref()?;
     if bare.starts_with("link:") || bare.starts_with("file:") || bare.starts_with("workspace:") {

@@ -59,7 +59,7 @@ fn touch_lockfile(dir: &Path, contents: &str) -> PathBuf {
 }
 
 /// Hash builder helper: deterministic per `text` so tests can pin
-/// the expected hash without depending on the actual hash_lockfile.
+/// the expected hash without depending on the actual `hash_lockfile`.
 fn hashed(text: &str) -> impl FnMut() -> String + use<'_> {
     move || format!("hash-of-{text}")
 }
@@ -77,7 +77,7 @@ fn cold_cache_misses_with_populated_stat() {
 }
 
 /// After a successful `record_verification`, a follow-up lookup at
-/// the same path hits the stat shortcut — same size + mtime_ns +
+/// the same path hits the stat shortcut — same size + `mtime_ns` +
 /// inode → no rehash. Verifies the `byPath` index.
 #[test]
 fn stat_shortcut_hits_same_path_same_stat() {

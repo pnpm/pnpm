@@ -8,7 +8,7 @@
 //!   `<username>:<bcrypt-hash>` line per user, so the same file can
 //!   be inspected and verified by Apache's `htpasswd -v`.
 //! * [`TokenStore`] — SHA-256 token hash → token record. Persisted in
-//!   a SQLite database when [`TokenStore::open`] is given a path;
+//!   a `SQLite` database when [`TokenStore::open`] is given a path;
 //!   in-memory otherwise. The raw token is only returned to the
 //!   caller once on `issue`; only its hash ever hits disk so a leak
 //!   of the database doesn't grant access on its own.
@@ -47,6 +47,7 @@ impl AuthState {
     /// All-in-memory auth state. Used when neither
     /// `auth.htpasswd.file` nor `auth.tokens.file` are configured,
     /// and by tests that don't care about persistence.
+    #[must_use]
     pub fn in_memory() -> Self {
         Self { users: UserStore::in_memory(), tokens: TokenStore::in_memory() }
     }
@@ -54,7 +55,7 @@ impl AuthState {
     /// Build the auth state from an [`AuthConfig`]. Either store is
     /// in-memory when its file path is unset; otherwise the on-disk
     /// state is loaded eagerly so a malformed htpasswd or a
-    /// permission-denied SQLite file surfaces as a startup error.
+    /// permission-denied `SQLite` file surfaces as a startup error.
     pub fn load(config: &AuthConfig) -> Result<Self> {
         let users = match config.htpasswd.file.clone() {
             Some(path) => UserStore::open(path, config.htpasswd.max_users)?,
@@ -93,6 +94,7 @@ impl UserStore {
     /// `auth.htpasswd.file` is unset and by the existing
     /// `@pnpm/registry-mock` integration where every restart is a
     /// fresh process.
+    #[must_use]
     pub fn in_memory() -> Self {
         Self {
             users: Mutex::new(HashMap::new()),
@@ -222,11 +224,11 @@ impl UserStore {
     }
 }
 
-/// SHA-256-hashed (token_hash → username) map, optionally backed by
-/// a SQLite database for cross-restart durability.
+/// SHA-256-hashed (`token_hash` → username) map, optionally backed by
+/// a `SQLite` database for cross-restart durability.
 ///
-/// Token records carry the verdaccio shape (created_at, last_used_at,
-/// readonly, cidr_whitelist) so they can be surfaced by future
+/// Token records carry the verdaccio shape (`created_at`, `last_used_at`,
+/// readonly, `cidr_whitelist`) so they can be surfaced by future
 /// `/-/npm/v1/tokens` endpoints without a schema migration.
 #[derive(Debug)]
 pub struct TokenStore {
@@ -253,6 +255,7 @@ pub struct TokenRecord {
 
 impl TokenStore {
     /// Pure in-memory store. Tokens vanish on restart.
+    #[must_use]
     pub fn in_memory() -> Self {
         Self {
             inner: Mutex::new(TokenInner { tokens: HashMap::new() }),
@@ -348,7 +351,7 @@ impl TokenStore {
     /// the deleted record so the caller can check ownership before
     /// committing the revocation in a higher layer.
     ///
-    /// SQLite gets the `DELETE` *before* the in-memory map is mutated.
+    /// `SQLite` gets the `DELETE` *before* the in-memory map is mutated.
     /// If the disk write fails, both views still hold the token and
     /// the caller sees a 5xx — the opposite ordering would leave a
     /// "revoked in memory but resurrected on restart" hole.
@@ -506,7 +509,7 @@ fn unique_tmp_path(base: &Path) -> PathBuf {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
-    let mut name = base.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    let mut name = base.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
     name.push(format!(".tmp.{pid}.{counter}"));
     match base.parent() {
         Some(parent) => parent.join(name),
@@ -623,7 +626,7 @@ fn upsert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Re
             record.username,
             record.created_at as i64,
             record.last_used_at as i64,
-            record.readonly as i64,
+            i64::from(record.readonly),
             cidr_json,
         ],
     )?;
@@ -672,7 +675,7 @@ fn hex_encode(bytes: &[u8]) -> String {
 }
 
 fn unix_seconds() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|duration| duration.as_secs()).unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_secs())
 }
 
 #[cfg(test)]

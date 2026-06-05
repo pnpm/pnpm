@@ -250,7 +250,7 @@ fn link_bins_propagates_parse_manifest_error() {
 /// [`link_bins`] must idempotently short-circuit when an existing shim
 /// already targets the same bin file. Pins [`is_shim_pointing_at`]'s
 /// integration with the writer. Mirrors pnpm's
-/// "linkBins() skips bins that already reference the correct target":
+/// "`linkBins()` skips bins that already reference the correct target":
 /// <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/test/index.ts#L79-L99>.
 #[test]
 fn link_bins_skips_existing_shim_with_matching_marker() {

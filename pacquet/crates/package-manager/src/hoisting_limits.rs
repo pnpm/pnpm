@@ -24,6 +24,7 @@ use std::collections::{BTreeSet, HashMap};
 /// only, so it consults the `.@` entry; the per-importer entries the
 /// `dependencies` mode emits are produced for parity and become
 /// load-bearing once multi-level hoisting lands.
+#[must_use]
 pub fn get_hoisting_limits(
     importers: &HashMap<String, ProjectSnapshot>,
     mode: HoistingLimits,

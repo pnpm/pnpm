@@ -123,7 +123,7 @@ fn is_public(acc: &InstallAccelerator, name: &str) -> bool {
 }
 
 fn fresh(pkg_ids: &[&str]) -> HashSet<String> {
-    pkg_ids.iter().map(|id| id.to_string()).collect()
+    pkg_ids.iter().map(std::string::ToString::to_string).collect()
 }
 
 #[tokio::test]

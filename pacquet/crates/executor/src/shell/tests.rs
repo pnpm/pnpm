@@ -23,7 +23,7 @@ fn posix_default_is_sh_minus_c() {
 /// Default on Windows: `cmd /d /s /c` with verbatim args. When
 /// `ComSpec` / `COMSPEC` is set the env var wins; otherwise the
 /// literal string `cmd` is used. We do not assert the program path
-/// here because the runner env may or may not have ComSpec set —
+/// here because the runner env may or may not have `ComSpec` set —
 /// the args + verbatim flag are the load-bearing part.
 #[test]
 fn windows_default_uses_cmd_with_d_s_c_and_verbatim_args() {

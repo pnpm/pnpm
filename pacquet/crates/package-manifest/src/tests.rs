@@ -74,7 +74,7 @@ fn should_execute_a_command() {
     }
     "#;
     let tmp = NamedTempFile::new().unwrap();
-    write!(tmp.as_file(), "{}", data).unwrap();
+    write!(tmp.as_file(), "{data}").unwrap();
     let manifest = PackageManifest::create_if_needed(tmp.path().to_path_buf()).unwrap();
     assert_eq!(manifest.script("test", false).unwrap(), Some("echo"));
     manifest.script("invalid", false).expect_err("invalid command should not exist");
@@ -94,7 +94,7 @@ fn get_dependencies_should_return_peers() {
     }
     "#;
     let tmp = NamedTempFile::new().unwrap();
-    write!(tmp.as_file(), "{}", data).unwrap();
+    write!(tmp.as_file(), "{data}").unwrap();
     let manifest = PackageManifest::create_if_needed(tmp.path().to_path_buf()).unwrap();
     let dependencies = |groups| manifest.dependencies(groups).collect::<HashMap<_, _>>();
     let peer = dependencies([DependencyGroup::Peer]);
@@ -133,7 +133,7 @@ fn bundle_dependencies() {
     case!(r#"{ "bundledDependencies": false }"# => false.pipe(BundleDependencies::Boolean).pipe(Some));
     case!(r#"{ "bundleDependencies": true }"# => true.pipe(BundleDependencies::Boolean).pipe(Some));
     case!(r#"{ "bundledDependencies": true }"# => true.pipe(BundleDependencies::Boolean).pipe(Some));
-    case!(r#"{}"# => None);
+    case!(r"{}" => None);
 }
 
 #[test]

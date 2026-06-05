@@ -84,8 +84,7 @@ pub fn select_shell(
     if is_windows {
         let comspec = env::var_os("ComSpec")
             .or_else(|| env::var_os("COMSPEC"))
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("cmd"));
+            .map_or_else(|| PathBuf::from("cmd"), PathBuf::from);
         return Ok(SelectedShell {
             program: comspec,
             args: vec![OsString::from("/d"), OsString::from("/s"), OsString::from("/c")],

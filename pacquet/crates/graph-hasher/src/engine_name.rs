@@ -23,6 +23,7 @@ pub use pacquet_detect_libc::{host_arch, host_platform};
 /// static `std::env::consts` constants mapped through Node's
 /// naming scheme. Production callers can pass `None` to get the
 /// host values; tests can pin both for cache-key round-trip.
+#[must_use]
 pub fn engine_name(node_major: u32, platform: Option<&str>, arch: Option<&str>) -> String {
     let platform = platform.unwrap_or_else(|| host_platform());
     let arch = arch.unwrap_or_else(|| host_arch());
@@ -53,6 +54,7 @@ pub fn engine_name(node_major: u32, platform: Option<&str>, arch: Option<&str>) 
 /// Callers should fall back to either a sentinel cache key (which
 /// won't match any pnpm-written entry — safe) or skip the
 /// cache-read entirely when this returns `None`.
+#[must_use]
 pub fn detect_node_major() -> Option<u32> {
     let raw = detect_node_version_raw()?;
     parse_node_version_output(&raw)
@@ -68,6 +70,7 @@ pub fn detect_node_major() -> Option<u32> {
 /// evaluate `engines.node` ranges. Pacquet's installability check
 /// needs the full version, not just the major, because ranges like
 /// `>=14.18.0` would otherwise spuriously reject `14.17.x`.
+#[must_use]
 pub fn detect_node_version() -> Option<String> {
     let raw = detect_node_version_raw()?;
     Some(raw.strip_prefix('v').unwrap_or(&raw).to_string())
@@ -111,9 +114,7 @@ pub fn host_libc() -> &'static str {
 
     static CACHED: OnceLock<&'static str> = OnceLock::new();
     CACHED.get_or_init(|| {
-        pacquet_detect_libc::detect()
-            .map(pacquet_detect_libc::Implementation::as_str)
-            .unwrap_or("unknown")
+        pacquet_detect_libc::detect().map_or("unknown", pacquet_detect_libc::Implementation::as_str)
     })
 }
 

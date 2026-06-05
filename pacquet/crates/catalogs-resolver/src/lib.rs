@@ -114,6 +114,7 @@ pub enum CatalogResolutionError {
 ///
 /// Mirrors upstream's `resolveFromCatalog`
 /// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L60-L130)).
+#[must_use]
 pub fn resolve_from_catalog(
     catalogs: &Catalogs,
     wanted_dependency: &WantedDependency,

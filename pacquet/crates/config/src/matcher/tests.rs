@@ -1,7 +1,7 @@
 use super::{create_matcher, create_matcher_with_index};
 
 fn pats<const LEN: usize>(patterns: [&str; LEN]) -> Vec<String> {
-    patterns.iter().map(|pattern| pattern.to_string()).collect()
+    patterns.iter().map(std::string::ToString::to_string).collect()
 }
 
 /// Direct port of upstream's `matcher()` test at

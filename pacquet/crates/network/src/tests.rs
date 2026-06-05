@@ -566,8 +566,8 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
 
     let scoped_guard = throttled.acquire_for_url("https://reg.example.com/pkg").await;
     let default_guard = throttled.acquire_for_url("https://other.example.org/pkg").await;
-    let scoped_ptr: *const reqwest::Client = &*scoped_guard;
-    let default_ptr: *const reqwest::Client = &*default_guard;
+    let scoped_ptr: *const reqwest::Client = &raw const *scoped_guard;
+    let default_ptr: *const reqwest::Client = &raw const *default_guard;
     assert_ne!(
         scoped_ptr, default_ptr,
         "scoped and default URLs must route through different reqwest clients",
@@ -582,8 +582,8 @@ async fn acquire_for_url_falls_back_to_default_when_no_overrides() {
     let throttled = ThrottledClient::new_for_installs();
     let permit_a = throttled.acquire_for_url("https://example.com/").await;
     let permit_b = throttled.acquire_for_url("https://other.example.org/").await;
-    let a_ptr: *const reqwest::Client = &*permit_a;
-    let b_ptr: *const reqwest::Client = &*permit_b;
+    let a_ptr: *const reqwest::Client = &raw const *permit_a;
+    let b_ptr: *const reqwest::Client = &raw const *permit_b;
     assert_eq!(a_ptr, b_ptr, "without overrides every URL should hit the default client");
 }
 

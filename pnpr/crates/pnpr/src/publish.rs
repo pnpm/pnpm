@@ -318,7 +318,7 @@ pub fn iso_from_unix_millis(millis: i64) -> String {
     let era = epoch_days.div_euclid(146_097);
     let doe = epoch_days.rem_euclid(146_097) as u32;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
-    let year = yoe as i64 + era * 400;
+    let year = i64::from(yoe) + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     let mp = (5 * doy + 2) / 153;
     let day = doy - (153 * mp + 2) / 5 + 1;

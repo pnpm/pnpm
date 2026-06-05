@@ -90,6 +90,6 @@ fn deserializes_optional_dependencies_and_peer_dependencies_meta() {
     // `extract_children` / `extract_peer_dependencies` downstream;
     // both consume the camelCase keys verbatim.
     let value = serde_json::to_value(&pkg).expect("serialize PackageVersion");
-    assert!(value.get("optionalDependencies").is_some_and(|v| v.is_object()));
-    assert!(value.get("peerDependenciesMeta").is_some_and(|v| v.is_object()));
+    assert!(value.get("optionalDependencies").is_some_and(serde_json::Value::is_object));
+    assert!(value.get("peerDependenciesMeta").is_some_and(serde_json::Value::is_object));
 }

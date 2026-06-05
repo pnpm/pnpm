@@ -59,6 +59,7 @@ impl PackageBinSource {
     /// candidates and for any call site that doesn't need to
     /// distinguish direct from hoisted (per-slot bin linking,
     /// most tests).
+    #[must_use]
     pub fn new(location: PathBuf, manifest: Arc<Value>) -> Self {
         Self { location, manifest, origin: BinOrigin::Direct }
     }
@@ -67,6 +68,7 @@ impl PackageBinSource {
     /// helper so call sites that need to mark candidates as
     /// [`BinOrigin::Hoisted`] don't have to spell out the struct
     /// literal.
+    #[must_use]
     pub fn with_origin(mut self, origin: BinOrigin) -> Self {
         self.origin = origin;
         self
@@ -599,8 +601,8 @@ fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsE
 
 /// Remove an existing dirent at `path`, swallowing `NotFound`. Used by
 /// [`link_node_bin`] to clear any prior shim / symlink / hardlink
-/// before laying down the new one. Any other IO error (PermissionDenied,
-/// EROFS, AppArmor deny, ...) surfaces as [`LinkBinsError::RemoveStaleBin`]
+/// before laying down the new one. Any other IO error (`PermissionDenied`,
+/// EROFS, `AppArmor` deny, ...) surfaces as [`LinkBinsError::RemoveStaleBin`]
 /// so a real failure isn't hidden behind a silent skip.
 fn remove_stale_bin(path: &Path) -> Result<(), LinkBinsError> {
     match std::fs::remove_file(path) {

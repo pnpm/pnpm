@@ -9,8 +9,8 @@ fn default_matches_pnpm_fetch_retries() {
     let opts = RetryOpts::default();
     assert_eq!(opts.retries, 2);
     assert_eq!(opts.factor, 10);
-    assert_eq!(opts.min_timeout, Duration::from_millis(10_000));
-    assert_eq!(opts.max_timeout, Duration::from_millis(60_000));
+    assert_eq!(opts.min_timeout, Duration::from_secs(10));
+    assert_eq!(opts.max_timeout, Duration::from_mins(1));
 }
 
 #[test]
@@ -18,13 +18,13 @@ fn delay_for_grows_exponentially_then_caps_at_max() {
     let opts = RetryOpts {
         retries: 5,
         factor: 10,
-        min_timeout: Duration::from_millis(1_000),
-        max_timeout: Duration::from_millis(60_000),
+        min_timeout: Duration::from_secs(1),
+        max_timeout: Duration::from_mins(1),
     };
-    assert_eq!(opts.delay_for(0), Duration::from_millis(1_000), "first wait is min_timeout");
-    assert_eq!(opts.delay_for(1), Duration::from_millis(10_000), "min * factor^1");
+    assert_eq!(opts.delay_for(0), Duration::from_secs(1), "first wait is min_timeout");
+    assert_eq!(opts.delay_for(1), Duration::from_secs(10), "min * factor^1");
     // min * factor^2 = 100_000 ms, capped to max_timeout.
-    assert_eq!(opts.delay_for(2), Duration::from_millis(60_000), "capped at max_timeout");
+    assert_eq!(opts.delay_for(2), Duration::from_mins(1), "capped at max_timeout");
 }
 
 #[test]

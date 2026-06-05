@@ -58,7 +58,7 @@ pub trait GetHomeDir {
 /// Capability: read the process's current working directory.
 ///
 /// Mirrors [`std::env::current_dir`]. Only used by code that
-/// genuinely needs the cwd — the SmartDefault for
+/// genuinely needs the cwd — the `SmartDefault` for
 /// [`crate::Config::store_dir`] consults it on Windows for the
 /// drive-letter derivation. Code that needs a "starting path" — like
 /// [`crate::Config::current`] — takes a direct path parameter

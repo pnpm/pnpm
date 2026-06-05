@@ -232,7 +232,7 @@ async fn uses_token(app: &axum::Router, raw_token: &str, candidate_key: &str) ->
     hasher.update(raw_token.as_bytes());
     let digest = hasher.finalize();
     let mut hex = String::with_capacity(64);
-    for byte in digest.iter() {
+    for byte in &digest {
         hex.push_str(&format!("{byte:02x}"));
     }
     let _ = app; // app is unused but kept for symmetry with the other helpers
@@ -399,7 +399,7 @@ async fn auth_endpoints_set_private_no_cache_headers() {
 }
 
 /// Revocation must persist across a restart — once a token is
-/// revoked, reopening the SQLite store must not reload it.
+/// revoked, reopening the `SQLite` store must not reload it.
 #[tokio::test]
 async fn revocation_survives_restart() {
     let auth_dir = TempDir::new().unwrap();

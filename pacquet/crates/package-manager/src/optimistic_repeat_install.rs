@@ -384,7 +384,7 @@ fn modules_dirs_present(
 /// shape but it matches how the install path itself derives
 /// `config.modules_dir`.
 fn workspace_dir_of(config: &Config, fallback: &Path) -> PathBuf {
-    config.modules_dir.parent().map(Path::to_path_buf).unwrap_or_else(|| fallback.to_path_buf())
+    config.modules_dir.parent().map_or_else(|| fallback.to_path_buf(), Path::to_path_buf)
 }
 
 fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {

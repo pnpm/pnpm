@@ -62,7 +62,7 @@ impl GitProbe for RealGitProbe {
                 };
                 cmd.args(["ls-remote", "--exit-code", &repo_owned, "HEAD"]);
                 cmd.stdout(Stdio::null()).stderr(Stdio::null()).stdin(Stdio::null());
-                cmd.status().map(|s| s.success()).unwrap_or(false)
+                cmd.status().is_ok_and(|s| s.success())
             })
             .await
             .unwrap_or(false)
@@ -84,6 +84,7 @@ pub struct RealGitRunner {
 }
 
 impl RealGitRunner {
+    #[must_use]
     pub fn new() -> Self {
         Self { git_bin: None }
     }

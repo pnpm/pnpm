@@ -202,7 +202,7 @@ impl WorkEnv {
             eprintln!("Populating proxy registry cache...");
             Command::new("bash")
                 .arg(self.script_path(WorkEnv::INIT_PROXY_CACHE))
-                .pipe_mut(executor("install.bash"))
+                .pipe_mut(executor("install.bash"));
         }
     }
 
@@ -540,8 +540,7 @@ impl WorkEnv {
         let registry_proxy = self.start_registry_proxy();
         let direct_registry = registry_proxy
             .as_ref()
-            .map(|proxy| format!("http://{}/", proxy.addr))
-            .unwrap_or_else(|| self.registry.clone());
+            .map_or_else(|| self.registry.clone(), |proxy| format!("http://{}/", proxy.addr));
 
         self.init(&direct_registry);
         self.build();
@@ -939,7 +938,7 @@ impl BenchId<'_> {
     }
 }
 
-impl<'a> fmt::Display for BenchId<'a> {
+impl fmt::Display for BenchId<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BenchId::PacquetRevision(revision) => write!(f, "pacquet@{revision}"),

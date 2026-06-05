@@ -426,7 +426,7 @@ fn pick_stage_path(target: &Path) -> PathBuf {
     let name = target.file_name().and_then(|n| n.to_str()).unwrap_or("dir");
     let pid = std::process::id();
     let ctr = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());
     parent.join(format!("{name}_pacquet-stage_{pid}_{nanos}_{ctr}"))
 }
 

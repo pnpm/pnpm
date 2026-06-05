@@ -70,6 +70,7 @@ pub struct CreateProjectsGraphResult<Pkg> {
 /// covered; the on-disk file-vs-directory disambiguation
 /// `npm-package-arg` performs for `file:` tarballs is not, because a
 /// workspace sibling is always a directory.
+#[must_use]
 pub fn create_projects_graph<Pkg>(
     projects: Vec<Pkg>,
     opts: &CreateProjectsGraphOptions,

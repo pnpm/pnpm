@@ -12,7 +12,7 @@
 //! Scope versus upstream: projects are sorted topologically (upstream's
 //! default) and run sequentially. `--no-sort`, `--reverse`,
 //! `--workspace-concurrency` parallelism, `--filter` narrowing of the
-//! selected set, and the RegExp script selector are not ported yet — the
+//! selected set, and the `RegExp` script selector are not ported yet — the
 //! selected set is every workspace project, matching pacquet's
 //! currently-unfiltered `install`.
 

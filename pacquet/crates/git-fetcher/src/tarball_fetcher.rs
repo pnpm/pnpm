@@ -17,7 +17,7 @@
 //!   from the tarball download and copies it to the prepared key on
 //!   the fast path. Pacquet's tarball download path doesn't write a
 //!   raw row at this key, so on the fast path we synthesize the
-//!   prepared row directly from the input `cas_paths` (no fs::read,
+//!   prepared row directly from the input `cas_paths` (no `fs::read`,
 //!   no re-hash). When fast-path triggers and `should_be_built` is
 //!   false, the synthesized row lands at the final key — matches the
 //!   shape upstream's "copy raw→prepared" produces. The skipped
@@ -83,7 +83,7 @@ pub struct GitHostedTarballFetcher<'a> {
     pub files_index_file: &'a str,
 }
 
-impl<'a> GitHostedTarballFetcher<'a> {
+impl GitHostedTarballFetcher<'_> {
     /// Run the fetcher. Blocks under
     /// [`tokio::task::block_in_place`] so the synchronous
     /// `preparePackage` work doesn't tie up the async runtime.

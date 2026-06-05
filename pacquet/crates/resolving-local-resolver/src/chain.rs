@@ -40,6 +40,7 @@ pub struct LocalSchemeResolver {
 }
 
 impl LocalSchemeResolver {
+    #[must_use]
     pub fn new(ctx: LocalResolverContext) -> Self {
         Self { ctx }
     }
@@ -93,6 +94,7 @@ pub struct LocalPathResolver {
 }
 
 impl LocalPathResolver {
+    #[must_use]
     pub fn new(ctx: LocalResolverContext) -> Self {
         Self { ctx }
     }
@@ -139,6 +141,7 @@ pub struct LocalResolver {
 }
 
 impl LocalResolver {
+    #[must_use]
     pub fn new(ctx: LocalResolverContext) -> Self {
         Self { ctx }
     }

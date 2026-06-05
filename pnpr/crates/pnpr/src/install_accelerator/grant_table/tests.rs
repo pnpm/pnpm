@@ -55,7 +55,7 @@ fn a_ttl_expires_an_old_grant() {
     let (table, _dir) = open();
     table.record("alice", "foo@1.0.0");
     // Still valid under a generous TTL.
-    assert!(table.is_granted("alice", "foo@1.0.0", Some(Duration::from_secs(60))));
+    assert!(table.is_granted("alice", "foo@1.0.0", Some(Duration::from_mins(1))));
     // Expired under a zero TTL once any time has passed.
     sleep(Duration::from_millis(5));
     assert!(!table.is_granted("alice", "foo@1.0.0", Some(Duration::from_millis(1))));

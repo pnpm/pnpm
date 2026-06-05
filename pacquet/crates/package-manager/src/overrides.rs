@@ -77,6 +77,7 @@ struct LocalTarget {
 impl<'a> VersionsOverrider<'a> {
     /// Build the hook from the parsed overrides set produced by
     /// [`pacquet_config_parse_overrides::parse_overrides`].
+    #[must_use]
     pub fn new(overrides: &'a [VersionOverride], root_dir: &Path) -> Self {
         let mut parent_scoped = Vec::new();
         let mut generic = Vec::new();
@@ -173,11 +174,10 @@ impl<'a> VersionsOverrider<'a> {
                 continue;
             }
 
-            let new_spec = chosen
-                .local_target
-                .as_ref()
-                .map(|target| resolve_local_override_spec(target, manifest_dir))
-                .unwrap_or_else(|| chosen.inner.new_bare_specifier.clone());
+            let new_spec = chosen.local_target.as_ref().map_or_else(
+                || chosen.inner.new_bare_specifier.clone(),
+                |target| resolve_local_override_spec(target, manifest_dir),
+            );
 
             map.insert(name, Value::String(new_spec));
         }
@@ -314,8 +314,7 @@ fn resolve_local_override_spec(target: &LocalTarget, pkg_dir: Option<&Path>) -> 
     let path_str = match (target.specified_via_relative_path, pkg_dir) {
         (true, Some(dir)) => pathdiff::diff_paths(&target.absolute_path, dir)
             .as_deref()
-            .map(normalize_path)
-            .unwrap_or_else(|| normalize_path(&target.absolute_path)),
+            .map_or_else(|| normalize_path(&target.absolute_path), normalize_path),
         _ => normalize_path(&target.absolute_path),
     };
     format!("{}{path_str}", target.protocol.as_str())

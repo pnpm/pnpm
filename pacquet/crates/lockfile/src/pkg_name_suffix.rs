@@ -55,7 +55,7 @@ impl<Suffix: FromStr> FromStr for PkgNameSuffix<Suffix> {
             Some(('@', rest)) => {
                 let (name_without_at, suffix) =
                     rest.split_once('@').ok_or(ParsePkgNameSuffixError::MissingSuffix)?;
-                let name = &value[..name_without_at.len() + 1];
+                let name = &value[..=name_without_at.len()];
                 #[cfg(debug_assertions)]
                 {
                     let expected = format!("@{name_without_at}");

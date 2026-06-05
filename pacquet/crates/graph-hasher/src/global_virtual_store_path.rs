@@ -99,6 +99,7 @@ where
 /// shared store at the same `<scope>/<name>/<version>/<hash>` depth,
 /// so a single `readdir` pass per level can enumerate the store
 /// without special-casing the unscoped path layout.
+#[must_use]
 pub fn format_global_virtual_store_path(name: &str, version: &str, hex_digest: &str) -> String {
     let prefix = if name.starts_with('@') { "" } else { "@/" };
     format!("{prefix}{name}/{version}/{hex_digest}")

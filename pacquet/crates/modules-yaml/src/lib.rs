@@ -116,6 +116,7 @@ pub struct DepPath(String);
 
 impl DepPath {
     #[inline]
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -405,7 +406,7 @@ where
 /// fields (sort `skipped`, drop legacy `hoistedAliases`, relativize
 /// `virtualStoreDir`); making the caller hand over ownership keeps the
 /// in-place mutation visible at the call site instead of forcing a hidden
-/// `clone()` inside the function. Per the CODE_STYLE_GUIDE rule that
+/// `clone()` inside the function. Per the `CODE_STYLE_GUIDE` rule that
 /// owned-vs-borrowed parameter choice should minimize copies.
 ///
 /// Production callers turbofish [`Host`]: `write_modules_manifest::<Host>(dir, m)`.

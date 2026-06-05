@@ -10,6 +10,7 @@ use crate::lexical_normalize;
 /// Filesystem-free: both paths are lexically normalised
 /// (`.` / `..` collapsed) before the prefix check, so callers can
 /// run this against targets that don't exist yet.
+#[must_use]
 pub fn is_subdir(parent: &Path, child: &Path) -> bool {
     let parent_norm = lexical_normalize(parent);
     let child_norm = lexical_normalize(child);

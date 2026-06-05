@@ -54,7 +54,7 @@ fn sort_keys(keys: &mut [String], layout: Layout) {
                 (true, false) => Ordering::Less,
                 (false, true) => Ordering::Greater,
                 (false, false) => lex_cmp(left, right),
-            })
+            });
         }
         Layout::Alphabetical => keys.sort_by(|left, right| lex_cmp(left, right)),
         Layout::Unordered => {}

@@ -234,7 +234,7 @@ fn extract_sha256(body: &str) -> Option<String> {
     let bytes = body.as_bytes();
     bytes
         .windows(64)
-        .find(|window| window.iter().all(|byte| byte.is_ascii_hexdigit()))
+        .find(|window| window.iter().all(u8::is_ascii_hexdigit))
         .map(|window| String::from_utf8_lossy(window).to_ascii_lowercase())
 }
 

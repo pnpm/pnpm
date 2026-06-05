@@ -16,12 +16,14 @@ use sha2::{Digest, Sha256};
 /// short-circuit `hashUnknown(undefined)` returns 44 zero characters
 /// regardless of options. Callers who need that semantic should
 /// branch on the optional before calling.
+#[must_use]
 pub fn hash_object(value: &Value) -> String {
     hash_object_with_encoding(value, HashEncoding::Base64, /* sort */ true)
 }
 
 /// Mirrors `hashObjectWithoutSorting` at
 /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/crypto/object-hasher/src/index.ts#L37>.
+#[must_use]
 pub fn hash_object_without_sorting(value: &Value, encoding: HashEncoding) -> String {
     hash_object_with_encoding(value, encoding, /* sort */ false)
 }
@@ -39,6 +41,7 @@ pub fn hash_object_without_sorting(value: &Value, encoding: HashEncoding) -> Str
 /// practice for this caller (`packageExtensions` is always a map),
 /// but we hash them anyway rather than panic — pacquet's hasher
 /// already handles them.
+#[must_use]
 pub fn hash_object_nullable_with_prefix(value: &Value) -> Option<String> {
     let is_nullish = match value {
         Value::Null => true,
@@ -54,6 +57,7 @@ pub fn hash_object_nullable_with_prefix(value: &Value) -> Option<String> {
 /// General form. `sort = true` sorts object keys before serialization
 /// (the `unorderedObjects` option upstream); `sort = false` preserves
 /// insertion order.
+#[must_use]
 pub fn hash_object_with_encoding(value: &Value, encoding: HashEncoding, sort: bool) -> String {
     let mut bytes = Vec::new();
     serialize(&mut bytes, value, sort);

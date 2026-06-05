@@ -5,7 +5,7 @@
 //! with it, not that the package is private; in a mixed proxy that would
 //! gate public content per user too. Populated lazily by one anonymous
 //! probe per name, so a public package costs one round trip fleet-wide.
-//! SQLite (WAL) like [`super::grant_table::GrantTable`]; best-effort.
+//! `SQLite` (WAL) like [`super::grant_table::GrantTable`]; best-effort.
 
 use std::{
     path::Path,
@@ -85,10 +85,7 @@ fn evict_overflow(conn: &Connection) {
 }
 
 fn now_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_millis() as i64)
-        .unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis() as i64)
 }
 
 #[cfg(test)]

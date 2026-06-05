@@ -72,6 +72,7 @@ impl RegistryAnchor {
         fs::write(RegistryAnchor::path(), text).expect("write to anchor");
     }
 
+    #[must_use]
     pub fn load_or_init(init_options: MockInstanceOptions<'_>) -> Self {
         if let Some(guard) = GuardFile::try_lock() {
             // Run the spawn on a fresh OS thread so the freshly built tokio
@@ -157,6 +158,6 @@ impl GuardFile {
     }
 
     fn unlock(self) {
-        drop(self)
+        drop(self);
     }
 }

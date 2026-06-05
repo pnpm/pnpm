@@ -2,6 +2,7 @@ use std::{path::Path, sync::Arc};
 
 use super::PnpmfileHooks;
 
+#[must_use]
 pub fn find_pnpmfile(root: &Path) -> Option<std::path::PathBuf> {
     let candidates = [".pnpmfile.mjs", ".pnpmfile.cjs"];
 
@@ -14,6 +15,7 @@ pub fn find_pnpmfile(root: &Path) -> Option<std::path::PathBuf> {
     None
 }
 
+#[must_use]
 pub fn load_pnpmfile(root: &Path) -> Option<Arc<dyn PnpmfileHooks>> {
     let file = find_pnpmfile(root)?;
     Some(Arc::new(super::node_runtime::NodeJsHooks::new(file)))

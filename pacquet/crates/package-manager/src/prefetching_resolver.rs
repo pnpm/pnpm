@@ -110,6 +110,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// references. Clones the necessary `Arc`s up front so the
     /// per-`resolve` spawn has all the data it needs without
     /// re-borrowing the install scope.
+    #[must_use]
     pub fn new(inner: Box<dyn Resolver>, prefetch_ctx: PrefetchContext<'_>) -> Self {
         let PrefetchContext {
             http_client,

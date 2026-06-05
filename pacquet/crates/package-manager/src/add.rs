@@ -87,8 +87,7 @@ pub enum AddError {
     Install(#[error(source)] InstallError),
 }
 
-impl<'a, ListDependencyGroups, DependencyGroupList>
-    Add<'a, ListDependencyGroups, DependencyGroupList>
+impl<ListDependencyGroups, DependencyGroupList> Add<'_, ListDependencyGroups, DependencyGroupList>
 where
     ListDependencyGroups: Fn() -> DependencyGroupList,
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,

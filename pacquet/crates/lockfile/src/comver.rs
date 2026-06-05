@@ -15,6 +15,7 @@ pub struct ComVer {
 
 impl ComVer {
     /// Create a comver struct.
+    #[must_use]
     pub fn new(major: u16, minor: u16) -> Self {
         Self { major, minor }
     }

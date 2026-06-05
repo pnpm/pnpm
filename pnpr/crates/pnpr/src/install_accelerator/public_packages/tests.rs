@@ -24,7 +24,7 @@ fn records_and_reads_a_classification() {
 fn a_ttl_expires_an_old_classification() {
     let (table, _dir) = open();
     table.record("lodash");
-    assert!(table.is_public("lodash", Some(Duration::from_secs(60))));
+    assert!(table.is_public("lodash", Some(Duration::from_mins(1))));
     sleep(Duration::from_millis(5));
     assert!(!table.is_public("lodash", Some(Duration::from_millis(1))));
 }

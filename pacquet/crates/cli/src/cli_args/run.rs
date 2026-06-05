@@ -295,7 +295,7 @@ pub(super) fn run_stages(
 /// Run one lifecycle stage. Returns `Ok(None)` when pnpm's per-stage
 /// no-op guards apply (empty body, or `npx only-allow pnpm` with no
 /// args), so the caller can record "didn't actually run" without
-/// inventing a synthetic ExitStatus. A non-success ExitStatus is
+/// inventing a synthetic `ExitStatus`. A non-success `ExitStatus` is
 /// returned to the caller — single-project `RunArgs::run` exits with
 /// the code; recursive `run_recursive` records `Failure` and decides
 /// whether to bail.

@@ -45,7 +45,7 @@ fn build_packages() -> WorkspacePackages {
     packages
 }
 
-fn opts<'a>(packages: &'a WorkspacePackages) -> ResolveFromWorkspaceOptions<'a> {
+fn opts(packages: &WorkspacePackages) -> ResolveFromWorkspaceOptions<'_> {
     ResolveFromWorkspaceOptions {
         project_dir: Path::new("/repo/packages/consumer"),
         lockfile_dir: Path::new("/repo"),

@@ -44,15 +44,15 @@ pub use workspace_yaml::{
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeLinker {
-    /// dependencies are symlinked from a virtual store at node_modules/.pnpm.
+    /// dependencies are symlinked from a virtual store at `node_modules/.pnpm`.
     #[default]
     Isolated,
 
-    /// flat node_modules without symlinks is created. Same as the node_modules created by npm or
+    /// flat `node_modules` without symlinks is created. Same as the `node_modules` created by npm or
     /// Yarn Classic.
     Hoisted,
 
-    /// no node_modules. Plug'n'Play is an innovative strategy for Node that is used by
+    /// no `node_modules`. Plug'n'Play is an innovative strategy for Node that is used by
     /// Yarn Berry. It is recommended to also set symlink setting to false when using pnp as
     /// your linker.
     Pnp,
@@ -136,7 +136,7 @@ impl<'de> serde::Deserialize<'de> for ScriptsPrependNodePath {
         use std::fmt;
 
         struct V;
-        impl<'de> Visitor<'de> for V {
+        impl Visitor<'_> for V {
             type Value = ScriptsPrependNodePath;
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.write_str(r#"a boolean or the string "warn-only""#)
@@ -198,6 +198,7 @@ impl LinkWorkspacePackages {
     /// [`Self::DirectOnly`] arm only fires at the importer level
     /// (`current_depth == 0`); pacquet's caller decides which arm
     /// to expose by passing in the current depth.
+    #[must_use]
     pub fn enabled_at_depth(self, current_depth: u32) -> bool {
         match self {
             LinkWorkspacePackages::Off => false,
@@ -216,7 +217,7 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
         use std::fmt;
 
         struct V;
-        impl<'de> Visitor<'de> for V {
+        impl Visitor<'_> for V {
             type Value = LinkWorkspacePackages;
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.write_str(r#"a boolean or the string "deep""#)
@@ -279,6 +280,7 @@ impl ResolutionMode {
     /// [`Self::LowestDirect`]. Mirrors pnpm's
     /// [`pickLowestVersion`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L470)
     /// computation.
+    #[must_use]
     pub fn picks_lowest_direct(self) -> bool {
         matches!(self, ResolutionMode::TimeBased | ResolutionMode::LowestDirect)
     }
@@ -339,12 +341,12 @@ pub enum PackageImportMethod {
 /// (project-structural settings).
 #[derive(Debug, SmartDefault)]
 pub struct Config {
-    /// When true, all dependencies are hoisted to node_modules/.pnpm/node_modules.
-    /// This makes unlisted dependencies accessible to all packages inside node_modules.
+    /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
+    /// This makes unlisted dependencies accessible to all packages inside `node_modules`.
     #[default = true]
     pub hoist: bool,
 
-    /// Tells pnpm which packages should be hoisted to node_modules/.pnpm/node_modules.
+    /// Tells pnpm which packages should be hoisted to `node_modules/.pnpm/node_modules`.
     /// By default, all packages are hoisted - however, if you know that only some flawed packages
     /// have phantom dependencies, you can use this option to exclusively hoist the phantom
     /// dependencies (recommended).
@@ -380,10 +382,10 @@ pub struct Config {
     #[default(_code = "Some(default_public_hoist_pattern())")]
     pub public_hoist_pattern: Option<Vec<String>>,
 
-    /// By default, pnpm creates a semistrict node_modules, meaning dependencies have access to
-    /// undeclared dependencies but modules outside of node_modules do not. With this layout,
+    /// By default, pnpm creates a semistrict `node_modules`, meaning dependencies have access to
+    /// undeclared dependencies but modules outside of `node_modules` do not. With this layout,
     /// most of the packages in the ecosystem work with no issues. However, if some tooling only
-    /// works when the hoisted dependencies are in the root of node_modules, you can set this to
+    /// works when the hoisted dependencies are in the root of `node_modules`, you can set this to
     /// true to hoist them for you.
     pub shamefully_hoist: bool,
 
@@ -391,7 +393,7 @@ pub struct Config {
     #[default(_code = "default_store_dir::<Host>()")]
     pub store_dir: StoreDir,
 
-    /// The directory in which dependencies will be installed (instead of node_modules).
+    /// The directory in which dependencies will be installed (instead of `node_modules`).
     #[default(_code = "default_modules_dir()")]
     pub modules_dir: PathBuf,
 
@@ -457,7 +459,7 @@ pub struct Config {
     pub global_virtual_store_dir: PathBuf,
 
     /// Controls the way packages are imported from the store (if you want to disable symlinks
-    /// inside node_modules, then you need to change the node-linker setting, not this one).
+    /// inside `node_modules`, then you need to change the node-linker setting, not this one).
     pub package_import_method: PackageImportMethod,
 
     /// The time in minutes after which orphan packages from the modules directory should be
@@ -560,7 +562,7 @@ pub struct Config {
     /// spec. Pacquet doesn't have a metadata-fetch path yet (no
     /// resolver until Stage 2), so the same flag instead gates
     /// pacquet's tarball-fetch fall-through: when both the warm
-    /// prefetch and the SQLite `index.db` lookup miss, the tarball
+    /// prefetch and the `SQLite` `index.db` lookup miss, the tarball
     /// fetcher fails fast with `ERR_PACQUET_NO_OFFLINE_TARBALL`
     /// rather than hitting the registry. The frozen-lockfile install
     /// path needs no metadata, so the surface area collapses to
@@ -1344,6 +1346,7 @@ pub struct Config {
 }
 
 impl Config {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -1622,7 +1625,7 @@ impl Config {
                 // the file's directory; for a bare filename (no parent)
                 // that's the empty path — i.e. the process cwd — never
                 // the file itself.
-                let dir = path.parent().map(|parent| parent.to_path_buf()).unwrap_or_default();
+                let dir = path.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
                 parse_source(text, dir, "<user>/.npmrc")
             }),
             None => Sys::home_dir()

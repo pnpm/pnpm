@@ -20,6 +20,7 @@ use node_semver::{Range, Version};
 ///
 /// Returns the matching raw version string (one of the entries in
 /// `versions`) or `None` when nothing satisfies.
+#[must_use]
 pub fn resolve_workspace_range(range: &str, versions: &[String]) -> Option<String> {
     if is_wildcard(range) {
         return max_version_including_prerelease(versions);

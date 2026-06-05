@@ -177,7 +177,7 @@ fn get_valid_cache_dir_honors_max_age() {
     );
 
     // Past the window: expired.
-    let past = mtime + Duration::from_secs(1440 * 60 + 60);
+    let past = mtime + Duration::from_mins(1441);
     assert!(get_valid_cache_dir(&link, 1440, past).is_none(), "an expired link must be rejected");
 }
 

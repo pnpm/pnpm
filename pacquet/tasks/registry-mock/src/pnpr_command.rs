@@ -32,8 +32,7 @@ fn pnpr_binary() -> PathBuf {
         return PathBuf::from(path);
     }
     let target_dir = env::var_os("CARGO_TARGET_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| workspace_root().join("target"));
+        .map_or_else(|| workspace_root().join("target"), PathBuf::from);
     let exe = format!("pnpr{}", env::consts::EXE_SUFFIX);
     let release = target_dir.join("release").join(&exe);
     if release.is_file() {
@@ -62,6 +61,7 @@ fn pnpr_binary() -> PathBuf {
 /// `http://localhost:<port>` so the tarball URLs the registry
 /// rewrites match the URL pacquet's tests expect via
 /// `port_to_url`.
+#[must_use]
 pub fn pnpr_command(port: u16) -> Command {
     let bin = pnpr_binary();
     assert!(

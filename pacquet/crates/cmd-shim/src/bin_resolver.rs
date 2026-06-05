@@ -33,6 +33,7 @@ const BIN_OWNER_OVERRIDES: &[(&str, &[&str])] = &[
 /// Whether `pkg_name` is a legitimate owner of the given `bin_name`. The
 /// default rule is "the package named `X` owns the `X` bin"; overrides cover
 /// cases like `npx` shipping inside `npm`. Mirrors `pkgOwnsBin`.
+#[must_use]
 pub fn pkg_owns_bin(bin_name: &str, pkg_name: &str) -> bool {
     if bin_name == pkg_name {
         return true;

@@ -273,7 +273,7 @@ fn get_many_skips_undecodable_rows() {
 }
 
 /// Exercise the chunking path with more keys than `GET_MANY_CHUNK`.
-/// SQLite's `INSERT OR REPLACE` is fast enough that seeding a few
+/// `SQLite`'s `INSERT OR REPLACE` is fast enough that seeding a few
 /// thousand rows in-process stays cheap.
 #[test]
 fn get_many_handles_more_keys_than_chunk_size() {

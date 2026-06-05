@@ -344,7 +344,7 @@ pub enum InstallError {
     ConfigConflictLockfileOnlyWithNoLockfile,
 }
 
-impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
+impl<DependencyGroupList> Install<'_, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
@@ -740,9 +740,7 @@ where
             // to the fresh-resolve path; a malformed
             // `pnpm.overrides` is a user-config error that surfaces
             // regardless of dispatch.
-            if !prefer_frozen_lockfile {
-                false
-            } else {
+            if prefer_frozen_lockfile {
                 match check_lockfile_freshness(
                     lockfile,
                     manifest,
@@ -758,6 +756,8 @@ where
                         return Err(error.into());
                     }
                 }
+            } else {
+                false
             }
         } else {
             false

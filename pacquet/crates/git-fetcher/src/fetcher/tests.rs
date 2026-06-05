@@ -34,8 +34,7 @@ fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (Path
     // stays self-contained even without verdaccio / a mock registry.
     // The prepare script is plumbed straight in.
     let manifest = format!(
-        r#"{{"name":"x","version":"1.0.0","main":"index.js","scripts":{{"prepare":{prepare:?}}}}}"#,
-        prepare = prepare_script,
+        r#"{{"name":"x","version":"1.0.0","main":"index.js","scripts":{{"prepare":{prepare_script:?}}}}}"#,
     );
     fs::write(work.join("package.json"), manifest).unwrap();
     fs::write(work.join("index.js"), "module.exports = 'src';\n").unwrap();

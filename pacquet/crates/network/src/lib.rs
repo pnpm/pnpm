@@ -124,7 +124,7 @@ pub struct ThrottledClientGuard<'a> {
     client: &'a Client,
 }
 
-impl<'a> Deref for ThrottledClientGuard<'a> {
+impl Deref for ThrottledClientGuard<'_> {
     type Target = Client;
 
     fn deref(&self) -> &Client {
@@ -203,8 +203,9 @@ impl ThrottledClient {
     /// because Node's `dns.lookup`
     /// runs on libuv's 4-thread pool, naturally throttling concurrent
     /// `getaddrinfo` calls. `hickory-dns` queries DNS over UDP / TCP
-    /// directly, bypassing `mDNSResponder` and the EAI_NONAME flake
+    /// directly, bypassing `mDNSResponder` and the `EAI_NONAME` flake
     /// entirely.
+    #[must_use]
     pub fn new_for_installs() -> Self {
         Self::for_installs(
             &ProxyConfig::default(),
@@ -301,6 +302,7 @@ impl ThrottledClient {
     /// [`Self::new_for_installs`] sets — e.g. sub-second connect
     /// timeouts so firewalled / unreachable URLs fail within the
     /// test-suite budget instead of waiting on TCP retry.
+    #[must_use]
     pub fn from_client(client: Client) -> Self {
         let semaphore = Semaphore::new(default_network_concurrency());
         ThrottledClient {
@@ -569,8 +571,7 @@ fn build_scheme_proxy(
 /// schedule (matching the convention `crates/cli` already uses for
 /// rayon pool sizing, see `crates/cli/src/lib.rs`).
 pub fn default_network_concurrency() -> usize {
-    let available_parallelism =
-        std::thread::available_parallelism().map(NonZeroUsize::get).unwrap_or(1);
+    let available_parallelism = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
     let max_workers = available_parallelism.saturating_sub(1).max(1);
     max_workers.saturating_mul(3).clamp(16, 64)
 }

@@ -77,10 +77,10 @@ use std::{
 /// panicking on `name_ver = None`.
 /// Reinterpret a `link:<rel>` [`NodeId`] as a [`DepPath`].
 ///
-/// Linked top-parent NodeIds (whether the workspace-link arm or the
+/// Linked top-parent `NodeIds` (whether the workspace-link arm or the
 /// `excludeLinksFromLockfile` remap) never enter the dependency tree,
 /// so [`Walker::node_dep_paths`] never maps them. The `link:<rel>`
-/// NodeId is itself a well-formed pnpm DepPath, so the snapshot
+/// `NodeId` is itself a well-formed pnpm `DepPath`, so the snapshot
 /// child edge can use it verbatim. Mirrors upstream's
 /// [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L164)
 /// fallback in `resolveChildren`.
@@ -459,7 +459,7 @@ struct NodeOutput {
     missing_peers: HashMap<String, MissingPeerInfo>,
 }
 
-impl<'tree> Walker<'tree> {
+impl Walker<'_> {
     fn walk(mut self) -> ResolvePeersResult {
         let importer_parents = self.build_importer_parents();
         let parent_chain_names: Vec<String> = Vec::new();
@@ -998,7 +998,7 @@ impl<'tree> Walker<'tree> {
     /// Precedence (mirrors upstream's
     /// [`peerNodeIdToPeerId`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L976-L998)):
     ///
-    /// 1. **`link:<rel>` NodeIds** — emit
+    /// 1. **`link:<rel>` `NodeIds`** — emit
     ///    `PeerId::Pair { name: peer_alias, version: link_path_to_peer_version(rel) }`
     ///    so the peer-suffix segment reads as `name@encoded_path`
     ///    instead of carrying the raw link target. This branch fires

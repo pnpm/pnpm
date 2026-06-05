@@ -23,6 +23,7 @@ use sha2::{Digest, Sha256};
 /// this hash (project-registry slugs, virtual-store dirnames that
 /// overflowed `virtualStoreDirMaxLength`, etc.) must use the same 32-char
 /// length so pacquet and pnpm produce the same directory layout.
+#[must_use]
 pub fn create_short_hash(input: &str) -> String {
     let digest = Sha256::digest(input.as_bytes());
     let mut hex = format!("{digest:x}");
@@ -53,6 +54,7 @@ pub fn create_short_hash(input: &str) -> String {
 /// → underscores, scoped-name slashes → `+`, etc) — this helper only
 /// applies the final length/case decision so the escape rules can stay
 /// where the structured input lives.
+#[must_use]
 pub fn shorten_virtual_store_name(filename: String, max_length: usize) -> String {
     let lower = filename.to_ascii_lowercase();
     let needs_shortening =

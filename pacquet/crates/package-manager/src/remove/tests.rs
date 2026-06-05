@@ -19,7 +19,7 @@ fn manifest(value: serde_json::Value) -> (PackageManifest, TempDir) {
 }
 
 fn strings(list: &[&str]) -> Vec<String> {
-    list.iter().map(|name| name.to_string()).collect()
+    list.iter().map(std::string::ToString::to_string).collect()
 }
 
 fn expect_missing(

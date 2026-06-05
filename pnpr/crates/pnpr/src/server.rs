@@ -569,7 +569,7 @@ async fn serve_tarball(
         Ok(Some((body, len))) => return tarball_response(body, len),
         Ok(None) => {}
         Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache open failed")
+            tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache open failed");
         }
     }
 
@@ -1445,7 +1445,7 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
         Ok(Some(bytes)) => return PackumentLoad::Ok(bytes),
         Ok(None) => {}
         Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), "published packument read failed")
+            tracing::warn!(?err, package = %name.as_str(), "published packument read failed");
         }
     }
 

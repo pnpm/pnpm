@@ -229,7 +229,7 @@ pub struct LockfileToHoistedDepGraphOptions {
     pub current_libc: String,
     /// `supportedArchitectures` override from `pnpm-workspace.yaml`,
     /// widening the host-derived axes so a Linux host can prepare
-    /// node_modules for a Windows / macOS target. `None` means use
+    /// `node_modules` for a Windows / macOS target. `None` means use
     /// only the current-host axes.
     pub supported_architectures: Option<SupportedArchitectures>,
     /// Mirrors [`pacquet_real_hoist::HoistOpts::hoist_workspace_packages`].
@@ -552,7 +552,7 @@ fn fill_children(
 }
 
 /// Mutable scratch space the recursive walker threads through
-/// every level. Borrowing the lockfile + lockfile_dir + opts up
+/// every level. Borrowing the lockfile + `lockfile_dir` + opts up
 /// front avoids passing four separate arguments. `skipped` is
 /// owned (cloned from `opts.skipped`) because the walker mutates
 /// it — every dep that fails the installability check gets added.
@@ -665,7 +665,7 @@ fn walk_deps(
         // a required dep takes the error path.
         if !state.opts.force {
             let manifest = manifest_for_installability(metadata);
-            let optional = snapshot.map(|s| s.optional).unwrap_or(false);
+            let optional = snapshot.is_some_and(|s| s.optional);
             let install_opts = InstallabilityOptions {
                 engine_strict: state.opts.engine_strict,
                 optional,
@@ -677,8 +677,10 @@ fn walk_deps(
                 supported_architectures: state.opts.supported_architectures.as_ref(),
             };
             match package_is_installable(&pkg_key.to_string(), &manifest, &install_opts) {
-                Ok(InstallabilityVerdict::Installable)
-                | Ok(InstallabilityVerdict::ProceedWithWarning { .. }) => {}
+                Ok(
+                    InstallabilityVerdict::Installable
+                    | InstallabilityVerdict::ProceedWithWarning { .. },
+                ) => {}
                 Ok(InstallabilityVerdict::SkipOptional { .. }) => {
                     state.skipped.insert(reference.clone());
                     continue;
@@ -710,10 +712,10 @@ fn walk_deps(
             children: BTreeMap::new(),
             name: pkg_key.name.to_string(),
             version: pkg_key.suffix.version().to_string(),
-            optional: snapshot.map(|s| s.optional).unwrap_or(false),
+            optional: snapshot.is_some_and(|s| s.optional),
             optional_dependencies: snapshot
                 .and_then(|snap| snap.optional_dependencies.as_ref())
-                .map(|map| map.keys().map(|k| k.to_string()).collect())
+                .map(|map| map.keys().map(std::string::ToString::to_string).collect())
                 .unwrap_or_default(),
             has_bin: metadata.has_bin.unwrap_or(false),
             has_bundled_dependencies: metadata.bundled_dependencies.is_some(),
@@ -755,7 +757,7 @@ fn walk_deps(
 
 /// Look up the metadata side of a snapshot. Pacquet stores
 /// `packages` and `snapshots` separately; the walker needs the
-/// metadata for resolution / has_bin / bundledDependencies (which
+/// metadata for resolution / `has_bin` / bundledDependencies (which
 /// upstream pulls from `pkgSnapshot`).
 fn lookup_package_metadata<'a>(
     lockfile: &'a Lockfile,
@@ -799,9 +801,10 @@ fn manifest_for_installability(
 /// cross-platform consistency with the rest of pnpm's serialised
 /// formats.
 fn path_relative_to_lockfile_dir(dir: &Path, lockfile_dir: &Path) -> String {
-    dir.strip_prefix(lockfile_dir)
-        .map(|rel| rel.to_string_lossy().replace('\\', "/"))
-        .unwrap_or_else(|_| dir.to_string_lossy().replace('\\', "/"))
+    dir.strip_prefix(lockfile_dir).map_or_else(
+        |_| dir.to_string_lossy().replace('\\', "/"),
+        |rel| rel.to_string_lossy().replace('\\', "/"),
+    )
 }
 
 /// Compute the `children: alias → dir` map for a node. Mirrors

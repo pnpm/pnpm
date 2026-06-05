@@ -88,7 +88,9 @@ pub fn prepare_package<Reporter: self::Reporter>(
         return Ok(PreparedPackage { pkg_dir, should_be_built: false });
     };
     let scripts = manifest.get("scripts").and_then(Value::as_object);
-    if scripts.is_none_or(|s| s.is_empty()) || !package_should_be_built(&manifest, &pkg_dir) {
+    if scripts.is_none_or(serde_json::Map::is_empty)
+        || !package_should_be_built(&manifest, &pkg_dir)
+    {
         return Ok(PreparedPackage { pkg_dir, should_be_built: false });
     }
     if opts.ignore_scripts {

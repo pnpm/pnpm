@@ -32,6 +32,7 @@ impl PkgNameVerPeer {
     /// — referenced by name rather than as an intra-doc link because
     /// `pacquet-lockfile` deliberately does not depend on
     /// `pacquet-modules-yaml`).
+    #[must_use]
     pub fn to_virtual_store_name(&self, max_length: usize) -> String {
         // Mirror upstream's
         // [`depPathToFilename`](https://github.com/pnpm/pnpm/blob/1819226b51/deps/path/src/index.ts#L169-L170)
@@ -63,6 +64,7 @@ impl PkgNameVerPeer {
     /// `node@runtime:22.0.0(some@peer)` resolves to the matching
     /// `packages:` entry `node@runtime:22.0.0` rather than the
     /// non-existent `node@22.0.0`.
+    #[must_use]
     pub fn without_peer(&self) -> PkgNameVerPeer {
         PkgNameVerPeer::new(self.name.clone(), self.suffix.without_peer())
     }

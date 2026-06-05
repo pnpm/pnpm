@@ -31,10 +31,10 @@ fn missing(name: &str, range: &str) -> (String, MissingPeerInfo) {
     (name.to_string(), MissingPeerInfo { range: range.to_string() })
 }
 
-fn opts<'a>(
+fn opts(
     auto_install_peers: bool,
-    all_preferred_versions: &'a PreferredVersions,
-) -> HoistPeersOptions<'a> {
+    all_preferred_versions: &PreferredVersions,
+) -> HoistPeersOptions<'_> {
     HoistPeersOptions { auto_install_peers, all_preferred_versions, workspace_root_deps: &[] }
 }
 

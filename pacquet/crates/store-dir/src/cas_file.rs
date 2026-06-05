@@ -20,7 +20,7 @@ impl StoreDir {
         use std::io::Write as _;
         let mut hex_buf = [0u8; 128];
         let mut writer = &mut hex_buf[..];
-        for byte in hash.iter() {
+        for byte in &hash {
             // `write!` on `&mut [u8]` never errors when the buffer is
             // large enough — 128 bytes is exactly the digest length.
             write!(writer, "{byte:02x}").expect("hex buffer sized for full sha-512 digest");
@@ -31,7 +31,7 @@ impl StoreDir {
     }
 
     /// Path to a content-addressed file given its pre-computed hex digest
-    /// (from the SQLite store index) and its POSIX mode. Matches pnpm's
+    /// (from the `SQLite` store index) and its POSIX mode. Matches pnpm's
     /// [`getFilePathByModeInCafs`](https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/getFilePathInCafs.ts)
     /// so index entries written by either tool resolve to the same path.
     ///

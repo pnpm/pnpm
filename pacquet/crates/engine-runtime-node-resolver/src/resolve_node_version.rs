@@ -115,8 +115,7 @@ pub async fn resolve_node_versions(
         .into_iter()
         .filter(|version| {
             Version::parse(version)
-                .map(|parsed| satisfies_with_prereleases(&parsed, &parsed_range))
-                .unwrap_or(false)
+                .is_ok_and(|parsed| satisfies_with_prereleases(&parsed, &parsed_range))
         })
         .collect())
 }

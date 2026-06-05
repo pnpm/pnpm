@@ -8,9 +8,9 @@
 //! several stateless pnpr replicas.
 //!
 //! Any S3-compatible endpoint works: AWS S3 (omit `endpoint`),
-//! Cloudflare R2 (`region: auto`, the account endpoint), MinIO,
+//! Cloudflare R2 (`region: auto`, the account endpoint), `MinIO`,
 //! Backblaze B2, Wasabi, etc. The disposable proxy cache and the
-//! install-accelerator SQLite stores stay on local disk regardless —
+//! install-accelerator `SQLite` stores stay on local disk regardless —
 //! only the hosted store is pluggable.
 
 use crate::{error::Result, package_name::PackageName};
@@ -54,11 +54,11 @@ pub struct S3Settings {
     #[serde(default)]
     pub secret_access_key: Option<String>,
     /// Force path-style addressing (`endpoint/bucket/key`) instead of
-    /// virtual-hosted (`bucket.endpoint/key`). MinIO typically needs
+    /// virtual-hosted (`bucket.endpoint/key`). `MinIO` typically needs
     /// this; AWS and R2 work with the default.
     #[serde(default)]
     pub force_path_style: Option<bool>,
-    /// Allow plain-HTTP endpoints — needed for a local MinIO over
+    /// Allow plain-HTTP endpoints — needed for a local `MinIO` over
     /// `http://`. Defaults to HTTPS-only.
     #[serde(default)]
     pub allow_http: Option<bool>,

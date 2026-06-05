@@ -206,6 +206,7 @@ fn noun_verb_for(n: usize) -> (&'static str, &'static str) {
 /// `true` when the flat-record diff is empty in all three buckets —
 /// the manifest and the lockfile agree on the set of specifiers.
 impl SpecDiff {
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.added.is_empty() && self.removed.is_empty() && self.modified.is_empty()
     }
@@ -396,8 +397,10 @@ pub fn satisfies_package_manifest(
     let importer_meta = importer.dependencies_meta.as_ref();
     if !dependencies_meta_equal(importer_meta, manifest_meta) {
         return Err(StalenessReason::DependenciesMetaMismatch {
-            lockfile: importer_meta.map_or_else(|| "{}".to_string(), |v| v.to_string()),
-            manifest: manifest_meta.map_or_else(|| "{}".to_string(), |v| v.to_string()),
+            lockfile: importer_meta
+                .map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
+            manifest: manifest_meta
+                .map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
         });
     }
 

@@ -48,7 +48,7 @@ pub enum BuildModulesError {
 
     /// `ThreadPoolBuilder::build()` failed — most likely the OS
     /// refused to spawn the requested number of worker threads
-    /// (`EAGAIN` / RLIMIT_NPROC). Surfaced as a structured error
+    /// (`EAGAIN` / `RLIMIT_NPROC`). Surfaced as a structured error
     /// rather than a panic so the install path can return cleanly.
     #[display("Failed to build the per-install rayon thread pool: {source}")]
     #[diagnostic(
@@ -94,6 +94,7 @@ impl AllowBuildPolicy {
     /// directly with in-memory inputs (mirrors upstream's
     /// `createAllowBuildFunction(opts)` in
     /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts>).
+    #[must_use]
     pub fn new(
         expanded_allowed: HashSet<String>,
         expanded_disallowed: HashSet<String>,
@@ -146,6 +147,7 @@ impl AllowBuildPolicy {
     /// lookup means `*` wildcards in specs do NOT match real
     /// package names — see [`expand_package_version_specs`] for
     /// the rationale.
+    #[must_use]
     pub fn check(&self, name: &str, version: &str) -> Option<bool> {
         if self.dangerously_allow_all {
             return Some(true);
@@ -289,7 +291,7 @@ pub struct BuildModules<'a> {
     pub gather_ancestor_bin_paths: bool,
 }
 
-impl<'a> BuildModules<'a> {
+impl BuildModules<'_> {
     /// Run the build, returning the sorted set of `name@version` keys whose
     /// scripts were skipped because the package was not in `allowBuilds`.
     ///
@@ -348,8 +350,7 @@ impl<'a> BuildModules<'a> {
                 // isolated path's `pkg_dir.exists() == false` skip.
                 let requires = pkg_root_for_key(layout, pkg_root_by_key, key)
                     .as_deref()
-                    .map(pkg_requires_build)
-                    .unwrap_or(false);
+                    .is_some_and(pkg_requires_build);
                 (key.clone(), requires)
             })
             .collect();
@@ -478,7 +479,8 @@ impl<'a> BuildModules<'a> {
         // mid-insertion. A `BTreeSet::insert` is one atomic
         // operation from the data-structure's POV (no torn writes),
         // so the canonical poison-recovery pattern is safe.
-        let ignored_builds = ignored_builds.into_inner().unwrap_or_else(|e| e.into_inner());
+        let ignored_builds =
+            ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
         Ok(ignored_builds.into_iter().collect())
     }
 }
@@ -562,7 +564,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                 // data-structure's POV).
                 ignored_builds
                     .lock()
-                    .unwrap_or_else(|e| e.into_inner())
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .insert(metadata_key.to_string());
                 should_run_scripts = false;
             }
@@ -591,7 +593,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         // insert atomic from `HashMap`'s POV. A panic mid-walk
         // leaves the map in a usable state — the worst case is
         // an unfinished sub-walk that the next caller will redo.
-        let mut cache_guard = deps_state_cache.lock().unwrap_or_else(|e| e.into_inner());
+        let mut cache_guard =
+            deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         pacquet_graph_hasher::calc_dep_state(
             graph,
             &mut cache_guard,
