@@ -1343,10 +1343,7 @@ pub(crate) fn compute_hoist_plan(
     if config.hoist_pattern.is_none() && config.public_hoist_pattern.is_none() {
         return None;
     }
-    let (snaps, pkgs) = match (snapshots, packages) {
-        (Some(snaps), Some(pkgs)) => (snaps, pkgs),
-        _ => return None,
-    };
+    let (Some(snaps), Some(pkgs)) = (snapshots, packages) else { return None };
     let private_pattern = create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
     let public_pattern = create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
     // Static fast-path: when both compiled matchers come from empty

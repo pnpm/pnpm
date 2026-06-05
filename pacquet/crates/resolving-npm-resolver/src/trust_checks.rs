@@ -169,11 +169,11 @@ pub fn fail_if_trust_downgraded(
     })?;
 
     let exclude_prerelease = !is_prerelease(version);
-    let strongest_prior =
-        match detect_strongest_trust_evidence_before(meta, version_date, exclude_prerelease) {
-            Some(rank) => rank,
-            None => return Ok(()),
-        };
+    let Some(strongest_prior) =
+        detect_strongest_trust_evidence_before(meta, version_date, exclude_prerelease)
+    else {
+        return Ok(());
+    };
 
     let current = get_trust_evidence(manifest);
     let current_rank = current.map_or(0u8, trust_rank);

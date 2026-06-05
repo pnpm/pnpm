@@ -207,7 +207,6 @@ unused_async                              = "allow" # deferred: audit each async
 similar_names                             = "allow" # names ported verbatim from pnpm
 default_trait_access                      = "allow"
 items_after_statements                    = "allow"
-manual_let_else                           = "allow"
 format_push_string                        = "allow"
 needless_continue                         = "allow"
 many_single_char_names                    = "allow" # perfectionist's single_letter_* lints already cover this with finer per-position control

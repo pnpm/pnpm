@@ -141,9 +141,8 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         };
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let picked = match self.pick_from_registry(registry, &spec, opts, optional).await? {
-            Some(picked) => picked,
-            None => return Ok(None),
+        let Some(picked) = self.pick_from_registry(registry, &spec, opts, optional).await? else {
+            return Ok(None);
         };
 
         // Mirror upstream: the dependency is recorded under the

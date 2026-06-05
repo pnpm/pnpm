@@ -333,10 +333,10 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let registry = self.registries.get("@jsr").map_or(DEFAULT_JSR_REGISTRY, String::as_str);
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts, optional).await?
-        {
-            Some(picked) => picked,
-            None => return Ok(None),
+        let Some(picked) =
+            self.pick_from_registry(registry, &jsr_spec.spec, opts, optional).await?
+        else {
+            return Ok(None);
         };
 
         let result = build_resolve_result(BuildResolveResult {

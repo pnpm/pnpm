@@ -204,11 +204,8 @@ fn safe_join_path(root: &Path, sub: Option<&str>) -> Result<PathBuf, PreparePack
     let sub = sub.unwrap_or("");
     let joined = if sub.is_empty() { root.to_path_buf() } else { root.join(sub) };
     let canonical_root = root.canonicalize().map_err(PreparePackageError::Io)?;
-    let canonical_joined = match joined.canonicalize() {
-        Ok(p) => p,
-        Err(_) => {
-            return Err(PreparePackageError::InvalidPath { path: sub.to_string() });
-        }
+    let Ok(canonical_joined) = joined.canonicalize() else {
+        return Err(PreparePackageError::InvalidPath { path: sub.to_string() });
     };
     if !canonical_joined.starts_with(&canonical_root) {
         return Err(PreparePackageError::InvalidPath { path: sub.to_string() });

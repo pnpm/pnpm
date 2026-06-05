@@ -427,10 +427,7 @@ pub fn pkg_requires_build(pkg_root: &Path) -> bool {
     if pkg_root.join("binding.gyp").exists() || pkg_root.join(".hooks").is_dir() {
         return true;
     }
-    let manifest = match safe_read_package_json_from_dir(pkg_root) {
-        Ok(Some(value)) => value,
-        _ => return false,
-    };
+    let Ok(Some(manifest)) = safe_read_package_json_from_dir(pkg_root) else { return false };
     manifest.get("scripts").and_then(Value::as_object).is_some_and(|scripts| {
         scripts.contains_key("preinstall")
             || scripts.contains_key("install")

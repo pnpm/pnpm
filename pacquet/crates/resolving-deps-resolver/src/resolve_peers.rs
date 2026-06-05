@@ -1197,13 +1197,12 @@ impl Walker<'_> {
                 // packages with the same `pkgIdWithPatchHash`, and the
                 // deep `parent_packages_match` check (or the
                 // `purePkgs` shortcut) has to agree.
-                let cached_tree_node = match self.tree.dependencies_tree.get(cached_node_id) {
-                    Some(node) => node,
-                    None => return false,
+                let Some(cached_tree_node) = self.tree.dependencies_tree.get(cached_node_id) else {
+                    return false;
                 };
-                let current_tree_node = match self.tree.dependencies_tree.get(current_node_id) {
-                    Some(node) => node,
-                    None => return false,
+                let Some(current_tree_node) = self.tree.dependencies_tree.get(current_node_id)
+                else {
+                    return false;
                 };
                 let parent_pkg_id = &current_tree_node.resolved_package_id;
                 if parent_pkg_id != &cached_tree_node.resolved_package_id {

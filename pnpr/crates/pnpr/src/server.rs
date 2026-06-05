@@ -670,13 +670,10 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
             reason: format!("username in URL ({name:?}) does not match body ({body_name:?})"),
         });
     }
-    let password = match body.get("password").and_then(Value::as_str) {
-        Some(p) => p,
-        None => {
-            return error_response(&RegistryError::BadRequest {
-                reason: "missing password".to_string(),
-            });
-        }
+    let Some(password) = body.get("password").and_then(Value::as_str) else {
+        return error_response(&RegistryError::BadRequest {
+            reason: "missing password".to_string(),
+        });
     };
 
     let outcome = match state.inner.auth.users.add_or_login(name, password).await {
@@ -1390,24 +1387,18 @@ where
         Err(err) => return error_response(&err),
     };
 
-    let packument_obj = match packument.as_object_mut() {
-        Some(obj) => obj,
-        None => {
-            return error_response(&RegistryError::BadRequest {
-                reason: "stored packument is not an object".to_string(),
-            });
-        }
+    let Some(packument_obj) = packument.as_object_mut() else {
+        return error_response(&RegistryError::BadRequest {
+            reason: "stored packument is not an object".to_string(),
+        });
     };
     let tags_entry = packument_obj
         .entry("dist-tags".to_string())
         .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    let tags = match tags_entry.as_object_mut() {
-        Some(t) => t,
-        None => {
-            return error_response(&RegistryError::BadRequest {
-                reason: "stored dist-tags is not an object".to_string(),
-            });
-        }
+    let Some(tags) = tags_entry.as_object_mut() else {
+        return error_response(&RegistryError::BadRequest {
+            reason: "stored dist-tags is not an object".to_string(),
+        });
     };
     if let Err(err) = mutate(tags) {
         return error_response(&err);

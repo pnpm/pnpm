@@ -47,14 +47,8 @@ impl NodeJsHooks {
         logger: &crate::PreResolutionHookLogger,
     ) {
         let file_path = self.file.to_string_lossy();
-        let file_path_escaped = match serde_json::to_string(&file_path) {
-            Ok(s) => s,
-            Err(_) => return,
-        };
-        let ctx_payload = match serde_json::to_string(&args) {
-            Ok(s) => s,
-            Err(_) => return,
-        };
+        let Ok(file_path_escaped) = serde_json::to_string(&file_path) else { return };
+        let Ok(ctx_payload) = serde_json::to_string(&args) else { return };
 
         let (input_type, wrapper) = if file_path.ends_with(".mjs") {
             (
@@ -89,7 +83,7 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             )
         };
 
-        let mut child = if let Ok(child) = Command::new("node")
+        let Ok(mut child) = Command::new("node")
             .arg("--input-type")
             .arg(input_type)
             .arg("-e")
@@ -97,9 +91,7 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             .kill_on_drop(true)
             .stdin(std::process::Stdio::piped())
             .spawn()
-        {
-            child
-        } else {
+        else {
             (logger.warn)("pnpmfile hook failed to start".to_string());
             return;
         };
@@ -111,9 +103,7 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             return;
         }
 
-        let output = if let Ok(Ok(output)) = timeout(HOOK_TIMEOUT, child.wait_with_output()).await {
-            output
-        } else {
+        let Ok(Ok(output)) = timeout(HOOK_TIMEOUT, child.wait_with_output()).await else {
             (logger.warn)("pnpmfile hook timed out or failed to execute".to_string());
             return;
         };

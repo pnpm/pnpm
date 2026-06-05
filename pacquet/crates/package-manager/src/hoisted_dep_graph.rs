@@ -603,10 +603,7 @@ fn walk_deps(
         // (alphabetically smallest) is the canonical depPath for
         // this node's location. Mirrors upstream's
         // `Array.from(dep.references)[0]`.
-        let reference = match dep.0.references.borrow().iter().next().cloned() {
-            Some(r) => r,
-            None => continue,
-        };
+        let Some(reference) = dep.0.references.borrow().iter().next().cloned() else { continue };
 
         if state.skipped.contains(&reference) {
             continue;

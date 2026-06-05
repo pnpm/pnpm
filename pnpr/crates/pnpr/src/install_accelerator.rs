@@ -586,9 +586,8 @@ fn finish_inline_response(header: &serde_json::Value, files_payload: &[u8]) -> R
     if encoder.write_all(&body).is_err() {
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, "gzip failed");
     }
-    let gzipped = match encoder.finish() {
-        Ok(gzipped) => gzipped,
-        Err(_) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, "gzip failed"),
+    let Ok(gzipped) = encoder.finish() else {
+        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "gzip failed");
     };
 
     Response::builder()

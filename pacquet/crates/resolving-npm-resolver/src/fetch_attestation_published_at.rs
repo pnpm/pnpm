@@ -95,10 +95,7 @@ fn extract_published_at(body: &serde_json::Value) -> Option<String> {
     let attestations = body.get("attestations")?.as_array()?;
     let mut earliest: Option<i64> = None;
     for attestation in attestations {
-        let seconds = match read_earliest_integrated_time(attestation) {
-            Some(seconds) => seconds,
-            None => continue,
-        };
+        let Some(seconds) = read_earliest_integrated_time(attestation) else { continue };
         earliest = Some(earliest.map_or(seconds, |current| current.min(seconds)));
     }
     let seconds = earliest?;

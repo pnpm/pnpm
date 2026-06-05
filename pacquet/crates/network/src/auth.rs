@@ -174,10 +174,7 @@ impl AuthHeaders {
 /// * `https://npm.pkg.github.com/pnpm` (no trailing slash) → `//npm.pkg.github.com/`
 #[must_use]
 pub fn nerf_dart(url: &str) -> String {
-    let parsed = match ParsedUrl::parse(url) {
-        Some(parsed) => parsed,
-        None => return String::new(),
-    };
+    let Some(parsed) = ParsedUrl::parse(url) else { return String::new() };
     parsed.nerf_dart()
 }
 

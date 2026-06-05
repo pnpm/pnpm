@@ -81,21 +81,15 @@ fn walk_all_inner(
             source,
         })?;
         let file_name = entry.file_name();
-        let file_name_str = match file_name.to_str() {
-            Some(s) => s,
-            // Non-UTF-8 names can't round-trip through pacquet's
-            // forward-slash relative-path map; skip them, matching
-            // upstream's implicit JS string semantics.
-            None => continue,
-        };
+        // Non-UTF-8 names can't round-trip through pacquet's forward-slash
+        // relative-path map; skip them, matching upstream's implicit JS
+        // string semantics.
+        let Some(file_name_str) = file_name.to_str() else { continue };
         if file_name_str == "node_modules" {
             continue;
         }
         let entry_path = entry.path();
-        let resolved = match resolve_entry(&entry_path, resolve_symlinks)? {
-            Some(r) => r,
-            None => continue,
-        };
+        let Some(resolved) = resolve_entry(&entry_path, resolve_symlinks)? else { continue };
         let rel = if rel_prefix.is_empty() {
             file_name_str.to_string()
         } else {

@@ -154,13 +154,10 @@ pub fn try_lockfile_verification_cache(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     mut hash_lockfile: impl FnMut() -> String,
 ) -> CacheLookupResult {
-    let indexes = match read_cache(cache_dir) {
-        Ok(indexes) => indexes,
-        Err(_) => {
-            // A corrupt cache file should never block the install;
-            // fall through to verification so the gate still runs.
-            return CacheLookupResult::default();
-        }
+    let Ok(indexes) = read_cache(cache_dir) else {
+        // A corrupt cache file should never block the install;
+        // fall through to verification so the gate still runs.
+        return CacheLookupResult::default();
     };
 
     let Some(stat) = stat_lockfile(lockfile_path) else {
@@ -237,10 +234,7 @@ pub fn record_verification(
     mut hash_lockfile: impl FnMut() -> String,
     precomputed: CachePrecomputed,
 ) {
-    let stat = match precomputed.stat.or_else(|| stat_lockfile(lockfile_path)) {
-        Some(stat) => stat,
-        None => return,
-    };
+    let Some(stat) = precomputed.stat.or_else(|| stat_lockfile(lockfile_path)) else { return };
     let hash = precomputed.hash.unwrap_or_else(&mut hash_lockfile);
     let record = CacheRecord {
         lockfile: CacheLockfile {
@@ -375,10 +369,7 @@ fn maybe_compact_cache(cache_dir: &Path) {
     if size <= COMPACT_TRIGGER_BYTES {
         return;
     }
-    let contents = match fs::read_to_string(&cache_file_path) {
-        Ok(contents) => contents,
-        Err(_) => return,
-    };
+    let Ok(contents) = fs::read_to_string(&cache_file_path) else { return };
 
     // Walk reverse so the newest record per (path, hash) wins, drop
     // older duplicates, then trim to MAX_CACHE_ENTRIES.
