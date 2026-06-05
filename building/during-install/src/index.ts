@@ -77,9 +77,20 @@ export async function buildModules<T extends string> (
   if (!chunks.length) return {}
   const ignoredBuilds = new Set<DepPath>()
   const allowBuild = opts.allowBuild ?? (() => undefined)
-  if (opts.frozenStore && opts.enableGlobalVirtualStore) {
-    assertNothingToBuildInFrozenStore(depGraph, chunks, allowBuild, opts.depsToBuild)
-  }
+  // Under the global virtual store a package's directory lives inside the store
+  // (`{storeDir}/links/...`), so applying a patch or running an allowlisted
+  // lifecycle script writes into it. On a read-only `frozenStore` that write
+  // would crash mid-build with a raw `EROFS`. A complete seed never reaches the
+  // build step — built and patched packages are imported from the side-effects
+  // cache with `isBuilt` set and filtered out just below — so any package still
+  // wanting to write means the seed is missing its build output. We collect
+  // those off the same filtered chunk and refuse up front (see
+  // `throwFrozenStoreNeedsBuild`) instead of failing cryptically once a script
+  // starts. Bin-linking reuses existing symlinks write-free, and non-allowlisted
+  // scripts never run, so neither counts as a blocking write.
+  const frozenStoreBlocked = (opts.frozenStore && opts.enableGlobalVirtualStore)
+    ? new Set<string>()
+    : undefined
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
@@ -87,6 +98,14 @@ export async function buildModules<T extends string> (
     })
     if (opts.depsToBuild != null) {
       chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
+    }
+    if (frozenStoreBlocked != null) {
+      for (const depPath of chunk) {
+        const node = depGraph[depPath]
+        if (node.patch != null || (node.requiresBuild && allowBuild(node.name, node.version) === true)) {
+          frozenStoreBlocked.add(`${node.name}@${node.version}`)
+        }
+      }
     }
 
     return chunk.map((depPath) =>
@@ -117,6 +136,9 @@ export async function buildModules<T extends string> (
       }
     )
   })
+  if (frozenStoreBlocked?.size) {
+    throwFrozenStoreNeedsBuild(frozenStoreBlocked)
+  }
   const patchErrors: Error[] = []
   const groupsWithPatchErrors = groups.map((group) =>
     group.map((task) => async () => {
@@ -138,41 +160,8 @@ export async function buildModules<T extends string> (
   return { ignoredBuilds }
 }
 
-/**
- * Under the global virtual store, a package's directory lives inside the
- * store (`{storeDir}/links/...`), so applying a patch or running an
- * allowlisted lifecycle script writes into the store. `frozenStore`
- * promises the store is complete and read-only, so any such write would
- * crash with a raw `EROFS` mid-build. A complete seed never reaches here:
- * patched and built packages are imported from the side-effects cache with
- * `isBuilt` set and were filtered out upstream. So a non-empty set means
- * the seed is missing build output — refuse up front with guidance rather
- * than failing cryptically once a script starts.
- *
- * Bin-linking (the other write `buildDependency` performs) reuses existing
- * symlinks write-free on a complete seed, and non-allowlisted build scripts
- * never run, so neither is treated as a blocking write here.
- */
-function assertNothingToBuildInFrozenStore<T extends string> (
-  depGraph: DependenciesGraph<T>,
-  chunks: T[][],
-  allowBuild: AllowBuild,
-  depsToBuild?: Set<string>
-): void {
-  const blocked = new Set<string>()
-  for (const chunk of chunks) {
-    for (const depPath of chunk) {
-      const node = depGraph[depPath]
-      if (node.isBuilt) continue
-      if (depsToBuild != null && !depsToBuild.has(depPath)) continue
-      const willPatch = node.patch != null
-      const willRunScripts = Boolean(node.requiresBuild) && allowBuild(node.name, node.version) === true
-      if (willPatch || willRunScripts) {
-        blocked.add(`${node.name}@${node.version}`)
-      }
-    }
-  }
-  if (blocked.size === 0) return
+/** Refuse a build under a read-only global virtual store. See the call site. */
+function throwFrozenStoreNeedsBuild (blocked: Set<string>): never {
   const list = Array.from(blocked).sort()
   throw new PnpmError(
     'FROZEN_STORE_NEEDS_BUILD',
