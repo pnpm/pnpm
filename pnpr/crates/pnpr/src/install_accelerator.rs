@@ -32,8 +32,11 @@
 //! `pnpm-workspace.yaml` + member manifests) and letting pacquet's
 //! install path discover and resolve every importer. The client also
 //! forwards its per-registry credentials, so private dependencies resolve
-//! and fetch as the caller. Responses are buffered rather than truly
-//! streamed.
+//! and fetch as the caller. The file-bearing response is streamed: once
+//! resolution, verification, and authorization are done, the header is
+//! sent and each missing file is read from the store and gzip-emitted as
+//! it goes, so the client writes into its own CAFS while the rest are
+//! still in flight.
 
 mod diff;
 mod grant_table;
@@ -65,6 +68,7 @@ use axum::{
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use flate2::{Compression, write::GzEncoder};
+use futures_util::stream;
 use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
 use pacquet_lockfile::Lockfile;
@@ -312,7 +316,7 @@ pub(crate) async fn handle_install(
     }
 
     let stats_json = stats_json(&result.stats);
-    inline_response(runtime, &lockfile, &stats_json, &result)
+    inline_response(runtime, &lockfile, &stats_json, result)
 }
 
 fn stats_json(stats: &diff::Stats) -> serde_json::Value {
@@ -539,11 +543,18 @@ const INLINE_CONTENT_TYPE: &str = "application/x-pnpr-install-inline";
 /// entries in a length-prefixed JSON header, followed by the contents of
 /// the files the client is missing as binary frames — so the client
 /// materializes everything from one round trip.
+///
+/// The body is streamed, not buffered: the header is sent first, then
+/// each missing file is read from the store and gzip-emitted as it goes,
+/// so the client can start writing files into its own CAFS while the rest
+/// are still being read and sent. The *decompressed* byte sequence is
+/// identical to a buffered `[u32 header len][header][file frames]`
+/// response, so a client that buffers-then-parses is unaffected.
 fn inline_response(
     runtime: &InstallAccelerator,
     lockfile: &Lockfile,
     stats_json: &serde_json::Value,
-    result: &diff::DiffResult,
+    result: diff::DiffResult,
 ) -> Response {
     let index_entries: Vec<serde_json::Value> = result
         .package_index
@@ -561,13 +572,132 @@ fn inline_response(
         "indexEntries": index_entries,
     });
 
-    let files = result.missing_files.iter().map(|file| (file.digest.as_str(), file.executable));
-    let files_payload = match build_files_payload(&runtime.store_dir, files) {
-        Ok(payload) => payload,
-        Err((status, message)) => return json_error(status, &message),
+    let header_bytes = serde_json::to_vec(&header).unwrap_or_else(|_| b"{}".to_vec());
+    let Ok(header_len) = u32::try_from(header_bytes.len()) else {
+        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "install header too large");
     };
+    let files: Vec<(String, bool)> =
+        result.missing_files.into_iter().map(|file| (file.digest, file.executable)).collect();
 
-    finish_inline_response(&header, &files_payload)
+    stream_install_body(runtime.store_dir.clone(), header_len, header_bytes, files)
+}
+
+/// Backpressure budget for the install-body channel. Each item is one
+/// chunk of gzipped output; 16 caps how far the blocking encoder runs
+/// ahead of the client before `blocking_send` throttles it to the
+/// client's read rate.
+const STREAM_CHANNEL: usize = 16;
+
+/// Flush the gzip encoder after this many input bytes so compressed
+/// output reaches the client promptly instead of waiting for the whole
+/// payload, bounding time-to-first-file. Flushing per-frame would hurt
+/// the ratio on a package full of tiny files; a 256 KiB granularity
+/// streams smoothly while keeping sync-flush boundaries rare.
+const STREAM_FLUSH_THRESHOLD: usize = 256 * 1024;
+
+/// Spawn the blocking encoder that reads each missing file from the store
+/// and gzip-streams the framed body into an mpsc channel, and wrap the
+/// channel's receiver as the response body. File reads and gzip happen on
+/// a blocking thread; `blocking_send` provides backpressure.
+fn stream_install_body(
+    store_dir: StoreDir,
+    header_len: u32,
+    header_bytes: Vec<u8>,
+    files: Vec<(String, bool)>,
+) -> Response {
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Bytes, std::io::Error>>(STREAM_CHANNEL);
+
+    tokio::task::spawn_blocking(move || {
+        let mut encoder = GzEncoder::new(ChannelWriter { tx }, Compression::new(FILES_GZIP_LEVEL));
+        if let Err(err) =
+            write_install_frames(&mut encoder, &store_dir, header_len, &header_bytes, &files)
+        {
+            // Headers (200) are already on the wire, so a mid-stream read
+            // failure can't become a 500. Drop the encoder without the end
+            // marker; the client reports a truncated-stream protocol error
+            // — the same failure class the buffered path raised as a 500.
+            tracing::error!(%err, "install response stream aborted");
+            return;
+        }
+        if let Err(err) = encoder.finish() {
+            tracing::error!(%err, "install response gzip finish failed");
+        }
+    });
+
+    let stream = stream::unfold(rx, |mut rx| async move { rx.recv().await.map(|item| (item, rx)) });
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, INLINE_CONTENT_TYPE)
+        .header(header::CONTENT_ENCODING, "gzip")
+        .body(Body::from_stream(stream))
+        .expect("streaming response is always valid")
+}
+
+/// Write the framed install body into `encoder`: the length-prefixed JSON
+/// header, the `{}` files-payload prefix, one
+/// `[64-byte digest][u32 size][1-byte exec][content]` frame per missing
+/// file (read from the store by digest), and the 64-zero end marker.
+fn write_install_frames(
+    encoder: &mut GzEncoder<ChannelWriter>,
+    store_dir: &StoreDir,
+    header_len: u32,
+    header_bytes: &[u8],
+    files: &[(String, bool)],
+) -> std::io::Result<()> {
+    encoder.write_all(&header_len.to_be_bytes())?;
+    encoder.write_all(header_bytes)?;
+    encoder.write_all(&empty_files_payload_prefix())?;
+
+    let mut since_flush = 0;
+    for (digest, executable) in files {
+        let mode = if *executable { 0o755 } else { 0o644 };
+        let path = store_dir.cas_file_path_by_mode(digest, mode).ok_or_else(|| {
+            std::io::Error::other(format!("could not resolve file path: {digest}"))
+        })?;
+        let content = std::fs::read(&path)?;
+        let digest_bytes = hex_to_bytes(digest)
+            .ok_or_else(|| std::io::Error::other(format!("invalid digest: {digest}")))?;
+        // The wire framing encodes the size as a u32; npm files never
+        // approach 4 GiB, but fail cleanly rather than truncate the stream.
+        let content_len = u32::try_from(content.len()).map_err(|_| {
+            std::io::Error::other(format!("{digest}: file too large for the protocol"))
+        })?;
+
+        encoder.write_all(&digest_bytes)?;
+        encoder.write_all(&content_len.to_be_bytes())?;
+        encoder.write_all(&[u8::from(*executable)])?;
+        encoder.write_all(&content)?;
+
+        since_flush += 69 + content.len();
+        if since_flush >= STREAM_FLUSH_THRESHOLD {
+            encoder.flush()?;
+            since_flush = 0;
+        }
+    }
+
+    encoder.write_all(&[0u8; 64])?;
+    Ok(())
+}
+
+/// `std::io::Write` sink that forwards each write to the install body's
+/// mpsc channel. Used from a blocking task, so `blocking_send` is the
+/// right primitive — it parks the thread (applying backpressure) until
+/// the async receiver drains a slot, or errors once the client hangs up.
+struct ChannelWriter {
+    tx: tokio::sync::mpsc::Sender<Result<Bytes, std::io::Error>>,
+}
+
+impl std::io::Write for ChannelWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.tx.blocking_send(Ok(Bytes::copy_from_slice(buf))).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::BrokenPipe, "client disconnected")
+        })?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 /// Frame a JSON `header` and an already-built [`build_files_payload`]
@@ -696,51 +826,6 @@ fn merge_policies(
         }
     }
     merged
-}
-
-/// The binary file frames the install response embeds: a 2-byte `{}` JSON
-/// header (length-prefixed) followed by one
-/// `[64-byte digest][u32 size][1-byte exec][content]` frame per file,
-/// terminated by 64 zero bytes. Reads each file's content from the store
-/// by digest; an `Err` is a ready-made error response.
-fn build_files_payload<'a>(
-    store_dir: &StoreDir,
-    files: impl Iterator<Item = (&'a str, bool)>,
-) -> Result<Vec<u8>, (StatusCode, String)> {
-    let mut payload = empty_files_payload_prefix();
-    for (digest, executable) in files {
-        let mode = if executable { 0o755 } else { 0o644 };
-        let Some(path) = store_dir.cas_file_path_by_mode(digest, mode) else {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "could not resolve file path".to_string(),
-            ));
-        };
-        let content = match std::fs::read(&path) {
-            Ok(content) => content,
-            Err(err) => {
-                return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{digest}: {err}")));
-            }
-        };
-        let Some(digest_bytes) = hex_to_bytes(digest) else {
-            return Err((StatusCode::BAD_REQUEST, "invalid digest".to_string()));
-        };
-        // The wire framing encodes the size as a u32; a >4 GiB file would
-        // truncate. npm files never approach this, but fail cleanly rather
-        // than corrupt the stream.
-        let Ok(content_len) = u32::try_from(content.len()) else {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("{digest}: file too large for the protocol"),
-            ));
-        };
-        payload.extend_from_slice(&digest_bytes);
-        payload.extend_from_slice(&content_len.to_be_bytes());
-        payload.push(u8::from(executable));
-        payload.extend_from_slice(&content);
-    }
-    payload.extend_from_slice(&[0u8; 64]);
-    Ok(payload)
 }
 
 /// The leading 2-byte `{}` JSON header every files payload starts with.

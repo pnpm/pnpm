@@ -6,17 +6,17 @@
 //! 1. reads the integrities already in the local store index,
 //! 2. `POST`s them with the dependencies to `/v1/install`, asking the
 //!    server to inline the file contents it's missing (`inlineFiles`),
-//! 3. parses the single combined response — a length-prefixed JSON header
-//!    (lockfile, stats, store-index entries, or verification violations)
-//!    followed by the missing files' bytes,
-//! 4. writes those bytes straight into the local CAFS *by digest* (no
-//!    re-hashing) and writes the forwarded store-index entries, and
+//! 3. parses the combined response as it streams in — a length-prefixed
+//!    JSON header (lockfile, stats, store-index entries, or verification
+//!    violations) followed by the missing files' bytes,
+//! 4. writes each file straight into the local CAFS *by digest* (no
+//!    re-hashing) as its frame arrives — so disk writes overlap the
+//!    network transfer — and writes the forwarded store-index entries, and
 //! 5. returns the resolved lockfile for a headless install.
 //!
 //! The whole exchange is one round trip — no handshake, no follow-up
 //! `/v1/files` fetch. See
-//! [pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165). The
-//! response is buffered rather than truly streamed, a tracked follow-up.
+//! [pnpm/pnpm#12165](https://github.com/pnpm/pnpm/issues/12165).
 
 use std::{
     collections::{BTreeMap, HashSet},
@@ -24,14 +24,17 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error, From};
 use flate2::read::GzDecoder;
+use futures_util::{Stream, StreamExt as _};
 use pacquet_config::TrustPolicy;
 use pacquet_lockfile::Lockfile;
 use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
 use pacquet_store_dir::{StoreDir, StoreIndex, StoreIndexWriter, decode_package_files_index};
 use reqwest::Client;
 use serde::Deserialize;
+use tokio::task::JoinSet;
 
 /// Dependency map (`name` -> `version range`).
 pub type DepMap = BTreeMap<String, String>;
@@ -249,23 +252,153 @@ impl PnprClient {
             return Err(PnprClientError::Server(format!("/v1/install returned {status}: {body}")));
         }
 
-        let raw = response.bytes().await?;
-        let parsed = parse_inline_response(&decompress(&raw)?)?;
+        // reqwest's `gzip` feature transparently decodes the body and
+        // strips `Content-Encoding`, so the stream yields the plaintext
+        // framing we parse incrementally — writing each missing file into
+        // the CAFS as its frame arrives, overlapping disk with network.
+        // If the header survives (a proxy or config left the body encoded),
+        // fall back to buffering the whole response and gzip-decoding it.
+        if response.headers().get(reqwest::header::CONTENT_ENCODING).is_some() {
+            let raw = response.bytes().await?;
+            let parsed = parse_inline_response(&decompress(&raw)?)?;
+            let files_written = write_files_payload(opts.store_dir, &parsed.files_payload)?;
+            let index_entries_written =
+                write_index_entries(opts.store_dir, parsed.index_entries, &present).await;
+            return Ok(InstallOutcome {
+                lockfile: parsed.lockfile,
+                stats: parsed.stats,
+                files_written,
+                index_entries_written,
+            });
+        }
 
-        // The server inlines only the files the client is missing; a
-        // `--lockfile-only` resolve and a verification pass both carry an
-        // empty file payload, so this writes nothing in those cases.
-        let files_written = write_files_payload(opts.store_dir, &parsed.files_payload)?;
-        let index_entries_written =
-            write_index_entries(opts.store_dir, parsed.index_entries, &present).await;
-
-        Ok(InstallOutcome {
-            lockfile: parsed.lockfile,
-            stats: parsed.stats,
-            files_written,
-            index_entries_written,
-        })
+        let stream = response.bytes_stream().map(|chunk| chunk.map_err(PnprClientError::from));
+        consume_stream(stream, opts.store_dir, &present).await
     }
+}
+
+/// Read the framed install response from `stream`, writing each missing
+/// file into the CAFS as its frame arrives so disk writes overlap the
+/// network transfer. `stream` yields the plaintext (already gzip-decoded)
+/// body — `[u32 header len][header][u32 prefix len][{}][file frames][64
+/// zero]` — the same byte sequence [`parse_inline_response`] reads from a
+/// buffered body.
+async fn consume_stream<Source>(
+    stream: Source,
+    store_dir: &StoreDir,
+    present: &HashSet<&str>,
+) -> Result<InstallOutcome, PnprClientError>
+where
+    Source: Stream<Item = Result<Bytes, PnprClientError>> + Unpin,
+{
+    let mut reader = StreamBuf::new(stream);
+
+    let header_len = read_u32_be(&reader.read_exact(4).await?) as usize;
+    let header_bytes = reader.read_exact(header_len).await?;
+    let header: InlineHeader = serde_json::from_slice(&header_bytes)
+        .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+
+    if let Some(violations) = header.violations.filter(|list| !list.is_empty()) {
+        return Err(PnprClientError::Verification(build_verify_error(violations)));
+    }
+    let lockfile = header
+        .lockfile
+        .ok_or_else(|| PnprClientError::Protocol("install response had no lockfile".to_string()))?;
+    let stats = header.stats;
+
+    let mut index_entries = Vec::with_capacity(header.index_entries.len());
+    for entry in header.index_entries {
+        let raw =
+            BASE64.decode(&entry.b64).map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        index_entries.push((entry.key, raw));
+    }
+
+    // Skip the files-payload prefix: a `[u32 json_len][json]` (always
+    // `{}`) that precedes the file frames.
+    let prefix_len = read_u32_be(&reader.read_exact(4).await?) as usize;
+    reader.read_exact(prefix_len).await?;
+
+    let mut writes: JoinSet<Result<(), PnprClientError>> = JoinSet::new();
+    let mut files_written = 0;
+    loop {
+        let digest_bytes = reader.read_exact(64).await?;
+        if digest_bytes.iter().all(|byte| *byte == 0) {
+            break; // end-of-stream marker
+        }
+        let meta = reader.read_exact(5).await?;
+        let size = read_u32_be(&meta[..4]) as usize;
+        let executable = meta[4] & 0x01 != 0;
+        let content = reader.read_exact(size).await?;
+        let digest = hex_encode(&digest_bytes);
+
+        if writes.len() >= MAX_INFLIGHT_WRITES {
+            join_one(&mut writes, &mut files_written).await?;
+        }
+        let store_dir = store_dir.clone();
+        writes.spawn_blocking(move || write_cas_file(&store_dir, &digest, executable, &content));
+    }
+    while !writes.is_empty() {
+        join_one(&mut writes, &mut files_written).await?;
+    }
+
+    let index_entries_written = write_index_entries(store_dir, index_entries, present).await;
+    Ok(InstallOutcome { lockfile, stats, files_written, index_entries_written })
+}
+
+/// Max in-flight CAS writes. Writing each frame on the blocking pool while
+/// the next frames stream in overlaps disk with network; the cap bounds
+/// how much file content is held in memory at once.
+const MAX_INFLIGHT_WRITES: usize = 16;
+
+/// Await one finished CAS write, propagating its error and counting the
+/// success. A no-op when the set is empty.
+async fn join_one(
+    writes: &mut JoinSet<Result<(), PnprClientError>>,
+    files_written: &mut usize,
+) -> Result<(), PnprClientError> {
+    if let Some(joined) = writes.join_next().await {
+        joined
+            .map_err(|err| PnprClientError::Protocol(format!("CAFS write task failed: {err}")))??;
+        *files_written += 1;
+    }
+    Ok(())
+}
+
+/// A byte-stream cursor that yields exact-length slices, pulling more
+/// chunks from the underlying stream as needed.
+struct StreamBuf<Source> {
+    stream: Source,
+    buf: BytesMut,
+}
+
+impl<Source> StreamBuf<Source>
+where
+    Source: Stream<Item = Result<Bytes, PnprClientError>> + Unpin,
+{
+    fn new(stream: Source) -> Self {
+        StreamBuf { stream, buf: BytesMut::new() }
+    }
+
+    /// Read exactly `n` bytes, pulling chunks until satisfied. Errors when
+    /// the stream ends before `n` bytes are available (a truncated body).
+    async fn read_exact(&mut self, n: usize) -> Result<Bytes, PnprClientError> {
+        while self.buf.len() < n {
+            match self.stream.next().await {
+                Some(Ok(chunk)) => self.buf.extend_from_slice(&chunk),
+                Some(Err(err)) => return Err(err),
+                None => {
+                    return Err(PnprClientError::Protocol(
+                        "install response ended mid-frame".to_string(),
+                    ));
+                }
+            }
+        }
+        Ok(self.buf.split_to(n).freeze())
+    }
+}
+
+fn read_u32_be(bytes: &[u8]) -> u32 {
+    u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
 }
 
 /// Decompress a `Content-Encoding: gzip` body unless the HTTP stack
