@@ -1835,21 +1835,20 @@ impl<'a> DownloadTarballToStore<'a> {
         // without re-checking the prefetched map. Matches what the
         // normal path does with the result of
         // [`Self::run_without_mem_cache`].
-        if let Some(prefetched) = prefetched_cas_paths {
-            if let Some(cas_paths) = prefetched.get(&cache_key) {
-                tracing::info!(
-                    target: "pacquet::download",
-                    ?package_url,
-                    ?package_id,
-                    "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
-                );
-                emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-                let cas_paths = Arc::clone(cas_paths);
-                let cache_lock =
-                    Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
-                mem_cache.insert(package_url.to_string(), cache_lock);
-                return Ok(cas_paths);
-            }
+        if let Some(prefetched) = prefetched_cas_paths
+            && let Some(cas_paths) = prefetched.get(&cache_key)
+        {
+            tracing::info!(
+                target: "pacquet::download",
+                ?package_url,
+                ?package_id,
+                "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
+            );
+            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
+            let cas_paths = Arc::clone(cas_paths);
+            let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
+            mem_cache.insert(package_url.to_string(), cache_lock);
+            return Ok(cas_paths);
         }
 
         // QUESTION: I see no copying from existing store_dir, is there such mechanism?

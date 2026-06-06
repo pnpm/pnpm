@@ -1795,7 +1795,11 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     .await
     .expect("first call should fetch and report");
 
-    let first = EVENTS.lock().unwrap();
+    // Clone the events out rather than binding the `MutexGuard`: a
+    // named guard lexically spans the second download's `.await` below
+    // (clippy's `await_holding_lock` is scope-based and ignores an
+    // explicit `drop`), even though the data is only read here.
+    let first = EVENTS.lock().unwrap().clone();
     assert!(
         first.iter().any(|e| matches!(
             e,
@@ -1803,7 +1807,6 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         )),
         "first call must report fetched; got {first:?}",
     );
-    drop(first);
 
     EVENTS.lock().unwrap().clear();
     DownloadTarballToStore {
@@ -1829,7 +1832,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     .await
     .expect("second call should reuse the mem cache");
 
-    let second = EVENTS.lock().unwrap();
+    let second = EVENTS.lock().unwrap().clone();
     assert!(
         !second.iter().any(|e| matches!(
             e,
