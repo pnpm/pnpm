@@ -40,12 +40,12 @@ fn snapshot_with_dep(child: &str, ref_str: &str) -> SnapshotEntry {
 }
 
 /// `emit_warm_snapshot_progress` fires `resolved` then
-/// `found_in_store` in that order for one (package_id, requester)
-/// pair. Both events carry the same identifiers — pnpm's per-package
-/// counter relies on the pair to pin the tick to the right package
-/// row.
+/// `found_in_store` when no earlier fetch path already emitted the
+/// package status. Both events carry the same identifiers — pnpm's
+/// per-package counter relies on the pair to pin the tick to the right
+/// package row.
 #[test]
-fn emits_resolved_then_found_in_store_with_matching_identifiers() {
+fn emits_resolved_then_found_in_store_when_not_progress_reported() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
@@ -56,7 +56,7 @@ fn emits_resolved_then_found_in_store_with_matching_identifiers() {
     }
 
     EVENTS.lock().unwrap().clear();
-    emit_warm_snapshot_progress::<RecordingReporter>("react@18.0.0", "/proj");
+    emit_warm_snapshot_progress::<RecordingReporter>("react@18.0.0", "/proj", false);
 
     let captured = EVENTS.lock().unwrap();
     assert!(
@@ -76,6 +76,38 @@ fn emits_resolved_then_found_in_store_with_matching_identifiers() {
             ),
         ),
         "warm-snapshot pair must be (Resolved, FoundInStore) with matching identifiers; got {captured:?}",
+    );
+}
+
+/// When an earlier fetch path already emitted `fetched` or
+/// `found_in_store`, the warm batch emits only `resolved` so the
+/// package status is not double-counted. Regression guard for
+/// <https://github.com/pnpm/pnpm/issues/12235>.
+#[test]
+fn emits_only_resolved_when_progress_reported() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    EVENTS.lock().unwrap().clear();
+    emit_warm_snapshot_progress::<RecordingReporter>("react@18.0.0", "/proj", true);
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        matches!(
+            captured.as_slice(),
+            [LogEvent::Progress(r)] if matches!(
+                &r.message,
+                ProgressMessage::Resolved { package_id, requester }
+                    if package_id == "react@18.0.0" && requester == "/proj"
+            ),
+        ),
+        "already-reported warm snapshot must report only Resolved; got {captured:?}",
     );
 }
 

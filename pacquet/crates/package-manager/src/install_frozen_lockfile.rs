@@ -26,6 +26,7 @@ use pacquet_patching::{
 };
 use pacquet_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_store_dir::StoreIndexWriter;
+use pacquet_tarball::SharedReportedProgressKeys;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ffi::OsStr,
@@ -575,6 +576,11 @@ where
             Some(&allow_build_policy),
         );
 
+        // The frozen path runs no resolve-time prefetcher, so the warm
+        // batch owns package-status progress for store hits. An empty set
+        // leaves every warm package reported as `found_in_store`.
+        let progress_reported = SharedReportedProgressKeys::default();
+
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot,
@@ -595,6 +601,7 @@ where
             skipped: &skipped,
             workspace_root,
             node_linker,
+            progress_reported: &progress_reported,
         }
         .run::<Reporter>()
         .await

@@ -20,7 +20,7 @@ use pacquet_store_dir::{
     SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, git_hosted_store_index_key,
     store_index_key,
 };
-use pacquet_tarball::{PrefetchResult, prefetch_cas_paths};
+use pacquet_tarball::{PrefetchResult, SharedReportedProgressKeys, prefetch_cas_paths};
 use pipe_trait::Pipe;
 use std::{
     collections::{HashMap, HashSet},
@@ -157,6 +157,12 @@ pub struct CreateVirtualStore<'a> {
     /// Tarball downloads and CAS writes still happen for both
     /// linkers; only the slot-materialization step differs.
     pub node_linker: NodeLinker,
+    /// Cache keys whose package status (`fetched` or `found_in_store`)
+    /// has already been emitted earlier in this install. The warm batch
+    /// still emits `resolved` for those packages, but skips the second
+    /// status event so resolve-time prefetch progress is visible without
+    /// being double-counted.
+    pub progress_reported: &'a SharedReportedProgressKeys,
 }
 
 /// Error type of [`CreateVirtualStore`].
@@ -201,6 +207,7 @@ impl<'a> CreateVirtualStore<'a> {
             skipped,
             workspace_root,
             node_linker,
+            progress_reported,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -610,8 +617,12 @@ impl<'a> CreateVirtualStore<'a> {
                 side_effects_maps_by_snapshot
                     .insert((*snapshot_key).clone(), std::sync::Arc::clone(maps));
             }
-            match cache_key.as_deref().and_then(|key| prefetched.get(key)) {
-                Some(cas_paths) => warm.push((snapshot_key, snapshot, cas_paths)),
+            // Carry the cache key alongside the warm entry so the
+            // reporter can skip a duplicate package-status event when
+            // a resolve-time prefetch already emitted it.
+            match cache_key.as_deref().and_then(|key| prefetched.get(key).map(|paths| (key, paths)))
+            {
+                Some((key, cas_paths)) => warm.push((snapshot_key, snapshot, cas_paths, key)),
                 None => cold.push((snapshot_key, snapshot)),
             }
         }
@@ -624,7 +635,7 @@ impl<'a> CreateVirtualStore<'a> {
         // the cold-batch fetch finishes.
         let mut cas_paths_by_pkg_id: Option<CasPathsByPkgId> = is_hoisted.then(|| {
             let mut map = CasPathsByPkgId::with_capacity(warm.len());
-            for (snapshot_key, _snapshot, cas_paths) in &warm {
+            for (snapshot_key, _snapshot, cas_paths, _cache_key) in &warm {
                 // Mirrors upstream's `getPkgIdWithPatchHash` — strip
                 // the peer-graph suffix but keep `(patch_hash=...)` so
                 // patched packages share one CAS-paths entry across
@@ -662,9 +673,13 @@ impl<'a> CreateVirtualStore<'a> {
             // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L425>
             // which routes all link work into `linkHoistedModules`.
             let warm_work = move || {
-                warm.par_iter().try_for_each(|(snapshot_key, snapshot, cas_paths)| {
+                warm.par_iter().try_for_each(|(snapshot_key, snapshot, cas_paths, cache_key)| {
                     let package_id = snapshot_key.without_peer().to_string();
-                    emit_warm_snapshot_progress::<Reporter>(&package_id, requester);
+                    emit_warm_snapshot_progress::<Reporter>(
+                        &package_id,
+                        requester,
+                        progress_reported.contains(*cache_key),
+                    );
 
                     crate::CreateVirtualDirBySnapshot {
                         layout,
@@ -698,9 +713,13 @@ impl<'a> CreateVirtualStore<'a> {
             // `pnpm:progress imported`-style updates render the warm
             // hits — the link work just happens later, in
             // `link_hoisted_modules`.
-            for (snapshot_key, _, _) in &warm {
+            for (snapshot_key, _, _, cache_key) in &warm {
                 let package_id = snapshot_key.without_peer().to_string();
-                emit_warm_snapshot_progress::<Reporter>(&package_id, requester);
+                emit_warm_snapshot_progress::<Reporter>(
+                    &package_id,
+                    requester,
+                    progress_reported.contains(*cache_key),
+                );
             }
         }
 
@@ -748,6 +767,7 @@ impl<'a> CreateVirtualStore<'a> {
                         store_index: store_index_ref,
                         store_index_writer: store_index_writer_ref,
                         prefetched_cas_paths: prefetched_ref,
+                        progress_reported: Some(progress_reported),
                         verified_files_cache: verified_files_cache_ref,
                         logged_methods,
                         requester,
@@ -1036,13 +1056,12 @@ fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMet
     current_integrity == wanted_integrity
 }
 
-/// `pnpm:progress` `resolved` + `found_in_store` for a frozen-lockfile
-/// snapshot the install-scoped prefetch already settled. Frozen-
-/// lockfile snapshots are "already resolved" by virtue of being in
-/// the lockfile, and "found in store" by virtue of the prefetch
-/// covering them — emit both so the consumer sees the full resolved
-/// → found_in_store → imported sequence even when the cold path is
-/// skipped.
+/// `pnpm:progress resolved` for a warm-batch snapshot, plus
+/// `found_in_store` when no earlier fetch path already emitted the
+/// package status. Resolve-time prefetches report `fetched` or
+/// `found_in_store` as soon as their fetch/cache-hit outcome is known;
+/// the warm batch then supplies the later `resolved` event without
+/// double-counting the package status.
 ///
 /// Pulled out of the warm-batch closure in
 /// [`CreateVirtualStore::run`] so the event-construction code is
@@ -1085,7 +1104,11 @@ fn is_fetch_side_failure(err: &InstallPackageBySnapshotError) -> bool {
     )
 }
 
-fn emit_warm_snapshot_progress<Reporter: self::Reporter>(package_id: &str, requester: &str) {
+fn emit_warm_snapshot_progress<Reporter: self::Reporter>(
+    package_id: &str,
+    requester: &str,
+    progress_reported: bool,
+) {
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::Resolved {
@@ -1093,13 +1116,15 @@ fn emit_warm_snapshot_progress<Reporter: self::Reporter>(package_id: &str, reque
             requester: requester.to_owned(),
         },
     }));
-    Reporter::emit(&LogEvent::Progress(ProgressLog {
-        level: LogLevel::Debug,
-        message: ProgressMessage::FoundInStore {
-            package_id: package_id.to_owned(),
-            requester: requester.to_owned(),
-        },
-    }));
+    if !progress_reported {
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: ProgressMessage::FoundInStore {
+                package_id: package_id.to_owned(),
+                requester: requester.to_owned(),
+            },
+        }));
+    }
 }
 
 #[cfg(test)]

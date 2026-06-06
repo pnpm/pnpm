@@ -37,7 +37,7 @@ use pacquet_resolving_resolver_base::{
 };
 use pacquet_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
-use pacquet_tarball::MemCache;
+use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
@@ -536,6 +536,12 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
 
         let verified_files_cache = SharedVerifiedFilesCache::default();
 
+        // Records package-status progress emitted by resolve-time
+        // prefetches. `CreateVirtualStore` still emits `resolved` later,
+        // but skips duplicate `fetched` / `found_in_store` statuses for
+        // keys already reported here.
+        let progress_reported = SharedReportedProgressKeys::default();
+
         let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
             registries,
             named_registries: merged_named_registries.clone(),
@@ -691,6 +697,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     verified_files_cache: &verified_files_cache,
                     config,
                     requester,
+                    progress_reported: &progress_reported,
                 },
             ))
         };
@@ -1266,6 +1273,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             skipped: &skipped,
             workspace_root: lockfile_dir,
             node_linker,
+            progress_reported: &progress_reported,
         }
         .run::<Reporter>()
         .await

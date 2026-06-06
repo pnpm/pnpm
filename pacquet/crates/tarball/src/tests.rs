@@ -1,7 +1,7 @@
 use super::{
     DownloadTarballToStore, HttpStatusError, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
-    TarballError, VerifyChecksumError, allocate_tarball_buffer, extract_tarball_entries,
-    extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
+    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_tarball_buffer,
+    extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
     normalize_bundled_manifest, prefetch_cas_paths,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
@@ -178,6 +178,7 @@ async fn packages_under_orgs_should_work() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -208,6 +209,53 @@ async fn packages_under_orgs_should_work() {
     drop(store_dir);
 }
 
+/// A successful network download records its
+/// `store_index_key(integrity, pkg_id)` in the supplied
+/// [`SharedReportedProgressKeys`] set, so a later install pass can skip
+/// a duplicate package-status event for the same key. Regression guard
+/// for <https://github.com/pnpm/pnpm/issues/12235>.
+#[tokio::test]
+#[cfg(not(target_os = "windows"))]
+async fn network_fetch_records_progress_key() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let pkg_integrity = integrity(
+        "sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==",
+    );
+    let pkg_id = "@fastify/error@3.3.0";
+    let progress_reported = SharedReportedProgressKeys::default();
+
+    DownloadTarballToStore {
+        http_client: &Default::default(),
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        package_integrity: &pkg_integrity,
+        package_unpacked_size: Some(16697),
+        package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
+        package_id: pkg_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .unwrap();
+
+    let expected_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+    assert!(
+        progress_reported.contains(&expected_key),
+        "network download must record its progress key; got {progress_reported:?}",
+    );
+
+    drop(store_dir);
+}
+
 #[tokio::test]
 async fn should_throw_error_on_checksum_mismatch() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
@@ -228,6 +276,7 @@ async fn should_throw_error_on_checksum_mismatch() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -284,6 +333,10 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     index.set(&index_key, &entry).unwrap();
     drop(index);
 
+    // A cache hit also emits package-status progress, so it records the
+    // key to prevent a later warm/cold pass from counting the same
+    // package status again.
+    let progress_reported = SharedReportedProgressKeys::default();
     let cas_paths = DownloadTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
@@ -305,6 +358,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -313,6 +367,10 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     assert_eq!(cas_paths.len(), 2);
     assert_eq!(cas_paths.get("package.json"), Some(&pkg_json_path));
     assert_eq!(cas_paths.get("bin/cli.js"), Some(&bin_path));
+    assert!(
+        progress_reported.contains(&index_key),
+        "a store cache hit must record its progress key; got {progress_reported:?}",
+    );
 
     drop(store_dir);
 }
@@ -366,6 +424,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -595,6 +654,7 @@ async fn falls_through_when_cafs_file_missing() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -656,6 +716,7 @@ async fn falls_through_when_digest_is_malformed() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -720,6 +781,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -794,6 +856,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -1069,6 +1132,7 @@ async fn retries_then_succeeds_on_transient_5xx() {
         fast_retry_opts(),
         &AuthHeaders::default(),
         None,
+        None,
     )
     .await
     .expect("transient 503 should be followed by a successful retry");
@@ -1117,6 +1181,7 @@ async fn retries_integrity_mismatch_until_exhausted() {
         fast_retry_opts(),
         &AuthHeaders::default(),
         None,
+        None,
     )
     .await
     .expect_err("integrity mismatch should exhaust the retry budget");
@@ -1148,6 +1213,7 @@ async fn fails_fast_on_404() {
         store_path,
         fast_retry_opts(),
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -1190,6 +1256,7 @@ async fn retries_other_4xx_codes() {
         fast_retry_opts(),
         &AuthHeaders::default(),
         None,
+        None,
     )
     .await
     .expect_err("non-401/403/404 4xx should exhaust the retry budget");
@@ -1224,6 +1291,7 @@ async fn retry_exhaustion_returns_last_error() {
         store_path,
         fast_retry_opts(),
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -1350,6 +1418,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     auth_headers,
                     ignore_file_pattern: None,
                     offline: false,
+                    progress_reported: None,
                 };
 
                 // Spawn each task and yield once before the next so the
@@ -1419,6 +1488,7 @@ async fn zero_retries_makes_a_single_attempt() {
         opts,
         &AuthHeaders::default(),
         None,
+        None,
     )
     .await
     .expect_err("retries=0 must surface the first failure");
@@ -1463,6 +1533,7 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
         store_path,
         fast_retry_opts(),
         &auth_headers,
+        None,
         None,
     )
     .await
@@ -1518,6 +1589,7 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
         fast_retry_opts(),
         &auth_headers,
         None,
+        None,
     )
     .await
     .expect("retry attempt should also carry the bearer header");
@@ -1531,18 +1603,11 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     drop(store_dir_keep);
 }
 
-/// `run_with_mem_cache`'s `Available` short-circuit emits
-/// `pnpm:progress found_in_store` against the *caller's* reporter,
-/// regardless of who originally populated the slot. The
-/// `PrefetchingResolver` populates the slot via a `SilentReporter`
-/// so the resolve-time fetch doesn't fire `fetched` ahead of the
-/// install pass's `resolved`; the install pass's later
-/// `run_with_mem_cache` call must still produce the
-/// `found_in_store` event for `@pnpm/cli.default-reporter` to see
-/// the documented `resolved → fetched|found_in_store → imported`
-/// triple. Without the emit on the short-circuit, the install pass
-/// would silently skip past the cache hit and the event triple
-/// would be missing its middle.
+/// Without a shared progress-dedupe set, `run_with_mem_cache`'s
+/// `Available` short-circuit emits `pnpm:progress found_in_store`
+/// against the caller's reporter, regardless of who originally
+/// populated the slot. This preserves the legacy install path where a
+/// later caller still needs its own visible cache-hit event.
 ///
 /// Drives two `run_with_mem_cache` calls for the same URL but
 /// different `package_id`s. The first uses `SilentReporter`
@@ -1583,9 +1648,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     let mem_cache = MemCache::default();
     let verified_files_cache = SharedVerifiedFilesCache::default();
 
-    // First requester: silent (mirrors the `PrefetchingResolver`
-    // route, which uses `SilentReporter` so its resolve-time
-    // emits don't land before the install pass emits `resolved`).
+    // First requester: silent legacy owner.
     DownloadTarballToStore {
         http_client: &client,
         store_dir: store_path,
@@ -1603,15 +1666,16 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_with_mem_cache::<pacquet_reporter::SilentReporter>(&mem_cache)
     .await
     .expect("first call should populate the mem cache");
 
     // Second requester: same URL, different `package_id`. Hits the
-    // immediate-`Available` branch — must emit one `found_in_store`
-    // against the recording reporter so consumers see the cache
-    // hit even though the owner emit was silent.
+    // immediate-`Available` branch and emits one `found_in_store`
+    // because no shared progress set says this package status was
+    // already reported.
     EVENTS.lock().unwrap().clear();
     DownloadTarballToStore {
         http_client: &client,
@@ -1630,6 +1694,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -1664,6 +1729,120 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
             LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
         )),
         "fetched must NOT fire on a mem-cache hit; got {captured:?}",
+    );
+
+    drop(store_dir_keep);
+}
+
+/// With a shared progress-dedupe set, the first owner reports the
+/// package status and records the cache key. A later caller that hits
+/// the in-memory cache for the same package key must not emit a second
+/// `fetched` or `found_in_store`.
+#[tokio::test]
+async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
+    use std::sync::Mutex;
+
+    use pacquet_reporter::{LogEvent, ProgressMessage};
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl pacquet_reporter::Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+    let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
+    let mem_cache = MemCache::default();
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let progress_reported = SharedReportedProgressKeys::default();
+    let pkg_id = "@fastify/error@3.3.0";
+
+    EVENTS.lock().unwrap().clear();
+    DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+        package_integrity: &pkg_integrity,
+        package_unpacked_size: None,
+        package_url: &url,
+        package_id: pkg_id,
+        requester: "/proj",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
+    }
+    .run_with_mem_cache::<RecordingReporter>(&mem_cache)
+    .await
+    .expect("first call should fetch and report");
+
+    // Clone the events out rather than binding the `MutexGuard`: a
+    // named guard lexically spans the second download's `.await` below
+    // (clippy's `await_holding_lock` is scope-based and ignores an
+    // explicit `drop`), even though the data is only read here.
+    let first = EVENTS.lock().unwrap().clone();
+    assert!(
+        first.iter().any(|e| matches!(
+            e,
+            LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
+        )),
+        "first call must report fetched; got {first:?}",
+    );
+
+    EVENTS.lock().unwrap().clear();
+    DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+        package_integrity: &pkg_integrity,
+        package_unpacked_size: None,
+        package_url: &url,
+        package_id: pkg_id,
+        requester: "/proj",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
+    }
+    .run_with_mem_cache::<RecordingReporter>(&mem_cache)
+    .await
+    .expect("second call should reuse the mem cache");
+
+    let second = EVENTS.lock().unwrap().clone();
+    assert!(
+        !second.iter().any(|e| matches!(
+            e,
+            LogEvent::Progress(log)
+                if matches!(
+                    &log.message,
+                    ProgressMessage::Fetched { .. } | ProgressMessage::FoundInStore { .. }
+                )
+        )),
+        "second call must not duplicate package status; got {second:?}",
     );
 
     drop(store_dir_keep);
@@ -1730,6 +1909,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         auth_headers,
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     };
 
     // Drive both calls concurrently. Pre-fix: the first to hit the
@@ -1831,6 +2011,7 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
         fast_retry_opts(),
         &AuthHeaders::default(),
         None,
+        None,
     )
     .await
     .expect("transient 503 should be followed by a successful retry");
@@ -1920,6 +2101,7 @@ async fn started_fires_for_connection_level_failures() {
         store_path,
         RetryOpts { retries: 0, ..fast_retry_opts() },
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -2012,6 +2194,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2050,6 +2233,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<RecordingReporter>()
     .await
@@ -2127,6 +2311,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
         store_path,
         fast_retry_opts(),
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -2441,6 +2626,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: true,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2511,6 +2697,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: true,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
