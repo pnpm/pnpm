@@ -157,8 +157,8 @@ impl WorkEnv {
         match id {
             // A pnpr target runs the same pacquet client binary; the
             // pnpr server it talks to is started separately at benchmark
-            // time and reached via the `PNPR_SERVER` env var that
-            // `install.bash` sources from `.pnpr-env`.
+            // time and reached via the `PNPM_CONFIG_PNPR_SERVER` env var
+            // that `install.bash` sources from `.pnpr-env`.
             BenchId::PacquetRevision(_) | BenchId::PnprRevision(_) => {
                 "./pacquet/target/release/pacquet".to_string()
             }
@@ -538,8 +538,17 @@ impl WorkEnv {
             format!("http://127.0.0.1:{port}")
         };
 
-        fs::write(bench_dir.join(".pnpr-env"), format!("export PNPR_SERVER={client_url}\n"))
-            .expect("write .pnpr-env");
+        // Must be `PNPM_CONFIG_PNPR_SERVER`, not a bare `PNPR_SERVER`:
+        // pacquet reads config env vars only under the `PNPM_CONFIG_*` /
+        // `pnpm_config_*` prefix (see `config/src/env_overlay.rs`), so a
+        // bare `PNPR_SERVER` is silently ignored and the install runs
+        // *direct* instead of through pnpr — making every `pnpr@<rev>`
+        // target a duplicate of its `pacquet@<rev>` row.
+        fs::write(
+            bench_dir.join(".pnpr-env"),
+            format!("export PNPM_CONFIG_PNPR_SERVER={client_url}\n"),
+        )
+        .expect("write .pnpr-env");
 
         server
     }
@@ -562,6 +571,27 @@ impl WorkEnv {
         self.build();
         self.benchmark();
         drop(registry_proxy);
+        self.verify_pnpr_targets_were_routed();
+    }
+
+    /// Fail the run if a `pnpr@<rev>` target never actually went through its
+    /// pnpr server. A resolve populates the server's on-disk store/cache
+    /// under `pnpr-storage`, so an empty `pnpr-storage` after the
+    /// benchmark means the client resolved *directly* instead — the silent
+    /// failure mode where a misnamed `PNPM_CONFIG_PNPR_SERVER` made every
+    /// `pnpr@<rev>` row a duplicate of its `pacquet@<rev>` row. Better to
+    /// abort than to publish meaningless pnpr-vs-direct numbers.
+    fn verify_pnpr_targets_were_routed(&self) {
+        for id in self.target_ids().filter(|id| id.is_pnpr()) {
+            let storage = self.bench_dir(id).join("pnpr-storage");
+            assert!(
+                dir_contains_file(&storage),
+                "pnpr server storage at {storage:?} is empty after the benchmark — `{id}` never \
+                 routed through pnpr (it resolved directly), so its rows would silently duplicate \
+                 the `pacquet@<rev>` install. Check that `.pnpr-env` exports \
+                 `PNPM_CONFIG_PNPR_SERVER` and that the client reads it.",
+            );
+        }
     }
 
     /// Start a proxy in front of the registry that emulates a real link
@@ -602,6 +632,25 @@ impl WorkEnv {
     fn registry_for<'a>(&'a self, id: BenchId, client_registry: &'a str) -> &'a str {
         if id.is_proxy_cache_populator() { &self.registry } else { client_registry }
     }
+}
+
+/// Whether `dir` contains at least one regular file, recursively. Used to
+/// confirm a pnpr server actually wrote something (i.e. served a resolve).
+/// A missing/unreadable dir counts as empty.
+fn dir_contains_file(dir: &Path) -> bool {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            return true;
+        }
+        if path.is_dir() && dir_contains_file(&path) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Convert a megabits-per-second figure into a bytes-per-second cap for
@@ -915,9 +964,9 @@ fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Opt
 ///
 /// When `needs_pnpr_env` is set, the script sources `.pnpr-env` (written
 /// at benchmark time once the per-target pnpr server has a port) so the
-/// client picks up `PNPR_SERVER` and routes the install through it. The
-/// `source` fails loudly under `errexit` if the file is missing, rather
-/// than silently falling back to a direct install.
+/// client picks up `PNPM_CONFIG_PNPR_SERVER` and routes the install
+/// through it. The `source` fails loudly under `errexit` if the file is
+/// missing, rather than silently falling back to a direct install.
 fn create_install_script(
     dir: &Path,
     scenario: BenchmarkScenario,
