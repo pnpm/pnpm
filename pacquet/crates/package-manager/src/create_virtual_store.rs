@@ -20,7 +20,7 @@ use pacquet_store_dir::{
     SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, git_hosted_store_index_key,
     store_index_key,
 };
-use pacquet_tarball::{PrefetchResult, prefetch_cas_paths};
+use pacquet_tarball::{PrefetchResult, SharedNetworkFetchedKeys, prefetch_cas_paths};
 use pipe_trait::Pipe;
 use std::{
     collections::{HashMap, HashSet},
@@ -157,6 +157,15 @@ pub struct CreateVirtualStore<'a> {
     /// Tarball downloads and CAS writes still happen for both
     /// linkers; only the slot-materialization step differs.
     pub node_linker: NodeLinker,
+    /// Cache keys whose tarball was pulled over the network earlier in
+    /// *this* install (by the fresh path's resolve-time prefetcher,
+    /// whose own progress emits are silent). A warm-batch snapshot whose
+    /// key is in this set is reported as `fetched` rather than
+    /// `found_in_store`, so a cold `pacquet install` and `pacquet
+    /// install --frozen-lockfile` report identical reused/downloaded
+    /// counts. Empty on the frozen path (no prefetcher runs). See
+    /// [`SharedNetworkFetchedKeys`].
+    pub network_fetched: &'a SharedNetworkFetchedKeys,
 }
 
 /// Error type of [`CreateVirtualStore`].
@@ -201,6 +210,7 @@ impl<'a> CreateVirtualStore<'a> {
             skipped,
             workspace_root,
             node_linker,
+            network_fetched,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -610,8 +620,12 @@ impl<'a> CreateVirtualStore<'a> {
                 side_effects_maps_by_snapshot
                     .insert((*snapshot_key).clone(), std::sync::Arc::clone(maps));
             }
-            match cache_key.as_deref().and_then(|key| prefetched.get(key)) {
-                Some(cas_paths) => warm.push((snapshot_key, snapshot, cas_paths)),
+            // Carry the cache key alongside the warm entry so the
+            // reporter can consult `network_fetched` to decide between
+            // `fetched` and `found_in_store`.
+            match cache_key.as_deref().and_then(|key| prefetched.get(key).map(|paths| (key, paths)))
+            {
+                Some((key, cas_paths)) => warm.push((snapshot_key, snapshot, cas_paths, key)),
                 None => cold.push((snapshot_key, snapshot)),
             }
         }
@@ -624,7 +638,7 @@ impl<'a> CreateVirtualStore<'a> {
         // the cold-batch fetch finishes.
         let mut cas_paths_by_pkg_id: Option<CasPathsByPkgId> = is_hoisted.then(|| {
             let mut map = CasPathsByPkgId::with_capacity(warm.len());
-            for (snapshot_key, _snapshot, cas_paths) in &warm {
+            for (snapshot_key, _snapshot, cas_paths, _cache_key) in &warm {
                 // Mirrors upstream's `getPkgIdWithPatchHash` — strip
                 // the peer-graph suffix but keep `(patch_hash=...)` so
                 // patched packages share one CAS-paths entry across
@@ -662,9 +676,13 @@ impl<'a> CreateVirtualStore<'a> {
             // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L425>
             // which routes all link work into `linkHoistedModules`.
             let warm_work = move || {
-                warm.par_iter().try_for_each(|(snapshot_key, snapshot, cas_paths)| {
+                warm.par_iter().try_for_each(|(snapshot_key, snapshot, cas_paths, cache_key)| {
                     let package_id = snapshot_key.without_peer().to_string();
-                    emit_warm_snapshot_progress::<Reporter>(&package_id, requester);
+                    emit_warm_snapshot_progress::<Reporter>(
+                        &package_id,
+                        requester,
+                        network_fetched.contains(*cache_key),
+                    );
 
                     crate::CreateVirtualDirBySnapshot {
                         layout,
@@ -698,9 +716,13 @@ impl<'a> CreateVirtualStore<'a> {
             // `pnpm:progress imported`-style updates render the warm
             // hits — the link work just happens later, in
             // `link_hoisted_modules`.
-            for (snapshot_key, _, _) in &warm {
+            for (snapshot_key, _, _, cache_key) in &warm {
                 let package_id = snapshot_key.without_peer().to_string();
-                emit_warm_snapshot_progress::<Reporter>(&package_id, requester);
+                emit_warm_snapshot_progress::<Reporter>(
+                    &package_id,
+                    requester,
+                    network_fetched.contains(*cache_key),
+                );
             }
         }
 
@@ -1036,13 +1058,22 @@ fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMet
     current_integrity == wanted_integrity
 }
 
-/// `pnpm:progress` `resolved` + `found_in_store` for a frozen-lockfile
-/// snapshot the install-scoped prefetch already settled. Frozen-
-/// lockfile snapshots are "already resolved" by virtue of being in
-/// the lockfile, and "found in store" by virtue of the prefetch
-/// covering them — emit both so the consumer sees the full resolved
-/// → found_in_store → imported sequence even when the cold path is
-/// skipped.
+/// `pnpm:progress` `resolved` followed by either `fetched` or
+/// `found_in_store` for a warm-batch snapshot the install-scoped
+/// prefetch already settled. The snapshot is "already resolved" by
+/// virtue of being in the lockfile; the second event reports how its
+/// bytes got into the store.
+///
+/// `network_fetched` is `true` when the package's tarball was pulled
+/// over the network earlier in this same install — by the fresh path's
+/// resolve-time prefetcher, whose own progress emits are silent. In
+/// that case the warm batch reports `fetched` (a download), so a cold
+/// `pacquet install` and `pacquet install --frozen-lockfile` produce
+/// identical reused/downloaded counts. When `false` (the package was
+/// genuinely in the store at install start, e.g. a warm reinstall or
+/// the frozen path) the warm batch reports `found_in_store`. This
+/// mirrors pnpm's single per-package emit, which reflects whether the
+/// fetch hit the network.
 ///
 /// Pulled out of the warm-batch closure in
 /// [`CreateVirtualStore::run`] so the event-construction code is
@@ -1085,7 +1116,11 @@ fn is_fetch_side_failure(err: &InstallPackageBySnapshotError) -> bool {
     )
 }
 
-fn emit_warm_snapshot_progress<Reporter: self::Reporter>(package_id: &str, requester: &str) {
+fn emit_warm_snapshot_progress<Reporter: self::Reporter>(
+    package_id: &str,
+    requester: &str,
+    network_fetched: bool,
+) {
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::Resolved {
@@ -1093,13 +1128,18 @@ fn emit_warm_snapshot_progress<Reporter: self::Reporter>(package_id: &str, reque
             requester: requester.to_owned(),
         },
     }));
-    Reporter::emit(&LogEvent::Progress(ProgressLog {
-        level: LogLevel::Debug,
-        message: ProgressMessage::FoundInStore {
+    let message = if network_fetched {
+        ProgressMessage::Fetched {
             package_id: package_id.to_owned(),
             requester: requester.to_owned(),
-        },
-    }));
+        }
+    } else {
+        ProgressMessage::FoundInStore {
+            package_id: package_id.to_owned(),
+            requester: requester.to_owned(),
+        }
+    };
+    Reporter::emit(&LogEvent::Progress(ProgressLog { level: LogLevel::Debug, message }));
 }
 
 #[cfg(test)]

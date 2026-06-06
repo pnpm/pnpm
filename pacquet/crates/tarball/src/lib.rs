@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant, UNIX_EPOCH},
 };
 
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
 use pacquet_fs::file_mode;
@@ -272,6 +272,28 @@ pub enum CacheValue {
 ///
 /// The key of this hashmap is the url of each tarball.
 pub type MemCache = DashMap<String, Arc<RwLock<CacheValue>>>;
+
+/// Install-scoped set of store-index cache keys
+/// (`store_index_key(integrity, pkg_id)`) whose tarball bytes were
+/// pulled over the network during *this* install — i.e. the package was
+/// not already in the store when the install began.
+///
+/// [`DownloadTarballToStore::run_without_mem_cache`] inserts a key the
+/// moment its network fetch succeeds. The resolve-time prefetcher
+/// downloads through a [`pacquet_reporter::SilentReporter`], so its
+/// `pnpm:progress fetched` emits are discarded; by the time the install
+/// pass reports a freshly-downloaded package the store already holds it,
+/// which would otherwise label every download `found_in_store`. The
+/// reporter consults this set so a package fetched this install is
+/// reported as `fetched` — matching the cold-batch / frozen-lockfile
+/// path and pnpm's single per-package emit, which reflects whether the
+/// fetch hit the network. See <https://github.com/pnpm/pnpm/issues/12235>.
+pub type NetworkFetchedKeys = DashSet<String>;
+
+/// Shared handle to a [`NetworkFetchedKeys`] set, allocated once per
+/// install and shared between the resolve-time prefetcher (writer) and
+/// the install-pass reporter (reader).
+pub type SharedNetworkFetchedKeys = Arc<NetworkFetchedKeys>;
 
 /// Build the buffer that the tarball body streams into, pre-sized
 /// from the response's advertised `Content-Length` when it fits and
@@ -1250,6 +1272,15 @@ pub struct DownloadTarballToStore<'a> {
     /// pins every resolution), so this gate is pacquet's most useful
     /// interpretation of the flag for frozen installs.
     pub offline: bool,
+    /// Install-scoped set of cache keys network-fetched this install.
+    /// When `Some`, a successful network download records its
+    /// `store_index_key(integrity, pkg_id)` here so the install-pass
+    /// reporter can distinguish a package downloaded this install from
+    /// one that was already in the store. Only the resolve-time
+    /// prefetcher passes a set (its downloads route through a silent
+    /// reporter); every other call site leaves it `None`. See
+    /// [`SharedNetworkFetchedKeys`].
+    pub network_fetched: Option<SharedNetworkFetchedKeys>,
 }
 
 /// Project [`TarballError`] onto pnpm's `requestRetryLogger`'s
@@ -2058,6 +2089,13 @@ impl<'a> DownloadTarballToStore<'a> {
         // is dropped with a `warn!` and the next install misses on this
         // cache key, matching the read path's stance.
         let index_key = store_index_key(&package_integrity.to_string(), package_id);
+        // Record that this package's bytes came over the network this
+        // install (see [`SharedNetworkFetchedKeys`]). Done before the
+        // store-index row is queued, so any later reader that observes
+        // the row as "in store" also observes this membership.
+        if let Some(network_fetched) = self.network_fetched.as_deref() {
+            network_fetched.insert(index_key.clone());
+        }
         if let Some(writer) = store_index_writer {
             writer.queue(index_key, pkg_files_idx);
         } else {

@@ -274,6 +274,10 @@ impl<'a> InstallPackageBySnapshot<'a> {
                     auth_headers: &config.auth_headers,
                     ignore_file_pattern: None,
                     offline: config.offline,
+                    // Cold-batch download: emits `fetched` directly on
+                    // the install reporter, so no network-fetched
+                    // tracking is needed (only the silent prefetcher's).
+                    network_fetched: None,
                 }
                 .run_without_mem_cache::<Reporter>()
                 .await
@@ -696,6 +700,9 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             auth_headers: &config.auth_headers,
             ignore_file_pattern,
             offline: config.offline,
+            // Cold-batch binary tarball download: emits `fetched`
+            // directly, so no network-fetched tracking is needed.
+            network_fetched: None,
         }
         .run_without_mem_cache::<Reporter>()
         .await

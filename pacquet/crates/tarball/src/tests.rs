@@ -1,7 +1,7 @@
 use super::{
     DownloadTarballToStore, HttpStatusError, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
-    TarballError, VerifyChecksumError, allocate_tarball_buffer, extract_tarball_entries,
-    extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
+    SharedNetworkFetchedKeys, TarballError, VerifyChecksumError, allocate_tarball_buffer,
+    extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
     normalize_bundled_manifest, prefetch_cas_paths,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
@@ -178,6 +178,7 @@ async fn packages_under_orgs_should_work() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -208,6 +209,54 @@ async fn packages_under_orgs_should_work() {
     drop(store_dir);
 }
 
+/// A successful network download records its
+/// `store_index_key(integrity, pkg_id)` in the supplied
+/// [`SharedNetworkFetchedKeys`] set, so the install-pass reporter can
+/// label it `fetched` even when a later warm pass finds it in the
+/// freshly-populated store. Regression guard for
+/// <https://github.com/pnpm/pnpm/issues/12235>.
+#[tokio::test]
+#[cfg(not(target_os = "windows"))]
+async fn network_fetch_records_cache_key() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let pkg_integrity = integrity(
+        "sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==",
+    );
+    let pkg_id = "@fastify/error@3.3.0";
+    let network_fetched = SharedNetworkFetchedKeys::default();
+
+    DownloadTarballToStore {
+        http_client: &Default::default(),
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        package_integrity: &pkg_integrity,
+        package_unpacked_size: Some(16697),
+        package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
+        package_id: pkg_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        network_fetched: Some(SharedNetworkFetchedKeys::clone(&network_fetched)),
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .unwrap();
+
+    let expected_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+    assert!(
+        network_fetched.contains(&expected_key),
+        "network download must record its cache key; got {network_fetched:?}",
+    );
+
+    drop(store_dir);
+}
+
 #[tokio::test]
 async fn should_throw_error_on_checksum_mismatch() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
@@ -228,6 +277,7 @@ async fn should_throw_error_on_checksum_mismatch() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -284,6 +334,9 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     index.set(&index_key, &entry).unwrap();
     drop(index);
 
+    // A cache hit must not be recorded as a network fetch — only bytes
+    // pulled over the network this install belong in the set.
+    let network_fetched = SharedNetworkFetchedKeys::default();
     let cas_paths = DownloadTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
@@ -305,6 +358,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: Some(SharedNetworkFetchedKeys::clone(&network_fetched)),
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -313,6 +367,10 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     assert_eq!(cas_paths.len(), 2);
     assert_eq!(cas_paths.get("package.json"), Some(&pkg_json_path));
     assert_eq!(cas_paths.get("bin/cli.js"), Some(&bin_path));
+    assert!(
+        network_fetched.is_empty(),
+        "a store cache hit must not record a network fetch; got {network_fetched:?}",
+    );
 
     drop(store_dir);
 }
@@ -366,6 +424,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -595,6 +654,7 @@ async fn falls_through_when_cafs_file_missing() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -656,6 +716,7 @@ async fn falls_through_when_digest_is_malformed() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -720,6 +781,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -794,6 +856,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -1350,6 +1413,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     auth_headers,
                     ignore_file_pattern: None,
                     offline: false,
+                    network_fetched: None,
                 };
 
                 // Spawn each task and yield once before the next so the
@@ -1603,6 +1667,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     }
     .run_with_mem_cache::<pacquet_reporter::SilentReporter>(&mem_cache)
     .await
@@ -1630,6 +1695,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -1730,6 +1796,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         auth_headers,
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     };
 
     // Drive both calls concurrently. Pre-fix: the first to hit the
@@ -2012,6 +2079,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2050,6 +2118,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        network_fetched: None,
     }
     .run_without_mem_cache::<RecordingReporter>()
     .await
@@ -2441,6 +2510,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: true,
+        network_fetched: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2511,6 +2581,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: true,
+        network_fetched: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await

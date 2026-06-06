@@ -38,7 +38,7 @@ use pacquet_resolving_resolver_base::{
 use pacquet_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
 };
-use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts};
+use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts, SharedNetworkFetchedKeys};
 use std::{marker::PhantomData, sync::Arc};
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything
@@ -56,6 +56,13 @@ pub struct PrefetchContext<'a> {
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
     pub config: &'static Config,
     pub requester: &'a str,
+    /// Install-scoped set the background download records its cache key
+    /// into when its bytes come over the network. Lets the install
+    /// pass's warm-batch reporter label a package downloaded this
+    /// install as `fetched` rather than `found_in_store`, since the
+    /// prefetch's own emits route through a [`SilentReporter`]. See
+    /// [`SharedNetworkFetchedKeys`].
+    pub network_fetched: &'a SharedNetworkFetchedKeys,
 }
 
 /// Owned, `'static`-friendly clones of [`PrefetchContext`] stored on
@@ -75,6 +82,7 @@ struct OwnedFetchCtx {
     requester: Arc<str>,
     offline: bool,
     verify_store_integrity: bool,
+    network_fetched: SharedNetworkFetchedKeys,
     /// Set of URLs that already had a prefetch task spawned, used as
     /// an atomic check-and-claim gate so concurrent resolves for the
     /// same tarball can't both pass a non-atomic `MemCache` lookup and
@@ -119,6 +127,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             verified_files_cache,
             config,
             requester,
+            network_fetched,
         } = prefetch_ctx;
         let ctx = OwnedFetchCtx {
             http_client: Arc::clone(http_client),
@@ -132,6 +141,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             requester: Arc::<str>::from(requester),
             offline: config.offline,
             verify_store_integrity: config.verify_store_integrity,
+            network_fetched: SharedNetworkFetchedKeys::clone(network_fetched),
             spawned_urls: Arc::new(DashSet::new()),
         };
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
@@ -202,6 +212,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let requester = Arc::clone(&self.ctx.requester);
         let offline = self.ctx.offline;
         let verify_store_integrity = self.ctx.verify_store_integrity;
+        let network_fetched = SharedNetworkFetchedKeys::clone(&self.ctx.network_fetched);
 
         tokio::spawn(async move {
             // Route the prefetch download through `SilentReporter`,
@@ -242,6 +253,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 auth_headers: &auth_headers,
                 ignore_file_pattern: None,
                 offline,
+                network_fetched: Some(network_fetched),
             }
             .run_with_mem_cache::<SilentReporter>(&mem_cache)
             .await;

@@ -37,7 +37,7 @@ use pacquet_resolving_resolver_base::{
 };
 use pacquet_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
-use pacquet_tarball::MemCache;
+use pacquet_tarball::{MemCache, SharedNetworkFetchedKeys};
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
@@ -536,6 +536,14 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
 
         let verified_files_cache = SharedVerifiedFilesCache::default();
 
+        // Records the cache key of every package the resolve-time
+        // prefetcher pulls over the network this install. The prefetcher
+        // downloads through a silent reporter, so without this the
+        // warm-batch reporter would label those downloads
+        // `found_in_store`. `CreateVirtualStore` consults it to report
+        // them as `fetched` instead — see [`SharedNetworkFetchedKeys`].
+        let network_fetched = SharedNetworkFetchedKeys::default();
+
         let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
             registries,
             named_registries: merged_named_registries.clone(),
@@ -691,6 +699,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     verified_files_cache: &verified_files_cache,
                     config,
                     requester,
+                    network_fetched: &network_fetched,
                 },
             ))
         };
@@ -1266,6 +1275,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             skipped: &skipped,
             workspace_root: lockfile_dir,
             node_linker,
+            network_fetched: &network_fetched,
         }
         .run::<Reporter>()
         .await
