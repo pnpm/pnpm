@@ -26,12 +26,12 @@ use pacquet_patching::{
 };
 use pacquet_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_store_dir::StoreIndexWriter;
-use pacquet_tarball::SharedReportedProgressKeys;
+use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ffi::OsStr,
     path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
+    sync::{Arc, atomic::AtomicU8},
 };
 
 /// This subroutine installs dependencies from a frozen lockfile.
@@ -141,6 +141,14 @@ where
     /// exists yet). Upstream's `nodeLinker: 'pnp'` is also
     /// out-of-scope for [#438](https://github.com/pnpm/pacquet/issues/438); tracked separately.
     pub node_linker: NodeLinker,
+
+    /// Install-scoped shared in-flight tarball cache, threaded down to
+    /// [`crate::CreateVirtualStore`]'s cold-batch downloads. `Some` on
+    /// the pnpr client path so the materialization reuses the
+    /// [`crate::TarballPrefetcher`]'s background downloads instead of
+    /// re-fetching every tarball; `None` for installs without a shared
+    /// prefetch in flight.
+    pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -277,6 +285,7 @@ where
             supported_architectures,
             skip_runtimes,
             node_linker,
+            tarball_mem_cache,
         } = self;
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Cloned so the iterator can be reused below for hoist's
@@ -602,6 +611,7 @@ where
             workspace_root,
             node_linker,
             progress_reported: &progress_reported,
+            tarball_mem_cache,
         }
         .run::<Reporter>()
         .await

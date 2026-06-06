@@ -20,7 +20,7 @@ use pacquet_store_dir::{
     SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, git_hosted_store_index_key,
     store_index_key,
 };
-use pacquet_tarball::{PrefetchResult, SharedReportedProgressKeys, prefetch_cas_paths};
+use pacquet_tarball::{MemCache, PrefetchResult, SharedReportedProgressKeys, prefetch_cas_paths};
 use pipe_trait::Pipe;
 use std::{
     collections::{HashMap, HashSet},
@@ -163,6 +163,11 @@ pub struct CreateVirtualStore<'a> {
     /// status event so resolve-time prefetch progress is visible without
     /// being double-counted.
     pub progress_reported: &'a SharedReportedProgressKeys,
+    /// Install-scoped shared in-flight tarball cache, threaded into each
+    /// per-snapshot [`InstallPackageBySnapshot`]. `Some` on the pnpr
+    /// client path so the cold-batch download reuses the prefetcher's
+    /// background downloads instead of re-fetching; `None` otherwise.
+    pub tarball_mem_cache: Option<&'a std::sync::Arc<MemCache>>,
 }
 
 /// Error type of [`CreateVirtualStore`].
@@ -208,6 +213,7 @@ impl<'a> CreateVirtualStore<'a> {
             workspace_root,
             node_linker,
             progress_reported,
+            tarball_mem_cache,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -767,6 +773,7 @@ impl<'a> CreateVirtualStore<'a> {
                         store_index: store_index_ref,
                         store_index_writer: store_index_writer_ref,
                         prefetched_cas_paths: prefetched_ref,
+                        tarball_mem_cache,
                         progress_reported: Some(progress_reported),
                         verified_files_cache: verified_files_cache_ref,
                         logged_methods,

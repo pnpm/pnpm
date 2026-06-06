@@ -1291,6 +1291,11 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             workspace_root: lockfile_dir,
             node_linker,
             progress_reported: &progress_reported,
+            // The fresh path's downloads already resolve through the
+            // resolve-time prefetcher into the store; the cold batch
+            // dedups against on-disk state, so no shared in-flight cache
+            // is threaded here.
+            tarball_mem_cache: None,
         }
         .run::<Reporter>()
         .await

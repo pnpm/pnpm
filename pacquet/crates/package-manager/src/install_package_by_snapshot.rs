@@ -20,8 +20,8 @@ use pacquet_store_dir::{
     git_hosted_store_index_key,
 };
 use pacquet_tarball::{
-    DownloadTarballToStore, DownloadZipArchiveToStore, IgnoreEntryFilter, PrefetchedCasPaths,
-    SharedReportedProgressKeys, TarballError,
+    DownloadTarballToStore, DownloadZipArchiveToStore, IgnoreEntryFilter, MemCache,
+    PrefetchedCasPaths, SharedReportedProgressKeys, TarballError,
 };
 use pipe_trait::Pipe;
 use std::{
@@ -49,6 +49,17 @@ pub struct InstallPackageBySnapshot<'a> {
     /// Install-scoped batched cache lookup result. See
     /// [`pacquet_tarball::prefetch_cas_paths`].
     pub prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
+    /// Install-scoped shared in-flight tarball cache. When present, the
+    /// registry/tarball download routes through
+    /// [`DownloadTarballToStore::run_with_mem_cache`] so it parks on (or
+    /// reuses) a download already in flight or completed for the same
+    /// URL — most importantly the background downloads fired by the pnpr
+    /// client's [`crate::TarballPrefetcher`], which otherwise this pass
+    /// would redundantly re-download. `None` keeps the standalone
+    /// `run_without_mem_cache` path (no in-flight cache to share, e.g.
+    /// the fresh-lockfile materialization whose downloads already
+    /// happened during resolution).
+    pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
     /// Install-scoped package-status progress dedupe. Shared with the
     /// resolve-time prefetcher on the fresh path so the cold fallback
     /// does not double-count a package whose early prefetch already
@@ -223,6 +234,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
             store_index,
             store_index_writer,
             prefetched_cas_paths,
+            tarball_mem_cache,
             progress_reported,
             verified_files_cache,
             logged_methods,
@@ -263,7 +275,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
                 let (tarball_url, integrity) =
                     tarball_url_and_integrity(&metadata.resolution, package_key, config)?;
-                let raw_cas_paths = DownloadTarballToStore {
+                let download = DownloadTarballToStore {
                     http_client,
                     store_dir: &config.store_dir,
                     store_index: store_index.cloned(),
@@ -281,9 +293,20 @@ impl<'a> InstallPackageBySnapshot<'a> {
                     ignore_file_pattern: None,
                     offline: config.offline,
                     progress_reported: progress_reported.cloned(),
+                };
+                // Reuse an in-flight or completed background download
+                // (e.g. the pnpr client's prefetcher) through the shared
+                // mem cache when one is provided; otherwise fetch
+                // standalone. The owned `HashMap` is cloned out of the
+                // shared `Arc` so the rest of this pass keeps its
+                // by-value contract.
+                let raw_cas_paths = match tarball_mem_cache {
+                    Some(mem_cache) => download
+                        .run_with_mem_cache::<Reporter>(mem_cache)
+                        .await
+                        .map(|cas_paths| (*cas_paths).clone()),
+                    None => download.run_without_mem_cache::<Reporter>().await,
                 }
-                .run_without_mem_cache::<Reporter>()
-                .await
                 .map_err(InstallPackageBySnapshotError::DownloadTarball)?;
 
                 // Run the git-hosted prepare+packlist pass for
