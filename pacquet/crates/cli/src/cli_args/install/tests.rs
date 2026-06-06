@@ -1,6 +1,10 @@
-use super::{InstallArgs, InstallDependencyOptions, NodeLinkerArg};
+use super::{
+    BenchmarkRegistryRewrite, InstallArgs, InstallDependencyOptions, NodeLinkerArg,
+    PnprBenchmarkRegistryOverride, rewrite_resolution_registry,
+};
 use clap::Parser;
 use pacquet_config::NodeLinker;
+use pacquet_lockfile::{LockfileResolution, TarballResolution};
 use pacquet_package_manifest::DependencyGroup;
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
@@ -204,4 +208,86 @@ fn node_linker_arg_into_config_matches_every_variant() {
             other => panic!("mapping mismatch: {other:?}"),
         }
     }
+}
+
+#[test]
+fn registry_rewrite_replaces_only_the_configured_registry_prefix() {
+    let rewrite = BenchmarkRegistryRewrite::new(
+        ["http://server-registry.test"],
+        "http://client-registry.test",
+    )
+    .expect("different registries create a rewrite");
+
+    assert_eq!(
+        rewrite.url("http://server-registry.test/foo/-/foo-1.0.0.tgz"),
+        "http://client-registry.test/foo/-/foo-1.0.0.tgz",
+    );
+    assert_eq!(
+        rewrite.url("http://other-registry.test/foo/-/foo-1.0.0.tgz"),
+        "http://other-registry.test/foo/-/foo-1.0.0.tgz",
+    );
+}
+
+#[test]
+fn registry_rewrite_accepts_multiple_server_registry_prefixes() {
+    let rewrite = BenchmarkRegistryRewrite::new(
+        ["http://server-proxy.test", "http://server-registry.test"],
+        "http://client-registry.test",
+    )
+    .expect("different registries create a rewrite");
+
+    assert_eq!(
+        rewrite.url("http://server-proxy.test/foo/-/foo-1.0.0.tgz"),
+        "http://client-registry.test/foo/-/foo-1.0.0.tgz",
+    );
+    assert_eq!(
+        rewrite.url("http://server-registry.test/foo/-/foo-1.0.0.tgz"),
+        "http://client-registry.test/foo/-/foo-1.0.0.tgz",
+    );
+}
+
+#[test]
+fn registry_rewrite_is_none_for_equal_registries_after_normalization() {
+    assert!(
+        BenchmarkRegistryRewrite::new(["http://registry.test"], "http://registry.test/").is_none(),
+    );
+}
+
+#[test]
+fn registry_rewrite_updates_explicit_tarball_resolution_urls() {
+    let rewrite = BenchmarkRegistryRewrite::new(
+        ["http://server-registry.test"],
+        "http://client-registry.test",
+    )
+    .expect("different registries create a rewrite");
+    let mut resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: "http://server-registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        integrity: None,
+        git_hosted: None,
+        path: None,
+    });
+
+    rewrite_resolution_registry(&mut resolution, &rewrite);
+
+    let LockfileResolution::Tarball(resolution) = resolution else {
+        panic!("resolution stays tarball");
+    };
+    assert_eq!(resolution.tarball, "http://client-registry.test/foo/-/foo-1.0.0.tgz");
+}
+
+#[test]
+fn pnpr_benchmark_override_keeps_resolve_registry_separate_from_tarball_rewrite() {
+    let override_ = PnprBenchmarkRegistryOverride {
+        resolve_registry: "http://server-proxy.test/".to_string(),
+        tarball_rewrite: BenchmarkRegistryRewrite::new(
+            ["http://server-proxy.test", "http://server-registry.test"],
+            "http://client-registry.test",
+        ),
+    };
+
+    assert_eq!(override_.resolve_registry(), "http://server-proxy.test/");
+    assert_eq!(
+        override_.client_tarball_url("http://server-registry.test/foo/-/foo-1.0.0.tgz"),
+        "http://client-registry.test/foo/-/foo-1.0.0.tgz",
+    );
 }

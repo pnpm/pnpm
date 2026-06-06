@@ -1302,6 +1302,8 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             // batch through the mem cache makes it reuse the in-flight
             // download instead.
             tarball_mem_cache: Some(&tarball_mem_cache),
+            #[cfg(test)]
+            link_concurrency_probe: None,
         }
         .run::<Reporter>()
         .await

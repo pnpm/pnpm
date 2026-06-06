@@ -1,13 +1,17 @@
 use super::{
-    CreateVirtualStoreError, InstallPackageBySnapshotError, emit_warm_snapshot_progress,
-    integrity_equal, snapshot_cache_key, snapshot_deps_equal,
+    CreateVirtualStore, CreateVirtualStoreError, InstallPackageBySnapshotError,
+    emit_warm_snapshot_progress, integrity_equal, snapshot_cache_key, snapshot_deps_equal,
 };
 use pacquet_lockfile::{
     GitResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer,
     RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
 };
-use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
-use std::{collections::HashMap, sync::Mutex};
+use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
+use std::{
+    collections::HashMap,
+    fs,
+    sync::{Arc, Mutex, atomic::AtomicU8},
+};
 
 fn name(text: &str) -> PkgName {
     PkgName::parse(text).expect("parse pkg name")
@@ -38,6 +42,115 @@ fn snapshot_with_dep(child: &str, ref_str: &str) -> SnapshotEntry {
         ..Default::default()
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cold_batch_links_slots_in_parallel() {
+    use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
+    use pacquet_config::{Config, NodeLinker, PackageImportMethod};
+    use pacquet_store_dir::StoreIndexWriter;
+    use pacquet_tarball::{CacheValue, MemCache, SharedReportedProgressKeys};
+
+    if rayon::current_num_threads() < 2 {
+        eprintln!(
+            "skipping cold-batch concurrency assertion with rayon_threads={}",
+            rayon::current_num_threads(),
+        );
+        return;
+    }
+
+    let root = tempfile::tempdir().expect("create temp dir");
+    let workspace_root = root.path().join("workspace");
+    fs::create_dir_all(&workspace_root).expect("create workspace root");
+    let modules_dir = workspace_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    let store_dir = root.path().join("store");
+
+    let mut config = Config::new();
+    config.registry = "https://registry.test".to_string();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.package_import_method = PackageImportMethod::Copy;
+    config.offline = true;
+    let config = config.leak();
+
+    let mut snapshots = HashMap::new();
+    let mut packages = HashMap::new();
+    let mem_cache = Arc::new(MemCache::default());
+    for package_name in ["cold-a", "cold-b", "cold-c", "cold-d"] {
+        let package_key = key(package_name, "1.0.0");
+        let source_dir = workspace_root.join("prefetched").join(package_name);
+        fs::create_dir_all(&source_dir).expect("create prefetched package dir");
+        let manifest_path = source_dir.join("package.json");
+        fs::write(&manifest_path, format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#))
+            .expect("write package manifest");
+        let index_path = source_dir.join("index.js");
+        fs::write(&index_path, "module.exports = true\n").expect("write package body");
+
+        let cas_paths = HashMap::from([
+            ("package.json".to_string(), manifest_path),
+            ("index.js".to_string(), index_path),
+        ]);
+        mem_cache.insert(
+            format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(cas_paths)))),
+        );
+
+        snapshots.insert(package_key.clone(), SnapshotEntry::default());
+        packages.insert(package_key.without_peer(), metadata_with_integrity(DUMMY_SHA512));
+    }
+
+    let allow_build_policy = AllowBuildPolicy::default();
+    let layout = VirtualStoreLayout::new(
+        config,
+        None,
+        Some(&snapshots),
+        Some(&packages),
+        Some(&allow_build_policy),
+    );
+    let skipped = SkippedSnapshots::new();
+    let logged_methods = AtomicU8::new(0);
+    let progress_reported = SharedReportedProgressKeys::default();
+    let (store_index_writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
+    let requester = workspace_root.to_string_lossy().into_owned();
+    let probe =
+        crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::waiting_for_overlap();
+
+    CreateVirtualStore {
+        http_client: &Default::default(),
+        config,
+        packages: Some(&packages),
+        snapshots: Some(&snapshots),
+        current_snapshots: None,
+        current_packages: None,
+        layout: &layout,
+        logged_methods: &logged_methods,
+        requester: &requester,
+        store_index_writer: &store_index_writer,
+        allow_build_policy: &allow_build_policy,
+        skipped: &skipped,
+        workspace_root: &workspace_root,
+        node_linker: NodeLinker::Isolated,
+        progress_reported: &progress_reported,
+        tarball_mem_cache: Some(&mem_cache),
+        link_concurrency_probe: Some(&probe),
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("all-cold virtual-store creation should succeed from the mem cache");
+
+    drop(store_index_writer);
+    writer_task.await.expect("join store-index writer").expect("flush store-index writer");
+
+    assert!(
+        probe.max_concurrent() >= 2,
+        "cold-batch slot linking must overlap; observed max_concurrent={} with rayon_threads={}",
+        probe.max_concurrent(),
+        rayon::current_num_threads(),
+    );
+}
+
+const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
 /// `emit_warm_snapshot_progress` fires `resolved` then
 /// `found_in_store` when no earlier fetch path already emitted the

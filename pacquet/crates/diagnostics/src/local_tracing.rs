@@ -8,11 +8,17 @@ pub fn enable_tracing_by_env() {
 
     use tracing_subscriber::{fmt, prelude::*};
     let layer = common_layer(&trace_var);
-
-    tracing_subscriber::registry()
-        .with(layer)
-        .with(fmt::layer().pretty().with_file(true).with_span_events(FmtSpan::CLOSE))
-        .init();
+    if std::env::var("TRACE_FORMAT").is_ok_and(|format| format == "json") {
+        tracing_subscriber::registry()
+            .with(layer)
+            .with(fmt::layer().json().flatten_event(true))
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(layer)
+            .with(fmt::layer().pretty().with_file(true).with_span_events(FmtSpan::CLOSE))
+            .init();
+    }
 
     tracing::trace!("enable_tracing_by_env");
 }
