@@ -753,12 +753,15 @@ impl<'a> CreateVirtualStore<'a> {
         //   future returns; under hoisted no slot was written and the
         //   CAS index is the only output.
         let mut fetch_failed: HashSet<PackageKey> = HashSet::new();
-        let mut cold_cas_paths: Vec<(&PackageKey, HashMap<String, PathBuf>)> = Vec::new();
+        let mut cold_cas_paths: Vec<(&PackageKey, &SnapshotEntry, HashMap<String, PathBuf>)> =
+            Vec::new();
         if !cold.is_empty() {
             let prefetched_ref = Some(&prefetched);
             let verified_files_cache_ref = &verified_files_cache;
-            type ColdOutcome<'a> =
-                (Option<PackageKey>, Option<(&'a PackageKey, HashMap<String, PathBuf>)>);
+            type ColdOutcome<'a> = (
+                Option<PackageKey>,
+                Option<(&'a PackageKey, &'a SnapshotEntry, HashMap<String, PathBuf>)>,
+            );
             let outcomes: Vec<ColdOutcome<'_>> = cold
                 .iter()
                 .map(|(snapshot_key, snapshot)| async move {
@@ -788,14 +791,15 @@ impl<'a> CreateVirtualStore<'a> {
                         skipped,
                         workspace_root,
                         node_linker,
+                        // The slot link is deferred to the parallel pass
+                        // below so it doesn't serialize inside this
+                        // cooperative `try_join_all` task.
+                        defer_link: true,
                     }
                     .run::<Reporter>()
                     .await;
                     match result {
-                        Ok(cas_paths) => {
-                            let captured = is_hoisted.then_some((*snapshot_key, cas_paths));
-                            Ok((None, captured))
-                        }
+                        Ok(cas_paths) => Ok((None, Some((*snapshot_key, *snapshot, cas_paths)))),
                         Err(err) if snapshot.optional && is_fetch_side_failure(&err) => {
                             // Silent swallow, matching upstream. `tracing::warn!`
                             // gives operator visibility without polluting
@@ -839,6 +843,55 @@ impl<'a> CreateVirtualStore<'a> {
             }
         }
 
+        // Cold link pass (isolated only): now that every cold snapshot's
+        // tarball is in the store, link each into its virtual-store slot
+        // in one parallel rayon pass — the same shape as the warm batch
+        // above. The per-snapshot download futures deferred this work
+        // (`defer_link: true`) so the blocking `rayon::join` link inside
+        // each wouldn't serialize one-at-a-time within the cooperative
+        // `try_join_all` task; doing it here lets every slot link
+        // concurrently. Hoisted writes no slots, so it skips this and
+        // consumes `cold_cas_paths` for the per-pkg CAS index below.
+        if !is_hoisted && !cold_cas_paths.is_empty() {
+            use rayon::prelude::*;
+            let import_method = config.package_import_method;
+            let link_work = || {
+                cold_cas_paths.par_iter().try_for_each(|(snapshot_key, snapshot, cas_paths)| {
+                    let package_id = snapshot_key.without_peer().to_string();
+                    crate::CreateVirtualDirBySnapshot {
+                        layout,
+                        cas_paths,
+                        import_method,
+                        logged_methods,
+                        requester,
+                        package_id: &package_id,
+                        package_key: snapshot_key,
+                        snapshot,
+                        skipped,
+                    }
+                    .run::<Reporter>()
+                    .map_err(|error| {
+                        CreateVirtualStoreError::InstallPackageBySnapshot(
+                            InstallPackageBySnapshotError::CreateVirtualDir(error),
+                        )
+                    })
+                })
+            };
+            // `block_in_place` (the same guard the warm batch uses)
+            // migrates other futures off this worker so async progress
+            // continues; it panics on the `current_thread` runtime that
+            // `#[tokio::test]` defaults to, so fall back to a plain call
+            // there.
+            let on_multi_thread = tokio::runtime::Handle::try_current().is_ok_and(|handle| {
+                handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread
+            });
+            if on_multi_thread {
+                tokio::task::block_in_place(link_work)?;
+            } else {
+                link_work()?;
+            }
+        }
+
         // Build the per-pkg CAS index when the install is targeting
         // the hoisted linker. Upstream's
         // [`lockfileToHoistedDepGraph`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/lockfileToHoistedDepGraph.ts)
@@ -870,7 +923,7 @@ impl<'a> CreateVirtualStore<'a> {
         // real install.
         if let Some(map) = cas_paths_by_pkg_id.as_mut() {
             map.reserve(cold_cas_paths.len());
-            for (snapshot_key, paths) in cold_cas_paths {
+            for (snapshot_key, _snapshot, paths) in cold_cas_paths {
                 // Mirrors upstream's `getPkgIdWithPatchHash` — strip
                 // the peer-graph suffix but keep `(patch_hash=...)` so
                 // patched packages share one CAS-paths entry across
