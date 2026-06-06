@@ -1,4 +1,4 @@
-use super::LatencyProxy;
+use super::{LatencyProxy, LinkProfile};
 use std::{
     io::{Read as _, Write as _},
     net::{TcpListener, TcpStream},
@@ -21,8 +21,8 @@ fn injects_round_trip_latency() {
         socket.write_all(b"pong").expect("write reply");
     });
 
-    let one_way = Duration::from_millis(60);
-    let proxy = LatencyProxy::spawn(upstream_addr, one_way).expect("spawn proxy");
+    let profile = LinkProfile { one_way: Duration::from_millis(60), rate_limit: None };
+    let proxy = LatencyProxy::spawn(upstream_addr, profile).expect("spawn proxy");
 
     let mut client = TcpStream::connect(proxy.addr).expect("connect to proxy");
     let start = Instant::now();
@@ -37,5 +37,52 @@ fn injects_round_trip_latency() {
     assert!(
         elapsed >= Duration::from_millis(100),
         "round trip {elapsed:?} should reflect the injected ~120ms latency",
+    );
+}
+
+/// A bulk transfer through the proxy can't drain faster than the
+/// bandwidth cap: 256 KiB at 1 MB/s takes at least ~0.25 s, where the
+/// same transfer on loopback would finish in well under a millisecond.
+#[test]
+fn caps_throughput_to_the_rate_limit() {
+    const PAYLOAD: usize = 256 * 1024;
+    const RATE: u64 = 1_000_000; // 1 MB/s
+
+    // Upstream: ignore the request, stream a fixed-size payload back.
+    let upstream = TcpListener::bind(("127.0.0.1", 0)).expect("bind upstream");
+    let upstream_addr = upstream.local_addr().expect("upstream addr");
+    thread::spawn(move || {
+        let (mut socket, _) = upstream.accept().expect("accept");
+        let mut scratch = [0u8; 64];
+        let _ = socket.read(&mut scratch);
+        socket.write_all(&vec![0u8; PAYLOAD]).expect("write payload");
+    });
+
+    // No latency, only a bandwidth cap, so the wall time is the
+    // serialization delay alone.
+    let profile = LinkProfile { one_way: Duration::ZERO, rate_limit: Some(RATE) };
+    let proxy = LatencyProxy::spawn(upstream_addr, profile).expect("spawn proxy");
+
+    let mut client = TcpStream::connect(proxy.addr).expect("connect to proxy");
+    let start = Instant::now();
+    client.write_all(b"go").expect("send request");
+    let mut received = Vec::with_capacity(PAYLOAD);
+    let mut buf = [0u8; 16 * 1024];
+    loop {
+        match client.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => received.extend_from_slice(&buf[..n]),
+            Err(_) => break,
+        }
+    }
+    let elapsed = start.elapsed();
+
+    assert_eq!(received.len(), PAYLOAD, "the whole payload should arrive");
+    // 256 KiB / 1 MB/s ≈ 0.262 s. Allow generous slack below to absorb
+    // scheduling jitter while still proving the cap throttled the stream
+    // (loopback alone would be sub-millisecond).
+    assert!(
+        elapsed >= Duration::from_millis(200),
+        "transfer {elapsed:?} should reflect the ~0.26s bandwidth cap",
     );
 }

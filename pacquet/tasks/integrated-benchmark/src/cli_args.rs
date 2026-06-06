@@ -49,17 +49,31 @@ pub struct CliArgs {
     #[clap(long, default_value_t = 0)]
     pub pnpr_latency_ms: u64,
 
-    /// Round-trip latency, in milliseconds, to inject between the client
-    /// and the *registry* for the direct (`pacquet@<rev>` / `pnpm@<rev>` /
-    /// `--with-pnpm`) targets, so a direct install crosses the same
-    /// network a pnpr install does. Set this equal to `--pnpr-latency-ms`
-    /// for a fair pnpr-vs-direct comparison. `pnpr@<rev>` targets keep a
-    /// direct (fast) registry link — that models a warm, colocated server,
-    /// so pnpr's advantage shows up as fewer round trips rather than a
-    /// faster backend. `0` disables injection; ignored with
-    /// `--registry=npm` (already remote).
+    /// Round-trip latency, in milliseconds, to inject on the link to the
+    /// *registry*, applied to **every** client that touches it: direct
+    /// `pacquet@<rev>` / `pnpm@<rev>` installs, the `pnpr@<rev>` server's
+    /// resolution, and the pnpr client's tarball fetches. A request to the
+    /// registry-mock should cost the same regardless of who makes it, so
+    /// the registry-mock is uniformly as remote as the real one; pnpr's
+    /// advantage then shows up as fewer client round trips (one
+    /// `--pnpr-latency-ms` hop to the server) rather than a faster
+    /// backend. `0` disables injection; ignored with `--registry=npm`
+    /// (already remote).
     #[clap(long, default_value_t = 0)]
     pub registry_latency_ms: u64,
+
+    /// Download-bandwidth cap, in **megabits per second**, on the link to
+    /// the registry, applied to every client (direct installs and the pnpr
+    /// server + client alike), so tarball fetches take the time they would
+    /// over a real connection instead of being free on loopback. Loopback
+    /// serves at ~GB/s; the public npm registry measured ~190 Mbit/s
+    /// (~24 MB/s) peak on a fast link, and typical home/CI links are
+    /// 50–200 Mbit/s. Pairs with `--registry-latency-ms` (latency
+    /// dominates small packages, bandwidth dominates large ones). `0`
+    /// leaves the registry at loopback speed; ignored with
+    /// `--registry=npm` (already remote).
+    #[clap(long, default_value_t = 0.0)]
+    pub registry_bandwidth_mbps: f64,
 
     /// Build each target without running the benchmark.
     #[clap(long)]

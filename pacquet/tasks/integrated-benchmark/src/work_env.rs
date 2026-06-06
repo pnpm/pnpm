@@ -3,7 +3,7 @@ use crate::{
         BenchmarkScenario, Cleanup, HyperfineOptions, RegistryMode, TargetKind, TargetSpec,
     },
     fixtures::{LOCKFILE, PACKAGE_JSON},
-    latency_proxy::LatencyProxy,
+    latency_proxy::{LatencyProxy, LinkProfile},
     verify::executor,
     workspace_manifest::MinimalWorkspaceManifest,
 };
@@ -39,12 +39,18 @@ pub struct WorkEnv {
     /// Round-trip latency (ms) to inject between the client and each
     /// `pnpr@<rev>` target's server. `0` leaves the server on loopback.
     pub pnpr_latency_ms: u64,
-    /// Round-trip latency (ms) to inject between the direct targets and
-    /// the registry. `0` leaves the registry on loopback. Ignored in
-    /// `--registry=npm` mode (already remote).
+    /// Round-trip latency (ms) on the link to the registry, applied to
+    /// every client (direct installs and the pnpr server + client alike).
+    /// `0` leaves the registry on loopback. Ignored in `--registry=npm`
+    /// mode (already remote).
     pub registry_latency_ms: u64,
-    /// Port the local registry listens on, used as the latency proxy's
-    /// upstream when `registry_latency_ms > 0`.
+    /// Download-bandwidth cap (megabits/sec) on the link to the registry,
+    /// applied to every client, so tarball fetches cost real time instead
+    /// of being free on loopback. `0` leaves the registry at loopback
+    /// speed. Ignored in `--registry=npm` mode (already remote).
+    pub registry_bandwidth_mbps: f64,
+    /// Port the local registry listens on, used as the proxy's upstream
+    /// when latency or a bandwidth cap is requested.
     pub registry_port: u16,
     /// Skip the clone + `cargo build` for a target whose output binary is
     /// already present — i.e. restored from a per-commit CI cache. Off by
@@ -512,8 +518,14 @@ impl WorkEnv {
         // the server.
         let client_url = if self.pnpr_latency_ms > 0 {
             let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-            let one_way = Duration::from_millis(self.pnpr_latency_ms) / 2;
-            let proxy = LatencyProxy::spawn(upstream, one_way).expect("spawn pnpr latency proxy");
+            // Latency only: the pnpr resolve protocol exchanges small
+            // metadata payloads, so the round trip (not throughput) is the
+            // cost that matters for the client↔server link.
+            let profile = LinkProfile {
+                one_way: Duration::from_millis(self.pnpr_latency_ms) / 2,
+                rate_limit: None,
+            };
+            let proxy = LatencyProxy::spawn(upstream, profile).expect("spawn pnpr latency proxy");
             let proxy_url = format!("http://{}", proxy.addr);
             eprintln!(
                 "Injecting {}ms round-trip latency in front of {id}'s server (proxy at {})",
@@ -532,53 +544,70 @@ impl WorkEnv {
     }
 
     pub fn run(&self) {
-        // Front the registry with a latency proxy for the direct targets,
-        // when requested. The guard lives for the whole run so installs
-        // (in `benchmark`) cross it; the URL is baked into the direct
-        // targets' config during `init`. `pnpr@<rev>` targets keep the
-        // real (fast) registry — see [`Self::registry_for`].
+        // Front the registry with the emulated link, when requested. The
+        // guard lives for the whole run so installs (in `benchmark`) cross
+        // it; the URL is baked into every target's config during `init`.
+        // Every client that touches the registry — direct pacquet/pnpm,
+        // the pnpr server resolving, and the pnpr client fetching tarballs
+        // — goes through it, so the registry-mock is uniformly as remote as
+        // the real npm registry (see [`Self::registry_for`]).
         let registry_proxy = self.start_registry_proxy();
-        let direct_registry = registry_proxy
+        let client_registry = registry_proxy
             .as_ref()
             .map(|proxy| format!("http://{}/", proxy.addr))
             .unwrap_or_else(|| self.registry.clone());
 
-        self.init(&direct_registry);
+        self.init(&client_registry);
         self.build();
         self.benchmark();
         drop(registry_proxy);
     }
 
-    /// Start a latency proxy in front of the registry, or `None` when no
-    /// latency is requested, the registry is already remote (`npm` mode),
-    /// or no direct target would use it.
+    /// Start a proxy in front of the registry that emulates a real link
+    /// (latency + bandwidth cap) for every client, or `None` when neither
+    /// is requested or the registry is already remote (`npm` mode).
     fn start_registry_proxy(&self) -> Option<LatencyProxy> {
-        if self.registry_latency_ms == 0 || matches!(self.registry_mode, RegistryMode::Npm) {
-            return None;
-        }
-        let has_direct_target =
-            self.targets.iter().any(|target| target.kind != TargetKind::Pnpr) || self.with_pnpm;
-        if !has_direct_target {
+        let rate_limit = mbps_to_bytes_per_sec(self.registry_bandwidth_mbps);
+        if (self.registry_latency_ms == 0 && rate_limit.is_none())
+            || matches!(self.registry_mode, RegistryMode::Npm)
+        {
             return None;
         }
         let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, self.registry_port));
-        let one_way = Duration::from_millis(self.registry_latency_ms) / 2;
-        let proxy = LatencyProxy::spawn(upstream, one_way).expect("spawn registry latency proxy");
+        let profile = LinkProfile {
+            one_way: Duration::from_millis(self.registry_latency_ms) / 2,
+            rate_limit,
+        };
+        let proxy = LatencyProxy::spawn(upstream, profile).expect("spawn registry proxy");
         eprintln!(
-            "Injecting {}ms round-trip latency in front of the registry for direct targets (proxy at {})",
-            self.registry_latency_ms, proxy.addr,
+            "Fronting the registry with {}ms round-trip latency + {} download cap (proxy at {})",
+            self.registry_latency_ms,
+            match self.registry_bandwidth_mbps {
+                mbps if mbps > 0.0 => format!("{mbps} Mbit/s"),
+                _ => "no".to_string(),
+            },
+            proxy.addr,
         );
         Some(proxy)
     }
 
-    /// The registry a given bench id resolves against. Direct targets use
-    /// `direct_registry` (the latency proxy when injection is on); pnpr
-    /// targets and the proxy-cache populator keep the real registry — the
-    /// pnpr server's upstream stays fast, and warming the proxy cache is
-    /// untimed setup.
-    fn registry_for<'a>(&'a self, id: BenchId, direct_registry: &'a str) -> &'a str {
-        if id.is_pnpr() || id.is_proxy_cache_populator() { &self.registry } else { direct_registry }
+    /// The registry a given bench id resolves against. Every benchmarked
+    /// target — direct *and* pnpr — uses `client_registry` (the emulated
+    /// link when throttling is on; the raw registry otherwise), because a
+    /// request to the registry-mock should cost the same regardless of who
+    /// makes it. Only the proxy-cache populator keeps the raw (fast) link:
+    /// it warms the registry-mock's on-disk cache before timing starts, so
+    /// its cost isn't measured and there's no reason to slow it down.
+    fn registry_for<'a>(&'a self, id: BenchId, client_registry: &'a str) -> &'a str {
+        if id.is_proxy_cache_populator() { &self.registry } else { client_registry }
     }
+}
+
+/// Convert a megabits-per-second figure into a bytes-per-second cap for
+/// [`LinkProfile`], or `None` for a non-positive value (no cap). 1 Mbit/s
+/// = 1_000_000 bits/s = 125_000 bytes/s.
+fn mbps_to_bytes_per_sec(mbps: f64) -> Option<u64> {
+    (mbps > 0.0).then_some((mbps * 125_000.0) as u64)
 }
 
 /// A pnpr resolver server spawned for one `pnpr@<rev>`
