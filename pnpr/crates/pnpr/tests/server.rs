@@ -321,6 +321,61 @@ async fn packument_is_refetched_after_ttl_expires() {
     mock.assert_async().await;
 }
 
+/// A stale cached packument is revalidated with a conditional GET: the
+/// upstream's `ETag` is replayed as `If-None-Match`, and a `304` lets
+/// the server serve its cached copy without re-downloading the body. The
+/// `304` also refreshes the entry, so a third request inside the TTL is
+/// served straight from cache with no upstream call at all.
+#[tokio::test]
+async fn stale_packument_is_revalidated_with_conditional_get() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({ "name": "foo", "dist-tags": { "latest": "1.0.0" }, "versions": {} });
+    // First request (no validator yet): full body plus an ETag to store.
+    let full = upstream
+        .mock("GET", "/foo")
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("etag", r#""v1""#)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    // Revalidation: the stored ETag comes back as If-None-Match; upstream
+    // confirms it's unchanged with a bodyless 304.
+    let revalidate = upstream
+        .mock("GET", "/foo")
+        .match_header("if-none-match", r#""v1""#)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.packument_ttl = Duration::from_millis(50);
+    let app = router(config);
+
+    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r1.status(), StatusCode::OK);
+    let _ = body_bytes(r1.into_body()).await;
+
+    // Wait past the TTL so the cached packument is stale and gets revalidated.
+    tokio::time::sleep(Duration::from_millis(120)).await;
+
+    let r2 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r2.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&body_bytes(r2.into_body()).await).unwrap();
+    assert_eq!(body["dist-tags"]["latest"], "1.0.0", "304 must serve the cached body");
+
+    // The 304 refreshed the entry, so this request is within the TTL and
+    // never reaches the upstream — both mocks asserting exactly one call.
+    let r3 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r3.status(), StatusCode::OK);
+
+    full.assert_async().await;
+    revalidate.assert_async().await;
+}
+
 /// A hosted packument is authoritative: even with a proxy upstream
 /// configured, a divergent upstream packument, and an expired TTL, the
 /// hosted copy is served verbatim and the upstream is never contacted.

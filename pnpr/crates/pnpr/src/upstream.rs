@@ -5,7 +5,11 @@ use crate::{
 };
 use chrono::{DateTime, Duration, Timelike, Utc};
 use pacquet_network::ThrottledClient;
-use reqwest::{StatusCode, header::HeaderMap};
+use reqwest::{
+    StatusCode,
+    header::{self, HeaderMap, HeaderValue},
+};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{fmt, sync::Arc};
 
@@ -42,14 +46,97 @@ pub enum FetchOutcome<Payload> {
     NotFound,
 }
 
+/// Conditional-GET validators captured from an upstream packument
+/// response (its `ETag` / `Last-Modified`) and replayed on the next
+/// refresh as `If-None-Match` / `If-Modified-Since`. An upstream that
+/// emits neither leaves both `None`, and the refresh falls back to an
+/// unconditional GET.
+///
+/// Persisted verbatim in a sidecar next to the cached packument (see
+/// [`crate::storage`]); the field names double as the on-disk JSON keys.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct CacheValidators {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub etag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub last_modified: Option<String>,
+}
+
+impl CacheValidators {
+    pub fn is_empty(&self) -> bool {
+        self.etag.is_none() && self.last_modified.is_none()
+    }
+
+    fn from_headers(headers: &HeaderMap) -> Self {
+        let get =
+            |name| headers.get(name).and_then(|value| value.to_str().ok()).map(str::to_string);
+        Self { etag: get(header::ETAG), last_modified: get(header::LAST_MODIFIED) }
+    }
+}
+
+/// A packument fetched (or revalidated) against an upstream.
+#[derive(Debug)]
+pub struct FetchedPackument {
+    pub bytes: Vec<u8>,
+    pub validators: CacheValidators,
+}
+
+/// Outcome of a (possibly conditional) packument fetch.
+#[derive(Debug)]
+pub enum PackumentFetch {
+    /// Upstream returned a fresh body, along with its cache validators.
+    Modified(FetchedPackument),
+    /// Upstream answered `304 Not Modified`: the validators we sent are
+    /// still current, so the caller should keep serving its cached copy.
+    NotModified,
+    /// Upstream returned 404.
+    NotFound,
+}
+
 impl Upstream {
     pub fn new(base: String, headers: HeaderMap) -> Self {
         Self { client: Arc::new(ThrottledClient::new_for_installs()), base, headers }
     }
 
-    pub async fn fetch_packument(&self, name: &PackageName) -> Result<FetchOutcome<Vec<u8>>> {
+    /// Fetch a package's packument, conditionally when `validators`
+    /// carries an `ETag`/`Last-Modified`. A `304 Not Modified` short-
+    /// circuits to [`PackumentFetch::NotModified`] without a body, so the
+    /// caller can keep serving its cached copy — the bandwidth win on a
+    /// stale-but-current packument.
+    pub async fn fetch_packument(
+        &self,
+        name: &PackageName,
+        validators: &CacheValidators,
+    ) -> Result<PackumentFetch> {
         let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
-        self.fetch(&url).await
+        let client = self.client.acquire_for_url(&url).await;
+        let mut request = client.get(&url).headers(self.headers.clone());
+        if let Some(etag) = &validators.etag
+            && let Ok(value) = HeaderValue::from_str(etag)
+        {
+            request = request.header(header::IF_NONE_MATCH, value);
+        }
+        if let Some(last_modified) = &validators.last_modified
+            && let Ok(value) = HeaderValue::from_str(last_modified)
+        {
+            request = request.header(header::IF_MODIFIED_SINCE, value);
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
+        match response.status() {
+            StatusCode::NOT_FOUND => return Ok(PackumentFetch::NotFound),
+            StatusCode::NOT_MODIFIED => return Ok(PackumentFetch::NotModified),
+            _ => {}
+        }
+        let response = check_status(response, &url).await?;
+        let validators = CacheValidators::from_headers(response.headers());
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
+        Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec(), validators }))
     }
 
     /// Send the tarball request and return the streaming
@@ -74,25 +161,6 @@ impl Upstream {
         }
         let response = check_status(response, &url).await?;
         Ok(FetchOutcome::Ok(response))
-    }
-
-    async fn fetch(&self, url: &str) -> Result<FetchOutcome<Vec<u8>>> {
-        let client = self.client.acquire_for_url(url).await;
-        let response = client
-            .get(url)
-            .headers(self.headers.clone())
-            .send()
-            .await
-            .map_err(|source| RegistryError::Upstream { url: url.to_string(), source })?;
-        if response.status() == StatusCode::NOT_FOUND {
-            return Ok(FetchOutcome::NotFound);
-        }
-        let response = check_status(response, url).await?;
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|source| RegistryError::Upstream { url: url.to_string(), source })?;
-        Ok(FetchOutcome::Ok(bytes.to_vec()))
     }
 }
 
