@@ -172,6 +172,16 @@ pub enum BenchmarkScenario {
     /// No lockfile, hot cache + hot store. Resolves everything against an already-populated store.
     #[value(name = "isolated-linker.fresh-install.hot-cache.hot-store")]
     IsolatedFreshInstallHotCacheHotStore,
+    /// No lockfile, cold cache + **hot** store. Isolates resolution: the
+    /// client must re-resolve the whole tree (cold packument cache → a
+    /// fetch waterfall over the registry link) but every tarball is
+    /// already in the store, so no download dominates and hides it. This
+    /// is the scenario that exposes pnpr's core win — a direct install
+    /// pays the full cold resolution while pnpr offloads it to its warm
+    /// server. (Direct's `PrefetchingResolver` can't hide the resolution
+    /// behind downloads here because there are none.)
+    #[value(name = "isolated-linker.fresh-install.cold-cache.hot-store")]
+    IsolatedFreshInstallColdCacheHotStore,
     /// Frozen lockfile, cold cache + cold store. The typical CI shape.
     #[value(name = "isolated-linker.fresh-restore.cold-cache.cold-store")]
     IsolatedFreshRestoreColdCacheColdStore,
@@ -201,7 +211,8 @@ impl BenchmarkScenario {
     pub fn install_args(self) -> &'static [&'static str] {
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
-            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => &["install"],
+            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore
+            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => &["install"],
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
             | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
@@ -222,7 +233,8 @@ impl BenchmarkScenario {
     pub fn lockfile_enabled(self) -> bool {
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
-            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => false,
+            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore
+            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => false,
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore
@@ -270,6 +282,13 @@ impl BenchmarkScenario {
             },
             BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => Cleanup {
                 remove: &["node_modules", "pnpm-lock.yaml"],
+                restore: &[SAVED_PACKAGE_JSON],
+            },
+            // Cold cache (wipe `cache-dir` → re-resolve from scratch) but
+            // hot store (keep `store-dir` → no tarball download). Resolution
+            // is the only variable cost, so it can't hide behind downloads.
+            BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => Cleanup {
+                remove: &["node_modules", "pnpm-lock.yaml", "cache-dir"],
                 restore: &[SAVED_PACKAGE_JSON],
             },
             BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
