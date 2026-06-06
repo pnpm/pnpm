@@ -90,7 +90,7 @@ pub struct TargetSpec {
 pub enum TargetKind {
     Pacquet,
     Pnpm,
-    /// A pacquet client driven through a pnpr install-accelerator server.
+    /// A pacquet client driven through a pnpr resolver server.
     /// Builds both the `pacquet` and `pnpr` binaries from the revision's
     /// monorepo clone, boots a per-target pnpr server with an isolated
     /// store, and points the client at it via `PNPR_SERVER`.

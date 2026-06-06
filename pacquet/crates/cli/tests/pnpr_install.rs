@@ -82,7 +82,8 @@ fn install_via_pnpr_links_node_modules() {
     let virtual_path = workspace.join("node_modules/.pnpm/@foo+no-deps@1.0.0");
     assert!(virtual_path.exists(), "virtual store should hold the package");
     assert!(workspace.join("pnpm-lock.yaml").exists(), "pnpr should write the lockfile");
-    // The client store was populated by the server's `/v1/files` downloads.
+    // The client store was populated by the frozen install fetching tarballs
+    // directly from the registry after pnpr returned the lockfile.
     assert!(store_dir.join("v11/index.db").exists(), "client store index should exist");
 
     drop((root, mock_instance));

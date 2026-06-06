@@ -10,7 +10,7 @@
 //! Any S3-compatible endpoint works: AWS S3 (omit `endpoint`),
 //! Cloudflare R2 (`region: auto`, the account endpoint), MinIO,
 //! Backblaze B2, Wasabi, etc. The disposable proxy cache and the
-//! install-accelerator SQLite stores stay on local disk regardless —
+//! resolver SQLite stores stay on local disk regardless —
 //! only the hosted store is pluggable.
 
 use crate::{error::Result, package_name::PackageName};

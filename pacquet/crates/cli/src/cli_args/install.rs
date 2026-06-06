@@ -5,7 +5,7 @@ use pacquet_config::NodeLinker;
 use pacquet_lockfile::Lockfile;
 use pacquet_package_manager::{Install, UpdateSeedPolicy};
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_pnpr_client::{InstallOptions, PnprClient, PnprClientError};
+use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions};
 use pacquet_reporter::Reporter;
 
 /// `--node-linker` value parser. CLI mirror of
@@ -393,18 +393,18 @@ struct PnprLink<'a> {
     node_linker: NodeLinker,
     skip_runtimes: bool,
     /// Governs the *server's* resolution behavior (frozen vs
-    /// reuse-and-update); forwarded to `/v1/install`. The local
+    /// reuse-and-update); forwarded to `/v1/resolve`. The local
     /// materialization always runs frozen against the server-produced
     /// lockfile.
     frozen_lockfile: bool,
     /// The *effective* `preferFrozenLockfile` (the CLI tri-state already
     /// resolved against `config.prefer_frozen_lockfile`, exactly as the
-    /// local `Install` resolves it); forwarded to `/v1/install`. `false`
+    /// local `Install` resolves it); forwarded to `/v1/resolve`. `false`
     /// forces the server to re-resolve. Resolving here — rather than
     /// sending the raw CLI override — keeps a yaml `preferFrozenLockfile:
     /// false` honored on the pnpr path without `--no-prefer-frozen-lockfile`.
     prefer_frozen_lockfile: bool,
-    /// `--lockfile-only`. Forwarded to `/v1/install` so the server
+    /// `--lockfile-only`. Forwarded to `/v1/resolve` so the server
     /// resolves only — returning the lockfile without fetching files —
     /// after which `install_via_pnpr` writes the lockfile and skips
     /// materialization, mirroring pnpm's resolve + write, fetch nothing,
@@ -425,11 +425,13 @@ struct PnprLink<'a> {
 /// Resolve a single project through a `pnpr` server, then link it.
 ///
 /// Sends the client's registries to the server, which resolves against
-/// them and streams back the missing files; writes the server-produced
-/// lockfile, then runs a frozen install to materialize `node_modules`
-/// from it — the equivalent of pnpm's `installFromPnpmRegistry` handing
-/// off to `headlessInstall`. Under `--lockfile-only` it stops after
-/// writing the lockfile (fetch nothing, link nothing).
+/// them and returns the resolved lockfile; writes that lockfile, then
+/// runs a frozen install to materialize `node_modules` from it — the
+/// frozen install fetches every tarball from the registries itself, like
+/// a normal install. This is the equivalent of pnpm's
+/// `installFromPnpmRegistry` handing off to `headlessInstall`. Under
+/// `--lockfile-only` it stops after writing the lockfile (fetch nothing,
+/// link nothing).
 async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     state: &State,
     pnpr_server: &str,
@@ -443,6 +445,11 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     let dev_dependencies = state
         .manifest
         .dependencies([DependencyGroup::Dev])
+        .map(|(name, spec)| (name.to_string(), spec.to_string()))
+        .collect();
+    let optional_dependencies = state
+        .manifest
+        .dependencies([DependencyGroup::Optional])
         .map(|(name, spec)| (name.to_string(), spec.to_string()))
         .collect();
 
@@ -463,10 +470,10 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     // verifier) and freshly-resolved ones (the resolver's pick-time
     // gate, since the policy is wired into the server's config).
     let outcome = match PnprClient::new(pnpr_server)
-        .install(InstallOptions {
-            store_dir: &state.config.store_dir,
+        .resolve(ResolveOptions {
             dependencies,
             dev_dependencies,
+            optional_dependencies,
             registry: state.config.registry.clone(),
             named_registries: state.config.named_registries.clone(),
             // Forward the whole credential map: the registries a graph
@@ -484,7 +491,6 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             frozen_lockfile: link.frozen_lockfile,
             prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
             ignore_manifest_check: link.ignore_manifest_check,
-            lockfile_only: link.lockfile_only,
             trust_lockfile: link.trust_lockfile,
             minimum_release_age: state.config.minimum_release_age,
             minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),

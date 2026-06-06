@@ -1,5 +1,5 @@
 //! SQLite-backed whole-lockfile verification verdict cache for the pnpr
-//! install accelerator ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
+//! resolver ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
 //!
 //! Caches the *result* of verifying an entire input lockfile. Like the
 //! local `lockfile-verified.jsonl` cache

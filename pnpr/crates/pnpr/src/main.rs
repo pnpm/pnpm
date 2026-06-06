@@ -26,7 +26,7 @@ struct Args {
     storage: Option<PathBuf>,
 
     /// Override the proxy-cache path — the disposable mirror of
-    /// upstream registries plus the install-accelerator store. Point
+    /// upstream registries plus the resolver's cache. Point
     /// it at separate, ephemeral disk to keep published packages and
     /// cached upstream content on different volumes.
     #[arg(long)]

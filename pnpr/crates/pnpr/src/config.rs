@@ -64,8 +64,8 @@ pub struct Config {
     /// keep it on a durable volume.
     pub storage: PathBuf,
     /// Directory under which the disposable proxy cache lives —
-    /// the mirror of upstream registries plus the install-accelerator
-    /// store. Safe to wipe at any time; it self-heals on the next
+    /// the mirror of upstream registries plus the resolver's cache.
+    /// Safe to wipe at any time; it self-heals on the next
     /// request. Defaults to a `.pnpr-cache` subdirectory of
     /// [`Self::storage`]; set the YAML `cache:` key (or `--cache`) to
     /// an absolute path to put it on separate, ephemeral disk.
@@ -99,11 +99,6 @@ pub struct Config {
     /// installs at startup. Sourced from the YAML `log:` object
     /// (Verdaccio 6+ shape). Defaults to pretty/info.
     pub logs: LogConfig,
-    /// How long the install accelerator keeps a per-user access grant
-    /// before re-verifying. `None` (default) is permanent (revocation
-    /// relies on clear-on-discovery). YAML `installAccelerator.grantTtl`
-    /// (seconds).
-    pub install_accelerator_grant_ttl: Option<Duration>,
     /// Where the authoritative (hosted) store lives. Defaults to
     /// [`HostedStoreConfig::Fs`] — the local [`Self::storage`]
     /// directory. The YAML `s3:` block switches it to an S3-compatible
@@ -548,19 +543,6 @@ struct ConfigFile {
     /// intentionally not accepted.
     #[serde(default)]
     log: Option<LogEntryFile>,
-    /// pnpr-only block tuning the install accelerator. Absent on a
-    /// stock verdaccio config (silently ignored there, like the other
-    /// keys verdaccio doesn't share).
-    #[serde(default, rename = "installAccelerator")]
-    install_accelerator: Option<InstallAcceleratorFile>,
-}
-
-/// The YAML `installAccelerator:` block.
-#[derive(Debug, Default, Deserialize)]
-struct InstallAcceleratorFile {
-    /// `grantTtl` in seconds. Absent ⇒ permanent grants.
-    #[serde(default, rename = "grantTtl")]
-    grant_ttl: Option<u64>,
 }
 
 /// The YAML `log:` object. Mirrors verdaccio 6's logger config.
@@ -643,7 +625,6 @@ impl Config {
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
-            install_accelerator_grant_ttl: None,
             hosted_store: HostedStoreConfig::Fs,
             backend: BackendConfig::Local,
         }
@@ -663,7 +644,6 @@ impl Config {
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
-            install_accelerator_grant_ttl: None,
             hosted_store: HostedStoreConfig::Fs,
             backend: BackendConfig::Local,
         }
@@ -819,10 +799,6 @@ impl Config {
             policies,
             auth,
             logs,
-            install_accelerator_grant_ttl: file
-                .install_accelerator
-                .and_then(|block| block.grant_ttl)
-                .map(Duration::from_secs),
             hosted_store,
             backend,
         })

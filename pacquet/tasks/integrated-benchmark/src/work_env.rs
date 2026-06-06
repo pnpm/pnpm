@@ -454,7 +454,7 @@ impl WorkEnv {
         executor("hyperfine")(&mut command);
     }
 
-    /// Start a pnpr install-accelerator server for every `pnpr@<rev>`
+    /// Start a pnpr resolver server for every `pnpr@<rev>`
     /// target and write the `.pnpr-env` its `install.bash` sources. Each
     /// server gets an isolated `<bench_dir>/pnpr-storage`. The returned
     /// guards keep the servers alive and kill them on drop; the vec is
@@ -485,7 +485,7 @@ impl WorkEnv {
             .arg(format!("127.0.0.1:{port}"))
             .arg("--storage")
             .arg(bench_dir.join("pnpr-storage"))
-            // The accelerator resolves against the registry the client
+            // The resolver resolves against the registry the client
             // sends, caching packuments in its own store. A long TTL keeps
             // those cached packuments authoritative across the run, the
             // same value the registry-mock pins for the same reason.
@@ -581,7 +581,7 @@ impl WorkEnv {
     }
 }
 
-/// A pnpr install-accelerator server spawned for one `pnpr@<rev>`
+/// A pnpr resolver server spawned for one `pnpr@<rev>`
 /// target. Killed on drop so it never outlives the benchmark run.
 struct PnprServer {
     process: Child,

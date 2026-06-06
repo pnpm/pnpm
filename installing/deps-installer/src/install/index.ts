@@ -177,7 +177,7 @@ export async function install (
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
   if (opts.pnprServer) {
-    return installFromPnpmRegistry(manifest, rootDir, opts)
+    return installViaPnprServer(manifest, rootDir, opts)
   }
 
   const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations } = await mutateModules(
@@ -2287,10 +2287,10 @@ async function mutateModulesViaPnpr (
   const pnprProjects = await preparePnprProjects(projects, opts)
   if (!pnprProjects) return null
 
-  // installFromPnpmRegistry runs the headless install for the first
+  // installViaPnprServer runs the headless install for the first
   // project's root and the workspace path for the rest. Pass the
   // pre-processed manifests so resolution sees the post-mutation state.
-  const result = await installFromPnpmRegistry(
+  const result = await installViaPnprServer(
     pnprProjects[0].manifest,
     pnprProjects[0].rootDir,
     opts,
@@ -2323,11 +2323,11 @@ async function mutateModulesViaPnpr (
 }
 
 /**
- * When a pnpr server is configured, resolve dependencies server-side
- * and download only the missing files. Then run a headless install to link
- * packages into node_modules.
+ * When a pnpr server is configured, resolve dependencies server-side,
+ * then run a headless install that fetches tarballs from the registries
+ * and links packages into node_modules — like a normal install.
  */
-async function installFromPnpmRegistry (
+async function installViaPnprServer (
   manifest: ProjectManifest,
   rootDir: ProjectRootDir,
   opts: Opts,
@@ -2345,10 +2345,8 @@ async function installFromPnpmRegistry (
       { hint: 'Unset `trustPolicy` for this install, or disable the pnpr server (unset `--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) so resolution runs locally and the trust check applies.' }
     )
   }
-  const { fetchFromPnpmRegistry } = await import('@pnpm/pnpr.client')
+  const { resolveViaPnprServer } = await import('@pnpm/pnpr.client')
   const { createGetAuthHeaderByURI, getAuthHeadersFromCreds } = await import('@pnpm/network.auth-header')
-  const { StoreIndex } = await import('@pnpm/store.index')
-  const { setImportConcurrency } = await import('@pnpm/worker')
 
   // Forward the whole credential map (the registries a graph touches
   // aren't known up front), so the server attaches the right token per
@@ -2356,10 +2354,6 @@ async function installFromPnpmRegistry (
   const configByUri = opts.configByUri ?? {}
   const forwardedAuthHeaders = getAuthHeadersFromCreds(configByUri)
   const pnprAuthorization = createGetAuthHeaderByURI(configByUri)(opts.pnprServer!)
-  // Raise import concurrency for this install only — the pnpr server path has no
-  // concurrent fetching competing for workers. Restore afterwards so we
-  // don't leak a process-wide mutation to other installs (e.g. tests).
-  const restoreImportConcurrency = setImportConcurrency(6)
 
   try {
     const lockfileDir = opts.lockfileDir ?? rootDir
@@ -2373,51 +2367,33 @@ async function installFromPnpmRegistry (
 
     logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
 
-    // Open the store index to read integrities and write new entries.
-    // Close it in a finally so a failure in fetchFromPnpmRegistry doesn't
-    // leak an open SQLite handle (on Windows that also blocks store cleanup).
-    const storeIndex = new StoreIndex(opts.storeDir)
-    let lockfile, pnprStats, fileDownloads, indexEntries
-    try {
-      // Build projects list for workspace support.
-      // Normalize separators to POSIX — on Windows `path.relative` returns
-      // backslashes, which the pnpr server rejects (it treats `\` as an
-      // unsafe/YAML-injection character and normalizes paths as POSIX).
-      const projectsList = allInstallProjects && allInstallProjects.length > 1
-        ? allInstallProjects.map(p => ({
-          dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
-          dependencies: p.manifest.dependencies,
-          devDependencies: p.manifest.devDependencies,
-          optionalDependencies: p.manifest.optionalDependencies,
-        }))
-        : undefined
-
-      ;({ lockfile, stats: pnprStats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
-        registryUrl: opts.pnprServer!,
-        storeDir: opts.storeDir,
-        storeIndex,
-        dependencies: projectsList ? undefined : manifest.dependencies,
-        devDependencies: projectsList ? undefined : manifest.devDependencies,
-        optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,
-        projects: projectsList,
-        registry: opts.registries?.default,
-        namedRegistries: opts.namedRegistries,
-        authHeaders: forwardedAuthHeaders,
-        authorization: pnprAuthorization,
-        overrides: opts.overrides,
-        minimumReleaseAge: opts.minimumReleaseAge,
-        lockfile: existingLockfile ?? undefined,
-        lockfileOnly: opts.lockfileOnly,
+    // Build projects list for workspace support.
+    // Normalize separators to POSIX — on Windows `path.relative` returns
+    // backslashes, which the pnpr server rejects (it treats `\` as an
+    // unsafe/YAML-injection character and normalizes paths as POSIX).
+    const projectsList = allInstallProjects && allInstallProjects.length > 1
+      ? allInstallProjects.map(p => ({
+        dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
+        dependencies: p.manifest.dependencies,
+        devDependencies: p.manifest.devDependencies,
+        optionalDependencies: p.manifest.optionalDependencies,
       }))
+      : undefined
 
-      // Write store index entries so headless install finds them.
-      const { writeRawIndexEntries } = await import('@pnpm/pnpr.client')
-      writeRawIndexEntries(indexEntries, storeIndex)
-
-      storeIndex.checkpoint()
-    } finally {
-      storeIndex.close()
-    }
+    const { lockfile, stats: pnprStats } = await resolveViaPnprServer({
+      registryUrl: opts.pnprServer!,
+      dependencies: projectsList ? undefined : manifest.dependencies,
+      devDependencies: projectsList ? undefined : manifest.devDependencies,
+      optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,
+      projects: projectsList,
+      registry: opts.registries?.default,
+      namedRegistries: opts.namedRegistries,
+      authHeaders: forwardedAuthHeaders,
+      authorization: pnprAuthorization,
+      overrides: opts.overrides,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      lockfile: existingLockfile ?? undefined,
+    })
 
     await writeWantedLockfileAndRecordVerified({
       lockfileDir,
@@ -2429,7 +2405,7 @@ async function installFromPnpmRegistry (
     })
 
     logger.info({
-      message: `Resolved ${pnprStats.totalPackages} packages: ${pnprStats.alreadyInStore} cached, ${pnprStats.filesToDownload} files to download`,
+      message: `Resolved ${pnprStats.totalPackages} packages`,
       prefix: rootDir,
     })
 
@@ -2437,10 +2413,6 @@ async function installFromPnpmRegistry (
     // pnpm fetches nothing and links nothing in this mode — stop before the
     // headless install. See https://github.com/pnpm/pnpm/issues/12146.
     if (opts.lockfileOnly) {
-      // Nothing is downloaded in this mode, but the lockfile arrives before
-      // the stream closes — observe `fileDownloads` so a stream error after
-      // the `L` frame doesn't surface as an unhandled rejection.
-      void fileDownloads.catch(() => {})
       return {
         updatedCatalogs: undefined,
         updatedManifest: manifest,
@@ -2451,48 +2423,12 @@ async function installFromPnpmRegistry (
       }
     }
 
-    // Wrap fetchPackage to:
-    // 1. Wait for pnpr server file downloads before checking the store
-    // 2. Skip integrity verification — files just written from the pnpr server
-    //    are guaranteed correct (server verified, no rehashing needed)
-    const { readPkgFromCafs } = await import('@pnpm/worker')
-    const { storeIndexKey: _storeIndexKey } = await import('@pnpm/store.index')
-    const wrappedStoreController = {
-      ...opts.storeController,
-      fetchPackage: async (fetchOpts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-        await fileDownloads
-        const resolution = fetchOpts.pkg.resolution
-        const integrity = resolution?.integrity
-        // Fall through to the regular store controller for git-hosted tarballs.
-        // Their cached entry lives under gitHostedStoreIndexKey (preserves the
-        // built/not-built dimension), not the integrity-keyed path the pnpr server
-        // uses for npm tarballs. See @pnpm/store.pkg-finder for the rationale.
-        if (integrity && !resolution?.gitHosted) {
-          const filesIndexFile = _storeIndexKey(integrity, fetchOpts.pkg.id)
-          const result = await readPkgFromCafs(
-            { storeDir: opts.storeDir, verifyStoreIntegrity: false },
-            filesIndexFile,
-            { readManifest: true, expectedPkg: { name: fetchOpts.pkg.name, version: fetchOpts.pkg.version } }
-          )
-          return {
-            fetching: () => Promise.resolve({
-              files: result.files,
-              bundledManifest: result.bundledManifest,
-              integrity,
-            }),
-            filesIndexFile,
-          }
-        }
-        return opts.storeController.fetchPackage(fetchOpts)
-      },
-    }
-
+    // The pnpr server only resolves; it serves no file content. Fetch every
+    // tarball from the registries with the regular store controller, in
+    // parallel, exactly like a normal install. See
+    // https://github.com/pnpm/pnpm/issues/12230.
     const headlessOpts = {
       ...opts,
-      // Skip re-verifying files just written from the pnpr server — they're
-      // guaranteed correct (server verified, no rehashing needed).
-      verifyStoreIntegrity: false,
-      storeController: wrappedStoreController,
       dir: rootDir as string,
       lockfileDir,
       engineStrict: opts.engineStrict ?? false,
@@ -2553,6 +2489,5 @@ async function installFromPnpmRegistry (
     // normal install path does the same; skipping it here would leave
     // pending writes on disk and diverge from lifecycle expectations.
     await opts.storeController.close()
-    restoreImportConcurrency()
   }
 }
