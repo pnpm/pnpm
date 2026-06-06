@@ -20,7 +20,7 @@ use pacquet_store_dir::{
     SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, git_hosted_store_index_key,
     store_index_key,
 };
-use pacquet_tarball::{PrefetchResult, SharedNetworkFetchedKeys, prefetch_cas_paths};
+use pacquet_tarball::{PrefetchResult, SharedReportedProgressKeys, prefetch_cas_paths};
 use pipe_trait::Pipe;
 use std::{
     collections::{HashMap, HashSet},
@@ -157,15 +157,12 @@ pub struct CreateVirtualStore<'a> {
     /// Tarball downloads and CAS writes still happen for both
     /// linkers; only the slot-materialization step differs.
     pub node_linker: NodeLinker,
-    /// Cache keys whose tarball was pulled over the network earlier in
-    /// *this* install (by the fresh path's resolve-time prefetcher,
-    /// whose own progress emits are silent). A warm-batch snapshot whose
-    /// key is in this set is reported as `fetched` rather than
-    /// `found_in_store`, so a cold `pacquet install` and `pacquet
-    /// install --frozen-lockfile` report identical reused/downloaded
-    /// counts. Empty on the frozen path (no prefetcher runs). See
-    /// [`SharedNetworkFetchedKeys`].
-    pub network_fetched: &'a SharedNetworkFetchedKeys,
+    /// Cache keys whose package status (`fetched` or `found_in_store`)
+    /// has already been emitted earlier in this install. The warm batch
+    /// still emits `resolved` for those packages, but skips the second
+    /// status event so resolve-time prefetch progress is visible without
+    /// being double-counted.
+    pub progress_reported: &'a SharedReportedProgressKeys,
 }
 
 /// Error type of [`CreateVirtualStore`].
@@ -210,7 +207,7 @@ impl<'a> CreateVirtualStore<'a> {
             skipped,
             workspace_root,
             node_linker,
-            network_fetched,
+            progress_reported,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -621,8 +618,8 @@ impl<'a> CreateVirtualStore<'a> {
                     .insert((*snapshot_key).clone(), std::sync::Arc::clone(maps));
             }
             // Carry the cache key alongside the warm entry so the
-            // reporter can consult `network_fetched` to decide between
-            // `fetched` and `found_in_store`.
+            // reporter can skip a duplicate package-status event when
+            // a resolve-time prefetch already emitted it.
             match cache_key.as_deref().and_then(|key| prefetched.get(key).map(|paths| (key, paths)))
             {
                 Some((key, cas_paths)) => warm.push((snapshot_key, snapshot, cas_paths, key)),
@@ -681,7 +678,7 @@ impl<'a> CreateVirtualStore<'a> {
                     emit_warm_snapshot_progress::<Reporter>(
                         &package_id,
                         requester,
-                        network_fetched.contains(*cache_key),
+                        progress_reported.contains(*cache_key),
                     );
 
                     crate::CreateVirtualDirBySnapshot {
@@ -721,7 +718,7 @@ impl<'a> CreateVirtualStore<'a> {
                 emit_warm_snapshot_progress::<Reporter>(
                     &package_id,
                     requester,
-                    network_fetched.contains(*cache_key),
+                    progress_reported.contains(*cache_key),
                 );
             }
         }
@@ -770,6 +767,7 @@ impl<'a> CreateVirtualStore<'a> {
                         store_index: store_index_ref,
                         store_index_writer: store_index_writer_ref,
                         prefetched_cas_paths: prefetched_ref,
+                        progress_reported: Some(progress_reported),
                         verified_files_cache: verified_files_cache_ref,
                         logged_methods,
                         requester,
@@ -1058,22 +1056,12 @@ fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMet
     current_integrity == wanted_integrity
 }
 
-/// `pnpm:progress` `resolved` followed by either `fetched` or
-/// `found_in_store` for a warm-batch snapshot the install-scoped
-/// prefetch already settled. The snapshot is "already resolved" by
-/// virtue of being in the lockfile; the second event reports how its
-/// bytes got into the store.
-///
-/// `network_fetched` is `true` when the package's tarball was pulled
-/// over the network earlier in this same install — by the fresh path's
-/// resolve-time prefetcher, whose own progress emits are silent. In
-/// that case the warm batch reports `fetched` (a download), so a cold
-/// `pacquet install` and `pacquet install --frozen-lockfile` produce
-/// identical reused/downloaded counts. When `false` (the package was
-/// genuinely in the store at install start, e.g. a warm reinstall or
-/// the frozen path) the warm batch reports `found_in_store`. This
-/// mirrors pnpm's single per-package emit, which reflects whether the
-/// fetch hit the network.
+/// `pnpm:progress resolved` for a warm-batch snapshot, plus
+/// `found_in_store` when no earlier fetch path already emitted the
+/// package status. Resolve-time prefetches report `fetched` or
+/// `found_in_store` as soon as their fetch/cache-hit outcome is known;
+/// the warm batch then supplies the later `resolved` event without
+/// double-counting the package status.
 ///
 /// Pulled out of the warm-batch closure in
 /// [`CreateVirtualStore::run`] so the event-construction code is
@@ -1119,7 +1107,7 @@ fn is_fetch_side_failure(err: &InstallPackageBySnapshotError) -> bool {
 fn emit_warm_snapshot_progress<Reporter: self::Reporter>(
     package_id: &str,
     requester: &str,
-    network_fetched: bool,
+    progress_reported: bool,
 ) {
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
@@ -1128,18 +1116,15 @@ fn emit_warm_snapshot_progress<Reporter: self::Reporter>(
             requester: requester.to_owned(),
         },
     }));
-    let message = if network_fetched {
-        ProgressMessage::Fetched {
-            package_id: package_id.to_owned(),
-            requester: requester.to_owned(),
-        }
-    } else {
-        ProgressMessage::FoundInStore {
-            package_id: package_id.to_owned(),
-            requester: requester.to_owned(),
-        }
-    };
-    Reporter::emit(&LogEvent::Progress(ProgressLog { level: LogLevel::Debug, message }));
+    if !progress_reported {
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: ProgressMessage::FoundInStore {
+                package_id: package_id.to_owned(),
+                requester: requester.to_owned(),
+            },
+        }));
+    }
 }
 
 #[cfg(test)]

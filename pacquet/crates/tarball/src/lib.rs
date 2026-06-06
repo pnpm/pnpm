@@ -274,26 +274,21 @@ pub enum CacheValue {
 pub type MemCache = DashMap<String, Arc<RwLock<CacheValue>>>;
 
 /// Install-scoped set of store-index cache keys
-/// (`store_index_key(integrity, pkg_id)`) whose tarball bytes were
-/// pulled over the network during *this* install — i.e. the package was
-/// not already in the store when the install began.
+/// (`store_index_key(integrity, pkg_id)`) whose package status
+/// (`fetched` or `found_in_store`) has already been emitted during this
+/// install.
 ///
-/// [`DownloadTarballToStore::run_without_mem_cache`] inserts a key the
-/// moment its network fetch succeeds. The resolve-time prefetcher
-/// downloads through a [`pacquet_reporter::SilentReporter`], so its
-/// `pnpm:progress fetched` emits are discarded; by the time the install
-/// pass reports a freshly-downloaded package the store already holds it,
-/// which would otherwise label every download `found_in_store`. The
-/// reporter consults this set so a package fetched this install is
-/// reported as `fetched` — matching the cold-batch / frozen-lockfile
-/// path and pnpm's single per-package emit, which reflects whether the
-/// fetch hit the network. See <https://github.com/pnpm/pnpm/issues/12235>.
-pub type NetworkFetchedKeys = DashSet<String>;
+/// The resolve-time prefetcher emits download/cache-hit progress as soon
+/// as it knows the outcome, then records the key here. The later
+/// virtual-store warm batch still emits `resolved`, but skips the second
+/// package status for recorded keys, so progress is timely without
+/// double-counting. See <https://github.com/pnpm/pnpm/issues/12235>.
+pub type ReportedProgressKeys = DashSet<String>;
 
-/// Shared handle to a [`NetworkFetchedKeys`] set, allocated once per
-/// install and shared between the resolve-time prefetcher (writer) and
-/// the install-pass reporter (reader).
-pub type SharedNetworkFetchedKeys = Arc<NetworkFetchedKeys>;
+/// Shared handle to a [`ReportedProgressKeys`] set, allocated once per
+/// install and shared between early fetchers and the later install-pass
+/// reporter.
+pub type SharedReportedProgressKeys = Arc<ReportedProgressKeys>;
 
 /// Build the buffer that the tarball body streams into, pre-sized
 /// from the response's advertised `Content-Length` when it fits and
@@ -1272,15 +1267,14 @@ pub struct DownloadTarballToStore<'a> {
     /// pins every resolution), so this gate is pacquet's most useful
     /// interpretation of the flag for frozen installs.
     pub offline: bool,
-    /// Install-scoped set of cache keys network-fetched this install.
-    /// When `Some`, a successful network download records its
-    /// `store_index_key(integrity, pkg_id)` here so the install-pass
-    /// reporter can distinguish a package downloaded this install from
-    /// one that was already in the store. Only the resolve-time
-    /// prefetcher passes a set (its downloads route through a silent
-    /// reporter); every other call site leaves it `None`. See
-    /// [`SharedNetworkFetchedKeys`].
-    pub network_fetched: Option<SharedNetworkFetchedKeys>,
+    /// Install-scoped set used to de-duplicate package-status progress.
+    /// When `Some`, a `fetched` or `found_in_store` emit records its
+    /// `store_index_key(integrity, pkg_id)` here. Later callers that see
+    /// the same key skip their own package-status emit, while still doing
+    /// the underlying fetch/cache work. Only the fresh install path
+    /// threads this set through, because resolve-time prefetches can
+    /// otherwise report the same package again in the warm batch.
+    pub progress_reported: Option<SharedReportedProgressKeys>,
 }
 
 /// Project [`TarballError`] onto pnpm's `requestRetryLogger`'s
@@ -1654,7 +1648,14 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
 /// Emit `pnpm:progress found_in_store` for a (package_id, requester)
 /// pair the cache resolved without a download. Mirrors pnpm's emit at
 /// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L435>.
-fn emit_progress_found_in_store<Reporter: self::Reporter>(package_id: &str, requester: &str) {
+fn emit_progress_found_in_store<Reporter: self::Reporter>(
+    package_id: &str,
+    requester: &str,
+    progress_key: Option<(&SharedReportedProgressKeys, &str)>,
+) {
+    if progress_already_reported(progress_key) {
+        return;
+    }
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::FoundInStore {
@@ -1662,6 +1663,27 @@ fn emit_progress_found_in_store<Reporter: self::Reporter>(package_id: &str, requ
             requester: requester.to_owned(),
         },
     }));
+}
+
+fn emit_progress_fetched<Reporter: self::Reporter>(
+    package_id: &str,
+    requester: &str,
+    progress_key: Option<(&SharedReportedProgressKeys, &str)>,
+) {
+    if progress_already_reported(progress_key) {
+        return;
+    }
+    Reporter::emit(&LogEvent::Progress(ProgressLog {
+        level: LogLevel::Debug,
+        message: ProgressMessage::Fetched {
+            package_id: package_id.to_owned(),
+            requester: requester.to_owned(),
+        },
+    }));
+}
+
+fn progress_already_reported(progress_key: Option<(&SharedReportedProgressKeys, &str)>) -> bool {
+    progress_key.is_some_and(|(reported, key)| !reported.insert(key.to_owned()))
 }
 
 // 9 arguments — over the default clippy threshold but each is
@@ -1685,6 +1707,7 @@ async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     retry_opts: RetryOpts,
     auth_headers: &AuthHeaders,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    progress_key: Option<(&SharedReportedProgressKeys, &str)>,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let mut attempt: u32 = 0;
     loop {
@@ -1706,13 +1729,7 @@ async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
                 // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L435>:
                 // one event per (resolved) package once the tarball
                 // has been pulled from the network and extracted.
-                Reporter::emit(&LogEvent::Progress(ProgressLog {
-                    level: LogLevel::Debug,
-                    message: ProgressMessage::Fetched {
-                        package_id: package_id.to_owned(),
-                        requester: requester.to_owned(),
-                    },
-                }));
+                emit_progress_fetched::<Reporter>(package_id, requester, progress_key);
                 return Ok(value);
             }
             Err(err) if !is_transient_error(&err) => return Err(err),
@@ -1797,6 +1814,9 @@ impl<'a> DownloadTarballToStore<'a> {
             requester,
             ..
         } = &self;
+        let cache_key = store_index_key(&package_integrity.to_string(), package_id);
+        let progress_key =
+            self.progress_reported.as_ref().map(|reported| (reported, cache_key.as_str()));
 
         // Warm-cache fast path: when [`prefetch_cas_paths`] already
         // batched the `(integrity, pkg_id)` row in at install start,
@@ -1816,7 +1836,6 @@ impl<'a> DownloadTarballToStore<'a> {
         // normal path does with the result of
         // [`Self::run_without_mem_cache`].
         if let Some(prefetched) = prefetched_cas_paths {
-            let cache_key = store_index_key(&package_integrity.to_string(), package_id);
             if let Some(cas_paths) = prefetched.get(&cache_key) {
                 tracing::info!(
                     target: "pacquet::download",
@@ -1824,7 +1843,7 @@ impl<'a> DownloadTarballToStore<'a> {
                     ?package_id,
                     "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
                 );
-                emit_progress_found_in_store::<Reporter>(package_id, requester);
+                emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
                 let cas_paths = Arc::clone(cas_paths);
                 let cache_lock =
                     Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
@@ -1863,19 +1882,12 @@ impl<'a> DownloadTarballToStore<'a> {
             // still makes progress.
             let notify = match &*cache_lock.read().await {
                 CacheValue::Available(cas_paths) => {
-                    // Another task (typically the resolve-time
-                    // `PrefetchingResolver` spawn) already populated
-                    // the slot. The owner's `run_without_mem_cache`
-                    // path emitted `pnpm:progress fetched` /
-                    // `found_in_store` on its own reporter — usually
-                    // the silent prefetcher reporter, so the install
-                    // pass needs to emit the equivalent now from its
-                    // own reporter so consumers see the
-                    // `resolved → found_in_store → imported` triple.
-                    // Treat this as a `found_in_store` (the content
-                    // is already on disk / in cache from our
-                    // perspective).
-                    emit_progress_found_in_store::<Reporter>(package_id, requester);
+                    // The first owner already reported its package
+                    // status. If the caller supplied a shared
+                    // progress set, this emit is skipped for keys the
+                    // owner reported; otherwise preserve the legacy
+                    // per-caller cache-hit progress.
+                    emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
                     return Ok(Arc::clone(cas_paths));
                 }
                 CacheValue::InProgress(notify) => Arc::clone(notify),
@@ -1891,10 +1903,8 @@ impl<'a> DownloadTarballToStore<'a> {
             match &*cache_lock.read().await {
                 CacheValue::Available(cas_paths) => {
                     // Same rationale as the pre-notify `Available`
-                    // branch above — emit `found_in_store` so the
-                    // install pass's reporter sees the event the
-                    // owner's silent emit dropped.
-                    emit_progress_found_in_store::<Reporter>(package_id, requester);
+                    // branch above.
+                    emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
                     Ok(Arc::clone(cas_paths))
                 }
                 CacheValue::Failed => {
@@ -1988,6 +1998,8 @@ impl<'a> DownloadTarballToStore<'a> {
         // an undecodable entry, or any CAFS file that has gone missing
         // from disk all fall through to the download path below.
         let cache_key = store_index_key(&package_integrity.to_string(), package_id);
+        let progress_key =
+            self.progress_reported.as_ref().map(|reported| (reported, cache_key.as_str()));
         // Hot path on warm installs: the install-scoped `prefetch_cas_paths`
         // task already ran one batched SELECT + integrity-check pass for
         // every (integrity, pkg_id) the lockfile mentions. If our key is
@@ -2016,20 +2028,20 @@ impl<'a> DownloadTarballToStore<'a> {
                 ?package_id,
                 "Reusing prefetched CAFS entry — skipping download",
             );
-            emit_progress_found_in_store::<Reporter>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
             return Ok((**cas_paths).clone());
         }
         if let Some(cas_paths) = load_cached_cas_paths(
             store_index,
             store_dir,
-            cache_key,
+            cache_key.clone(),
             verify_store_integrity,
             verified_files_cache,
         )
         .await
         {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
-            emit_progress_found_in_store::<Reporter>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
             return Ok(cas_paths);
         }
 
@@ -2076,6 +2088,7 @@ impl<'a> DownloadTarballToStore<'a> {
                 retry_opts,
                 auth_headers,
                 ignore_file_pattern,
+                progress_key,
             )
             .await?;
 
@@ -2088,14 +2101,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // writer failed to open or the caller handed us none — the row
         // is dropped with a `warn!` and the next install misses on this
         // cache key, matching the read path's stance.
-        let index_key = store_index_key(&package_integrity.to_string(), package_id);
-        // Record that this package's bytes came over the network this
-        // install (see [`SharedNetworkFetchedKeys`]). Done before the
-        // store-index row is queued, so any later reader that observes
-        // the row as "in store" also observes this membership.
-        if let Some(network_fetched) = self.network_fetched.as_deref() {
-            network_fetched.insert(index_key.clone());
-        }
+        let index_key = cache_key;
         if let Some(writer) = store_index_writer {
             writer.queue(index_key, pkg_files_idx);
         } else {
@@ -2171,6 +2177,7 @@ impl FetchTarballForResolution<'_> {
             store_dir,
             retry_opts,
             auth_headers,
+            None,
             None,
         )
         .await?;
@@ -2561,7 +2568,7 @@ impl<'a> DownloadZipArchiveToStore<'a> {
                 ?package_id,
                 "Reusing prefetched CAFS entry — skipping zip download",
             );
-            emit_progress_found_in_store::<Reporter>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester, None);
             return Ok((**cas_paths).clone());
         }
         if let Some(cas_paths) = load_cached_cas_paths(
@@ -2574,7 +2581,7 @@ impl<'a> DownloadZipArchiveToStore<'a> {
         .await
         {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping zip download");
-            emit_progress_found_in_store::<Reporter>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester, None);
             return Ok(cas_paths);
         }
 

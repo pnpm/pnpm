@@ -180,10 +180,10 @@ impl<'a> InstallPackageFromRegistry<'a> {
                 auth_headers: &config.auth_headers,
                 ignore_file_pattern: None,
                 offline: config.offline,
-                // The cold-batch download emits `fetched` directly on
-                // the install reporter, so it needs no network-fetched
-                // tracking — only the silent resolve-time prefetcher does.
-                network_fetched: None,
+                // This recursive install path owns its package-status
+                // progress directly; no resolve-time prefetch shares a
+                // dedupe set with it.
+                progress_reported: None,
             }
             .run_with_mem_cache::<Reporter>(tarball_mem_cache)
             .await

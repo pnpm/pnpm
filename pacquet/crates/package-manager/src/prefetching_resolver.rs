@@ -30,7 +30,7 @@ use crate::{
 use dashmap::DashSet;
 use pacquet_config::Config;
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_reporter::{Reporter, SilentReporter};
+use pacquet_reporter::Reporter;
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
     WantedDependency,
@@ -38,7 +38,7 @@ use pacquet_resolving_resolver_base::{
 use pacquet_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
 };
-use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts, SharedNetworkFetchedKeys};
+use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts, SharedReportedProgressKeys};
 use std::{marker::PhantomData, sync::Arc};
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything
@@ -56,13 +56,11 @@ pub struct PrefetchContext<'a> {
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
     pub config: &'static Config,
     pub requester: &'a str,
-    /// Install-scoped set the background download records its cache key
-    /// into when its bytes come over the network. Lets the install
-    /// pass's warm-batch reporter label a package downloaded this
-    /// install as `fetched` rather than `found_in_store`, since the
-    /// prefetch's own emits route through a [`SilentReporter`]. See
-    /// [`SharedNetworkFetchedKeys`].
-    pub network_fetched: &'a SharedNetworkFetchedKeys,
+    /// Install-scoped set the background download records when it emits
+    /// a package-status progress event. The later warm/cold install pass
+    /// consults the set so prefetch progress is visible immediately
+    /// without being counted again.
+    pub progress_reported: &'a SharedReportedProgressKeys,
 }
 
 /// Owned, `'static`-friendly clones of [`PrefetchContext`] stored on
@@ -82,7 +80,7 @@ struct OwnedFetchCtx {
     requester: Arc<str>,
     offline: bool,
     verify_store_integrity: bool,
-    network_fetched: SharedNetworkFetchedKeys,
+    progress_reported: SharedReportedProgressKeys,
     /// Set of URLs that already had a prefetch task spawned, used as
     /// an atomic check-and-claim gate so concurrent resolves for the
     /// same tarball can't both pass a non-atomic `MemCache` lookup and
@@ -127,7 +125,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             verified_files_cache,
             config,
             requester,
-            network_fetched,
+            progress_reported,
         } = prefetch_ctx;
         let ctx = OwnedFetchCtx {
             http_client: Arc::clone(http_client),
@@ -141,7 +139,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             requester: Arc::<str>::from(requester),
             offline: config.offline,
             verify_store_integrity: config.verify_store_integrity,
-            network_fetched: SharedNetworkFetchedKeys::clone(network_fetched),
+            progress_reported: SharedReportedProgressKeys::clone(progress_reported),
             spawned_urls: Arc::new(DashSet::new()),
         };
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
@@ -212,31 +210,17 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let requester = Arc::clone(&self.ctx.requester);
         let offline = self.ctx.offline;
         let verify_store_integrity = self.ctx.verify_store_integrity;
-        let network_fetched = SharedNetworkFetchedKeys::clone(&self.ctx.network_fetched);
+        let progress_reported = SharedReportedProgressKeys::clone(&self.ctx.progress_reported);
 
         tokio::spawn(async move {
-            // Route the prefetch download through `SilentReporter`, not
-            // the install's reporter. `DownloadTarballToStore` emits
-            // `pnpm:progress fetched` / `found_in_store` internally;
-            // emitting those from this background task would race ahead
-            // of the install pass's own `resolved` event for the same
-            // package, breaking the `resolved → fetched/found_in_store
-            // → imported` order pnpm's reporter consumers (notably
-            // `@pnpm/cli.default-reporter`) depend on. Mirrors pnpm's
-            // `packageRequester.requestPackage` shape: the `fetching`
-            // promise runs early but the per-event emit is driven by
-            // the install pass.
-            //
-            // On the fresh phased path the install pass reports each
-            // package through `CreateVirtualStore`'s warm batch (which
-            // reads the freshly-populated store index), not through a
-            // second `run_with_mem_cache` call. That warm batch can't
-            // tell a tarball this task just downloaded from one that
-            // was already in the store — both look like store hits by
-            // the time it runs. So pass `network_fetched`: this task
-            // records the cache key when its fetch hits the network,
-            // and the warm batch consults the set to report `fetched`
-            // rather than `found_in_store`. See [`SharedNetworkFetchedKeys`].
+            // Report prefetch progress through the install reporter as
+            // soon as the fetch/cache-hit outcome is known. pnpm can
+            // likewise start package fetching before the dependency
+            // resolver emits `resolved`; the default reporter counts
+            // progress events independently. The shared
+            // `progress_reported` set lets the later warm/cold install
+            // pass skip a duplicate package-status event for this cache
+            // key while still emitting `resolved`.
             //
             // Result is intentionally discarded — the `MemCache`
             // carries success / failure state to the install path.
@@ -257,9 +241,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 auth_headers: &auth_headers,
                 ignore_file_pattern: None,
                 offline,
-                network_fetched: Some(network_fetched),
+                progress_reported: Some(progress_reported),
             }
-            .run_with_mem_cache::<SilentReporter>(&mem_cache)
+            .run_with_mem_cache::<Reporter>(&mem_cache)
             .await;
         });
     }

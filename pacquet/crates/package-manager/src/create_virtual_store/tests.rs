@@ -39,13 +39,13 @@ fn snapshot_with_dep(child: &str, ref_str: &str) -> SnapshotEntry {
     }
 }
 
-/// `emit_warm_snapshot_progress` fires `resolved` then, when the
-/// package was *not* network-fetched this install, `found_in_store` in
-/// that order for one (package_id, requester) pair. Both events carry
-/// the same identifiers — pnpm's per-package counter relies on the pair
-/// to pin the tick to the right package row.
+/// `emit_warm_snapshot_progress` fires `resolved` then
+/// `found_in_store` when no earlier fetch path already emitted the
+/// package status. Both events carry the same identifiers — pnpm's
+/// per-package counter relies on the pair to pin the tick to the right
+/// package row.
 #[test]
-fn emits_resolved_then_found_in_store_when_not_network_fetched() {
+fn emits_resolved_then_found_in_store_when_not_progress_reported() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
@@ -79,14 +79,12 @@ fn emits_resolved_then_found_in_store_when_not_network_fetched() {
     );
 }
 
-/// When the package *was* network-fetched earlier this install (the
-/// fresh path's silent resolve-time prefetcher pulled it), the second
-/// event is `fetched`, not `found_in_store` — so a cold `pacquet
-/// install` reports its prefetch downloads as downloads, matching
-/// `--frozen-lockfile`. Regression guard for
+/// When an earlier fetch path already emitted `fetched` or
+/// `found_in_store`, the warm batch emits only `resolved` so the
+/// package status is not double-counted. Regression guard for
 /// <https://github.com/pnpm/pnpm/issues/12235>.
 #[test]
-fn emits_resolved_then_fetched_when_network_fetched() {
+fn emits_only_resolved_when_progress_reported() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
@@ -103,20 +101,13 @@ fn emits_resolved_then_fetched_when_network_fetched() {
     assert!(
         matches!(
             captured.as_slice(),
-            [
-                LogEvent::Progress(r),
-                LogEvent::Progress(f),
-            ] if matches!(
+            [LogEvent::Progress(r)] if matches!(
                 &r.message,
                 ProgressMessage::Resolved { package_id, requester }
                     if package_id == "react@18.0.0" && requester == "/proj"
-            ) && matches!(
-                &f.message,
-                ProgressMessage::Fetched { package_id, requester }
-                    if package_id == "react@18.0.0" && requester == "/proj",
             ),
         ),
-        "network-fetched warm snapshot must report (Resolved, Fetched); got {captured:?}",
+        "already-reported warm snapshot must report only Resolved; got {captured:?}",
     );
 }
 

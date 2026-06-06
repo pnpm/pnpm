@@ -21,7 +21,7 @@ use pacquet_store_dir::{
 };
 use pacquet_tarball::{
     DownloadTarballToStore, DownloadZipArchiveToStore, IgnoreEntryFilter, PrefetchedCasPaths,
-    TarballError,
+    SharedReportedProgressKeys, TarballError,
 };
 use pipe_trait::Pipe;
 use std::{
@@ -49,6 +49,11 @@ pub struct InstallPackageBySnapshot<'a> {
     /// Install-scoped batched cache lookup result. See
     /// [`pacquet_tarball::prefetch_cas_paths`].
     pub prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
+    /// Install-scoped package-status progress dedupe. Shared with the
+    /// resolve-time prefetcher on the fresh path so the cold fallback
+    /// does not double-count a package whose early prefetch already
+    /// emitted `fetched` or `found_in_store`.
+    pub progress_reported: Option<&'a SharedReportedProgressKeys>,
     /// Install-scoped `verifiedFilesCache` shared across every
     /// per-snapshot fetch. See `DownloadTarballToStore::verified_files_cache`
     /// for the rationale.
@@ -218,6 +223,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
             store_index,
             store_index_writer,
             prefetched_cas_paths,
+            progress_reported,
             verified_files_cache,
             logged_methods,
             requester,
@@ -274,10 +280,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
                     auth_headers: &config.auth_headers,
                     ignore_file_pattern: None,
                     offline: config.offline,
-                    // Cold-batch download: emits `fetched` directly on
-                    // the install reporter, so no network-fetched
-                    // tracking is needed (only the silent prefetcher's).
-                    network_fetched: None,
+                    progress_reported: progress_reported.cloned(),
                 }
                 .run_without_mem_cache::<Reporter>()
                 .await
@@ -702,7 +705,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             offline: config.offline,
             // Cold-batch binary tarball download: emits `fetched`
             // directly, so no network-fetched tracking is needed.
-            network_fetched: None,
+            progress_reported: None,
         }
         .run_without_mem_cache::<Reporter>()
         .await
