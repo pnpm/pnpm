@@ -2,18 +2,22 @@
 //!
 //! Given a set of dependencies, it `POST`s them to `/v1/resolve`, where
 //! the server resolves against the client's registries, verifies the
-//! input lockfile under the client's policy, and answers with the
-//! resolved lockfile as a gzipped JSON object. The caller then fetches
-//! every tarball itself, in parallel, like a normal install
+//! input lockfile under the client's policy, and streams the result back
+//! as NDJSON: one `package` frame per resolved tarball as the server's
+//! tree walk yields it, then a terminal `done` frame carrying the full
+//! lockfile (or an `error` / `violations` frame). The caller consumes
+//! the `package` frames to begin fetching tarballs *while the server is
+//! still resolving* ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)),
+//! then fetches the rest in parallel like a normal install
 //! ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
 //!
 //! pnpr is a stateless resolver: it stores no tarballs and serves no file
 //! content.
 
-use std::{collections::BTreeMap, io::Read as _};
+use std::collections::BTreeMap;
 
 use derive_more::{Display, Error, From};
-use flate2::read::GzDecoder;
+use futures_util::StreamExt as _;
 use pacquet_config::TrustPolicy;
 use pacquet_lockfile::Lockfile;
 use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
@@ -93,6 +97,22 @@ pub struct Stats {
     pub total_packages: u64,
 }
 
+/// One resolved tarball package, surfaced from a streamed `package`
+/// frame as the server's resolution yields it. Carries exactly what the
+/// caller needs to start fetching the tarball before the full lockfile
+/// arrives.
+#[derive(Debug, Clone)]
+pub struct ResolvedPackage {
+    /// Canonical `name@version` identifier.
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    /// Subresource-integrity string (`sha512-...`).
+    pub integrity: String,
+    /// The resolver's `dist.tarball` URL.
+    pub tarball: String,
+}
+
 #[derive(Debug, Display, Error, From)]
 pub enum PnprClientError {
     #[display("pnpr request failed: {_0}")]
@@ -165,9 +185,24 @@ impl PnprClient {
     }
 
     /// Resolve a single project against the server and return the
-    /// resolved lockfile. The server serves no file content — the caller
-    /// fetches every tarball itself.
+    /// resolved lockfile, ignoring the streamed per-package frames. The
+    /// server serves no file content — the caller fetches every tarball
+    /// itself. Equivalent to [`Self::resolve_streaming`] with a no-op
+    /// callback.
     pub async fn resolve(&self, opts: ResolveOptions) -> Result<ResolveOutcome, PnprClientError> {
+        self.resolve_streaming(opts, |_| {}).await
+    }
+
+    /// Resolve a single project, invoking `on_package` once per resolved
+    /// tarball as its `package` frame streams in — *before* the full
+    /// lockfile arrives — so the caller can begin fetching each tarball
+    /// while the server is still resolving. Returns the resolved lockfile
+    /// from the terminal `done` frame.
+    pub async fn resolve_streaming(
+        &self,
+        opts: ResolveOptions,
+        mut on_package: impl FnMut(ResolvedPackage),
+    ) -> Result<ResolveOutcome, PnprClientError> {
         let request = serde_json::json!({
             "projects": [{
                 "dir": ".",
@@ -203,56 +238,71 @@ impl PnprClient {
             return Err(PnprClientError::Server(format!("/v1/resolve returned {status}: {body}")));
         }
 
-        let raw = response.bytes().await?;
-        parse_response(&decompress(&raw)?)
+        // Consume the NDJSON stream line by line. `package` frames feed
+        // `on_package` as they arrive (overlapping the server's
+        // resolution); the first terminal frame ends the loop. reqwest's
+        // `gzip` feature transparently inflates the byte stream if a
+        // proxy compressed it, so the frames arrive as plain JSON lines.
+        let mut stream = response.bytes_stream();
+        let mut buf: Vec<u8> = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            buf.extend_from_slice(&chunk?);
+            while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
+                let line: Vec<u8> = buf.drain(..=newline).collect();
+                let line = &line[..line.len() - 1];
+                if line.is_empty() {
+                    continue;
+                }
+                match parse_frame(line)? {
+                    Frame::Package { id, name, version, integrity, tarball } => {
+                        on_package(ResolvedPackage { id, name, version, integrity, tarball });
+                    }
+                    Frame::Done { lockfile, stats } => {
+                        return Ok(ResolveOutcome { lockfile: *lockfile, stats });
+                    }
+                    Frame::Error { message } => return Err(PnprClientError::Server(message)),
+                    Frame::Violations { violations } => {
+                        return Err(PnprClientError::Verification(build_verify_error(violations)));
+                    }
+                }
+            }
+        }
+        Err(PnprClientError::Protocol(
+            "/v1/resolve stream ended without a terminal frame".to_string(),
+        ))
     }
 }
 
-/// Decompress a `Content-Encoding: gzip` body unless the HTTP stack
-/// already did (detected via the gzip magic bytes), so the client works
-/// whether or not reqwest's `gzip` feature is on. Returns the bytes as-is
-/// when they're already decompressed.
-fn decompress(raw: &[u8]) -> Result<Vec<u8>, PnprClientError> {
-    if raw.starts_with(&[0x1f, 0x8b]) {
-        let mut decoder = GzDecoder::new(raw);
-        let mut out = Vec::new();
-        decoder.read_to_end(&mut out)?;
-        Ok(out)
-    } else {
-        Ok(raw.to_vec())
-    }
+fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {
+    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
 }
 
-/// Parse the install response: a JSON object carrying the resolved
-/// lockfile and stats, or — when the server rejected the input lockfile
-/// under the client's policy — the rendered verification violations.
-fn parse_response(payload: &[u8]) -> Result<ResolveOutcome, PnprClientError> {
-    let response: ResolveResponse = serde_json::from_slice(payload)
-        .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-
-    if let Some(violations) = response.violations.filter(|list| !list.is_empty()) {
-        return Err(PnprClientError::Verification(build_verify_error(violations)));
-    }
-
-    let lockfile = response
-        .lockfile
-        .ok_or_else(|| PnprClientError::Protocol("install response had no lockfile".to_string()))?;
-
-    Ok(ResolveOutcome { lockfile, stats: response.stats })
-}
-
+/// One NDJSON frame from `/v1/resolve`. `package` frames stream as the
+/// server resolves; exactly one terminal frame (`done` / `error` /
+/// `violations`) closes the response.
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ResolveResponse {
-    lockfile: Option<Lockfile>,
-    #[serde(default)]
-    stats: Stats,
-    /// Present when the server rejected the input lockfile under the
-    /// client's verification policy. Each entry mirrors the local
-    /// runner's rendered violation so the client can rebuild the
-    /// identical [`VerifyError`].
-    #[serde(default)]
-    violations: Option<Vec<WireViolation>>,
+#[serde(tag = "type", rename_all = "snake_case")]
+enum Frame {
+    Package {
+        id: String,
+        name: String,
+        version: String,
+        integrity: String,
+        tarball: String,
+    },
+    /// Boxed: the lockfile dwarfs the other variants, so keeping it
+    /// behind a pointer keeps the enum small.
+    Done {
+        lockfile: Box<Lockfile>,
+        #[serde(default)]
+        stats: Stats,
+    },
+    Error {
+        message: String,
+    },
+    Violations {
+        violations: Vec<WireViolation>,
+    },
 }
 
 #[derive(Deserialize)]

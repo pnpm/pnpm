@@ -15,7 +15,7 @@ use dashmap::DashMap;
 use pacquet_config::{Config, NodeLinker};
 use pacquet_lockfile::{Lockfile, check_lockfile_settings, satisfies_package_manifest};
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_package_manager::{Install, ResolvedPackages};
+use pacquet_package_manager::{Install, ResolutionObserver, ResolvedPackages};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::SilentReporter;
 use pacquet_tarball::MemCache;
@@ -62,6 +62,7 @@ pub async fn resolve(
     client: &Arc<ThrottledClient>,
     request: &ResolveRequest,
     auth_headers: &Arc<AuthHeaders>,
+    observer: Option<Arc<dyn ResolutionObserver>>,
 ) -> Result<Lockfile, ResolveError> {
     let projects = request.projects_normalized();
 
@@ -185,6 +186,11 @@ pub async fn resolve(
         // Resolve as the caller (forwarded credentials) without baking
         // per-user auth into the interned `&'static Config`.
         auth_override: Some(Arc::clone(auth_headers)),
+        // Stream each resolved tarball to the client as the walk yields
+        // it (`/v1/resolve` NDJSON `package` frames) so tarball fetch
+        // overlaps this server-side resolution. `None` falls back to a
+        // single terminal `done` frame carrying the whole lockfile.
+        resolution_observer: observer,
     }
     .run::<SilentReporter>()
     .await

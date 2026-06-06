@@ -9,9 +9,13 @@
 //! * `POST /v1/resolve` — resolve a project **against the registries
 //!   the client sends** (so the server uses the same source of truth as
 //!   the client), verify the client's input lockfile under the client's
-//!   policy, and return the resolved lockfile as a gzipped JSON body.
-//!   The client then fetches tarballs in parallel from the registries
-//!   like a normal install
+//!   policy, and **stream** the result back as NDJSON: one `package`
+//!   frame per resolved tarball as the tree walk yields it, then a
+//!   terminal `done` frame carrying the full lockfile (or an `error` /
+//!   `violations` frame). The client fetches each tarball the moment its
+//!   frame arrives, so download overlaps the server's resolution
+//!   ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)),
+//!   then fetches the rest in parallel like a normal install
 //!   ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
 //!
 //! pnpr is a stateless resolver: it stores no tarballs and serves no file
@@ -37,7 +41,6 @@ mod verdict_cache;
 
 use std::{
     collections::HashMap,
-    io::Write as _,
     path::PathBuf,
     sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant},
@@ -50,7 +53,6 @@ use axum::{
     http::{StatusCode, header},
     response::Response,
 };
-use flate2::{Compression, write::GzEncoder};
 use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
 use pacquet_lockfile::Lockfile;
@@ -79,7 +81,10 @@ pub(crate) struct Resolver {
     store_dir: StoreDir,
     cache_dir: PathBuf,
     client: Arc<ThrottledClient>,
-    resolution_cache: Mutex<HashMap<String, CachedResolution>>,
+    /// Held behind an [`Arc`] so the detached streaming-resolve task can
+    /// own a clone and record its result after the response body has
+    /// already started flowing to the client.
+    resolution_cache: Arc<Mutex<HashMap<String, CachedResolution>>>,
     resolution_cache_ttl: Duration,
     /// One leaked `Config` per distinct client registry configuration,
     /// keyed by its canonical JSON. Bounds the leak to the number of
@@ -117,7 +122,7 @@ impl Resolver {
             store_dir: StoreDir::new(store_dir),
             cache_dir,
             client: Arc::new(ThrottledClient::new_for_installs()),
-            resolution_cache: Mutex::new(HashMap::new()),
+            resolution_cache: Arc::new(Mutex::new(HashMap::new())),
             resolution_cache_ttl: config.packument_ttl,
             configs: Mutex::new(HashMap::new()),
             verdict_cache,
@@ -182,8 +187,18 @@ impl Resolver {
 
 /// Handle `POST /v1/resolve`: verify the client's input lockfile under
 /// the client's policy, resolve against the client's registries, and
-/// return the resolved lockfile. No tarball leaves the server — the
-/// client fetches them itself.
+/// stream the result back as NDJSON.
+///
+/// The response is `application/x-ndjson`: one `package` frame per
+/// resolved tarball as the server's tree walk yields it (so the client
+/// fetches tarballs while the server is still resolving —
+/// [pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)),
+/// followed by exactly one terminal frame: `done` carrying the full
+/// lockfile + stats, `error` if resolution aborts mid-stream, or
+/// `violations` if the input lockfile failed the client's policy. The
+/// short-circuit paths (frozen reuse, cache hit) emit only the terminal
+/// `done` frame. No tarball leaves the server — the client fetches them
+/// itself.
 pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response {
     let request: ResolveRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
@@ -200,8 +215,8 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
         request.auth_headers.iter().map(|(uri, value)| (uri.clone(), value.clone())).collect(),
     ));
 
-    // Verify the *input* lockfile under the client's policy before
-    // resolving ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
+    // Verify the *input* lockfile under the client's policy before any
+    // package is streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
     // The client skips its own `verifyLockfileResolutions` whenever a
     // pnpr server is configured, so this is the only place the
     // committed/reused entries get checked. A true first install sends
@@ -216,52 +231,68 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     {
         return match failure {
             VerifyFailure::Internal(response) => response,
-            VerifyFailure::Violations(violations) => violation_response(&violations),
+            VerifyFailure::Violations(violations) => {
+                ndjson_single_frame(&violations_frame(&violations))
+            }
         };
     }
 
-    let lockfile = if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
-        lockfile
+    // Short-circuit paths that produce the whole lockfile without an
+    // incremental tree walk: nothing to stream, so emit only `done`.
+    if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
+        return ndjson_single_frame(&done_frame(&lockfile));
+    }
+    let resolution_cache_key = if request.auth_headers.is_empty() && request.lockfile.is_none() {
+        resolution_cache_key(config, &request)
     } else {
-        let resolution_cache_key = if request.auth_headers.is_empty() && request.lockfile.is_none()
-        {
-            resolution_cache_key(config, &request)
-        } else {
-            None
-        };
-        if let Some(key) = resolution_cache_key.as_ref()
-            && let Some(lockfile) = cached_resolution(runtime, key)
-        {
-            lockfile
-        } else {
-            let lockfile =
-                match resolve::resolve(config, &runtime.client, &request, &request_auth).await {
-                    Ok(lockfile) => lockfile,
-                    Err(err) => {
-                        return json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string());
-                    }
-                };
-            if let Some(key) = resolution_cache_key {
-                store_resolution(runtime, key, &lockfile);
-            }
-            lockfile
-        }
+        None
     };
+    if let Some(key) = resolution_cache_key.as_ref()
+        && let Some(lockfile) =
+            cached_resolution(&runtime.resolution_cache, runtime.resolution_cache_ttl, key)
+    {
+        return ndjson_single_frame(&done_frame(&lockfile));
+    }
 
-    resolve_response(&lockfile)
+    // Streaming resolve. Run it in a detached task that pushes one
+    // `package` frame per resolved tarball into the channel via the
+    // observer, then a terminal `done` / `error` frame. The response
+    // body drains the channel as frames arrive.
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+    let observer: Arc<dyn pacquet_package_manager::ResolutionObserver> =
+        Arc::new(StreamObserver { tx: tx.clone() });
+    let client = Arc::clone(&runtime.client);
+    let cache = Arc::clone(&runtime.resolution_cache);
+    let cache_ttl = runtime.resolution_cache_ttl;
+    tokio::spawn(async move {
+        match resolve::resolve(config, &client, &request, &request_auth, Some(observer)).await {
+            Ok(lockfile) => {
+                if let Some(key) = resolution_cache_key {
+                    store_resolution(&cache, cache_ttl, key, &lockfile);
+                }
+                let _ = tx.send(done_frame(&lockfile));
+            }
+            Err(err) => {
+                let _ = tx.send(error_frame(&err.to_string()));
+            }
+        }
+    });
+    ndjson_stream_response(rx)
 }
 
 const MAX_RESOLUTION_CACHE_ENTRIES: usize = 1024;
 
-fn cached_resolution(runtime: &Resolver, key: &str) -> Option<Lockfile> {
-    if runtime.resolution_cache_ttl.is_zero() {
+fn cached_resolution(
+    cache: &Mutex<HashMap<String, CachedResolution>>,
+    ttl: Duration,
+    key: &str,
+) -> Option<Lockfile> {
+    if ttl.is_zero() {
         return None;
     }
-    let mut cache = runtime.resolution_cache.lock().expect("resolution cache poisoned");
+    let mut cache = cache.lock().expect("resolution cache poisoned");
     match cache.get(key) {
-        Some(cached) if cached.inserted.elapsed() <= runtime.resolution_cache_ttl => {
-            Some(cached.lockfile.clone())
-        }
+        Some(cached) if cached.inserted.elapsed() <= ttl => Some(cached.lockfile.clone()),
         Some(_) => {
             cache.remove(key);
             None
@@ -270,13 +301,17 @@ fn cached_resolution(runtime: &Resolver, key: &str) -> Option<Lockfile> {
     }
 }
 
-fn store_resolution(runtime: &Resolver, key: String, lockfile: &Lockfile) {
-    if runtime.resolution_cache_ttl.is_zero() {
+fn store_resolution(
+    cache: &Mutex<HashMap<String, CachedResolution>>,
+    ttl: Duration,
+    key: String,
+    lockfile: &Lockfile,
+) {
+    if ttl.is_zero() {
         return;
     }
-    let mut cache = runtime.resolution_cache.lock().expect("resolution cache poisoned");
+    let mut cache = cache.lock().expect("resolution cache poisoned");
     if cache.len() >= MAX_RESOLUTION_CACHE_ENTRIES {
-        let ttl = runtime.resolution_cache_ttl;
         cache.retain(|_, cached| cached.inserted.elapsed() <= ttl);
     }
     if cache.len() >= MAX_RESOLUTION_CACHE_ENTRIES
@@ -324,50 +359,100 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
     Some(format!("{:x}", hasher.finalize()))
 }
 
-/// gzip level for the response body. Level 6 (the gzip default) shrinks
-/// the JSON lockfile ~16% over level 1 — the win that matters once the
-/// server is across a latency link, where fewer bytes means fewer TCP
-/// slow-start round trips — while level 9 adds under a percent for several
-/// times the CPU.
-const GZIP_LEVEL: u32 = 6;
+/// NDJSON content type for the `/v1/resolve` response. One JSON object
+/// per line; the client parses frames as they arrive. Excluded from the
+/// server's gzip [`CompressionLayer`](crate::server) so frames flush to
+/// the client incrementally rather than being buffered by the encoder.
+const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
 
-/// Build the install response: the resolved lockfile and stats as a
-/// gzipped JSON object. The client writes the lockfile, then fetches
-/// every tarball itself.
-fn resolve_response(lockfile: &Lockfile) -> Response {
+/// [`ResolutionObserver`](pacquet_package_manager::ResolutionObserver)
+/// that turns each resolved tarball into a `package` NDJSON frame and
+/// pushes it down the response channel. `on_resolved` is best-effort: a
+/// closed channel (client hung up) or a serialization failure drops the
+/// frame silently — the resolve still runs to completion server-side.
+struct StreamObserver {
+    tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+}
+
+impl pacquet_package_manager::ResolutionObserver for StreamObserver {
+    fn on_resolved(&self, hint: pacquet_package_manager::ResolvedPackageHint<'_>) {
+        let frame = serde_json::json!({
+            "type": "package",
+            "id": hint.id,
+            "name": hint.name,
+            "version": hint.version,
+            "integrity": hint.integrity,
+            "tarball": hint.tarball_url,
+        });
+        if let Ok(line) = ndjson_line(&frame) {
+            let _ = self.tx.send(line);
+        }
+    }
+}
+
+/// Terminal `done` frame: the full resolved lockfile + stats. The client
+/// writes the lockfile and fetches every tarball itself.
+fn done_frame(lockfile: &Lockfile) -> Vec<u8> {
     let total_packages = lockfile.packages.as_ref().map_or(0, |packages| packages.len());
-    let header = serde_json::json!({
+    let frame = serde_json::json!({
+        "type": "done",
         "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),
         "stats": { "totalPackages": total_packages },
     });
-    json_gzip_response(&header)
+    ndjson_line(&frame).unwrap_or_else(|_| {
+        br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
+    })
 }
 
-/// Render input-lockfile policy violations into the response body
-/// (`{ "violations": [...] }`) so the client rebuilds the identical
-/// `VerifyError` and aborts the same way the local gate would.
-fn violation_response(violations: &[serde_json::Value]) -> Response {
-    json_gzip_response(&serde_json::json!({ "violations": violations }))
+/// Terminal `error` frame for a resolution that aborted mid-stream,
+/// after one or more `package` frames may already have been sent (so the
+/// HTTP status is locked at 200 — the failure has to ride in the body).
+fn error_frame(message: &str) -> Vec<u8> {
+    let frame = serde_json::json!({ "type": "error", "message": message });
+    ndjson_line(&frame)
+        .unwrap_or_else(|_| br#"{"type":"error","message":"resolution failed"}"#.to_vec())
 }
 
-/// Serialize `value` to JSON and gzip it into a `200` response body.
-fn json_gzip_response(value: &serde_json::Value) -> Response {
-    let body = serde_json::to_vec(value).unwrap_or_else(|_| b"{}".to_vec());
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::new(GZIP_LEVEL));
-    if encoder.write_all(&body).is_err() {
-        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "gzip failed");
-    }
-    let gzipped = match encoder.finish() {
-        Ok(gzipped) => gzipped,
-        Err(_) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, "gzip failed"),
-    };
+/// Terminal `violations` frame: the input lockfile failed the client's
+/// policy. Each entry mirrors the local runner's rendered violation so
+/// the client rebuilds the identical `VerifyError` and aborts the same
+/// way the local gate would.
+fn violations_frame(violations: &[serde_json::Value]) -> Vec<u8> {
+    let frame = serde_json::json!({ "type": "violations", "violations": violations });
+    ndjson_line(&frame)
+        .unwrap_or_else(|_| br#"{"type":"error","message":"verification failed"}"#.to_vec())
+}
 
+/// Serialize one frame to a newline-terminated NDJSON line.
+fn ndjson_line(value: &serde_json::Value) -> Result<Vec<u8>, serde_json::Error> {
+    let mut bytes = serde_json::to_vec(value)?;
+    bytes.push(b'\n');
+    Ok(bytes)
+}
+
+/// A 200 NDJSON response carrying a single, already-serialized terminal
+/// frame (the short-circuit and violation paths, which never stream
+/// `package` frames).
+fn ndjson_single_frame(frame: &[u8]) -> Response {
     Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/json")
-        .header(header::CONTENT_ENCODING, "gzip")
-        .body(Body::from(gzipped))
+        .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
+        .body(Body::from(frame.to_vec()))
         .expect("binary response is always valid")
+}
+
+/// A 200 NDJSON response whose body drains the frame channel as the
+/// detached resolve task produces frames. Closing the channel (the task
+/// dropped its sender) ends the body.
+fn ndjson_stream_response(rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>) -> Response {
+    let stream = futures_util::stream::unfold(rx, |mut rx| async move {
+        rx.recv().await.map(|line| (Ok::<_, std::io::Error>(axum::body::Bytes::from(line)), rx))
+    });
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
+        .body(Body::from_stream(stream))
+        .expect("streaming response is always valid")
 }
 
 /// Why [`verify_input_lockfile`] failed: either the lockfile violated

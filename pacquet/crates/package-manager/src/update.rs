@@ -515,6 +515,7 @@ impl Update<'_> {
             lockfile_only,
             update_seed_policy: seed_policy,
             auth_override: None,
+            resolution_observer: None,
         }
         .run::<Reporter>()
         .await
