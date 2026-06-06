@@ -114,6 +114,16 @@ pub struct InstallPackageBySnapshot<'a> {
     /// [`nodeLinker === 'hoisted'`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L425)
     /// branch in `headlessInstall`.
     pub node_linker: NodeLinker,
+    /// When `true`, return the fetched CAS paths without populating the
+    /// virtual-store slot ([`CreateVirtualDirBySnapshot`]) — the caller
+    /// links them itself in a separate parallel pass. The cold batch in
+    /// [`crate::CreateVirtualStore`] sets this so the per-snapshot
+    /// download futures don't each run a *blocking* `rayon::join` link
+    /// inside the cooperative `try_join_all` task, which would serialize
+    /// the links one-at-a-time; instead every slot links concurrently
+    /// once its tarball is in the store. No effect under
+    /// [`NodeLinker::Hoisted`], which never writes virtual-store slots.
+    pub defer_link: bool,
 }
 
 /// Error type of [`InstallPackageBySnapshot`].
@@ -248,6 +258,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
             skipped,
             workspace_root,
             node_linker,
+            defer_link,
         } = self;
 
         // TODO: skip when already exists in store?
@@ -537,7 +548,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
         // hoisted skips both `linkAllModules` (slot symlinks) and
         // `linkAllPkgs` (slot file imports), and runs
         // `linkHoistedModules` over the CAS paths instead.
-        if matches!(node_linker, NodeLinker::Isolated | NodeLinker::Pnp) {
+        if !defer_link && matches!(node_linker, NodeLinker::Isolated | NodeLinker::Pnp) {
             CreateVirtualDirBySnapshot {
                 layout,
                 cas_paths: &cas_paths,
