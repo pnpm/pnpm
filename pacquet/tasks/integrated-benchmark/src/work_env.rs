@@ -378,25 +378,26 @@ impl WorkEnv {
     fn benchmark(&self) {
         let scenario = self.scenario.expect("scenario set when benchmark() is reached");
 
-        // Pre-benchmark wipe of `node_modules` *and* `store-dir` for
-        // every benchmark target, regardless of scenario. The
-        // hot-cache scenario's per-iteration `--prepare` intentionally
-        // preserves `store-dir` so subsequent iterations can reuse
-        // it, which means whatever a previous run / scenario / partial
-        // invocation left in `store-dir` would otherwise carry into
-        // the warmup — and the warmup wouldn't actually be what
-        // primes the store. Wiping once upfront makes the warmup the
-        // priming run no matter what state the work-env was in. For
-        // cold-cache scenarios this is redundant with the per-iteration
-        // wipe but harmless (Copilot review on <https://github.com/pnpm/pacquet/pull/296>).
-        // `pnpr-storage` is the per-target pnpr server's store + cache
-        // (only present for `pnpr@<rev>` targets). Wiping it upfront makes
-        // the hyperfine warmup the run that primes the server store, the
-        // same way it primes the client store — so timed runs measure a
-        // warm long-running server rather than whatever a previous run
-        // left behind.
+        // Pre-benchmark wipe of `node_modules`, `store-dir`, and
+        // `cache-dir` for every benchmark target, regardless of scenario.
+        // The hot-cache scenario's per-iteration `--prepare` intentionally
+        // preserves `store-dir` / `cache-dir` so subsequent iterations can
+        // reuse them, which means whatever a previous run / scenario /
+        // partial invocation left behind would otherwise carry into the
+        // warmup — and the warmup wouldn't actually be what primes them.
+        // Wiping once upfront makes the warmup the priming run no matter
+        // what state the work-env was in. For cold-cache scenarios this is
+        // redundant with the per-iteration wipe but harmless (Copilot
+        // review on <https://github.com/pnpm/pacquet/pull/296>).
+        // `cache-dir` is the client's packument-metadata mirror; wiping it
+        // keeps cold-cache scenarios genuinely cold for *resolution*, not
+        // just for the CAS. `pnpr-storage` is the per-target pnpr server's
+        // store + cache (only present for `pnpr@<rev>` targets) — wiping it
+        // upfront (but never per-iteration) makes the hyperfine warmup the
+        // run that primes the server, so timed runs measure a warm
+        // long-running server even while the client is cold.
         for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
-            for name in ["node_modules", "store-dir", "pnpr-storage"] {
+            for name in ["node_modules", "store-dir", "cache-dir", "pnpr-storage"] {
                 let path = dir.join(name);
                 if path.exists() {
                     fs::remove_dir_all(&path).expect("pre-benchmark wipe");
@@ -792,14 +793,16 @@ fn save_pristine_copies(dir: &Path) {
 /// silences those specific warnings and keeps pnpm's output clean so
 /// hyperfine doesn't see stderr noise.
 ///
-/// Always guarantees `storeDir: ./store-dir` ends up in the destination.
-/// Both pnpm and pacquet read the store path from this file (pacquet
-/// since the `.npmrc` parser explicitly ignores `store-dir`); without
-/// that key, both fall through to the global default store and the
-/// benchmark's per-iteration / pre-benchmark cleanup wipes a directory
-/// the install never wrote to. That silently invalidates cold/hot-cache
-/// semantics and lets state from previous runs leak in (Copilot review
-/// on [#296](https://github.com/pnpm/pacquet/pull/296)).
+/// Always guarantees `storeDir: ./store-dir` and `cacheDir: ./cache-dir`
+/// end up in the destination. Both pnpm and pacquet read these from this
+/// file (pacquet since the `.npmrc` parser explicitly ignores
+/// `store-dir`); without them, both fall through to the global default
+/// store/cache and the benchmark's per-iteration / pre-benchmark cleanup
+/// wipes a directory the install never wrote to. That silently
+/// invalidates cold/hot-cache semantics and lets state from previous runs
+/// leak in (Copilot review on [#296](https://github.com/pnpm/pacquet/pull/296)).
+/// `cacheDir` is the resolution-metadata mirror specifically: keeping it
+/// local is what lets the cold-cache scenarios force a real cold resolve.
 ///
 /// If a custom fixture's workspace file already declares `storeDir`,
 /// trust it — that's the user opting into a different store layout
@@ -842,6 +845,15 @@ fn create_pnpm_workspace(
     };
     if manifest.store_dir.is_none() {
         manifest.store_dir = Some("./store-dir".to_string());
+    }
+    // Force the packument-metadata cache bench-local too, for the same
+    // per-iteration-wipe reason as `storeDir`. Left at the global default
+    // (`~/.cache/pnpm`), the metadata mirror survives every cold-cache
+    // wipe, so a direct install resolves from a warm mirror and never pays
+    // the packument-fetch waterfall pnpr is built to offload — "cold
+    // cache" would then wipe only the CAS, not the resolution cache.
+    if manifest.cache_dir.is_none() {
+        manifest.cache_dir = Some("./cache-dir".to_string());
     }
     // Pin `packages: ['.']` when the fixture didn't set it. Without this
     // the fresh-resolve install path's project walker

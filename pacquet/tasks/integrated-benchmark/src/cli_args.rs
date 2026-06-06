@@ -248,12 +248,19 @@ impl BenchmarkScenario {
         const SAVED_PACKAGE_JSON: (&str, &str) = ("package.json", ".saved-package.json");
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore => Cleanup {
-                remove: &["node_modules", "pnpm-lock.yaml", "store-dir"],
+                // `cache-dir` (the packument-metadata mirror) is wiped
+                // alongside `store-dir` so a direct fresh install pays the
+                // full cold resolution — fetching every packument over the
+                // emulated registry link — which is precisely the cost pnpr
+                // offloads to its warm server. Without this the mirror
+                // stays warm and direct ≈ pnpr.
+                remove: &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
                 restore: &[SAVED_PACKAGE_JSON],
             },
-            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore => {
-                Cleanup { remove: &["node_modules", "store-dir"], restore: &[SAVED_LOCKFILE] }
-            }
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore => Cleanup {
+                remove: &["node_modules", "store-dir", "cache-dir"],
+                restore: &[SAVED_LOCKFILE],
+            },
             BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore => {
                 Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
             }

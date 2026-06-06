@@ -17,6 +17,15 @@ use std::collections::BTreeMap;
 pub struct MinimalWorkspaceManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_dir: Option<String>,
+    /// Packument-metadata cache location (`<cacheDir>/v11/metadata-full`).
+    /// The benchmark forces this bench-local (`./cache-dir`) for the same
+    /// reason it forces `storeDir` local: so the cold-cache scenarios can
+    /// wipe it per-iteration. Left at the global default it would survive
+    /// every wipe, leaving the direct client's resolution served from a
+    /// warm mirror — which makes "cold cache" cold in name only and hides
+    /// pnpr's resolution-offload win. Both pnpm and pacquet read it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_dir: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub registry: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
