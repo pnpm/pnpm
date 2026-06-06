@@ -872,6 +872,7 @@ where
                 supported_architectures: supported_architectures.as_ref(),
                 skip_runtimes,
                 node_linker,
+                tarball_mem_cache: Some(&tarball_mem_cache),
             }
             .run::<Reporter>()
             .await
