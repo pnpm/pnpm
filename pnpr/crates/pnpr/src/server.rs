@@ -11,8 +11,8 @@ use crate::{
     storage::{CachedPackument, Storage},
     streaming,
     upstream::{
-        CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
-        extract_version_manifest, rewrite_tarball_urls,
+        CacheValidators, FetchOutcome, FetchedPackument, PackumentFetch, Upstream,
+        abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
     },
 };
 use axum::{
@@ -1619,16 +1619,7 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
     // can answer `304` and save us re-downloading an unchanged packument.
     match upstream.fetch_packument(name, &validators).await {
         Ok(PackumentFetch::Modified(fetched)) => {
-            if let Err(err) = state
-                .inner
-                .storage
-                .write_cached_packument(name, &fetched.bytes, &fetched.validators)
-                .await
-            {
-                tracing::warn!(?err, package = %name.as_str(), "packument cache write failed");
-            }
-            record_cache_status("miss");
-            PackumentLoad::Ok(fetched.bytes)
+            store_fetched_packument(state, name, fetched).await
         }
         // `304` confirmed our stale copy is current: read it now (deferred
         // until here), re-write it to bump the cache mtime so it's fresh
@@ -1644,10 +1635,18 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
                     record_cache_status("revalidated");
                     PackumentLoad::Ok(bytes)
                 }
-                // The entry vanished between the freshness check and here (cache
-                // wiped concurrently). Rare; treat as a miss-shaped not-found
-                // rather than serving an empty body.
-                Ok(None) => PackumentLoad::NotFound,
+                // The body vanished between the freshness check and this read
+                // (cache wiped concurrently). The upstream just confirmed the
+                // package exists, so re-fetch it unconditionally and self-heal
+                // rather than 404-ing a present package.
+                Ok(None) => match upstream.fetch_packument(name, &CacheValidators::default()).await
+                {
+                    Ok(PackumentFetch::Modified(fetched)) => {
+                        store_fetched_packument(state, name, fetched).await
+                    }
+                    Ok(_) => PackumentLoad::NotFound,
+                    Err(err) => PackumentLoad::Err(err),
+                },
                 Err(err) => PackumentLoad::Err(err),
             }
         }
@@ -1668,6 +1667,23 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
             }
         }
     }
+}
+
+/// Persist a freshly fetched packument to the proxy cache and return it,
+/// tagging the access record as a `miss`. A cache-write failure is logged
+/// but not fatal — the fetched bytes are still served.
+async fn store_fetched_packument(
+    state: &AppState,
+    name: &PackageName,
+    fetched: FetchedPackument,
+) -> PackumentLoad {
+    if let Err(err) =
+        state.inner.storage.write_cached_packument(name, &fetched.bytes, &fetched.validators).await
+    {
+        tracing::warn!(?err, package = %name.as_str(), "packument cache write failed");
+    }
+    record_cache_status("miss");
+    PackumentLoad::Ok(fetched.bytes)
 }
 
 /// Tag the current `pnpr::access` request span with how a packument
