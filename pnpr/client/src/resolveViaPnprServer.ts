@@ -136,19 +136,25 @@ export async function resolveViaPnprServer (
   }
 }
 
+type TerminalFrame = Extract<ResolveFrame, { type: 'done' | 'error' | 'violations' }>
+
 /**
  * Parse the NDJSON `/v1/resolve` body and return its single terminal
  * frame. `package` frames are skipped — this client fetches tarballs the
  * normal way after resolution rather than overlapping fetch with the
- * stream. Throws if the stream carries no terminal frame.
+ * stream. Throws on an unknown frame type (so a protocol mismatch fails
+ * fast here rather than as a confusing lockfile error downstream) or if
+ * the stream carries no terminal frame.
  */
-function parseTerminalFrame (body: string): Extract<ResolveFrame, { type: 'done' | 'error' | 'violations' }> {
+function parseTerminalFrame (body: string): TerminalFrame {
   for (const line of body.split('\n')) {
     if (line.trim() === '') continue
     const frame = JSON.parse(line) as ResolveFrame
-    if (frame.type !== 'package') {
+    if (frame.type === 'package') continue
+    if (frame.type === 'done' || frame.type === 'error' || frame.type === 'violations') {
       return frame
     }
+    throw new Error(`pnpr server /v1/resolve stream emitted an unknown frame type: ${String((frame as { type: unknown }).type)}`)
   }
   throw new Error('pnpr server /v1/resolve stream ended without a terminal frame')
 }
