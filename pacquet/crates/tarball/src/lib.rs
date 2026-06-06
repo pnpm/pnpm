@@ -46,6 +46,42 @@ fn post_download_semaphore() -> &'static Semaphore {
     SEM.get_or_init(|| Semaphore::new(num_cpus::get().saturating_mul(2).max(4)))
 }
 
+/// Dedicated rayon pool for the per-file CAS-write phase of extraction
+/// ([`extract_tarball_entries`]).
+///
+/// Kept separate from rayon's global pool on purpose. The install
+/// pipeline overlaps tarball extraction with linking each package into
+/// `node_modules`, and the linker runs its per-package work through
+/// `rayon::join` / `par_iter` on the *global* pool. If extraction also
+/// used the global pool, a burst of extraction work (hundreds of
+/// tarballs finishing downloads at once) would queue ahead of the
+/// linker's jobs and stall linking for seconds. Routing the CAS writes
+/// through their own pool lets the two phases run concurrently without
+/// one starving the other.
+///
+/// Sized to the core count: the work is CPU-bound (SHA-512 + CAFS
+/// write), so more threads than cores only adds scheduling contention.
+/// Returns `None` if the pool can't be built, in which case the caller
+/// falls back to the global pool.
+fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(num_cpus::get().max(1))
+            .thread_name(|index| format!("cas-write-{index}"))
+            .build()
+            .map_err(|error| {
+                tracing::warn!(
+                    target: "pacquet::download",
+                    ?error,
+                    "failed to build the dedicated CAS-write pool; falling back to the global rayon pool",
+                );
+            })
+            .ok()
+    })
+    .as_ref()
+}
+
 /// Reqwest's own [`std::fmt::Display`] for a request-stage failure renders as
 /// `error sending request for url (URL): <inner>` only if it can find
 /// an inner source, and on some failure modes (e.g. the request was
@@ -667,17 +703,24 @@ fn extract_tarball_entries(
     // package with thousands of files (e.g. `core-js`) pinned one core
     // while the rest sat idle — most costly at the makespan tail, when
     // it's the last extraction still running. `write_cas_entry` is safe
-    // to run concurrently, so large tarballs fan out across the rayon
-    // pool; small ones stay serial to skip rayon's per-job dispatch cost
-    // when there's nothing to gain.
+    // to run concurrently, so large tarballs fan out across the dedicated
+    // [`cas_write_pool`]; small ones stay serial to skip rayon's per-job
+    // dispatch cost when there's nothing to gain. The dedicated pool
+    // keeps this off the global pool the linker uses, so an extraction
+    // burst can't stall node_modules linking running concurrently.
     const PARALLEL_EXTRACT_THRESHOLD: usize = 32;
-    let written: Vec<(String, PathBuf, CafsFileInfo)> = if pending.len()
-        >= PARALLEL_EXTRACT_THRESHOLD
-    {
-        pending.par_iter().map(|file| write_cas_entry(store_dir, file)).collect::<Result<_, _>>()?
-    } else {
-        pending.iter().map(|file| write_cas_entry(store_dir, file)).collect::<Result<_, _>>()?
-    };
+    let written: Vec<(String, PathBuf, CafsFileInfo)> =
+        if pending.len() >= PARALLEL_EXTRACT_THRESHOLD {
+            let write_all = || -> Result<Vec<(String, PathBuf, CafsFileInfo)>, TarballError> {
+                pending.par_iter().map(|file| write_cas_entry(store_dir, file)).collect()
+            };
+            match cas_write_pool() {
+                Some(pool) => pool.install(write_all),
+                None => write_all(),
+            }?
+        } else {
+            pending.iter().map(|file| write_cas_entry(store_dir, file)).collect::<Result<_, _>>()?
+        };
 
     // Phase 3 (serial): assemble the output maps. `written` preserves
     // `pending` order, so a tarball with duplicate paths keeps the last
