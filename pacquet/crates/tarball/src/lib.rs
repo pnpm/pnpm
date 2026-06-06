@@ -435,6 +435,44 @@ fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<serde_json::V
     if picked.is_empty() { None } else { Some(serde_json::Value::Object(picked)) }
 }
 
+/// One regular-file tar entry whose path has been validated and
+/// cleaned, paired with a borrow of its payload inside the decompressed
+/// archive buffer. Collected serially while walking the tar stream, then
+/// hashed and written to the CAFS — serially or across the rayon pool —
+/// in [`write_cas_entry`].
+struct PendingFile<'a> {
+    cleaned_path: String,
+    data: &'a [u8],
+    executable: bool,
+    mode: u32,
+    size: u64,
+}
+
+/// Hash one [`PendingFile`] into the content-addressed store and build
+/// its [`CafsFileInfo`] index row. Pure given the inputs and the store
+/// dir's content-addressed layout, so it is safe to run concurrently
+/// across entries of the same tarball.
+fn write_cas_entry(
+    store_dir: &StoreDir,
+    file: &PendingFile<'_>,
+) -> Result<(String, PathBuf, CafsFileInfo), TarballError> {
+    let (file_path, file_hash) =
+        store_dir.write_cas_file(file.data, file.executable).map_err(TarballError::WriteCasFile)?;
+    // `as_millis()` returns `u128`; narrow to `u64` to match the store
+    // index schema (see `CafsFileInfo::checked_at`). Drop the timestamp
+    // if the clock reports something unrepresentable — `checkedAt` is
+    // optional and pnpm tolerates `None`.
+    let checked_at =
+        UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
+    let info = CafsFileInfo {
+        digest: format!("{file_hash:x}"),
+        mode: file.mode,
+        size: file.size,
+        checked_at,
+    };
+    Ok((file.cleaned_path.clone(), file_path, info))
+}
+
 /// Walk decompressed tar bytes, writing each regular-file entry into
 /// the CAFS and returning the `{in-tarball path → CAFS path}` map plus
 /// the per-tarball [`PackageFilesIndex`] row to hand off to the shared
@@ -482,14 +520,15 @@ fn extract_tarball_entries(
         });
 
     let ((_, Some(capacity)) | (capacity, None)) = entries.size_hint();
-    let mut cas_paths = HashMap::<String, PathBuf>::with_capacity(capacity);
-    let mut pkg_files_idx = PackageFilesIndex {
-        manifest: None,
-        requires_build: None,
-        algo: "sha512".to_string(),
-        files: HashMap::with_capacity(capacity),
-        side_effects: None,
-    };
+
+    // Phase 1 (serial): walk the seekable tar stream, validate and clean
+    // each regular-file path, and capture the byte slice of its payload.
+    // Header parsing has to run sequentially against the single archive
+    // stream, but it's cheap; the expensive per-file hashing + CAS write
+    // is deferred to the parallel phase below. The bundled `package.json`
+    // manifest is captured here too, off the raw payload slice.
+    let mut pending: Vec<PendingFile<'_>> = Vec::with_capacity(capacity);
+    let mut manifest = None;
 
     for entry in entries {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
@@ -576,14 +615,6 @@ fn extract_tarball_entries(
         {
             continue;
         }
-        let (file_path, file_hash) = store_dir
-            .write_cas_file(entry_data, file_is_executable)
-            .map_err(TarballError::WriteCasFile)?;
-
-        if let Some(previous) = cas_paths.insert(cleaned_entry_path.clone(), file_path) {
-            tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
-        }
-
         // Capture the parsed manifest whenever we see `package.json`.
         // Mirrors pnpm's `bundledManifest` pass-through at
         // [pnpm/pnpm@4750fd370c]: pnpm stuffs the narrowed manifest
@@ -611,39 +642,65 @@ fn extract_tarball_entries(
         // [`addFilesFromTarball`]: <https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/addFilesFromTarball.ts#L41-L43>
         if cleaned_entry_path == "package.json" {
             match serde_json::from_slice::<serde_json::Value>(entry_data) {
-                Ok(parsed) => pkg_files_idx.manifest = normalize_bundled_manifest(&parsed),
+                Ok(parsed) => manifest = normalize_bundled_manifest(&parsed),
                 Err(error) => {
                     tracing::debug!(
                         ?error,
                         "package.json in tarball failed to parse as JSON; bundled manifest cleared",
                     );
-                    pkg_files_idx.manifest = None;
+                    manifest = None;
                 }
             }
         }
 
-        // `as_millis()` returns `u128`; narrow to `u64` to match the
-        // store index schema — see `CafsFileInfo::checked_at` for why
-        // `u64` is used. Using `u64::try_from` rather than `as u64`
-        // avoids a silent wrap: even though millisecond epochs don't
-        // overflow `u64` for ~584M years, the intent should be
-        // explicit. If the clock ever reports something
-        // unrepresentable, drop the timestamp — the `checkedAt` field
-        // is optional and pnpm tolerates `None`.
-        let checked_at =
-            UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
-        let file_attrs = CafsFileInfo {
-            digest: format!("{file_hash:x}"),
+        pending.push(PendingFile {
+            cleaned_path: cleaned_entry_path,
+            data: entry_data,
+            executable: file_is_executable,
             mode: file_mode,
             size: file_size,
-            checked_at,
-        };
+        });
+    }
 
-        if let Some(previous) = pkg_files_idx.files.insert(cleaned_entry_path, file_attrs) {
+    // Phase 2: hash and write every file into the content-addressed
+    // store. A tarball used to extract on a single blocking thread, so a
+    // package with thousands of files (e.g. `core-js`) pinned one core
+    // while the rest sat idle — most costly at the makespan tail, when
+    // it's the last extraction still running. `write_cas_entry` is safe
+    // to run concurrently, so large tarballs fan out across the rayon
+    // pool; small ones stay serial to skip rayon's per-job dispatch cost
+    // when there's nothing to gain.
+    const PARALLEL_EXTRACT_THRESHOLD: usize = 32;
+    let written: Vec<(String, PathBuf, CafsFileInfo)> = if pending.len()
+        >= PARALLEL_EXTRACT_THRESHOLD
+    {
+        pending.par_iter().map(|file| write_cas_entry(store_dir, file)).collect::<Result<_, _>>()?
+    } else {
+        pending.iter().map(|file| write_cas_entry(store_dir, file)).collect::<Result<_, _>>()?
+    };
+
+    // Phase 3 (serial): assemble the output maps. `written` preserves
+    // `pending` order, so a tarball with duplicate paths keeps the last
+    // entry — matching the previous insert-in-order behavior and pnpm's
+    // last-wins `filesIndex.set`.
+    let mut cas_paths = HashMap::<String, PathBuf>::with_capacity(written.len());
+    let mut files = HashMap::with_capacity(written.len());
+    for (path, file_path, info) in written {
+        if let Some(previous) = cas_paths.insert(path.clone(), file_path) {
+            tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
+        }
+        if let Some(previous) = files.insert(path, info) {
             tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
         }
     }
 
+    let pkg_files_idx = PackageFilesIndex {
+        manifest,
+        requires_build: None,
+        algo: "sha512".to_string(),
+        files,
+        side_effects: None,
+    };
     Ok((cas_paths, pkg_files_idx))
 }
 
