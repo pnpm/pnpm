@@ -199,6 +199,40 @@ async fn resolves_a_package() {
     assert!(outcome.stats.total_packages >= 1);
 }
 
+/// The streaming API surfaces each resolved tarball as a `package`
+/// frame *before* the terminal `done` frame carrying the lockfile, and
+/// every streamed package appears in the final lockfile. This is the
+/// overlap lever: the caller can begin fetching each tarball the moment
+/// its frame arrives, while the server is still resolving.
+#[tokio::test]
+async fn streams_resolved_packages_before_the_lockfile() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client = PnprClient::new(pnpr_url);
+
+    let mut streamed: Vec<String> = Vec::new();
+    let outcome = client
+        .resolve_streaming(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])), |pkg| {
+            assert!(!pkg.integrity.is_empty(), "a package frame carries an integrity");
+            assert!(pkg.tarball.starts_with("http"), "a package frame carries a tarball URL");
+            assert_eq!(pkg.id, format!("{}@{}", pkg.name, pkg.version), "id is name@version");
+            streamed.push(pkg.id);
+        })
+        .await
+        .expect("streaming resolve should succeed");
+
+    assert!(!streamed.is_empty(), "at least one package frame streams before `done`");
+    let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
+    for id in &streamed {
+        assert!(
+            packages.keys().any(|key| key.to_string() == *id),
+            "streamed package {id} should appear in the resolved lockfile, got: {:?}",
+            packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+        );
+    }
+}
+
 /// Optional dependencies must reach the server in the request, not be
 /// silently dropped, so the resolved lockfile includes their edges.
 #[tokio::test]

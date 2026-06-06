@@ -140,6 +140,7 @@ impl<'a> Remove<'a> {
             // seed, same as `install` / `add`.
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
+            resolution_observer: None,
         }
         .run::<Reporter>()
         .await

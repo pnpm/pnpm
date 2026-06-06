@@ -49,17 +49,31 @@ pub struct CliArgs {
     #[clap(long, default_value_t = 0)]
     pub pnpr_latency_ms: u64,
 
-    /// Round-trip latency, in milliseconds, to inject between the client
-    /// and the *registry* for the direct (`pacquet@<rev>` / `pnpm@<rev>` /
-    /// `--with-pnpm`) targets, so a direct install crosses the same
-    /// network a pnpr install does. Set this equal to `--pnpr-latency-ms`
-    /// for a fair pnpr-vs-direct comparison. `pnpr@<rev>` targets keep a
-    /// direct (fast) registry link — that models a warm, colocated server,
-    /// so pnpr's advantage shows up as fewer round trips rather than a
-    /// faster backend. `0` disables injection; ignored with
-    /// `--registry=npm` (already remote).
+    /// Round-trip latency, in milliseconds, to inject on the link to the
+    /// *registry*, applied to **every** client that touches it: direct
+    /// `pacquet@<rev>` / `pnpm@<rev>` installs, the `pnpr@<rev>` server's
+    /// resolution, and the pnpr client's tarball fetches. A request to the
+    /// registry-mock should cost the same regardless of who makes it, so
+    /// the registry-mock is uniformly as remote as the real one; pnpr's
+    /// advantage then shows up as fewer client round trips (one
+    /// `--pnpr-latency-ms` hop to the server) rather than a faster
+    /// backend. `0` disables injection; ignored with `--registry=npm`
+    /// (already remote).
     #[clap(long, default_value_t = 0)]
     pub registry_latency_ms: u64,
+
+    /// Download-bandwidth cap, in **megabits per second**, on the link to
+    /// the registry, applied to every client (direct installs and the pnpr
+    /// server + client alike), so tarball fetches take the time they would
+    /// over a real connection instead of being free on loopback. Loopback
+    /// serves at ~GB/s; the public npm registry measured ~190 Mbit/s
+    /// (~24 MB/s) peak on a fast link, and typical home/CI links are
+    /// 50–200 Mbit/s. Pairs with `--registry-latency-ms` (latency
+    /// dominates small packages, bandwidth dominates large ones). `0`
+    /// leaves the registry at loopback speed; ignored with
+    /// `--registry=npm` (already remote).
+    #[clap(long, default_value_t = 0.0)]
+    pub registry_bandwidth_mbps: f64,
 
     /// Build each target without running the benchmark.
     #[clap(long)]
@@ -158,6 +172,16 @@ pub enum BenchmarkScenario {
     /// No lockfile, hot cache + hot store. Resolves everything against an already-populated store.
     #[value(name = "isolated-linker.fresh-install.hot-cache.hot-store")]
     IsolatedFreshInstallHotCacheHotStore,
+    /// No lockfile, cold cache + **hot** store. Isolates resolution: the
+    /// client must re-resolve the whole tree (cold packument cache → a
+    /// fetch waterfall over the registry link) but every tarball is
+    /// already in the store, so no download dominates and hides it. This
+    /// is the scenario that exposes pnpr's core win — a direct install
+    /// pays the full cold resolution while pnpr offloads it to its warm
+    /// server. (Direct's `PrefetchingResolver` can't hide the resolution
+    /// behind downloads here because there are none.)
+    #[value(name = "isolated-linker.fresh-install.cold-cache.hot-store")]
+    IsolatedFreshInstallColdCacheHotStore,
     /// Frozen lockfile, cold cache + cold store. The typical CI shape.
     #[value(name = "isolated-linker.fresh-restore.cold-cache.cold-store")]
     IsolatedFreshRestoreColdCacheColdStore,
@@ -187,7 +211,8 @@ impl BenchmarkScenario {
     pub fn install_args(self) -> &'static [&'static str] {
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
-            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => &["install"],
+            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore
+            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => &["install"],
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
             | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
@@ -208,7 +233,8 @@ impl BenchmarkScenario {
     pub fn lockfile_enabled(self) -> bool {
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
-            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => false,
+            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore
+            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => false,
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore
@@ -234,12 +260,19 @@ impl BenchmarkScenario {
         const SAVED_PACKAGE_JSON: (&str, &str) = ("package.json", ".saved-package.json");
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore => Cleanup {
-                remove: &["node_modules", "pnpm-lock.yaml", "store-dir"],
+                // `cache-dir` (the packument-metadata mirror) is wiped
+                // alongside `store-dir` so a direct fresh install pays the
+                // full cold resolution — fetching every packument over the
+                // emulated registry link — which is precisely the cost pnpr
+                // offloads to its warm server. Without this the mirror
+                // stays warm and direct ≈ pnpr.
+                remove: &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
                 restore: &[SAVED_PACKAGE_JSON],
             },
-            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore => {
-                Cleanup { remove: &["node_modules", "store-dir"], restore: &[SAVED_LOCKFILE] }
-            }
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore => Cleanup {
+                remove: &["node_modules", "store-dir", "cache-dir"],
+                restore: &[SAVED_LOCKFILE],
+            },
             BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore => {
                 Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
             }
@@ -249,6 +282,13 @@ impl BenchmarkScenario {
             },
             BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => Cleanup {
                 remove: &["node_modules", "pnpm-lock.yaml"],
+                restore: &[SAVED_PACKAGE_JSON],
+            },
+            // Cold cache (wipe `cache-dir` → re-resolve from scratch) but
+            // hot store (keep `store-dir` → no tarball download). Resolution
+            // is the only variable cost, so it can't hide behind downloads.
+            BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => Cleanup {
+                remove: &["node_modules", "pnpm-lock.yaml", "cache-dir"],
                 restore: &[SAVED_PACKAGE_JSON],
             },
             BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {

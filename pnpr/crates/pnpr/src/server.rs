@@ -182,13 +182,17 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // front, so the application is the only layer that can compress.
         // Scoped to JSON: tarballs (`application/octet-stream`, already
         // `.tgz`) are excluded so we never re-gzip an already-compressed
-        // payload. The resolver response is `application/json` but is
-        // gzipped at the handler and carries `Content-Encoding: gzip`, so
-        // the layer skips it regardless (already-`Content-Encoding`
-        // responses are never re-compressed).
-        .layer(CompressionLayer::new().compress_when(
-            DefaultPredicate::new().and(NotForContentType::const_new("application/octet-stream")),
-        ))
+        // payload. The `/v1/resolve` NDJSON stream
+        // (`application/x-ndjson`) is excluded too: gzip-buffering it
+        // would defeat the point of streaming — frames must flush to the
+        // client as each package resolves, not wait for the encoder.
+        .layer(
+            CompressionLayer::new().compress_when(
+                DefaultPredicate::new()
+                    .and(NotForContentType::const_new("application/octet-stream"))
+                    .and(NotForContentType::const_new("application/x-ndjson")),
+            ),
+        )
         // One structured access record per HTTP request: a span
         // carrying method + URI plus a single `finished processing
         // request` event on the response with status and latency.

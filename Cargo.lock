@@ -3382,7 +3382,7 @@ name = "pacquet-pnpr-client"
 version = "0.0.1"
 dependencies = [
  "derive_more",
- "flate2",
+ "futures-util",
  "mockito",
  "pacquet-config",
  "pacquet-lockfile",

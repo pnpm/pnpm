@@ -3,7 +3,7 @@ use crate::{
         BenchmarkScenario, Cleanup, HyperfineOptions, RegistryMode, TargetKind, TargetSpec,
     },
     fixtures::{LOCKFILE, PACKAGE_JSON},
-    latency_proxy::LatencyProxy,
+    latency_proxy::{LatencyProxy, LinkProfile},
     verify::executor,
     workspace_manifest::MinimalWorkspaceManifest,
 };
@@ -39,12 +39,18 @@ pub struct WorkEnv {
     /// Round-trip latency (ms) to inject between the client and each
     /// `pnpr@<rev>` target's server. `0` leaves the server on loopback.
     pub pnpr_latency_ms: u64,
-    /// Round-trip latency (ms) to inject between the direct targets and
-    /// the registry. `0` leaves the registry on loopback. Ignored in
-    /// `--registry=npm` mode (already remote).
+    /// Round-trip latency (ms) on the link to the registry, applied to
+    /// every client (direct installs and the pnpr server + client alike).
+    /// `0` leaves the registry on loopback. Ignored in `--registry=npm`
+    /// mode (already remote).
     pub registry_latency_ms: u64,
-    /// Port the local registry listens on, used as the latency proxy's
-    /// upstream when `registry_latency_ms > 0`.
+    /// Download-bandwidth cap (megabits/sec) on the link to the registry,
+    /// applied to every client, so tarball fetches cost real time instead
+    /// of being free on loopback. `0` leaves the registry at loopback
+    /// speed. Ignored in `--registry=npm` mode (already remote).
+    pub registry_bandwidth_mbps: f64,
+    /// Port the local registry listens on, used as the proxy's upstream
+    /// when latency or a bandwidth cap is requested.
     pub registry_port: u16,
     /// Skip the clone + `cargo build` for a target whose output binary is
     /// already present — i.e. restored from a per-commit CI cache. Off by
@@ -151,8 +157,8 @@ impl WorkEnv {
         match id {
             // A pnpr target runs the same pacquet client binary; the
             // pnpr server it talks to is started separately at benchmark
-            // time and reached via the `PNPR_SERVER` env var that
-            // `install.bash` sources from `.pnpr-env`.
+            // time and reached via the `PNPM_CONFIG_PNPR_SERVER` env var
+            // that `install.bash` sources from `.pnpr-env`.
             BenchId::PacquetRevision(_) | BenchId::PnprRevision(_) => {
                 "./pacquet/target/release/pacquet".to_string()
             }
@@ -372,25 +378,26 @@ impl WorkEnv {
     fn benchmark(&self) {
         let scenario = self.scenario.expect("scenario set when benchmark() is reached");
 
-        // Pre-benchmark wipe of `node_modules` *and* `store-dir` for
-        // every benchmark target, regardless of scenario. The
-        // hot-cache scenario's per-iteration `--prepare` intentionally
-        // preserves `store-dir` so subsequent iterations can reuse
-        // it, which means whatever a previous run / scenario / partial
-        // invocation left in `store-dir` would otherwise carry into
-        // the warmup — and the warmup wouldn't actually be what
-        // primes the store. Wiping once upfront makes the warmup the
-        // priming run no matter what state the work-env was in. For
-        // cold-cache scenarios this is redundant with the per-iteration
-        // wipe but harmless (Copilot review on <https://github.com/pnpm/pacquet/pull/296>).
-        // `pnpr-storage` is the per-target pnpr server's store + cache
-        // (only present for `pnpr@<rev>` targets). Wiping it upfront makes
-        // the hyperfine warmup the run that primes the server store, the
-        // same way it primes the client store — so timed runs measure a
-        // warm long-running server rather than whatever a previous run
-        // left behind.
+        // Pre-benchmark wipe of `node_modules`, `store-dir`, and
+        // `cache-dir` for every benchmark target, regardless of scenario.
+        // The hot-cache scenario's per-iteration `--prepare` intentionally
+        // preserves `store-dir` / `cache-dir` so subsequent iterations can
+        // reuse them, which means whatever a previous run / scenario /
+        // partial invocation left behind would otherwise carry into the
+        // warmup — and the warmup wouldn't actually be what primes them.
+        // Wiping once upfront makes the warmup the priming run no matter
+        // what state the work-env was in. For cold-cache scenarios this is
+        // redundant with the per-iteration wipe but harmless (Copilot
+        // review on <https://github.com/pnpm/pacquet/pull/296>).
+        // `cache-dir` is the client's packument-metadata mirror; wiping it
+        // keeps cold-cache scenarios genuinely cold for *resolution*, not
+        // just for the CAS. `pnpr-storage` is the per-target pnpr server's
+        // store + cache (only present for `pnpr@<rev>` targets) — wiping it
+        // upfront (but never per-iteration) makes the hyperfine warmup the
+        // run that primes the server, so timed runs measure a warm
+        // long-running server even while the client is cold.
         for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
-            for name in ["node_modules", "store-dir", "pnpr-storage"] {
+            for name in ["node_modules", "store-dir", "cache-dir", "pnpr-storage"] {
                 let path = dir.join(name);
                 if path.exists() {
                     fs::remove_dir_all(&path).expect("pre-benchmark wipe");
@@ -512,8 +519,14 @@ impl WorkEnv {
         // the server.
         let client_url = if self.pnpr_latency_ms > 0 {
             let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-            let one_way = Duration::from_millis(self.pnpr_latency_ms) / 2;
-            let proxy = LatencyProxy::spawn(upstream, one_way).expect("spawn pnpr latency proxy");
+            // Latency only: the pnpr resolve protocol exchanges small
+            // metadata payloads, so the round trip (not throughput) is the
+            // cost that matters for the client↔server link.
+            let profile = LinkProfile {
+                one_way: Duration::from_millis(self.pnpr_latency_ms) / 2,
+                rate_limit: None,
+            };
+            let proxy = LatencyProxy::spawn(upstream, profile).expect("spawn pnpr latency proxy");
             let proxy_url = format!("http://{}", proxy.addr);
             eprintln!(
                 "Injecting {}ms round-trip latency in front of {id}'s server (proxy at {})",
@@ -525,60 +538,131 @@ impl WorkEnv {
             format!("http://127.0.0.1:{port}")
         };
 
-        fs::write(bench_dir.join(".pnpr-env"), format!("export PNPR_SERVER={client_url}\n"))
-            .expect("write .pnpr-env");
+        // Must be `PNPM_CONFIG_PNPR_SERVER`, not a bare `PNPR_SERVER`:
+        // pacquet reads config env vars only under the `PNPM_CONFIG_*` /
+        // `pnpm_config_*` prefix (see `config/src/env_overlay.rs`), so a
+        // bare `PNPR_SERVER` is silently ignored and the install runs
+        // *direct* instead of through pnpr — making every `pnpr@<rev>`
+        // target a duplicate of its `pacquet@<rev>` row.
+        fs::write(
+            bench_dir.join(".pnpr-env"),
+            format!("export PNPM_CONFIG_PNPR_SERVER={client_url}\n"),
+        )
+        .expect("write .pnpr-env");
 
         server
     }
 
     pub fn run(&self) {
-        // Front the registry with a latency proxy for the direct targets,
-        // when requested. The guard lives for the whole run so installs
-        // (in `benchmark`) cross it; the URL is baked into the direct
-        // targets' config during `init`. `pnpr@<rev>` targets keep the
-        // real (fast) registry — see [`Self::registry_for`].
+        // Front the registry with the emulated link, when requested. The
+        // guard lives for the whole run so installs (in `benchmark`) cross
+        // it; the URL is baked into every target's config during `init`.
+        // Every client that touches the registry — direct pacquet/pnpm,
+        // the pnpr server resolving, and the pnpr client fetching tarballs
+        // — goes through it, so the registry-mock is uniformly as remote as
+        // the real npm registry (see [`Self::registry_for`]).
         let registry_proxy = self.start_registry_proxy();
-        let direct_registry = registry_proxy
+        let client_registry = registry_proxy
             .as_ref()
             .map(|proxy| format!("http://{}/", proxy.addr))
             .unwrap_or_else(|| self.registry.clone());
 
-        self.init(&direct_registry);
+        self.init(&client_registry);
         self.build();
         self.benchmark();
         drop(registry_proxy);
+        self.verify_pnpr_targets_were_routed();
     }
 
-    /// Start a latency proxy in front of the registry, or `None` when no
-    /// latency is requested, the registry is already remote (`npm` mode),
-    /// or no direct target would use it.
-    fn start_registry_proxy(&self) -> Option<LatencyProxy> {
-        if self.registry_latency_ms == 0 || matches!(self.registry_mode, RegistryMode::Npm) {
-            return None;
+    /// Fail the run if a `pnpr@<rev>` target never actually went through its
+    /// pnpr server. A resolve populates the server's on-disk store/cache
+    /// under `pnpr-storage`, so an empty `pnpr-storage` after the
+    /// benchmark means the client resolved *directly* instead — the silent
+    /// failure mode where a misnamed `PNPM_CONFIG_PNPR_SERVER` made every
+    /// `pnpr@<rev>` row a duplicate of its `pacquet@<rev>` row. Better to
+    /// abort than to publish meaningless pnpr-vs-direct numbers.
+    fn verify_pnpr_targets_were_routed(&self) {
+        for id in self.target_ids().filter(|id| id.is_pnpr()) {
+            let storage = self.bench_dir(id).join("pnpr-storage");
+            assert!(
+                dir_contains_file(&storage),
+                "pnpr server storage at {storage:?} is empty after the benchmark — `{id}` never \
+                 routed through pnpr (it resolved directly), so its rows would silently duplicate \
+                 the `pacquet@<rev>` install. Check that `.pnpr-env` exports \
+                 `PNPM_CONFIG_PNPR_SERVER` and that the client reads it.",
+            );
         }
-        let has_direct_target =
-            self.targets.iter().any(|target| target.kind != TargetKind::Pnpr) || self.with_pnpm;
-        if !has_direct_target {
+    }
+
+    /// Start a proxy in front of the registry that emulates a real link
+    /// (latency + bandwidth cap) for every client, or `None` when neither
+    /// is requested or the registry is already remote (`npm` mode).
+    fn start_registry_proxy(&self) -> Option<LatencyProxy> {
+        let rate_limit = mbps_to_bytes_per_sec(self.registry_bandwidth_mbps);
+        if (self.registry_latency_ms == 0 && rate_limit.is_none())
+            || matches!(self.registry_mode, RegistryMode::Npm)
+        {
             return None;
         }
         let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, self.registry_port));
-        let one_way = Duration::from_millis(self.registry_latency_ms) / 2;
-        let proxy = LatencyProxy::spawn(upstream, one_way).expect("spawn registry latency proxy");
+        let profile = LinkProfile {
+            one_way: Duration::from_millis(self.registry_latency_ms) / 2,
+            rate_limit,
+        };
+        let proxy = LatencyProxy::spawn(upstream, profile).expect("spawn registry proxy");
         eprintln!(
-            "Injecting {}ms round-trip latency in front of the registry for direct targets (proxy at {})",
-            self.registry_latency_ms, proxy.addr,
+            "Fronting the registry with {}ms round-trip latency + {} download cap (proxy at {})",
+            self.registry_latency_ms,
+            match self.registry_bandwidth_mbps {
+                mbps if mbps > 0.0 => format!("{mbps} Mbit/s"),
+                _ => "no".to_string(),
+            },
+            proxy.addr,
         );
         Some(proxy)
     }
 
-    /// The registry a given bench id resolves against. Direct targets use
-    /// `direct_registry` (the latency proxy when injection is on); pnpr
-    /// targets and the proxy-cache populator keep the real registry — the
-    /// pnpr server's upstream stays fast, and warming the proxy cache is
-    /// untimed setup.
-    fn registry_for<'a>(&'a self, id: BenchId, direct_registry: &'a str) -> &'a str {
-        if id.is_pnpr() || id.is_proxy_cache_populator() { &self.registry } else { direct_registry }
+    /// The registry a given bench id resolves against. Every benchmarked
+    /// target — direct *and* pnpr — uses `client_registry` (the emulated
+    /// link when throttling is on; the raw registry otherwise), because a
+    /// request to the registry-mock should cost the same regardless of who
+    /// makes it. Only the proxy-cache populator keeps the raw (fast) link:
+    /// it warms the registry-mock's on-disk cache before timing starts, so
+    /// its cost isn't measured and there's no reason to slow it down.
+    fn registry_for<'a>(&'a self, id: BenchId, client_registry: &'a str) -> &'a str {
+        if id.is_proxy_cache_populator() { &self.registry } else { client_registry }
     }
+}
+
+/// Whether `dir` contains at least one regular file, recursively. Used to
+/// confirm a pnpr server actually wrote something (i.e. served a resolve).
+/// A missing/unreadable dir counts as empty.
+fn dir_contains_file(dir: &Path) -> bool {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            return true;
+        }
+        if path.is_dir() && dir_contains_file(&path) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Convert a megabits-per-second figure into a bytes-per-second cap for
+/// [`LinkProfile`], or `None` for a non-positive / non-finite value (no
+/// cap). 1 Mbit/s = 1_000_000 bits/s = 125_000 bytes/s. A positive rate
+/// never collapses to `Some(0)`: a 0 byte/s cap would stall the proxy
+/// (the pacing math divides by the rate), so it's floored at 1 byte/s.
+fn mbps_to_bytes_per_sec(mbps: f64) -> Option<u64> {
+    if !mbps.is_finite() || mbps <= 0.0 {
+        return None;
+    }
+    Some(((mbps * 125_000.0).round() as u64).max(1))
 }
 
 /// A pnpr resolver server spawned for one `pnpr@<rev>`
@@ -763,14 +847,16 @@ fn save_pristine_copies(dir: &Path) {
 /// silences those specific warnings and keeps pnpm's output clean so
 /// hyperfine doesn't see stderr noise.
 ///
-/// Always guarantees `storeDir: ./store-dir` ends up in the destination.
-/// Both pnpm and pacquet read the store path from this file (pacquet
-/// since the `.npmrc` parser explicitly ignores `store-dir`); without
-/// that key, both fall through to the global default store and the
-/// benchmark's per-iteration / pre-benchmark cleanup wipes a directory
-/// the install never wrote to. That silently invalidates cold/hot-cache
-/// semantics and lets state from previous runs leak in (Copilot review
-/// on [#296](https://github.com/pnpm/pacquet/pull/296)).
+/// Always guarantees `storeDir: ./store-dir` and `cacheDir: ./cache-dir`
+/// end up in the destination. Both pnpm and pacquet read these from this
+/// file (pacquet since the `.npmrc` parser explicitly ignores
+/// `store-dir`); without them, both fall through to the global default
+/// store/cache and the benchmark's per-iteration / pre-benchmark cleanup
+/// wipes a directory the install never wrote to. That silently
+/// invalidates cold/hot-cache semantics and lets state from previous runs
+/// leak in (Copilot review on [#296](https://github.com/pnpm/pacquet/pull/296)).
+/// `cacheDir` is the resolution-metadata mirror specifically: keeping it
+/// local is what lets the cold-cache scenarios force a real cold resolve.
 ///
 /// If a custom fixture's workspace file already declares `storeDir`,
 /// trust it — that's the user opting into a different store layout
@@ -813,6 +899,15 @@ fn create_pnpm_workspace(
     };
     if manifest.store_dir.is_none() {
         manifest.store_dir = Some("./store-dir".to_string());
+    }
+    // Force the packument-metadata cache bench-local too, for the same
+    // per-iteration-wipe reason as `storeDir`. Left at the global default
+    // (`~/.cache/pnpm`), the metadata mirror survives every cold-cache
+    // wipe, so a direct install resolves from a warm mirror and never pays
+    // the packument-fetch waterfall pnpr is built to offload — "cold
+    // cache" would then wipe only the CAS, not the resolution cache.
+    if manifest.cache_dir.is_none() {
+        manifest.cache_dir = Some("./cache-dir".to_string());
     }
     // Pin `packages: ['.']` when the fixture didn't set it. Without this
     // the fresh-resolve install path's project walker
@@ -874,9 +969,9 @@ fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Opt
 ///
 /// When `needs_pnpr_env` is set, the script sources `.pnpr-env` (written
 /// at benchmark time once the per-target pnpr server has a port) so the
-/// client picks up `PNPR_SERVER` and routes the install through it. The
-/// `source` fails loudly under `errexit` if the file is missing, rather
-/// than silently falling back to a direct install.
+/// client picks up `PNPM_CONFIG_PNPR_SERVER` and routes the install
+/// through it. The `source` fails loudly under `errexit` if the file is
+/// missing, rather than silently falling back to a direct install.
 fn create_install_script(
     dir: &Path,
     scenario: BenchmarkScenario,

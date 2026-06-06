@@ -173,6 +173,10 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// Per-invocation `Authorization`-header override; `None` uses
     /// `config.auth_headers`. See [`crate::Install::auth_override`].
     pub auth_override: Option<Arc<AuthHeaders>>,
+    /// Sink notified for each resolved tarball package as the tree walk
+    /// yields it. `None` for every local install; the pnpr server sets
+    /// one. See [`crate::Install::resolution_observer`].
+    pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -430,6 +434,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             lockfile_only,
             update_seed_policy,
             auth_override,
+            resolution_observer,
         } = self;
 
         // The pnpr override when supplied, else the config's npmrc headers;
@@ -700,6 +705,18 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     progress_reported: &progress_reported,
                 },
             ))
+        };
+
+        // The pnpr server resolves `--lockfile-only` and reports each
+        // resolved tarball to the client as it lands, so the client can
+        // fetch in parallel with the server's resolution. Wrap the chain
+        // last so the observer sees every resolve regardless of whether
+        // the prefetcher above is in play (it isn't under
+        // `--lockfile-only`, which is the pnpr resolve path). A no-op for
+        // every local install (`resolution_observer` is `None`).
+        let resolver: Box<dyn Resolver> = match resolution_observer {
+            Some(observer) => Box::new(crate::ObservingResolver::new(resolver, observer)),
+            None => resolver,
         };
 
         // Compile `minimumReleaseAge` (and its exclude pattern set)

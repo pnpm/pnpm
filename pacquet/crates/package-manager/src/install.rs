@@ -183,6 +183,13 @@ where
     /// resolves a caller's private content without baking per-user auth
     /// into the shared `&'static Config`.
     pub auth_override: Option<Arc<AuthHeaders>>,
+    /// Sink notified for each resolved tarball package as the fresh
+    /// resolve yields it. `None` for every local install. The pnpr
+    /// server installs one to stream fetch frames to the client so
+    /// tarball downloads overlap server-side resolution
+    /// ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)).
+    /// Ignored on the frozen path (no tree walk to observe).
+    pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
 }
 
 /// Error type of [`Install`].
@@ -372,6 +379,7 @@ where
             lockfile_only,
             update_seed_policy,
             auth_override,
+            resolution_observer,
         } = self;
 
         // `--lockfile-only` with `lockfile: false` (pnpm's
@@ -970,6 +978,7 @@ where
                 lockfile_only,
                 update_seed_policy,
                 auth_override,
+                resolution_observer,
             }
             .run::<Reporter>()
             .await

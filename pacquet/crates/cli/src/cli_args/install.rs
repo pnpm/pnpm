@@ -3,7 +3,7 @@ use clap::{Args, ValueEnum};
 use miette::Context;
 use pacquet_config::NodeLinker;
 use pacquet_lockfile::Lockfile;
-use pacquet_package_manager::{Install, UpdateSeedPolicy};
+use pacquet_package_manager::{Install, TarballPrefetcher, UpdateSeedPolicy};
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions};
 use pacquet_reporter::Reporter;
@@ -359,6 +359,7 @@ impl InstallArgs {
             lockfile_only,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
+            resolution_observer: None,
         }
         .run::<Reporter>()
         .await
@@ -469,40 +470,75 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     // server-side now — both for reused entries (the input-lockfile
     // verifier) and freshly-resolved ones (the resolver's pick-time
     // gate, since the policy is wired into the server's config).
-    let outcome = match PnprClient::new(pnpr_server)
-        .resolve(ResolveOptions {
-            dependencies,
-            dev_dependencies,
-            optional_dependencies,
-            registry: state.config.registry.clone(),
-            named_registries: state.config.named_registries.clone(),
-            // Forward the whole credential map: the registries a graph
-            // touches aren't known up front (scope-routed or tarball-URL
-            // sub-deps), so the server attaches the right token per URL.
-            auth_headers: state
-                .config
-                .auth_headers
-                .entries()
-                .map(|(uri, value)| (uri.to_string(), value.to_string()))
-                .collect(),
-            authorization: state.config.auth_headers.for_url(pnpr_server),
-            overrides,
-            lockfile: state.lockfile.clone(),
-            frozen_lockfile: link.frozen_lockfile,
-            prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
-            ignore_manifest_check: link.ignore_manifest_check,
-            trust_lockfile: link.trust_lockfile,
-            minimum_release_age: state.config.minimum_release_age,
-            minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
-            minimum_release_age_ignore_missing_time: state
-                .config
-                .minimum_release_age_ignore_missing_time,
-            trust_policy: state.config.trust_policy,
-            trust_policy_exclude: state.config.trust_policy_exclude.clone(),
-            trust_policy_ignore_after: state.config.trust_policy_ignore_after,
-        })
-        .await
-    {
+    let opts = ResolveOptions {
+        dependencies,
+        dev_dependencies,
+        optional_dependencies,
+        registry: state.config.registry.clone(),
+        named_registries: state.config.named_registries.clone(),
+        // Forward the whole credential map: the registries a graph
+        // touches aren't known up front (scope-routed or tarball-URL
+        // sub-deps), so the server attaches the right token per URL.
+        auth_headers: state
+            .config
+            .auth_headers
+            .entries()
+            .map(|(uri, value)| (uri.to_string(), value.to_string()))
+            .collect(),
+        authorization: state.config.auth_headers.for_url(pnpr_server),
+        overrides,
+        lockfile: state.lockfile.clone(),
+        frozen_lockfile: link.frozen_lockfile,
+        prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
+        ignore_manifest_check: link.ignore_manifest_check,
+        trust_lockfile: link.trust_lockfile,
+        minimum_release_age: state.config.minimum_release_age,
+        minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
+        minimum_release_age_ignore_missing_time: state
+            .config
+            .minimum_release_age_ignore_missing_time,
+        trust_policy: state.config.trust_policy,
+        trust_policy_exclude: state.config.trust_policy_exclude.clone(),
+        trust_policy_ignore_after: state.config.trust_policy_ignore_after,
+    };
+
+    let client = PnprClient::new(pnpr_server);
+    let lockfile_dir =
+        state.manifest.path().parent().expect("manifest path always has a parent dir");
+
+    // Under `--lockfile-only` nothing is materialized, so skip the
+    // prefetcher entirely and consume the stream with a no-op callback.
+    // Otherwise spawn a prefetcher that fires each tarball download as
+    // its `package` frame streams in, so fetch overlaps the server's
+    // resolution ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234));
+    // the frozen materialization install below then finds every tarball
+    // already in the shared mem cache.
+    let prefetcher = if link.lockfile_only {
+        None
+    } else {
+        Some(
+            TarballPrefetcher::new(
+                state.config,
+                &state.http_client,
+                &state.tarball_mem_cache,
+                None,
+                &lockfile_dir.to_string_lossy(),
+            )
+            .await,
+        )
+    };
+
+    let result = match prefetcher.as_ref() {
+        Some(prefetcher) => {
+            client
+                .resolve_streaming(opts, |pkg| {
+                    prefetcher.prefetch(pkg.id, pkg.tarball, &pkg.integrity);
+                })
+                .await
+        }
+        None => client.resolve(opts).await,
+    };
+    let outcome = match result {
         Ok(outcome) => outcome,
         // The server rejected the input lockfile under our policy.
         // Surface the reconstructed `VerifyError` so the abort + the
@@ -517,8 +553,6 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     };
 
     if state.config.lockfile {
-        let lockfile_dir =
-            state.manifest.path().parent().expect("manifest path always has a parent dir");
         outcome
             .lockfile
             .save_to_path(&lockfile_dir.join(Lockfile::FILE_NAME))
@@ -562,10 +596,19 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         lockfile_only: false,
         update_seed_policy: UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<Reporter>()
     .await
     .wrap_err("linking dependencies resolved via the pnpr server")?;
+
+    // The materialization install has awaited every tarball's mem-cache
+    // slot, so all prefetch downloads have finished and queued their
+    // store-index rows. Drain the writer so those rows are persisted for
+    // the next install before returning.
+    if let Some(prefetcher) = prefetcher {
+        prefetcher.shutdown().await;
+    }
 
     Ok(())
 }
