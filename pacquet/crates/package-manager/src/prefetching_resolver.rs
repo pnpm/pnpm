@@ -215,24 +215,28 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let network_fetched = SharedNetworkFetchedKeys::clone(&self.ctx.network_fetched);
 
         tokio::spawn(async move {
-            // Route the prefetch download through `SilentReporter`,
-            // not the install's reporter. `DownloadTarballToStore`
-            // emits `pnpm:progress fetched` / `found_in_store`
-            // internally; if the install's reporter received those
-            // from the prefetch task, they would land *before*
-            // `install_subtree::install_package_from_registry` emits
-            // the `resolved` event for the same package, breaking
-            // the documented `resolved → fetched/found_in_store →
-            // imported` order pnpm's reporter consumers (notably
-            // `@pnpm/cli.default-reporter`) depend on. The install
-            // pass's own `run_with_mem_cache` call still uses the
-            // real `Reporter` and emits the events in the right
-            // order — the second call short-circuits via `MemCache`
-            // but its `emit_progress_found_in_store` / `emit_*`
-            // path runs uniformly. Mirrors pnpm's
-            // `packageRequester.requestPackage` shape: the
-            // `fetching` promise runs early but the per-event emit
-            // is driven by the install pass that `await`s it.
+            // Route the prefetch download through `SilentReporter`, not
+            // the install's reporter. `DownloadTarballToStore` emits
+            // `pnpm:progress fetched` / `found_in_store` internally;
+            // emitting those from this background task would race ahead
+            // of the install pass's own `resolved` event for the same
+            // package, breaking the `resolved → fetched/found_in_store
+            // → imported` order pnpm's reporter consumers (notably
+            // `@pnpm/cli.default-reporter`) depend on. Mirrors pnpm's
+            // `packageRequester.requestPackage` shape: the `fetching`
+            // promise runs early but the per-event emit is driven by
+            // the install pass.
+            //
+            // On the fresh phased path the install pass reports each
+            // package through `CreateVirtualStore`'s warm batch (which
+            // reads the freshly-populated store index), not through a
+            // second `run_with_mem_cache` call. That warm batch can't
+            // tell a tarball this task just downloaded from one that
+            // was already in the store — both look like store hits by
+            // the time it runs. So pass `network_fetched`: this task
+            // records the cache key when its fetch hits the network,
+            // and the warm batch consults the set to report `fetched`
+            // rather than `found_in_store`. See [`SharedNetworkFetchedKeys`].
             //
             // Result is intentionally discarded — the `MemCache`
             // carries success / failure state to the install path.
