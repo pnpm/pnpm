@@ -352,7 +352,13 @@ async fn stale_packument_is_revalidated_with_conditional_get() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.packument_ttl = Duration::from_millis(50);
+    // A generous TTL: r2's `304` refresh rewrites the cache file, and r3 must
+    // see that entry as fresh. The margin has to comfortably exceed the wall
+    // time between r2's refresh-write and r3's freshness check, which can spike
+    // on a contended CI runner (and is subject to coarse filesystem mtime
+    // granularity on Windows). The r1->r2 sleep stays longer than the TTL so r2
+    // is still stale.
+    config.packument_ttl = Duration::from_millis(500);
     let app = router(config);
 
     let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
@@ -360,7 +366,7 @@ async fn stale_packument_is_revalidated_with_conditional_get() {
     let _ = body_bytes(r1.into_body()).await;
 
     // Wait past the TTL so the cached packument is stale and gets revalidated.
-    tokio::time::sleep(Duration::from_millis(120)).await;
+    tokio::time::sleep(Duration::from_millis(700)).await;
 
     let r2 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(r2.status(), StatusCode::OK);
