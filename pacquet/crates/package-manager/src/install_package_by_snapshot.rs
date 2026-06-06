@@ -318,7 +318,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
                 // path. See <https://github.com/pnpm/pnpm/issues/12241>.
                 let raw_cas_paths = match tarball_mem_cache {
                     Some(mem_cache)
-                        if matches!(metadata.resolution, LockfileResolution::Registry(_)) =>
+                        if matches!(&metadata.resolution, LockfileResolution::Registry(_)) =>
                     {
                         // `clone()` is cheap (refs + `Arc`s) and lets us
                         // retry through `run_without_mem_cache` below if
