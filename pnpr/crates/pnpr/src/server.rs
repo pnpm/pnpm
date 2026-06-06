@@ -8,11 +8,11 @@ use crate::{
         PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
-    storage::Storage,
+    storage::{CachedPackument, Storage},
     streaming,
     upstream::{
-        FetchOutcome, PackumentFetch, Upstream, abbreviate_packument, extract_version_manifest,
-        rewrite_tarball_urls,
+        CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
+        extract_version_manifest, rewrite_tarball_urls,
     },
 };
 use axum::{
@@ -1598,27 +1598,25 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
     // reverse. The conditional GET on the stale path keeps a high `ttl`
     // cheap (a `304` refreshes the entry without re-downloading it).
     let ttl = state.inner.config.packument_ttl;
-    let cached = match state.inner.storage.read_cached_packument_entry(name, ttl).await {
-        Ok(entry) => entry,
+    // A fresh entry serves immediately (and moves its bytes out — a
+    // packument can be multiple MB). A stale entry yields only its
+    // validators; its body stays on disk until a `304`/error path below
+    // actually needs it, so the common stale→`200` refresh never reads it.
+    let validators = match state.inner.storage.read_cached_packument_entry(name, ttl).await {
+        Ok(Some(CachedPackument::Fresh(bytes))) => {
+            record_cache_status("hit");
+            return PackumentLoad::Ok(bytes);
+        }
+        Ok(Some(CachedPackument::Stale(validators))) => validators,
+        Ok(None) => CacheValidators::default(),
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), "cache read failed");
-            None
+            CacheValidators::default()
         }
-    };
-    // Move the bytes out on a fresh hit instead of cloning — a packument
-    // can be multiple MB. `cached` is rebound to whatever's left (the
-    // stale entry, or `None`) for the revalidation path below.
-    let cached = match cached {
-        Some(entry) if entry.fresh => {
-            record_cache_status("hit");
-            return PackumentLoad::Ok(entry.bytes);
-        }
-        other => other,
     };
 
     // Revalidate conditionally when we hold a stale copy: the upstream
     // can answer `304` and save us re-downloading an unchanged packument.
-    let validators = cached.as_ref().map(|entry| entry.validators.clone()).unwrap_or_default();
     match upstream.fetch_packument(name, &validators).await {
         Ok(PackumentFetch::Modified(fetched)) => {
             if let Err(err) = state
@@ -1632,36 +1630,36 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
             record_cache_status("miss");
             PackumentLoad::Ok(fetched.bytes)
         }
-        Ok(PackumentFetch::NotModified) => match cached {
-            // Re-write the unchanged bytes to bump the cache mtime, so
-            // the entry is fresh again and we don't revalidate on every
-            // request until the next TTL window.
-            Some(entry) => {
-                if let Err(err) = state
-                    .inner
-                    .storage
-                    .write_cached_packument(name, &entry.bytes, &entry.validators)
-                    .await
-                {
-                    tracing::warn!(?err, package = %name.as_str(), "packument cache refresh failed");
+        // `304` confirmed our stale copy is current: read it now (deferred
+        // until here), re-write it to bump the cache mtime so it's fresh
+        // again until the next TTL window, and serve it.
+        Ok(PackumentFetch::NotModified) => {
+            match state.inner.storage.read_cached_packument(name).await {
+                Ok(Some(bytes)) => {
+                    if let Err(err) =
+                        state.inner.storage.write_cached_packument(name, &bytes, &validators).await
+                    {
+                        tracing::warn!(?err, package = %name.as_str(), "packument cache refresh failed");
+                    }
+                    record_cache_status("revalidated");
+                    PackumentLoad::Ok(bytes)
                 }
-                record_cache_status("revalidated");
-                PackumentLoad::Ok(entry.bytes)
+                // The entry vanished between the freshness check and here (cache
+                // wiped concurrently). Rare; treat as a miss-shaped not-found
+                // rather than serving an empty body.
+                Ok(None) => PackumentLoad::NotFound,
+                Err(err) => PackumentLoad::Err(err),
             }
-            // A `304` with nothing cached can't normally happen — we only
-            // send validators when we have a stale copy. Treat it as a
-            // missing packument rather than serving an empty body.
-            None => PackumentLoad::NotFound,
-        },
+        }
         Ok(PackumentFetch::NotFound) => PackumentLoad::NotFound,
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), "upstream packument fetch failed");
-            match cached {
-                Some(entry) => {
+            match state.inner.storage.read_cached_packument(name).await {
+                Ok(Some(bytes)) => {
                     record_cache_status("stale");
-                    PackumentLoad::Ok(entry.bytes)
+                    PackumentLoad::Ok(bytes)
                 }
-                None => PackumentLoad::Err(err),
+                _ => PackumentLoad::Err(err),
             }
         }
     }

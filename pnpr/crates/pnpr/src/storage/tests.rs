@@ -21,31 +21,49 @@ fn sidecar_path(tmp: &TempDir, name: &str) -> PathBuf {
     tmp.path().join("cache").join(name).join(PACKUMENT_META_FILE)
 }
 
+/// Read an entry back as `Stale` so its validators can be inspected. The
+/// write is aged past a 1ms TTL with a short sleep.
+async fn read_stale_validators(storage: &Storage, name: &PackageName) -> CacheValidators {
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    match storage.read_cached_packument_entry(name, Duration::from_millis(1)).await.unwrap() {
+        Some(CachedPackument::Stale(validators)) => validators,
+        other => panic!("expected a stale entry, got {other:?}"),
+    }
+}
+
 #[tokio::test]
-async fn cached_packument_round_trips_with_validators() {
+async fn fresh_entry_returns_its_body() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = pkg("foo");
     let body = br#"{"name":"foo"}"#;
 
+    storage.write_cached_packument(&name, body, &validators(Some(r#""abc""#), None)).await.unwrap();
+
+    match storage.read_cached_packument_entry(&name, Duration::from_secs(60)).await.unwrap() {
+        Some(CachedPackument::Fresh(bytes)) => assert_eq!(bytes, body),
+        other => panic!("expected a fresh entry, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn stale_entry_returns_its_validators() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("foo");
+
     storage
         .write_cached_packument(
             &name,
-            body,
+            b"{}",
             &validators(Some(r#""abc""#), Some("Wed, 21 Oct 2015 07:28:00 GMT")),
         )
         .await
         .unwrap();
 
-    let entry = storage
-        .read_cached_packument_entry(&name, Duration::from_secs(60))
-        .await
-        .unwrap()
-        .expect("entry present");
-    assert_eq!(entry.bytes, body);
-    assert!(entry.fresh, "a just-written entry is within ttl");
-    assert_eq!(entry.validators.etag.as_deref(), Some(r#""abc""#));
-    assert_eq!(entry.validators.last_modified.as_deref(), Some("Wed, 21 Oct 2015 07:28:00 GMT"));
+    let validators = read_stale_validators(&storage, &name).await;
+    assert_eq!(validators.etag.as_deref(), Some(r#""abc""#));
+    assert_eq!(validators.last_modified.as_deref(), Some("Wed, 21 Oct 2015 07:28:00 GMT"));
 }
 
 #[tokio::test]
@@ -71,9 +89,7 @@ async fn empty_validators_remove_a_previously_written_sidecar() {
     storage.write_cached_packument(&name, b"{}", &CacheValidators::default()).await.unwrap();
     assert!(!sidecar_path(&tmp, "foo").exists(), "empty validators remove the sidecar");
 
-    let entry =
-        storage.read_cached_packument_entry(&name, Duration::from_secs(60)).await.unwrap().unwrap();
-    assert!(entry.validators.is_empty());
+    assert!(read_stale_validators(&storage, &name).await.is_empty());
 }
 
 #[tokio::test]
@@ -87,9 +103,7 @@ async fn writing_without_validators_is_a_noop_when_no_sidecar_exists() {
     storage.write_cached_packument(&name, b"{}", &CacheValidators::default()).await.unwrap();
     assert!(!sidecar_path(&tmp, "foo").exists());
 
-    let entry =
-        storage.read_cached_packument_entry(&name, Duration::from_secs(60)).await.unwrap().unwrap();
-    assert!(entry.validators.is_empty());
+    assert!(read_stale_validators(&storage, &name).await.is_empty());
 }
 
 #[tokio::test]
@@ -103,29 +117,7 @@ async fn malformed_sidecar_reads_as_empty_validators() {
     // unconditional refresh) rather than failing the read.
     fs::write(sidecar_path(&tmp, "foo"), b"not json").await.unwrap();
 
-    let entry =
-        storage.read_cached_packument_entry(&name, Duration::from_secs(60)).await.unwrap().unwrap();
-    assert!(entry.validators.is_empty());
-}
-
-#[tokio::test]
-async fn entry_past_ttl_is_stale_but_keeps_bytes_and_validators() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let name = pkg("foo");
-    storage.write_cached_packument(&name, b"{}", &validators(Some(r#""v1""#), None)).await.unwrap();
-
-    tokio::time::sleep(Duration::from_millis(20)).await;
-    let entry = storage
-        .read_cached_packument_entry(&name, Duration::from_millis(1))
-        .await
-        .unwrap()
-        .unwrap();
-    assert!(!entry.fresh, "an entry older than ttl is stale");
-    // A stale entry still surfaces its bytes + validators so the caller
-    // can revalidate conditionally and fall back to the stale body.
-    assert_eq!(entry.bytes, b"{}");
-    assert_eq!(entry.validators.etag.as_deref(), Some(r#""v1""#));
+    assert!(read_stale_validators(&storage, &name).await.is_empty());
 }
 
 #[tokio::test]
