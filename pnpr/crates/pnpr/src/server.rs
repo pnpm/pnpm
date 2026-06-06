@@ -1659,7 +1659,12 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
                     record_cache_status("stale");
                     PackumentLoad::Ok(bytes)
                 }
-                _ => PackumentLoad::Err(err),
+                // No cache to fall back on: surface the upstream failure.
+                Ok(None) => PackumentLoad::Err(err),
+                // The cache itself is unreadable: surface that I/O error
+                // rather than the upstream one — it's the more actionable
+                // failure when both go wrong.
+                Err(cache_err) => PackumentLoad::Err(cache_err),
             }
         }
     }
