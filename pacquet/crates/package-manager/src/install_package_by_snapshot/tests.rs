@@ -295,3 +295,260 @@ fn synthesize_runtime_manifest_preserves_scoped_name() {
     assert_eq!(parsed["name"], "@foo/bar");
     assert_eq!(parsed["version"], "1.2.3");
 }
+
+/// A dummy but parseable sha512 integrity for the registry-resolution
+/// fixtures below. The download never runs in these tests (the mem
+/// cache short-circuits, or `offline` blocks), so the exact digest is
+/// irrelevant — it only has to satisfy [`ssri::Integrity`]'s parser.
+const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+
+fn registry_metadata() -> pacquet_lockfile::PackageMetadata {
+    pacquet_lockfile::PackageMetadata {
+        resolution: LockfileResolution::Registry(pacquet_lockfile::RegistryResolution {
+            integrity: DUMMY_SHA512.parse().expect("parse integrity"),
+        }),
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+}
+
+fn leaked_offline_config(
+    registry: &str,
+    store_dir: &std::path::Path,
+) -> &'static pacquet_config::Config {
+    let mut config = pacquet_config::Config::new();
+    config.registry = registry.to_string();
+    config.store_dir = store_dir.to_path_buf().into();
+    // Force the no-mem-cache download path to fail fast instead of
+    // reaching out to the network, so a regression that bypasses the
+    // mem cache surfaces deterministically as `NoOfflineTarball`.
+    config.offline = true;
+    config.leak()
+}
+
+/// On the fresh-resolve path the resolve-time prefetcher may already
+/// have a package's tarball download finished (or in flight) in the
+/// shared mem cache by the time the cold batch reaches it. The cold
+/// batch must reuse that download via the mem cache rather than racing
+/// a second fetch of the same bytes (<https://github.com/pnpm/pnpm/issues/12241>).
+///
+/// Seed the mem cache with a finished download keyed by the exact URL
+/// the registry resolution derives, then run the cold-batch installer
+/// with `tarball_mem_cache: Some(..)`. It must return the seeded CAS
+/// map without touching the network — proven here by `offline: true`,
+/// which makes any fall-through to the download path error out.
+#[tokio::test]
+async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
+    use pacquet_tarball::{CacheValue, MemCache};
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::{Arc, atomic::AtomicU8},
+    };
+
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+
+    let package_key: PackageKey = "foo@1.0.0".parse().expect("parse key");
+    // Mirror `tarball_url_and_integrity`'s registry-URL derivation so
+    // the seeded mem-cache key matches what the installer looks up.
+    let tarball_url = "https://registry.test/foo/-/foo-1.0.0.tgz".to_string();
+
+    let seeded: HashMap<String, PathBuf> =
+        HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
+    let mem_cache = Arc::new(MemCache::default());
+    mem_cache.insert(
+        tarball_url,
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
+    );
+
+    let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
+    let allow_build_policy =
+        crate::AllowBuildPolicy::new(Default::default(), Default::default(), false);
+    let skipped = crate::SkippedSnapshots::new();
+    let logged_methods = AtomicU8::new(0);
+    let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
+    let metadata = registry_metadata();
+    let snapshot = pacquet_lockfile::SnapshotEntry::default();
+
+    let cas_paths = super::InstallPackageBySnapshot {
+        http_client: &Default::default(),
+        config,
+        layout: &layout,
+        store_index: None,
+        store_index_writer: None,
+        prefetched_cas_paths: None,
+        progress_reported: None,
+        tarball_mem_cache: Some(&mem_cache),
+        verified_files_cache: &verified_files_cache,
+        logged_methods: &logged_methods,
+        requester: "/project",
+        package_key: &package_key,
+        metadata: &metadata,
+        snapshot: &snapshot,
+        allow_build_policy: &allow_build_policy,
+        skipped: &skipped,
+        workspace_root: store_tmp.path(),
+        // Hoisted skips slot materialization, so the test exercises
+        // only the download-coordination branch and gets the CAS map
+        // back directly.
+        node_linker: pacquet_config::NodeLinker::Hoisted,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .expect("cold batch must reuse the prefetched download instead of fetching");
+
+    assert_eq!(cas_paths, seeded);
+
+    drop(store_tmp);
+}
+
+/// `tarball_mem_cache: None` is the no-prefetcher case (e.g. a plain
+/// `--frozen-lockfile` install without pnpr). That path must go straight
+/// to the download (here blocked by `offline: true`), never consulting a
+/// mem cache — the contrast that proves the coordination above is gated
+/// on `Some(..)`, not unconditional. A populated cache is supplied and
+/// must be ignored.
+#[tokio::test]
+async fn without_mem_cache_skips_coordination_and_downloads() {
+    use crate::InstallPackageBySnapshotError;
+    use pacquet_tarball::{CacheValue, MemCache, TarballError};
+    use std::{
+        collections::HashMap,
+        path::PathBuf,
+        sync::{Arc, atomic::AtomicU8},
+    };
+
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+
+    let package_key: PackageKey = "foo@1.0.0".parse().expect("parse key");
+
+    // A populated mem cache that the `None` path must ignore.
+    let seeded: HashMap<String, PathBuf> =
+        HashMap::from([("package.json".to_string(), store_tmp.path().join("blob"))]);
+    let mem_cache = Arc::new(MemCache::default());
+    mem_cache.insert(
+        "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
+    );
+
+    let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
+    let allow_build_policy =
+        crate::AllowBuildPolicy::new(Default::default(), Default::default(), false);
+    let skipped = crate::SkippedSnapshots::new();
+    let logged_methods = AtomicU8::new(0);
+    let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
+    let metadata = registry_metadata();
+    let snapshot = pacquet_lockfile::SnapshotEntry::default();
+
+    let err = super::InstallPackageBySnapshot {
+        http_client: &Default::default(),
+        config,
+        layout: &layout,
+        store_index: None,
+        store_index_writer: None,
+        prefetched_cas_paths: None,
+        progress_reported: None,
+        tarball_mem_cache: None,
+        verified_files_cache: &verified_files_cache,
+        logged_methods: &logged_methods,
+        requester: "/project",
+        package_key: &package_key,
+        metadata: &metadata,
+        snapshot: &snapshot,
+        allow_build_policy: &allow_build_policy,
+        skipped: &skipped,
+        workspace_root: store_tmp.path(),
+        node_linker: pacquet_config::NodeLinker::Hoisted,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .expect_err("None path must skip the mem cache and hit the offline-gated download");
+
+    assert!(
+        matches!(
+            err,
+            InstallPackageBySnapshotError::DownloadTarball(TarballError::NoOfflineTarball { .. }),
+        ),
+        "expected the offline download gate, got {err:?}",
+    );
+
+    drop(store_tmp);
+}
+
+/// The resolve-time prefetch is best-effort: if it failed (its mem-cache
+/// slot is [`CacheValue::Failed`]), the cold batch must not inherit the
+/// failure — it falls back to its own retried download. Proven here by
+/// seeding a `Failed` slot under `offline: true`: the only way to reach
+/// the offline gate (`NoOfflineTarball`) instead of surfacing
+/// `SiblingFetchFailed` is for the fallback to `run_without_mem_cache` to
+/// have run.
+#[tokio::test]
+async fn cold_batch_falls_back_when_prefetch_failed() {
+    use crate::InstallPackageBySnapshotError;
+    use pacquet_tarball::{CacheValue, MemCache, TarballError};
+    use std::sync::{Arc, atomic::AtomicU8};
+
+    let store_tmp = tempfile::tempdir().expect("tempdir");
+    let config = leaked_offline_config("https://registry.test", store_tmp.path());
+
+    let package_key: PackageKey = "foo@1.0.0".parse().expect("parse key");
+
+    let mem_cache = Arc::new(MemCache::default());
+    mem_cache.insert(
+        "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Failed)),
+    );
+
+    let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
+    let allow_build_policy =
+        crate::AllowBuildPolicy::new(Default::default(), Default::default(), false);
+    let skipped = crate::SkippedSnapshots::new();
+    let logged_methods = AtomicU8::new(0);
+    let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
+    let metadata = registry_metadata();
+    let snapshot = pacquet_lockfile::SnapshotEntry::default();
+
+    let err = super::InstallPackageBySnapshot {
+        http_client: &Default::default(),
+        config,
+        layout: &layout,
+        store_index: None,
+        store_index_writer: None,
+        prefetched_cas_paths: None,
+        progress_reported: None,
+        tarball_mem_cache: Some(&mem_cache),
+        verified_files_cache: &verified_files_cache,
+        logged_methods: &logged_methods,
+        requester: "/project",
+        package_key: &package_key,
+        metadata: &metadata,
+        snapshot: &snapshot,
+        allow_build_policy: &allow_build_policy,
+        skipped: &skipped,
+        workspace_root: store_tmp.path(),
+        node_linker: pacquet_config::NodeLinker::Hoisted,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .expect_err("a failed prefetch must fall back to a real download, here offline-gated");
+
+    assert!(
+        matches!(
+            err,
+            InstallPackageBySnapshotError::DownloadTarball(TarballError::NoOfflineTarball { .. }),
+        ),
+        "fallback must reach the offline download gate, not inherit SiblingFetchFailed; got {err:?}",
+    );
+
+    drop(store_tmp);
+}

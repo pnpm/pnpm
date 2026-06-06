@@ -1260,6 +1260,12 @@ async fn load_cached_cas_paths(
 /// This subroutine downloads and extracts a tarball to the store directory.
 ///
 /// It returns a CAS map of files in the tarball.
+///
+/// `Clone` is cheap — every field is a reference, a `Copy` scalar, or an
+/// `Arc` — so a caller can keep a copy to retry through a different entry
+/// point (e.g. fall back to [`Self::run_without_mem_cache`] after a
+/// best-effort [`Self::run_with_mem_cache`] reports a sibling failure).
+#[derive(Clone)]
 #[must_use]
 pub struct DownloadTarballToStore<'a> {
     pub http_client: &'a ThrottledClient,
