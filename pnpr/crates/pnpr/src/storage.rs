@@ -592,3 +592,6 @@ pub(crate) fn unique_tmp_path(base: &Path) -> PathBuf {
         None => PathBuf::from(name),
     }
 }
+
+#[cfg(test)]
+mod tests;

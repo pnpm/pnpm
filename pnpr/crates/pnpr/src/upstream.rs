@@ -111,24 +111,33 @@ impl Upstream {
         let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
         let client = self.client.acquire_for_url(&url).await;
         let mut request = client.get(&url).headers(self.headers.clone());
+        let mut sent_conditional = false;
         if let Some(etag) = &validators.etag
             && let Ok(value) = HeaderValue::from_str(etag)
         {
             request = request.header(header::IF_NONE_MATCH, value);
+            sent_conditional = true;
         }
         if let Some(last_modified) = &validators.last_modified
             && let Ok(value) = HeaderValue::from_str(last_modified)
         {
             request = request.header(header::IF_MODIFIED_SINCE, value);
+            sent_conditional = true;
         }
         let response = request
             .send()
             .await
             .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
-        match response.status() {
-            StatusCode::NOT_FOUND => return Ok(PackumentFetch::NotFound),
-            StatusCode::NOT_MODIFIED => return Ok(PackumentFetch::NotModified),
-            _ => {}
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(PackumentFetch::NotFound);
+        }
+        // Only honor a `304` if we actually sent a conditional header. A
+        // `304` to an unconditional request is a misbehaving upstream and
+        // carries no body to serve, so let it fall through to
+        // `check_status` and surface as an upstream status error rather
+        // than reusing a (possibly nonexistent) cached copy.
+        if sent_conditional && response.status() == StatusCode::NOT_MODIFIED {
+            return Ok(PackumentFetch::NotModified);
         }
         let response = check_status(response, &url).await?;
         let validators = CacheValidators::from_headers(response.headers());

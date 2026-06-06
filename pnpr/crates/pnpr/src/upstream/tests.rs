@@ -137,6 +137,30 @@ async fn fetch_packument_replays_validators_and_handles_304() {
 }
 
 #[tokio::test]
+async fn fetch_packument_304_without_validators_is_an_error() {
+    let mut server = mockito::Server::new_async().await;
+    // No conditional header is sent (empty validators), so a `304` here is
+    // a misbehaving upstream — there's no body and nothing to revalidate
+    // against. It must surface as an error, not a `NotModified` that the
+    // caller could mistake for "keep serving the cache".
+    let mock = server
+        .mock("GET", "/foo")
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .match_header("if-modified-since", mockito::Matcher::Missing)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let name = PackageName::parse("foo").unwrap();
+    let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
+
+    assert!(result.is_err(), "an unconditional 304 must not be treated as NotModified");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn fetch_packument_maps_404_to_not_found() {
     let mut server = mockito::Server::new_async().await;
     let mock = server.mock("GET", "/foo").with_status(404).expect(1).create_async().await;

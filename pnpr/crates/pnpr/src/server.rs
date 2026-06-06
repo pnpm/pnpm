@@ -1603,12 +1603,16 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
             None
         }
     };
-    if let Some(entry) = &cached
-        && entry.fresh
-    {
-        record_cache_status("hit");
-        return PackumentLoad::Ok(entry.bytes.clone());
-    }
+    // Move the bytes out on a fresh hit instead of cloning — a packument
+    // can be multiple MB. `cached` is rebound to whatever's left (the
+    // stale entry, or `None`) for the revalidation path below.
+    let cached = match cached {
+        Some(entry) if entry.fresh => {
+            record_cache_status("hit");
+            return PackumentLoad::Ok(entry.bytes);
+        }
+        other => other,
+    };
 
     // Revalidate conditionally when we hold a stale copy: the upstream
     // can answer `304` and save us re-downloading an unchanged packument.
