@@ -146,6 +146,18 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) specific
 -   `test`: adding missing tests
 -   `chore`: changes to build process or auxiliary tools
 
+### Install the git hooks before committing
+
+The git hooks in `.husky/` (including the `commit-msg` check described below) only run once husky has wired them into git. A fresh clone does **not** have them active until installed. **Before making any commit, ensure the hooks are installed** by running one of:
+
+```bash
+pnpm install      # runs the "prepare": "husky" script as part of install
+# or, if dependencies are already installed, register the hooks on their own:
+pnpm exec husky
+```
+
+You can confirm the hooks are active with `git config core.hooksPath` (it should point at husky's directory) and by checking that `.husky/_/` exists. Do not commit with hooks uninstalled — that silently skips every check, including the bare `#NNN` rejection below.
+
 ### Never use bare `#NNN` issue/PR references
 
 **Do not write a bare `#NNN` (a `#` followed by digits) anywhere in a commit message.** A `commit-msg` hook (`.husky/reject-bare-issue-refs.mjs`) rejects them.
