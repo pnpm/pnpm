@@ -134,7 +134,7 @@ rmp-serde = { version = "1.3.0" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", features = ["preserve_order"] }
-serde-saphyr = { version = "0.0.26" }
+serde-saphyr = { version = "0.0.27" }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2               = { version = "0.10.9" }
 smart-default      = { version = "0.7.1" }
