@@ -1291,11 +1291,17 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             workspace_root: lockfile_dir,
             node_linker,
             progress_reported: &progress_reported,
-            // The fresh path's downloads already resolve through the
-            // resolve-time prefetcher into the store; the cold batch
-            // dedups against on-disk state, so no shared in-flight cache
-            // is threaded here.
-            tarball_mem_cache: None,
+            // Share the resolve-time prefetcher's in-flight downloads with
+            // the cold batch. The `PrefetchingResolver` streams each
+            // tarball into `tarball_mem_cache` keyed by URL; the cold
+            // batch's only on-disk dedup is the store-index row, which the
+            // prefetcher's writer commits asynchronously. Without the
+            // shared cache a snapshot whose prefetch hasn't committed its
+            // row yet is classified cold and re-downloaded — the race in
+            // <https://github.com/pnpm/pnpm/issues/12241>. Routing the cold
+            // batch through the mem cache makes it reuse the in-flight
+            // download instead.
+            tarball_mem_cache: Some(&tarball_mem_cache),
         }
         .run::<Reporter>()
         .await

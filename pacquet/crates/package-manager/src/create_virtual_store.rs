@@ -164,9 +164,12 @@ pub struct CreateVirtualStore<'a> {
     /// being double-counted.
     pub progress_reported: &'a SharedReportedProgressKeys,
     /// Install-scoped shared in-flight tarball cache, threaded into each
-    /// per-snapshot [`InstallPackageBySnapshot`]. `Some` on the pnpr
-    /// client path so the cold-batch download reuses the prefetcher's
-    /// background downloads instead of re-fetching; `None` otherwise.
+    /// per-snapshot [`InstallPackageBySnapshot`] so the cold-batch
+    /// download reuses a background prefetcher's in-flight download
+    /// instead of re-fetching. `Some` whenever a prefetcher is active —
+    /// the pnpr client's [`crate::TarballPrefetcher`] (frozen path) or
+    /// the fresh-resolve path's [`crate::PrefetchingResolver`] (closing
+    /// <https://github.com/pnpm/pnpm/issues/12241>); `None` otherwise.
     pub tarball_mem_cache: Option<&'a std::sync::Arc<MemCache>>,
 }
 

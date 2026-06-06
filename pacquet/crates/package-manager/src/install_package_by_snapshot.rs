@@ -53,12 +53,14 @@ pub struct InstallPackageBySnapshot<'a> {
     /// registry/tarball download routes through
     /// [`DownloadTarballToStore::run_with_mem_cache`] so it parks on (or
     /// reuses) a download already in flight or completed for the same
-    /// URL — most importantly the background downloads fired by the pnpr
-    /// client's [`crate::TarballPrefetcher`], which otherwise this pass
-    /// would redundantly re-download. `None` keeps the standalone
-    /// `run_without_mem_cache` path (no in-flight cache to share, e.g.
-    /// the fresh-lockfile materialization whose downloads already
-    /// happened during resolution).
+    /// URL, rather than racing a second fetch of the same bytes. Both
+    /// background prefetchers feed it: the pnpr client's
+    /// [`crate::TarballPrefetcher`] (frozen materialization) and the
+    /// fresh-resolve path's [`crate::PrefetchingResolver`] (cold batch,
+    /// closing the race in
+    /// <https://github.com/pnpm/pnpm/issues/12241>). `None` keeps the
+    /// standalone `run_without_mem_cache` path for installs with no
+    /// prefetcher (e.g. a plain `--frozen-lockfile` without pnpr).
     pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
     /// Install-scoped package-status progress dedupe. Shared with the
     /// resolve-time prefetcher on the fresh path so the cold fallback
@@ -295,17 +297,45 @@ impl<'a> InstallPackageBySnapshot<'a> {
                     progress_reported: progress_reported.cloned(),
                 };
                 // Reuse an in-flight or completed background download
-                // (e.g. the pnpr client's prefetcher) through the shared
-                // mem cache when one is provided; otherwise fetch
-                // standalone. The owned `HashMap` is cloned out of the
-                // shared `Arc` so the rest of this pass keeps its
-                // by-value contract.
+                // through the shared mem cache when one is provided;
+                // otherwise fetch standalone. The owned `HashMap` is
+                // cloned out of the shared `Arc` so the rest of this pass
+                // keeps its by-value contract.
+                //
+                // Restricted to registry resolutions: those are the only
+                // ones the background prefetchers populate under a key
+                // this pass also writes — the pnpr `TarballPrefetcher` and
+                // the resolve-time `PrefetchingResolver` both key by
+                // `name@version`, matching the materialization store-index
+                // row. A remote tarball, by contrast, resolves with no
+                // `name_ver`, so the prefetcher skips it; its only
+                // mem-cache entry comes from the resolver's
+                // download-to-resolve, keyed by `name@version`, whereas the
+                // lockfile (and this pass) address it by `name@<url>`.
+                // Reusing that entry would skip writing the `name@<url>`
+                // store-index row a later re-resolve needs to reuse the
+                // warm store, so remote tarballs must take the standalone
+                // path. See <https://github.com/pnpm/pnpm/issues/12241>.
                 let raw_cas_paths = match tarball_mem_cache {
-                    Some(mem_cache) => download
-                        .run_with_mem_cache::<Reporter>(mem_cache)
-                        .await
-                        .map(|cas_paths| (*cas_paths).clone()),
-                    None => download.run_without_mem_cache::<Reporter>().await,
+                    Some(mem_cache)
+                        if matches!(metadata.resolution, LockfileResolution::Registry(_)) =>
+                    {
+                        // `clone()` is cheap (refs + `Arc`s) and lets us
+                        // retry through `run_without_mem_cache` below if
+                        // the shared download failed.
+                        match download.clone().run_with_mem_cache::<Reporter>(mem_cache).await {
+                            Ok(cas_paths) => Ok((*cas_paths).clone()),
+                            // The prefetch is best-effort: if the sibling
+                            // download for this URL failed (transient
+                            // network, etc.), do our own retried fetch
+                            // rather than inheriting the failure.
+                            Err(TarballError::SiblingFetchFailed { .. }) => {
+                                download.run_without_mem_cache::<Reporter>().await
+                            }
+                            Err(err) => Err(err),
+                        }
+                    }
+                    _ => download.run_without_mem_cache::<Reporter>().await,
                 }
                 .map_err(InstallPackageBySnapshotError::DownloadTarball)?;
 
