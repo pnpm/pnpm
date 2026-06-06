@@ -1,1 +1,2 @@
+node .husky/reject-bare-issue-refs.mjs "$1"
 pnpm commitlint --edit --config=commitlint.config.cjs
