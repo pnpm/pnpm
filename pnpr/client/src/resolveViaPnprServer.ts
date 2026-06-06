@@ -64,20 +64,28 @@ export interface ResolveViaPnprServerResult {
   stats: ResponseMetadata['stats']
 }
 
-interface ResolveResponse {
-  lockfile: LockfileFile
-  stats: ResponseMetadata['stats']
-  violations?: Array<{ name: string, version: string, code: string, reason: string }>
-}
+interface Violation { name: string, version: string, code: string, reason: string }
+
+/**
+ * One NDJSON frame from `POST /v1/resolve`. `package` frames stream as
+ * the server resolves; exactly one terminal frame (`done` / `error` /
+ * `violations`) closes the response.
+ */
+type ResolveFrame =
+  | { type: 'package', id: string, name: string, version: string, integrity: string, tarball: string }
+  | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'] }
+  | { type: 'error', message: string }
+  | { type: 'violations', violations: Violation[] }
 
 /**
  * Resolve a project against a pnpr server and return the resolved
  * lockfile.
  *
- * `POST /v1/resolve` answers with one gzipped JSON object carrying the
- * server-resolved, server-verified lockfile (and stats). pnpr serves no
- * file content — the caller fetches every tarball itself, in parallel,
- * like a normal install
+ * `POST /v1/resolve` answers with an `application/x-ndjson` stream: one
+ * `package` frame per resolved tarball as the server's tree walk yields
+ * it, then exactly one terminal frame — `done` (full lockfile + stats),
+ * `error`, or `violations`. pnpr serves no file content — the caller
+ * fetches every tarball itself, in parallel, like a normal install
  * ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
  */
 export async function resolveViaPnprServer (
@@ -107,10 +115,14 @@ export async function resolveViaPnprServer (
   })
 
   const body = await postResolve(opts.registryUrl, requestBody, opts.authorization)
-  const response = JSON.parse(body.toString('utf-8')) as ResolveResponse
 
-  if (response.violations != null && response.violations.length > 0) {
-    const rendered = response.violations
+  const terminal = parseTerminalFrame(body.toString('utf-8'))
+
+  if (terminal.type === 'error') {
+    throw new Error(terminal.message)
+  }
+  if (terminal.type === 'violations') {
+    const rendered = terminal.violations
       .map((violation) => `  ${violation.name}@${violation.version}: ${violation.reason}`)
       .join('\n')
     throw new Error(`pnpr server rejected the lockfile under the verification policy:\n${rendered}`)
@@ -119,9 +131,26 @@ export async function resolveViaPnprServer (
   return {
     // The server speaks the on-disk lockfile format; convert it to the
     // in-memory `LockfileObject` the rest of pnpm consumes.
-    lockfile: convertToLockfileObject(response.lockfile),
-    stats: response.stats,
+    lockfile: convertToLockfileObject(terminal.lockfile),
+    stats: terminal.stats,
   }
+}
+
+/**
+ * Parse the NDJSON `/v1/resolve` body and return its single terminal
+ * frame. `package` frames are skipped — this client fetches tarballs the
+ * normal way after resolution rather than overlapping fetch with the
+ * stream. Throws if the stream carries no terminal frame.
+ */
+function parseTerminalFrame (body: string): Extract<ResolveFrame, { type: 'done' | 'error' | 'violations' }> {
+  for (const line of body.split('\n')) {
+    if (line.trim() === '') continue
+    const frame = JSON.parse(line) as ResolveFrame
+    if (frame.type !== 'package') {
+      return frame
+    }
+  }
+  throw new Error('pnpr server /v1/resolve stream ended without a terminal frame')
 }
 
 const REQUEST_TIMEOUT = 600_000 // 10 minutes — server-side resolution can be slow on first run
