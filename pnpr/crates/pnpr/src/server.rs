@@ -1581,7 +1581,9 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
         // removed after the package was mirrored).
         return match state.inner.storage.read_cached_packument(name).await {
             Ok(Some(bytes)) => {
-                record_cache_status("hit");
+                // Served regardless of age — there's no upstream left to
+                // revalidate against — so this is not a fresh `hit`.
+                record_cache_status("orphaned");
                 PackumentLoad::Ok(bytes)
             }
             Ok(None) => PackumentLoad::NotFound,
@@ -1669,13 +1671,16 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
 /// request was served against the proxy cache, surfacing as a `cache=…`
 /// field on that request's access-log record:
 ///
-/// * `hit` — served from a fresh cache entry (or, with no upstream, a
-///   leftover mirror) without contacting the upstream.
+/// * `hit` — served from a fresh cache entry (within `packument_ttl`)
+///   without contacting the upstream.
 /// * `revalidated` — entry was stale; the upstream answered `304 Not
 ///   Modified`, so the cached body was reused.
 /// * `miss` — fetched a fresh body from the upstream.
 /// * `stale` — upstream was unreachable; a stale cached body was served
 ///   as a fallback.
+/// * `orphaned` — a leftover mirror served with no upstream left to
+///   revalidate against (its `proxy:` rule was removed after the package
+///   was mirrored). Served regardless of age, so distinct from `hit`.
 /// * `hosted` — served from the authoritative hosted store (a published
 ///   or static package), bypassing the proxy cache entirely.
 ///
