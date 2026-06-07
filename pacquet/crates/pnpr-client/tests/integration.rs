@@ -233,36 +233,6 @@ async fn streams_resolved_packages_before_the_lockfile() {
     }
 }
 
-#[tokio::test]
-async fn streams_packages_when_reusing_a_frozen_lockfile() {
-    let registry = TestRegistry::start();
-    let (pnpr_url, _storage) = start_pnpr().await;
-
-    let client = PnprClient::new(pnpr_url);
-
-    let first = client
-        .resolve(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
-        .await
-        .expect("first install");
-
-    let mut opts = options(&registry.url(), deps([("@foo/no-deps", "1.0.0")]));
-    opts.lockfile = Some(first.lockfile.clone());
-    opts.frozen_lockfile = true;
-
-    let mut streamed: Vec<String> = Vec::new();
-    let second = client
-        .resolve_streaming(opts, |pkg| {
-            assert!(!pkg.integrity.is_empty(), "a package frame carries an integrity");
-            assert!(pkg.tarball.starts_with("http"), "a package frame carries a tarball URL");
-            streamed.push(pkg.id);
-        })
-        .await
-        .expect("frozen lockfile reuse should succeed");
-
-    assert!(!streamed.is_empty(), "frozen reuse should stream package frames before `done`");
-    assert_eq!(second.lockfile, first.lockfile, "frozen reuse should return the input lockfile");
-}
-
 /// Optional dependencies must reach the server in the request, not be
 /// silently dropped, so the resolved lockfile includes their edges.
 #[tokio::test]

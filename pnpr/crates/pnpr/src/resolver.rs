@@ -53,10 +53,9 @@ use axum::{
     http::{StatusCode, header},
     response::Response,
 };
-use futures_util::StreamExt as _;
 use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
-use pacquet_lockfile::{Lockfile, LockfileResolution, PackageKey, PackageMetadata};
+use pacquet_lockfile::Lockfile;
 use pacquet_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manager::build_resolution_verifiers;
@@ -239,11 +238,9 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     }
 
     // Short-circuit paths that produce the whole lockfile without an
-    // incremental tree walk. Still stream package frames first so the
-    // client can prefetch tarballs while the terminal lockfile frame is
-    // serialized and transferred.
+    // incremental tree walk: nothing to stream, so emit only `done`.
     if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
-        return ndjson_lockfile_stream_response(config, lockfile);
+        return ndjson_single_frame(&done_frame(&lockfile));
     }
     let resolution_cache_key = if request.auth_headers.is_empty() && request.lockfile.is_none() {
         resolution_cache_key(config, &request)
@@ -254,7 +251,7 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
         && let Some(lockfile) =
             cached_resolution(&runtime.resolution_cache, runtime.resolution_cache_ttl, key)
     {
-        return ndjson_lockfile_stream_response(config, lockfile);
+        return ndjson_single_frame(&done_frame(&lockfile));
     }
 
     // Streaming resolve. Run it in a detached task that pushes one
@@ -442,68 +439,6 @@ fn ndjson_single_frame(frame: &[u8]) -> Response {
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
         .body(Body::from(frame.to_vec()))
         .expect("binary response is always valid")
-}
-
-/// A 200 NDJSON response for a lockfile that is already known before
-/// the response starts. Registry package frames come first to unlock
-/// client-side tarball prefetch, then the terminal `done` frame carries
-/// the full lockfile exactly as before.
-fn ndjson_lockfile_stream_response(config: &'static PacquetConfig, lockfile: Lockfile) -> Response {
-    let package_frames = package_frames_for_lockfile(config, &lockfile);
-    let stream = futures_util::stream::iter(
-        package_frames.into_iter().map(|frame| Ok::<_, std::io::Error>(Bytes::from(frame))),
-    )
-    .chain(futures_util::stream::once(async move {
-        Ok::<_, std::io::Error>(Bytes::from(done_frame(&lockfile)))
-    }));
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
-        .body(Body::from_stream(stream))
-        .expect("streaming lockfile response is always valid")
-}
-
-fn package_frames_for_lockfile(config: &PacquetConfig, lockfile: &Lockfile) -> Vec<Vec<u8>> {
-    let Some(packages) = lockfile.packages.as_ref() else { return Vec::new() };
-
-    let mut packages: Vec<_> = packages.iter().collect();
-    packages.sort_by_key(|(key, _)| key.to_string());
-    packages
-        .into_iter()
-        .filter_map(|(package_key, metadata)| {
-            package_frame_for_lockfile_entry(config, package_key, metadata)
-        })
-        .collect()
-}
-
-fn package_frame_for_lockfile_entry(
-    config: &PacquetConfig,
-    package_key: &PackageKey,
-    metadata: &PackageMetadata,
-) -> Option<Vec<u8>> {
-    let LockfileResolution::Registry(resolution) = &metadata.resolution else {
-        return None;
-    };
-    let package_key = package_key.without_peer();
-    let name = package_key.name.to_string();
-    let version = package_key.suffix.to_string();
-    let frame = serde_json::json!({
-        "type": "package",
-        "id": package_key.to_string(),
-        "name": name,
-        "version": version,
-        "integrity": resolution.integrity.to_string(),
-        "tarball": registry_tarball_url(&config.registry, &package_key),
-    });
-    ndjson_line(&frame).ok()
-}
-
-fn registry_tarball_url(registry: &str, package_key: &PackageKey) -> String {
-    let registry = registry.strip_suffix('/').unwrap_or(registry);
-    let name = &package_key.name;
-    let version = package_key.suffix.version();
-    let bare_name = name.bare.as_str();
-    format!("{registry}/{name}/-/{bare_name}-{version}.tgz")
 }
 
 /// A 200 NDJSON response whose body drains the frame channel as the
