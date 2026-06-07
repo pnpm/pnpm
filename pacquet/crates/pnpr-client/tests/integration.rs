@@ -14,7 +14,7 @@ use std::{
     time::Duration,
 };
 
-use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions};
+use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions, VerifyLockfileOptions};
 use pacquet_testing_utils::registry::TestRegistry;
 use tempfile::TempDir;
 use tokio::net::TcpListener;
@@ -297,6 +297,55 @@ async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
     opts.minimum_release_age_ignore_missing_time = false;
 
     let Err(PnprClientError::Verification(verify_err)) = client.resolve(opts).await else {
+        panic!("expected a verification error rejecting the input lockfile");
+    };
+    assert!(
+        verify_err.to_string().contains("minimumReleaseAge"),
+        "expected a minimumReleaseAge breakdown, got: {verify_err}",
+    );
+}
+
+#[tokio::test]
+async fn verify_lockfile_endpoint_accepts_a_clean_input_lockfile() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client = PnprClient::new(pnpr_url);
+
+    let first = client
+        .resolve(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .await
+        .expect("first install");
+
+    let mut opts = options(&registry.url(), deps([("@foo/no-deps", "1.0.0")]));
+    opts.lockfile = Some(first.lockfile);
+    let verify_opts =
+        VerifyLockfileOptions::from_resolve_options(&opts).expect("lockfile is present");
+
+    client.verify_lockfile(verify_opts).await.expect("lockfile should verify");
+}
+
+#[tokio::test]
+async fn verify_lockfile_endpoint_rejects_policy_violation() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client = PnprClient::new(pnpr_url);
+
+    let first = client
+        .resolve(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .await
+        .expect("first install");
+
+    let mut opts = options(&registry.url(), deps([("@foo/no-deps", "1.0.0")]));
+    opts.lockfile = Some(first.lockfile);
+    opts.minimum_release_age = Some(60 * 24 * 365 * 100);
+    opts.minimum_release_age_ignore_missing_time = false;
+    let verify_opts =
+        VerifyLockfileOptions::from_resolve_options(&opts).expect("lockfile is present");
+
+    let Err(PnprClientError::Verification(verify_err)) = client.verify_lockfile(verify_opts).await
+    else {
         panic!("expected a verification error rejecting the input lockfile");
     };
     assert!(

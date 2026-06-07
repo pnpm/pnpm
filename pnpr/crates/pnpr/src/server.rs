@@ -161,6 +161,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // is the capability handshake (404 on a plain registry).
         .route("/-/pnpr", get(serve_pnpr_handshake))
         .route("/v1/resolve", post(serve_resolve))
+        .route("/v1/verify-lockfile", post(serve_verify_lockfile))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -182,7 +183,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // front, so the application is the only layer that can compress.
         // Scoped to JSON: tarballs (`application/octet-stream`, already
         // `.tgz`) are excluded so we never re-gzip an already-compressed
-        // payload. The `/v1/resolve` NDJSON stream
+        // payload. The pnpr resolver NDJSON streams
         // (`application/x-ndjson`) is excluded too: gzip-buffering it
         // would defeat the point of streaming — frames must flush to the
         // client as each package resolves, not wait for the encoder.
@@ -1775,4 +1776,10 @@ async fn serve_resolve(State(state): State<AppState>, body: axum::body::Bytes) -
     let runtime =
         crate::resolver::Resolver::get_or_init(&state.inner.resolver, &state.inner.config);
     crate::resolver::handle_resolve(runtime, body).await
+}
+
+async fn serve_verify_lockfile(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    let runtime =
+        crate::resolver::Resolver::get_or_init(&state.inner.resolver, &state.inner.config);
+    crate::resolver::handle_verify_lockfile(runtime, body).await
 }

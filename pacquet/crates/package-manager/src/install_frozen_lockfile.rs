@@ -34,9 +34,14 @@ use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ffi::OsStr,
+    future::Future,
     path::{Path, PathBuf},
+    pin::Pin,
     sync::{Arc, atomic::AtomicU8},
 };
+
+pub type LockfileVerificationOverride<'a> =
+    Pin<Box<dyn Future<Output = Result<(), InstallFrozenLockfileError>> + Send + 'a>>;
 
 /// This subroutine installs dependencies from a frozen lockfile.
 ///
@@ -74,6 +79,7 @@ where
     /// gate is a no-op. The non-blocking sequencing mirrors pnpm's
     /// concurrent `verifyLockfileResolutions` + `verifyLockfile` build gate.
     pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
+    pub lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
     /// Absolute path of the lockfile being verified, for the on-disk
     /// verification cache. `None` disables the cache (and is set when
     /// there are no verifiers to run).
@@ -172,6 +178,10 @@ where
 pub enum InstallFrozenLockfileError {
     #[diagnostic(transparent)]
     LockfileVerification(#[error(source)] VerifyError),
+
+    #[display("external lockfile verification failed: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::external_lockfile_verification))]
+    ExternalLockfileVerification(#[error(not(source))] String),
 
     #[diagnostic(transparent)]
     CreateVirtualStore(#[error(source)] CreateVirtualStoreError),
@@ -295,6 +305,7 @@ where
             snapshots,
             lockfile,
             resolution_verifiers,
+            lockfile_verification_override,
             lockfile_path,
             current_lockfile,
             current_snapshots,
@@ -621,6 +632,9 @@ where
         // dependency lifecycle script runs on an unverified lockfile. A
         // no-op when `resolution_verifiers` is empty (`trustLockfile`).
         let verify_fut = async {
+            if let Some(lockfile_verification_override) = lockfile_verification_override {
+                return lockfile_verification_override.await;
+            }
             if resolution_verifiers.is_empty() {
                 return Ok(());
             }

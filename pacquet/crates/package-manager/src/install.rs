@@ -1,8 +1,8 @@
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
-    InstallWithFreshLockfile, InstallWithFreshLockfileError, OptimisticRepeatInstallCheck,
-    ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
-    check_optimistic_repeat_install,
+    InstallWithFreshLockfile, InstallWithFreshLockfileError, LockfileVerificationOverride,
+    OptimisticRepeatInstallCheck, ResolvedPackages, UpdateSeedPolicy,
+    build_resolution_verifiers, check_optimistic_repeat_install,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
 };
 use derive_more::{Display, Error};
@@ -72,6 +72,15 @@ async fn verify_lockfile_eagerly<Reporter: pacquet_reporter::Reporter>(
     )
     .await
     .map_err(InstallError::LockfileVerification)
+}
+
+fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> InstallError {
+    match error {
+        InstallFrozenLockfileError::LockfileVerification(verify_error) => {
+            InstallError::LockfileVerification(verify_error)
+        }
+        other => InstallError::FrozenLockfile(other),
+    }
 }
 
 /// This subroutine does everything `pacquet install` is supposed to do.
@@ -388,6 +397,20 @@ where
 {
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
+        self.run_inner::<Reporter>(None).await
+    }
+
+    pub async fn run_with_lockfile_verification<Reporter: self::Reporter + 'static>(
+        self,
+        lockfile_verification_override: LockfileVerificationOverride<'a>,
+    ) -> Result<(), InstallError> {
+        self.run_inner::<Reporter>(Some(lockfile_verification_override)).await
+    }
+
+    async fn run_inner<Reporter: self::Reporter + 'static>(
+        self,
+        lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
+    ) -> Result<(), InstallError> {
         let Install {
             tarball_mem_cache,
             resolved_packages,
@@ -847,13 +870,17 @@ where
             let lockfile = lockfile.expect("frozen dispatch verified lockfile is present");
             // This path materializes nothing, so there's no fetch to overlap;
             // verify eagerly to keep the gate before the early return.
-            verify_lockfile_eagerly::<Reporter>(
-                lockfile,
-                &resolution_verifiers,
-                derived_lockfile_path.as_deref(),
-                &config.cache_dir,
-            )
-            .await?;
+            if let Some(lockfile_verification_override) = lockfile_verification_override {
+                lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
+            } else {
+                verify_lockfile_eagerly::<Reporter>(
+                    lockfile,
+                    &resolution_verifiers,
+                    derived_lockfile_path.as_deref(),
+                    &config.cache_dir,
+                )
+                .await?;
+            }
             if config.lockfile {
                 lockfile
                     .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
@@ -886,13 +913,17 @@ where
         {
             // Nothing to materialize means no fetch to overlap; verify
             // eagerly before the up-to-date early return.
-            verify_lockfile_eagerly::<Reporter>(
-                wanted_lockfile,
-                &resolution_verifiers,
-                derived_lockfile_path.as_deref(),
-                &config.cache_dir,
-            )
-            .await?;
+            if let Some(lockfile_verification_override) = lockfile_verification_override {
+                lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
+            } else {
+                verify_lockfile_eagerly::<Reporter>(
+                    wanted_lockfile,
+                    &resolution_verifiers,
+                    derived_lockfile_path.as_deref(),
+                    &config.cache_dir,
+                )
+                .await?;
+            }
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,
                 message: "Lockfile is up to date, resolution step is skipped".to_string(),
@@ -935,6 +966,7 @@ where
                 snapshots: snapshots.as_ref(),
                 lockfile,
                 resolution_verifiers: &resolution_verifiers,
+                lockfile_verification_override,
                 lockfile_path: derived_lockfile_path.as_deref(),
                 current_lockfile: current_lockfile.as_ref(),
                 current_snapshots: current_lockfile
@@ -958,12 +990,7 @@ where
             // `LockfileVerification` variant the eager paths use, rather
             // than nesting it under `FrozenLockfile` — the concurrent gate
             // is the same gate, just run alongside the fetch.
-            .map_err(|error| match error {
-                InstallFrozenLockfileError::LockfileVerification(verify_error) => {
-                    InstallError::LockfileVerification(verify_error)
-                }
-                other => InstallError::FrozenLockfile(other),
-            })?;
+            .map_err(map_frozen_lockfile_error)?;
 
             (
                 frozen_result.hoisted_dependencies,
@@ -978,7 +1005,9 @@ where
             // resolver re-resolves from it. No-op when there's no lockfile
             // (state 4) or verification is disabled. The fresh path's own
             // resolution is the slow part, so this stays a blocking gate.
-            if let Some(loaded_lockfile) = lockfile {
+            if let Some(lockfile_verification_override) = lockfile_verification_override {
+                lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
+            } else if let Some(loaded_lockfile) = lockfile {
                 verify_lockfile_eagerly::<Reporter>(
                     loaded_lockfile,
                     &resolution_verifiers,
