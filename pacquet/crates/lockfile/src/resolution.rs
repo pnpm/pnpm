@@ -186,7 +186,7 @@ pub struct VariationsResolution {
 /// `libc`'s tri-state encodes pnpm's `string | null | undefined` shape:
 ///
 /// - `None` — the host's libc constraint is irrelevant (macOS, Windows,
-///   BSD, …). Matches a variant whose `libc` is `None` (the default
+///   BSD, ...). Matches a variant whose `libc` is `None` (the default
 ///   build); a `libc: "musl"` variant is rejected since `musl` is a
 ///   non-default, non-interchangeable artifact.
 /// - `Some("glibc")` — Linux with glibc. Same matching rule as `None`:
@@ -271,6 +271,70 @@ impl LockfileResolution {
             | LockfileResolution::Variations(_) => None,
         }
     }
+
+    /// Convert an in-memory resolution into the form written to the lockfile.
+    ///
+    /// For a registry tarball whose URL is reconstructible from `name`,
+    /// `version`, and `registry`, the URL is dropped and only `{integrity}` is
+    /// kept — pnpm derives the tarball URL on demand. The URL is preserved when
+    /// `include_tarball_url` is set, when it is a `file:` tarball, when it is
+    /// git-hosted, or when it does not match the derived URL (e.g. private
+    /// registries with non-standard tarball paths). Non-tarball resolutions and
+    /// integrity-less tarballs pass through unchanged.
+    ///
+    /// Port of pnpm's
+    /// [`toLockfileResolution`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/utils/src/toLockfileResolution.ts).
+    pub fn to_lockfile_form(
+        &self,
+        name: &str,
+        version: &str,
+        registry: &str,
+        include_tarball_url: bool,
+    ) -> LockfileResolution {
+        let LockfileResolution::Tarball(tarball) = self else { return self.clone() };
+        let Some(integrity) = tarball.integrity.as_ref() else { return self.clone() };
+
+        let git_hosted =
+            tarball.git_hosted == Some(true) || is_git_hosted_tarball_url(&tarball.tarball);
+        let keep_url = || {
+            LockfileResolution::Tarball(TarballResolution {
+                tarball: tarball.tarball.clone(),
+                integrity: Some(integrity.clone()),
+                git_hosted: git_hosted.then_some(true),
+                path: tarball.path.clone(),
+            })
+        };
+
+        if include_tarball_url || tarball.tarball.starts_with("file:") || git_hosted {
+            return keep_url();
+        }
+        let expected = npm_tarball_url(name, version, registry);
+        let actual = tarball.tarball.replace("%2f", "/");
+        if remove_protocol(&expected) != remove_protocol(&actual) {
+            return keep_url();
+        }
+        LockfileResolution::Registry(RegistryResolution { integrity: integrity.clone() })
+    }
+}
+
+/// Derive the canonical npm registry tarball URL for `name@version`. Port of
+/// the [`get-npm-tarball-url`](https://www.npmjs.com/package/get-npm-tarball-url)
+/// package pnpm uses.
+fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
+    let registry =
+        if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
+    let scopeless = match name.strip_prefix('@') {
+        Some(scoped) => scoped.split_once('/').map_or(name, |(_, bare)| bare),
+        None => name,
+    };
+    let version = version.split_once('+').map_or(version, |(base, _)| base);
+    format!("{registry}{name}/-/{scopeless}-{version}.tgz")
+}
+
+/// Strip the URL scheme (everything up to and including `://`). Port of pnpm's
+/// `removeProtocol` (`url.split('://')[1]`).
+fn remove_protocol(url: &str) -> &str {
+    url.split_once("://").map_or(url, |(_, rest)| rest)
 }
 
 /// Intermediate helper type for serde.

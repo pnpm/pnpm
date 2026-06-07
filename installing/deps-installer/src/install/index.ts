@@ -43,9 +43,10 @@ import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
   getWantedLockfileName,
+  isEmptyLockfile,
   type LockfileObject,
   type ProjectSnapshot,
-  readWantedLockfile,
+  readWantedLockfileFile,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -173,10 +174,10 @@ export async function install (
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
 
-  // When a pnpm agent is configured, use server-side resolution
+  // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
-  if (opts.agent) {
-    return installFromPnpmRegistry(manifest, rootDir, opts)
+  if (opts.pnprServer) {
+    return installViaPnprServer(manifest, rootDir, opts)
   }
 
   const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations } = await mutateModules(
@@ -304,13 +305,13 @@ export async function mutateModules (
 
   const opts = extendOptions(maybeOpts)
 
-  // When a pnpm agent is configured, use server-side resolution. The agent
+  // When a pnpr server is configured, use server-side resolution. The pnpr server
   // path supports `install`, `installSome` (pnpm add), and `uninstallSome`
   // (pnpm remove). Mutations that need full client-side resolution (update
   // flags) still fall through to the normal flow.
-  if (opts.agent && canUseAgentForMutations(projects)) {
-    const agentResult = await mutateModulesViaAgent(projects, opts)
-    if (agentResult) return agentResult
+  if (opts.pnprServer && canUsePnprForMutations(projects)) {
+    const pnprResult = await mutateModulesViaPnpr(projects, opts)
+    if (pnprResult) return pnprResult
   }
 
   const allowBuild = createAllowBuildFunction(opts)
@@ -591,6 +592,7 @@ export async function mutateModules (
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
+      opts.updateChecksums ||
       !upToDateLockfileMajorVersion ||
       opts.forceFullResolution ||
       forceResolutionFromHook
@@ -790,6 +792,12 @@ export async function mutateModules (
 
       if (opts.catalogMode !== 'manual') {
         for (const wantedDep of wantedDeps) {
+          // A `runtime:` specifier (e.g. node from `devEngines.runtime` or
+          // `pnpm runtime set`) round-trips to `devEngines.runtime` through the
+          // manifest writer, which only recognizes the `runtime:` protocol.
+          // Promoting it into a catalog rewrites the entry to `catalog:`, which
+          // breaks that round-trip and strands it in `devDependencies`.
+          if (wantedDep.bareSpecifier?.startsWith('runtime:')) continue
           const perDepCatalogName = getPerDepCatalogName(wantedDep, opts.saveCatalogName)
           const catalogBareSpecifier = `catalog:${perDepCatalogName === 'default' ? '' : perDepCatalogName}`
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
@@ -798,8 +806,8 @@ export async function mutateModules (
           if (
             !catalogDepSpecifier ||
             wantedDep.bareSpecifier === catalogBareSpecifier ||
-            semver.validRange(wantedDep.bareSpecifier) &&
-            semver.validRange(catalogDepSpecifier) &&
+            semver.valid(wantedDep.bareSpecifier) &&
+            semver.valid(catalogDepSpecifier) &&
             semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier)
           ) {
             wantedDep.saveCatalogName = perDepCatalogName
@@ -908,7 +916,7 @@ export async function mutateModules (
         !needsFullResolution &&
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
-        ctx.existsNonEmptyWantedLockfile &&
+        !isEmptyLockfile(ctx.wantedLockfile) &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           catalogs: opts.catalogs,
@@ -938,6 +946,17 @@ Note that in CI environments, this setting is enabled by default.`,
       )
     }
     if (!opts.ignorePackageManifest) {
+      // `--frozen-lockfile` (the CI default) means "fail if pnpm-lock.yaml is
+      // out of sync." Treat its absence as a sync failure even when the
+      // synthesized snapshot from node_modules/.pnpm/lock.yaml would satisfy
+      // the manifest — the developer needs to commit the regenerated file.
+      if (frozenLockfile && !ctx.existsWantedLockfile &&
+        Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
+        throw new PnpmError('NO_LOCKFILE',
+          `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {
+            hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
+          })
+      }
       const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
@@ -971,7 +990,7 @@ Note that in CI environments, this setting is enabled by default.`,
         ignoredBuilds: undefined,
       }
     }
-    if (!ctx.existsNonEmptyWantedLockfile) {
+    if (isEmptyLockfile(ctx.wantedLockfile)) {
       if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
         throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
       }
@@ -1047,21 +1066,16 @@ Note that in CI environments, this setting is enabled by default.`,
         ignoredBuilds,
       }
     } catch (error: any) { // eslint-disable-line
+      const isIntegrityError = BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
       if (
         frozenLockfile ||
         (
           error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
-          !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
+          !isIntegrityError
         ) ||
-        (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
+        (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
+        (isIntegrityError && !opts.updateChecksums)
       ) throw error
-      if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
-        needsFullResolution = true
-        // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
-        for (const project of projects) {
-          (project as InstallMutationOptions).update = true
-        }
-      }
       // A broken lockfile may be caused by a badly resolved Git conflict
       logger.warn({
         error,
@@ -1427,6 +1441,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
       forceFullResolution,
+      updateChecksums: opts.updateChecksums,
       ignoreScripts: opts.ignoreScripts,
       hooks: {
         readPackage: opts.readPackageHook,
@@ -1860,7 +1875,7 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
  * Run the pacquet binary if it's configured, otherwise run the JS
  * `headlessInstall`. Callers can hand off any code path that materializes
  * an already-resolved lockfile (workspace partial install, hoisted
- * linker, agent-server install, frozen install) without restating the
+ * linker, pnpr server install, frozen install) without restating the
  * delegation choice.
  *
  * Pacquet reads the wanted lockfile from disk and produces its own
@@ -1877,7 +1892,7 @@ async function materializeOrDelegate (
 ): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
   if (opts.runPacquet != null) {
     // Reached only from the resolve-then-materialize call sites
-    // (workspace-partial, hoisted-linker, agent install). Each ran a
+    // (workspace-partial, hoisted-linker, pnpr server install). Each ran a
     // lockfileOnly resolve pass that emitted one
     // `pnpm:progress status:resolved` per package, so pacquet's
     // duplicate `resolved` events would double the reporter's count.
@@ -1991,19 +2006,16 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
   } catch (error: any) { // eslint-disable-line
     if (
       !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code) ||
-      (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
+      (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile) ||
+      !opts.updateChecksums
     ) throw error
     opts.needsFullResolution = true
-    // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
-    for (const project of projects) {
-      (project as InstallMutationOptions).update = true
-    }
     logger.warn({
       error,
       message: error.message,
       prefix: ctx.lockfileDir,
     })
-    logger.error(new PnpmError(error.code, 'The lockfile is broken! A full installation will be performed in an attempt to fix it.'))
+    logger.error(new PnpmError(error.code, 'Refreshing the locked integrity from the registry as requested by --update-checksums. A full installation will be performed.'))
     return _installInContext(projects, ctx, opts)
   } finally {
     await opts.storeController.close()
@@ -2066,13 +2078,13 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
 }
 
 /**
- * Whether the agent path can handle this batch of mutations. The agent flow
+ * Whether the pnpr server path can handle this batch of mutations. The pnpr server flow
  * supports installing the manifest as-is (`install`), adding new deps
  * (`installSome`), and removing deps (`uninstallSome`). It cannot model the
  * client-side update-flag behavior (`update`/`updateMatching`/`updateToLatest`)
  * yet, so those still go through the normal client-side resolver.
  */
-function canUseAgentForMutations (projects: MutatedProject[]): boolean {
+function canUsePnprForMutations (projects: MutatedProject[]): boolean {
   if (projects.length === 0) return false
   return projects.every((p) => {
     if (p.mutation === 'uninstallSome') return true
@@ -2082,52 +2094,52 @@ function canUseAgentForMutations (projects: MutatedProject[]): boolean {
   })
 }
 
-interface AgentNewDep {
+interface PnprNewDep {
   alias: string
   /**
    * Whether the user specified a spec (e.g. `pnpm add foo@^2`). If true, the
    * manifest already has the right value and we must preserve it. If false
    * we merged in `'latest'` and need to compute a save-prefix spec from the
-   * resolved version in the lockfile after the agent runs.
+   * resolved version in the lockfile after the pnpr server runs.
    */
   userSpecified: boolean
 }
 
-interface AgentInstallProject {
+interface PnprInstallProject {
   rootDir: ProjectRootDir
-  /** The (possibly pre-processed) manifest we send to the agent. */
+  /** The (possibly pre-processed) manifest we send to the pnpr server. */
   manifest: ProjectManifest
   mutation: MutatedProject['mutation']
   /** Newly added deps from an `installSome` mutation. Empty otherwise. */
-  newDeps: AgentNewDep[]
+  newDeps: PnprNewDep[]
   /** Save-prefix config for `installSome`; applied to deps whose spec defaulted to `'latest'`. */
   pinnedVersion?: PinnedVersion
 }
 
 /**
- * Pre-process projects for the agent flow:
+ * Pre-process projects for the pnpr server flow:
  * - `install`: send the manifest as-is.
  * - `uninstallSome`: drop the named deps from the manifest before sending,
- *   so the agent's resolution naturally produces a lockfile without them.
+ *   so the pnpr server's resolution naturally produces a lockfile without them.
  * - `installSome`: parse selectors and merge them into the manifest. The
- *   agent server then resolves the merged manifest, and we read the resolved
+ *   pnpr server then resolves the merged manifest, and we read the resolved
  *   specifiers (with the right save-prefix applied server-side) back from
  *   the lockfile importer entries to update the client-side manifest.
  *
  * Returns null if the projects don't map cleanly to allProjects (caller
  * should fall through to the normal flow).
  */
-async function prepareAgentProjects (
+async function preparePnprProjects (
   projects: MutatedProject[],
   opts: MutateModulesOptions
-): Promise<AgentInstallProject[] | null> {
+): Promise<PnprInstallProject[] | null> {
   const allProjects = opts.allProjects ?? []
   const mutationByRootDir = new Map<ProjectRootDir, MutatedProject>()
   for (const p of projects) {
     mutationByRootDir.set(p.rootDir, p)
   }
   // Include every workspace project, not just the mutated ones — otherwise
-  // the agent's resulting lockfile would only contain the targeted importer
+  // the pnpr server's resulting lockfile would only contain the targeted importer
   // and `headlessInstall` (or a later install) would crash on the missing
   // entries for the other workspace projects. Projects without a mutation
   // are sent with their current manifest (no-op for resolution).
@@ -2153,7 +2165,7 @@ async function prepareAgentProjects (
   }
   return Promise.all(targetSet.map(async (t) => {
     let manifest: ProjectManifest = clone(t.manifest)
-    const newDeps: AgentNewDep[] = []
+    const newDeps: PnprNewDep[] = []
     const mutation = t.mutation
     let pinnedVersion: PinnedVersion | undefined
     if (mutation?.mutation === 'uninstallSome') {
@@ -2186,7 +2198,7 @@ async function prepareAgentProjects (
  * dependency field per the mutation's `targetDependenciesField` (or the
  * existing field if the dep is already in the manifest, defaulting to
  * `dependencies`). Selectors without a version use `'latest'` so the
- * agent's resolver picks the newest matching release.
+ * pnpr server's resolver picks the newest matching release.
  */
 function mergeInstallSelectors (manifest: ProjectManifest, mutation: InstallSomeDepsMutation): ProjectManifest {
   const target = mutation.targetDependenciesField
@@ -2228,16 +2240,16 @@ function findExistingSpec (alias: string, manifest: ProjectManifest): string | u
 }
 
 /**
- * After the agent resolves, copy the lockfile importer's per-dep specifier
+ * After the pnpr server resolves, copy the lockfile importer's per-dep specifier
  * (which the server's resolver computed with the right save-prefix) back
  * into the client manifest for any newly added aliases. We rely on the
- * lockfile because the agent server applies catalog substitution,
+ * lockfile because the pnpr server applies catalog substitution,
  * normalizedBareSpecifier, and save-prefix logic during resolution.
  */
 function applyResolvedSpecsFromLockfile (
   manifest: ProjectManifest,
   importerSnapshot: ProjectSnapshot | undefined,
-  newDeps: AgentNewDep[],
+  newDeps: PnprNewDep[],
   pinnedVersion?: PinnedVersion
 ): ProjectManifest {
   if (!importerSnapshot || newDeps.length === 0) return manifest
@@ -2252,7 +2264,7 @@ function applyResolvedSpecsFromLockfile (
     for (const field of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
       const resolvedVersion = importerSnapshot[field]?.[dep.alias]
       if (!resolvedVersion || manifest[field]?.[dep.alias] == null) continue
-      // The agent server resolved the tree but, on the plain-install path, it
+      // The pnpr server resolved the tree but, on the plain-install path, it
       // writes the user's raw spec (`'latest'`) into the lockfile specifier
       // rather than normalizing to a save-prefix range. Compute the
       // save-prefix spec client-side from the resolved version.
@@ -2264,25 +2276,25 @@ function applyResolvedSpecsFromLockfile (
 }
 
 /**
- * Drives the agent path for a `mutateModules` call across one or more
- * projects. Returns null if the call can't be served by the agent (e.g. one
+ * Drives the pnpr server path for a `mutateModules` call across one or more
+ * projects. Returns null if the call can't be served by the pnpr server (e.g. one
  * of the projects isn't in `allProjects`).
  */
-async function mutateModulesViaAgent (
+async function mutateModulesViaPnpr (
   projects: MutatedProject[],
   opts: MutateModulesOptions
 ): Promise<MutateModulesResult | null> {
-  const agentProjects = await prepareAgentProjects(projects, opts)
-  if (!agentProjects) return null
+  const pnprProjects = await preparePnprProjects(projects, opts)
+  if (!pnprProjects) return null
 
-  // installFromPnpmRegistry runs the headless install for the first
+  // installViaPnprServer runs the headless install for the first
   // project's root and the workspace path for the rest. Pass the
   // pre-processed manifests so resolution sees the post-mutation state.
-  const result = await installFromPnpmRegistry(
-    agentProjects[0].manifest,
-    agentProjects[0].rootDir,
+  const result = await installViaPnprServer(
+    pnprProjects[0].manifest,
+    pnprProjects[0].rootDir,
     opts,
-    agentProjects.map((p) => ({ rootDir: p.rootDir, manifest: p.manifest }))
+    pnprProjects.map((p) => ({ rootDir: p.rootDir, manifest: p.manifest }))
   )
 
   // For installSome projects, copy resolved specs from the lockfile importer
@@ -2290,7 +2302,7 @@ async function mutateModulesViaAgent (
   // effect (the server applies these during its resolution step).
   const lockfileDir = opts.lockfileDir ?? projects[0].rootDir
   const mutatedRootDirs = new Set(projects.map((p) => p.rootDir))
-  const updatedProjects = agentProjects
+  const updatedProjects = pnprProjects
     .filter((p) => mutatedRootDirs.has(p.rootDir))
     .map((p) => {
       if (p.mutation === 'installSome' && p.newDeps.length > 0) {
@@ -2311,84 +2323,77 @@ async function mutateModulesViaAgent (
 }
 
 /**
- * When a pnpm agent is configured, resolve dependencies server-side
- * and download only the missing files. Then run a headless install to link
- * packages into node_modules.
+ * When a pnpr server is configured, resolve dependencies server-side,
+ * then run a headless install that fetches tarballs from the registries
+ * and links packages into node_modules — like a normal install.
  */
-async function installFromPnpmRegistry (
+async function installViaPnprServer (
   manifest: ProjectManifest,
   rootDir: ProjectRootDir,
   opts: Opts,
   allInstallProjects?: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>
 ): Promise<InstallResult & { stats: InstallationResultStats, lockfile: LockfileObject }> {
-  // The agent path skips client-side resolution, so resolver-side policies
+  // The pnpr server path skips client-side resolution, so resolver-side policies
   // can't be enforced locally. `minimumReleaseAge` is forwarded to the
-  // agent and enforced server-side. `trustPolicy` has no server-side
+  // pnpr server and enforced server-side. `trustPolicy` has no server-side
   // counterpart yet, so refuse to run under it instead of silently
   // letting through a lockfile the local verifier would reject.
   if (opts.trustPolicy === 'no-downgrade') {
     throw new PnpmError(
-      'TRUST_POLICY_INCOMPATIBLE_WITH_AGENT',
-      'The pnpm agent does not yet enforce `trustPolicy: no-downgrade`, so running an install through the agent under this policy would produce a lockfile that the local verifier rejects.',
-      { hint: 'Unset `trustPolicy` for this install, or disable the agent (unset `--agent` / `agent` in pnpm-workspace.yaml) so resolution runs locally and the trust check applies.' }
+      'TRUST_POLICY_INCOMPATIBLE_WITH_PNPR',
+      'The pnpr server does not yet enforce `trustPolicy: no-downgrade`, so running an install through it under this policy would produce a lockfile that the local verifier rejects.',
+      { hint: 'Unset `trustPolicy` for this install, or disable the pnpr server (unset `--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) so resolution runs locally and the trust check applies.' }
     )
   }
-  const { fetchFromPnpmRegistry } = await import('@pnpm/agent.client')
-  const { StoreIndex } = await import('@pnpm/store.index')
-  const { setImportConcurrency } = await import('@pnpm/worker')
-  // Raise import concurrency for this install only — the agent path has no
-  // concurrent fetching competing for workers. Restore afterwards so we
-  // don't leak a process-wide mutation to other installs (e.g. tests).
-  const restoreImportConcurrency = setImportConcurrency(6)
+  const { resolveViaPnprServer } = await import('@pnpm/pnpr.client')
+  const { createGetAuthHeaderByURI, getAuthHeadersFromCreds } = await import('@pnpm/network.auth-header')
+
+  // Forward the whole credential map (the registries a graph touches
+  // aren't known up front), so the server attaches the right token per
+  // URL. `authorization` also identifies the caller to pnpr's gate.
+  const configByUri = opts.configByUri ?? {}
+  const forwardedAuthHeaders = getAuthHeadersFromCreds(configByUri)
+  const pnprAuthorization = createGetAuthHeaderByURI(configByUri)(opts.pnprServer!)
 
   try {
     const lockfileDir = opts.lockfileDir ?? rootDir
 
-    // Read existing lockfile if available
-    const existingLockfile = await readWantedLockfile(lockfileDir, {
+    // Read the existing lockfile (if any) in its on-disk shape — that's
+    // what the pnpr server protocol carries, so no conversion is needed before
+    // sending it.
+    const existingLockfile = await readWantedLockfileFile(lockfileDir, {
       ignoreIncompatible: true,
     }).catch(() => null)
 
-    logger.info({ message: 'Resolving dependencies via pnpm agent', prefix: rootDir })
+    logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
 
-    // Open the store index to read integrities and write new entries.
-    // Close it in a finally so a failure in fetchFromPnpmRegistry doesn't
-    // leak an open SQLite handle (on Windows that also blocks store cleanup).
-    const storeIndex = new StoreIndex(opts.storeDir)
-    let lockfile, agentStats, fileDownloads, indexEntries
-    try {
-      // Build projects list for workspace support.
-      // Normalize separators to POSIX — on Windows `path.relative` returns
-      // backslashes, which the agent server rejects (it treats `\` as an
-      // unsafe/YAML-injection character and normalizes paths as POSIX).
-      const projectsList = allInstallProjects && allInstallProjects.length > 1
-        ? allInstallProjects.map(p => ({
-          dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
-          dependencies: p.manifest.dependencies,
-          devDependencies: p.manifest.devDependencies,
-        }))
-        : undefined
-
-      ;({ lockfile, stats: agentStats, fileDownloads, indexEntries } = await fetchFromPnpmRegistry({
-        registryUrl: opts.agent!,
-        storeDir: opts.storeDir,
-        storeIndex,
-        dependencies: projectsList ? undefined : manifest.dependencies,
-        devDependencies: projectsList ? undefined : manifest.devDependencies,
-        projects: projectsList,
-        overrides: opts.overrides,
-        minimumReleaseAge: opts.minimumReleaseAge,
-        lockfile: existingLockfile ?? undefined,
+    // Build projects list for workspace support.
+    // Normalize separators to POSIX — on Windows `path.relative` returns
+    // backslashes, which the pnpr server rejects (it treats `\` as an
+    // unsafe/YAML-injection character and normalizes paths as POSIX).
+    const projectsList = allInstallProjects && allInstallProjects.length > 1
+      ? allInstallProjects.map(p => ({
+        dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
+        dependencies: p.manifest.dependencies,
+        devDependencies: p.manifest.devDependencies,
+        optionalDependencies: p.manifest.optionalDependencies,
       }))
+      : undefined
 
-      // Write store index entries so headless install finds them.
-      const { writeRawIndexEntries } = await import('@pnpm/agent.client')
-      writeRawIndexEntries(indexEntries, storeIndex)
-
-      storeIndex.checkpoint()
-    } finally {
-      storeIndex.close()
-    }
+    const { lockfile, stats: pnprStats } = await resolveViaPnprServer({
+      registryUrl: opts.pnprServer!,
+      dependencies: projectsList ? undefined : manifest.dependencies,
+      devDependencies: projectsList ? undefined : manifest.devDependencies,
+      optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,
+      projects: projectsList,
+      registry: opts.registries?.default,
+      namedRegistries: opts.namedRegistries,
+      authHeaders: forwardedAuthHeaders,
+      authorization: pnprAuthorization,
+      overrides: opts.overrides,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      lockfile: existingLockfile ?? undefined,
+    })
 
     await writeWantedLockfileAndRecordVerified({
       lockfileDir,
@@ -2400,52 +2405,30 @@ async function installFromPnpmRegistry (
     })
 
     logger.info({
-      message: `Resolved ${agentStats.totalPackages} packages: ${agentStats.alreadyInStore} cached, ${agentStats.filesToDownload} files to download`,
+      message: `Resolved ${pnprStats.totalPackages} packages`,
       prefix: rootDir,
     })
 
-    // Wrap fetchPackage to:
-    // 1. Wait for agent file downloads before checking the store
-    // 2. Skip integrity verification — files just written from the agent
-    //    are guaranteed correct (server verified, no rehashing needed)
-    const { readPkgFromCafs } = await import('@pnpm/worker')
-    const { storeIndexKey: _storeIndexKey } = await import('@pnpm/store.index')
-    const wrappedStoreController = {
-      ...opts.storeController,
-      fetchPackage: async (fetchOpts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-        await fileDownloads
-        const resolution = fetchOpts.pkg.resolution
-        const integrity = resolution?.integrity
-        // Fall through to the regular store controller for git-hosted tarballs.
-        // Their cached entry lives under gitHostedStoreIndexKey (preserves the
-        // built/not-built dimension), not the integrity-keyed path the agent
-        // uses for npm tarballs. See @pnpm/store.pkg-finder for the rationale.
-        if (integrity && !resolution?.gitHosted) {
-          const filesIndexFile = _storeIndexKey(integrity, fetchOpts.pkg.id)
-          const result = await readPkgFromCafs(
-            { storeDir: opts.storeDir, verifyStoreIntegrity: false },
-            filesIndexFile,
-            { readManifest: true, expectedPkg: { name: fetchOpts.pkg.name, version: fetchOpts.pkg.version } }
-          )
-          return {
-            fetching: () => Promise.resolve({
-              files: result.files,
-              bundledManifest: result.bundledManifest,
-              integrity,
-            }),
-            filesIndexFile,
-          }
-        }
-        return opts.storeController.fetchPackage(fetchOpts)
-      },
+    // `--lockfile-only`: the pnpr server resolved and we wrote the lockfile, but
+    // pnpm fetches nothing and links nothing in this mode — stop before the
+    // headless install. See https://github.com/pnpm/pnpm/issues/12146.
+    if (opts.lockfileOnly) {
+      return {
+        updatedCatalogs: undefined,
+        updatedManifest: manifest,
+        ignoredBuilds: undefined,
+        stats: { added: 0, removed: 0, linkedToRoot: 0 },
+        lockfile,
+        resolutionPolicyViolations: [],
+      }
     }
 
+    // The pnpr server only resolves; it serves no file content. Fetch every
+    // tarball from the registries with the regular store controller, in
+    // parallel, exactly like a normal install. See
+    // https://github.com/pnpm/pnpm/issues/12230.
     const headlessOpts = {
       ...opts,
-      // Skip re-verifying files just written from the agent — they're
-      // guaranteed correct (server verified, no rehashing needed).
-      verifyStoreIntegrity: false,
-      storeController: wrappedStoreController,
       dir: rootDir as string,
       lockfileDir,
       engineStrict: opts.engineStrict ?? false,
@@ -2489,13 +2472,13 @@ async function installFromPnpmRegistry (
       updatedManifest: manifest,
       ignoredBuilds,
       // Pacquet doesn't surface a structured stats return; default to
-      // zeros so the agent-path's non-optional `stats` slot is filled.
+      // zeros so the pnpr server's non-optional `stats` slot is filled.
       // The reporter still renders accurate counts from pacquet's
       // `pnpm:stats` log events.
       stats: stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
       lockfile,
-      // Server-side resolution (pnpm agent) enforces `minimumReleaseAge`
-      // itself — the agent picks only mature versions and the lockfile
+      // Server-side resolution (pnpr server) enforces `minimumReleaseAge`
+      // itself — the pnpr server picks only mature versions and the lockfile
       // can't contain immature entries to auto-collect. `trustPolicy` is
       // guarded above (we refuse to enter this path when it's set), so
       // there's nothing for the install command to react to here.
@@ -2506,6 +2489,5 @@ async function installFromPnpmRegistry (
     // normal install path does the same; skipping it here would leave
     // pending writes on disk and diverge from lifecycle expectations.
     await opts.storeController.close()
-    restoreImportConcurrency()
   }
 }

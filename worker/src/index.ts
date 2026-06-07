@@ -14,7 +14,6 @@ import pLimit from 'p-limit'
 
 import type {
   AddDirToStoreMessage,
-  FetchAndWriteCafsMessage,
   HardLinkDirMessage,
   LinkPkgMessage,
   SymlinkAllModulesMessage,
@@ -139,11 +138,14 @@ export class TarballIntegrityError extends PnpmError {
       `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`,
       {
         attempts: opts.attempts,
-        hint: `This error may happen when a package is republished to the registry with the same version.
-In this case, the metadata in the local pnpm cache will contain the old integrity checksum.
+        hint: `The downloaded tarball does not match the integrity recorded in the lockfile. pnpm will not silently overwrite the locked integrity — that would defeat the lockfile's protection if a registry or proxy is serving tampered content.
 
-If you think that this is the case, then run "pnpm store prune" and rerun the command that failed.
-"pnpm store prune" will remove your local metadata cache.`,
+If you trust the new content (legitimate republish, or stale local metadata cache):
+
+  - Run "pnpm store prune" and retry, in case only the metadata cache is out of date.
+  - Run "pnpm install --update-checksums" to refresh the locked integrity from the registry.
+
+If you did not expect this package to change, treat it as a potential supply-chain issue and verify the new content before re-running with --update-checksums.`,
       }
     )
     this.found = opts.found
@@ -198,33 +200,6 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
 }
 
 
-export async function fetchAndWriteCafsFiles (opts: {
-  registryUrl: string
-  storeDir: string
-  digests: FetchAndWriteCafsMessage['digests']
-}): Promise<number> {
-  if (!workerPool) {
-    workerPool = createTarballWorkerPool()
-  }
-  const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<number>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, filesWritten }) => {
-      workerPool!.checkinWorker(localWorker)
-      if (status === 'error') {
-        reject(new PnpmError('CAFS_FETCH_WRITE', error.message))
-        return
-      }
-      resolve(filesWritten)
-    })
-    localWorker.postMessage({
-      type: 'fetch-and-write-cafs',
-      registryUrl: opts.registryUrl,
-      storeDir: opts.storeDir,
-      digests: opts.digests,
-    } satisfies FetchAndWriteCafsMessage)
-  })
-}
-
 export interface ReadPkgFromCafsContext {
   storeDir: string
   verifyStoreIntegrity: boolean
@@ -278,33 +253,7 @@ export async function readPkgFromCafs (
 // so, running them in parallel helps only to a point.
 // With local experimenting it was discovered that running 4 workers gives the best results.
 // Adding more workers actually makes installation slower.
-let limitImportingPackage = pLimit(4)
-
-/**
- * Temporarily change import concurrency. Called by the pnpm agent code path
- * where there's no concurrent fetching competing for workers. Returns a
- * disposer that restores the previous limiter — callers must invoke it (in a
- * finally block) to avoid leaking the mutation to other installs in the same
- * process (e.g. test suites).
- *
- * If two installs overlap, the disposer for the outer install would otherwise
- * clobber the inner one's still-active limiter. Each disposer captures the
- * limiter it installed and only restores when it's still the active one,
- * leaving any newer override in place.
- */
-export function setImportConcurrency (concurrency: number): () => void {
-  if (!Number.isInteger(concurrency) || concurrency < 1) {
-    throw new Error(`setImportConcurrency: expected a positive integer, got ${concurrency}`)
-  }
-  const previous = limitImportingPackage
-  const installed = pLimit(concurrency)
-  limitImportingPackage = installed
-  return () => {
-    if (limitImportingPackage === installed) {
-      limitImportingPackage = previous
-    }
-  }
-}
+const limitImportingPackage = pLimit(4)
 
 export async function importPackage (
   opts: Omit<LinkPkgMessage, 'type'>

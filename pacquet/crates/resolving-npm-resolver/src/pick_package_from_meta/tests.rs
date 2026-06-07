@@ -29,6 +29,7 @@ fn make_pkg_version(name: &str, version: &str, deprecated: Option<&str>) -> Pack
         peer_dependencies: None,
         optional_dependencies: None,
         peer_dependencies_meta: None,
+        other: Default::default(),
         npm_user: None,
         deprecated: deprecated.map(str::to_string),
     }
@@ -54,6 +55,7 @@ fn make_package(
         time: None,
         modified: None,
         etag: None,
+        homepage: None,
         mutex: Default::default(),
     }
 }

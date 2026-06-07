@@ -1,5 +1,4 @@
-use crate::State;
-use crate::cli_args::supported_architectures::SupportedArchitecturesArgs;
+use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
 use clap::Args;
 use miette::Context;
 use pacquet_package_manager::Add;
@@ -82,6 +81,21 @@ pub struct AddArgs {
     /// the default semver range operator.
     #[clap(short = 'E', long = "save-exact")]
     pub save_exact: bool,
+    /// Save the new dependency to the default catalog: `catalog:` is written
+    /// to `package.json` and the specifier to `pnpm-workspace.yaml`'s
+    /// `catalog:` block. Shorthand for `--save-catalog-name=default`.
+    #[clap(long = "save-catalog")]
+    pub save_catalog: bool,
+    /// Save the new dependency to the named catalog `<name>`: `catalog:<name>`
+    /// is written to `package.json` and the specifier to the matching entry
+    /// under `pnpm-workspace.yaml`'s `catalogs:`.
+    #[clap(long = "save-catalog-name", value_name = "name")]
+    pub save_catalog_name: Option<String>,
+    /// Dependencies are not downloaded. The package is added to the
+    /// manifest and only `pnpm-lock.yaml` is updated; no `node_modules`
+    /// is created. Mirrors pnpm's `--lockfile-only`.
+    #[clap(long = "lockfile-only")]
+    pub lockfile_only: bool,
     /// The directory with links to the store (default is node_modules/.pacquet).
     /// All direct and indirect dependencies of the project are linked into this directory
     #[clap(long = "virtual-store-dir", default_value = "node_modules/.pacquet")]
@@ -90,45 +104,83 @@ pub struct AddArgs {
 
 impl AddArgs {
     /// Execute the subcommand.
-    pub async fn run<Reporter: self::Reporter + 'static>(
-        self,
-        mut state: State,
-    ) -> miette::Result<()> {
-        // TODO: if a package already exists in another dependency group, don't remove the existing entry.
-
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &mut state;
-
+    pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         // Merge CLI overrides with the yaml-derived value before
         // handing off to the install pipeline. See
         // `cli_args::install.rs` for the parallel comment — the
         // pattern is identical (clone from `&'static Config`, merge,
         // pass merged value through).
         let supported_architectures =
-            self.supported_architectures.apply_to(config.supported_architectures.clone());
+            self.supported_architectures.apply_to(state.config.supported_architectures.clone());
 
-        let lockfile_path = manifest
-            .path()
-            .parent()
-            .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
-        Add {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
-            config,
-            manifest,
-            lockfile: lockfile.as_ref(),
-            lockfile_path: lockfile_path.as_deref(),
-            list_dependency_groups: || self.dependency_options.dependency_groups(),
-            package_name: &self.package_name,
-            save_exact: self.save_exact,
-            resolved_packages,
+        // `--save-catalog-name=<name>` wins; `--save-catalog` is the
+        // shorthand for the default catalog; otherwise fall back to the
+        // `saveCatalogName` config default (`None`). Mirrors pnpm's
+        // `save-catalog` → `--save-catalog-name=default` shorthand.
+        let save_catalog_name = self
+            .save_catalog_name
+            .clone()
+            .or_else(|| self.save_catalog.then(|| "default".to_string()))
+            .or_else(|| state.config.save_catalog_name.clone());
+
+        add_package::<Reporter, _, _>(
+            state,
+            &self.package_name,
+            self.save_exact,
+            save_catalog_name,
+            self.lockfile_only,
             supported_architectures,
-        }
-        .run::<Reporter>()
+            || self.dependency_options.dependency_groups(),
+        )
         .await
-        .wrap_err("adding a new package")
     }
+}
+
+/// Add a single package to `state`'s manifest and install it.
+///
+/// Shared by `pacquet add` and `pacquet dlx`. dlx points `state` at a
+/// cache directory (via a [`Config`](pacquet_config::Config) whose
+/// `modules_dir` is anchored there) and saves to `dependencies` so the
+/// package's bin lands in `<cacheDir>/node_modules/.bin`.
+pub(crate) async fn add_package<Reporter, ListDependencyGroups, DependencyGroupList>(
+    mut state: State,
+    package_name: &str,
+    save_exact: bool,
+    save_catalog_name: Option<String>,
+    lockfile_only: bool,
+    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
+    list_dependency_groups: ListDependencyGroups,
+) -> miette::Result<()>
+where
+    Reporter: self::Reporter + 'static,
+    ListDependencyGroups: Fn() -> DependencyGroupList,
+    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
+{
+    // TODO: if a package already exists in another dependency group, don't remove the existing entry.
+    let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
+        &mut state;
+
+    let lockfile_path =
+        manifest.path().parent().map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
+    Add {
+        tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+        http_client,
+        http_client_arc: std::sync::Arc::clone(http_client),
+        config,
+        manifest,
+        lockfile: lockfile.as_ref(),
+        lockfile_path: lockfile_path.as_deref(),
+        list_dependency_groups,
+        package_name,
+        save_exact,
+        save_catalog_name,
+        resolved_packages,
+        supported_architectures,
+        lockfile_only,
+    }
+    .run::<Reporter>()
+    .await
+    .wrap_err("adding a new package")
 }
 
 #[cfg(test)]

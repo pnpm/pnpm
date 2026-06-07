@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.controller",
-  "version": "1101.0.8",
+  "version": "1101.0.11",
   "description": "A storage for packages",
   "keywords": [
     "pnpm",

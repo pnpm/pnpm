@@ -1,5 +1,20 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/core-loggers@1100.1.3
+- @pnpm/fs.symlink-dependency@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [ad84fff]
+  - @pnpm/fs.symlink-dependency@1100.0.6
+  - @pnpm/core-loggers@1100.1.2
+
 ## 1100.0.5
 
 ### Patch Changes

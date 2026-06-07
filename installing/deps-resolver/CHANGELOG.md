@@ -1,5 +1,78 @@
 # @pnpm/resolve-dependencies
 
+## 1100.2.0
+
+### Minor Changes
+
+- 1c73e83: Peer dependency resolution now reuses the peer contexts already recorded in the lockfile when those providers are still present in the dependency graph and still satisfy the peer ranges. This avoids unnecessary peer-context rewrites during lockfile regeneration. Current manifest choices remain authoritative: a newly added, explicitly updated, or aliased direct provider, a changed nested provider, or a locked version that no longer satisfies the range still takes precedence.
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [722b9cd]
+- Updated dependencies [6d17b66]
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.5.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/fetching.pick-fetcher@1100.0.10
+  - @pnpm/config.version-policy@1100.1.3
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/deps.graph-hasher@1100.2.3
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/hooks.types@1100.0.10
+  - @pnpm/lockfile.preferred-versions@1100.0.13
+  - @pnpm/lockfile.pruner@1100.0.9
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/pkg-manifest.utils@1100.2.2
+  - @pnpm/store.controller-types@1100.1.3
+  - @pnpm/patching.config@1100.0.6
+
+## 1100.1.6
+
+### Patch Changes
+
+- 6f382f4: Preserve the `integrity` field of a remote (non-registry) tarball dependency when its lockfile entry is rebuilt. Re-resolving such a dependency without re-fetching it (for example via `pnpm update`, or when another dependency changes) produced a resolution with no integrity — URL/tarball resolvers only learn the integrity after the tarball is downloaded — so the previously recorded integrity was dropped, making later installs fail with `ERR_PNPM_MISSING_TARBALL_INTEGRITY` [#12067](https://github.com/pnpm/pnpm/issues/12067).
+- 122ab0a: Preserve compatible optional peer versions already present in the lockfile when resolving dependencies.
+- 1db05c6: Fixed inconsistent resolution of a peer dependency that is shared through a diamond. When a package peer-depends on both another package and one of that package's own peer dependencies (for example `@typescript-eslint/eslint-plugin` peer-depends on both `@typescript-eslint/parser` and `typescript`, and `@typescript-eslint/parser` peer-depends on `typescript`), pnpm no longer reuses a hoisted instance of the shared peer that was resolved against a different version [#12079](https://github.com/pnpm/pnpm/issues/12079).
+
+## 1100.1.5
+
+### Patch Changes
+
+- 39101f5: Fix pnpm hanging during peer resolution when an aliased install pulls in transitive packages with mutual peer cycles at different depths in the dependency tree (for example, `pnpm i nuxt@npm:nuxt-nightly@5x`). Cycles whose members hit the `findHit` cache instead of running their own `calculateDepPath` are now short-circuited by sibling resolutions at the level where the cycle is detected, so the cached path promises no longer deadlock. [#11999](https://github.com/pnpm/pnpm/issues/11999).
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/fetching.pick-fetcher@1100.0.9
+
+## 1100.1.4
+
+### Patch Changes
+
+- ad84fff: Reject dependency aliases that contain path-traversal segments (such as `@x/../../../../../.git/hooks`) when reading them from a package manifest or symlinking them into `node_modules`. A malicious registry package could otherwise use a transitive dependency key to make `pnpm install` create symlinks at attacker-chosen paths outside the intended `node_modules` directory.
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+- Updated dependencies [0721d64]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/lockfile.preferred-versions@1100.0.12
+  - @pnpm/config.version-policy@1100.1.2
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/lockfile.pruner@1100.0.8
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.2.1
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.controller-types@1100.1.2
+  - @pnpm/patching.config@1100.0.5
+  - @pnpm/fetching.pick-fetcher@1100.0.9
+
 ## 1100.1.3
 
 ### Patch Changes

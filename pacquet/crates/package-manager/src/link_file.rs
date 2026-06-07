@@ -268,7 +268,7 @@ fn is_cross_device(err: &io::Error) -> bool {
 ///
 /// Everything else — including the grab-bag of errno / Windows codes
 /// kernels use to signal "filesystem can't do this operation"
-/// (`EOPNOTSUPP`, `ENOTTY`, `ENOSYS`, `ERROR_INVALID_FUNCTION`, …) —
+/// (`EOPNOTSUPP`, `ENOTTY`, `ENOSYS`, `ERROR_INVALID_FUNCTION`, ...) —
 /// triggers the fallback. This is the same deny-list the `reflink-copy`
 /// crate uses in its own `reflink_or_copy` fallback logic, so it's
 /// battle-tested across the platform matrix. The allow-list flavour we

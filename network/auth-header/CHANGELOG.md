@@ -1,5 +1,33 @@
 # @pnpm/network.auth-header
 
+## 1101.1.0
+
+### Minor Changes
+
+- 5192edf: The pnpr install accelerator now forwards the caller's per-registry credentials on `POST /v1/install`, so it can resolve, verify, and fetch private dependencies from external registries as the caller. The client sends an `Authorization` header identifying itself to the pnpr server plus an `authHeaders` map of the registry tokens (built with `@pnpm/network.auth-header`), and the server threads those credentials through resolution and fetch instead of reaching the registry anonymously. Externally-resolved private content carries no pnpr access policy, so the server gates it per user against the owning registry — serving a cache hit only to a user the registry has cleared — and re-checks access (clearing it on a `401`/`403`) rather than letting the store's possession of the bytes authorize anyone. Packages the registry serves anonymously are classified public once (globally) and then served to everyone without per-user access checks, so a registry that mixes public and private packages doesn't pay the per-user cost for its public ones.
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+
+## 1101.0.0
+
+### Major Changes
+
+- a23956e: Fix a credential disclosure issue where an unscoped `_authToken` (or `_auth`, or `username` + `_password`, or `tokenHelper`) defined in one source — `~/.npmrc`, `~/.config/pnpm/auth.ini`, a workspace `.npmrc`, CLI flags, etc. — would be sent as an `Authorization` header to whichever registry a different (potentially untrusted) source named. The same fix extends to client TLS credentials (`cert`, `key`) so they aren't presented to a registry their author didn't choose.
+
+  pnpm now rewrites each unscoped per-registry setting (`_authToken`, `_auth`, `username`, `_password`, `tokenHelper`, `cert`, `key`) to its URL-scoped form at load time, using the `registry=` value declared in the same source (or the npmjs default registry if the source declares none). A later layer overriding `registry=` therefore cannot pull an unscoped credential along, because it is already pinned to the URL its author intended. `ca`/`cafile` are intentionally not rescoped — they're trust anchors, not credentials, and corporate MITM-proxy setups rely on them applying globally.
+
+  Every rescope emits a deprecation warning telling the user where the setting was pinned and how to write it directly. npm has rejected unscoped credentials outright since `npm@9`, and pnpm intends to remove support in a future major release. To target a specific registry, write the setting URL-scoped (e.g. `//registry.example.com/:_authToken=...` or `//registry.example.com/:cert=...`).
+
+  `@pnpm/network.auth-header`: removed the `defaultRegistry` parameter from `createGetAuthHeaderByURI` and `getAuthHeadersFromCreds`. Now that credentials are URL-scoped at load time, the merged `configByUri` never contains the empty-string "default registry" placeholder slot, so re-keying it onto the merged default registry is no longer needed.
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+
 ## 1100.0.3
 
 ### Patch Changes

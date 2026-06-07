@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/repeat-peers.a",
+  "version": "2.0.0",
+  "dependencies": {
+    "@pnpm.e2e/repeat-peers.b": "1.0.0"
+  }
+}

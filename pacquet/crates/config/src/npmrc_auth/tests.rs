@@ -152,7 +152,7 @@ fn env_replace_substitutes_token() {
 fn env_replace_failure_warns_and_drops_unresolved_to_empty() {
     // Mirrors pnpm's `substituteEnv` lossy fallback: unresolved `${VAR}` becomes
     // "" so a downstream `Authorization: Bearer ...` header is never sent with a
-    // literal placeholder. See https://github.com/pnpm/pnpm/issues/11513.
+    // literal placeholder. See <https://github.com/pnpm/pnpm/issues/11513>.
     let ini = "//reg.com/:_authToken=${MISSING}\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(
@@ -544,7 +544,7 @@ fn parses_cafile_path_from_ini() {
     assert_eq!(auth.cafile.as_deref(), Some("/etc/pacquet/ca.pem"));
 }
 
-// Regression for https://github.com/pnpm/pnpm/issues/11624.
+// Regression for <https://github.com/pnpm/pnpm/issues/11624>.
 #[test]
 fn cafile_relative_path_resolves_against_npmrc_dir() {
     let npmrc_dir = tempfile::tempdir().expect("tempdir");
@@ -572,7 +572,7 @@ fn cafile_empty_value_passes_through_unchanged() {
     assert_eq!(auth.cafile.as_deref(), Some(""));
 }
 
-// End-to-end regression for https://github.com/pnpm/pnpm/issues/11624.
+// End-to-end regression for <https://github.com/pnpm/pnpm/issues/11624>.
 #[test]
 fn cafile_relative_path_loads_ca_from_disk_via_apply() {
     use std::io::Write;
@@ -643,8 +643,13 @@ fn applies_inline_ca_to_config() {
     assert!(first.contains("BEGIN CERTIFICATE"), "inline CA missing header: {first:?}");
 }
 
+/// `strict-ssl` stays a top-level toggle, but unscoped `cert`/`key`
+/// are rescoped to the source's registry (the npmjs default here, since
+/// no `registry=` is set) — matching pnpm's `rescopeUnscopedCreds`,
+/// which pins client identity per registry rather than sending it to
+/// every host.
 #[test]
-fn applies_strict_ssl_and_cert_key_to_config() {
+fn applies_strict_ssl_to_config_and_rescopes_cert_key() {
     let auth = NpmrcAuth {
         strict_ssl: Some(false),
         cert: Some("cert-pem".to_string()),
@@ -654,8 +659,14 @@ fn applies_strict_ssl_and_cert_key_to_config() {
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
     assert_eq!(config.tls.strict_ssl, Some(false));
-    assert_eq!(config.tls.cert.as_deref(), Some("cert-pem"));
-    assert_eq!(config.tls.key.as_deref(), Some("key-pem"));
+    assert_eq!(config.tls.cert, None, "unscoped cert is rescoped, not kept top-level");
+    assert_eq!(config.tls.key, None);
+    let scoped = config
+        .tls_by_uri
+        .get("//registry.npmjs.org/")
+        .expect("cert/key rescoped to the npmjs default registry");
+    assert_eq!(scoped.cert.as_deref(), Some("cert-pem"));
+    assert_eq!(scoped.key.as_deref(), Some("key-pem"));
 }
 
 #[test]

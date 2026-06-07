@@ -1,5 +1,68 @@
 # @pnpm/global.commands
 
+## 1100.0.25
+
+### Patch Changes
+
+- Updated dependencies [e7e99f0]
+- Updated dependencies [5192edf]
+- Updated dependencies [a017bf3]
+- Updated dependencies [f429f93]
+- Updated dependencies [a017bf3]
+- Updated dependencies [a358ee0]
+- Updated dependencies [6d17b66]
+  - @pnpm/installing.deps-installer@1101.7.0
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/bins.linker@1100.0.11
+  - @pnpm/bins.remover@1100.0.7
+  - @pnpm/bins.resolver@1100.0.6
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/deps.inspection.list@1100.0.15
+  - @pnpm/global.packages@1100.0.6
+  - @pnpm/pkg-manifest.reader@1100.0.6
+
+## 1100.0.24
+
+### Patch Changes
+
+- @pnpm/installing.deps-installer@1101.6.1
+
+## 1100.0.23
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [2cadfb5]
+- Updated dependencies [a33c4bf]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.deps-installer@1101.6.0
+  - @pnpm/store.connection-manager@1100.2.5
+
+## 1100.0.22
+
+### Patch Changes
+
+- 440e155: Print the global update summary after all isolated global package groups are processed.
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/installing.deps-installer@1101.5.0
+  - @pnpm/deps.inspection.list@1100.0.14
+  - @pnpm/types@1101.2.0
+  - @pnpm/store.connection-manager@1100.2.4
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/bins.remover@1100.0.6
+  - @pnpm/bins.resolver@1100.0.5
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/global.packages@1100.0.5
+  - @pnpm/pkg-manifest.reader@1100.0.5
+
 ## 1100.0.21
 
 ### Patch Changes

@@ -1,5 +1,30 @@
 # @pnpm/exportable-manifest
 
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/bins.resolver@1100.0.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+
+## 1100.1.2
+
+### Patch Changes
+
+- 33921c8: Normalize a string `repository` field into the `{ type, url }` object form when creating the publish manifest, matching npm's behavior. Some registries (e.g. Gitea/Codeberg) reject a string `repository` with a 500 Internal Server Error during `pnpm publish` [#12099](https://github.com/pnpm/pnpm/issues/12099).
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/bins.resolver@1100.0.5
+
 ## 1100.1.0
 
 ### Minor Changes

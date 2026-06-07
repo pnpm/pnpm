@@ -4,7 +4,7 @@ use std::{
 };
 
 use pacquet_lockfile::LockfileResolution;
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
@@ -78,6 +78,7 @@ fn build_resolver(
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        retry_opts: RetryOpts::default(),
     };
     (resolver, cache_dir)
 }

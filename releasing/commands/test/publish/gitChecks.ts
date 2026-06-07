@@ -8,11 +8,27 @@ import { temporaryDirectory } from 'tempy'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
-const { default: enquirer } = await import('enquirer')
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
+  return {
+    Separator,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
+    select: jest.fn(),
+  }
+})
+const { confirm } = await import('@inquirer/prompts')
 const { publish } = await import('@pnpm/releasing.commands')
 
-const prompt = jest.mocked(enquirer.prompt)
+const mockConfirm = jest.mocked(confirm)
 
 test('publish: fails git check if branch is not on master or main', async () => {
   prepare({
@@ -26,9 +42,7 @@ test('publish: fails git check if branch is not on master or main', async () => 
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
 
-  prompt.mockResolvedValue({
-    confirm: false,
-  })
+  mockConfirm.mockResolvedValue(false)
 
   await expect(
     publish.handler({
@@ -54,9 +68,7 @@ test('publish: fails git check if branch is not on specified branch', async () =
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
 
-  prompt.mockResolvedValue({
-    confirm: false,
-  })
+  mockConfirm.mockResolvedValue(false)
 
   await expect(
     publish.handler({

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members  = ["pacquet/crates/*", "pacquet/tasks/*", "registry/crates/*"]
+members  = ["pacquet/crates/*", "pacquet/tasks/*", "pnpr/crates/*"]
 
 [workspace.package]
 authors     = ["Yagiz Nizipli <yagiz@nizipli.com"]
@@ -13,6 +13,7 @@ repository  = "https://github.com/pnpm/pacquet"
 
 [workspace.dependencies]
 # Crates
+pacquet-pnpr-client                       = { path = "pacquet/crates/pnpr-client" }
 pacquet-catalogs-config                   = { path = "pacquet/crates/catalogs-config" }
 pacquet-catalogs-protocol-parser          = { path = "pacquet/crates/catalogs-protocol-parser" }
 pacquet-catalogs-resolver                 = { path = "pacquet/crates/catalogs-resolver" }
@@ -24,6 +25,7 @@ pacquet-crypto-shasums-file               = { path = "pacquet/crates/crypto-shas
 pacquet-engine-runtime-bun-resolver       = { path = "pacquet/crates/engine-runtime-bun-resolver" }
 pacquet-engine-runtime-deno-resolver      = { path = "pacquet/crates/engine-runtime-deno-resolver" }
 pacquet-engine-runtime-node-resolver      = { path = "pacquet/crates/engine-runtime-node-resolver" }
+pacquet-env-replace                       = { path = "pacquet/crates/env-replace" }
 pacquet-fs                                = { path = "pacquet/crates/fs" }
 pacquet-registry                          = { path = "pacquet/crates/registry" }
 pacquet-tarball                           = { path = "pacquet/crates/tarball" }
@@ -37,6 +39,7 @@ pacquet-lockfile-verification             = { path = "pacquet/crates/lockfile-ve
 pacquet-modules-yaml                      = { path = "pacquet/crates/modules-yaml" }
 pacquet-network                           = { path = "pacquet/crates/network" }
 pacquet-config                            = { path = "pacquet/crates/config" }
+pacquet-config-dir                        = { path = "pacquet/crates/config-dir" }
 pacquet-config-parse-overrides            = { path = "pacquet/crates/config-parse-overrides" }
 pacquet-executor                          = { path = "pacquet/crates/executor" }
 pacquet-exportable-manifest               = { path = "pacquet/crates/exportable-manifest" }
@@ -46,6 +49,7 @@ pacquet-deps-path                         = { path = "pacquet/crates/deps-path" 
 pacquet-detect-libc                       = { path = "pacquet/crates/detect-libc" }
 pacquet-diagnostics                       = { path = "pacquet/crates/diagnostics" }
 pacquet-graph-hasher                      = { path = "pacquet/crates/graph-hasher" }
+pacquet-hooks                             = { path = "pacquet/crates/hooks" }
 pacquet-store-dir                         = { path = "pacquet/crates/store-dir" }
 pacquet-reporter                          = { path = "pacquet/crates/reporter" }
 pacquet-patching                          = { path = "pacquet/crates/patching" }
@@ -60,6 +64,9 @@ pacquet-resolving-parse-wanted-dependency = { path = "pacquet/crates/resolving-p
 pacquet-resolving-resolver-base           = { path = "pacquet/crates/resolving-resolver-base" }
 pacquet-resolving-tarball-resolver        = { path = "pacquet/crates/resolving-tarball-resolver" }
 pacquet-workspace                         = { path = "pacquet/crates/workspace" }
+pacquet-workspace-manifest-writer         = { path = "pacquet/crates/workspace-manifest-writer" }
+pacquet-workspace-projects-filter         = { path = "pacquet/crates/workspace-projects-filter" }
+pacquet-workspace-projects-graph          = { path = "pacquet/crates/workspace-projects-graph" }
 pacquet-workspace-range-resolver          = { path = "pacquet/crates/workspace-range-resolver" }
 pacquet-workspace-spec                    = { path = "pacquet/crates/workspace-spec" }
 pacquet-workspace-state                   = { path = "pacquet/crates/workspace-state" }
@@ -68,10 +75,12 @@ pacquet-workspace-state                   = { path = "pacquet/crates/workspace-s
 pacquet-registry-mock = { path = "pacquet/tasks/registry-mock" }
 
 # Registry (sibling project — pnpm-compatible registry server)
-pnpm-registry = { path = "registry/crates/pnpm-registry", version = "0.0.1" }
+pnpr          = { path = "pnpr/crates/pnpr" }
+pnpr-fixtures = { path = "pnpr/crates/pnpr-fixtures" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }
+async-trait = { version = "0.1.83" }
 axum = { version = "0.8.7", default-features = false, features = [
   "http1",
   "tokio",
@@ -82,9 +91,12 @@ axum = { version = "0.8.7", default-features = false, features = [
 clap = { version = "4", features = ["derive", "string"] }
 command-extra = { version = "1.0.0" }
 base64 = { version = "0.22.1" }
+bcrypt = { version = "0.19.1" }
+bytes = { version = "1.11.0" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
-dashmap = { version = "6.1.0" }
+dashmap = { version = "6.2.1" }
 derive_more = { version = "2.1.1", features = ["full"] }
+dialoguer = { version = "0.11.0", default-features = false }
 diffy = { version = "0.5.0" }
 dunce = { version = "1.0.5" }
 home = { version = "0.5.12" }
@@ -93,15 +105,21 @@ ignore = { version = "0.4.25" }
 indexmap = { version = "2.14.0", features = ["serde"] }
 insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.14.0" }
+libsql = { version = "0.9.30", default-features = false, features = ["core", "remote", "replication"] }
 futures-util = { version = "0.3.32" }
+flate2 = { version = "1.1.9" }
 gethostname = { version = "1" }
+getrandom = { version = "0.4.2" }
 miette = { version = "7.6.0", features = ["fancy"] }
 num_cpus = { version = "1.17.0" }
+object_store = { version = "0.12", features = ["aws"] }
 os_display = { version = "0.1.4" }
+owo-colors = { version = "4", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.29" }
 junction = { version = "2.0.0" }
 libc = { version = "0.2.186" }
 reqwest = { version = "0.13", default-features = false, features = [
+  "gzip",
   "hickory-dns",
   "json",
   "rustls",
@@ -115,23 +133,27 @@ rayon = { version = "1.12.0" }
 rmp-serde = { version = "1.3.0" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = { version = "1.0.149", features = ["preserve_order"] }
-serde-saphyr = { version = "0.0.26" }
+serde_json = { version = "1.0.150", features = ["preserve_order"] }
+serde-saphyr = { version = "0.0.27" }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2               = { version = "0.10.9" }
 smart-default      = { version = "0.7.1" }
 split-first-char   = { version = "2.0.1" }
 ssri               = { version = "9.2.0" }
 strum              = { version = "0.28.0", features = ["derive"] }
-sysinfo            = { version = "0.39.1" }
-tar                = { version = "0.4.45" }
+sysinfo            = { version = "0.39.2" }
+tabled             = { version = "0.20" }
+tar                = { version = "0.4.46" }
 text-block-macros  = { version = "0.2.0" }
 tower              = { version = "0.5.3" }
-tower-http         = { version = "0.6.8", features = ["trace"] }
+tower-http         = { version = "0.6.11", features = ["compression-gzip", "trace"] }
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
 walkdir            = { version = "2.5.0" }
+yaml_serde         = { version = "0.10.4" }
+yamlpatch          = { version = "1.25.2" }
+yamlpath           = { version = "1.25.2" }
 wax                = { version = "0.7.0" }
 which              = { version = "8.0.2" }
 zip                = { version = "8", default-features = false, features = ["deflate"] }

@@ -30,8 +30,11 @@ fn windows_default_uses_cmd_with_d_s_c_and_verbatim_args() {
     let shell = select_shell(None, true).expect("select_shell");
     assert_eq!(shell.args, vec![os("/d"), os("/s"), os("/c")]);
     assert!(shell.windows_verbatim_args, "verbatim must be set for cmd.exe");
-    let p = shell.program.to_string_lossy().to_ascii_lowercase();
-    assert!(p == "cmd" || p.ends_with("cmd.exe"), "expected cmd or *cmd.exe, got {p:?}");
+    let program = shell.program.to_string_lossy().to_ascii_lowercase();
+    assert!(
+        program == "cmd" || program.ends_with("cmd.exe"),
+        "expected cmd or *cmd.exe, got {program:?}",
+    );
 }
 
 /// A custom `scriptShell` (e.g. `/usr/local/bin/bash`) wins on both

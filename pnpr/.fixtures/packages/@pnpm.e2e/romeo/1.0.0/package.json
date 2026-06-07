@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/romeo",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/romeo-dep": "^1.0.0"
+  }
+}

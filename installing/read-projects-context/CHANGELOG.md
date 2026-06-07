@@ -1,5 +1,25 @@
 # @pnpm/read-projects-context
 
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/config.normalize-registries@1100.0.6
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/lockfile.fs@1100.1.3
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/config.normalize-registries@1100.0.5
+  - @pnpm/installing.modules-yaml@1100.0.6
+
 ## 1100.0.11
 
 ### Patch Changes

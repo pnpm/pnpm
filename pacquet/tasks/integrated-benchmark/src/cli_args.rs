@@ -41,11 +41,53 @@ pub struct CliArgs {
     #[clap(long)]
     pub with_pnpm: bool,
 
+    /// Round-trip latency, in milliseconds, to inject between the pacquet
+    /// client and the pnpr server, so `pnpr@<rev>` targets are measured
+    /// as the remote service pnpr is in production rather than a loopback
+    /// peer. Applied as half the value in each direction. `0` disables
+    /// injection; non-pnpr targets are unaffected.
+    #[clap(long, default_value_t = 0)]
+    pub pnpr_latency_ms: u64,
+
+    /// Round-trip latency, in milliseconds, to inject on the link to the
+    /// *registry*, applied to **every** client that touches it: direct
+    /// `pacquet@<rev>` / `pnpm@<rev>` installs, the `pnpr@<rev>` server's
+    /// resolution, and the pnpr client's tarball fetches. A request to the
+    /// registry-mock should cost the same regardless of who makes it, so
+    /// the registry-mock is uniformly as remote as the real one; pnpr's
+    /// advantage then shows up as fewer client round trips (one
+    /// `--pnpr-latency-ms` hop to the server) rather than a faster
+    /// backend. `0` disables injection; ignored with `--registry=npm`
+    /// (already remote).
+    #[clap(long, default_value_t = 0)]
+    pub registry_latency_ms: u64,
+
+    /// Download-bandwidth cap, in **megabits per second**, on the link to
+    /// the registry, applied to every client (direct installs and the pnpr
+    /// server + client alike), so tarball fetches take the time they would
+    /// over a real connection instead of being free on loopback. Loopback
+    /// serves at ~GB/s; the public npm registry measured ~190 Mbit/s
+    /// (~24 MB/s) peak on a fast link, and typical home/CI links are
+    /// 50–200 Mbit/s. Pairs with `--registry-latency-ms` (latency
+    /// dominates small packages, bandwidth dominates large ones). `0`
+    /// leaves the registry at loopback speed; ignored with
+    /// `--registry=npm` (already remote).
+    #[clap(long, default_value_t = 0.0)]
+    pub registry_bandwidth_mbps: f64,
+
     /// Build each target without running the benchmark.
     #[clap(long)]
     pub build_only: bool,
 
-    /// Targets to benchmark. Each is `pacquet@<rev>` or `pnpm@<rev>`.
+    /// Skip cloning + building a target whose output binary is already
+    /// present, e.g. restored from a per-commit CI cache. A `pnpr@<rev>`
+    /// build also yields the `pacquet` client binary, so a same-revision
+    /// `pacquet@<rev>` reuses it rather than recompiling the commit.
+    #[clap(long)]
+    pub reuse_prebuilt_binaries: bool,
+
+    /// Targets to benchmark. Each is `pacquet@<rev>`, `pnpm@<rev>`, or
+    /// `pnpr@<rev>` (a pacquet client driven through a pnpr server).
     #[clap(required = true)]
     pub targets: Vec<TargetSpec>,
 }
@@ -62,21 +104,28 @@ pub struct TargetSpec {
 pub enum TargetKind {
     Pacquet,
     Pnpm,
+    /// A pacquet client driven through a pnpr resolver server.
+    /// Builds both the `pacquet` and `pnpr` binaries from the revision's
+    /// monorepo clone, boots a per-target pnpr server with an isolated
+    /// store, and points the client at it via `PNPR_SERVER`.
+    Pnpr,
 }
 
 impl FromStr for TargetSpec {
     type Err = String;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let (prefix, rev) = input
-            .split_once('@')
-            .ok_or_else(|| format!("target {input:?}: must be `pacquet@<rev>` or `pnpm@<rev>`"))?;
+        let (prefix, rev) = input.split_once('@').ok_or_else(|| {
+            format!("target {input:?}: must be `pacquet@<rev>`, `pnpm@<rev>`, or `pnpr@<rev>`")
+        })?;
         let kind = match prefix {
             "pacquet" => TargetKind::Pacquet,
             "pnpm" => TargetKind::Pnpm,
+            "pnpr" => TargetKind::Pnpr,
             other => {
                 return Err(format!(
-                    "target {input:?}: unknown kind {other:?} (expected `pacquet` or `pnpm`)",
+                    "target {input:?}: unknown kind {other:?} \
+                     (expected `pacquet`, `pnpm`, or `pnpr`)",
                 ));
             }
         };
@@ -111,7 +160,10 @@ pub enum RegistryMode {
 // will stop firing once the `Hoisted*` and `Pnp*` linker buckets land.
 // Keeping the prefix is intentional — it mirrors the slug's leading
 // segment and makes the linker grouping legible in code.
-#[allow(clippy::enum_variant_names)]
+#[allow(
+    clippy::enum_variant_names,
+    reason = "the shared `Isolated` prefix mirrors the scenario slug and keeps the linker grouping legible; it stops firing once other linker buckets land"
+)]
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum BenchmarkScenario {
     /// No lockfile, cold cache + cold store. Mirrors `pnpm install` with nothing on disk.
@@ -120,6 +172,16 @@ pub enum BenchmarkScenario {
     /// No lockfile, hot cache + hot store. Resolves everything against an already-populated store.
     #[value(name = "isolated-linker.fresh-install.hot-cache.hot-store")]
     IsolatedFreshInstallHotCacheHotStore,
+    /// No lockfile, cold cache + **hot** store. Isolates resolution: the
+    /// client must re-resolve the whole tree (cold packument cache → a
+    /// fetch waterfall over the registry link) but every tarball is
+    /// already in the store, so no download dominates and hides it. This
+    /// is the scenario that exposes pnpr's core win — a direct install
+    /// pays the full cold resolution while pnpr offloads it to its warm
+    /// server. (Direct's `PrefetchingResolver` can't hide the resolution
+    /// behind downloads here because there are none.)
+    #[value(name = "isolated-linker.fresh-install.cold-cache.hot-store")]
+    IsolatedFreshInstallColdCacheHotStore,
     /// Frozen lockfile, cold cache + cold store. The typical CI shape.
     #[value(name = "isolated-linker.fresh-restore.cold-cache.cold-store")]
     IsolatedFreshRestoreColdCacheColdStore,
@@ -149,7 +211,8 @@ impl BenchmarkScenario {
     pub fn install_args(self) -> &'static [&'static str] {
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
-            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => &["install"],
+            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore
+            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => &["install"],
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
             | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
@@ -170,7 +233,8 @@ impl BenchmarkScenario {
     pub fn lockfile_enabled(self) -> bool {
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
-            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => false,
+            | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore
+            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => false,
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore
@@ -196,12 +260,19 @@ impl BenchmarkScenario {
         const SAVED_PACKAGE_JSON: (&str, &str) = ("package.json", ".saved-package.json");
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore => Cleanup {
-                remove: &["node_modules", "pnpm-lock.yaml", "store-dir"],
+                // `cache-dir` (the packument-metadata mirror) is wiped
+                // alongside `store-dir` so a direct fresh install pays the
+                // full cold resolution — fetching every packument over the
+                // emulated registry link — which is precisely the cost pnpr
+                // offloads to its warm server. Without this the mirror
+                // stays warm and direct ≈ pnpr.
+                remove: &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
                 restore: &[SAVED_PACKAGE_JSON],
             },
-            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore => {
-                Cleanup { remove: &["node_modules", "store-dir"], restore: &[SAVED_LOCKFILE] }
-            }
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore => Cleanup {
+                remove: &["node_modules", "store-dir", "cache-dir"],
+                restore: &[SAVED_LOCKFILE],
+            },
             BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore => {
                 Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
             }
@@ -211,6 +282,13 @@ impl BenchmarkScenario {
             },
             BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => Cleanup {
                 remove: &["node_modules", "pnpm-lock.yaml"],
+                restore: &[SAVED_PACKAGE_JSON],
+            },
+            // Cold cache (wipe `cache-dir` → re-resolve from scratch) but
+            // hot store (keep `store-dir` → no tarball download). Resolution
+            // is the only variable cost, so it can't hide behind downloads.
+            BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => Cleanup {
+                remove: &["node_modules", "pnpm-lock.yaml", "cache-dir"],
                 restore: &[SAVED_PACKAGE_JSON],
             },
             BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
@@ -278,41 +356,4 @@ impl HyperfineOptions {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{TargetKind, TargetSpec};
-    use std::str::FromStr;
-
-    #[test]
-    fn target_spec_pacquet_prefix() {
-        let spec = TargetSpec::from_str("pacquet@main").unwrap();
-        assert_eq!(spec.kind, TargetKind::Pacquet);
-        assert_eq!(spec.rev, "main");
-    }
-
-    #[test]
-    fn target_spec_pnpm_prefix() {
-        let spec = TargetSpec::from_str("pnpm@v9.0.0").unwrap();
-        assert_eq!(spec.kind, TargetKind::Pnpm);
-        assert_eq!(spec.rev, "v9.0.0");
-    }
-
-    #[test]
-    fn target_spec_unprefixed_is_rejected() {
-        let err = TargetSpec::from_str("HEAD").unwrap_err();
-        assert!(err.contains("`pacquet@<rev>` or `pnpm@<rev>`"), "err = {err}");
-    }
-
-    #[test]
-    fn target_spec_unknown_prefix_is_rejected() {
-        let err = TargetSpec::from_str("yarn@main").unwrap_err();
-        assert!(err.contains("unknown kind"), "err = {err}");
-    }
-
-    #[test]
-    fn target_spec_empty_rev_is_rejected() {
-        let err = TargetSpec::from_str("pacquet@").unwrap_err();
-        assert!(err.contains("<rev> must not be empty"), "err = {err}");
-        let err = TargetSpec::from_str("pnpm@").unwrap_err();
-        assert!(err.contains("<rev> must not be empty"), "err = {err}");
-    }
-}
+mod tests;

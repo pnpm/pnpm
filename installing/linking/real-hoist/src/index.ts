@@ -7,9 +7,63 @@ import {
 } from '@pnpm/lockfile.utils'
 import { hoist as _hoist, HoisterDependencyKind, type HoisterResult, type HoisterTree } from '@yarnpkg/nm/hoist'
 
-export type HoistingLimits = Map<string, Set<string>>
+/**
+ * Controls how far dependencies are hoisted, mirroring yarn's
+ * `nmHoistingLimits`. Given workspace package `A` → `B` → `C`:
+ *
+ * - `'none'` (default): hoist as far as possible.
+ *   - `/packages/A`, `/node_modules/B`, `/node_modules/C`
+ * - `'workspaces'`: hoist only as far as each workspace package.
+ *   - `/packages/A`, `/packages/A/node_modules/B`, `/packages/A/node_modules/C`
+ * - `'dependencies'`: hoist only up to each workspace package's direct
+ *   dependencies.
+ *   - `/packages/A`, `/packages/A/node_modules/B`, `/packages/A/node_modules/B/node_modules/C`
+ */
+export type HoistingLimits = 'none' | 'workspaces' | 'dependencies'
 
 export type { HoisterResult }
+
+/**
+ * Translate the user-facing {@link HoistingLimits} mode into the
+ * `@yarnpkg/nm` hoister's per-locator border map. A name in a
+ * locator's set is a hoisting border: that node's dependencies are
+ * not hoisted above it. Returns `undefined` for `'none'` (and when
+ * unset) so the hoister hoists as far as possible.
+ */
+export function getHoistingLimits (lockfile: Pick<LockfileObject, 'importers'>, mode: HoistingLimits | undefined): Map<string, Set<string>> | undefined {
+  if (!mode || mode === 'none') return undefined
+
+  const hoistingLimits = new Map<string, Set<string>>()
+  const rootHoistingLimit = new Set<string>()
+
+  for (const [importerId, importer] of Object.entries(lockfile.importers)) {
+    const isWorkspaceRoot = importerId === '.'
+    const encodedId = encodeURIComponent(importerId)
+    if (!isWorkspaceRoot) {
+      rootHoistingLimit.add(encodedId)
+      if (mode !== 'dependencies') {
+        // In `'workspaces'` mode it's enough to border each workspace
+        // package at the root; their own direct deps don't need a
+        // per-importer border.
+        continue
+      }
+    }
+
+    const reference = isWorkspaceRoot ? '' : `workspace:${importerId}`
+    const hoistingLimit = isWorkspaceRoot ? rootHoistingLimit : new Set<string>()
+
+    hoistingLimits.set(`${encodedId}@${reference}`, hoistingLimit)
+
+    for (const deps of [importer.dependencies, importer.devDependencies, importer.optionalDependencies]) {
+      if (!deps) continue
+      for (const dep of Object.keys(deps)) {
+        hoistingLimit.add(dep)
+      }
+    }
+  }
+
+  return hoistingLimits
+}
 
 export function hoist (
   lockfile: LockfileObject,
@@ -65,7 +119,8 @@ export function hoist (
     node.dependencies.add(importerNode)
   }
 
-  const hoisterResult = _hoist(node, opts)
+  const hoistingLimits = getHoistingLimits(lockfile, opts?.hoistingLimits)
+  const hoisterResult = _hoist(node, { ...opts, hoistingLimits })
   if (opts?.externalDependencies) {
     for (const hoistedDep of hoisterResult.dependencies.values()) {
       if (opts.externalDependencies.has(hoistedDep.name)) {

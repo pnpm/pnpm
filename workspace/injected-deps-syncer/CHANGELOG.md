@@ -1,5 +1,30 @@
 # @pnpm/workspace.injected-deps-syncer
 
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/bins.linker@1100.0.11
+  - @pnpm/fetching.directory-fetcher@1100.0.14
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/workspace.projects-reader@1101.0.9
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [e8b3ae1]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.projects-reader@1101.0.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/fetching.directory-fetcher@1100.0.13
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/pkg-manifest.reader@1100.0.5
+
 ## 1100.0.14
 
 ### Patch Changes

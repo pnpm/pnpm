@@ -11,13 +11,14 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pacquet-registry-mock = { workspace = true }
-
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
+pnpr              = { workspace = true }
 tempfile          = { workspace = true }
+tokio             = { workspace = true }
 walkdir           = { workspace = true }
 text-block-macros = { workspace = true }
+pnpr-fixtures     = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }

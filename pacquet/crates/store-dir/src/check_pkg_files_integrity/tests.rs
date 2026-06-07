@@ -2,8 +2,8 @@ use super::{VerifiedFilesCache, build_file_maps_from_index, check_pkg_files_inte
 use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir};
 use pretty_assertions::assert_eq;
 use sha2::{Digest, Sha512};
-use std::collections::HashMap;
 use std::{
+    collections::HashMap,
     fs,
     io::Write,
     path::PathBuf,
@@ -16,9 +16,9 @@ use tempfile::tempdir;
 fn plant_cafs_file(store_dir: &StoreDir, digest: &str, mode: u32, content: &[u8]) -> PathBuf {
     let path = store_dir.cas_file_path_by_mode(digest, mode).expect("valid digest");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    let mut f = fs::File::create(&path).unwrap();
-    f.write_all(content).unwrap();
-    f.sync_all().ok();
+    let mut file = fs::File::create(&path).unwrap();
+    file.write_all(content).unwrap();
+    file.sync_all().ok();
     path
 }
 

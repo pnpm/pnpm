@@ -33,7 +33,9 @@ fn empty_lockfile() -> Lockfile {
     Lockfile {
         lockfile_version: lockfile_version(),
         settings: Some(LockfileSettings::default()),
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers: HashMap::new(),
         packages: None,
@@ -61,7 +63,9 @@ fn hoist_throws_on_broken_lockfile() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -111,7 +115,9 @@ fn one_transitive_dep_hoists_to_root() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -124,8 +130,8 @@ fn one_transitive_dep_hoists_to_root() {
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a", "b"], "both a and b sit at root: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    assert!(a.dependencies.borrow().is_empty(), "a's b moved to root: {a:#?}");
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    assert!(dep_a.dependencies.borrow().is_empty(), "a's b moved to root: {dep_a:#?}");
 }
 
 /// Diamond dependency `root → {a, c}` with both `a → b@1` and
@@ -163,7 +169,9 @@ fn diamond_dep_hoists_once_to_root() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -175,10 +183,10 @@ fn diamond_dep_hoists_once_to_root() {
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a", "b", "c"], "diamond flattens at root: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    let c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
-    assert!(a.dependencies.borrow().is_empty(), "a stripped of its b: {a:#?}");
-    assert!(c.dependencies.borrow().is_empty(), "c stripped of its b: {c:#?}");
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let dep_c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
+    assert!(dep_a.dependencies.borrow().is_empty(), "a stripped of its b: {dep_a:#?}");
+    assert!(dep_c.dependencies.borrow().is_empty(), "c stripped of its b: {dep_c:#?}");
 
     // Walk the whole result graph and collect every distinct
     // allocation whose `name == "b"`. The wrapper deduped a@1's b
@@ -240,7 +248,9 @@ fn version_conflict_keeps_loser_at_parent() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -263,8 +273,8 @@ fn version_conflict_keeps_loser_at_parent() {
     assert!(b_refs.contains("b@1.0.0"), "first DFS visitor wins root slot: {b_refs:?}");
     assert_eq!(b_refs.len(), 1, "no other reference accumulated yet: {b_refs:?}");
     // `c`'s `b@2` remains under `c`.
-    let c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
-    let c_kids = c.dependencies.borrow();
+    let dep_c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
+    let c_kids = dep_c.dependencies.borrow();
     assert_eq!(c_kids.len(), 1, "c kept its conflicting b@2");
     let b_under_c_refs = c_kids[0].0.references.borrow();
     assert!(b_under_c_refs.contains("b@2.0.0"), "loser stays under c: {b_under_c_refs:?}");
@@ -310,7 +320,9 @@ fn deep_chain_flattens_in_one_pass() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -348,7 +360,9 @@ fn external_dependencies_are_stripped_from_the_result() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -400,7 +414,9 @@ fn transitive_npm_alias_resolves_target_snapshot() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -503,7 +519,9 @@ fn peer_constrained_node_stays_under_parent_when_root_provides_different_ident()
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: Some(packages),
@@ -585,7 +603,9 @@ fn peer_check_uses_post_hoist_ancestor_path_not_queue_time_path() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: Some(packages),
@@ -649,7 +669,9 @@ fn peer_constrained_node_hoists_when_ancestor_and_root_agree() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: Some(packages),
@@ -724,7 +746,9 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: Some(packages),
@@ -745,13 +769,16 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
     assert!(app.dependencies.borrow().is_empty(), "app stripped after multi-round: {app:#?}");
 }
 
-/// `hoisting_limits` blocks a single name from hoisting to root.
-/// Ports the spirit of upstream's `should not hoist packages past
-/// hoist boundary`. Setup: `root → a → b`. With no limits, `b`
+/// A `hoisting_limits` border keeps a bordered node's descendants
+/// nested. Ports the spirit of upstream's `should not hoist packages
+/// past hoist boundary`. Setup: `root → a → b`. With no limits, `b`
 /// would flatten to root (see `one_transitive_dep_hoists_to_root`).
-/// With `hoisting_limits[".@"] = {b}`, `b` stays under `a`.
+/// With `hoisting_limits[".@"] = {a}`, `a` is a border, so its
+/// descendant `b` stays nested under `a`. The border node `a` itself
+/// still sits at root (a border blocks a node's children, not the
+/// node).
 #[test]
-fn hoisting_limits_keeps_blocked_name_at_parent() {
+fn hoisting_limits_border_keeps_descendants_nested() {
     let mut importers = HashMap::new();
     let mut root_deps = ResolvedDependencyMap::new();
     root_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
@@ -772,7 +799,9 @@ fn hoisting_limits_keeps_blocked_name_at_parent() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -780,7 +809,7 @@ fn hoisting_limits_keeps_blocked_name_at_parent() {
     };
 
     let mut blocked = BTreeSet::new();
-    blocked.insert("b".to_string());
+    blocked.insert("a".to_string());
     let mut opts = HoistOpts::default();
     opts.hoisting_limits.insert(".@".to_string(), blocked);
 
@@ -788,18 +817,20 @@ fn hoisting_limits_keeps_blocked_name_at_parent() {
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort();
-    assert_eq!(names, ["a"], "b stayed below the limit: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    let a_deps = a.dependencies.borrow();
+    assert_eq!(names, ["a"], "border node a sits at root; b did not flatten: {result:#?}");
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let a_deps = dep_a.dependencies.borrow();
     let a_names: Vec<&str> = a_deps.iter().map(|dep| dep.0.name.as_str()).collect();
-    assert_eq!(a_names, ["b"], "b remains under a: {a_names:?}");
+    assert_eq!(a_names, ["b"], "b stays nested under the border a: {a_names:?}");
 }
 
-/// Multiple blocked names work the same way — each one stays at
-/// its declaring parent. Ports the spirit of upstream's `should
-/// not hoist multiple package past nohoist root`.
+/// A border keeps *every* descendant of the bordered node nested,
+/// not just the first. Ports the spirit of upstream's `should not
+/// hoist multiple package past nohoist root`. Setup: `root → a →
+/// {b, c, d}` with `hoisting_limits[".@"] = {a}`. All three of a's
+/// deps stay under a.
 #[test]
-fn hoisting_limits_blocks_multiple_names() {
+fn hoisting_limits_border_keeps_all_descendants_nested() {
     let mut importers = HashMap::new();
     let mut root_deps = ResolvedDependencyMap::new();
     root_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
@@ -824,7 +855,9 @@ fn hoisting_limits_blocks_multiple_names() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -832,8 +865,7 @@ fn hoisting_limits_blocks_multiple_names() {
     };
 
     let mut blocked = BTreeSet::new();
-    blocked.insert("b".to_string());
-    blocked.insert("c".to_string());
+    blocked.insert("a".to_string());
     let mut opts = HoistOpts::default();
     opts.hoisting_limits.insert(".@".to_string(), blocked);
 
@@ -841,14 +873,18 @@ fn hoisting_limits_blocks_multiple_names() {
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort();
-    // Only `a` (direct dep) and `d` (not blocked) sit at root; b
-    // and c stay nested under a.
-    assert_eq!(names, ["a", "d"], "blocked names stayed at a: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    let a_deps = a.dependencies.borrow();
+    // Only the border node `a` sits at root; all of its deps stay
+    // nested beneath it.
+    assert_eq!(names, ["a"], "only the border a sits at root: {result:#?}");
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let a_deps = dep_a.dependencies.borrow();
     let mut a_names: Vec<&str> = a_deps.iter().map(|dep| dep.0.name.as_str()).collect();
     a_names.sort();
-    assert_eq!(a_names, ["b", "c"], "a kept its blocked deps: {a_names:?}");
+    assert_eq!(
+        a_names,
+        ["b", "c", "d"],
+        "all of a's deps stay nested under the border: {a_names:?}",
+    );
 }
 
 /// `hoisting_limits` keyed on a different importer (one we don't
@@ -877,7 +913,9 @@ fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -927,7 +965,9 @@ fn self_dependency_does_not_loop() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -938,12 +978,12 @@ fn self_dependency_does_not_loop() {
     let root_children = result.dependencies.borrow();
     let names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     assert_eq!(names, ["a"], "single a at root: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
     // The self-edge is dedup'd by the wrapper's identity cache to
     // the same Rc as the root's `a`. During hoist, the back-edge
     // to root is skipped; the self-edge under a is dedup'd as
     // SameNode (a is at root via the same Rc) and stripped.
-    assert!(a.dependencies.borrow().is_empty(), "self-edge stripped: {a:#?}");
+    assert!(dep_a.dependencies.borrow().is_empty(), "self-edge stripped: {dep_a:#?}");
 }
 
 /// Basic two-node cycle: `a → b → a`. Both packages share the
@@ -980,7 +1020,9 @@ fn basic_cyclic_dependency_terminates() {
         &Lockfile {
             lockfile_version: lockfile_version(),
             settings: None,
+            catalogs: None,
             overrides: None,
+            package_extensions_checksum: None,
             ignored_optional_dependencies: None,
             importers,
             packages: None,
@@ -993,10 +1035,10 @@ fn basic_cyclic_dependency_terminates() {
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort();
     assert_eq!(names, ["a", "b"], "both a and b flatten to root: {result:#?}");
-    let a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    let b = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "b").unwrap().0);
-    assert!(a.dependencies.borrow().is_empty(), "a's b hoisted away: {a:#?}");
-    assert!(b.dependencies.borrow().is_empty(), "b's back-edge to a stripped: {b:#?}");
+    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let dep_b = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "b").unwrap().0);
+    assert!(dep_a.dependencies.borrow().is_empty(), "a's b hoisted away: {dep_a:#?}");
+    assert!(dep_b.dependencies.borrow().is_empty(), "b's back-edge to a stripped: {dep_b:#?}");
 }
 
 /// A lockfile with importers beyond `.` (a workspace) is now
@@ -1016,7 +1058,9 @@ fn multi_importer_lockfile_emits_workspace_children() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,
@@ -1059,7 +1103,9 @@ fn hoist_workspace_packages_false_omits_workspace_children() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
+        package_extensions_checksum: None,
         ignored_optional_dependencies: None,
         importers,
         packages: None,

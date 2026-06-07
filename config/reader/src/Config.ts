@@ -176,6 +176,7 @@ export interface Config extends OptionsFromRootManifest {
   hoistPattern?: string[]
   publicHoistPattern?: string[] | string
   hoistWorkspacePackages?: boolean
+  hoistingLimits?: 'none' | 'workspaces' | 'dependencies'
   useStoreServer?: boolean
   useRunningStoreServer?: boolean
   workspaceConcurrency: number
@@ -222,7 +223,7 @@ export interface Config extends OptionsFromRootManifest {
   packGzipLevel?: number
   blockExoticSubdeps?: boolean
 
-  agent?: string
+  pnprServer?: string
 
   registries: Registries
   namedRegistries?: Record<string, string>

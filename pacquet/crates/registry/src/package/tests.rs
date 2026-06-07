@@ -21,6 +21,7 @@ pub fn package_version_should_include_peers() {
         peer_dependencies: Some(peer_dependencies),
         optional_dependencies: None,
         peer_dependencies_meta: None,
+        other: Default::default(),
         npm_user: None,
         deprecated: None,
     };
@@ -44,6 +45,7 @@ pub fn serialized_according_to_params() {
         peer_dependencies: None,
         optional_dependencies: None,
         peer_dependencies_meta: None,
+        other: Default::default(),
         npm_user: None,
         deprecated: None,
     };
@@ -101,6 +103,7 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
                     peer_dependencies: None,
                     optional_dependencies: None,
                     peer_dependencies_meta: None,
+                    other: Default::default(),
                     npm_user: None,
                     deprecated: None,
                 },
@@ -116,6 +119,7 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
         time: None,
         modified: None,
         etag: None,
+        homepage: None,
         mutex: Default::default(),
     }
 }
@@ -220,6 +224,43 @@ fn package_deserializes_full_provenance_packument() {
     let attestations = version.dist.attestations.as_ref().expect("attestations present");
     let provenance = attestations.provenance.as_ref().expect("provenance present");
     assert_eq!(provenance.predicate_type.as_deref(), Some("https://slsa.dev/provenance/v1"));
+}
+
+/// A staged publish carries `_npmUser.approver`; that field must
+/// round-trip through serde so the trust check can read it as the
+/// strongest (`stagedPublish`) evidence.
+#[test]
+fn package_deserializes_approver_packument() {
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "time": { "1.0.0": "2025-01-10T08:30:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "_npmUser": {
+                    "name": "alice",
+                    "email": "alice@example.com",
+                    "approver": {
+                        "name": "bob",
+                        "email": "bob@example.com"
+                    }
+                },
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let pkg: Package = serde_json::from_str(body).expect("deserialize approver packument");
+    let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
+    let user = version.npm_user.as_ref().expect("_npmUser present");
+    let approver = user.approver.as_ref().expect("approver present");
+    assert_eq!(approver.name.as_deref(), Some("bob"));
+    assert_eq!(approver.email.as_deref(), Some("bob@example.com"));
 }
 
 /// A packument that doesn't ship `_npmUser` or `attestations` (the
@@ -362,8 +403,10 @@ fn package_deserializes_without_time_field() {
 /// manifest, so a single malformed historical entry would otherwise
 /// fail the whole deserialization and surface as
 /// `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` for an unrelated
-/// version pinned in the lockfile (issue #11829). Non-string entries
+/// version pinned in the lockfile (issue [#11829]). Non-string entries
 /// must be silently dropped, matching pnpm's JS-side tolerance.
+///
+/// [#11829]: https://github.com/pnpm/pnpm/issues/11829
 #[test]
 fn package_tolerates_object_valued_dependency_entries() {
     let body = r#"{

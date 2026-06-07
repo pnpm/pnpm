@@ -8,7 +8,7 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.15" },
+    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.17" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
@@ -42,9 +42,24 @@ ignore = [
 
 [perfectionist]
 enable = ["derive_ordering"]
-disable = [
-  { name = "arc_rc_clone", reason = "`arc_rc_clone` is enforced by `clippy::clone_on_ref_ptr` instead" },
-]
+
+# The codebase collapses imports to one `use` per crate root (shared
+# prefixes in nested braces) — the same granularity rustfmt spells
+# `imports_granularity = "Crate"` and perfectionist spells `"crate"`. Pin
+# the rule to it; its default `module` style would flag every such import.
+["perfectionist::import_granularity"]
+style = "crate"
+
+# Every unit test lives in an external file (shorter production files,
+# less churn). Flag any inline test item, not just the ones over a line
+# budget.
+["perfectionist::unit_test_file_layout"]
+inline_style = "external_only"
+
+# Don't rely on the doc-comment-only default: a bare `#NNN` is just as
+# ambiguous in a plain `//` comment, so lint those too.
+["perfectionist::bare_issue_reference"]
+include_plain_comments = true
 
 ["perfectionist::derive_ordering"]
 style = "prefix_then_alphabetical"

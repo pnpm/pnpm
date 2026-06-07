@@ -114,9 +114,9 @@ fn content_hash_lookup_finds_same_lockfile_at_different_path() {
     let yaml = "lockfileVersion: '9.0'\nfoo: bar\n";
     let lockfile_a = touch_lockfile(&dir.path().join("worktree-a"), yaml);
     let lockfile_b = {
-        let p = dir.path().join("worktree-b");
-        fs::create_dir_all(&p).expect("mkdir b");
-        let path = p.join("pnpm-lock.yaml");
+        let worktree = dir.path().join("worktree-b");
+        fs::create_dir_all(&worktree).expect("mkdir b");
+        let path = worktree.join("pnpm-lock.yaml");
         fs::write(&path, yaml).expect("write b");
         path
     };

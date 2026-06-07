@@ -8,7 +8,6 @@ type PnpmKey = keyof typeof pnpmTypes
  * Keys from {@link pnpmTypes} that are valid fields in a global config file.
  */
 export const pnpmConfigFileKeys = [
-  'agent',
   'bail',
   'ci',
   'color',
@@ -47,6 +46,7 @@ export const pnpmConfigFileKeys = [
   'npm-path',
   'npmrc-auth-file',
   'package-import-method',
+  'pnpr-server',
   'prefer-frozen-lockfile',
   'prefer-offline',
   'prefer-symlinked-executables',
@@ -102,6 +102,7 @@ export const excludedPnpmKeys = [
   'hoist',
   'hoist-pattern',
   'hoist-workspace-packages',
+  'hoisting-limits',
   'ignore-compatibility-db',
   'ignore-pnpmfile',
   'ignore-workspace',

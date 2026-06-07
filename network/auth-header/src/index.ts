@@ -4,6 +4,11 @@ import type { RegistryConfig } from '@pnpm/types'
 import { getAuthHeadersFromCreds } from './getAuthHeadersFromConfig.js'
 import { removePort } from './helpers/removePort.js'
 
+// Re-exported so callers that need the whole nerf-darted-URI → header map
+// (e.g. forwarding every registry credential to the pnpr install
+// accelerator) can build it without re-implementing `credsToHeader`.
+export { getAuthHeadersFromCreds }
+
 export function createGetAuthHeaderByURI (
   configByUri: Record<string, RegistryConfig>
 ): (uri: string) => string | undefined {

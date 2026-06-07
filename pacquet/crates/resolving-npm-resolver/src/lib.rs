@@ -69,6 +69,7 @@ pub use pick_package_from_meta::{
     RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
     pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
 };
+pub use registry_url::to_registry_url;
 pub use resolve_from_workspace::{
     ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, try_resolve_from_workspace,
 };

@@ -1,0 +1,28 @@
+[package]
+name                 = "pnpr-fixtures"
+version              = "0.0.1"
+description          = "Build static pnpr storage from shared test package fixtures"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+base64      = { workspace = true }
+clap        = { workspace = true }
+flate2      = { workspace = true }
+node-semver = { workspace = true }
+serde_json  = { workspace = true }
+sha2        = { workspace = true }
+tar         = { workspace = true }
+walkdir     = { workspace = true }
+
+[[bin]]
+name = "pnpr-prepare"
+path = "src/bin/pnpr-prepare.rs"
+
+[lints]
+workspace = true

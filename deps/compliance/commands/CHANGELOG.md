@@ -1,5 +1,95 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.3.2
+
+### Patch Changes
+
+- Updated dependencies [5192edf]
+- Updated dependencies [a017bf3]
+  - @pnpm/network.auth-header@1101.1.0
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/installing.commands@1100.7.2
+  - @pnpm/deps.compliance.audit@1101.0.13
+  - @pnpm/deps.security.signatures@1101.1.6
+  - @pnpm/cli.meta@1100.0.6
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.pick-registry-for-package@1100.0.7
+  - @pnpm/config.writer@1100.0.11
+  - @pnpm/deps.compliance.license-scanner@1100.0.16
+  - @pnpm/deps.compliance.sbom@1100.1.6
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/lockfile.walker@1100.0.9
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+
+## 1101.3.1
+
+### Patch Changes
+
+- Updated dependencies [719cc21]
+  - @pnpm/deps.compliance.audit@1101.0.12
+  - @pnpm/installing.commands@1100.7.1
+
+## 1101.3.0
+
+### Minor Changes
+
+- 2cadfb5: Replaced `enquirer` with `@inquirer/prompts` for all interactive prompts. Fixes the `update -i` scrolling overflow bug where long choice lists were clipped in the terminal [#6643](https://github.com/pnpm/pnpm/issues/6643).
+
+  **User-facing changes:**
+
+  - `pnpm update -i` / `pnpm update -i --latest`: Scrolling now works correctly when many packages are available; the new library uses visual-line-aware pagination via `usePagination`
+  - `pnpm audit --fix -i`: Same scrolling fix for vulnerability selection
+  - `pnpm approve-builds`: Interactive build approval prompts updated
+  - `pnpm patch`: Version selection and "apply to all" prompts updated
+  - `pnpm patch-remove`: Patch removal selection updated
+  - `pnpm publish`: Branch confirmation prompt updated
+  - `pnpm login`: Credential prompts updated
+  - `pnpm run` / `pnpm exec` (with `verifyDepsBeforeRun=prompt`): Confirmation prompt updated
+
+  Vim-style `j`/`k` keys still work for up/down navigation in all interactive prompts.
+
+  **Internal:** The `OtpEnquirer` and `LoginEnquirer` DI interfaces changed from `{ prompt }` to `{ input }` / `{ input, password }` respectively. Plugins or custom builds that inject their own enquirer mock will need to update.
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [2cadfb5]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.commands@1100.7.0
+  - @pnpm/deps.compliance.audit@1101.0.11
+  - @pnpm/deps.security.signatures@1101.1.5
+
+## 1101.2.8
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [a456dc7]
+- Updated dependencies [572842a]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/installing.commands@1100.6.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/deps.compliance.audit@1101.0.10
+  - @pnpm/deps.compliance.license-scanner@1100.0.15
+  - @pnpm/deps.compliance.sbom@1100.1.5
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/cli.meta@1100.0.5
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/config.writer@1100.0.10
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/lockfile.walker@1100.0.8
+  - @pnpm/deps.security.signatures@1101.1.4
+
 ## 1101.2.7
 
 ### Patch Changes

@@ -1,12 +1,14 @@
 use crate::{
-    Config, LinkWorkspacePackages, NodeLinker, PackageImportMethod, ScriptsPrependNodePath,
-    TrustPolicy, api::EnvVar, env_replace::env_replace_lossy, resolve_child_concurrency,
+    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PackageImportMethod,
+    ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
+use pacquet_env_replace::env_replace_lossy;
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_store_dir::StoreDir;
+use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
 use serde::{Deserialize, Deserializer};
 use std::{
@@ -46,7 +48,7 @@ where
 /// Settings readable from `pnpm-workspace.yaml`.
 ///
 /// pnpm 10+ moved the bulk of its configuration (`storeDir`, `registry`,
-/// `lockfile`, …) out of `.npmrc` into `pnpm-workspace.yaml`, using
+/// `lockfile`, ...) out of `.npmrc` into `pnpm-workspace.yaml`, using
 /// camelCase keys. Pacquet needs to honour these overrides so a real
 /// pnpm-11-style project — where `.npmrc` may not even contain the
 /// settings — works out of the box.
@@ -57,7 +59,7 @@ where
 ///
 /// See <https://pnpm.io/settings> for the canonical key list.
 /// Non-config keys in a real pnpm-workspace.yaml (`packages`, `catalog`,
-/// `catalogs`, `onlyBuiltDependencies`, `allowBuilds`, …) are silently
+/// `catalogs`, `onlyBuiltDependencies`, `allowBuilds`, ...) are silently
 /// ignored — serde drops them since the struct doesn't use
 /// `deny_unknown_fields`.
 ///
@@ -115,15 +117,17 @@ pub struct WorkspaceSettings {
     pub package_import_method: Option<PackageImportMethod>,
     pub modules_cache_max_age: Option<u64>,
     pub virtual_store_dir_max_length: Option<u64>,
+    pub peers_suffix_max_length: Option<u64>,
     pub lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
     pub offline: Option<bool>,
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
+    pub pnpr_server: Option<String>,
 
     /// User-defined named-registry aliases. Outer key is the alias
-    /// name (`gh`, `work`, …); inner string is the registry URL the
+    /// name (`gh`, `work`, ...); inner string is the registry URL the
     /// alias resolves against. Merged on top of pnpm's built-in
     /// defaults at resolver construction. Mirrors upstream's
     /// [`namedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/Config.ts#L227)
@@ -132,6 +136,7 @@ pub struct WorkspaceSettings {
 
     pub auto_install_peers: Option<bool>,
     pub auto_install_peers_from_highest_match: Option<bool>,
+    pub exclude_links_from_lockfile: Option<bool>,
     /// `optimisticRepeatInstall` from `pnpm-workspace.yaml` /
     /// `~/.config/pnpm/config.yaml`. Defaults to `true` at the
     /// `Config` layer ([`Config::optimistic_repeat_install`]) to
@@ -141,12 +146,16 @@ pub struct WorkspaceSettings {
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state
     /// (`true | false | "deep"`) — see [`LinkWorkspacePackages`].
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
-    /// `hoistingLimits` from `pnpm-workspace.yaml`. Outer key is
-    /// the importer locator (e.g. `'.@'`); inner list is the
-    /// alias names whose hoisting is bordered. Mirrors upstream's
-    /// programmatic-only knob shape, exposed here as yaml for
-    /// parity. Empty / missing → no limits.
-    pub hoisting_limits: Option<BTreeMap<String, BTreeSet<String>>>,
+    /// `injectWorkspacePackages` from `pnpm-workspace.yaml`. When
+    /// `true`, every workspace-resolved dep is materialized as a
+    /// `file:` (hard-linked copy) instead of a `link:` symlink. See
+    /// [`Config::inject_workspace_packages`].
+    pub inject_workspace_packages: Option<bool>,
+    /// `hoistingLimits` from `pnpm-workspace.yaml`. One of `none`,
+    /// `workspaces`, or `dependencies` — see
+    /// [`crate::HoistingLimits`]. Missing → default
+    /// [`crate::HoistingLimits::None`].
+    pub hoisting_limits: Option<HoistingLimits>,
     /// `externalDependencies` from `pnpm-workspace.yaml`. Names
     /// whose top-level slot is reserved for an external linker
     /// and stripped from the hoist tree. Mirrors upstream's
@@ -154,6 +163,10 @@ pub struct WorkspaceSettings {
     /// parity. Empty / missing → no externals.
     pub external_dependencies: Option<BTreeSet<String>>,
     pub dedupe_peer_dependents: Option<bool>,
+    pub dedupe_peers: Option<bool>,
+    pub dedupe_direct_deps: Option<bool>,
+    pub prefer_workspace_packages: Option<bool>,
+    pub dedupe_injected_deps: Option<bool>,
     pub strict_peer_dependencies: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
@@ -164,6 +177,15 @@ pub struct WorkspaceSettings {
     pub fetch_retry_factor: Option<u32>,
     pub fetch_retry_mintimeout: Option<u64>,
     pub fetch_retry_maxtimeout: Option<u64>,
+    pub network_concurrency: Option<usize>,
+    pub fetch_timeout: Option<u64>,
+    pub user_agent: Option<String>,
+    /// `npmrcAuthFile` is read only from the global `config.yaml`
+    /// (consumed by [`crate::Config::current`] to choose the user-level
+    /// `.npmrc`); it is deliberately *not* in the `apply!` list, so a
+    /// project `pnpm-workspace.yaml` declaring it is a no-op — matching
+    /// pnpm, which sources the key from the global manifest only.
+    pub npmrc_auth_file: Option<String>,
 
     /// Map of `name[@version]` → patch-file path (relative to the
     /// workspace dir or absolute). Read verbatim; relative-path
@@ -185,6 +207,17 @@ pub struct WorkspaceSettings {
     /// [`BTreeMap`]: std::collections::BTreeMap
     pub patched_dependencies: Option<IndexMap<String, String>>,
 
+    /// `configDependencies` from `pnpm-workspace.yaml`: package name →
+    /// version-with-integrity spec. pnpm records this verbatim in the
+    /// workspace-state file so that `checkDepsStatus` can detect when a
+    /// config dependency changed and force a reinstall. Pacquet must
+    /// write the same value back (see
+    /// [`build_workspace_state`](../../package-manager/src/install.rs)),
+    /// otherwise pnpm reads a missing `configDependencies` on the next
+    /// `pnpm run` / `pnpm node`, compares it against the live config,
+    /// and reinstalls on every invocation.
+    pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
+
     /// Map of `name[@version]` → `true` / `false`. Drives pnpm 11's
     /// default-deny build policy: a package's lifecycle scripts only
     /// run when an entry here resolves to `true`. Mirrors upstream's
@@ -205,6 +238,37 @@ pub struct WorkspaceSettings {
     /// — yaml accepts `true` / `false` / `"warn-only"`. Custom serde
     /// shape, see [`ScriptsPrependNodePath`]'s `Deserialize` impl.
     pub scripts_prepend_node_path: Option<ScriptsPrependNodePath>,
+
+    /// `enablePrePostScripts` from `pnpm-workspace.yaml`. See
+    /// [`Config::enable_pre_post_scripts`].
+    pub enable_pre_post_scripts: Option<bool>,
+
+    /// Tri-state `scriptShell` from `pnpm-workspace.yaml`. pnpm reads
+    /// workspace settings into an object and assigns each present key
+    /// onto the merged config (`addSettingsFromWorkspaceManifestToConfig`
+    /// at <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L859-L885>),
+    /// so an explicit `scriptShell: null` clears a value inherited from
+    /// global `config.yaml`, while an absent key inherits. The extra
+    /// `Option` layer preserves that distinction (same
+    /// `deserialize_double_option` shape as `hoist_pattern`):
+    ///
+    /// - `None` — key absent → `apply_to` skips the field (inherit).
+    /// - `Some(None)` — explicit `null` → `apply_to` writes
+    ///   `Config.script_shell = None` (clear the inherited shell,
+    ///   falling back to the platform default).
+    /// - `Some(Some(s))` — explicit string → `apply_to` writes
+    ///   `Config.script_shell = Some(s)`.
+    ///
+    /// See [`Config::script_shell`].
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub script_shell: Option<Option<String>>,
+
+    /// Tri-state `nodeOptions` from `pnpm-workspace.yaml`. Same
+    /// inherit / clear / set semantics as [`Self::script_shell`] — an
+    /// explicit `nodeOptions: null` unsets an inherited `NODE_OPTIONS`.
+    /// See [`Config::node_options`].
+    #[serde(default, deserialize_with = "deserialize_double_option")]
+    pub node_options: Option<Option<String>>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. Forced to `true` on
     /// Windows in `apply_to` (matches upstream's
@@ -290,6 +354,10 @@ pub struct WorkspaceSettings {
     /// by the verifier.
     pub cache_dir: Option<String>,
 
+    /// `dlxCacheMaxAge` from `pnpm-workspace.yaml`. Minutes; see
+    /// [`Config::dlx_cache_max_age`].
+    pub dlx_cache_max_age: Option<u64>,
+
     /// `minimumReleaseAge` from `pnpm-workspace.yaml`. Milliseconds;
     /// see [`Config::minimum_release_age`].
     pub minimum_release_age: Option<u64>,
@@ -318,6 +386,117 @@ pub struct WorkspaceSettings {
 
     /// `trustPolicyIgnoreAfter` from `pnpm-workspace.yaml`. Minutes.
     pub trust_policy_ignore_after: Option<u64>,
+
+    /// `packageExtensions` from `pnpm-workspace.yaml`: a
+    /// `selector → extension` map that augments dependency manifests
+    /// at install time. Outer key is a `name[@range]` selector; inner
+    /// value lists the extra `dependencies`, `optionalDependencies`,
+    /// `peerDependencies`, and `peerDependenciesMeta` entries to merge
+    /// onto every matching manifest before the resolver walks it.
+    ///
+    /// Mirrors upstream's
+    /// [`packageExtensions`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L145)
+    /// shape and its consumer
+    /// [`createPackageExtender`](https://github.com/pnpm/pnpm/blob/39101f5e37/hooks/read-package-hook/src/createPackageExtender.ts).
+    /// `IndexMap` keeps insertion order so the hash-and-checksum side
+    /// (a separate slice) can keep the same key ordering pnpm does.
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+
+    /// `resolutionMode` from `pnpm-workspace.yaml`. See
+    /// [`ResolutionMode`].
+    pub resolution_mode: Option<ResolutionMode>,
+
+    /// `catalogMode` from `pnpm-workspace.yaml`. See [`CatalogMode`].
+    pub catalog_mode: Option<CatalogMode>,
+
+    /// `registrySupportsTimeField` from `pnpm-workspace.yaml`. See
+    /// [`Config::registry_supports_time_field`].
+    ///
+    /// [`Config::registry_supports_time_field`]: crate::Config::registry_supports_time_field
+    pub registry_supports_time_field: Option<bool>,
+
+    /// `allowedDeprecatedVersions` from `pnpm-workspace.yaml`. See
+    /// [`Config::allowed_deprecated_versions`].
+    ///
+    /// [`Config::allowed_deprecated_versions`]: crate::Config::allowed_deprecated_versions
+    pub allowed_deprecated_versions: Option<BTreeMap<String, String>>,
+
+    /// `updateConfig` from `pnpm-workspace.yaml`. See [`UpdateConfig`].
+    pub update_config: Option<UpdateConfig>,
+
+    /// `peerDependencyRules` from `pnpm-workspace.yaml`. See
+    /// [`PeerDependencyRules`].
+    pub peer_dependency_rules: Option<PeerDependencyRules>,
+}
+
+/// `updateConfig` entry: settings that tune `pnpm update`. Today only
+/// `ignoreDependencies` is modeled. Mirrors pnpm's
+/// [`updateConfig`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L193-L195)
+/// shape.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UpdateConfig {
+    /// Dependency-name patterns `pnpm update` skips. `createMatcher`
+    /// glob/negation patterns upstream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_dependencies: Option<Vec<String>>,
+}
+
+/// `peerDependencyRules` entry: customizations applied when reporting
+/// peer-dependency issues. Mirrors pnpm's
+/// [`PeerDependencyRules`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L147-L151).
+///
+/// - `ignoreMissing` / `allowAny` are `createMatcher` glob/negation
+///   pattern lists (matched against the peer package name).
+/// - `allowedVersions` maps a peer selector (`name`, or the override
+///   form `parent>name` / `parent@range>name`) to an extra semver range
+///   that should be accepted.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PeerDependencyRules {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_missing: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_any: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_versions: Option<BTreeMap<String, String>>,
+}
+
+/// One `packageExtensions` entry: a subset of a manifest's dependency
+/// groups, merged onto every matching manifest at install time. The
+/// fields mirror pnpm's
+/// [`PackageExtension = Pick<BaseManifest, 'dependencies' |
+/// 'optionalDependencies' | 'peerDependencies' |
+/// 'peerDependenciesMeta'>`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L145).
+///
+/// Read directly from yaml — no validation here beyond serde's shape
+/// check. The hook
+/// (`pacquet_package_manager::PackageExtender`) merges these onto
+/// manifests, with the manifest's own fields taking precedence on
+/// conflict so the extension never overwrites a value the package
+/// already declared (mirrors upstream's `{ ...packageExtension[field],
+/// ...manifest[field] }` spread order).
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PackageExtension {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dependencies: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub optional_dependencies: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_dependencies: Option<BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_dependencies_meta: Option<BTreeMap<String, PeerDependencyMeta>>,
+}
+
+/// `peerDependenciesMeta` entry shape: a single `optional` flag today.
+/// Mirrors upstream's
+/// [`PeerDependencyMeta`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/misc.ts).
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PeerDependencyMeta {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub optional: Option<bool>,
 }
 
 /// Basename of the file pnpm reads; exported for test use.
@@ -361,7 +540,7 @@ impl WorkspaceSettings {
     /// reads this file with the same parser as `pnpm-workspace.yaml`,
     /// but applies it through a key-filter pass
     /// ([`isConfigFileKey`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L187))
-    /// so workspace-only knobs (`nodeLinker`, `hoist`, `lockfile`, …)
+    /// so workspace-only knobs (`nodeLinker`, `hoist`, `lockfile`, ...)
     /// cannot be set globally. Mirrors that filter via
     /// [`Self::clear_workspace_only_fields`].
     ///
@@ -407,19 +586,27 @@ impl WorkspaceSettings {
         self.lockfile_include_tarball_url = None;
         self.auto_install_peers = None;
         self.auto_install_peers_from_highest_match = None;
+        self.exclude_links_from_lockfile = None;
         self.hoist_workspace_packages = None;
         self.link_workspace_packages = None;
+        self.inject_workspace_packages = None;
         self.dedupe_peer_dependents = None;
+        self.dedupe_peers = None;
+        self.dedupe_direct_deps = None;
+        self.prefer_workspace_packages = None;
+        self.dedupe_injected_deps = None;
         self.strict_peer_dependencies = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
         self.hoisting_limits = None;
         self.external_dependencies = None;
         self.patched_dependencies = None;
+        self.config_dependencies = None;
         self.allow_builds = None;
         self.supported_architectures = None;
         self.ignored_optional_dependencies = None;
         self.overrides = None;
+        self.package_extensions = None;
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -496,21 +683,30 @@ impl WorkspaceSettings {
             hoist, shamefully_hoist,
             node_linker, symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
+            peers_suffix_max_length,
             lockfile, prefer_frozen_lockfile, offline, prefer_offline,
             lockfile_include_tarball_url,
             auto_install_peers, auto_install_peers_from_highest_match,
+            exclude_links_from_lockfile,
             optimistic_repeat_install,
             hoist_workspace_packages,
             hoisting_limits, external_dependencies,
-            dedupe_peer_dependents, strict_peer_dependencies,
+            dedupe_peer_dependents, dedupe_peers, dedupe_direct_deps, dedupe_injected_deps,
+            strict_peer_dependencies,
             resolve_peers_from_workspace_root, verify_store_integrity,
             block_exotic_subdeps,
             link_workspace_packages,
+            inject_workspace_packages,
+            prefer_workspace_packages,
             side_effects_cache, side_effects_cache_readonly,
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
+            network_concurrency, fetch_timeout, user_agent,
             enable_global_virtual_store,
             git_shallow_hosts,
+            resolution_mode, catalog_mode, registry_supports_time_field,
+            allowed_deprecated_versions, update_config, peer_dependency_rules,
+            enable_pre_post_scripts, dlx_cache_max_age,
         }
 
         // `hoist_pattern` and `public_hoist_pattern` carry the
@@ -561,6 +757,9 @@ impl WorkspaceSettings {
         if let Some(v) = self.registry {
             config.registry = if v.ends_with('/') { v } else { format!("{v}/") };
         }
+        if let Some(v) = self.pnpr_server {
+            config.pnpr_server = Some(v);
+        }
         if let Some(v) = self.named_registries {
             config.named_registries = v;
         }
@@ -573,6 +772,9 @@ impl WorkspaceSettings {
         if let Some(v) = self.patched_dependencies {
             config.patched_dependencies = Some(v);
         }
+        if let Some(v) = self.config_dependencies {
+            config.config_dependencies = Some(v);
+        }
         if let Some(v) = self.allow_builds {
             config.allow_builds = v;
         }
@@ -581,6 +783,15 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.scripts_prepend_node_path {
             config.scripts_prepend_node_path = v;
+        }
+        // Tri-state: `Some(_)` (present in yaml) overwrites — including
+        // `Some(None)` (explicit `null`), which clears the inherited
+        // value. `None` (absent) leaves the inherited config untouched.
+        if let Some(v) = self.script_shell {
+            config.script_shell = v;
+        }
+        if let Some(v) = self.node_options {
+            config.node_options = v;
         }
         if let Some(v) = self.unsafe_perm {
             config.unsafe_perm = v;
@@ -626,6 +837,13 @@ impl WorkspaceSettings {
         // here.
         if let Some(v) = self.overrides {
             config.overrides = (!v.is_empty()).then_some(v);
+        }
+        // Empty map collapses to `None` so the workspace-state drift
+        // check ignores it, mirroring the same shape `overrides` uses.
+        // An explicit later-layer `packageExtensions: {}` still clears
+        // a prior non-empty value rather than no-oping.
+        if let Some(v) = self.package_extensions {
+            config.package_extensions = (!v.is_empty()).then_some(v);
         }
         if let Some(v) = self.cache_dir {
             config.cache_dir = resolve(base_dir, &v);

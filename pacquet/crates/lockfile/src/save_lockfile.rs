@@ -19,7 +19,7 @@ pub enum SaveLockfileError {
 
     #[display("Failed to serialize lockfile to YAML: {_0}")]
     #[diagnostic(code(pacquet_lockfile::serialize_yaml))]
-    SerializeYaml(serde_saphyr::ser::Error),
+    SerializeYaml(serde_json::Error),
 
     #[display("Failed to write lockfile content: {_0}")]
     #[diagnostic(code(pacquet_lockfile::write_file))]
@@ -51,11 +51,25 @@ pub enum SaveLockfileError {
     },
 }
 
+/// Write an arbitrary lockfile-shaped value to `path` as pnpm-formatted YAML.
+///
+/// Used by the `afterAllResolved` pnpmfile hook, whose JSON result may carry
+/// arbitrary keys the typed [`Lockfile`] cannot represent. `serde_json`'s
+/// `preserve_order` feature keeps the key order produced by serializing the
+/// [`Lockfile`] and appended by the hook, so the output matches the typed write
+/// for unmodified lockfiles.
+pub fn save_value_to_path<Document: serde::Serialize>(
+    value: &Document,
+    path: &Path,
+) -> Result<(), SaveLockfileError> {
+    let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
+    fs::write(path, content).map_err(SaveLockfileError::WriteFile)
+}
+
 impl Lockfile {
     /// Save lockfile to a specific path.
     pub fn save_to_path(&self, path: &Path) -> Result<(), SaveLockfileError> {
-        let content = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
-        fs::write(path, content).map_err(SaveLockfileError::WriteFile)
+        save_value_to_path(self, path)
     }
 
     /// Save lockfile to `pnpm-lock.yaml` in the current directory.
@@ -111,7 +125,7 @@ impl Lockfile {
 /// at our predicted temp path. On `AlreadyExists` we advance the
 /// counter and try again, up to `MAX_TEMP_ATTEMPTS` times — matching
 /// the hardening already in `pacquet_fs::ensure_file::write_atomic`
-/// (per-call review on #442).
+/// (per-call review on [#442](https://github.com/pnpm/pacquet/pull/442)).
 fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> {
     /// Sixteen fresh counter values is plenty — under benign
     /// conditions we never collide; under shared-store-across-

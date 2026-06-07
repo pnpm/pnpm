@@ -1,5 +1,20 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 1100.0.11
+
+### Patch Changes
+
+- cbfeeef: Fixed packages being materialized into the virtual store without their root-level files (`package.json`, `LICENSE`, README, root entrypoints) when multiple `pnpm install` processes ran against the same store/workspace concurrently. The fast import path used to destructively empty the shared target directory, so a concurrent importer could wipe files another importer had already written; if the surviving files included the `package.json` completion marker, every later install treated the broken directory as complete and never repaired it. The fast path now imports directly only when it can create the target directory exclusively, and otherwise builds the package in a private temp directory and atomically renames it into place [#12197](https://github.com/pnpm/pnpm/issues/12197).
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/store.controller-types@1100.1.3
+
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/core-loggers@1100.1.2
+- @pnpm/store.controller-types@1100.1.2
+
 ## 1100.0.9
 
 ### Patch Changes

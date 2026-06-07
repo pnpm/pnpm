@@ -8,8 +8,8 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { outdated } from '@pnpm/deps.inspection.commands'
 import type { PnpmError } from '@pnpm/error'
 import { prepare, tempDir } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { symlinkDirSync } from 'symlink-dir'
 
 const f = fixtures(import.meta.dirname)

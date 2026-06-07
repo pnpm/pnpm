@@ -26,6 +26,25 @@ export function branchToFilename (branch: string): string {
   return `${branch.replace(/\//g, '-')}.txt`
 }
 
+// Release commits land via a PR whose branch is named `release-pr/<target>`,
+// where `<target>` is the branch the release is for (`main`, `release/11.1`, …).
+// The ledger must be keyed by that target, not the ephemeral PR branch, so that
+// every release for `main` accumulates in `main.txt` rather than scattering into
+// a new file per PR. A branch without the prefix (e.g. a direct release on
+// `main`) is its own target.
+export const RELEASE_PR_PREFIX = 'release-pr/'
+
+export function releaseBranchToTarget (branch: string): string {
+  if (!branch.startsWith(RELEASE_PR_PREFIX)) return branch
+  const target = branch.slice(RELEASE_PR_PREFIX.length)
+  if (target === '') {
+    throw new Error(
+      `Branch "${branch}" has no target after "${RELEASE_PR_PREFIX}"; expected e.g. "${RELEASE_PR_PREFIX}main".`
+    )
+  }
+  return target
+}
+
 export function readReleased (releasedDir: string): Set<string> {
   const ids = new Set<string>()
   if (!fs.existsSync(releasedDir)) return ids
@@ -94,23 +113,23 @@ export function deleteHidden (hidden: readonly HiddenFile[]): void {
   }
 }
 
-function detectCurrentBranch (cwd: string): string {
+function detectReleaseBranch (cwd: string): string {
   const override = process.env.RELEASE_BRANCH?.trim()
-  if (override !== undefined && override !== '') return override
+  if (override !== undefined && override !== '') return releaseBranchToTarget(override)
   const out = execSync('git rev-parse --abbrev-ref HEAD', { cwd, encoding: 'utf8' }).trim()
   if (out === 'HEAD') {
     throw new Error(
       'Detached HEAD; set RELEASE_BRANCH to override the current branch name.'
     )
   }
-  return out
+  return releaseBranchToTarget(out)
 }
 
 function main (): void {
   const repoRoot = path.resolve(import.meta.dirname, '../../..')
   const changesetDir = path.join(repoRoot, '.changeset')
   const releasedDir = path.join(repoRoot, '.changeset-released')
-  const branch = detectCurrentBranch(repoRoot)
+  const branch = detectReleaseBranch(repoRoot)
 
   console.log(`Branch: ${branch}`)
   const released = readReleased(releasedDir)

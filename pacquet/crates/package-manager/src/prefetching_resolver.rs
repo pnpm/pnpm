@@ -23,12 +23,14 @@
 //! prefetch is still in flight). Errors are surfaced to the install
 //! path as `TarballError::SiblingFetchFailed`.
 
-use crate::install_package_from_registry::{extract_tarball, manifest_unpacked_size};
-use crate::retry_config::retry_opts_from_config;
+use crate::{
+    install_package_from_registry::{extract_tarball, manifest_unpacked_size},
+    retry_config::retry_opts_from_config,
+};
 use dashmap::DashSet;
 use pacquet_config::Config;
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_reporter::{Reporter, SilentReporter};
+use pacquet_reporter::Reporter;
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
     WantedDependency,
@@ -36,7 +38,7 @@ use pacquet_resolving_resolver_base::{
 use pacquet_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
 };
-use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts};
+use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts, SharedReportedProgressKeys};
 use std::{marker::PhantomData, sync::Arc};
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything
@@ -54,6 +56,11 @@ pub struct PrefetchContext<'a> {
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
     pub config: &'static Config,
     pub requester: &'a str,
+    /// Install-scoped set the background download records when it emits
+    /// a package-status progress event. The later warm/cold install pass
+    /// consults the set so prefetch progress is visible immediately
+    /// without being counted again.
+    pub progress_reported: &'a SharedReportedProgressKeys,
 }
 
 /// Owned, `'static`-friendly clones of [`PrefetchContext`] stored on
@@ -73,6 +80,7 @@ struct OwnedFetchCtx {
     requester: Arc<str>,
     offline: bool,
     verify_store_integrity: bool,
+    progress_reported: SharedReportedProgressKeys,
     /// Set of URLs that already had a prefetch task spawned, used as
     /// an atomic check-and-claim gate so concurrent resolves for the
     /// same tarball can't both pass a non-atomic `MemCache` lookup and
@@ -117,6 +125,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             verified_files_cache,
             config,
             requester,
+            progress_reported,
         } = prefetch_ctx;
         let ctx = OwnedFetchCtx {
             http_client: Arc::clone(http_client),
@@ -130,6 +139,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             requester: Arc::<str>::from(requester),
             offline: config.offline,
             verify_store_integrity: config.verify_store_integrity,
+            progress_reported: SharedReportedProgressKeys::clone(progress_reported),
             spawned_urls: Arc::new(DashSet::new()),
         };
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
@@ -200,26 +210,17 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let requester = Arc::clone(&self.ctx.requester);
         let offline = self.ctx.offline;
         let verify_store_integrity = self.ctx.verify_store_integrity;
+        let progress_reported = SharedReportedProgressKeys::clone(&self.ctx.progress_reported);
 
         tokio::spawn(async move {
-            // Route the prefetch download through `SilentReporter`,
-            // not the install's reporter. `DownloadTarballToStore`
-            // emits `pnpm:progress fetched` / `found_in_store`
-            // internally; if the install's reporter received those
-            // from the prefetch task, they would land *before*
-            // `install_subtree::install_package_from_registry` emits
-            // the `resolved` event for the same package, breaking
-            // the documented `resolved → fetched/found_in_store →
-            // imported` order pnpm's reporter consumers (notably
-            // `@pnpm/cli.default-reporter`) depend on. The install
-            // pass's own `run_with_mem_cache` call still uses the
-            // real `Reporter` and emits the events in the right
-            // order — the second call short-circuits via `MemCache`
-            // but its `emit_progress_found_in_store` / `emit_*`
-            // path runs uniformly. Mirrors pnpm's
-            // `packageRequester.requestPackage` shape: the
-            // `fetching` promise runs early but the per-event emit
-            // is driven by the install pass that `await`s it.
+            // Report prefetch progress through the install reporter as
+            // soon as the fetch/cache-hit outcome is known. pnpm can
+            // likewise start package fetching before the dependency
+            // resolver emits `resolved`; the default reporter counts
+            // progress events independently. The shared
+            // `progress_reported` set lets the later warm/cold install
+            // pass skip a duplicate package-status event for this cache
+            // key while still emitting `resolved`.
             //
             // Result is intentionally discarded — the `MemCache`
             // carries success / failure state to the install path.
@@ -240,8 +241,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 auth_headers: &auth_headers,
                 ignore_file_pattern: None,
                 offline,
+                progress_reported: Some(progress_reported),
             }
-            .run_with_mem_cache::<SilentReporter>(&mem_cache)
+            .run_with_mem_cache::<Reporter>(&mem_cache)
             .await;
         });
     }

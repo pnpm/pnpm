@@ -41,13 +41,8 @@
 //!   the peer-id, which is what upstream's cycle resolution converges
 //!   on anyway.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::Arc;
-
-use node_semver::{Range, Version};
-use pacquet_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash};
-
 use crate::{
+    dedupe_injected_deps::dedupe_injected_deps,
     dependencies_graph::{
         DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentPackageRef,
         PeerDependencyIssue, PeerDependencyIssues,
@@ -57,7 +52,14 @@ use crate::{
         DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren,
     },
 };
+use node_semver::{Range, Version};
+use pacquet_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
 use pacquet_resolving_resolver_base::ResolveResult;
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Pull `(name, version)` out of a `ResolveResult` the peer-resolution
 /// stage can hash and compare on.
@@ -73,6 +75,20 @@ use pacquet_resolving_resolver_base::ResolveResult;
 /// the fallback's "name" will simply miss every lookup, naturally
 /// short-circuiting peer propagation for non-npm packages without
 /// panicking on `name_ver = None`.
+/// Reinterpret a `link:<rel>` [`NodeId`] as a [`DepPath`].
+///
+/// Linked top-parent NodeIds (whether the workspace-link arm or the
+/// `excludeLinksFromLockfile` remap) never enter the dependency tree,
+/// so [`Walker::node_dep_paths`] never maps them. The `link:<rel>`
+/// NodeId is itself a well-formed pnpm DepPath, so the snapshot
+/// child edge can use it verbatim. Mirrors upstream's
+/// [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L164)
+/// fallback in `resolveChildren`.
+fn link_node_id_as_dep_path(node_id: &NodeId) -> Option<DepPath> {
+    let NodeId::Leaf(id) = node_id else { return None };
+    id.starts_with("link:").then(|| DepPath::from(id.to_string()))
+}
+
 fn pkg_name_version(result: &ResolveResult) -> (String, String) {
     if let Some(name_ver) = result.name_ver.as_ref() {
         return (name_ver.name.to_string(), name_ver.suffix.to_string());
@@ -82,17 +98,51 @@ fn pkg_name_version(result: &ResolveResult) -> (String, String) {
 }
 
 /// Options threaded into [`fn@resolve_peers`].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ResolvePeersOptions {
     /// Cap on the rendered peer-suffix length before pacquet swaps the
     /// suffix for its short hash. Mirrors upstream's
     /// `peersSuffixMaxLength` (default 1000).
     pub peers_suffix_max_length: usize,
+
+    /// When `true`, every resolved-peer slot in the depPath suffix
+    /// renders as `name@version` instead of the peer's own depPath,
+    /// collapsing recursive peer suffixes like
+    /// `(foo@1.0.0(bar@2.0.0))` into `(foo@1.0.0)`. Mirrors pnpm's
+    /// [`dedupePeers`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolvePeers.ts#L990-L997)
+    /// branch in `peerNodeIdToPeerId`.
+    pub dedupe_peers: bool,
+
+    /// When `true`, `link:` direct dependencies whose target lives
+    /// outside [`lockfile_dir`](Self::lockfile_dir) are seeded into
+    /// the peer-resolution parent map with a node id remapped to
+    /// `link:<rel-from-lockfile_dir-to-modules_dir>/<alias>`, so peer
+    /// resolution against those parents stays stable across machines.
+    /// Mirrors upstream's
+    /// [exclude-link `target` rewrite](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244).
+    pub exclude_links_from_lockfile: bool,
+
+    /// Absolute path of the directory `pnpm-lock.yaml` lives in. Used
+    /// (a) as the anchor for the subdir check that gates the remap,
+    /// and (b) as the base for the relative path the remapped link
+    /// node id encodes. `None` disables the remap.
+    pub lockfile_dir: Option<std::path::PathBuf>,
+
+    /// Absolute path of the importer's `node_modules` directory. Used
+    /// to compose `<modules_dir>/<alias>` as the remap target.
+    /// `None` disables the remap.
+    pub modules_dir: Option<std::path::PathBuf>,
 }
 
 impl Default for ResolvePeersOptions {
     fn default() -> Self {
-        ResolvePeersOptions { peers_suffix_max_length: 1000 }
+        ResolvePeersOptions {
+            peers_suffix_max_length: 1000,
+            dedupe_peers: false,
+            exclude_links_from_lockfile: false,
+            lockfile_dir: None,
+            modules_dir: None,
+        }
     }
 }
 
@@ -103,6 +153,34 @@ pub struct ResolvePeersResult {
     pub graph: DependenciesGraph,
     pub direct_dependencies_by_alias: BTreeMap<String, DepPath>,
     pub peer_dependency_issues: PeerDependencyIssues,
+}
+
+/// One importer's input to the multi-importer [`fn@resolve_peers_workspace`]
+/// — the lockfile importer id, the importer's `directNodeIdsByAlias`
+/// slice, the absolute project root, and the per-importer
+/// `modules_dir` used by the `excludeLinksFromLockfile` link-remap.
+/// Mirrors the per-project payload pnpm's `resolvePeers` reads off
+/// `opts.projects`.
+#[derive(Debug, Clone)]
+pub struct ImporterPeerInput {
+    pub id: String,
+    pub direct: Vec<DirectDep>,
+    pub root_dir: PathBuf,
+    /// Absolute path of this importer's `node_modules` directory.
+    /// Threaded into [`ResolvePeersOptions::modules_dir`] while this
+    /// importer is being walked so the `excludeLinksFromLockfile` link
+    /// remap uses the correct per-importer target. `None` disables
+    /// the remap for this importer.
+    pub modules_dir: Option<PathBuf>,
+}
+
+/// Output of [`fn@resolve_peers_workspace`] — the cross-importer
+/// dedupe map plus per-importer `direct_dependencies_by_alias` slices.
+#[derive(Debug, Default)]
+pub struct WorkspaceResolvePeersResult {
+    pub graph: DependenciesGraph,
+    pub direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>>,
+    pub peer_dependency_issues_by_importer: BTreeMap<String, PeerDependencyIssues>,
 }
 
 /// Resolve peer dependencies for `tree` and emit a depPath-keyed graph.
@@ -130,6 +208,82 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
         parent_pkgs_of_node: HashMap::new(),
     };
     walker.walk()
+}
+
+/// Resolve peer dependencies for every importer in `importers` against
+/// the shared `tree`, then rewrite injected workspace deps that
+/// dedupe back to `link:` symlinks.
+///
+/// Mirrors pnpm's
+/// [`resolvePeers`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolvePeers.ts#L72)
+/// multi-importer entry point: one Walker walks every importer's
+/// direct deps in sequence so `peersCache` + `purePkgs` are shared
+/// across importers, then the in-crate `dedupe_injected_deps` pass
+/// runs once with all importers' direct deps in scope.
+pub fn resolve_peers_workspace(
+    tree: &mut ResolvedTree,
+    importers: &[ImporterPeerInput],
+    lockfile_dir: &Path,
+    dedupe_injected_deps_enabled: bool,
+    opts: ResolvePeersOptions,
+) -> WorkspaceResolvePeersResult {
+    let mut walker = Walker {
+        tree,
+        opts,
+        graph: DependenciesGraph::new(),
+        issues: PeerDependencyIssues::default(),
+        node_dep_paths: HashMap::new(),
+        node_external_peers: HashMap::new(),
+        node_missing_peers: HashMap::new(),
+        in_progress: HashSet::new(),
+        pending_peer_edges: Vec::new(),
+        pure_pkgs: HashSet::new(),
+        peers_cache: HashMap::new(),
+        parent_pkgs_of_node: HashMap::new(),
+    };
+
+    let mut direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>> =
+        BTreeMap::new();
+    let mut peer_dependency_issues_by_importer: BTreeMap<String, PeerDependencyIssues> =
+        BTreeMap::new();
+    let mut importer_root_dirs: BTreeMap<String, PathBuf> = BTreeMap::new();
+    for importer in importers {
+        importer_root_dirs.insert(importer.id.clone(), importer.root_dir.clone());
+        // Swap the per-importer `modules_dir` in before the walk so
+        // the `excludeLinksFromLockfile` link-remap inside
+        // `resolve_node` uses the correct importer-scoped target.
+        walker.opts.modules_dir = importer.modules_dir.clone();
+        let importer_parents = walker.build_importer_parents_from(&importer.direct);
+        let parent_chain_names: Vec<String> = Vec::new();
+        let mut direct_by_alias = BTreeMap::new();
+        for dep in &importer.direct {
+            let output =
+                walker.resolve_node(dep.node_id.clone(), &importer_parents, &parent_chain_names, 0);
+            direct_by_alias.insert(dep.alias.clone(), output.dep_path);
+        }
+        direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
+        let issues = std::mem::take(&mut walker.issues);
+        if !issues.bad.is_empty() || !issues.missing.is_empty() {
+            peer_dependency_issues_by_importer.insert(importer.id.clone(), issues);
+        }
+    }
+    walker.patch_pending_peer_edges();
+    let mut graph = walker.graph;
+
+    if dedupe_injected_deps_enabled {
+        dedupe_injected_deps(
+            &mut graph,
+            &mut direct_dependencies_by_importer,
+            &importer_root_dirs,
+            lockfile_dir,
+        );
+    }
+
+    WorkspaceResolvePeersResult {
+        graph,
+        direct_dependencies_by_importer,
+        peer_dependency_issues_by_importer,
+    }
 }
 
 /// Per-name entry in the propagating `ParentRefs` map. Mirrors upstream's
@@ -355,16 +509,35 @@ impl<'tree> Walker<'tree> {
     /// a direct dep's peer requirements can be satisfied by a sibling
     /// direct dep. Mirrors upstream's `pkgsByName` initialisation at
     /// the entry of `resolvePeers`.
+    ///
+    /// `link:` direct deps whose target lives outside
+    /// [`ResolvePeersOptions::lockfile_dir`] are seeded with a node id
+    /// rewritten to `link:<rel-from-lockfile_dir-to-modules_dir>/<alias>`
+    /// when [`ResolvePeersOptions::exclude_links_from_lockfile`] is on
+    /// — keeping the peer-suffix segment stable across machines
+    /// regardless of the absolute path of the external link. Mirrors
+    /// upstream's
+    /// [`target` rewrite in `index.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244).
     fn build_importer_parents(&self) -> ParentRefs {
+        self.build_importer_parents_from(&self.tree.direct)
+    }
+
+    /// Same as [`Self::build_importer_parents`] but seeds from an
+    /// externally-supplied direct-deps slice — used by the multi-importer
+    /// [`fn@resolve_peers_workspace`] where each importer's `direct`
+    /// lives outside [`ResolvedTree`].
+    fn build_importer_parents_from(&self, direct_deps: &[DirectDep]) -> ParentRefs {
         let mut refs = ParentRefs::new();
-        for direct in &self.tree.direct {
+        for direct in direct_deps {
             let Some(tree_node) = self.tree.dependencies_tree.get(&direct.node_id) else {
                 continue;
             };
             let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id) else {
                 continue;
             };
-            insert_parent_ref(&mut refs, direct, pkg, self.tree);
+            let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, &pkg.result)
+                .unwrap_or_else(|| direct.node_id.clone());
+            insert_parent_ref(&mut refs, &direct.alias, parent_node_id, pkg, self.tree);
         }
         refs
     }
@@ -641,8 +814,8 @@ impl<'tree> Walker<'tree> {
             DepPath::from(pkg.id.clone())
         } else {
             let mut peer_ids: Vec<PeerId> = all_resolved_peers
-                .values()
-                .map(|peer_node_id| self.build_peer_id(peer_node_id))
+                .iter()
+                .map(|(peer_alias, peer_node_id)| self.build_peer_id(peer_alias, peer_node_id))
                 .collect();
             // Sorting happens inside `create_peer_dep_graph_hash`, but
             // we deduplicate by stringified form here to mirror
@@ -673,6 +846,15 @@ impl<'tree> Walker<'tree> {
         for (peer_alias, peer_node_id) in &all_resolved_peers {
             if let Some(peer_dep_path) = self.node_dep_paths.get(peer_node_id) {
                 graph_children.insert(peer_alias.clone(), peer_dep_path.clone());
+            } else if let Some(link_dep_path) = link_node_id_as_dep_path(peer_node_id) {
+                // Mirrors upstream's
+                // [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L164)
+                // fallback in `resolveChildren`. `topParents` linked-dep
+                // NodeIds never enter the tree, so `node_dep_paths` is
+                // empty for them; the `link:<rel>` NodeId is itself a
+                // valid DepPath, so the snapshot's child edge can use
+                // it verbatim.
+                graph_children.insert(peer_alias.clone(), link_dep_path);
             } else {
                 self.pending_peer_edges.push(PendingPeerEdge {
                     parent_dep_path: dep_path.clone(),
@@ -811,11 +993,42 @@ impl<'tree> Walker<'tree> {
         }
     }
 
-    /// Build the [`PeerId`] contribution for one resolved peer. If the
-    /// peer's depPath is already in `node_dep_paths`, use it (the
-    /// `DepPath` form). Otherwise (the cycle path), fall back to
-    /// `name@version` from the resolved package.
-    fn build_peer_id(&self, peer_node_id: &NodeId) -> PeerId {
+    /// Build the [`PeerId`] contribution for one resolved peer.
+    ///
+    /// Precedence (mirrors upstream's
+    /// [`peerNodeIdToPeerId`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L976-L998)):
+    ///
+    /// 1. **`link:<rel>` NodeIds** — emit
+    ///    `PeerId::Pair { name: peer_alias, version: link_path_to_peer_version(rel) }`
+    ///    so the peer-suffix segment reads as `name@encoded_path`
+    ///    instead of carrying the raw link target. This branch fires
+    ///    for both workspace-link parents and the
+    ///    `excludeLinksFromLockfile` remap that points the parent at
+    ///    `link:node_modules/<alias>`.
+    /// 2. **`dedupe_peers` enabled** — emit `name@version` from the
+    ///    resolved package so recursive peer suffixes collapse like
+    ///    `(foo@1.0.0(bar@2.0.0))` → `(foo@1.0.0)`. Mirrors upstream's
+    ///    [`dedupePeers` branch](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolvePeers.ts#L990-L997).
+    /// 3. **The peer's `DepPath`** once it has been walked —
+    ///    `node_dep_paths` lookup, emitted as [`PeerId::DepPath`].
+    /// 4. **Cycle fallback** — `name@version` from the resolved package,
+    ///    emitted as [`PeerId::Pair`].
+    fn build_peer_id(&self, peer_alias: &str, peer_node_id: &NodeId) -> PeerId {
+        if let NodeId::Leaf(id) = peer_node_id
+            && let Some(rel) = id.strip_prefix("link:")
+        {
+            return PeerId::Pair {
+                name: peer_alias.to_string(),
+                version: link_path_to_peer_version(rel),
+            };
+        }
+        if self.opts.dedupe_peers
+            && let Some(tree_node) = self.tree.dependencies_tree.get(peer_node_id)
+            && let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id)
+        {
+            let (name, version) = pkg_name_version(&pkg.result);
+            return PeerId::Pair { name, version };
+        }
         if let Some(dep_path) = self.node_dep_paths.get(peer_node_id) {
             return PeerId::DepPath(dep_path.clone());
         }
@@ -1073,31 +1286,80 @@ fn parent_pkgs_have_single_occurrence(parents: &HashMap<String, ParentPkgInfo>) 
 /// parent is recorded by its install alias *and* its real name when
 /// the two differ. Mirrors
 /// [`updateParentRefs`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts#L1035-L1044).
+///
+/// `parent_node_id` is the [`NodeId`] the parent should appear under
+/// in the [`ParentRefs`] map. For most parents this is just
+/// `direct.node_id`, but `link:` parents may carry the remapped
+/// node id produced by [`remap_link_node_id`] when
+/// `excludeLinksFromLockfile` is on.
 fn insert_parent_ref(
     refs: &mut ParentRefs,
-    direct: &crate::resolved_tree::DirectDep,
+    direct_alias: &str,
+    parent_node_id: NodeId,
     pkg: &ResolvedPackage,
     tree: &ResolvedTree,
 ) {
     let (real_name, version) = pkg_name_version(&pkg.result);
-    let alias_relevant = tree.all_peer_dep_names.contains(&direct.alias);
+    let alias_relevant = tree.all_peer_dep_names.contains(direct_alias);
     let real_relevant = tree.all_peer_dep_names.contains(&real_name);
     if !alias_relevant && !real_relevant {
         return;
     }
     let parent_ref = ParentRef {
         version,
-        node_id: Some(direct.node_id.clone()),
-        alias: (direct.alias != real_name).then(|| direct.alias.clone()),
+        node_id: Some(parent_node_id),
+        alias: (direct_alias != real_name).then(|| direct_alias.to_string()),
         depth: 0,
         occurrence: 0,
     };
     if alias_relevant {
-        refs.insert(direct.alias.clone(), parent_ref.clone());
+        refs.insert(direct_alias.to_string(), parent_ref.clone());
     }
-    if real_relevant && direct.alias != real_name {
+    if real_relevant && direct_alias != real_name {
         refs.insert(real_name, parent_ref);
     }
+}
+
+/// Compute the `link:` [`NodeId`] under which a workspace-link parent
+/// should appear in [`ParentRefs`] when
+/// [`ResolvePeersOptions::exclude_links_from_lockfile`] is on.
+///
+/// Returns `None` when:
+///
+/// - the dep isn't a `link:` directory resolution;
+/// - the setting is off or the lockfile / modules dirs are missing;
+/// - the link target lives under `lockfile_dir` (workspace-internal
+///   link — already stable across machines, no remap needed).
+///
+/// On `Some`, the remap encodes `<modules_dir>/<alias>` as a path
+/// relative to `lockfile_dir`, prefixed with `link:`. Mirrors
+/// upstream's
+/// [`target` rewrite in `index.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244)
+/// and the surrounding
+/// [`createNodeIdForLinkedLocalPkg`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolveDependencies.ts#L976-L978)
+/// helper.
+fn remap_link_node_id(
+    opts: &ResolvePeersOptions,
+    alias: &str,
+    result: &ResolveResult,
+) -> Option<NodeId> {
+    if !opts.exclude_links_from_lockfile {
+        return None;
+    }
+    let lockfile_dir = opts.lockfile_dir.as_ref()?;
+    let modules_dir = opts.modules_dir.as_ref()?;
+    let directory = match &result.resolution {
+        pacquet_lockfile::LockfileResolution::Directory(dir) => &dir.directory,
+        _ => return None,
+    };
+    let link_target = std::path::Path::new(directory);
+    if pacquet_fs::is_subdir(lockfile_dir, link_target) {
+        return None;
+    }
+    let target = modules_dir.join(alias);
+    let rel = pathdiff::diff_paths(&target, lockfile_dir)?;
+    let rel = rel.display().to_string().replace('\\', "/");
+    Some(NodeId::leaf(&format!("link:{rel}")))
 }
 
 /// Insert `parent_ref` under `name` in `refs`, bumping `occurrence`
@@ -1181,31 +1443,4 @@ fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::satisfies_with_prereleases;
-
-    #[test]
-    fn satisfies_handles_basic_ranges() {
-        assert!(satisfies_with_prereleases("1.2.3", "^1.0.0"));
-        assert!(!satisfies_with_prereleases("2.0.0", "^1.0.0"));
-        assert!(satisfies_with_prereleases("18.0.0", "*"));
-    }
-
-    #[test]
-    fn satisfies_falls_back_to_equality_for_unparsable_ranges() {
-        assert!(satisfies_with_prereleases("workspace:^1.0.0", "workspace:^1.0.0"));
-        assert!(!satisfies_with_prereleases("1.0.0", "workspace:^1.0.0"));
-    }
-
-    #[test]
-    fn satisfies_accepts_prerelease_against_non_prerelease_range() {
-        // Mirrors Yarn's `satisfiesWithPrereleases` carve-out: a peer
-        // candidate at `18.0.0-rc.1` should satisfy a `^18.0.0` peer
-        // requirement. node-semver's default `satisfies` rejects this
-        // pairing, so the prerelease-strip retry has to catch it.
-        assert!(satisfies_with_prereleases("18.0.0-rc.1", "^18.0.0"));
-        assert!(satisfies_with_prereleases("1.2.3-beta.0", "^1.2.0"));
-        // Out-of-range prereleases still fail.
-        assert!(!satisfies_with_prereleases("19.0.0-rc.1", "^18.0.0"));
-    }
-}
+mod tests;

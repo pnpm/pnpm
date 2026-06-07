@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/releasing.commands",
-  "version": "1100.3.0",
+  "version": "1100.4.2",
   "description": "Commands for deploy, pack, and publish",
   "keywords": [
     "pnpm",
@@ -32,6 +32,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@inquirer/prompts": "catalog:",
     "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
@@ -68,7 +69,6 @@
     "chalk": "catalog:",
     "ci-info": "catalog:",
     "detect-libc": "catalog:",
-    "enquirer": "catalog:",
     "execa": "catalog:",
     "libnpmpublish": "catalog:",
     "normalize-path": "catalog:",
@@ -96,11 +96,11 @@
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/releasing.commands": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/libnpmpublish": "catalog:",

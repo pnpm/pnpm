@@ -1,7 +1,6 @@
 mod api;
 mod defaults;
 mod env_overlay;
-mod env_replace;
 pub mod matcher;
 mod npmrc_auth;
 mod store_path;
@@ -13,8 +12,9 @@ pub use crate::api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProb
 use indexmap::IndexMap;
 use pacquet_patching::{PatchGroupRecord, ResolvePatchedDependenciesError, resolve_and_group};
 use pacquet_store_dir::StoreDir;
+use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -23,20 +23,22 @@ use std::{
 };
 
 pub use crate::defaults::{
-    available_parallelism, default_git_shallow_hosts, default_unsafe_perm,
-    default_virtual_store_dir_max_length, default_workspace_concurrency, is_unsafe_perm_posix,
-    resolve_child_concurrency,
+    PACQUET_VERSION, available_parallelism, default_git_shallow_hosts,
+    default_peers_suffix_max_length, default_unsafe_perm, default_virtual_store_dir_max_length,
+    default_workspace_concurrency, is_unsafe_perm_posix, resolve_child_concurrency,
 };
 use crate::defaults::{
     default_cache_dir, default_child_concurrency, default_config_dir,
     default_enable_global_virtual_store, default_fetch_retries, default_fetch_retry_factor,
-    default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_hoist_pattern,
-    default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
-    default_registry, default_store_dir, default_virtual_store_dir,
+    default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
+    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
+    default_public_hoist_pattern, default_registry, default_store_dir, default_user_agent,
+    default_virtual_store_dir,
 };
 pub use workspace_yaml::{
-    GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceSettings, workspace_root_or,
+    GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, PackageExtension, PeerDependencyMeta,
+    PeerDependencyRules, UpdateConfig, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
+    workspace_root_or,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -56,6 +58,32 @@ pub enum NodeLinker {
     Pnp,
 }
 
+/// Controls how far dependencies are hoisted under
+/// `nodeLinker: hoisted`, mirroring yarn's `nmHoistingLimits`.
+///
+/// Given workspace package `A` → `B` → `C`:
+/// - [`HoistingLimits::None`] (default): hoist as far as possible
+///   (`/node_modules/B`, `/node_modules/C`).
+/// - [`HoistingLimits::Workspaces`]: hoist only as far as each
+///   workspace package (`/packages/A/node_modules/{B,C}`).
+/// - [`HoistingLimits::Dependencies`]: hoist only up to each
+///   workspace package's direct dependencies
+///   (`/packages/A/node_modules/B/node_modules/C`).
+///
+/// Mirrors pnpm's
+/// [`HoistingLimits`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L10).
+/// No effect under `nodeLinker: isolated`. The user-facing mode is
+/// translated into the per-locator border map the hoister consumes
+/// by `crate::get_hoisting_limits` in `pacquet-package-manager`.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HoistingLimits {
+    #[default]
+    None,
+    Workspaces,
+    Dependencies,
+}
+
 /// Supply-chain trust policy applied to lockfile entries.
 ///
 /// Mirrors pnpm's
@@ -67,7 +95,7 @@ pub enum NodeLinker {
 /// `dist.attestations.provenance`) is weaker than an earlier-published
 /// version's. Defaults to [`TrustPolicy::Off`] so installs without an
 /// explicit policy don't change behavior.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TrustPolicy {
     #[default]
@@ -212,6 +240,72 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
         }
         deserializer.deserialize_any(V)
     }
+}
+
+/// How the resolver picks a version for a direct dependency when more
+/// than one satisfies the wanted range.
+///
+/// Mirrors pnpm's
+/// [`resolutionMode`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts#L135)
+/// (`'highest' | 'time-based' | 'lowest-direct'`). Defaults to
+/// [`ResolutionMode::Highest`], matching pnpm's
+/// [`'resolution-mode': 'highest'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L188).
+///
+/// Only direct dependencies are affected by the lowest-version pick;
+/// subdependencies are always picked highest. Under
+/// [`ResolutionMode::TimeBased`] the resolver additionally constrains
+/// subdependencies to versions published no later than the newest
+/// resolved direct dependency (plus a one-hour delta).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ResolutionMode {
+    /// Pick the highest version that satisfies the range, everywhere.
+    #[default]
+    Highest,
+
+    /// Resolve direct dependencies to their lowest satisfying version,
+    /// then resolve subdependencies from versions published before the
+    /// last direct dependency was published.
+    TimeBased,
+
+    /// Resolve direct dependencies to their lowest satisfying version;
+    /// subdependencies are unconstrained (picked highest).
+    LowestDirect,
+}
+
+impl ResolutionMode {
+    /// Whether direct dependencies are resolved to their lowest
+    /// satisfying version. True for both [`Self::TimeBased`] and
+    /// [`Self::LowestDirect`]. Mirrors pnpm's
+    /// [`pickLowestVersion`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L470)
+    /// computation.
+    pub fn picks_lowest_direct(self) -> bool {
+        matches!(self, ResolutionMode::TimeBased | ResolutionMode::LowestDirect)
+    }
+}
+
+/// How `pnpm add` / `pnpm update` reconcile a directly-specified version
+/// against a `catalog:` entry for the same package. Mirrors pnpm's
+/// [`catalogMode`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L186)
+/// setting.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CatalogMode {
+    /// The catalog is consulted only for explicit `catalog:` specifiers;
+    /// `add` / `update` never reconcile a direct version against it. The
+    /// default, matching pnpm's
+    /// [`'catalog-mode': 'manual'`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L132).
+    #[default]
+    Manual,
+
+    /// A direct version that disagrees with the matching catalog entry is
+    /// an error (`ERR_PNPM_CATALOG_VERSION_MISMATCH`).
+    Strict,
+
+    /// A direct version that disagrees with the matching catalog entry is
+    /// kept, with a warning; a version that agrees is used from the
+    /// catalog.
+    Prefer,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -394,6 +488,25 @@ pub struct Config {
     #[default(_code = "default_virtual_store_dir_max_length()")]
     pub virtual_store_dir_max_length: u64,
 
+    /// Cap on the rendered peer-suffix length before the suffix is
+    /// replaced with a short hash. Mirrors upstream
+    /// `Config.peersSuffixMaxLength` and is threaded into
+    /// `pacquet_deps_path::create_peer_dep_graph_hash` — when the
+    /// flattened `(peer@ver)(peer@ver)…` string exceeds this many
+    /// bytes, pnpm and pacquet swap it for a 32-char sha256 hash so
+    /// virtual-store paths stay under the OS component-name limit.
+    ///
+    /// Configurable via `peersSuffixMaxLength` in
+    /// `pnpm-workspace.yaml`, global `config.yaml`, or
+    /// `PNPM_CONFIG_PEERS_SUFFIX_MAX_LENGTH`. The same value is
+    /// persisted into the lockfile's `settings.peersSuffixMaxLength`
+    /// (omitted when it equals the default) so subsequent installs
+    /// pick the user's pick.
+    ///
+    /// Default value is 1000.
+    #[default(_code = "default_peers_suffix_max_length()")]
+    pub peers_suffix_max_length: u64,
+
     /// When set to false, pnpm won't read or generate a pnpm-lock.yaml file.
     ///
     /// Defaults to `true` so a fresh `pacquet install` writes a
@@ -485,7 +598,7 @@ pub struct Config {
 
     /// User-defined named-registry aliases from
     /// `pnpm-workspace.yaml#namedRegistries`. Maps each alias name
-    /// (`gh`, `work`, …) to the registry URL its `<alias>:` specifiers
+    /// (`gh`, `work`, ...) to the registry URL its `<alias>:` specifiers
     /// resolve against. Empty by default — the resolver layer merges
     /// these on top of pnpm's built-in defaults (today: `gh:` →
     /// GitHub Packages) and rejects malformed URLs at construction
@@ -528,6 +641,15 @@ pub struct Config {
     #[default = true]
     pub auto_install_peers: bool,
 
+    /// When `true`, dependencies declared with the `link:` protocol
+    /// are excluded from `pnpm-lock.yaml`. Workspace-protocol
+    /// dependencies (`workspace:`), which also resolve to a link,
+    /// are still recorded. Mirrors pnpm's
+    /// [`excludeLinksFromLockfile`](https://github.com/pnpm/pnpm/blob/094aa6e57b/config/reader/src/Config.ts#L71)
+    /// (default `false` per
+    /// [`config/reader/src/index.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/config/reader/src/index.ts#L144)).
+    pub exclude_links_from_lockfile: bool,
+
     /// When `true`, conflicting peer-dependency ranges from multiple
     /// consumers are merged with `||` (so the resolver may pick the
     /// highest version that satisfies any one of them) instead of
@@ -554,21 +676,15 @@ pub struct Config {
     /// Per-importer block-list of package aliases that may NOT be
     /// hoisted past that importer's slot. Outer key is the
     /// importer locator (e.g. `'.@'` for the root project, or the
-    /// percent-encoded importer id with the `@` slot suffix);
-    /// inner set is the alias names whose hoisting is bordered.
-    ///
-    /// Programmatic-only upstream — pnpm exposes it through the
-    /// embedded API and Bit CLI rather than `pnpm-workspace.yaml`,
-    /// because the ergonomics of the locator-keyed map don't
-    /// translate cleanly to a yaml setting. Pacquet exposes it
-    /// via `HoistOpts::hoisting_limits` (in `pacquet-real-hoist`)
-    /// and reads the same yaml shape (`hoistingLimits: { ".@": [...] }`)
-    /// for parity.
-    ///
-    /// Default empty (no aliases bordered). Mirrors upstream's
-    /// [`hoistingLimits`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L10).
-    /// No effect under `nodeLinker: isolated`.
-    pub hoisting_limits: BTreeMap<String, BTreeSet<String>>,
+    /// `hoistingLimits` from `pnpm-workspace.yaml`. Controls how far
+    /// dependencies are hoisted under `nodeLinker: hoisted`. See
+    /// [`HoistingLimits`] for the `none` / `workspaces` /
+    /// `dependencies` semantics. Default [`HoistingLimits::None`]
+    /// (hoist as far as possible). Translated into the hoister's
+    /// per-locator border map by `crate::get_hoisting_limits` in
+    /// `pacquet-package-manager`. No effect under
+    /// `nodeLinker: isolated`.
+    pub hoisting_limits: HoistingLimits,
 
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Controls
     /// whether the npm resolver consults the workspace map when
@@ -577,6 +693,27 @@ pub struct Config {
     /// Default `false`, matching pnpm's
     /// [`'link-workspace-packages': false`](https://github.com/pnpm/pnpm/blob/5353fcbf01/config/reader/src/index.ts#L174).
     pub link_workspace_packages: LinkWorkspacePackages,
+
+    /// `injectWorkspacePackages` from `pnpm-workspace.yaml`. When
+    /// `true`, workspace-package resolutions materialize as `file:`
+    /// (hard-linked copies into the virtual store) instead of `link:`
+    /// symlinks back to the source. Per-dependency
+    /// `dependenciesMeta[*].injected = true` opts a single dep into
+    /// the same behavior even when this flag is `false`.
+    ///
+    /// Default `false`, matching pnpm's
+    /// [`'inject-workspace-packages': undefined`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L190).
+    pub inject_workspace_packages: bool,
+
+    /// When `true`, prefer a workspace package over a registry pick
+    /// even when the registry version is newer than the workspace
+    /// one. Mirrors pnpm's
+    /// [`preferWorkspacePackages`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L191).
+    /// Consumed by the npm resolver's
+    /// [registry-pick + workspace shadow](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L550-L582).
+    /// Default `false`, matching pnpm's
+    /// [`'prefer-workspace-packages': false`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts#L183).
+    pub prefer_workspace_packages: bool,
 
     /// Name slots reserved at the root for an external linker
     /// (the Bit CLI is the only known consumer upstream). Any
@@ -596,6 +733,39 @@ pub struct Config {
     #[default = true]
     pub dedupe_peer_dependents: bool,
 
+    /// When `true`, peer-dependency suffixes in `depPath`s use
+    /// version-only identifiers (`name@version`) instead of recursive
+    /// dep paths, eliminating nested suffixes like
+    /// `(foo@1.0.0(bar@2.0.0))`. Mirrors pnpm's
+    /// [`dedupePeers`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L218).
+    /// Default `false`, matching pnpm's
+    /// [`dedupe-peers`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/index.ts#L138).
+    pub dedupe_peers: bool,
+
+    /// When `true`, a direct dependency of a non-root workspace
+    /// project is omitted from that project's `node_modules/` when
+    /// the workspace root resolves the same alias to the same target.
+    /// Drives both the linking step (which skips writing the
+    /// per-importer symlink) and bin linking (the deduped dep won't
+    /// reappear under the project's `node_modules/.bin`).
+    ///
+    /// Default `false`, matching pnpm's config-reader default at
+    /// [`config/reader/src/index.ts:139`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts#L139)
+    /// (`'dedupe-direct-deps': false`). The linker call site is at
+    /// [`installing/deps-restorer/src/index.ts:777`](https://github.com/pnpm/pnpm/blob/a23956e3ab/installing/deps-restorer/src/index.ts#L777).
+    #[default = false]
+    pub dedupe_direct_deps: bool,
+
+    /// When `true`, injected workspace dependencies whose materialised
+    /// children turn out to be a subset of the target workspace
+    /// project's own direct dependencies get rewritten back to
+    /// symlinks. Mirrors pnpm's
+    /// [`dedupeInjectedDeps`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/dedupeInjectedDeps.ts).
+    /// Default `true` to match pnpm's
+    /// [`extendInstallOptions`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/extendInstallOptions.ts#L282).
+    #[default = true]
+    pub dedupe_injected_deps: bool,
+
     /// If this is enabled, commands will fail if there is a missing or invalid peer dependency in the tree.
     pub strict_peer_dependencies: bool,
 
@@ -606,7 +776,7 @@ pub struct Config {
     #[default = true]
     pub resolve_peers_from_workspace_root: bool,
 
-    /// When `true`, reject exotic (git, tarball, file, …) dependencies
+    /// When `true`, reject exotic (git, tarball, file, ...) dependencies
     /// reached transitively from the importer. Direct deps remain
     /// allowed. Mirrors pnpm's
     /// [`blockExoticSubdeps`](https://github.com/pnpm/pnpm/blob/df990fdb51/config/reader/src/Config.ts#L222).
@@ -695,6 +865,46 @@ pub struct Config {
     #[default(_code = "default_fetch_retry_maxtimeout()")]
     pub fetch_retry_maxtimeout: u64,
 
+    /// Maximum number of concurrent network requests pacquet keeps
+    /// in flight during install — the size of the [`pacquet_network`]
+    /// semaphore. Mirrors pnpm's `networkConcurrency`; the default is
+    /// pnpm's `Math.min(64, Math.max(calcMaxWorkers() * 3, 16))`
+    /// formula, implemented by [`pacquet_network::default_network_concurrency`].
+    #[default(_code = "pacquet_network::default_network_concurrency()")]
+    pub network_concurrency: usize,
+
+    /// Per-request network timeout in milliseconds. Mirrors pnpm's
+    /// `fetchTimeout` (default `60000` — 60 s, see
+    /// [`pacquet_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both
+    /// the response and connect deadline of the reqwest client.
+    #[default(_code = "default_fetch_timeout()")]
+    pub fetch_timeout: u64,
+
+    /// Value of the `User-Agent` header sent on every registry request.
+    /// Mirrors pnpm's `userAgent`; the default is pnpm's
+    /// `pnpm/pacquet-<version> npm/? node/? <platform> <arch>` format (built by
+    /// `default_user_agent`).
+    #[default(_code = "default_user_agent()")]
+    pub user_agent: String,
+
+    /// URL of a `pnpr` server. When set, `pacquet install` offloads
+    /// dependency resolution and file fetching to the server: it sends
+    /// its own registry configuration, the server resolves against those
+    /// registries and streams back the files the local store is missing,
+    /// and `node_modules` is then linked locally from the
+    /// server-produced lockfile (like server-side rendering — the
+    /// compute runs remotely, the result is materialized locally).
+    /// `None` runs the normal local resolution flow.
+    pub pnpr_server: Option<String>,
+
+    /// Path to the user-level `.npmrc` to read auth from, overriding the
+    /// default `~/.npmrc`. Mirrors pnpm's `npmrcAuthFile` (and the
+    /// `--userconfig` alias). Resolved in [`Config::current`] from this
+    /// field (set by the CLI flag) then the `PNPM_CONFIG_NPMRC_AUTH_FILE`
+    /// / `PNPM_CONFIG_USERCONFIG` / `npm_config_userconfig` env vars.
+    /// `None` falls back to `~/.npmrc`.
+    pub npmrc_auth_file: Option<PathBuf>,
+
     /// Directory containing the nearest ancestor `pnpm-workspace.yaml`.
     /// Set by [`WorkspaceSettings::apply_to`] when yaml was found, so
     /// later install-time code (notably [`resolve_and_group`] for
@@ -720,6 +930,15 @@ pub struct Config {
     /// [`addSettingsFromWorkspaceManifestToConfig`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L803-L831).
     pub patched_dependencies: Option<IndexMap<String, String>>,
 
+    /// Raw `configDependencies` from `pnpm-workspace.yaml`: package
+    /// name → version-with-integrity spec. Recorded verbatim in the
+    /// workspace-state file so pnpm's `checkDepsStatus` sees the same
+    /// value it holds in the live config and doesn't treat the install
+    /// as stale. See [`WorkspaceSettings::config_dependencies`].
+    ///
+    /// [`WorkspaceSettings::config_dependencies`]: crate::workspace_yaml::WorkspaceSettings::config_dependencies
+    pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
+
     /// `pnpm.allowBuilds` from `pnpm-workspace.yaml`: package names
     /// (or `name@version` keys) that are allowed to run lifecycle
     /// scripts. pnpm 11 denies scripts by default; the allow-list is
@@ -741,6 +960,34 @@ pub struct Config {
     /// [`StrictBuildOptions.scriptsPrependNodePath: false`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/after-install/src/extendBuildOptions.ts#L78).
     /// Yaml accepts `true` / `false` / `"warn-only"`.
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
+
+    /// `enablePrePostScripts` from `pnpm-workspace.yaml`. When `true`,
+    /// `pnpm run <name>` also runs the `pre<name>` and `post<name>`
+    /// scripts if they exist. Defaults to `true`, matching pnpm's
+    /// [`defaultOptions['enable-pre-post-scripts']`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts#L143).
+    #[default = true]
+    pub enable_pre_post_scripts: bool,
+
+    /// `scriptShell` from `pnpm-workspace.yaml`. The shell used to run
+    /// scripts and `pnpm exec`. `None` selects the platform default
+    /// (`sh` on POSIX, `cmd.exe` on Windows). Mirrors pnpm's
+    /// [`Config.scriptShell`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L95).
+    pub script_shell: Option<String>,
+
+    /// `nodeOptions` from `pnpm-workspace.yaml`. When set, it is exported
+    /// as `NODE_OPTIONS` to scripts and `pnpm exec` child processes.
+    /// Mirrors pnpm's
+    /// [`Config.nodeOptions`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L251).
+    pub node_options: Option<String>,
+
+    /// `extraBinPaths`: directories prepended to `PATH` (after the
+    /// project's own `node_modules/.bin`) when running scripts and
+    /// `pnpm exec`. pnpm computes this as the workspace root's
+    /// `node_modules/.bin` inside a workspace and leaves it empty
+    /// otherwise. pacquet defaults it empty until workspace support
+    /// lands. Mirrors pnpm's
+    /// [`Config.extraBinPaths`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L72).
+    pub extra_bin_paths: Vec<PathBuf>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,
     /// pnpm runs lifecycle scripts under a TMPDIR isolated to
@@ -816,6 +1063,21 @@ pub struct Config {
     /// diverges.
     pub recursive: bool,
 
+    /// `--filter` selectors, one raw selector string per entry
+    /// (`@scope/*`, `./pkg`, `foo...`, `!bar`, ...), parsed by
+    /// `pacquet-workspace-projects-filter`. Mirrors pnpm's CLI-only
+    /// [`filter`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L75)
+    /// array: not a `.npmrc` / `pnpm-workspace.yaml` key, so only the
+    /// CLI layer populates it.
+    pub filter: Vec<String>,
+
+    /// `--filter-prod` selectors. Same shape as [`Self::filter`], but
+    /// each selector follows production dependencies only when its
+    /// dependency walk runs. Mirrors pnpm's CLI-only
+    /// [`filterProd`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L76)
+    /// array.
+    pub filter_prod: Vec<String>,
+
     /// Git host names where pacquet should clone via `git init` +
     /// `git remote add` + `git fetch --depth 1 origin <commit>` instead
     /// of a full `git clone`. Saves bandwidth and disk when the remote
@@ -870,6 +1132,22 @@ pub struct Config {
     /// [`WorkspaceSettings::overrides`]: crate::workspace_yaml::WorkspaceSettings::overrides
     pub overrides: Option<IndexMap<String, String>>,
 
+    /// `packageExtensions` from `pnpm-workspace.yaml`. Maps a
+    /// `name[@range]` selector to a partial manifest fragment that
+    /// gets merged into every matching package's manifest at
+    /// resolution time. The package's own fields win on conflict
+    /// (`{ ...extension[field], ...manifest[field] }`), so an
+    /// extension can only *add* missing entries — it never overrides
+    /// a value the package already declares.
+    ///
+    /// Empty maps collapse to `None` (matches the `overrides` shape).
+    /// See [`WorkspaceSettings::package_extensions`] for the yaml
+    /// contract and
+    /// [`PackageExtension`] for the entry shape.
+    ///
+    /// [`WorkspaceSettings::package_extensions`]: crate::workspace_yaml::WorkspaceSettings::package_extensions
+    pub package_extensions: Option<IndexMap<String, workspace_yaml::PackageExtension>>,
+
     /// pnpm's packument cache directory. Used by the lockfile
     /// verification gate to memoize past results in
     /// `<cache_dir>/lockfile-verified.jsonl`, and by the npm verifier
@@ -881,6 +1159,13 @@ pub struct Config {
     /// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23).
     #[default(_code = "default_cache_dir::<Host>()")]
     pub cache_dir: PathBuf,
+
+    /// `dlxCacheMaxAge`: the maximum age in **minutes** of a cached
+    /// `pnpm dlx` install before it is rebuilt from scratch. Defaults to
+    /// `1440` (24 hours). Mirrors pnpm's
+    /// [`Config.dlxCacheMaxAge`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L211).
+    #[default(_code = "24 * 60")]
+    pub dlx_cache_max_age: u64,
 
     /// Minimum age, in **minutes**, a published version must reach
     /// before pacquet accepts it. Drives the
@@ -969,6 +1254,87 @@ pub struct Config {
     /// [`trustPolicyIgnoreAfter`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L272).
     pub trust_policy_ignore_after: Option<u64>,
 
+    /// How direct dependencies pick a version when several satisfy the
+    /// wanted range, and whether subdependencies are constrained by
+    /// publication date. See [`ResolutionMode`]. Default
+    /// [`ResolutionMode::Highest`], matching pnpm's
+    /// [`'resolution-mode': 'highest'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L188).
+    pub resolution_mode: ResolutionMode,
+
+    /// How `pnpm add` / `pnpm update` reconcile a directly-specified
+    /// version against a matching `catalog:` entry. See [`CatalogMode`].
+    /// Default [`CatalogMode::Manual`], matching pnpm's
+    /// [`'catalog-mode': 'manual'`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L132).
+    pub catalog_mode: CatalogMode,
+
+    /// Name of the catalog `pnpm add` saves a new dependency into,
+    /// set by `--save-catalog-name=<name>` (with `--save-catalog` a
+    /// shorthand for `default`). When `Some`, an `add` writes
+    /// `catalog:`/`catalog:<name>` to the manifest and inserts the
+    /// entry into `pnpm-workspace.yaml` even under
+    /// [`CatalogMode::Manual`]. Mirrors pnpm's
+    /// [`saveCatalogName`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L92)
+    /// (default
+    /// [`undefined`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L191)).
+    /// A CLI-only flag in pnpm
+    /// ([`excludedPnpmKeys`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L138)),
+    /// so pacquet does not read it from `pnpm-workspace.yaml`; the
+    /// effective value is threaded onto the `add` command from the CLI.
+    pub save_catalog_name: Option<String>,
+
+    /// Whether the configured registry returns the per-version `time`
+    /// field in its *abbreviated* metadata. When `false` (the default),
+    /// [`ResolutionMode::TimeBased`] resolution (and the
+    /// [`TrustPolicy::NoDowngrade`] check) must fetch full metadata to
+    /// obtain publication dates. Setting this to `true` for a registry
+    /// that includes `time` in abbreviated metadata (Verdaccio 5.15.1+)
+    /// avoids the slower full-metadata fetch. Mirrors pnpm's
+    /// [`registrySupportsTimeField`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts#L136)
+    /// (default
+    /// [`false`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L212)).
+    pub registry_supports_time_field: bool,
+
+    /// `name → semver-range` map of deprecated package versions whose
+    /// deprecation warning should be suppressed. A deprecated package
+    /// is reported unless its name has an entry here whose range the
+    /// resolved version satisfies. Mirrors pnpm's
+    /// [`allowedDeprecatedVersions`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L153)
+    /// and its consumer at
+    /// [`resolveDependencies.ts:1593-1606`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencies.ts#L1593-L1606).
+    ///
+    /// Parsed and stored for parity with pnpm's config surface. Pacquet
+    /// does not yet emit deprecation warnings during resolution, so
+    /// there is nothing for the allow-list to suppress today; the field
+    /// is consumed once that warning path lands.
+    pub allowed_deprecated_versions: BTreeMap<String, String>,
+
+    /// `updateConfig` from `pnpm-workspace.yaml`. Today only its
+    /// `ignoreDependencies` field is modeled — the list of dependency
+    /// name patterns `pnpm update` skips. Mirrors pnpm's
+    /// [`updateConfig`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L193-L195)
+    /// and its consumer in
+    /// [`installing/commands/src/update`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/commands/src/update/index.ts#L212).
+    ///
+    /// Parsed and stored for parity with pnpm's config surface. Pacquet
+    /// has no `update` / `outdated` command yet, so the ignore list has
+    /// no consumer today; it is honored once that command lands.
+    pub update_config: workspace_yaml::UpdateConfig,
+
+    /// `peerDependencyRules` from `pnpm-workspace.yaml`: customizations
+    /// applied when reporting peer-dependency issues. See
+    /// [`PeerDependencyRules`]. Mirrors pnpm's
+    /// [`peerDependencyRules`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L147-L151)
+    /// and its consumer
+    /// [`reportPeerDependencyIssues`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/reportPeerDependencyIssues.ts).
+    ///
+    /// Parsed and stored for parity with pnpm's config surface. Pacquet
+    /// resolves peers but does not yet have a missing/bad peer-issue
+    /// reporting pass, so these rules have no consumer today; they are
+    /// applied once that pass lands.
+    ///
+    /// [`PeerDependencyRules`]: crate::workspace_yaml::PeerDependencyRules
+    pub peer_dependency_rules: workspace_yaml::PeerDependencyRules,
+
     /// Per-registry `Authorization` header lookup, populated from
     /// `.npmrc` auth keys (`_auth`, `_authToken`, `username`/`_password`,
     /// scoped variants). Threaded through the network and tarball
@@ -1000,6 +1366,21 @@ impl Config {
     /// resolver and the `explicitlySetKeys` mechanism alongside it.
     pub fn resolved_minimum_release_age_strict(&self) -> bool {
         self.minimum_release_age_strict.unwrap_or(false)
+    }
+
+    /// Effective [`Self::minimum_release_age`], with `Some(0)` treated
+    /// as "disabled" (`None`).
+    ///
+    /// Mirrors pnpm's falsy check
+    /// ([`opts.minimumReleaseAge ? ... : undefined`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/version-policy/src/index.ts#L48-L57)):
+    /// `minimumReleaseAge: 0` disables the maturity cutoff. Disabling it
+    /// is also what makes `resolutionMode: lowest-direct` / `time-based`
+    /// observable for direct dependencies — while a cutoff is active the
+    /// picker always prefers the highest mature version, overriding the
+    /// lowest-version pick (matching pnpm's
+    /// [`pickRespectingMinReleaseAge`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/resolving/npm-resolver/src/pickPackage.ts#L119-L132)).
+    pub fn resolved_minimum_release_age(&self) -> Option<u64> {
+        self.minimum_release_age.filter(|&minutes| minutes > 0)
     }
 
     /// Whether the install should consult the side-effects cache.
@@ -1186,18 +1567,77 @@ impl Config {
         // only the auth/network subset. Everything else is intentionally
         // ignored.
         //
-        // Two-phase apply: write the resolved `registry` (and emit any
-        // ${VAR}-substitution warnings) *before* layering
-        // `pnpm-workspace.yaml`, then build `auth_headers` *after* yaml has
-        // had a chance to override `registry`. Pnpm keys default-registry
-        // creds at the final resolved URL, not the `.npmrc` literal — see
-        // [`getAuthHeadersFromConfig`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts).
-        let auth_source = read_npmrc(start_dir)
-            .map(|text| (text, start_dir.to_path_buf()))
-            .or_else(|| Sys::home_dir().and_then(|dir| read_npmrc(&dir).map(|text| (text, dir))));
-        let mut npmrc_auth = auth_source
-            .map(|(text, dir)| crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text, &dir))
-            .unwrap_or_default();
+        // pnpm reads several `.npmrc` sources and merges them
+        // (`user < auth.ini < workspace`), pinning each file's *unscoped*
+        // credentials to that file's own registry *before* the merge so
+        // a higher-priority file (or `pnpm-workspace.yaml`) can never
+        // pull them to a different host. See
+        // [`NpmrcAuth::rescope_unscoped`] and pnpm's
+        // [`loadNpmrcConfig`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/loadNpmrcFiles.ts).
+        //
+        // The global `config.yaml` is loaded up front: its `npmrcAuthFile`
+        // participates in the user-level path resolution below, and its
+        // directory is where `auth.ini` lives.
+        let global_config_dir = default_config_dir::<Sys>();
+        let global_settings =
+            global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
+
+        // Resolve the user-level `.npmrc` path. Precedence (pnpm's
+        // [`index.ts:230`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L230)):
+        // the `npmrc_auth_file` field (CLI `--npmrc-auth-file` /
+        // `--userconfig`) > `PNPM_CONFIG_NPMRC_AUTH_FILE` >
+        // `PNPM_CONFIG_USERCONFIG` > global `config.yaml`'s `npmrcAuthFile`
+        // > `npm_config_userconfig`. Each env var is empty-filtered
+        // individually (pnpm's `value !== ''`).
+        let user_npmrc_path = self.npmrc_auth_file.clone().or_else(|| {
+            read_pnpm_env::<Sys>("npmrc_auth_file", "NPMRC_AUTH_FILE")
+                .or_else(|| read_pnpm_env::<Sys>("userconfig", "USERCONFIG"))
+                .map(PathBuf::from)
+                .or_else(|| {
+                    global_settings
+                        .as_ref()
+                        .and_then(|settings| settings.npmrc_auth_file.clone())
+                        .map(PathBuf::from)
+                })
+                .or_else(|| read_npm_env::<Sys>("userconfig", "USERCONFIG").map(PathBuf::from))
+        });
+
+        // Build the merge sources in priority order (high → low):
+        // project `.npmrc` > `auth.ini` > user-level `.npmrc`. Each is
+        // parsed and rescoped independently before being folded together.
+        let parse_source = |text: String, dir: PathBuf, label: &str| {
+            let mut auth = crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text, &dir);
+            auth.rescope_unscoped(label);
+            auth
+        };
+        let project_source = read_npmrc(start_dir)
+            .map(|text| parse_source(text, start_dir.to_path_buf(), "<project>/.npmrc"));
+        let auth_ini_source = global_config_dir.as_deref().and_then(|dir| {
+            read_npmrc_file(&dir.join("auth.ini"))
+                .map(|text| parse_source(text, dir.to_path_buf(), "auth.ini"))
+        });
+        let user_source = match &user_npmrc_path {
+            Some(path) => read_npmrc_file(path).map(|text| {
+                // Relative `cafile`/`certfile` entries resolve against
+                // the file's directory; for a bare filename (no parent)
+                // that's the empty path — i.e. the process cwd — never
+                // the file itself.
+                let dir = path.parent().map(|parent| parent.to_path_buf()).unwrap_or_default();
+                parse_source(text, dir, "<user>/.npmrc")
+            }),
+            None => Sys::home_dir()
+                .and_then(|dir| read_npmrc(&dir).map(|text| parse_source(text, dir, "~/.npmrc"))),
+        };
+
+        // Fold high-priority-first: the first present source is the
+        // base, each lower source fills the gaps it left
+        // ([`NpmrcAuth::merge_under`]).
+        let mut sources = [project_source, auth_ini_source, user_source].into_iter().flatten();
+        let mut npmrc_auth = sources.next().unwrap_or_default();
+        for lower in sources {
+            npmrc_auth.merge_under(lower);
+        }
+
         npmrc_auth.apply_registry_and_warn(&mut self);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
         // is found — because the env-var fallback in pnpm's
@@ -1244,9 +1684,6 @@ impl Config {
         // must fire only when the user has *not* pinned a path. See
         // [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
-        let global_config_dir = default_config_dir::<Sys>();
-        let global_settings =
-            global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
         if let Some(mut global_settings) = global_settings {
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
@@ -1378,10 +1815,11 @@ impl Config {
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
 
-        // Now that `registry` has been finalised (yaml may have
-        // overridden the `.npmrc` value), build the per-URI auth
-        // header lookup so default-registry creds key at the final
-        // URL.
+        // Build the per-URI auth-header lookup. Credentials were already
+        // pinned to their source file's registry by `rescope_unscoped`,
+        // so this is independent of the final `config.registry` (which
+        // yaml may have overridden) — the security boundary holds even
+        // when the workspace points the default registry elsewhere.
         npmrc_auth.build_auth_headers(&mut self);
 
         // Re-resolve `store_dir` against the project's volume when no
@@ -1442,1108 +1880,34 @@ fn read_npmrc(dir: &std::path::Path) -> Option<String> {
     fs::read_to_string(dir.join(".npmrc")).ok()
 }
 
-#[cfg(test)]
-mod tests {
-    use std::{env, ffi::OsString, io, path::PathBuf};
-
-    use pretty_assertions::assert_eq;
-    use tempfile::tempdir;
-
-    use super::{
-        Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, NodeLinker,
-        PackageImportMethod, fs,
-    };
-    use crate::defaults::default_store_dir;
-    use pacquet_store_dir::StoreDir;
-    use pacquet_testing_utils::env_guard::EnvGuard;
-    use std::path::Path;
-
-    /// `Config::current` requires `Sys: LinkProbe` so the late-stage
-    /// `store_dir` resolver (port of pnpm's `storePathRelativeToHome`)
-    /// can probe linkability between project and home. Tests in this
-    /// module pin specific config-cascade behaviours, none of which
-    /// turn on cross-volume detection, so the test fakes return
-    /// `false` for every probe. The probe failing collapses to the
-    /// pre-existing SmartDefault `store_dir` value, which is what the
-    /// pre-port assertions already assume.
-    ///
-    /// `inert_link_probe!(Name)` wires the impl onto a local test
-    /// fake without polluting each test fn with the boilerplate.
-    macro_rules! inert_link_probe {
-        ($($t:ty),+ $(,)?) => {$(
-            impl LinkProbe for $t {
-                fn can_link_between_dirs(_: &Path, _: &Path) -> bool {
-                    false
-                }
-            }
-        )+};
-    }
-
-    fn display_store_dir(store_dir: &StoreDir) -> String {
-        store_dir.display().to_string().replace('\\', "/")
-    }
-
-    /// Delegate to [`Host::var`] but mask the env vars that would
-    /// otherwise let the developer's real shell steer pacquet's global
-    /// `config.yaml` loader or its `PNPM_CONFIG_*` overlay:
-    ///
-    /// - `XDG_CONFIG_HOME` / `LOCALAPPDATA` — both feed
-    ///   [`crate::defaults::default_config_dir`], so a value set on the
-    ///   dev box would point the global-config loader at a real
-    ///   `config.yaml` on disk.
-    /// - `PNPM_CONFIG_*` / `pnpm_config_*` — the env-var overlay reads
-    ///   the entire schema, so a stray `PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE`
-    ///   in the developer's shell would flip GVS in every test that
-    ///   otherwise expects defaults.
-    ///
-    /// Tests that exercise those code paths declare per-test fakes
-    /// that satisfy [`EnvVar`] with their own response logic — they
-    /// don't go through this helper.
-    fn safe_host_var(name: &str) -> Option<String> {
-        if name == "XDG_CONFIG_HOME" || name == "LOCALAPPDATA" {
-            return None;
-        }
-        if name.starts_with("PNPM_CONFIG_") || name.starts_with("pnpm_config_") {
-            return None;
-        }
-        Host::var(name)
-    }
-
-    /// Common test [`crate::api::Sys`]-shaped fake: env reads delegate
-    /// to [`Host`], home dir resolves to `None`. Lets a test exercise
-    /// `Config::current`'s `.npmrc`-in-`start_dir` and yaml-walk paths
-    /// without consulting the developer's real home directory.
-    struct HostNoHome;
-    impl EnvVar for HostNoHome {
-        fn var(name: &str) -> Option<String> {
-            safe_host_var(name)
-        }
-    }
-    impl EnvVarOs for HostNoHome {
-        fn var_os(_: &str) -> Option<OsString> {
-            // Return `None` rather than delegating to [`Host`] so an
-            // ambient `NPM_CONFIG_WORKSPACE_DIR` on a developer
-            // machine can't steer unrelated tests into the env-var
-            // workspace-dir branch. Tests that exercise that branch
-            // declare their own [`EnvVarOs`] fakes.
-            None
-        }
-    }
-    impl GetHomeDir for HostNoHome {
-        fn home_dir() -> Option<PathBuf> {
-            None
-        }
-    }
-    inert_link_probe!(HostNoHome);
-
-    #[test]
-    pub fn have_default_values() {
-        let value = Config::new();
-        assert_eq!(value.node_linker, NodeLinker::default());
-        assert_eq!(value.package_import_method, PackageImportMethod::default());
-        assert!(value.prefer_frozen_lockfile);
-        assert!(value.symlink);
-        assert!(value.hoist);
-        // The SmartDefault expression for `store_dir` resolves to
-        // `default_store_dir::<Host>()` directly (no wrapper), so
-        // calling the generic helper here with the same `Host`
-        // capability must produce the same value — even on a developer
-        // machine with `PNPM_HOME` / `XDG_DATA_HOME` set. This is the
-        // wiring assertion that proves the SmartDefault field still
-        // goes through the production capability; the per-branch
-        // behaviour of `default_store_dir` is exercised with fake-`Sys`
-        // structs in `defaults::tests`.
-        assert_eq!(value.store_dir, default_store_dir::<Host>());
-        assert_eq!(value.registry, "https://registry.npmjs.org/");
-    }
-
-    /// `fetch-retries*` defaults must match pnpm's
-    /// `config/config/src/index.ts` (`2`, `10`, `10000`, `60000`) — these
-    /// are the values pnpm bakes into npm-style fetches and we want
-    /// pacquet to behave identically out of the box.
-    #[test]
-    pub fn fetch_retries_defaults_match_pnpm() {
-        let value = Config::new();
-        assert_eq!(value.fetch_retries, 2);
-        assert_eq!(value.fetch_retry_factor, 10);
-        assert_eq!(value.fetch_retry_mintimeout, 10_000);
-        assert_eq!(value.fetch_retry_maxtimeout, 60_000);
-    }
-
-    /// `default_store_dir`'s `PNPM_HOME` branch, exercised through the
-    /// generic capability seam — no process-environment mutation, no
-    /// `EnvGuard` lock, no `unsafe` block. The earlier shape of this
-    /// test set `PNPM_HOME` via `std::env::set_var` and called
-    /// `Config::new()`; with the DI seam from pnpm/pacquet#339 +
-    /// pnpm/pnpm#11708 the same precedence is checked by passing a
-    /// per-test unit struct that satisfies [`EnvVar`], [`GetHomeDir`],
-    /// and [`GetCurrentDir`].
-    ///
-    /// The `home_dir` and `current_dir` capability impls both call
-    /// `unreachable!` because `default_store_dir` short-circuits on
-    /// `PNPM_HOME` before consulting either — the panic-on-call
-    /// documents that precondition. Tracks pnpm/pacquet#343.
-    #[test]
-    pub fn should_use_pnpm_home_env_var() {
-        struct EnvWithPnpmHome;
-        impl EnvVar for EnvWithPnpmHome {
-            fn var(name: &str) -> Option<String> {
-                (name == "PNPM_HOME").then(|| "/hello".to_owned())
-            }
-        }
-        impl GetHomeDir for EnvWithPnpmHome {
-            fn home_dir() -> Option<PathBuf> {
-                unreachable!("home_dir must not be called when PNPM_HOME is set");
-            }
-        }
-        impl GetCurrentDir for EnvWithPnpmHome {
-            fn current_dir() -> io::Result<PathBuf> {
-                unreachable!("current_dir must not be called when PNPM_HOME is set");
-            }
-        }
-        let store_dir = default_store_dir::<EnvWithPnpmHome>();
-        assert_eq!(
-            display_store_dir(&store_dir),
-            format!("/hello/store/{}", pacquet_store_dir::STORE_VERSION),
-        );
-    }
-
-    /// Companion to [`should_use_pnpm_home_env_var`]: when
-    /// `PNPM_HOME` is unset, `default_store_dir` falls through to
-    /// `XDG_DATA_HOME`. Exercised through the DI seam with a fake
-    /// `Sys` that only returns a value for `XDG_DATA_HOME`. No
-    /// process-environment mutation, no `EnvGuard`, no `unsafe`.
-    /// Tracks pnpm/pacquet#343.
-    #[test]
-    pub fn should_use_xdg_data_home_env_var() {
-        struct EnvWithXdgDataHome;
-        impl EnvVar for EnvWithXdgDataHome {
-            fn var(name: &str) -> Option<String> {
-                (name == "XDG_DATA_HOME").then(|| "/hello".to_owned())
-            }
-        }
-        impl GetHomeDir for EnvWithXdgDataHome {
-            fn home_dir() -> Option<PathBuf> {
-                unreachable!("home_dir must not be called when XDG_DATA_HOME is set");
-            }
-        }
-        impl GetCurrentDir for EnvWithXdgDataHome {
-            fn current_dir() -> io::Result<PathBuf> {
-                unreachable!("current_dir must not be called when XDG_DATA_HOME is set");
-            }
-        }
-        let store_dir = default_store_dir::<EnvWithXdgDataHome>();
-        assert_eq!(
-            display_store_dir(&store_dir),
-            format!("/hello/pnpm/store/{}", pacquet_store_dir::STORE_VERSION),
-        );
-    }
-
-    #[test]
-    pub fn npmrc_in_current_folder_applies_registry() {
-        let tmp = tempdir().unwrap();
-        fs::write(tmp.path().join(".npmrc"), "registry=https://cwd.example")
-            .expect("write to .npmrc");
-        let config = Config::new()
-            .current::<HostNoHome>(tmp.path())
-            .expect("workspace yaml absent => no error");
-        assert_eq!(config.registry, "https://cwd.example/");
-    }
-
-    #[test]
-    pub fn non_auth_keys_in_npmrc_are_ignored() {
-        // pnpm 11 stopped reading project-structural settings from .npmrc.
-        // Writing `symlink=false` / `lockfile=true` / hoist / node-linker /
-        // store-dir to .npmrc should have no effect on the resolved config.
-        let tmp = tempdir().unwrap();
-        let non_auth_ini = "symlink=false\nlockfile=true\nhoist=false\nnode-linker=hoisted\n";
-        fs::write(tmp.path().join(".npmrc"), non_auth_ini).expect("write to .npmrc");
-        let defaults = Config::new();
-        let config = Config::new()
-            .current::<HostNoHome>(tmp.path())
-            .expect("workspace yaml absent => no error");
-        assert_eq!(config.symlink, defaults.symlink);
-        assert_eq!(config.lockfile, defaults.lockfile);
-        assert_eq!(config.hoist, defaults.hoist);
-        assert_eq!(config.node_linker, defaults.node_linker);
-    }
-
-    /// pnpm 11's `isIniConfigKey` (config/config/src/auth.ts) leaves the
-    /// `fetch-retries*` family out of `NPM_AUTH_SETTINGS`, so a value
-    /// like `fetch-retries=99` in `.npmrc` is silently ignored upstream.
-    /// pacquet must do the same — applying it would diverge from pnpm
-    /// and silently change install behaviour for projects that have a
-    /// stale `.npmrc` lying around.
-    #[test]
-    pub fn fetch_retry_keys_in_npmrc_are_ignored() {
-        let tmp = tempdir().unwrap();
-        let ini = "fetch-retries=99\nfetch-retry-factor=99\nfetch-retry-mintimeout=99\nfetch-retry-maxtimeout=99\n";
-        fs::write(tmp.path().join(".npmrc"), ini).expect("write to .npmrc");
-        let defaults = Config::new();
-        let config = Config::new()
-            .current::<HostNoHome>(tmp.path())
-            .expect("workspace yaml absent => no error");
-        assert_eq!(config.fetch_retries, defaults.fetch_retries);
-        assert_eq!(config.fetch_retry_factor, defaults.fetch_retry_factor);
-        assert_eq!(config.fetch_retry_mintimeout, defaults.fetch_retry_mintimeout);
-        assert_eq!(config.fetch_retry_maxtimeout, defaults.fetch_retry_maxtimeout);
-    }
-
-    #[test]
-    pub fn test_current_folder_for_invalid_npmrc() {
-        let tmp = tempdir().unwrap();
-        // write invalid utf-8 value to npmrc
-        fs::write(tmp.path().join(".npmrc"), b"Hello \xff World").expect("write to .npmrc");
-        let config = Config::new()
-            .current::<HostNoHome>(tmp.path())
-            .expect("workspace yaml absent => no error");
-        assert!(config.symlink); // default — invalid .npmrc is silently ignored
-    }
-
-    #[test]
-    pub fn npmrc_in_home_folder_applies_registry() {
-        let current_dir = tempdir().unwrap();
-        let home_dir = tempdir().unwrap();
-        fs::write(home_dir.path().join(".npmrc"), "registry=https://home.example")
-            .expect("write to .npmrc");
-        // Per-test fake: home_dir is a tempdir, so it can't be a
-        // module-level constant — stash it in a per-test `OnceLock`
-        // so `GetHomeDir::home_dir`'s associated-function shape (no
-        // `&self`) can still resolve it at call time.
-        static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-        HOME_PATH.set(home_dir.path().to_path_buf()).expect("set once");
-        struct HostWithHome;
-        impl EnvVar for HostWithHome {
-            fn var(name: &str) -> Option<String> {
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithHome {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostWithHome {
-            fn home_dir() -> Option<PathBuf> {
-                HOME_PATH.get().cloned()
-            }
-        }
-        inert_link_probe!(HostWithHome);
-        let config = Config::new()
-            .current::<HostWithHome>(current_dir.path())
-            .expect("workspace yaml absent => no error");
-        assert_eq!(config.registry, "https://home.example/");
-    }
-
-    #[test]
-    pub fn pnpm_workspace_yaml_registry_overrides_npmrc_registry() {
-        // `registry` is the one non-scope key pnpm 11 still reads from
-        // .npmrc (it's in RAW_AUTH_CFG_KEYS). When both files define it,
-        // the yaml wins, matching pnpm itself.
-        let tmp = tempdir().unwrap();
-        fs::write(tmp.path().join(".npmrc"), "registry=https://from-npmrc.test")
-            .expect("write to .npmrc");
-        fs::write(tmp.path().join("pnpm-workspace.yaml"), "registry: https://from-yaml.test\n")
-            .expect("write to pnpm-workspace.yaml");
-        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-        assert_eq!(config.registry, "https://from-yaml.test/");
-    }
-
-    #[test]
-    pub fn pnpm_workspace_yaml_found_by_walking_up() {
-        let tmp = tempdir().unwrap();
-        let nested = tmp.path().join("packages/inner");
-        fs::create_dir_all(&nested).unwrap();
-        fs::write(tmp.path().join("pnpm-workspace.yaml"), "symlink: false\n")
-            .expect("write to pnpm-workspace.yaml");
-        // No `.npmrc` anywhere, but a parent dir has `pnpm-workspace.yaml` —
-        // the yaml should still be applied.
-        let config = Config::new().current::<HostNoHome>(&nested).expect("yaml is valid");
-        assert!(!config.symlink);
-    }
-
-    #[test]
-    pub fn test_current_folder_fallback_to_default() {
-        let current_dir = tempdir().unwrap();
-        // Home dir is supplied but contains no `.npmrc`, so the
-        // fallback to the caller-supplied default Config (the
-        // `symlink: false` override) is what surfaces.
-        let home_dir = tempdir().unwrap();
-        static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-        HOME_PATH.set(home_dir.path().to_path_buf()).expect("set once");
-        struct HostWithHome;
-        impl EnvVar for HostWithHome {
-            fn var(name: &str) -> Option<String> {
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithHome {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostWithHome {
-            fn home_dir() -> Option<PathBuf> {
-                HOME_PATH.get().cloned()
-            }
-        }
-        inert_link_probe!(HostWithHome);
-        let config = Config { symlink: false, ..Config::new() }
-            .current::<HostWithHome>(current_dir.path())
-            .expect("workspace yaml absent => no error");
-        assert!(!config.symlink);
-    }
-
-    /// `enableGlobalVirtualStore` defaults to `false` — matches pnpm
-    /// v11's effective default for regular installs (the `true`
-    /// assignment lives only inside the `--global` install branch;
-    /// see [`Config::enable_global_virtual_store`]). The derivation
-    /// still fires automatically from [`Config::current`] after yaml
-    /// has been applied, writing `<store_dir>/links` into
-    /// `global_virtual_store_dir` while leaving `virtual_store_dir`
-    /// at its project-local default — both fields stay valid so the
-    /// downstream code can read either one without first checking
-    /// the toggle. Pacquet's split-field variant of upstream's
-    /// [`extendInstallOptions.ts:343-355`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/extendInstallOptions.ts#L343-L355);
-    /// see [`Config::apply_global_virtual_store_derivation`] for why
-    /// pacquet keeps them separate.
-    #[test]
-    pub fn gvs_default_is_off_and_paths_derive_cleanly() {
-        let tmp = tempdir().unwrap();
-        let config = Config::new()
-            .current::<HostNoHome>(tmp.path())
-            .expect("workspace yaml absent => no error");
-        assert!(
-            !config.enable_global_virtual_store,
-            "GVS defaults to false (matches pnpm v11 for non-global installs)",
-        );
-        // `virtual_store_dir` stays project-local. The
-        // `<cwd>/node_modules/.pnpm` default has been re-anchored to
-        // `tmp` by `Config::current` (see the cwd fixup block).
-        assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
-        assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
-    }
-
-    /// When `enableGlobalVirtualStore: false`, the derivation still
-    /// populates `global_virtual_store_dir` at `<storeDir>/links` —
-    /// matching upstream's unconditional `globalVirtualStoreDir =
-    /// storeDir/links` assignment for the GVS-off branch. The frozen-
-    /// lockfile install path consults `enable_global_virtual_store`
-    /// to decide whether to consume the field.
-    #[test]
-    pub fn gvs_disabled_keeps_project_local_virtual_store() {
-        let tmp = tempdir().unwrap();
-        fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
-            .expect("write to pnpm-workspace.yaml");
-        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-        assert!(!config.enable_global_virtual_store);
-        assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
-        assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
-    }
-
-    /// When the user pins `virtualStoreDir` *and* opts into GVS,
-    /// `globalVirtualStoreDir` mirrors that path — the user gets to
-    /// pick where the shared store lives. `virtual_store_dir` itself
-    /// still holds the pinned value (it's the same field the user
-    /// configured).
-    #[test]
-    pub fn gvs_user_pinned_virtual_store_routes_into_global_virtual_store_dir() {
-        let tmp = tempdir().unwrap();
-        let user_path = tmp.path().join("custom-links");
-        fs::write(
-            tmp.path().join("pnpm-workspace.yaml"),
-            format!("enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n", user_path.display()),
-        )
-        .expect("write to pnpm-workspace.yaml");
-        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-        assert!(config.enable_global_virtual_store);
-        assert_eq!(config.virtual_store_dir, user_path);
-        assert_eq!(config.global_virtual_store_dir, user_path);
-    }
-
-    /// An explicit `globalVirtualStoreDir` in yaml wins over the
-    /// derivation: the resolved field equals the user-supplied path,
-    /// not `<store_dir>/links` and not the user's `virtualStoreDir`.
-    /// Mirrors upstream's
-    /// [`getOptionsFromRootManifest.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/getOptionsFromRootManifest.ts)
-    /// — `globalVirtualStoreDir` is read into the config there with
-    /// the same resolve-relative-to-workspace semantics. Without this
-    /// preservation the value parses from yaml and then gets
-    /// silently overwritten by the derivation.
-    ///
-    /// The fixture also enables GVS explicitly. Pacquet's default
-    /// is `enableGlobalVirtualStore: false` (matches pnpm v11 for
-    /// non-`--global` installs), so without the explicit opt-in the
-    /// GVS-on derivation path wouldn't run at all and the test
-    /// would say nothing about that path's behaviour.
-    #[test]
-    pub fn yaml_global_virtual_store_dir_wins_over_derivation() {
-        let tmp = tempdir().unwrap();
-        let yaml_gvs = tmp.path().join("my-shared-store");
-        fs::write(
-            tmp.path().join("pnpm-workspace.yaml"),
-            format!(
-                "enableGlobalVirtualStore: true\nglobalVirtualStoreDir: {}\n",
-                yaml_gvs.display(),
-            ),
-        )
-        .expect("write to pnpm-workspace.yaml");
-        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-        assert!(config.enable_global_virtual_store);
-        // `virtual_store_dir` stays at the project-local default,
-        // because the user didn't pin `virtualStoreDir`.
-        assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
-        // The explicit yaml value wins — neither the derivation's
-        // `<store_dir>/links` fallback nor any mirroring of
-        // `virtual_store_dir` clobbers it.
-        assert_eq!(config.global_virtual_store_dir, yaml_gvs);
-    }
-
-    /// Real-process-environment smoke test for the proxy env-var
-    /// fallback through `Config::current`. The injected-`EnvVar` tests
-    /// in `npmrc_auth/tests.rs` cover the cascade branches
-    /// exhaustively; this one only proves the wiring through
-    /// `Host::var` reaches `std::env::var` and that the cascade
-    /// fires even with no `.npmrc` present.
-    #[test]
-    pub fn proxy_env_fallback_applies_through_current() {
-        // Snapshot every proxy var the cascade might read so peer tests
-        // can't observe our mutations and so the env restores cleanly.
-        let _g = EnvGuard::snapshot([
-            "HTTPS_PROXY",
-            "https_proxy",
-            "HTTP_PROXY",
-            "http_proxy",
-            "PROXY",
-            "proxy",
-            "NO_PROXY",
-            "no_proxy",
-            "NPM_CONFIG_WORKSPACE_DIR",
-            "npm_config_workspace_dir",
-        ]);
-        let tmp = tempdir().unwrap();
-        // SAFETY: EnvGuard above serializes the test against other
-        // env-mutating tests in this process; no other thread reads
-        // these vars concurrently. The other proxy vars are removed so
-        // a host-set value can't leak in and skew the assertion.
-        unsafe {
-            env::remove_var("HTTPS_PROXY");
-            env::remove_var("https_proxy");
-            env::remove_var("HTTP_PROXY");
-            env::remove_var("http_proxy");
-            env::remove_var("PROXY");
-            env::remove_var("proxy");
-            env::remove_var("NO_PROXY");
-            env::remove_var("no_proxy");
-            env::remove_var("NPM_CONFIG_WORKSPACE_DIR");
-            env::remove_var("npm_config_workspace_dir");
-            env::set_var("HTTPS_PROXY", "http://env.example:8080");
-        }
-        let config = Config::new()
-            .current::<HostNoHome>(tmp.path())
-            .expect("workspace yaml absent => no error");
-        assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://env.example:8080"));
-        assert_eq!(
-            config.proxy.http_proxy.as_deref(),
-            Some("http://env.example:8080"),
-            "http side cascades through resolved https",
-        );
-    }
-
-    /// Pnpm's
-    /// [`workspace-manifest-reader`](https://github.com/pnpm/pnpm/blob/8eb1be4988/workspace/workspace-manifest-reader/src/index.ts)
-    /// fails the process on invalid yaml. `Config::current` must do the
-    /// same instead of silently falling back to defaults.
-    #[test]
-    pub fn invalid_workspace_yaml_propagates_error() {
-        let tmp = tempdir().unwrap();
-        // `: : :` is rejected by saphyr.
-        fs::write(tmp.path().join("pnpm-workspace.yaml"), ": : :\n")
-            .expect("write to pnpm-workspace.yaml");
-        let result = Config::new().current::<HostNoHome>(tmp.path());
-        let err = result.expect_err("invalid yaml should error");
-        assert!(
-            matches!(err, crate::LoadWorkspaceYamlError::ParseYaml { .. }),
-            "expected ParseYaml, got {err:?}",
-        );
-    }
-
-    /// Running `pacquet install` from a workspace subdirectory must
-    /// not leave `modules_dir` / `virtual_store_dir` anchored at the
-    /// CLI `--dir`. The presence of `pnpm-workspace.yaml` in an
-    /// ancestor signals that the workspace root is the install anchor,
-    /// matching pnpm v11's `pnpmConfig.dir = lockfileDir` rule. Without
-    /// this, the per-importer `node_modules` writes (under the
-    /// workspace root) and the virtual store (under the subdir) would
-    /// produce two inconsistent layouts for the same install.
-    #[test]
-    pub fn workspace_subdir_anchors_modules_at_workspace_root() {
-        let tmp = tempdir().unwrap();
-        let workspace_root = tmp.path();
-        let subdir = workspace_root.join("packages/web");
-        fs::create_dir_all(&subdir).expect("create subdir");
-        fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-            .expect("write to pnpm-workspace.yaml");
-
-        let config = Config::new().current::<HostNoHome>(&subdir).expect("config loads");
-
-        assert_eq!(
-            config.modules_dir,
-            workspace_root.join("node_modules"),
-            "modules_dir must be anchored at the workspace root, not the subdir",
-        );
-        assert_eq!(
-            config.virtual_store_dir,
-            workspace_root.join("node_modules/.pnpm"),
-            "virtual_store_dir must be anchored at the workspace root, not the subdir",
-        );
-    }
-
-    /// A single-project install (no `pnpm-workspace.yaml` anywhere)
-    /// keeps the CLI `--dir` as the anchor. Guards against the
-    /// re-anchor block accidentally firing when no workspace exists.
-    ///
-    /// [`HostNoHome`] already pins the `NPM_CONFIG_WORKSPACE_DIR`
-    /// lookup to `None`, so the test never reads the host's real
-    /// environment. Replaces the earlier shape that snapshotted both
-    /// spellings of the env variable through `EnvGuard` and called
-    /// `unsafe { env::remove_var(...) }`.
-    #[test]
-    pub fn single_project_anchors_modules_at_cwd() {
-        let tmp = tempdir().unwrap();
-        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
-        assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
-        assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
-    }
-
-    /// `NPM_CONFIG_WORKSPACE_DIR` must steer `Config::current`'s
-    /// path-anchoring just like it steers
-    /// [`pacquet_workspace::find_workspace_dir`] — otherwise the
-    /// virtual store would land in the cwd while the per-importer
-    /// `SymlinkDirectDependencies` writes land under the env-var
-    /// path, producing two `node_modules` layouts for the same
-    /// install. Matches the consistency guarantee Copilot flagged
-    /// during PR #443 review.
-    ///
-    /// Exercises the [`EnvVarOs`] DI seam: a per-test fake returns the
-    /// `env_workspace` path for the `NPM_CONFIG_WORKSPACE_DIR` lookup.
-    /// No `EnvGuard`, no `unsafe { env::set_var(...) }`.
-    #[test]
-    pub fn npm_config_workspace_dir_re_anchors_modules() {
-        let env_workspace = tempdir().unwrap();
-        let cwd_dir = tempdir().unwrap();
-        static ENV_WORKSPACE_PATH: std::sync::OnceLock<OsString> = std::sync::OnceLock::new();
-        ENV_WORKSPACE_PATH.set(env_workspace.path().as_os_str().to_owned()).expect("set once");
-        struct HostWithEnvWorkspaceDir;
-        impl EnvVar for HostWithEnvWorkspaceDir {
-            fn var(name: &str) -> Option<String> {
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithEnvWorkspaceDir {
-            fn var_os(name: &str) -> Option<OsString> {
-                (name == "NPM_CONFIG_WORKSPACE_DIR").then(|| {
-                    ENV_WORKSPACE_PATH.get().expect("ENV_WORKSPACE_PATH initialised").clone()
-                })
-            }
-        }
-        impl GetHomeDir for HostWithEnvWorkspaceDir {
-            fn home_dir() -> Option<PathBuf> {
-                None
-            }
-        }
-        inert_link_probe!(HostWithEnvWorkspaceDir);
-
-        let config =
-            Config::new().current::<HostWithEnvWorkspaceDir>(cwd_dir.path()).expect("config loads");
-        assert_eq!(
-            config.modules_dir,
-            env_workspace.path().join("node_modules"),
-            "modules_dir must follow NPM_CONFIG_WORKSPACE_DIR, not the cwd",
-        );
-        assert_eq!(
-            config.virtual_store_dir,
-            env_workspace.path().join("node_modules/.pnpm"),
-            "virtual_store_dir must follow NPM_CONFIG_WORKSPACE_DIR, not the cwd",
-        );
-    }
-
-    /// An empty `NPM_CONFIG_WORKSPACE_DIR` falls through to the
-    /// upward walk, matching pnpm's truthy `if (workspaceDir)` check.
-    /// Pairs with `pacquet_workspace`'s
-    /// `empty_env_var_is_treated_as_unset`.
-    ///
-    /// Drives the [`EnvVarOs`] DI seam with a fake that returns an
-    /// empty `OsString` for both spellings of the env var. The truthy
-    /// filter in `Config::current` should reject both, and the
-    /// install should fall through to the `start_dir`-walk.
-    #[test]
-    pub fn empty_npm_config_workspace_dir_falls_through() {
-        struct HostWithEmptyEnvWorkspaceDir;
-        impl EnvVar for HostWithEmptyEnvWorkspaceDir {
-            fn var(name: &str) -> Option<String> {
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithEmptyEnvWorkspaceDir {
-            fn var_os(name: &str) -> Option<OsString> {
-                matches!(name, "NPM_CONFIG_WORKSPACE_DIR" | "npm_config_workspace_dir")
-                    .then(OsString::new)
-            }
-        }
-        impl GetHomeDir for HostWithEmptyEnvWorkspaceDir {
-            fn home_dir() -> Option<PathBuf> {
-                None
-            }
-        }
-        inert_link_probe!(HostWithEmptyEnvWorkspaceDir);
-        let tmp = tempdir().unwrap();
-        let config = Config::new()
-            .current::<HostWithEmptyEnvWorkspaceDir>(tmp.path())
-            .expect("config loads");
-        // No yaml in tmp → no re-anchor → cwd-anchored defaults.
-        assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
-        assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
-    }
-
-    /// `enableGlobalVirtualStore: true` set in the global
-    /// `<configDir>/config.yaml` is honored by `Config::current` —
-    /// the exact scenario from pnpm/pnpm#11738 where a user has
-    /// the setting in `~/.config/pnpm/config.yaml` and runs an
-    /// install in a project whose `pnpm-workspace.yaml` doesn't
-    /// repeat it.
-    ///
-    /// Drives the [`EnvVar`] + [`GetHomeDir`] DI seams: the fake
-    /// returns the test's tempdir for `XDG_CONFIG_HOME`, so
-    /// [`crate::defaults::default_config_dir`] resolves to
-    /// `<tempdir>/pnpm/config.yaml` rather than touching the
-    /// developer's real config dir.
-    #[test]
-    pub fn global_config_yaml_enables_gvs() {
-        let xdg = tempdir().unwrap();
-        let config_dir = xdg.path().join("pnpm");
-        fs::create_dir_all(&config_dir).unwrap();
-        fs::write(config_dir.join("config.yaml"), "enableGlobalVirtualStore: true\n")
-            .expect("write to global config.yaml");
-
-        static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-        XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
-
-        struct HostWithXdgConfigHome;
-        impl EnvVar for HostWithXdgConfigHome {
-            fn var(name: &str) -> Option<String> {
-                if name == "XDG_CONFIG_HOME" {
-                    return XDG_CONFIG_HOME_PATH
-                        .get()
-                        .map(|path| path.to_string_lossy().into_owned());
-                }
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithXdgConfigHome {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostWithXdgConfigHome {
-            fn home_dir() -> Option<PathBuf> {
-                // XDG_CONFIG_HOME short-circuits the home_dir lookup
-                // inside `default_config_dir`, but `Config::current`'s
-                // home-dir `.npmrc` fallback still consults it. The
-                // fallback gracefully tolerates `None`, so returning
-                // `None` keeps the test hermetic without forcing a
-                // tempdir for the unrelated `.npmrc` path.
-                None
-            }
-        }
-        inert_link_probe!(HostWithXdgConfigHome);
-
-        let tmp = tempdir().unwrap();
-        let config =
-            Config::new().current::<HostWithXdgConfigHome>(tmp.path()).expect("config loads");
-        assert!(
-            config.enable_global_virtual_store,
-            "enableGlobalVirtualStore from global config.yaml must apply",
-        );
-    }
-
-    /// `pnpm-workspace.yaml` overrides the global `config.yaml` —
-    /// global enables GVS, workspace disables it, the install
-    /// resolves to GVS-off. Matches pnpm's
-    /// [`index.ts:421-444`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L421-L444),
-    /// which applies workspace yaml after the global yaml.
-    #[test]
-    pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
-        let xdg = tempdir().unwrap();
-        let config_dir = xdg.path().join("pnpm");
-        fs::create_dir_all(&config_dir).unwrap();
-        fs::write(config_dir.join("config.yaml"), "enableGlobalVirtualStore: true\n")
-            .expect("write to global config.yaml");
-
-        let project = tempdir().unwrap();
-        fs::write(project.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
-            .expect("write to pnpm-workspace.yaml");
-
-        static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-        XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
-
-        struct HostWithXdgConfigHome;
-        impl EnvVar for HostWithXdgConfigHome {
-            fn var(name: &str) -> Option<String> {
-                if name == "XDG_CONFIG_HOME" {
-                    return XDG_CONFIG_HOME_PATH
-                        .get()
-                        .map(|path| path.to_string_lossy().into_owned());
-                }
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithXdgConfigHome {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostWithXdgConfigHome {
-            fn home_dir() -> Option<PathBuf> {
-                None
-            }
-        }
-        inert_link_probe!(HostWithXdgConfigHome);
-
-        let config =
-            Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
-        assert!(
-            !config.enable_global_virtual_store,
-            "pnpm-workspace.yaml must win over global config.yaml",
-        );
-    }
-
-    /// `virtualStoreDir` set in the global `config.yaml` is preserved
-    /// even when the workspace yaml doesn't repeat it. Without the
-    /// `!virtual_store_dir_explicit` guard on the re-anchor, the
-    /// workspace-root default (`<workspace>/node_modules/.pnpm`)
-    /// would overwrite the global value any time a `pnpm-workspace.yaml`
-    /// is present. Regression test for a CodeRabbit review finding on
-    /// pnpm/pnpm#11752.
-    #[test]
-    pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
-        let xdg = tempdir().unwrap();
-        let config_dir = xdg.path().join("pnpm");
-        fs::create_dir_all(&config_dir).unwrap();
-        let global_path = xdg.path().join("shared-virtual-store");
-        fs::write(
-            config_dir.join("config.yaml"),
-            format!(
-                "enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n",
-                global_path.display(),
-            ),
-        )
-        .expect("write global config.yaml");
-
-        let project = tempdir().unwrap();
-        // Empty workspace yaml — present so the workspace block fires,
-        // but it doesn't redeclare `virtualStoreDir`.
-        fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - .\n")
-            .expect("write workspace yaml");
-
-        static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-        XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
-
-        struct HostWithXdgConfigHome;
-        impl EnvVar for HostWithXdgConfigHome {
-            fn var(name: &str) -> Option<String> {
-                if name == "XDG_CONFIG_HOME" {
-                    return XDG_CONFIG_HOME_PATH
-                        .get()
-                        .map(|path| path.to_string_lossy().into_owned());
-                }
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithXdgConfigHome {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostWithXdgConfigHome {
-            fn home_dir() -> Option<PathBuf> {
-                None
-            }
-        }
-        inert_link_probe!(HostWithXdgConfigHome);
-
-        let config =
-            Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
-        assert_eq!(
-            config.virtual_store_dir, global_path,
-            "virtualStoreDir from global config.yaml must survive the workspace-root re-anchor",
-        );
-    }
-
-    /// Workspace-only keys in the global `config.yaml` are silently
-    /// ignored, matching pnpm's
-    /// [`isConfigFileKey`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L187)
-    /// filter at
-    /// [`index.ts:299-309`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L299-L309).
-    /// A `nodeLinker: hoisted` in the global yaml would change the
-    /// installer's layout strategy if applied — pnpm rejects it, and
-    /// pacquet must too.
-    #[test]
-    pub fn global_config_yaml_workspace_only_keys_are_ignored() {
-        let xdg = tempdir().unwrap();
-        let config_dir = xdg.path().join("pnpm");
-        fs::create_dir_all(&config_dir).unwrap();
-        fs::write(
-            config_dir.join("config.yaml"),
-            // `nodeLinker`, `hoist`, `symlink`, and `lockfile` are
-            // all in pnpm's `excludedPnpmKeys`. None should apply
-            // when set in the global config.
-            "nodeLinker: hoisted\nhoist: false\nsymlink: false\nlockfile: false\n",
-        )
-        .expect("write to global config.yaml");
-
-        static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-        XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
-
-        struct HostWithXdgConfigHome;
-        impl EnvVar for HostWithXdgConfigHome {
-            fn var(name: &str) -> Option<String> {
-                if name == "XDG_CONFIG_HOME" {
-                    return XDG_CONFIG_HOME_PATH
-                        .get()
-                        .map(|path| path.to_string_lossy().into_owned());
-                }
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithXdgConfigHome {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostWithXdgConfigHome {
-            fn home_dir() -> Option<PathBuf> {
-                None
-            }
-        }
-        inert_link_probe!(HostWithXdgConfigHome);
-
-        let tmp = tempdir().unwrap();
-        let defaults = Config::new();
-        let config =
-            Config::new().current::<HostWithXdgConfigHome>(tmp.path()).expect("config loads");
-        assert_eq!(config.node_linker, defaults.node_linker);
-        assert_eq!(config.hoist, defaults.hoist);
-        assert_eq!(config.symlink, defaults.symlink);
-        assert_eq!(config.lockfile, defaults.lockfile);
-    }
-
-    /// `PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE=true` is read into
-    /// the config — drives the env-overlay introduced alongside
-    /// global `config.yaml` support. Mirrors pnpm's `parseEnvVars`
-    /// loop at
-    /// [`index.ts:471-488`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L471-L488)
-    /// for the `PNPM_CONFIG_*` family (pnpm doesn't read general
-    /// `NPM_CONFIG_*` env vars; see
-    /// [`feedback_pnpm_settings_not_in_npmrc`](https://github.com/pnpm/pnpm/blob/main/config/reader/src/localConfig.ts)).
-    #[test]
-    pub fn pnpm_config_env_var_enables_gvs() {
-        struct HostWithPnpmConfigEnv;
-        impl EnvVar for HostWithPnpmConfigEnv {
-            fn var(name: &str) -> Option<String> {
-                if name == "PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE" {
-                    return Some("true".to_owned());
-                }
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithPnpmConfigEnv {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostWithPnpmConfigEnv {
-            fn home_dir() -> Option<PathBuf> {
-                None
-            }
-        }
-        inert_link_probe!(HostWithPnpmConfigEnv);
-
-        let tmp = tempdir().unwrap();
-        let config = Config::new().current::<HostWithPnpmConfigEnv>(tmp.path()).expect("loads");
-        assert!(config.enable_global_virtual_store);
-    }
-
-    /// Lowercase `pnpm_config_*` spelling also works, matching
-    /// upstream's
-    /// [`getEnvKeySuffix`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/env.ts#L185-L195)
-    /// which accepts both case forms.
-    #[test]
-    pub fn pnpm_config_env_var_lowercase_works() {
-        struct HostWithLowercaseEnv;
-        impl EnvVar for HostWithLowercaseEnv {
-            fn var(name: &str) -> Option<String> {
-                if name == "pnpm_config_enable_global_virtual_store" {
-                    return Some("true".to_owned());
-                }
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithLowercaseEnv {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostWithLowercaseEnv {
-            fn home_dir() -> Option<PathBuf> {
-                None
-            }
-        }
-        inert_link_probe!(HostWithLowercaseEnv);
-
-        let tmp = tempdir().unwrap();
-        let config = Config::new().current::<HostWithLowercaseEnv>(tmp.path()).expect("loads");
-        assert!(config.enable_global_virtual_store);
-    }
-
-    /// `PNPM_CONFIG_*` overrides `pnpm-workspace.yaml` — the env
-    /// var is applied after yaml in pnpm's reader cascade. Without
-    /// this ordering a CI override via env var couldn't beat a
-    /// committed yaml setting, which is the whole reason to expose
-    /// env vars at all.
-    #[test]
-    pub fn pnpm_config_env_var_overrides_workspace_yaml() {
-        let tmp = tempdir().unwrap();
-        fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
-            .expect("write to pnpm-workspace.yaml");
-
-        struct HostWithPnpmConfigEnv;
-        impl EnvVar for HostWithPnpmConfigEnv {
-            fn var(name: &str) -> Option<String> {
-                if name == "PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE" {
-                    return Some("true".to_owned());
-                }
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithPnpmConfigEnv {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostWithPnpmConfigEnv {
-            fn home_dir() -> Option<PathBuf> {
-                None
-            }
-        }
-        inert_link_probe!(HostWithPnpmConfigEnv);
-
-        let config = Config::new().current::<HostWithPnpmConfigEnv>(tmp.path()).expect("loads");
-        assert!(
-            config.enable_global_virtual_store,
-            "PNPM_CONFIG_* env var must win over pnpm-workspace.yaml",
-        );
-    }
-
-    /// `PNPM_CONFIG_HOIST=false` runs the same post-processing as
-    /// yaml-set `hoist: false` — it short-circuits `hoist_pattern`
-    /// to `None`, mirroring upstream's
-    /// [`projectConfig.ts:72-75`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/projectConfig.ts#L72-L75)
-    /// rule (`hoist === false ⇒ hoistPattern: undefined`). Without
-    /// this, the install-time `hoist_pattern.is_some() ||
-    /// public_hoist_pattern.is_some()` guard would still enable
-    /// hoisting even after the user disabled it via env var.
-    #[test]
-    pub fn pnpm_config_hoist_false_clears_hoist_pattern() {
-        struct HostWithHoistEnv;
-        impl EnvVar for HostWithHoistEnv {
-            fn var(name: &str) -> Option<String> {
-                if name == "PNPM_CONFIG_HOIST" {
-                    return Some("false".to_owned());
-                }
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithHoistEnv {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostWithHoistEnv {
-            fn home_dir() -> Option<PathBuf> {
-                None
-            }
-        }
-        inert_link_probe!(HostWithHoistEnv);
-
-        let tmp = tempdir().unwrap();
-        let config = Config::new().current::<HostWithHoistEnv>(tmp.path()).expect("loads");
-        assert!(!config.hoist);
-        assert_eq!(
-            config.hoist_pattern, None,
-            "hoist: false must clear hoist_pattern, even when set via env var",
-        );
-    }
-
-    /// `virtualStoreDirMaxLength` defaults to 120 — same value pnpm
-    /// writes when nothing is configured. The constant lives in
-    /// `pacquet-modules-yaml`; this asserts the config side carries
-    /// the matching default so a fresh install produces the same
-    /// virtual-store dirnames as pnpm.
-    #[test]
-    pub fn virtual_store_dir_max_length_defaults_to_120() {
-        let tmp = tempdir().unwrap();
-        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
-        assert_eq!(config.virtual_store_dir_max_length, 120);
-    }
-
-    /// `virtualStoreDirMaxLength` in `pnpm-workspace.yaml` overrides
-    /// the default. Mirrors pnpm's
-    /// [`virtualStoreDirMaxLength`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/Config.ts)
-    /// config-reader entry.
-    #[test]
-    pub fn virtual_store_dir_max_length_from_workspace_yaml() {
-        let tmp = tempdir().unwrap();
-        fs::write(tmp.path().join("pnpm-workspace.yaml"), "virtualStoreDirMaxLength: 90\n")
-            .expect("write to pnpm-workspace.yaml");
-        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
-        assert_eq!(config.virtual_store_dir_max_length, 90);
-    }
-
-    /// `PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH` overrides the yaml
-    /// value, matching the reader cascade priority (env > yaml >
-    /// default).
-    #[test]
-    pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
-        let tmp = tempdir().unwrap();
-        fs::write(tmp.path().join("pnpm-workspace.yaml"), "virtualStoreDirMaxLength: 90\n")
-            .expect("write to pnpm-workspace.yaml");
-
-        struct HostWithEnvOverride;
-        impl EnvVar for HostWithEnvOverride {
-            fn var(name: &str) -> Option<String> {
-                if name == "PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH" {
-                    return Some("50".to_owned());
-                }
-                safe_host_var(name)
-            }
-        }
-        impl EnvVarOs for HostWithEnvOverride {
-            fn var_os(_: &str) -> Option<OsString> {
-                None
-            }
-        }
-        impl GetHomeDir for HostWithEnvOverride {
-            fn home_dir() -> Option<PathBuf> {
-                None
-            }
-        }
-        inert_link_probe!(HostWithEnvOverride);
-
-        let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
-        assert_eq!(
-            config.virtual_store_dir_max_length, 50,
-            "env var must win over pnpm-workspace.yaml",
-        );
-    }
+/// Read a `.npmrc` by explicit file path (as opposed to [`read_npmrc`],
+/// which joins `.npmrc` onto a directory). Used for the `npmrcAuthFile`
+/// override, which names the file directly. `None` on any read /
+/// UTF-8 failure, same best-effort behaviour as [`read_npmrc`].
+fn read_npmrc_file(path: &std::path::Path) -> Option<String> {
+    fs::read_to_string(path).ok()
 }
+
+/// Port of pnpm's `readEnvVar`: read `pnpm_config_<lower>`, falling
+/// back to `PNPM_CONFIG_<UPPER>`, treating an empty value as unset.
+/// Used for the env vars that have to be resolved before `.npmrc` is
+/// loaded (they decide *which* user-level `.npmrc` gets read).
+fn read_pnpm_env<Sys: EnvVar>(lower: &str, upper: &str) -> Option<String> {
+    Sys::var(&format!("pnpm_config_{lower}"))
+        .or_else(|| Sys::var(&format!("PNPM_CONFIG_{upper}")))
+        .filter(|value| !value.is_empty())
+}
+
+/// Port of pnpm's `readNpmEnvVar`: the `npm_config_<key>` / `NPM_CONFIG_<KEY>`
+/// compatibility shim, so an `npm_config_userconfig` / `NPM_CONFIG_USERCONFIG`
+/// pointing at a custom `.npmrc` (e.g. `actions/setup-node`) keeps working.
+fn read_npm_env<Sys: EnvVar>(lower: &str, upper: &str) -> Option<String> {
+    Sys::var(&format!("npm_config_{lower}"))
+        .or_else(|| Sys::var(&format!("NPM_CONFIG_{upper}")))
+        .filter(|value| !value.is_empty())
+}
+
+#[cfg(test)]
+mod pnpm_default_parity;
+#[cfg(test)]
+mod tests;

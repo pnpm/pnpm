@@ -1,5 +1,64 @@
 # @pnpm/npm-resolver
 
+## 1101.5.0
+
+### Minor Changes
+
+- 6d17b66: The lockfile verifier now checks that a registry entry pinning an explicit `tarball` URL points at the artifact the registry's own metadata lists for that `name@version`. Previously a tampered lockfile could pair a trusted `name@version` with an attacker-chosen tarball URL (and a matching integrity for those bytes), so the install fetched the attacker's bytes. A mismatch — or any entry that can't be confirmed against the registry — is rejected with `ERR_PNPM_TARBALL_URL_MISMATCH`. Non-registry resolutions (`file:`, git-hosted, etc.) and registry entries without an explicit tarball URL (the URL is reconstructed from name+version+registry, so it is inherently bound) are unaffected; non-standard registry tarball URLs (npm Enterprise, GitHub Packages) still pass because they match the metadata.
+
+  This binding is unconditional — it runs regardless of `minimumReleaseAge`/`trustPolicy` and is not narrowed by their exclude lists, since it guards integrity rather than maturity/trust. It is **fail-closed**: an entry passes only when the registry metadata affirmatively lists the version with a matching tarball URL. If the metadata can't be fetched, doesn't list the version, or omits `dist.tarball`, the entry is rejected. As a result, an install that re-verifies a lockfile (any install whose lockfile content changed since the last verified run, where the verification cache no longer applies) now requires the configured registry to be reachable. `trustLockfile` is the opt-out for environments that treat the on-disk lockfile as already trusted.
+
+  The `minimumReleaseAge`/`trustPolicy` verification also no longer applies to URL-keyed tarball dependencies (e.g. `https:` tarballs) that carry a semver `version` copied from their manifest — those are deliberate non-registry dependencies.
+
+### Patch Changes
+
+- 722b9cd: Skip lockfile `minimumReleaseAge`/`trustPolicy` verification for non-registry tarball protocols (for example `file:`), so local tarball dependencies are not incorrectly checked against npm registry metadata.
+- Updated dependencies [3b76b8e]
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/worker@1100.1.9
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/config.pick-registry-for-package@1100.0.7
+  - @pnpm/config.version-policy@1100.1.3
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/resolving.registry.types@1100.1.1
+  - @pnpm/store.cafs@1100.1.8
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.7
+
+## 1101.4.0
+
+### Minor Changes
+
+- 1e9ab29: Staged publishes are now recognized in the trust scale. When a package version's registry metadata carries an `approver` field, it is treated as the strongest trust evidence (ranked above trusted publishers and provenance attestations), since staged publishes require 2FA publish approvals. This prevents false-positive trust downgrade errors when moving from a staged publish to a lower trust level [#11887](https://github.com/pnpm/pnpm/issues/11887).
+
+### Patch Changes
+
+- 6235428: Fix `minimumReleaseAgeExclude` handling in npm resolution fast paths so excluded packages do not get pinned to stale versions. Excludes are honored consistently during `publishedBy` metadata selection and cache-mtime shortcuts.
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.registry.types@1100.1.0
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.3.3
+
+### Patch Changes
+
+- 0721d64: Require provenance before treating trusted publisher metadata as the strongest trust evidence.
+- Updated dependencies [aa6149d]
+- Updated dependencies [35d2355]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/config.version-policy@1100.1.2
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/resolving.registry.types@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.5
+
 ## 1101.3.2
 
 ### Patch Changes

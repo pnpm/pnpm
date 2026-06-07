@@ -1,5 +1,56 @@
 # @pnpm/store.commands
 
+## 1100.0.23
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/installing.client@1100.2.5
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.normalize-registries@1100.0.6
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/global.packages@1100.0.6
+  - @pnpm/installing.context@1100.0.15
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/store.cafs@1100.1.8
+  - @pnpm/store.controller-types@1100.1.3
+
+## 1100.0.22
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [a33c4bf]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/installing.client@1100.2.4
+  - @pnpm/store.connection-manager@1100.2.5
+
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/store.connection-manager@1100.2.4
+  - @pnpm/installing.client@1100.2.3
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/config.normalize-registries@1100.0.5
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/global.packages@1100.0.5
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/store.controller-types@1100.1.2
+
 ## 1100.0.20
 
 ### Patch Changes

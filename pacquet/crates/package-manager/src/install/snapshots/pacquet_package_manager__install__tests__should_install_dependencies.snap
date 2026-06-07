@@ -1,6 +1,6 @@
 ---
 source: pacquet/crates/package-manager/src/install/tests.rs
-assertion_line: 95
+assertion_line: 98
 expression: get_all_folders(&project_root)
 ---
 [
@@ -32,6 +32,11 @@ expression: get_all_folders(&project_root)
     "node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin",
     "node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin/node_modules",
     "node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules/@pnpm.e2e/hello-world-js-bin/node_modules/.bin",
+    "node_modules/.pacquet/node_modules",
+    "node_modules/.pacquet/node_modules/@pnpm",
+    "node_modules/.pacquet/node_modules/@pnpm/x",
+    "node_modules/.pacquet/node_modules/@pnpm/y",
+    "node_modules/.pacquet/node_modules/@pnpm/z",
     "node_modules/@pnpm",
     "node_modules/@pnpm/xyz",
     "node_modules/@pnpm.e2e",

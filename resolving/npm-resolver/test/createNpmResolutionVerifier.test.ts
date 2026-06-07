@@ -45,8 +45,34 @@ beforeEach(async () => {
   await setupMockAgent()
 })
 
-test('createNpmResolutionVerifier() returns undefined when no policy is active', () => {
-  expect(createNpmResolutionVerifier(makeVerifierOpts())).toBeUndefined()
+test('createNpmResolutionVerifier() still verifies tarball URLs when no age/trust policy is active', async () => {
+  // The tarball-URL binding is unconditional, so the verifier exists even
+  // with no minimumReleaseAge/trustPolicy configured.
+  const meta = {
+    name: 'aged-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'aged-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.npmjs.org/aged-pkg/-/aged-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/aged-pkg', method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  expect(verifier).toBeDefined()
+  const result = await verifier.verify(
+    {
+      integrity: FAKE_INTEGRITY,
+      tarball: 'https://attacker.example/aged-pkg-1.0.0.tgz',
+    } as unknown as Resolution,
+    { name: 'aged-pkg', version: '1.0.0' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
 })
 
 test('createNpmResolutionVerifier() flags a trustedPublisher → provenance downgrade', async () => {
@@ -90,7 +116,7 @@ test('createNpmResolutionVerifier() flags a trustedPublisher → provenance down
 
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
     trustPolicy: 'no-downgrade',
-  }))!
+  }))
   expect(verifier).toBeDefined()
 
   const result = await verifier.verify(makeTarballResolution('demo', '0.0.2'), { name: 'demo', version: '0.0.2' })
@@ -137,7 +163,7 @@ test('createNpmResolutionVerifier() passes a same-evidence-level version', async
 
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
     trustPolicy: 'no-downgrade',
-  }))!
+  }))
   const result = await verifier.verify(makeTarballResolution('demo', '0.0.2'), { name: 'demo', version: '0.0.2' })
   expect(result).toEqual({ ok: true })
 })
@@ -171,9 +197,13 @@ test('createNpmResolutionVerifier() abbreviated shortcut requires the pinned ver
 
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
     minimumReleaseAge: 1440, // 1 day
-  }))!
+  }))
+  // Registry-style resolution (no explicit tarball URL) so the entry
+  // exercises the age check's abbreviated shortcut rather than the
+  // tarball-URL binding (which would fail closed on the missing version
+  // first).
   const result = await verifier.verify(
-    makeTarballResolution('unpublished-pkg', '0.0.2'),
+    { integrity: FAKE_INTEGRITY } as unknown as Resolution,
     { name: 'unpublished-pkg', version: '0.0.2' }
   )
   expect(result).toMatchObject({
@@ -213,10 +243,147 @@ test('createNpmResolutionVerifier() ignoreMissingTimeField passes the entry when
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
     minimumReleaseAge: 1440,
     ignoreMissingTimeField: true,
-  }))!
+  }))
   const result = await verifier.verify(
     makeTarballResolution('time-free-pkg', '1.0.0'),
     { name: 'time-free-pkg', version: '1.0.0' }
+  )
+  expect(result).toEqual({ ok: true })
+})
+
+test('createNpmResolutionVerifier() skips file: tarball resolutions', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    minimumReleaseAge: 1440,
+  }))
+  const result = await verifier.verify(
+    {
+      integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+      tarball: 'file:vendor/types__my-cool-lib-v1.0.0.tgz',
+    } as unknown as Resolution,
+    { name: '@types/my-cool-lib', version: '1.0.0' }
+  )
+  expect(result).toEqual({ ok: true })
+})
+
+const FAKE_INTEGRITY = 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
+
+test('createNpmResolutionVerifier() flags a lockfile tarball URL that does not match the registry metadata', async () => {
+  // The version is old enough to clear minimumReleaseAge, but the lockfile
+  // pins a tarball URL on a host the registry never published to. A tampered
+  // lockfile could pair an aged, trusted name@version with attacker-hosted
+  // bytes; the verifier must reject the entry before the age check passes it.
+  const meta = {
+    name: 'aged-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'aged-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.npmjs.org/aged-pkg/-/aged-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/aged-pkg', method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    minimumReleaseAge: 1440,
+  }))
+  const result = await verifier.verify(
+    {
+      integrity: FAKE_INTEGRITY,
+      tarball: 'https://attacker.example/aged-pkg-1.0.0.tgz',
+    } as unknown as Resolution,
+    { name: 'aged-pkg', version: '1.0.0' }
+  )
+  expect(result).toMatchObject({
+    ok: false,
+    code: 'TARBALL_URL_MISMATCH',
+  })
+})
+
+test('createNpmResolutionVerifier() accepts a non-standard tarball URL that matches the registry metadata', async () => {
+  // npm Enterprise / GitHub Packages serve tarballs from a path the default
+  // URL template can't reconstruct, so the lockfile keeps the URL. As long
+  // as it's the URL the registry's own metadata lists, it's legitimate.
+  const meta = {
+    name: 'enterprise-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'enterprise-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.npmjs.org/enterprise-pkg/download/enterprise-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/enterprise-pkg', method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    minimumReleaseAge: 1440,
+  }))
+  const result = await verifier.verify(
+    {
+      integrity: FAKE_INTEGRITY,
+      tarball: 'https://registry.npmjs.org/enterprise-pkg/download/enterprise-pkg-1.0.0.tgz',
+    } as unknown as Resolution,
+    { name: 'enterprise-pkg', version: '1.0.0' }
+  )
+  expect(result).toEqual({ ok: true })
+})
+
+test('createNpmResolutionVerifier() treats a default-port / scheme difference as a match', async () => {
+  // The lockfile URL and the registry metadata differ only by an explicit
+  // default port and the http/https scheme — benign normalizations, not
+  // tampering — so `sameTarballUrl` must canonicalize them away.
+  const meta = {
+    name: 'aged-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'aged-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'http://registry.npmjs.org:80/aged-pkg/-/aged-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    time: { '1.0.0': '2020-01-01T00:00:00.000Z' },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/aged-pkg', method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    minimumReleaseAge: 1440,
+  }))
+  const result = await verifier.verify(
+    {
+      integrity: FAKE_INTEGRITY,
+      tarball: 'https://registry.npmjs.org/aged-pkg/-/aged-pkg-1.0.0.tgz',
+    } as unknown as Resolution,
+    { name: 'aged-pkg', version: '1.0.0' }
+  )
+  expect(result).toEqual({ ok: true })
+})
+
+test('createNpmResolutionVerifier() skips URL-keyed tarball deps even when they carry a semver version', async () => {
+  // A remote `https:` tarball dependency keeps a semver `version` copied from
+  // its manifest, but its lockfile key is the URL (nonSemverVersion). It is a
+  // deliberate non-registry dep: neither the release-age policy nor the
+  // registry tarball-URL binding applies, and no registry lookup should fire.
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({
+    minimumReleaseAge: 1440,
+  }))
+  const result = await verifier.verify(
+    {
+      integrity: FAKE_INTEGRITY,
+      tarball: 'https://example.com/foo-1.0.0.tgz',
+    } as unknown as Resolution,
+    { name: 'foo', version: '1.0.0', nonSemverVersion: 'https://example.com/foo-1.0.0.tgz' }
   )
   expect(result).toEqual({ ok: true })
 })
@@ -225,9 +392,10 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
   const verifier = createNpmResolutionVerifier(makeVerifierOpts({
     trustPolicy: 'no-downgrade',
     trustPolicyExclude: ['foo'],
-  }))!
+  }))
   // Same policy → trust.
   expect(verifier.canTrustPastCheck({
+    tarballUrlBinding: true,
     minimumReleaseAge: 0,
     minimumReleaseAgeExclude: [],
     trustPolicy: 'no-downgrade',
@@ -236,6 +404,7 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
   })).toBe(true)
   // Cached run had a wider exclude list (today's is stricter) → invalidate.
   expect(verifier.canTrustPastCheck({
+    tarballUrlBinding: true,
     minimumReleaseAge: 0,
     minimumReleaseAgeExclude: [],
     trustPolicy: 'no-downgrade',

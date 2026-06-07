@@ -32,14 +32,14 @@ const LOCKFILE_YAML: &str = text_block! {
     ""
     "packages:"
     ""
-    "  react@17.0.2:"
-    "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
-    "    engines: {node: '>=0.10.0'}"
-    ""
     "  react-dom@17.0.2:"
     "    resolution: {integrity: sha512-s4h96KtLDUQlsENhMn1ar8t2bEa+q/YAtj8pPPdIjPDGBDIVNsrD9aXNWqspUe6AzKCIG0C1HZZLqLV7qpOBGA==}"
     "    peerDependencies:"
     "      react: 17.0.2"
+    ""
+    "  react@17.0.2:"
+    "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
+    "    engines: {node: '>=0.10.0'}"
     ""
     "  typescript@5.1.6:"
     "    resolution: {integrity: sha512-zaWCozRZ6DLEWAWFrVDz1H6FVXzUSfTy5FUMWsQlU8Ym5JP9eO4xkTIROFCQvhQf61z6O/G6ugw3SgAnvvm+HA==}"
@@ -48,11 +48,11 @@ const LOCKFILE_YAML: &str = text_block! {
     ""
     "snapshots:"
     ""
-    "  react@17.0.2: {}"
-    ""
     "  react-dom@17.0.2(react@17.0.2):"
     "    dependencies:"
     "      react: 17.0.2"
+    ""
+    "  react@17.0.2: {}"
     ""
     "  typescript@5.1.6: {}"
 };
@@ -84,6 +84,25 @@ fn round_trip_parse_save_parse_preserves_lockfile() {
     assert_eq!(original, reparsed);
 }
 
+/// Byte-for-byte parity: parsing a pnpm-authored v9 lockfile and saving it
+/// reproduces the exact bytes pnpm wrote. [`LOCKFILE_YAML`] is laid out the way
+/// pnpm's `js-yaml` dumper writes it — blank lines between top-level and
+/// section entries, single-quoted ambiguous scalars, single-line
+/// `resolution` / `engines`, and priority-then-lexical key ordering — so an
+/// exact match proves pacquet's writer matches pnpm's formatting.
+#[test]
+fn save_reproduces_pnpm_authored_bytes() {
+    let original: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    original.save_to_path(&path).expect("save lockfile");
+
+    let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
+    // `text_block!` omits the trailing newline; the writer appends one.
+    assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n"));
+}
+
 /// A workspace lockfile with multiple importers, one of which has a
 /// `workspace:` dependency, must round-trip cleanly. Guards two things
 /// at once:
@@ -94,7 +113,7 @@ fn round_trip_parse_save_parse_preserves_lockfile() {
 ///    the same wire form.
 ///
 /// This is the smallest possible v9 workspace lockfile pacquet needs
-/// to load to do anything useful for #431.
+/// to load to do anything useful for [#431](https://github.com/pnpm/pacquet/issues/431).
 #[test]
 fn workspace_lockfile_with_link_dep_round_trips() {
     const WORKSPACE_YAML: &str = text_block! {
@@ -159,6 +178,85 @@ fn workspace_lockfile_with_link_dep_round_trips() {
     );
     let reparsed: Lockfile = serde_saphyr::from_str(&saved).expect("reparse");
     assert_eq!(original, reparsed);
+}
+
+/// `peersSuffixMaxLength` is serialized into `settings:` only when set
+/// to a non-default value. Lockfiles written by the default install
+/// must round-trip without the field, matching pnpm's
+/// [`convertToLockfileFile`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/lockfileFormatConverters.ts#L67-L69)
+/// strip-on-default.
+#[test]
+fn peers_suffix_max_length_omitted_from_settings_when_unset() {
+    use crate::LockfileSettings;
+
+    let lockfile = Lockfile {
+        lockfile_version: crate::LockfileVersion::<9>::try_from(crate::ComVer::new(9, 0))
+            .expect("v9 is compatible with major=9"),
+        settings: Some(LockfileSettings {
+            auto_install_peers: true,
+            dedupe_peers: None,
+            exclude_links_from_lockfile: false,
+            inject_workspace_packages: false,
+            peers_suffix_max_length: None,
+        }),
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        ignored_optional_dependencies: None,
+        importers: Default::default(),
+        packages: None,
+        snapshots: None,
+    };
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path).expect("save lockfile");
+    let saved = std::fs::read_to_string(&path).expect("read saved lockfile");
+
+    assert!(
+        !saved.contains("peersSuffixMaxLength"),
+        "default peersSuffixMaxLength must be omitted from serialized lockfile:\n{saved}",
+    );
+}
+
+/// A non-default `peersSuffixMaxLength` is serialized into `settings:`
+/// so a subsequent install detects drift through
+/// [`crate::check_lockfile_settings`].
+#[test]
+fn peers_suffix_max_length_serialized_when_set() {
+    use crate::LockfileSettings;
+
+    let lockfile = Lockfile {
+        lockfile_version: crate::LockfileVersion::<9>::try_from(crate::ComVer::new(9, 0))
+            .expect("v9 is compatible with major=9"),
+        settings: Some(LockfileSettings {
+            auto_install_peers: true,
+            dedupe_peers: None,
+            exclude_links_from_lockfile: false,
+            inject_workspace_packages: false,
+            peers_suffix_max_length: Some(10),
+        }),
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        ignored_optional_dependencies: None,
+        importers: Default::default(),
+        packages: None,
+        snapshots: None,
+    };
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path).expect("save lockfile");
+    let saved = std::fs::read_to_string(&path).expect("read saved lockfile");
+
+    assert!(
+        saved.contains("peersSuffixMaxLength: 10"),
+        "non-default peersSuffixMaxLength must be serialized:\n{saved}",
+    );
+
+    let reparsed: Lockfile = serde_saphyr::from_str(&saved).expect("reparse lockfile");
+    assert_eq!(reparsed.settings.expect("settings present").peers_suffix_max_length, Some(10));
 }
 
 #[test]
@@ -336,8 +434,8 @@ fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
         .filter(|name| {
-            let s = name.to_string_lossy();
-            s != Lockfile::CURRENT_FILE_NAME
+            let name_str = name.to_string_lossy();
+            name_str != Lockfile::CURRENT_FILE_NAME
         })
         .collect();
     assert!(leftovers.is_empty(), "temp file should have been cleaned up, found: {leftovers:?}");

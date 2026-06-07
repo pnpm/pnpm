@@ -1,0 +1,12 @@
+{
+  "name": "@pnpm.e2e/write-lifecycle-env",
+  "version": "1.0.0",
+  "description": "Writes process.env to `env.json` during install stage",
+  "bin": "index.js",
+  "main": "index.js",
+  "scripts": {
+    "install": "node index"
+  },
+  "author": "Zoltan Kochan",
+  "license": "MIT"
+}

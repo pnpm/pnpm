@@ -1,5 +1,29 @@
 # @pnpm/tarball-fetcher
 
+## 1101.0.12
+
+### Patch Changes
+
+- Updated dependencies [3b76b8e]
+- Updated dependencies [a017bf3]
+  - @pnpm/worker@1100.1.9
+  - @pnpm/types@1101.3.0
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/exec.prepare-package@1100.0.15
+  - @pnpm/fetching.fetcher-base@1100.1.7
+
+## 1101.0.11
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+- Updated dependencies [35d2355]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/types@1101.2.0
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/exec.prepare-package@1100.0.14
+  - @pnpm/fetching.fetcher-base@1100.1.6
+
 ## 1101.0.10
 
 ### Patch Changes

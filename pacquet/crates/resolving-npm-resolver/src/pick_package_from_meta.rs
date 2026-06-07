@@ -38,7 +38,7 @@ use node_semver::{Range, Version};
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::{
-    VersionSelectorEntry, VersionSelectorType, VersionSelectors,
+    VersionSelectorEntry, VersionSelectorType, VersionSelectors, parse_packument_timestamp,
 };
 
 /// Discriminator for [`RegistryPackageSpec::spec_type`]. Mirrors
@@ -190,7 +190,7 @@ where
                 // version published exactly at the cutoff is mature,
                 // so `modified == cutoff` (which means no version is
                 // newer than the cutoff) is also safe to shortcut.
-                let modified_date = meta.modified.as_deref().and_then(parse_iso_8601);
+                let modified_date = meta.modified.as_deref().and_then(parse_packument_timestamp);
                 match modified_date {
                     Some(date) if date <= cutoff => meta,
                     _ => {
@@ -380,7 +380,7 @@ pub fn filter_pkg_metadata_by_publish_date(
         let mature = time
             .get(version)
             .and_then(serde_json::Value::as_str)
-            .and_then(parse_iso_8601)
+            .and_then(parse_packument_timestamp)
             .map(|date| date <= cutoff)
             .unwrap_or(false);
         let trusted = trusted_versions
@@ -440,6 +440,7 @@ pub fn filter_pkg_metadata_by_publish_date(
         time: meta.time.clone(),
         modified: meta.modified.clone(),
         etag: meta.etag.clone(),
+        homepage: meta.homepage.clone(),
         mutex: std::sync::Arc::clone(&meta.mutex),
     }
 }
@@ -603,10 +604,6 @@ fn min_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<Stri
         }
     }
     best.map(|(_, raw)| raw)
-}
-
-fn parse_iso_8601(input: &str) -> Option<chrono::DateTime<chrono::Utc>> {
-    chrono::DateTime::parse_from_rfc3339(input).ok().map(|date| date.with_timezone(&chrono::Utc))
 }
 
 fn has_unpublished_versions(meta: &Package) -> bool {

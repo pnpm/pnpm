@@ -20,7 +20,7 @@ use pacquet_store_dir::{
     SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, git_hosted_store_index_key,
     store_index_key,
 };
-use pacquet_tarball::{PrefetchResult, prefetch_cas_paths};
+use pacquet_tarball::{MemCache, PrefetchResult, SharedReportedProgressKeys, prefetch_cas_paths};
 use pipe_trait::Pipe;
 use std::{
     collections::{HashMap, HashSet},
@@ -157,6 +157,20 @@ pub struct CreateVirtualStore<'a> {
     /// Tarball downloads and CAS writes still happen for both
     /// linkers; only the slot-materialization step differs.
     pub node_linker: NodeLinker,
+    /// Cache keys whose package status (`fetched` or `found_in_store`)
+    /// has already been emitted earlier in this install. The warm batch
+    /// still emits `resolved` for those packages, but skips the second
+    /// status event so resolve-time prefetch progress is visible without
+    /// being double-counted.
+    pub progress_reported: &'a SharedReportedProgressKeys,
+    /// Install-scoped shared in-flight tarball cache, threaded into each
+    /// per-snapshot [`InstallPackageBySnapshot`] so the cold-batch
+    /// download reuses a background prefetcher's in-flight download
+    /// instead of re-fetching. `Some` whenever a prefetcher is active —
+    /// the pnpr client's [`crate::TarballPrefetcher`] (frozen path) or
+    /// the fresh-resolve path's [`crate::PrefetchingResolver`] (closing
+    /// <https://github.com/pnpm/pnpm/issues/12241>); `None` otherwise.
+    pub tarball_mem_cache: Option<&'a std::sync::Arc<MemCache>>,
 }
 
 /// Error type of [`CreateVirtualStore`].
@@ -201,6 +215,8 @@ impl<'a> CreateVirtualStore<'a> {
             skipped,
             workspace_root,
             node_linker,
+            progress_reported,
+            tarball_mem_cache,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -222,7 +238,7 @@ impl<'a> CreateVirtualStore<'a> {
         // per snapshot. Every `InstallPackageBySnapshot` performs a cache
         // lookup against this index before falling through to the network;
         // on a 1352-package lockfile the per-snapshot reopen accounted for
-        // ~1.3 s of wall time even with a fully populated store (see #260).
+        // ~1.3 s of wall time even with a fully populated store (see <https://github.com/pnpm/pacquet/issues/260>).
         // A `None` here means the store has no `index.db` yet (first install
         // against an empty store), in which case every lookup would miss —
         // so we keep the handle `Option`al and short-circuit.
@@ -303,14 +319,14 @@ impl<'a> CreateVirtualStore<'a> {
         // so skipping them here matches the per-snapshot path's check.
         // [`snapshot_cache_key`] is the shared key-derivation helper —
         // a future change to the resolution-type handling or key
-        // shape stays in one place (Copilot review on #292).
+        // shape stays in one place (Copilot review on <https://github.com/pnpm/pacquet/pull/292>).
         //
         // Walk `snapshots` once, stash the per-snapshot cache key
         // alongside its `(snapshot_key, snapshot)` tuple, and reuse
         // the stashed key for both the prefetch input and the
         // warm/cold partition below. A separate pass to recompute
         // each key would re-allocate two strings per snapshot for
-        // nothing (Copilot follow-up review on #292).
+        // nothing (Copilot follow-up review on <https://github.com/pnpm/pacquet/pull/292>).
         //
         // Lockfiles with peer-dependency variants of the same package
         // (e.g. `react-dom@17.0.2(react@17.0.2)` plus
@@ -336,7 +352,7 @@ impl<'a> CreateVirtualStore<'a> {
         //    supposed to be installed, so there are no store-index
         //    rows to keep alive.
         //
-        // 2. **Current-lockfile skip (main #442)** — the previous
+        // 2. **Current-lockfile skip (main <https://github.com/pnpm/pacquet/pull/442>)** — the previous
         //    install also installed this snapshot (`current_snapshots`)
         //    with the same dependency wiring + integrity, AND its
         //    virtual-store slot still exists on disk. Mirrors
@@ -431,7 +447,7 @@ impl<'a> CreateVirtualStore<'a> {
         //   land in `side_effects_maps_by_snapshot` so
         //   [`crate::BuildModules`]'s `is_built` gate can skip
         //   re-running build scripts on warm reinstalls (review on
-        //   #442 — without this, allowed-build packages re-execute
+        //   <https://github.com/pnpm/pacquet/pull/442> — without this, allowed-build packages re-execute
         //   their scripts every install, costing seconds on the
         //   warm-reinstall path).
         type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, Option<String>);
@@ -551,7 +567,7 @@ impl<'a> CreateVirtualStore<'a> {
         // explicit alias, so the warm tuple's third field stays bound
         // to whatever value type `pacquet_tarball::PrefetchedCasPaths`
         // exposes. A future change there propagates here without a
-        // local alias drifting (Copilot review on #292).
+        // local alias drifting (Copilot review on <https://github.com/pnpm/pacquet/pull/292>).
         let mut warm = Vec::with_capacity(snapshot_entries.len());
         let mut cold: Vec<(&PackageKey, &SnapshotEntry)> = Vec::new();
         // Build a `metadata_key -> manifest` lookup from the prefetched
@@ -610,8 +626,12 @@ impl<'a> CreateVirtualStore<'a> {
                 side_effects_maps_by_snapshot
                     .insert((*snapshot_key).clone(), std::sync::Arc::clone(maps));
             }
-            match cache_key.as_deref().and_then(|key| prefetched.get(key)) {
-                Some(cas_paths) => warm.push((snapshot_key, snapshot, cas_paths)),
+            // Carry the cache key alongside the warm entry so the
+            // reporter can skip a duplicate package-status event when
+            // a resolve-time prefetch already emitted it.
+            match cache_key.as_deref().and_then(|key| prefetched.get(key).map(|paths| (key, paths)))
+            {
+                Some((key, cas_paths)) => warm.push((snapshot_key, snapshot, cas_paths, key)),
                 None => cold.push((snapshot_key, snapshot)),
             }
         }
@@ -624,7 +644,7 @@ impl<'a> CreateVirtualStore<'a> {
         // the cold-batch fetch finishes.
         let mut cas_paths_by_pkg_id: Option<CasPathsByPkgId> = is_hoisted.then(|| {
             let mut map = CasPathsByPkgId::with_capacity(warm.len());
-            for (snapshot_key, _snapshot, cas_paths) in &warm {
+            for (snapshot_key, _snapshot, cas_paths, _cache_key) in &warm {
                 // Mirrors upstream's `getPkgIdWithPatchHash` — strip
                 // the peer-graph suffix but keep `(patch_hash=...)` so
                 // patched packages share one CAS-paths entry across
@@ -652,7 +672,7 @@ impl<'a> CreateVirtualStore<'a> {
             // `current_thread` we fall back to a plain inline call,
             // matching how the rest of the test suite already runs
             // sync work directly on the test thread (Copilot review on
-            // #292).
+            // <https://github.com/pnpm/pacquet/pull/292>).
             //
             // Hoisted skips this batch entirely: no virtual-store slot
             // gets written, so there's no per-snapshot link work to
@@ -662,9 +682,13 @@ impl<'a> CreateVirtualStore<'a> {
             // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L425>
             // which routes all link work into `linkHoistedModules`.
             let warm_work = move || {
-                warm.par_iter().try_for_each(|(snapshot_key, snapshot, cas_paths)| {
+                warm.par_iter().try_for_each(|(snapshot_key, snapshot, cas_paths, cache_key)| {
                     let package_id = snapshot_key.without_peer().to_string();
-                    emit_warm_snapshot_progress::<Reporter>(&package_id, requester);
+                    emit_warm_snapshot_progress::<Reporter>(
+                        &package_id,
+                        requester,
+                        progress_reported.contains(*cache_key),
+                    );
 
                     crate::CreateVirtualDirBySnapshot {
                         layout,
@@ -698,9 +722,13 @@ impl<'a> CreateVirtualStore<'a> {
             // `pnpm:progress imported`-style updates render the warm
             // hits — the link work just happens later, in
             // `link_hoisted_modules`.
-            for (snapshot_key, _, _) in &warm {
+            for (snapshot_key, _, _, cache_key) in &warm {
                 let package_id = snapshot_key.without_peer().to_string();
-                emit_warm_snapshot_progress::<Reporter>(&package_id, requester);
+                emit_warm_snapshot_progress::<Reporter>(
+                    &package_id,
+                    requester,
+                    progress_reported.contains(*cache_key),
+                );
             }
         }
 
@@ -725,12 +753,15 @@ impl<'a> CreateVirtualStore<'a> {
         //   future returns; under hoisted no slot was written and the
         //   CAS index is the only output.
         let mut fetch_failed: HashSet<PackageKey> = HashSet::new();
-        let mut cold_cas_paths: Vec<(&PackageKey, HashMap<String, PathBuf>)> = Vec::new();
+        let mut cold_cas_paths: Vec<(&PackageKey, &SnapshotEntry, HashMap<String, PathBuf>)> =
+            Vec::new();
         if !cold.is_empty() {
             let prefetched_ref = Some(&prefetched);
             let verified_files_cache_ref = &verified_files_cache;
-            type ColdOutcome<'a> =
-                (Option<PackageKey>, Option<(&'a PackageKey, HashMap<String, PathBuf>)>);
+            type ColdOutcome<'a> = (
+                Option<PackageKey>,
+                Option<(&'a PackageKey, &'a SnapshotEntry, HashMap<String, PathBuf>)>,
+            );
             let outcomes: Vec<ColdOutcome<'_>> = cold
                 .iter()
                 .map(|(snapshot_key, snapshot)| async move {
@@ -748,6 +779,8 @@ impl<'a> CreateVirtualStore<'a> {
                         store_index: store_index_ref,
                         store_index_writer: store_index_writer_ref,
                         prefetched_cas_paths: prefetched_ref,
+                        tarball_mem_cache,
+                        progress_reported: Some(progress_reported),
                         verified_files_cache: verified_files_cache_ref,
                         logged_methods,
                         requester,
@@ -758,14 +791,15 @@ impl<'a> CreateVirtualStore<'a> {
                         skipped,
                         workspace_root,
                         node_linker,
+                        // The slot link is deferred to the parallel pass
+                        // below so it doesn't serialize inside this
+                        // cooperative `try_join_all` task.
+                        defer_link: true,
                     }
                     .run::<Reporter>()
                     .await;
                     match result {
-                        Ok(cas_paths) => {
-                            let captured = is_hoisted.then_some((*snapshot_key, cas_paths));
-                            Ok((None, captured))
-                        }
+                        Ok(cas_paths) => Ok((None, Some((*snapshot_key, *snapshot, cas_paths)))),
                         Err(err) if snapshot.optional && is_fetch_side_failure(&err) => {
                             // Silent swallow, matching upstream. `tracing::warn!`
                             // gives operator visibility without polluting
@@ -809,6 +843,55 @@ impl<'a> CreateVirtualStore<'a> {
             }
         }
 
+        // Cold link pass (isolated only): now that every cold snapshot's
+        // tarball is in the store, link each into its virtual-store slot
+        // in one parallel rayon pass — the same shape as the warm batch
+        // above. The per-snapshot download futures deferred this work
+        // (`defer_link: true`) so the blocking `rayon::join` link inside
+        // each wouldn't serialize one-at-a-time within the cooperative
+        // `try_join_all` task; doing it here lets every slot link
+        // concurrently. Hoisted writes no slots, so it skips this and
+        // consumes `cold_cas_paths` for the per-pkg CAS index below.
+        if !is_hoisted && !cold_cas_paths.is_empty() {
+            use rayon::prelude::*;
+            let import_method = config.package_import_method;
+            let link_work = || {
+                cold_cas_paths.par_iter().try_for_each(|(snapshot_key, snapshot, cas_paths)| {
+                    let package_id = snapshot_key.without_peer().to_string();
+                    crate::CreateVirtualDirBySnapshot {
+                        layout,
+                        cas_paths,
+                        import_method,
+                        logged_methods,
+                        requester,
+                        package_id: &package_id,
+                        package_key: snapshot_key,
+                        snapshot,
+                        skipped,
+                    }
+                    .run::<Reporter>()
+                    .map_err(|error| {
+                        CreateVirtualStoreError::InstallPackageBySnapshot(
+                            InstallPackageBySnapshotError::CreateVirtualDir(error),
+                        )
+                    })
+                })
+            };
+            // `block_in_place` (the same guard the warm batch uses)
+            // migrates other futures off this worker so async progress
+            // continues; it panics on the `current_thread` runtime that
+            // `#[tokio::test]` defaults to, so fall back to a plain call
+            // there.
+            let on_multi_thread = tokio::runtime::Handle::try_current().is_ok_and(|handle| {
+                handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread
+            });
+            if on_multi_thread {
+                tokio::task::block_in_place(link_work)?;
+            } else {
+                link_work()?;
+            }
+        }
+
         // Build the per-pkg CAS index when the install is targeting
         // the hoisted linker. Upstream's
         // [`lockfileToHoistedDepGraph`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/lockfileToHoistedDepGraph.ts)
@@ -840,7 +923,7 @@ impl<'a> CreateVirtualStore<'a> {
         // real install.
         if let Some(map) = cas_paths_by_pkg_id.as_mut() {
             map.reserve(cold_cas_paths.len());
-            for (snapshot_key, paths) in cold_cas_paths {
+            for (snapshot_key, _snapshot, paths) in cold_cas_paths {
                 // Mirrors upstream's `getPkgIdWithPatchHash` — strip
                 // the peer-graph suffix but keep `(patch_hash=...)` so
                 // patched packages share one CAS-paths entry across
@@ -877,7 +960,7 @@ impl<'a> CreateVirtualStore<'a> {
 ///   fail on anyway — missing metadata, missing tarball integrity, or
 ///   a directory / git resolution this build doesn't support yet —
 ///   so the orchestrator can short-circuit *before* the warm rayon
-///   batch runs (Copilot review on #292). The previous shape collapsed
+///   batch runs (Copilot review on [#292]). The previous shape collapsed
 ///   these into `None` and shoved them into the cold batch, which
 ///   meant a malformed lockfile would do up to ~6 s of warm-batch
 ///   linking before the actual error fired.
@@ -891,6 +974,8 @@ impl<'a> CreateVirtualStore<'a> {
 /// the resolution-type handling or key shape stays in one place.
 /// A drift between the two loops would silently misclassify warm
 /// entries as cold and quietly halve install speed.
+///
+/// [#292]: https://github.com/pnpm/pacquet/pull/292
 fn snapshot_cache_key(
     snapshot_key: &PackageKey,
     packages: &HashMap<PackageKey, PackageMetadata>,
@@ -1034,13 +1119,12 @@ fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMet
     current_integrity == wanted_integrity
 }
 
-/// `pnpm:progress` `resolved` + `found_in_store` for a frozen-lockfile
-/// snapshot the install-scoped prefetch already settled. Frozen-
-/// lockfile snapshots are "already resolved" by virtue of being in
-/// the lockfile, and "found in store" by virtue of the prefetch
-/// covering them — emit both so the consumer sees the full resolved
-/// → found_in_store → imported sequence even when the cold path is
-/// skipped.
+/// `pnpm:progress resolved` for a warm-batch snapshot, plus
+/// `found_in_store` when no earlier fetch path already emitted the
+/// package status. Resolve-time prefetches report `fetched` or
+/// `found_in_store` as soon as their fetch/cache-hit outcome is known;
+/// the warm batch then supplies the later `resolved` event without
+/// double-counting the package status.
 ///
 /// Pulled out of the warm-batch closure in
 /// [`CreateVirtualStore::run`] so the event-construction code is
@@ -1083,7 +1167,11 @@ fn is_fetch_side_failure(err: &InstallPackageBySnapshotError) -> bool {
     )
 }
 
-fn emit_warm_snapshot_progress<Reporter: self::Reporter>(package_id: &str, requester: &str) {
+fn emit_warm_snapshot_progress<Reporter: self::Reporter>(
+    package_id: &str,
+    requester: &str,
+    progress_reported: bool,
+) {
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::Resolved {
@@ -1091,13 +1179,15 @@ fn emit_warm_snapshot_progress<Reporter: self::Reporter>(package_id: &str, reque
             requester: requester.to_owned(),
         },
     }));
-    Reporter::emit(&LogEvent::Progress(ProgressLog {
-        level: LogLevel::Debug,
-        message: ProgressMessage::FoundInStore {
-            package_id: package_id.to_owned(),
-            requester: requester.to_owned(),
-        },
-    }));
+    if !progress_reported {
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: ProgressMessage::FoundInStore {
+                package_id: package_id.to_owned(),
+                requester: requester.to_owned(),
+            },
+        }));
+    }
 }
 
 #[cfg(test)]

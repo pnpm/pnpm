@@ -60,7 +60,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
         with:
           tool: cross
 
@@ -82,17 +82,17 @@ jobs:
             exit 1
           fi
 
-      - name: Inject version into pacquet/crates/cli/src/cli_args.rs
-        # The version reported by `pacquet --version` is a hardcoded clap
-        # attribute. Patch it here so the binary built for the matrix leg
-        # reports the version we're about to publish.
+      - name: Inject version into pacquet/crates/config/src/defaults.rs
+        # `pacquet --version` and the default User-Agent both read the
+        # PACQUET_VERSION constant. Patch it here so the binary built for the
+        # matrix leg reports the version we're about to publish.
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          file=pacquet/crates/cli/src/cli_args.rs
-          perl -i -pe 's/#\[clap\(version = "[^"]*"\)\]/#[clap(version = "'"$VERSION"'")]/' "$file"
-          grep -F "version = \"$VERSION\"" "$file"
+          file=pacquet/crates/config/src/defaults.rs
+          perl -i -pe 's/(pub const PACQUET_VERSION: &str = )"[^"]*";/${1}"'"$VERSION"'";/' "$file"
+          grep -F "PACQUET_VERSION: &str = \"$VERSION\"" "$file"
 
       - name: Build with cross
         run: cross build -p pacquet-cli --bin pacquet --release --target=${{ matrix.target }}

@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/windows-x64",
+  "version": "1.0.0",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ]
+}

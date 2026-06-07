@@ -99,6 +99,43 @@ pub enum StalenessReason {
         "`overrides` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
     )]
     OverridesChanged { lockfile: BTreeMap<String, String>, config: BTreeMap<String, String> },
+
+    /// The lockfile's `settings.injectWorkspacePackages` differs from
+    /// the current install's `Config::inject_workspace_packages`.
+    /// Mirrors upstream's
+    /// [`getOutdatedLockfileSetting.ts:80-82`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L80-L82):
+    /// the gate normalizes both sides through `Boolean(...)` so an
+    /// absent setting equals an explicit `false`. Pacquet has no
+    /// resolver, so the matching action is to surface this as
+    /// `OutdatedLockfile`.
+    #[display(
+        "`injectWorkspacePackages` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    InjectWorkspacePackagesChanged { lockfile: bool, config: bool },
+
+    /// `settings.peersSuffixMaxLength` in the lockfile differs from
+    /// the value the current install would use. Mirrors upstream's
+    /// [`getOutdatedLockfileSetting.ts`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts):
+    /// an unset field in the lockfile is treated as the default
+    /// (1000), so drift is "recorded value (or default) doesn't equal
+    /// the current config's value".
+    #[display(
+        "`peersSuffixMaxLength` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    PeersSuffixMaxLengthChanged { lockfile: u64, config: u64 },
+
+    /// The lockfile's `packageExtensionsChecksum` doesn't match the
+    /// checksum derived from the current install's
+    /// `Config::package_extensions`. Mirrors upstream's
+    /// [`getOutdatedLockfileSetting.ts:53-55`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L53-L55):
+    /// upstream returns `'packageExtensionsChecksum'` and
+    /// `needsFullResolution` flips on. Pacquet has no resolver, so the
+    /// matching action is to surface this as `OutdatedLockfile`. Both
+    /// values are the prefixed `sha256-…` strings the writer emits.
+    #[display(
+        "`packageExtensionsChecksum` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
+    )]
+    PackageExtensionsChecksumChanged { lockfile: Option<String>, config: Option<String> },
 }
 
 /// Per-bucket diff against the manifest's flat union of deps.
@@ -177,7 +214,7 @@ impl SpecDiff {
 /// Verify that lockfile-level settings the install pipeline reads
 /// from `pnpm-workspace.yaml` haven't drifted since the lockfile
 /// was written. Today this covers `overrides` and
-/// `ignoredOptionalDependencies` (umbrella #434 slice 7); the
+/// `ignoredOptionalDependencies` (umbrella [#434] slice 7); the
 /// variants below will grow as more upstream settings land
 /// (`catalogs`, `patchedDependencies`, `pnpmfileChecksum`, etc.).
 ///
@@ -189,10 +226,15 @@ impl SpecDiff {
 /// matches upstream's so the *first* drifted field is reported on
 /// both sides — which matters for tests and for CI logs that quote
 /// the reason verbatim.
+///
+/// [#434]: https://github.com/pnpm/pacquet/issues/434
 pub fn check_lockfile_settings(
     lockfile: &Lockfile,
     overrides: Option<&HashMap<String, String>>,
+    package_extensions_checksum: Option<&str>,
     ignored_optional_dependencies: Option<&[String]>,
+    inject_workspace_packages: bool,
+    peers_suffix_max_length: u64,
 ) -> Result<(), StalenessReason> {
     // Upstream checks `overrides` before `ignoredOptionalDependencies`,
     // so an install that changed both surfaces the overrides drift
@@ -215,6 +257,17 @@ pub fn check_lockfile_settings(
         });
     }
 
+    // Upstream checks `packageExtensionsChecksum` next, before
+    // `ignoredOptionalDependencies`. The check is `!==` on the two
+    // optional strings: absent on both sides is equivalent (no
+    // extensions ever configured), and absent vs. present is drift.
+    if lockfile.package_extensions_checksum.as_deref() != package_extensions_checksum {
+        return Err(StalenessReason::PackageExtensionsChecksumChanged {
+            lockfile: lockfile.package_extensions_checksum.clone(),
+            config: package_extensions_checksum.map(str::to_string),
+        });
+    }
+
     // Comparison is order-insensitive — upstream sorts both sides
     // before calling Ramda's `equals`. Empty `None` and empty `[]`
     // are equivalent (matches upstream's `?? []` default on both
@@ -230,6 +283,39 @@ pub fn check_lockfile_settings(
             config: config_set,
         });
     }
+
+    // `Boolean(lockfile.settings?.injectWorkspacePackages) !==
+    // Boolean(injectWorkspacePackages)` at upstream's
+    // [`getOutdatedLockfileSetting.ts:80-82`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L80-L82).
+    // Pacquet's wire format omits the key when `false` (see
+    // [`LockfileSettings`]'s `skip_serializing_if`), so an absent
+    // settings block or a missing key both deserialize as `false`
+    // here and the `Boolean(...)` normalization is automatic.
+    let lockfile_inject =
+        lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
+    if lockfile_inject != inject_workspace_packages {
+        return Err(StalenessReason::InjectWorkspacePackagesChanged {
+            lockfile: lockfile_inject,
+            config: inject_workspace_packages,
+        });
+    }
+
+    // An unset `peersSuffixMaxLength` in the lockfile means the writer
+    // used the default (1000) — pnpm strips the field on serialization
+    // when it equals the default. So drift here is "lockfile's
+    // recorded-or-default value != current config's value".
+    let lockfile_peers_suffix_max_length = lockfile
+        .settings
+        .as_ref()
+        .and_then(|s| s.peers_suffix_max_length)
+        .unwrap_or(crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH);
+    if lockfile_peers_suffix_max_length != peers_suffix_max_length {
+        return Err(StalenessReason::PeersSuffixMaxLengthChanged {
+            lockfile: lockfile_peers_suffix_max_length,
+            config: peers_suffix_max_length,
+        });
+    }
+
     Ok(())
 }
 
@@ -239,7 +325,7 @@ pub fn check_lockfile_settings(
 /// describing the first detected mismatch otherwise.
 ///
 /// Single-importer only today (pacquet doesn't have workspace support
-/// — see #431). Callers thread the root importer entry directly.
+/// — see [#431]). Callers thread the root importer entry directly.
 ///
 /// What is checked (in order, short-circuiting on the first failure):
 ///
@@ -257,17 +343,19 @@ pub fn check_lockfile_settings(
 /// Scoped to what pacquet supports today: no catalogs (#?), no
 /// `auto-install-peers` pre-pass (pacquet has no separate
 /// auto-install-peers mode), no `excludeLinksFromLockfile` (`link:`
-/// resolutions aren't supported yet — #431 territory), and no
+/// resolutions aren't supported yet — [#431] territory), and no
 /// version-range-satisfies check (covered in pnpm's
 /// `localTarballDepsAreUpToDate` for file: / tarball deps; out of
 /// scope here).
+///
+/// [#431]: https://github.com/pnpm/pacquet/issues/431
 pub fn satisfies_package_manifest(
     importer: &ProjectSnapshot,
     manifest: &PackageManifest,
     importer_id: &str,
     is_ignored_optional: &dyn Fn(&str) -> bool,
 ) -> Result<(), StalenessReason> {
-    let _ = importer_id; // reserved for the multi-importer path once #431 lands.
+    let _ = importer_id; // reserved for the multi-importer path once <https://github.com/pnpm/pacquet/issues/431> lands.
 
     // Phase 1: flat-record diff against the manifest's union of
     // dependency fields. Matches the upstream
@@ -342,7 +430,7 @@ pub fn satisfies_package_manifest(
         let field_name = <&'static str>::from(field);
         let manifest_field: BTreeMap<&str, &str> = manifest
             .dependencies([field])
-            // `ignoredOptionalDependencies` (umbrella #434 slice 7):
+            // `ignoredOptionalDependencies` (umbrella <https://github.com/pnpm/pacquet/issues/434> slice 7):
             // upstream's read-package-hook strips matching entries
             // from `optionalDependencies` AND `dependencies` before
             // the resolver sees the manifest, so the lockfile never

@@ -10,7 +10,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
@@ -53,6 +53,11 @@ import {
 } from './extendBuildOptions.js'
 
 export type { BuildOptions }
+
+// Serializes builds of a shared GVS projection across concurrent per-project
+// rebuilds: the first build proceeds, concurrent ones await it and reuse the
+// result. Keyed by the absolute projection directory.
+const gvsBuildLocks = new Map<string, Promise<void>>()
 
 function findPackages (
   packages: PackageSnapshots,
@@ -338,13 +343,34 @@ async function _rebuild (
   const builtDepPaths = new Set<string>()
   const storeIndex = opts.skipIfHasSideEffectsCache ? new StoreIndex(opts.storeDir) : undefined
 
+  // Under GVS, packages live at `<globalVirtualStoreDir>/<hash>/node_modules/<name>`,
+  // not the classic virtualStoreDir layout. The hash is computed with the same inputs
+  // as the installer so rebuild resolves the exact directory the install created.
+  const gvsDirByDepPath = new Map<DepPath, string>()
+  if (opts.enableGlobalVirtualStore) {
+    const globalVirtualStoreDir = opts.globalVirtualStoreDir ?? path.join(opts.storeDir, 'links')
+    for (const { hash, pkgMeta } of iterateHashedGraphNodes(
+      depGraph,
+      iteratePkgMeta(ctx.currentLockfile, depGraph),
+      _allowBuild,
+      opts.supportedArchitectures,
+      nodeVersion
+    )) {
+      gvsDirByDepPath.set(pkgMeta.depPath, path.join(globalVirtualStoreDir, hash))
+    }
+  }
+  const pkgModulesDir = (depPath: DepPath): string =>
+    gvsDirByDepPath.has(depPath)
+      ? path.join(gvsDirByDepPath.get(depPath)!, 'node_modules')
+      : path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
+
   const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
     async () => {
       const pkgSnapshot = pkgSnapshots[depPath]
       const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const pkgRoots = opts.nodeLinker === 'hoisted'
         ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? []).map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
-        : [path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', pkgInfo.name)]
+        : [path.join(pkgModulesDir(depPath), pkgInfo.name)]
       if (pkgRoots.length === 0) {
         if (pkgSnapshot.optional) return
         throw new PnpmError('MISSING_HOISTED_LOCATIONS', `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml`, {
@@ -352,10 +378,32 @@ async function _rebuild (
         })
       }
       const pkgRoot = pkgRoots[0]
+      // If another project is already building this shared projection, wait for it
+      // and reuse the result instead of racing on the same directory.
+      const gvsDir = gvsDirByDepPath.get(depPath)
+      if (gvsDir != null) {
+        const inFlight = gvsBuildLocks.get(gvsDir)
+        if (inFlight != null) {
+          await inFlight.catch(() => {})
+          pkgsThatWereRebuilt.add(depPath)
+          return
+        }
+      }
+      let releaseGvsLock: (() => void) | undefined
+      if (gvsDir != null) {
+        let resolveLock!: () => void
+        gvsBuildLocks.set(gvsDir, new Promise<void>((resolve) => {
+          resolveLock = resolve
+        }))
+        releaseGvsLock = () => {
+          gvsBuildLocks.delete(gvsDir)
+          resolveLock()
+        }
+      }
       try {
         const extraBinPaths = ctx.extraBinPaths
         if (opts.nodeLinker !== 'hoisted') {
-          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
+          const modules = pkgModulesDir(depPath)
           const binPath = path.join(pkgRoot, 'node_modules', '.bin')
           await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
         } else {
@@ -443,6 +491,8 @@ async function _rebuild (
           return
         }
         throw err
+      } finally {
+        releaseGvsLock?.()
       }
       if (pkgRoots.length > 1) {
         await hardLinkDir(pkgRoot, pkgRoots.slice(1))
@@ -462,7 +512,7 @@ async function _rebuild (
         .map(async (depPath) => limitLinking(async () => {
           const pkgSnapshot = pkgSnapshots[depPath]
           const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
+          const modules = pkgModulesDir(depPath)
           const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
           return linkBins(modules, binPath, { warn })
         }))

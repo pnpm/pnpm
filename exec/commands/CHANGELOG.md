@@ -1,5 +1,99 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1100.2.2
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/installing.commands@1100.7.2
+  - @pnpm/engine.runtime.commands@1100.1.2
+  - @pnpm/installing.client@1100.2.5
+  - @pnpm/building.commands@1100.1.2
+  - @pnpm/deps.status@1100.0.22
+  - @pnpm/bins.resolver@1100.0.6
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.version-policy@1100.1.3
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/exec.lifecycle@1100.0.15
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/workspace.injected-deps-syncer@1100.0.16
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+  - @pnpm/workspace.projects-sorter@1100.0.5
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.2.1
+
+### Patch Changes
+
+- @pnpm/deps.status@1100.0.21
+- @pnpm/installing.commands@1100.7.1
+- @pnpm/building.commands@1100.1.1
+
+## 1100.2.0
+
+### Minor Changes
+
+- 2cadfb5: Replaced `enquirer` with `@inquirer/prompts` for all interactive prompts. Fixes the `update -i` scrolling overflow bug where long choice lists were clipped in the terminal [#6643](https://github.com/pnpm/pnpm/issues/6643).
+
+  **User-facing changes:**
+
+  - `pnpm update -i` / `pnpm update -i --latest`: Scrolling now works correctly when many packages are available; the new library uses visual-line-aware pagination via `usePagination`
+  - `pnpm audit --fix -i`: Same scrolling fix for vulnerability selection
+  - `pnpm approve-builds`: Interactive build approval prompts updated
+  - `pnpm patch`: Version selection and "apply to all" prompts updated
+  - `pnpm patch-remove`: Patch removal selection updated
+  - `pnpm publish`: Branch confirmation prompt updated
+  - `pnpm login`: Credential prompts updated
+  - `pnpm run` / `pnpm exec` (with `verifyDepsBeforeRun=prompt`): Confirmation prompt updated
+
+  Vim-style `j`/`k` keys still work for up/down navigation in all interactive prompts.
+
+  **Internal:** The `OtpEnquirer` and `LoginEnquirer` DI interfaces changed from `{ prompt }` to `{ input }` / `{ input, password }` respectively. Plugins or custom builds that inject their own enquirer mock will need to update.
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [2cadfb5]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.commands@1100.7.0
+  - @pnpm/building.commands@1100.1.0
+  - @pnpm/engine.runtime.commands@1100.1.1
+  - @pnpm/installing.client@1100.2.4
+  - @pnpm/deps.status@1100.0.20
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/workspace.injected-deps-syncer@1100.0.15
+
+## 1100.1.13
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [a456dc7]
+- Updated dependencies [572842a]
+- Updated dependencies [35d2355]
+- Updated dependencies [a662de4]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/installing.commands@1100.6.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/engine.runtime.commands@1100.1.0
+  - @pnpm/deps.status@1100.0.19
+  - @pnpm/workspace.injected-deps-syncer@1100.0.15
+  - @pnpm/building.commands@1100.0.23
+  - @pnpm/installing.client@1100.2.3
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/bins.resolver@1100.0.5
+  - @pnpm/config.version-policy@1100.1.2
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/workspace.projects-sorter@1100.0.4
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.1.12
 
 ### Patch Changes

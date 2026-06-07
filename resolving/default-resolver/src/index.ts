@@ -195,9 +195,9 @@ export type ResolutionVerifierFactoryOptions =
 
 /**
  * Companion to {@link createResolver}. Collects the resolver-specific
- * verifier factories (today: npm) into a list. Returns an empty array
- * when no policy is active — callers can cheaply decide whether to
- * iterate at all by checking `verifiers.length`.
+ * verifier factories (today: npm) into a list. The npm verifier is
+ * always present — it enforces the tarball-URL binding regardless of
+ * policy configuration — so the list is non-empty.
  *
  * Future protocols (jsr, git, attestation, etc.) plug in here by pushing
  * their own `ResolutionVerifier` onto the list. Each verifier handles
@@ -233,6 +233,6 @@ export function createResolutionVerifiers (
     metaCache: opts.metaCache,
     now: opts.now,
   })
-  if (npmVerifier) verifiers.push(npmVerifier)
+  verifiers.push(npmVerifier)
   return verifiers
 }

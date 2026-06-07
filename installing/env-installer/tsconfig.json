@@ -73,6 +73,9 @@
       "path": "../../store/controller-types"
     },
     {
+      "path": "../../testing/registry-mock"
+    },
+    {
       "path": "../../testing/temp-store"
     },
     {

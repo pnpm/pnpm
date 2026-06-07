@@ -3,17 +3,32 @@ import path from 'node:path'
 import { expect, jest, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { addDistTag } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import { readYamlFileSync } from 'read-yaml-file'
 
-jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
-const { default: enquirer } = await import('enquirer')
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
+  return {
+    Separator,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
+    select: jest.fn(),
+  }
+})
+const { checkbox, Separator } = await import('@inquirer/prompts')
 const { add, install, update } = await import('@pnpm/installing.commands')
 
-const prompt = jest.mocked(enquirer.prompt)
+const mockCheckbox = jest.mocked(checkbox)
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -61,13 +76,6 @@ test('interactively update', async () => {
 
   const storeDir = path.resolve('pnpm-store')
 
-  const headerChoice = {
-    name: 'Package                                                    Current   Target            URL ',
-    disabled: true,
-    hint: '',
-    value: '',
-  }
-
   await Promise.all([
     addDistTag({ package: 'is-negative', version: '2.1.0', distTag: 'latest' }),
     addDistTag({ package: 'micromatch', version: '4.0.0', distTag: 'latest' }),
@@ -85,16 +93,9 @@ test('interactively update', async () => {
     ['is-negative@1.0.0', 'is-positive@2.0.0', 'micromatch@3.0.0']
   )
 
-  prompt.mockResolvedValue({
-    updateDependencies: [
-      {
-        value: 'is-negative',
-        name: `is-negative 1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')} https://pnpm.io/ `,
-      },
-    ],
-  })
+  mockCheckbox.mockResolvedValue(['is-negative'])
 
-  prompt.mockClear()
+  mockCheckbox.mockClear()
   // Update to compatible versions
   await update.handler({
     ...DEFAULT_OPTIONS,
@@ -106,37 +107,32 @@ test('interactively update', async () => {
   })
 
   // eslint-disable-next-line
-  expect((prompt.mock.calls[0][0] as any).choices).toStrictEqual([
+  const callArgs = mockCheckbox.mock.calls[0][0] as any
+  const flatChoices = callArgs.choices
+
+  expect(flatChoices).toStrictEqual([
+    new Separator(chalk.bold('── dependencies ──')),
+    new Separator('  Package                                                    Current   Target            URL '),
     {
-      choices: [
-        headerChoice,
-        {
-          message: `is-negative                                                  1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')}                 `,
-          value: 'is-negative',
-          name: 'is-negative',
-        },
-        {
-          message: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
-          value: 'micromatch',
-          name: 'micromatch',
-        },
-      ],
-      name: '[dependencies]',
-      message: 'dependencies',
+      name: `is-negative                                                  1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')}                 `,
+      value: 'is-negative',
+    },
+    {
+      name: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
+      value: 'micromatch',
     },
   ])
-  expect(prompt).toHaveBeenCalledWith(
+  expect(mockCheckbox).toHaveBeenCalledWith(
     expect.objectContaining({
-      footer: '\nEnter to start updating. Ctrl-c to cancel.',
       message:
         'Choose which packages to update ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
-        `${chalk.cyan('<i>')} to invert selection)`,
-      name: 'updateDependencies',
-      type: 'multiselect',
+        `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,
+      pageSize: process.stdout.rows == null ? 7 : Math.max(7, process.stdout.rows - 6),
     })
   )
+  expect(callArgs.theme.style.highlight('focused row')).toBe('focused row')
 
   {
     const lockfile = project.readLockfile()
@@ -147,7 +143,8 @@ test('interactively update', async () => {
   }
 
   // Update to latest versions
-  prompt.mockClear()
+  mockCheckbox.mockClear()
+  mockCheckbox.mockResolvedValue(['is-negative'])
   await update.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -159,40 +156,32 @@ test('interactively update', async () => {
   })
 
   // eslint-disable-next-line
-  expect((prompt.mock.calls[0][0] as any).choices).toStrictEqual([
+  const callArgs2 = mockCheckbox.mock.calls[0][0] as any
+  const flatChoices2 = callArgs2.choices
+
+  expect(flatChoices2).toStrictEqual([
+    new Separator(chalk.bold('── dependencies ──')),
+    new Separator('  Package                                                    Current   Target            URL '),
     {
-      choices: [
-        headerChoice,
-        {
-          message: `is-negative                                                  1.0.1 ❯ ${chalk.redBright.bold('2.1.0')}                 `,
-          value: 'is-negative',
-          name: 'is-negative',
-        },
-        {
-          message: `is-positive                                                  2.0.0 ❯ ${chalk.redBright.bold('3.1.0')}                 `,
-          value: 'is-positive',
-          name: 'is-positive',
-        },
-        {
-          message: `micromatch                                                   3.0.0 ❯ ${chalk.redBright.bold('4.0.0')}                 `,
-          value: 'micromatch',
-          name: 'micromatch',
-        },
-      ],
-      name: '[dependencies]',
-      message: 'dependencies',
+      name: `is-negative                                                  1.0.1 ❯ ${chalk.redBright.bold('2.1.0')}                 `,
+      value: 'is-negative',
+    },
+    {
+      name: `is-positive                                                  2.0.0 ❯ ${chalk.redBright.bold('3.1.0')}                 `,
+      value: 'is-positive',
+    },
+    {
+      name: `micromatch                                                   3.0.0 ❯ ${chalk.redBright.bold('4.0.0')}                 `,
+      value: 'micromatch',
     },
   ])
-  expect(prompt).toHaveBeenCalledWith(
+  expect(mockCheckbox).toHaveBeenCalledWith(
     expect.objectContaining({
-      footer: '\nEnter to start updating. Ctrl-c to cancel.',
       message:
         'Choose which packages to update ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
-        `${chalk.cyan('<i>')} to invert selection)`,
-      name: 'updateDependencies',
-      type: 'multiselect',
+        `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,
     })
   )
 
@@ -224,14 +213,7 @@ test('interactive update of dev dependencies only', async () => {
   ])
   const storeDir = path.resolve('store')
 
-  prompt.mockResolvedValue({
-    updateDependencies: [
-      {
-        value: 'is-negative',
-        name: `is-negative 1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')} https://pnpm.io/ `,
-      },
-    ],
-  })
+  mockCheckbox.mockResolvedValue(['is-negative'])
 
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
     process.cwd(),
@@ -303,11 +285,9 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     ['is-negative@1.0.0', 'is-positive@2.0.0', 'micromatch@3.0.0']
   )
 
-  prompt.mockResolvedValue({
-    updateDependencies: [{ value: 'micromatch', name: 'anything' }],
-  })
+  mockCheckbox.mockResolvedValue(['micromatch'])
 
-  prompt.mockClear()
+  mockCheckbox.mockClear()
   await update.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -321,38 +301,27 @@ test('interactively update should ignore dependencies from the ignoreDependencie
   })
 
   // eslint-disable-next-line
-  expect((prompt.mock.calls[0][0] as any).choices as any).toStrictEqual(
+  const callArgs3 = mockCheckbox.mock.calls[0][0] as any
+  const flatChoices3 = callArgs3.choices
+
+  expect(flatChoices3).toStrictEqual(
     [
+      new Separator(chalk.bold('── dependencies ──')),
+      new Separator('  Package                                                    Current   Target            URL '),
       {
-        choices: [
-          {
-            disabled: true,
-            hint: '',
-            name: 'Package                                                    Current   Target            URL ',
-            value: '',
-          },
-          {
-            message: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
-            value: 'micromatch',
-            name: 'micromatch',
-          },
-        ],
-        name: '[dependencies]',
-        message: 'dependencies',
+        name: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
+        value: 'micromatch',
       },
     ]
   )
 
-  expect(prompt).toHaveBeenCalledWith(
+  expect(mockCheckbox).toHaveBeenCalledWith(
     expect.objectContaining({
-      footer: '\nEnter to start updating. Ctrl-c to cancel.',
       message:
         'Choose which packages to update ' +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
-        `${chalk.cyan('<i>')} to invert selection)`,
-      name: 'updateDependencies',
-      type: 'multiselect',
+        `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,
     })
   )
 

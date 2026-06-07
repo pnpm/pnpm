@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/circular-peer-b",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/circular-peer-a": "*"
+  }
+}

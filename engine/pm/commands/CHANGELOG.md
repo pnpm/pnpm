@@ -1,5 +1,86 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.20
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [722b9cd]
+- Updated dependencies [6d17b66]
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.5.0
+  - @pnpm/global.commands@1100.0.25
+  - @pnpm/installing.client@1100.2.5
+  - @pnpm/installing.env-installer@1101.1.6
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/bins.linker@1100.0.11
+  - @pnpm/building.policy@1100.0.8
+  - @pnpm/cli.meta@1100.0.6
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.version-policy@1100.1.3
+  - @pnpm/deps.graph-hasher@1100.2.3
+  - @pnpm/global.packages@1100.0.6
+  - @pnpm/installing.deps-restorer@1101.1.9
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/store.controller@1101.0.11
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+
+## 1101.1.19
+
+### Patch Changes
+
+- Updated dependencies [118e9be]
+  - @pnpm/installing.deps-restorer@1101.1.8
+  - @pnpm/installing.env-installer@1101.1.5
+  - @pnpm/global.commands@1100.0.24
+
+## 1101.1.18
+
+### Patch Changes
+
+- Updated dependencies [6235428]
+- Updated dependencies [a39a83d]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.env-installer@1101.1.4
+  - @pnpm/installing.client@1100.2.4
+  - @pnpm/installing.deps-restorer@1101.1.7
+  - @pnpm/store.controller@1101.0.10
+  - @pnpm/global.commands@1100.0.23
+  - @pnpm/store.connection-manager@1100.2.5
+
+## 1101.1.17
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+- Updated dependencies [440e155]
+- Updated dependencies [0721d64]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/global.commands@1100.0.22
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/store.connection-manager@1100.2.4
+  - @pnpm/installing.client@1100.2.3
+  - @pnpm/installing.env-installer@1101.1.3
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/installing.deps-restorer@1101.1.6
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/building.policy@1100.0.7
+  - @pnpm/cli.meta@1100.0.5
+  - @pnpm/config.version-policy@1100.1.2
+  - @pnpm/global.packages@1100.0.5
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/store.controller@1101.0.9
+
 ## 1101.1.16
 
 ### Patch Changes

@@ -26,11 +26,12 @@ use pacquet_patching::{
 };
 use pacquet_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_store_dir::StoreIndexWriter;
+use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ffi::OsStr,
-    path::Path,
-    sync::atomic::AtomicU8,
+    path::{Path, PathBuf},
+    sync::{Arc, atomic::AtomicU8},
 };
 
 /// This subroutine installs dependencies from a frozen lockfile.
@@ -138,8 +139,16 @@ where
     /// placeholder today; an install request with `Pnp` reaches
     /// the isolated linker in this branch (no PnP code path
     /// exists yet). Upstream's `nodeLinker: 'pnp'` is also
-    /// out-of-scope for #438; tracked separately.
+    /// out-of-scope for [#438](https://github.com/pnpm/pacquet/issues/438); tracked separately.
     pub node_linker: NodeLinker,
+
+    /// Install-scoped shared in-flight tarball cache, threaded down to
+    /// [`crate::CreateVirtualStore`]'s cold-batch downloads. `Some` on
+    /// the pnpr client path so the materialization reuses the
+    /// [`crate::TarballPrefetcher`]'s background downloads instead of
+    /// re-fetching every tarball; `None` for installs without a shared
+    /// prefetch in flight.
+    pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -276,6 +285,7 @@ where
             supported_architectures,
             skip_runtimes,
             node_linker,
+            tarball_mem_cache,
         } = self;
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Cloned so the iterator can be reused below for hoist's
@@ -575,6 +585,11 @@ where
             Some(&allow_build_policy),
         );
 
+        // The frozen path runs no resolve-time prefetcher, so the warm
+        // batch owns package-status progress for store hits. An empty set
+        // leaves every warm package reported as `found_in_store`.
+        let progress_reported = SharedReportedProgressKeys::default();
+
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot,
@@ -595,6 +610,8 @@ where
             skipped: &skipped,
             workspace_root,
             node_linker,
+            progress_reported: &progress_reported,
+            tarball_mem_cache,
         }
         .run::<Reporter>()
         .await
@@ -613,6 +630,28 @@ where
             skipped.add_fetch_failed(key);
         }
 
+        // Pre-compute the hoist plan so the dedupe pass inside
+        // `SymlinkDirectDependencies` can fold publicly-hoisted aliases
+        // into root's target map — pacquet runs hoist *after*
+        // `SymlinkDirectDependencies`, so without this the dedupe map
+        // only sees root's direct deps and a non-root importer's
+        // direct dep that would land at root via public-hoist stays
+        // un-deduped. The full `HoistResult` is also threaded to the
+        // on-disk hoist pass below so the BFS isn't run twice.
+        let pre_hoist = compute_hoist_plan(
+            config,
+            snapshots,
+            packages,
+            importers,
+            &dependency_groups,
+            &skipped,
+            is_hoisted,
+        );
+        let public_hoist_targets: Option<BTreeMap<String, PathBuf>> =
+            pre_hoist.as_ref().map(|plan| {
+                collect_public_hoist_targets(&plan.result, &plan.graph, &layout, &plan.skipped)
+            });
+
         if !is_hoisted {
             SymlinkDirectDependencies {
                 config,
@@ -622,6 +661,7 @@ where
                 workspace_root,
                 skipped: &skipped,
                 link_only: false,
+                public_hoist_targets: public_hoist_targets.as_ref(),
             }
             .run::<Reporter>()
             .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
@@ -691,121 +731,25 @@ where
         // pick. `None` (and an empty `hoisted_locations`) for the
         // isolated linker.
         let HoistedLinkerOutput { hoisted_locations, hoisted_pkg_root_by_key } = if is_hoisted {
-            // Walker installability inputs come straight from the
-            // optional `host_node` we built earlier for the
-            // `compute_skipped_snapshots` pass. When `host_node` is
-            // `None` no per-snapshot constraint exists, so the
-            // host triple values pass through as defaults that the
-            // walker won't actually consult.
-            let host_for_walker = host_node.as_ref();
-            let walker_skipped: BTreeSet<String> =
-                skipped.iter().map(|key| key.to_string()).collect();
-            let walker_opts = LockfileToHoistedDepGraphOptions {
-                lockfile_dir: workspace_root.to_path_buf(),
-                auto_install_peers: config.auto_install_peers,
-                skipped: walker_skipped.clone(),
-                force: false,
-                // Pacquet's [`Config`] does not yet expose
-                // `engineStrict` (tracked separately); default to
-                // `false` so the walker matches
-                // `compute_skipped_snapshots` upthread, which uses
-                // [`InstallabilityHost::detect`]'s `false` default.
-                // Promotes engine mismatches to skip-optional rather
-                // than hard errors, in line with pacquet's
-                // production posture.
-                engine_strict: false,
-                current_node_version: host_for_walker
-                    .map(|(_, ver)| ver.clone())
-                    .unwrap_or_default(),
-                current_os: pacquet_graph_hasher::host_platform().to_string(),
-                current_cpu: pacquet_graph_hasher::host_arch().to_string(),
-                current_libc: pacquet_graph_hasher::host_libc().to_string(),
-                supported_architectures: supported_architectures.cloned(),
-                hoist_workspace_packages: config.hoist_workspace_packages,
-                hoisting_limits: config.hoisting_limits.clone(),
-                external_dependencies: config.external_dependencies.clone(),
-            };
-            let walker_result =
-                lockfile_to_hoisted_dep_graph(lockfile, current_lockfile, &walker_opts)
-                    .map_err(InstallFrozenLockfileError::HoistedDepGraph)?;
-            // Augment the live skip set with the walker's *new*
-            // skips only — entries already in `walker_skipped` came
-            // from the input `SkippedSnapshots`, where each one
-            // already lives in its proper subset
-            // (installability / fetch-failed / optional-excluded).
-            // Re-inserting them as installability would promote
-            // transient `fetch_failed` / `optional_excluded`
-            // entries into the persisted-on-disk
-            // `.modules.yaml.skipped` set, which would survive into
-            // the next install — exactly the contract those
-            // subsets exist to prevent. Diffing against the input
-            // set keeps the persistence boundary intact: only
-            // walker-discovered installability skips (optional +
-            // unsupported platform) flow into
-            // [`SkippedSnapshots::insert_installability`].
-            for skipped_dep_path in walker_result.skipped.difference(&walker_skipped) {
-                if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
-                    skipped.insert_installability(key);
-                }
-            }
-            // Empty CAS index → linker would refuse every
-            // non-optional node. Only happens when the install
-            // has no snapshots, in which case the linker is a no-op.
-            let cas_index =
-                cas_paths_by_pkg_id.expect("hoisted CreateVirtualStore populates cas_paths");
-            let link_opts = LinkHoistedModulesOpts {
-                graph: &walker_result.graph,
-                prev_graph: walker_result.prev_graph.as_ref(),
-                hierarchy: &walker_result.hierarchy,
-                cas_paths_by_pkg_id: &cas_index,
-                import_method: config.package_import_method,
-                logged_methods,
-                requester,
-            };
-            link_hoisted_modules::<Reporter>(&link_opts)
-                .map_err(InstallFrozenLockfileError::LinkHoistedModules)?;
-            // Workspace `link:` deps still need symlinks under
-            // each importer's `node_modules/<alias>` even though
-            // the regular deps now live as real directories. The
-            // hoisted dep-graph walker skips `workspace:`-prefixed
-            // references entirely (they're not in the hoist tree),
-            // so without this pass workspace siblings would be
-            // missing from each project's `node_modules/`.
-            // `link_only: true` filters every other dep out so
-            // the call doesn't try to re-create symlinks for
-            // packages that the hoisted linker already wrote as
-            // real dirs. Mirrors upstream's hoisted branch at
-            // [`installing/deps-restorer/src/index.ts:411-440`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L440).
-            SymlinkDirectDependencies {
-                config,
-                layout: &layout,
-                importers,
-                dependency_groups: dependency_groups.iter().copied(),
-                workspace_root,
-                skipped: &skipped,
-                link_only: true,
-            }
-            .run::<Reporter>()
-            .map_err(InstallFrozenLockfileError::SymlinkDirectDependencies)?;
-            // Map snapshot key → first recorded directory. The
-            // walker can emit multiple [`crate::DependenciesGraphNode`]s
-            // with the same `dep_path` when the package nests under
-            // a sibling (version conflict). Postinstall scripts and
-            // the side-effects-cache key both depend only on the
-            // package contents (identical across locations), so
-            // running once at the first dir matches upstream's
-            // `pkgRoots[0]` pick at
-            // [`after-install:348`](https://github.com/pnpm/pnpm/blob/94240bc046/building/after-install/src/index.ts#L348).
-            let mut pkg_root_by_key: HashMap<PackageKey, std::path::PathBuf> = HashMap::new();
-            for node in walker_result.graph.values() {
-                if let Ok(key) = node.dep_path.as_str().parse::<PackageKey>() {
-                    pkg_root_by_key.entry(key).or_insert_with(|| node.dir.clone());
-                }
-            }
-            HoistedLinkerOutput {
-                hoisted_locations: walker_result.hoisted_locations,
-                hoisted_pkg_root_by_key: Some(pkg_root_by_key),
-            }
+            run_hoisted_linker::<Reporter>(
+                HoistedLinkerInputs {
+                    config,
+                    lockfile,
+                    current_lockfile,
+                    layout: &layout,
+                    importers,
+                    dependency_groups: &dependency_groups,
+                    walker_lockfile_dir: workspace_root,
+                    symlink_workspace_root: workspace_root,
+                    host_node: host_node.as_ref(),
+                    supported_architectures,
+                    cas_paths_by_pkg_id,
+                    logged_methods,
+                    requester,
+                },
+                &mut skipped,
+            )
+            .map_err(InstallFrozenLockfileError::from)?
         } else {
             HoistedLinkerOutput::default()
         };
@@ -846,142 +790,62 @@ where
         // when no `hoistPattern` / `publicHoistPattern` is
         // configured: see
         // [`installing/deps-restorer/src/index.ts:471-486`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L471-L486).
-        let hoisted_dependencies = match (snapshots, packages) {
-            _ if is_hoisted => HoistedDependencies::new(),
-            (Some(snaps), Some(pkgs))
-                if config.hoist_pattern.is_some() || config.public_hoist_pattern.is_some() =>
-            {
-                let private_pattern =
-                    create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
-                let public_pattern =
-                    create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
-                // Static fast-path: when both compiled matchers come
-                // from empty pattern lists (`Some([])`), there's no
-                // alias they could match, so the BFS would visit every
-                // node only to drop every child. Skip the
-                // graph-build + walk + symlink phases entirely. The
-                // `is_some() || is_some()` outer guard is satisfied
-                // by the field shape, but no work follows.
-                if private_pattern.is_empty() && public_pattern.is_empty() {
-                    BTreeMap::new()
-                } else {
-                    let graph = build_hoist_graph(snaps, pkgs);
-                    // Walk every importer's direct deps. Workspace
-                    // install (pnpm/pacquet#431) landed in #443, so
-                    // pacquet now installs every entry in
-                    // `Lockfile.importers` — not just the root. Hoist
-                    // visits each importer's direct deps so transitives
-                    // unique to a workspace project still get
-                    // privately hoisted into the shared
-                    // `<vs>/node_modules` and contribute to
-                    // `hoistedDependencies`.
-                    //
-                    // The `link:` workspace-sibling entries
-                    // [`build_direct_deps_by_importer`] sees are
-                    // skipped via [`pacquet_lockfile::ImporterDepVersion::as_regular`]
-                    // — they're not snapshots, and upstream handles
-                    // workspace-package hoisting via the separate
-                    // `hoistedWorkspacePackages` shape (out of scope
-                    // for this issue; tracked as a workspace follow-up).
-                    let direct_deps =
-                        build_direct_deps_by_importer(importers, dependency_groups.iter().copied());
-                    // Honor the same skip set the rest of the install
-                    // already respects. `SkippedSnapshots` is the
-                    // platform/engine-incompatible-optional filter
-                    // computed earlier in this function via
-                    // `compute_skipped_snapshots`. Skipping a
-                    // snapshot from the hoist pass means
-                    // (a) `<vs>/node_modules/<alias>` doesn't get
-                    // a symlink to a slot that was never extracted,
-                    // and (b) the alias slot isn't claimed in the
-                    // BFS — a non-skipped sibling at a deeper level
-                    // can still take the alias.
-                    //
-                    // `HoistInputs` takes `&HashSet<PackageKey>`;
-                    // build it once from the outer `SkippedSnapshots`
-                    // by cloning the small skip set (typically 0-100
-                    // entries). Changing `HoistInputs` to accept
-                    // `&SkippedSnapshots` directly would couple
-                    // `hoist.rs` to the `installability` module for
-                    // one `contains` call; the conversion is cheap
-                    // enough to keep the modules orthogonal.
-                    let hoist_skipped: HashSet<PackageKey> = skipped.iter().cloned().collect();
-                    let result = get_hoisted_dependencies(&crate::HoistInputs {
-                        graph: &graph,
-                        direct_deps_by_importer: &direct_deps,
-                        skipped: &hoist_skipped,
-                        private_pattern,
-                        public_pattern,
-                    });
-                    if let Some(result) = result {
-                        // Public-hoist target is the project's root
-                        // `node_modules` (= `config.modules_dir`).
-                        // Private-hoist target is the project-local
-                        // `<root>/node_modules/.pnpm/node_modules` —
-                        // pacquet's `config.virtual_store_dir` always
-                        // resolves there even with GVS enabled
-                        // (upstream's `virtualStoreDir` field is
-                        // mutated under GVS, but pacquet keeps
-                        // `virtual_store_dir` project-local and
-                        // routes the GVS-shared root through
-                        // `global_virtual_store_dir` instead — see
-                        // [`Config::apply_global_virtual_store_derivation`]).
-                        // The symlink *target* (under the slot dir)
-                        // does need to be GVS-aware, which the
-                        // `VirtualStoreLayout` handle below provides.
-                        let private_dir = config.virtual_store_dir.join("node_modules");
-                        let public_dir = config.modules_dir.clone();
-                        symlink_hoisted_dependencies(
-                            &result.hoisted_dependencies_by_node_id,
-                            &graph,
-                            &layout,
-                            &private_dir,
-                            &public_dir,
-                            &hoist_skipped,
-                        )
-                        .map_err(InstallFrozenLockfileError::HoistSymlink)?;
-                        // Private-side bins → `<vs>/node_modules/.bin`.
-                        // Reuses the rayon-parallel `link_direct_dep_bins`
-                        // (same shape — read each location's
-                        // `package.json`, fan out to
-                        // `link_bins_of_packages`).
-                        link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
-                            .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
-                        // Public-side bins → `<root>/node_modules/.bin`.
-                        // Upstream relies on the direct-deps bin pass
-                        // (which runs *after* hoist) picking up the
-                        // public-hoist symlinks. Pacquet's pipeline order
-                        // has `SymlinkDirectDependencies` running *before*
-                        // hoist, so the direct-deps bin pass has already
-                        // executed by the time public-hoist symlinks
-                        // exist. A second `link_direct_dep_bins` pass
-                        // here closes that gap. The function tolerates
-                        // already-linked shims (idempotent at the
-                        // `link_bins_of_packages` layer), so re-linking
-                        // direct-dep aliases that match a public-hoist
-                        // pattern is safe.
-                        // Stash the public-hoist alias list for
-                        // the post-`BuildModules` top-level bin
-                        // link. The previous in-place
-                        // `link_direct_dep_bins(&public_dir, ...)`
-                        // pass would have written shims with no
-                        // knowledge of direct-dep candidates, so a
-                        // hoisted bin could shadow a direct one
-                        // when the hoisted package's name was
-                        // lexically smaller. The post-build pass
-                        // re-links with the [`BinOrigin`] tier so
-                        // direct wins outright. Mirrors upstream's
-                        // [`linkBinsOfImporter`](https://github.com/pnpm/pnpm/blob/4750fd370c/installing/deps-installer/src/install/index.ts#L1539)
-                        // which runs after `buildModules`.
-                        publicly_hoisted_for_post_build =
-                            result.publicly_hoisted_aliases_with_bins.clone();
-                        result.hoisted_dependencies
-                    } else {
-                        BTreeMap::new()
-                    }
-                } // end of `else` for `private_pattern.is_empty() && public_pattern.is_empty()`
-            }
-            _ => BTreeMap::new(),
+        //
+        // The BFS itself ran upthread (`pre_hoist`) so the dedupe
+        // pass in `SymlinkDirectDependencies` could see public-hoist
+        // targets; here we consume the same plan to write the
+        // symlinks on disk and emit the per-side bin shims.
+        let hoisted_dependencies = if let Some(plan) = pre_hoist {
+            let HoistPlan { graph, result, skipped: hoist_skipped, .. } = plan;
+            // Public-hoist target is the project's root
+            // `node_modules` (= `config.modules_dir`).
+            // Private-hoist target is the project-local
+            // `<root>/node_modules/.pnpm/node_modules` —
+            // pacquet's `config.virtual_store_dir` always
+            // resolves there even with GVS enabled
+            // (upstream's `virtualStoreDir` field is
+            // mutated under GVS, but pacquet keeps
+            // `virtual_store_dir` project-local and
+            // routes the GVS-shared root through
+            // `global_virtual_store_dir` instead — see
+            // [`Config::apply_global_virtual_store_derivation`]).
+            // The symlink *target* (under the slot dir)
+            // does need to be GVS-aware, which the
+            // `VirtualStoreLayout` handle below provides.
+            let private_dir = config.virtual_store_dir.join("node_modules");
+            let public_dir = config.modules_dir.clone();
+            symlink_hoisted_dependencies(
+                &result.hoisted_dependencies_by_node_id,
+                &graph,
+                &layout,
+                &private_dir,
+                &public_dir,
+                &hoist_skipped,
+            )
+            .map_err(InstallFrozenLockfileError::HoistSymlink)?;
+            // Private-side bins → `<vs>/node_modules/.bin`.
+            // Reuses the rayon-parallel `link_direct_dep_bins`
+            // (same shape — read each location's
+            // `package.json`, fan out to
+            // `link_bins_of_packages`).
+            link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
+                .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
+            // Stash the public-hoist alias list for the
+            // post-`BuildModules` top-level bin link. The
+            // previous in-place `link_direct_dep_bins(&public_dir,
+            // ...)` pass would have written shims with no
+            // knowledge of direct-dep candidates, so a
+            // hoisted bin could shadow a direct one when the
+            // hoisted package's name was lexically smaller.
+            // The post-build pass re-links with the
+            // [`BinOrigin`] tier so direct wins outright.
+            // Mirrors upstream's
+            // [`linkBinsOfImporter`](https://github.com/pnpm/pnpm/blob/4750fd370c/installing/deps-installer/src/install/index.ts#L1539)
+            // which runs after `buildModules`.
+            publicly_hoisted_for_post_build = result.publicly_hoisted_aliases_with_bins;
+            result.hoisted_dependencies
+        } else {
+            BTreeMap::new()
         };
 
         // Mirrors upstream `link.ts:167-170`: `importing_done` fires once
@@ -1243,16 +1107,333 @@ pub struct InstallFrozenLockfileOutput {
 /// `clippy::type_complexity`. Always [`Default`]-empty for the
 /// isolated linker.
 #[derive(Debug, Default)]
-struct HoistedLinkerOutput {
+pub(crate) struct HoistedLinkerOutput {
     /// `LockfileToDepGraphResult::hoisted_locations` from the slice
     /// 4 walker. Persisted into `.modules.yaml.hoisted_locations`
     /// when non-empty.
-    hoisted_locations: BTreeMap<String, Vec<String>>,
+    pub(crate) hoisted_locations: BTreeMap<String, Vec<String>>,
     /// Per-snapshot `pkgRoot` override for the build phase —
     /// snapshot key → its first recorded directory in the hoisted
     /// graph. `None` for the isolated linker (the layout-based
     /// lookup in `BuildModules` is used instead).
-    hoisted_pkg_root_by_key: Option<HashMap<PackageKey, std::path::PathBuf>>,
+    pub(crate) hoisted_pkg_root_by_key: Option<HashMap<PackageKey, std::path::PathBuf>>,
+}
+
+/// Inputs to [`run_hoisted_linker`]. Bundled so the two install
+/// paths (`InstallFrozenLockfile` and `InstallWithFreshLockfile`)
+/// can feed the shared hoisted-linker materialization without a
+/// long positional argument list. The frozen path passes the
+/// loaded `pnpm-lock.yaml`; the fresh path passes the freshly-built
+/// lockfile and `current_lockfile: None`.
+pub(crate) struct HoistedLinkerInputs<'a> {
+    pub(crate) config: &'static Config,
+    /// Lockfile the walker reads `snapshots:` / `packages:` /
+    /// `importers:` from. `&built_lockfile` on the fresh path,
+    /// the loaded wanted lockfile on the frozen path.
+    pub(crate) lockfile: &'a Lockfile,
+    /// Previous install's `<virtual_store_dir>/lock.yaml`, used by the
+    /// walker to diff orphans. `None` on the fresh path (no analogue
+    /// yet).
+    pub(crate) current_lockfile: Option<&'a Lockfile>,
+    pub(crate) layout: &'a VirtualStoreLayout,
+    pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
+    pub(crate) dependency_groups: &'a [DependencyGroup],
+    /// Lockfile root the walker resolves hoisted directories against.
+    pub(crate) walker_lockfile_dir: &'a Path,
+    /// Anchor for [`crate::SymlinkDirectDependencies`]'s per-importer
+    /// `node_modules` lookup. Equals `walker_lockfile_dir` on the
+    /// frozen path; the fresh path passes `config.modules_dir.parent()`
+    /// so relocated `modules_dir` test configs land symlinks where the
+    /// rest of the install writes.
+    pub(crate) symlink_workspace_root: &'a Path,
+    /// `(node_detected, node_version)` from the installability host
+    /// probe. `None` when no installability check ran (the fresh
+    /// path, and constraint-free frozen lockfiles).
+    pub(crate) host_node: Option<&'a (bool, String)>,
+    pub(crate) supported_architectures:
+        Option<&'a pacquet_package_is_installable::SupportedArchitectures>,
+    /// Per-package CAS index produced by [`crate::CreateVirtualStore`]
+    /// under `node_linker == Hoisted`. The linker imports files from
+    /// these paths into the on-disk hoisted tree.
+    pub(crate) cas_paths_by_pkg_id: Option<crate::CasPathsByPkgId>,
+    pub(crate) logged_methods: &'a AtomicU8,
+    pub(crate) requester: &'a str,
+}
+
+/// Error type of [`run_hoisted_linker`]. Each install path maps these
+/// back onto its own error enum's matching variant so the user-facing
+/// error code is identical regardless of which path drove the hoist.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub(crate) enum HoistedLinkerError {
+    #[diagnostic(transparent)]
+    HoistedDepGraph(#[error(source)] HoistedDepGraphError),
+    #[diagnostic(transparent)]
+    LinkHoistedModules(#[error(source)] LinkHoistedModulesError),
+    #[diagnostic(transparent)]
+    SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+}
+
+impl From<HoistedLinkerError> for InstallFrozenLockfileError {
+    fn from(error: HoistedLinkerError) -> Self {
+        match error {
+            HoistedLinkerError::HoistedDepGraph(error) => {
+                InstallFrozenLockfileError::HoistedDepGraph(error)
+            }
+            HoistedLinkerError::LinkHoistedModules(error) => {
+                InstallFrozenLockfileError::LinkHoistedModules(error)
+            }
+            HoistedLinkerError::SymlinkDirectDependencies(error) => {
+                InstallFrozenLockfileError::SymlinkDirectDependencies(error)
+            }
+        }
+    }
+}
+
+/// Materialize the `nodeLinker: hoisted` on-disk tree from a lockfile.
+///
+/// Runs the [`crate::lockfile_to_hoisted_dep_graph`] walker over the
+/// lockfile's snapshots, materializes the resulting graph with
+/// [`crate::link_hoisted_modules()`] (real directories under each
+/// importer's tree, fed from `cas_paths_by_pkg_id`), then layers
+/// [`crate::SymlinkDirectDependencies`] with `link_only: true` to wire
+/// `workspace:` / `link:` deps the hoist walker skips. Folds the
+/// walker's newly-discovered installability skips into `skipped`.
+///
+/// Shared by both install paths so the hoisted layout, skip-set
+/// accounting, and `pkg_root_by_key` derivation stay identical.
+/// Mirrors upstream's hoisted branch at
+/// [`installing/deps-restorer/src/index.ts:369-440`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L369-L440).
+pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
+    inputs: HoistedLinkerInputs<'_>,
+    skipped: &mut SkippedSnapshots,
+) -> Result<HoistedLinkerOutput, HoistedLinkerError> {
+    let HoistedLinkerInputs {
+        config,
+        lockfile,
+        current_lockfile,
+        layout,
+        importers,
+        dependency_groups,
+        walker_lockfile_dir,
+        symlink_workspace_root,
+        host_node,
+        supported_architectures,
+        cas_paths_by_pkg_id,
+        logged_methods,
+        requester,
+    } = inputs;
+
+    // Walker installability inputs come straight from the optional
+    // `host_node` the caller built for the `compute_skipped_snapshots`
+    // pass. When `host_node` is `None` no per-snapshot constraint
+    // exists, so the host triple values pass through as defaults the
+    // walker won't actually consult.
+    let walker_skipped: BTreeSet<String> = skipped.iter().map(|key| key.to_string()).collect();
+    let walker_opts = LockfileToHoistedDepGraphOptions {
+        lockfile_dir: walker_lockfile_dir.to_path_buf(),
+        auto_install_peers: config.auto_install_peers,
+        skipped: walker_skipped.clone(),
+        force: false,
+        // Pacquet's [`Config`] does not yet expose `engineStrict`
+        // (tracked separately); default to `false` so the walker
+        // matches `compute_skipped_snapshots` upthread, which uses
+        // [`crate::InstallabilityHost::detect`]'s `false` default.
+        // Promotes engine mismatches to skip-optional rather than
+        // hard errors, in line with pacquet's production posture.
+        engine_strict: false,
+        current_node_version: host_node.map(|(_, ver)| ver.clone()).unwrap_or_default(),
+        current_os: pacquet_graph_hasher::host_platform().to_string(),
+        current_cpu: pacquet_graph_hasher::host_arch().to_string(),
+        current_libc: pacquet_graph_hasher::host_libc().to_string(),
+        supported_architectures: supported_architectures.cloned(),
+        hoist_workspace_packages: config.hoist_workspace_packages,
+        hoisting_limits: crate::get_hoisting_limits(&lockfile.importers, config.hoisting_limits),
+        external_dependencies: config.external_dependencies.clone(),
+    };
+    let walker_result = lockfile_to_hoisted_dep_graph(lockfile, current_lockfile, &walker_opts)
+        .map_err(HoistedLinkerError::HoistedDepGraph)?;
+    // Augment the live skip set with the walker's *new* skips only —
+    // entries already in `walker_skipped` came from the input
+    // `SkippedSnapshots`, where each one already lives in its proper
+    // subset (installability / fetch-failed / optional-excluded).
+    // Re-inserting them as installability would promote transient
+    // `fetch_failed` / `optional_excluded` entries into the
+    // persisted-on-disk `.modules.yaml.skipped` set, which would
+    // survive into the next install — exactly the contract those
+    // subsets exist to prevent. Diffing against the input set keeps
+    // the persistence boundary intact: only walker-discovered
+    // installability skips (optional + unsupported platform) flow
+    // into [`SkippedSnapshots::insert_installability`].
+    for skipped_dep_path in walker_result.skipped.difference(&walker_skipped) {
+        if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
+            skipped.insert_installability(key);
+        }
+    }
+    // Empty CAS index → linker would refuse every non-optional node.
+    // Only happens when the install has no snapshots, in which case
+    // the linker is a no-op.
+    let cas_index = cas_paths_by_pkg_id.expect("hoisted CreateVirtualStore populates cas_paths");
+    let link_opts = LinkHoistedModulesOpts {
+        graph: &walker_result.graph,
+        prev_graph: walker_result.prev_graph.as_ref(),
+        hierarchy: &walker_result.hierarchy,
+        cas_paths_by_pkg_id: &cas_index,
+        import_method: config.package_import_method,
+        logged_methods,
+        requester,
+    };
+    link_hoisted_modules::<Reporter>(&link_opts).map_err(HoistedLinkerError::LinkHoistedModules)?;
+    // Workspace `link:` deps still need symlinks under each importer's
+    // `node_modules/<alias>` even though the regular deps now live as
+    // real directories. The hoisted dep-graph walker skips
+    // `workspace:`-prefixed references entirely (they're not in the
+    // hoist tree), so without this pass workspace siblings would be
+    // missing from each project's `node_modules/`. `link_only: true`
+    // filters every other dep out so the call doesn't try to re-create
+    // symlinks for packages that the hoisted linker already wrote as
+    // real dirs. Mirrors upstream's hoisted branch at
+    // [`installing/deps-restorer/src/index.ts:411-440`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L440).
+    SymlinkDirectDependencies {
+        config,
+        layout,
+        importers,
+        dependency_groups: dependency_groups.iter().copied(),
+        workspace_root: symlink_workspace_root,
+        skipped: &*skipped,
+        link_only: true,
+        // Hoisted-linker path has no public-hoist virtual store to
+        // dedupe against; the real-directory tree is the hoist layout.
+        public_hoist_targets: None,
+    }
+    .run::<Reporter>()
+    .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;
+    // Map snapshot key → first recorded directory. The walker can emit
+    // multiple [`crate::DependenciesGraphNode`]s with the same
+    // `dep_path` when the package nests under a sibling (version
+    // conflict). Postinstall scripts and the side-effects-cache key
+    // both depend only on the package contents (identical across
+    // locations), so running once at the first dir matches upstream's
+    // `pkgRoots[0]` pick at
+    // [`after-install:348`](https://github.com/pnpm/pnpm/blob/94240bc046/building/after-install/src/index.ts#L348).
+    let mut pkg_root_by_key: HashMap<PackageKey, std::path::PathBuf> = HashMap::new();
+    for node in walker_result.graph.values() {
+        if let Ok(key) = node.dep_path.as_str().parse::<PackageKey>() {
+            pkg_root_by_key.entry(key).or_insert_with(|| node.dir.clone());
+        }
+    }
+    Ok(HoistedLinkerOutput {
+        hoisted_locations: walker_result.hoisted_locations,
+        hoisted_pkg_root_by_key: Some(pkg_root_by_key),
+    })
+}
+
+/// Pre-computed hoist plan threaded across the install pipeline so
+/// the dedupe pass in [`crate::SymlinkDirectDependencies`] (which
+/// runs before the on-disk hoist phase in pacquet's ordering) can
+/// fold publicly-hoisted aliases into root's target map. The on-disk
+/// hoist phase later consumes the same [`crate::HoistResult`] instead of
+/// re-running the BFS.
+pub(crate) struct HoistPlan {
+    pub(crate) graph: HashMap<PackageKey, crate::HoistGraphNode>,
+    pub(crate) result: crate::HoistResult,
+    pub(crate) skipped: HashSet<PackageKey>,
+}
+
+/// Compute the in-memory hoist plan. Returns `None` when nothing
+/// should be hoisted today (no patterns, no lockfile graph, or the
+/// install is going through the hoisted linker). Side-effect-free:
+/// the on-disk symlinks happen later in the pipeline. Same input
+/// gating as the legacy in-place block in [`InstallFrozenLockfile::run`].
+pub(crate) fn compute_hoist_plan(
+    config: &Config,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    importers: &HashMap<String, pacquet_lockfile::ProjectSnapshot>,
+    dependency_groups: &[pacquet_package_manifest::DependencyGroup],
+    skipped: &SkippedSnapshots,
+    is_hoisted: bool,
+) -> Option<HoistPlan> {
+    if is_hoisted {
+        return None;
+    }
+    if config.hoist_pattern.is_none() && config.public_hoist_pattern.is_none() {
+        return None;
+    }
+    let (snaps, pkgs) = match (snapshots, packages) {
+        (Some(snaps), Some(pkgs)) => (snaps, pkgs),
+        _ => return None,
+    };
+    let private_pattern = create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
+    let public_pattern = create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
+    // Static fast-path: when both compiled matchers come from empty
+    // pattern lists (`Some([])`), there's no alias they could match,
+    // so the BFS would visit every node only to drop every child.
+    // Skip the graph-build + walk entirely.
+    if private_pattern.is_empty() && public_pattern.is_empty() {
+        return None;
+    }
+    let graph = build_hoist_graph(snaps, pkgs);
+    // Walk every importer's direct deps so transitives unique to a
+    // workspace project still get privately hoisted into the shared
+    // `<vs>/node_modules` and contribute to `hoistedDependencies`.
+    // The `link:` workspace-sibling entries `build_direct_deps_by_importer`
+    // sees are skipped via [`pacquet_lockfile::ImporterDepVersion::as_regular`].
+    let direct_deps = build_direct_deps_by_importer(importers, dependency_groups.iter().copied());
+    // `HoistInputs` takes `&HashSet<PackageKey>`; build it once from
+    // the outer `SkippedSnapshots` by cloning the small skip set
+    // (typically 0-100 entries). Stored on [`HoistPlan`] so the
+    // later on-disk pass can reuse the exact same set the BFS saw.
+    let hoist_skipped: HashSet<PackageKey> = skipped.iter().cloned().collect();
+    let result = get_hoisted_dependencies(&crate::HoistInputs {
+        graph: &graph,
+        direct_deps_by_importer: &direct_deps,
+        skipped: &hoist_skipped,
+        private_pattern,
+        public_pattern,
+    })?;
+    Some(HoistPlan { graph, result, skipped: hoist_skipped })
+}
+
+/// Build the `<alias → resolved-target-dir>` map for every publicly-
+/// hoisted entry that will land in root's `node_modules/`. Pacquet
+/// runs the dedupe pass before the on-disk hoist phase, so this map
+/// lets the dedupe see the aliases it would otherwise miss. Mirrors
+/// pnpm's `linkDirectDepsAndDedupe` semantics — when the upstream
+/// linker reads `<root>/node_modules/`, the public-hoist symlinks
+/// are already there because hoist ran first.
+///
+/// Skipped snapshots are dropped (their slot dir doesn't exist on
+/// disk), missing-in-graph entries are dropped, and only `Public`
+/// hoists contribute (private hoists land in the virtual store's
+/// own `node_modules`, not root's). The target path uses the same
+/// `<slot>/node_modules/<name>` shape that the on-disk hoist symlink
+/// will point at, so [`PathBuf`] equality with
+/// [`SymlinkDirectDependencies`]'s computed targets is exact.
+pub(crate) fn collect_public_hoist_targets(
+    result: &crate::HoistResult,
+    graph: &HashMap<PackageKey, crate::HoistGraphNode>,
+    layout: &crate::VirtualStoreLayout,
+    hoist_skipped: &HashSet<PackageKey>,
+) -> BTreeMap<String, PathBuf> {
+    let mut targets = BTreeMap::new();
+    for (node_id, alias_map) in &result.hoisted_dependencies_by_node_id {
+        if hoist_skipped.contains(node_id) {
+            continue;
+        }
+        let Some(node) = graph.get(node_id) else { continue };
+        let dep_dir = layout.slot_dir(node_id).join("node_modules").join(node.name.to_string());
+        for (alias, kind) in alias_map {
+            if !matches!(kind, pacquet_modules_yaml::HoistKind::Public) {
+                continue;
+            }
+            // First-wins: the BFS already chose one source per alias
+            // via its `hoisted_aliases` claim. Multiple entries with
+            // the same alias would be a hoister bug; preserve the
+            // first deterministically.
+            targets.entry(alias.clone()).or_insert_with(|| dep_dir.clone());
+        }
+    }
+    targets
 }
 
 /// Pull the leading major-version digits out of a semver string like
@@ -1350,61 +1531,4 @@ pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u3
 }
 
 #[cfg(test)]
-mod tests {
-    use super::find_own_runtime_node_major;
-    use pacquet_lockfile::{PkgName, SnapshotDepRef, SnapshotEntry};
-    use pretty_assertions::assert_eq;
-    use std::collections::HashMap;
-
-    /// `dependencies.node: 'runtime:<v>'` is the desugared form pnpm's
-    /// resolver writes when a dep declares its own `engines.runtime`
-    /// (see [`installing/deps-resolver/src/resolveDependencies.ts:1477-1479`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-resolver/src/resolveDependencies.ts#L1477-L1479)).
-    /// The helper pulls the bare major back out.
-    #[test]
-    fn picks_up_runtime_pin_from_dependencies() {
-        let mut deps = HashMap::new();
-        deps.insert(
-            PkgName::parse("node").expect("parse pkg name"),
-            SnapshotDepRef::Plain("runtime:22.11.0".parse().expect("parse ver-peer")),
-        );
-        let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
-        assert_eq!(find_own_runtime_node_major(&snapshot), Some(22));
-    }
-
-    /// A plain semver `node` dep (no `runtime:` prefix) is not an
-    /// `engines.runtime` pin — workspaces can depend on the `node`
-    /// npm package without intending it as the script runner. The
-    /// helper must skip these.
-    #[test]
-    fn ignores_non_runtime_node_dep() {
-        let mut deps = HashMap::new();
-        deps.insert(
-            PkgName::parse("node").expect("parse pkg name"),
-            SnapshotDepRef::Plain("22.11.0".parse().expect("parse ver-peer")),
-        );
-        let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
-        assert_eq!(find_own_runtime_node_major(&snapshot), None);
-    }
-
-    /// Scoped `node` (`@scope/node`) isn't pnpm's runtime alias —
-    /// only the bare unscoped `node` alias counts. Matches the
-    /// sibling [`super::find_runtime_node_major`] check.
-    #[test]
-    fn ignores_scoped_node_alias() {
-        let mut deps = HashMap::new();
-        deps.insert(
-            PkgName::parse("@scope/node").expect("parse pkg name"),
-            SnapshotDepRef::Plain("runtime:22.11.0".parse().expect("parse ver-peer")),
-        );
-        let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
-        assert_eq!(find_own_runtime_node_major(&snapshot), None);
-    }
-
-    /// A snapshot with no `dependencies` map yields `None` — the
-    /// install-wide fallback handles those.
-    #[test]
-    fn empty_dependencies_yields_none() {
-        let snapshot = SnapshotEntry::default();
-        assert_eq!(find_own_runtime_node_major(&snapshot), None);
-    }
-}
+mod tests;

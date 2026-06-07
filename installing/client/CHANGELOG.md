@@ -1,5 +1,61 @@
 # @pnpm/client
 
+## 1100.2.5
+
+### Patch Changes
+
+- Updated dependencies [60a1eec]
+- Updated dependencies [5192edf]
+- Updated dependencies [a017bf3]
+- Updated dependencies [722b9cd]
+- Updated dependencies [6d17b66]
+  - @pnpm/network.fetch@1100.1.0
+  - @pnpm/network.auth-header@1101.1.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.5.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/resolving.default-resolver@1100.3.5
+  - @pnpm/engine.runtime.node-resolver@1101.1.4
+  - @pnpm/fetching.tarball-fetcher@1101.0.12
+  - @pnpm/fetching.directory-fetcher@1100.0.14
+  - @pnpm/fetching.git-fetcher@1101.0.11
+  - @pnpm/hooks.types@1100.0.10
+  - @pnpm/fetching.binary-fetcher@1101.0.9
+
+## 1100.2.4
+
+### Patch Changes
+
+- Updated dependencies [b1fa2d5]
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/network.fetch@1100.0.8
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.3
+  - @pnpm/fetching.tarball-fetcher@1101.0.11
+  - @pnpm/resolving.default-resolver@1100.3.4
+
+## 1100.2.3
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [90d1ce6]
+- Updated dependencies [35d2355]
+- Updated dependencies [0721d64]
+  - @pnpm/network.auth-header@1101.0.0
+  - @pnpm/fetching.git-fetcher@1101.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/engine.runtime.node-resolver@1101.1.2
+  - @pnpm/resolving.default-resolver@1100.3.3
+  - @pnpm/fetching.directory-fetcher@1100.0.13
+  - @pnpm/fetching.tarball-fetcher@1101.0.11
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/network.fetch@1100.0.7
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/fetching.binary-fetcher@1101.0.8
+
 ## 1100.2.2
 
 ### Patch Changes

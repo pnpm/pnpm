@@ -1,5 +1,78 @@
 # @pnpm/building.after-install
 
+## 1101.0.19
+
+### Patch Changes
+
+- 4e740d5: Fix dependency build scripts not running under the global virtual store (`enableGlobalVirtualStore`).
+
+  In a workspace install, dependency build scripts are deferred to a single `rebuild` pass (`buildProjects`). That pass resolved each package's location from the classic `node_modules/.pnpm/<depPathToFilename>` layout, which does not exist under the global virtual store — so native dependencies (e.g. packages using `node-gyp` / `prebuild-install`) were never built and failed to load at runtime (`Cannot find module .../build/Release/*.node`).
+
+  `buildProjects` now resolves the global-virtual-store projection directory (`<storeDir>/links/<hash>`, computed with the same graph hash the installer uses) when `enableGlobalVirtualStore` is set, and serializes concurrent builds of the same shared projection so parallel workspace projects don't race on the same directory.
+
+- Updated dependencies [3b76b8e]
+- Updated dependencies [a017bf3]
+  - @pnpm/worker@1100.1.9
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/bins.linker@1100.0.11
+  - @pnpm/building.pkg-requires-build@1100.0.6
+  - @pnpm/building.policy@1100.0.8
+  - @pnpm/config.normalize-registries@1100.0.6
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/deps.graph-hasher@1100.2.3
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/exec.lifecycle@1100.0.15
+  - @pnpm/installing.context@1100.0.15
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/lockfile.walker@1100.0.9
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/store.cafs@1100.1.8
+  - @pnpm/store.controller-types@1100.1.3
+
+## 1101.0.18
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [a33c4bf]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/store.connection-manager@1100.2.5
+  - @pnpm/exec.lifecycle@1100.0.14
+
+## 1101.0.17
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/worker@1100.1.8
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/store.connection-manager@1100.2.4
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/building.pkg-requires-build@1100.0.5
+  - @pnpm/building.policy@1100.0.7
+  - @pnpm/config.normalize-registries@1100.0.5
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/lockfile.walker@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/store.controller-types@1100.1.2
+
 ## 1101.0.16
 
 ### Patch Changes

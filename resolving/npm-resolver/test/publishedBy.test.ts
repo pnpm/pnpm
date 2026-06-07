@@ -8,6 +8,7 @@ import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
+import semver from 'semver'
 import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
@@ -516,7 +517,7 @@ test('use cached metadata based on file mtime when publishedBy is set', async ()
   const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
   fs.mkdirSync(cacheDir2, { recursive: true })
   const cachePath = path.join(cacheDir2, 'is-positive.jsonl')
-  const headers = JSON.stringify({ modified: isPositiveAbbreviatedMeta.modified })
+  const headers = JSON.stringify({ etag: '"mtime-shortcut-test"', modified: isPositiveAbbreviatedMeta.modified })
   fs.writeFileSync(cachePath, `${headers}\n${JSON.stringify(isPositiveAbbreviatedMeta)}`, 'utf8')
 
   // No mock agent intercepts — the test verifies no network request is made.
@@ -530,6 +531,55 @@ test('use cached metadata based on file mtime when publishedBy is set', async ()
   // publishedBy in the past relative to file mtime (file was just written = now)
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
     publishedBy: new Date('2020-01-01T00:00:00.000Z'),
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('excluded packages bypass the mtime cache shortcut and refresh stale metadata', async () => {
+  const cacheDir = temporaryDirectory()
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(abbrevCacheDir, { recursive: true })
+  const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
+
+  // Stale abbreviated cache: every version newer than 3.0.0 is missing.
+  // If the publishedBy mtime shortcut is taken, resolution incorrectly
+  // freezes on 3.0.0 forever for recently-written cache files.
+  const staleVersions = Object.fromEntries(
+    Object.entries(isPositiveAbbreviatedMeta.versions)
+      .filter(([version]) => !semver.gt(version, '3.0.0'))
+  )
+  const staleCachedMeta = {
+    ...isPositiveAbbreviatedMeta,
+    versions: staleVersions,
+    'dist-tags': {
+      ...isPositiveAbbreviatedMeta['dist-tags'],
+      latest: '3.0.0',
+    },
+  }
+  const headers = JSON.stringify({ etag: '"exclude-refresh-test"', modified: staleCachedMeta.modified })
+  fs.writeFileSync(cachePath, `${headers}\n${JSON.stringify(staleCachedMeta)}`, 'utf8')
+  const forcedMtime = new Date('2024-01-01T00:00:00.000Z')
+  fs.utimesSync(cachePath, forcedMtime, forcedMtime)
+
+  // Network has fresh metadata with 3.1.0 as latest.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveAbbreviatedMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
+    // Mirror mtime is explicitly set after this cutoff to guarantee the
+    // mtime shortcut condition is satisfied in all environments.
+    publishedBy: new Date('2020-01-01T00:00:00.000Z'),
+    // But excluded packages should behave like publishedBy is off and
+    // still revalidate stale metadata against the registry.
+    publishedByExclude: (pkgName) => pkgName === 'is-positive',
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')

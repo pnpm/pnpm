@@ -1,5 +1,35 @@
 # @pnpm/plugin-commands-init
 
+## 1100.1.17
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/cli.meta@1100.0.6
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/workspace.project-manifest-writer@1100.0.6
+
+## 1100.1.16
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+  - @pnpm/config.reader@1101.5.0
+
+## 1100.1.15
+
+### Patch Changes
+
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/types@1101.2.0
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/cli.meta@1100.0.5
+  - @pnpm/workspace.project-manifest-writer@1100.0.5
+
 ## 1100.1.14
 
 ### Patch Changes

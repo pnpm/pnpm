@@ -1,27 +1,39 @@
 pub mod add;
+pub mod dlx;
+pub mod exec;
 pub mod install;
+pub mod outdated;
+pub mod recursive;
+pub mod remove;
 pub mod run;
 pub mod store;
 pub mod supported_architectures;
+pub mod update;
+pub mod update_interactive;
 
 use crate::{State, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
+use dlx::DlxArgs;
+use exec::ExecArgs;
 use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
+use outdated::{OutdatedArgs, OutdatedOutcome};
 use pacquet_config::{Config, Host};
 use pacquet_executor::execute_shell;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{NdjsonReporter, SilentReporter};
+use remove::RemoveArgs;
 use run::RunArgs;
 use std::path::PathBuf;
 use store::StoreCommand;
+use update::UpdateArgs;
 
 /// Experimental package manager for node.js written in rust.
 #[derive(Debug, Parser)]
 #[clap(name = "pacquet")]
 #[clap(bin_name = "pacquet")]
-#[clap(version = "0.2.2")]
+#[clap(version = pacquet_config::PACQUET_VERSION)]
 #[clap(about = "Experimental package manager for node.js")]
 pub struct CliArgs {
     #[clap(subcommand)]
@@ -30,6 +42,14 @@ pub struct CliArgs {
     /// Set working directory.
     #[clap(short = 'C', long, default_value = ".")]
     pub dir: PathBuf,
+
+    /// Path to a `.npmrc` to read auth settings from, overriding the
+    /// default `~/.npmrc`. Mirrors pnpm's `--npmrc-auth-file` (and its
+    /// `--userconfig` alias) and sets
+    /// [`pacquet_config::Config::npmrc_auth_file`], consumed when
+    /// `Config` resolves the user-level `.npmrc`.
+    #[clap(long = "npmrc-auth-file", visible_alias = "userconfig", global = true)]
+    pub npmrc_auth_file: Option<PathBuf>,
 
     /// Run the command for every project in the workspace instead of
     /// only the project in `--dir`. Mirrors pnpm's global `-r` /
@@ -43,6 +63,28 @@ pub struct CliArgs {
     /// Reporter output format.
     #[clap(long, value_enum, default_value_t = ReporterType::Silent, global = true)]
     pub reporter: ReporterType,
+
+    /// `--filter` / `-F` workspace selectors. Each occurrence adds one
+    /// raw selector (`@scope/*`, `./pkg`, `foo...`, `!bar`, `{dir}`,
+    /// `[since]`, ...). Stored into [`pacquet_config::Config::filter`];
+    /// see that field for why the resolved selection is not yet
+    /// consumed by `install`.
+    ///
+    /// As a global multi-value flag, occurrences collect only within one
+    /// side of the subcommand boundary: `pacquet -F a -F b install` and
+    /// `pacquet install -F a -F b` both yield `[a, b]`, but mixing sides
+    /// (`pacquet -F a install -F b`) keeps only the subcommand-side
+    /// occurrence. This is a clap limitation; pass all selectors on the
+    /// same side.
+    #[clap(short = 'F', long, global = true)]
+    pub filter: Vec<String>,
+
+    /// `--filter-prod` workspace selectors. Same syntax as
+    /// [`Self::filter`], but the dependency walk follows production
+    /// dependencies only. Stored into
+    /// [`pacquet_config::Config::filter_prod`].
+    #[clap(long = "filter-prod", global = true)]
+    pub filter_prod: Vec<String>,
 }
 
 /// Selectable rendering strategy for log events.
@@ -69,10 +111,24 @@ pub enum CliCommand {
     Add(AddArgs),
     /// Install packages
     Install(InstallArgs),
+    /// Update packages to their newest version based on the specified range
+    #[clap(visible_aliases = ["up", "upgrade"])]
+    Update(UpdateArgs),
+    /// Check for outdated packages
+    Outdated(OutdatedArgs),
+    /// Removes packages from `node_modules` and from the project's `package.json`.
+    // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
+    // confusion with "run" and "recursive". Mirrors pnpm's `commandNames`.
+    #[clap(visible_aliases = ["uninstall", "rm", "un", "uni"])]
+    Remove(RemoveArgs),
     /// Runs a package's "test" script, if one was provided.
     Test,
     /// Runs a defined package script.
     Run(RunArgs),
+    /// Run a shell command in the context of a project.
+    Exec(ExecArgs),
+    /// Run a package in a temporary environment.
+    Dlx(DlxArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
     Start,
     /// Managing the package store.
@@ -87,7 +143,8 @@ impl CliArgs {
     /// `Config` is loaded, mirroring pnpm 11's
     /// "CLI > yaml > .npmrc > defaults" precedence.
     pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
-        let CliArgs { command, dir, recursive, reporter } = self;
+        let CliArgs { command, dir, npmrc_auth_file, recursive, reporter, filter, filter_prod } =
+            self;
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
         // the reporter is the same absolute, symlink-resolved path that
         // `@pnpm/cli.default-reporter` derives via `process.cwd()`. Without
@@ -112,7 +169,10 @@ impl CliArgs {
         // See [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339)
         // for the pattern and rationale.
         let config = || -> miette::Result<&'static mut Config> {
-            Config::default()
+            // Seed `npmrc_auth_file` from the CLI flag before
+            // `current()` reads `.npmrc`, so the override redirects the
+            // user-level read. Mirrors pnpm's `--npmrc-auth-file`.
+            Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
                 .current::<Host>(&dir)
                 .map(|mut cfg| {
                     config_overrides.apply(&mut cfg);
@@ -121,6 +181,12 @@ impl CliArgs {
                     // global flag rather than through the yaml / env
                     // overlay. Mirrors pnpm's `Config.recursive`.
                     cfg.recursive = recursive;
+                    // `--filter` / `--filter-prod` are likewise CLI-only
+                    // (pnpm's `Config.filter` / `Config.filterProd`),
+                    // so the parsed selector strings are threaded in
+                    // from the global flags here.
+                    cfg.filter.clone_from(&filter);
+                    cfg.filter_prod.clone_from(&filter_prod);
                     Config::leak(cfg)
                 })
                 .map_err(miette::Report::new)
@@ -146,6 +212,24 @@ impl CliArgs {
                 ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
                 ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
             },
+            CliCommand::Update(args) => match reporter {
+                ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
+                ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
+            },
+            // `outdated` is a read-only query: it prints a report to
+            // stdout and never installs, so it has no reporter-typed
+            // install pipeline to dispatch on. It reports back whether any
+            // dependency was outdated; process termination stays here, at
+            // the top-level harness, rather than inside the command.
+            CliCommand::Outdated(args) => {
+                if args.run(state(false)?).await? == OutdatedOutcome::Outdated {
+                    std::process::exit(1);
+                }
+            }
+            CliCommand::Remove(args) => match reporter {
+                ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
+                ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
+            },
             CliCommand::Install(args) => {
                 // CLI overrides for `offline` / `prefer_offline` live
                 // alongside `--frozen-lockfile`: they upgrade an
@@ -161,6 +245,22 @@ impl CliArgs {
                 cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
                 cfg.workspace_concurrency =
                     args.resolve_workspace_concurrency(cfg.workspace_concurrency);
+                // Network overrides: a passed `--network-concurrency` /
+                // `--fetch-timeout` / `--user-agent` replaces the
+                // config-resolved value for this invocation, matching
+                // pnpm's "CLI wins" precedence.
+                if let Some(network_concurrency) = args.network_concurrency {
+                    cfg.network_concurrency = network_concurrency;
+                }
+                if let Some(fetch_timeout) = args.fetch_timeout {
+                    cfg.fetch_timeout = fetch_timeout;
+                }
+                if let Some(user_agent) = args.user_agent.clone() {
+                    cfg.user_agent = user_agent;
+                }
+                if let Some(pnpr_server) = args.pnpr_server.clone() {
+                    cfg.pnpr_server = Some(pnpr_server);
+                }
                 let require_lockfile = args.frozen_lockfile;
                 let state = State::init(manifest_path(), cfg, require_lockfile)
                     .wrap_err("initialize the state")?;
@@ -177,7 +277,24 @@ impl CliArgs {
                         .wrap_err(format!("executing command: \"{0}\"", script))?;
                 }
             }
-            CliCommand::Run(args) => args.run(manifest_path())?,
+            CliCommand::Run(args) => {
+                if recursive {
+                    args.run_recursive(config()?, &dir)?;
+                } else {
+                    args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
+                }
+            }
+            CliCommand::Exec(args) => {
+                if recursive {
+                    args.run_recursive(config()?, &dir)?;
+                } else {
+                    args.run(&dir, config()?)?;
+                }
+            }
+            CliCommand::Dlx(args) => match reporter {
+                ReporterType::Ndjson => args.run::<NdjsonReporter>(&dir, config()?).await?,
+                ReporterType::Silent => args.run::<SilentReporter>(&dir, config()?).await?,
+            },
             CliCommand::Start => {
                 // Runs an arbitrary command specified in the package's start property of its scripts
                 // object. If no start property is specified on the scripts object, it will attempt to

@@ -1,6 +1,7 @@
 use super::{
-    default_cache_dir, default_child_concurrency, default_child_concurrency_with_parallelism,
-    default_config_dir, default_store_dir, default_unsafe_perm, default_workspace_concurrency,
+    PACQUET_VERSION, default_cache_dir, default_child_concurrency,
+    default_child_concurrency_with_parallelism, default_config_dir, default_fetch_timeout,
+    default_store_dir, default_unsafe_perm, default_user_agent, default_workspace_concurrency,
     is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
@@ -428,4 +429,25 @@ fn test_dynamic_default_store_dir_with_windows_same_drive() {
 
     let store_dir = default_store_dir_windows(home_dir, current_dir);
     assert_eq!(store_dir, Path::new("C:\\Users\\user\\AppData\\Local\\pnpm\\store"));
+}
+
+/// `fetchTimeout` defaults to pnpm's 60 000 ms.
+#[test]
+fn fetch_timeout_default_matches_pnpm() {
+    assert_eq!(default_fetch_timeout(), 60_000);
+}
+
+/// The default `User-Agent` mirrors pnpm's
+/// `pnpm/pacquet-<version> npm/? node/? <platform> <arch>` format. The exact
+/// platform / arch depend on where the test runs, so assert the
+/// `pnpm/pacquet-<version> npm/? node/? ` prefix and the two trailing
+/// space-separated tokens.
+#[test]
+fn user_agent_default_matches_pnpm_format() {
+    let ua = default_user_agent();
+    let prefix = format!("pnpm/pacquet-{PACQUET_VERSION} npm/? node/? ");
+    assert!(ua.starts_with(&prefix), "user-agent {ua:?} must start with {prefix:?}");
+    let tail: Vec<&str> = ua[prefix.len()..].split(' ').collect();
+    assert_eq!(tail.len(), 2, "expected `<platform> <arch>` tail, got {ua:?}");
+    assert!(tail.iter().all(|token| !token.is_empty()), "platform/arch must be non-empty: {ua:?}");
 }

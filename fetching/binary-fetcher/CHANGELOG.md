@@ -1,5 +1,21 @@
 # @pnpm/fetching.binary-fetcher
 
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [3b76b8e]
+  - @pnpm/worker@1100.1.9
+  - @pnpm/fetching.fetcher-base@1100.1.7
+
+## 1101.0.8
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/fetching.fetcher-base@1100.1.6
+
 ## 1101.0.7
 
 ### Patch Changes

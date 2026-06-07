@@ -1,5 +1,43 @@
 # @pnpm/lockfile.verification
 
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/installing.context@1100.0.15
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [a33c4bf]
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.12
 
 ### Patch Changes

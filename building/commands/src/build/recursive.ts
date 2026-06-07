@@ -19,6 +19,7 @@ import { sortProjects } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
+| 'enableGlobalVirtualStore'
 | 'hoistPattern'
 | 'ignorePnpmfile'
 | 'ignoreScripts'

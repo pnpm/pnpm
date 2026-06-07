@@ -91,6 +91,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
         workspace_root: &project_root,
         skipped: &SkippedSnapshots::default(),
         link_only: false,
+        public_hoist_targets: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -218,6 +219,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
         workspace_root: &project_root,
         skipped: &SkippedSnapshots::default(),
         link_only: false,
+        public_hoist_targets: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -301,6 +303,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
         workspace_root: &workspace_root,
         skipped: &SkippedSnapshots::default(),
         link_only: false,
+        public_hoist_targets: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -338,11 +341,13 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
 
 /// An empty `importers` map is a valid (if degenerate) lockfile —
 /// nothing to link, no events emitted, no error. After per-importer
-/// iteration landed for #431, the old "missing root importer is a
+/// iteration landed for [#431], the old "missing root importer is a
 /// hard error" contract is gone: each importer is now installed
 /// independently, and a lockfile with zero importers simply produces
 /// zero pnpm:root events. Pin this so the iteration loop never
 /// regresses into requiring a root.
+///
+/// [#431]: https://github.com/pnpm/pacquet/issues/431
 #[test]
 fn empty_importers_is_a_no_op() {
     let dir = tempdir().unwrap();
@@ -366,6 +371,7 @@ fn empty_importers_is_a_no_op() {
         workspace_root: &project_root,
         skipped: &SkippedSnapshots::default(),
         link_only: false,
+        public_hoist_targets: None,
     }
     .run::<SilentReporter>();
 
@@ -445,6 +451,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
         workspace_root: &workspace_root,
         skipped: &SkippedSnapshots::default(),
         link_only: false,
+        public_hoist_targets: None,
     }
     .run::<RecordingReporter>()
     .unwrap();
@@ -513,6 +520,7 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
             workspace_root: &workspace_root,
             skipped: &SkippedSnapshots::default(),
             link_only: false,
+            public_hoist_targets: None,
         }
         .run::<SilentReporter>();
 
@@ -591,6 +599,7 @@ fn custom_modules_dir_propagates_to_each_importer() {
         workspace_root: &workspace_root,
         skipped: &SkippedSnapshots::default(),
         link_only: false,
+        public_hoist_targets: None,
     }
     .run::<SilentReporter>()
     .expect("symlink should succeed");

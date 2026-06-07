@@ -22,6 +22,9 @@
       "path": "../../lockfile/types"
     },
     {
+      "path": "../../testing/registry-mock"
+    },
+    {
       "path": "../assert-store"
     }
   ]

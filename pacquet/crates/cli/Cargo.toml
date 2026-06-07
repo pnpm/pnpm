@@ -15,37 +15,56 @@ name = "pacquet"
 path = "src/bin/main.rs"
 
 [dependencies]
-pacquet-executor               = { workspace = true }
-pacquet-fs                     = { workspace = true }
-pacquet-lockfile               = { workspace = true }
-pacquet-network                = { workspace = true }
-pacquet-config                 = { workspace = true }
-pacquet-package-manifest       = { workspace = true }
-pacquet-package-manager        = { workspace = true }
-pacquet-package-is-installable = { workspace = true }
-pacquet-registry               = { workspace = true }
-pacquet-reporter               = { workspace = true }
-pacquet-tarball                = { workspace = true }
-pacquet-diagnostics            = { workspace = true }
+pacquet-cmd-shim                          = { workspace = true }
+pacquet-crypto-hash                       = { workspace = true }
+pacquet-pnpr-client                       = { workspace = true }
+pacquet-executor                          = { workspace = true }
+pacquet-fs                                = { workspace = true }
+pacquet-lockfile                          = { workspace = true }
+pacquet-network                           = { workspace = true }
+pacquet-config                            = { workspace = true }
+pacquet-package-manifest                  = { workspace = true }
+pacquet-package-manager                   = { workspace = true }
+pacquet-package-is-installable            = { workspace = true }
+pacquet-registry                          = { workspace = true }
+pacquet-reporter                          = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pacquet-tarball                           = { workspace = true }
+pacquet-diagnostics                       = { workspace = true }
+pacquet-workspace                         = { workspace = true }
+pacquet-workspace-projects-graph          = { workspace = true }
 
-clap        = { workspace = true }
-derive_more = { workspace = true }
-dunce       = { workspace = true }
-home        = { workspace = true }
-miette      = { workspace = true }
-pipe-trait  = { workspace = true }
-rayon       = { workspace = true }
-tokio       = { workspace = true }
+clap         = { workspace = true }
+derive_more  = { workspace = true }
+dialoguer    = { workspace = true }
+dunce        = { workspace = true }
+futures-util = { workspace = true }
+home         = { workspace = true }
+indexmap     = { workspace = true }
+node-semver  = { workspace = true }
+miette       = { workspace = true }
+owo-colors   = { workspace = true }
+pipe-trait   = { workspace = true }
+rayon        = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+tabled       = { workspace = true }
+tokio        = { workspace = true }
+which        = { workspace = true }
 
 [dev-dependencies]
 pacquet-store-dir     = { workspace = true }
 pacquet-testing-utils = { workspace = true }
+pnpr                  = { workspace = true }
 
 assert_cmd        = { workspace = true }
 command-extra     = { workspace = true }
+flate2            = { workspace = true }
 insta             = { workspace = true }
+mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
-serde_json        = { workspace = true }
+serde-saphyr      = { workspace = true }
+tar               = { workspace = true }
 tempfile          = { workspace = true }
 walkdir           = { workspace = true }
 

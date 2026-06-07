@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/pkg-with-failing-optional-dependency",
+  "version": "1.0.0",
+  "optionalDependencies": {
+    "@pnpm.e2e/pkg-with-failing-postinstall": "1.0.0"
+  }
+}

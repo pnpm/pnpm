@@ -125,17 +125,15 @@ impl<'a> InstallPackageFromRegistry<'a> {
             first_visit,
         } = self;
 
-        let name_ver = resolution.name_ver.as_ref().ok_or_else(|| {
+        let (real_name, version) = real_name_version(resolution).ok_or_else(|| {
             InstallPackageFromRegistryError::UnsupportedResolution {
                 detail: format!(
                     "resolver {resolved_via} produced a resolution without a structured \
-                     name@version; the npm install path needs both (alias={alias})",
+                     name@version and no manifest name/version to fall back to (alias={alias})",
                     resolved_via = resolution.resolved_via,
                 ),
             }
         })?;
-        let real_name = name_ver.name.to_string();
-        let version = name_ver.suffix.to_string();
         let package_id = format!("{real_name}@{version}");
 
         // The exposed symlink under `node_modules/` uses the manifest
@@ -182,6 +180,10 @@ impl<'a> InstallPackageFromRegistry<'a> {
                 auth_headers: &config.auth_headers,
                 ignore_file_pattern: None,
                 offline: config.offline,
+                // This recursive install path owns its package-status
+                // progress directly; no resolve-time prefetch shares a
+                // dedupe set with it.
+                progress_reported: None,
             }
             .run_with_mem_cache::<Reporter>(tarball_mem_cache)
             .await
@@ -221,6 +223,23 @@ impl<'a> InstallPackageFromRegistry<'a> {
 
         Ok(())
     }
+}
+
+/// The package's canonical `(name, version)`. Prefers the resolver's
+/// structured `name_ver` (npm registry); falls back to the name/version
+/// read from the fetched manifest for resolvers that learn them only
+/// after the fetch — remote (non-registry) tarball, git, and file deps,
+/// whose name/version live in `package.json`. Mirrors pnpm's
+/// [`getManifestFromResponse`](https://github.com/pnpm/pnpm/blob/df990fdb51/installing/deps-resolver/src/resolveDependencies.ts)
+/// fallback.
+fn real_name_version(resolution: &ResolveResult) -> Option<(String, String)> {
+    if let Some(name_ver) = resolution.name_ver.as_ref() {
+        return Some((name_ver.name.to_string(), name_ver.suffix.to_string()));
+    }
+    let manifest = resolution.manifest.as_deref()?;
+    let name = manifest.get("name")?.as_str()?.to_string();
+    let version = manifest.get("version")?.as_str()?.to_string();
+    Some((name, version))
 }
 
 /// Pull the tarball URL + integrity hash out of the resolver-produced

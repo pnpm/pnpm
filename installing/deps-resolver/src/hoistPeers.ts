@@ -73,7 +73,8 @@ export function getHoistableOptionalPeers (
     if (!allPreferredVersions[missingOptionalPeerName]) continue
 
     let maxSatisfyingVersion: string | undefined
-    for (const [version, specType] of Object.entries(allPreferredVersions[missingOptionalPeerName])) {
+    for (const [version, selector] of Object.entries(allPreferredVersions[missingOptionalPeerName])) {
+      const specType = typeof selector === 'string' ? selector : selector.selectorType
       if (
         specType === 'version' &&
         ranges.every(range => semver.satisfies(version, range)) &&

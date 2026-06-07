@@ -1,5 +1,29 @@
 # @pnpm/list
 
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/deps.inspection.tree-builder@1100.0.13
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+
+## 1100.0.14
+
+### Patch Changes
+
+- a456dc7: Limit concurrent project manifest reads while listing large workspaces to avoid `EMFILE` errors.
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/deps.inspection.tree-builder@1100.0.12
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/pkg-manifest.reader@1100.0.5
+
 ## 1100.0.13
 
 ### Patch Changes

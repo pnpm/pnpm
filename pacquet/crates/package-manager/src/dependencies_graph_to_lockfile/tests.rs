@@ -1,6 +1,5 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::str::FromStr;
-
+use super::{GraphToLockfileOptions, ImporterLockfileInput, dependencies_graph_to_lockfile};
+use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{
     DirectoryResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, PkgNameVer,
@@ -11,9 +10,14 @@ use pacquet_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode, 
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use serde_json::json;
 use ssri::Integrity;
+use std::{
+    collections::{BTreeMap, HashSet},
+    str::FromStr,
+};
 use tempfile::TempDir;
 
-use super::{GraphToLockfileOptions, ImporterLockfileInput, dependencies_graph_to_lockfile};
+/// Shared empty catalogs for the catalog-free fixtures in this module.
+static EMPTY_CATALOGS: pacquet_catalogs_types::Catalogs = BTreeMap::new();
 
 /// Build a single-importer [`GraphToLockfileOptions`] under the root key
 /// (`"."`). Every existing test exercises the single-importer shape;
@@ -24,7 +28,7 @@ fn single_importer_opts<'a>(
     direct: BTreeMap<String, DepPath>,
     auto_install_peers: bool,
     exclude_links_from_lockfile: bool,
-    overrides: Option<HashMap<String, String>>,
+    overrides: Option<IndexMap<String, String>>,
     ignored_optional_dependencies: Option<Vec<String>>,
 ) -> GraphToLockfileOptions<'a> {
     let mut importers = BTreeMap::new();
@@ -36,9 +40,16 @@ fn single_importer_opts<'a>(
         importers,
         graph,
         auto_install_peers,
+        dedupe_peers: false,
         exclude_links_from_lockfile,
+        inject_workspace_packages: false,
+        peers_suffix_max_length: None,
         overrides,
         ignored_optional_dependencies,
+        package_extensions_checksum: None,
+        catalogs: &EMPTY_CATALOGS,
+        registry: "https://registry.npmjs.org",
+        lockfile_include_tarball_url: false,
     }
 }
 
@@ -170,6 +181,76 @@ fn fresh_install_records_a_single_direct_dependency() {
     assert!(snapshot.dependencies.is_none());
     assert!(snapshot.optional_dependencies.is_none());
     assert!(snapshot.transitive_peer_dependencies.is_none());
+}
+
+/// `dedupePeers: true` round-trips through the lockfile's
+/// `settings:` block; `false` (the default) omits the key entirely.
+/// Mirrors upstream's
+/// [`dedupePeers: opts.dedupePeers || undefined`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L602)
+/// and the
+/// [`'dedupePeers: version-only peer suffixes' install test`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/test/install/peerDependencies.ts#L2064-L2093)
+/// `expect(lockfile.settings.dedupePeers).toBe(true)` assertion. The
+/// omission case ports the
+/// [`lockfile/fs/test/write.test.ts:106-140`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/test/write.test.ts#L106-L140)
+/// `'dedupePeers' in (written.settings ?? {})` assertion.
+#[test]
+fn dedupe_peers_round_trips_through_lockfile_settings() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+    }));
+    let graph = DependenciesGraph::new();
+    let direct = BTreeMap::new();
+
+    let mut importers = BTreeMap::new();
+    importers.insert(
+        ".".to_string(),
+        ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct.clone() },
+    );
+    let on = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        importers,
+        graph: &graph,
+        auto_install_peers: false,
+        dedupe_peers: true,
+        exclude_links_from_lockfile: false,
+        inject_workspace_packages: false,
+        peers_suffix_max_length: None,
+        overrides: None,
+        ignored_optional_dependencies: None,
+        package_extensions_checksum: None,
+        catalogs: &EMPTY_CATALOGS,
+        registry: "https://registry.npmjs.org",
+        lockfile_include_tarball_url: false,
+    });
+    let on_settings = on.settings.as_ref().expect("settings written");
+    assert_eq!(on_settings.dedupe_peers, Some(true));
+    let on_yaml = serde_saphyr::to_string(on_settings).unwrap();
+    assert!(on_yaml.contains("dedupePeers: true"), "yaml: {on_yaml}");
+
+    let mut importers = BTreeMap::new();
+    importers.insert(
+        ".".to_string(),
+        ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
+    );
+    let off = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        importers,
+        graph: &graph,
+        auto_install_peers: false,
+        dedupe_peers: false,
+        exclude_links_from_lockfile: false,
+        inject_workspace_packages: false,
+        peers_suffix_max_length: None,
+        overrides: None,
+        ignored_optional_dependencies: None,
+        package_extensions_checksum: None,
+        catalogs: &EMPTY_CATALOGS,
+        registry: "https://registry.npmjs.org",
+        lockfile_include_tarball_url: false,
+    });
+    let off_settings = off.settings.as_ref().expect("settings written");
+    assert_eq!(off_settings.dedupe_peers, None);
+    let off_yaml = serde_saphyr::to_string(off_settings).unwrap();
+    assert!(!off_yaml.contains("dedupePeers"), "yaml: {off_yaml}");
 }
 
 /// `dev` and `optional` direct dependencies land in their own importer
@@ -487,7 +568,7 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
     // `c` was first reached via the optional path, so the resolver
     // left `node.optional = true`. The pruner should flip it back to
     // false.
-    let c = make_node_with_optional(
+    let node_c = make_node_with_optional(
         "c",
         "1.0.0",
         json!({ "name": "c", "version": "1.0.0" }),
@@ -502,7 +583,7 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
     // descendants.
     let mut a_children = BTreeMap::new();
     a_children.insert("c".to_string(), DepPath::from("c@1.0.0".to_string()));
-    let a = make_node_with_optional(
+    let node_a = make_node_with_optional(
         "a",
         "1.0.0",
         json!({ "name": "a", "version": "1.0.0", "dependencies": { "c": "^1.0.0" } }),
@@ -514,7 +595,7 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
 
     let mut b_children = BTreeMap::new();
     b_children.insert("a".to_string(), DepPath::from("a@1.0.0".to_string()));
-    let b = make_node_with_optional(
+    let node_b = make_node_with_optional(
         "b",
         "1.0.0",
         json!({ "name": "b", "version": "1.0.0", "dependencies": { "a": "^1.0.0" } }),
@@ -525,9 +606,9 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
     );
 
     let mut graph = DependenciesGraph::new();
-    graph.insert(a.dep_path.clone(), a);
-    graph.insert(b.dep_path.clone(), b);
-    graph.insert(c.dep_path.clone(), c);
+    graph.insert(node_a.dep_path.clone(), node_a);
+    graph.insert(node_b.dep_path.clone(), node_b);
+    graph.insert(node_c.dep_path.clone(), node_c);
 
     let mut direct = BTreeMap::new();
     direct.insert("a".to_string(), DepPath::from("a@1.0.0".to_string()));
@@ -805,9 +886,16 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         importers,
         graph: &graph,
         auto_install_peers: false,
+        dedupe_peers: false,
         exclude_links_from_lockfile: false,
+        inject_workspace_packages: false,
+        peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        package_extensions_checksum: None,
+        catalogs: &EMPTY_CATALOGS,
+        registry: "https://registry.npmjs.org",
+        lockfile_include_tarball_url: false,
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
@@ -925,9 +1013,16 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         importers,
         graph: &graph,
         auto_install_peers: false,
+        dedupe_peers: false,
         exclude_links_from_lockfile: false,
+        inject_workspace_packages: false,
+        peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        package_extensions_checksum: None,
+        catalogs: &EMPTY_CATALOGS,
+        registry: "https://registry.npmjs.org",
+        lockfile_include_tarball_url: false,
     });
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
@@ -1074,9 +1169,16 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         importers,
         graph: &graph,
         auto_install_peers: false,
+        dedupe_peers: false,
         exclude_links_from_lockfile: false,
+        inject_workspace_packages: false,
+        peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        package_extensions_checksum: None,
+        catalogs: &EMPTY_CATALOGS,
+        registry: "https://registry.npmjs.org",
+        lockfile_include_tarball_url: false,
     });
 
     // Importer a points at b via a link: ref carrying the relative
@@ -1103,4 +1205,102 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
     let lodash_key: PackageKey = "lodash@4.17.21".parse().unwrap();
     assert!(packages.contains_key(&lodash_key));
     assert_eq!(packages.len(), 1, "only lodash lands in packages:");
+}
+
+/// Ported from upstream pnpm's
+/// [`links are not added to the lockfile when excludeLinksFromLockfile is true`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/install/excludeLinksFromLockfile.ts#L27-L124)
+/// e2e test, narrowed to the lockfile-rendering side: a direct
+/// dependency whose manifest specifier is a bare `link:` path is
+/// omitted from the importer's `dependencies` and `specifiers` maps
+/// when [`GraphToLockfileOptions::exclude_links_from_lockfile`] is
+/// `true`, while a registry-resolved sibling is still recorded.
+#[test]
+fn external_link_direct_dep_omitted_from_importer_when_exclude_links_from_lockfile_true() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": {
+            "is-positive": "1.0.0",
+            "external-1": "link:/abs/external-1",
+        },
+    }));
+
+    let link_node =
+        make_link_node("/abs/external-1", json!({ "name": "external-1", "version": "1.0.0" }));
+    let is_positive = make_node(
+        "is-positive",
+        "1.0.0",
+        json!({ "name": "is-positive", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+
+    let mut graph = DependenciesGraph::new();
+    graph.insert(link_node.dep_path.clone(), link_node.clone());
+    graph.insert(is_positive.dep_path.clone(), is_positive);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("external-1".to_string(), link_node.dep_path);
+    direct.insert("is-positive".to_string(), DepPath::from("is-positive@1.0.0".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, true, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let deps = importer.dependencies.as_ref().expect("dependencies map");
+    assert!(
+        deps.contains_key(&PkgName::parse("is-positive").unwrap()),
+        "non-link direct dep is still recorded",
+    );
+    assert!(
+        !deps.contains_key(&PkgName::parse("external-1").unwrap()),
+        "link: direct dep is omitted from importer.dependencies",
+    );
+    let specifiers = importer.specifiers.as_ref().expect("specifiers map");
+    assert!(
+        !specifiers.contains_key("external-1"),
+        "link: direct dep is omitted from importer.specifiers",
+    );
+    assert!(
+        lockfile.settings.as_ref().expect("settings block").exclude_links_from_lockfile,
+        "the setting round-trips into the lockfile settings block",
+    );
+}
+
+/// Ported from upstream pnpm's
+/// [`links resolved from workspace protocol dependencies are not removed`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/install/excludeLinksFromLockfile.ts#L245-L298)
+/// e2e test. A `workspace:` specifier resolves to a `link:` depPath
+/// just like a bare `link:` spec, but `excludeLinksFromLockfile` is
+/// scoped to the latter — workspace siblings stay in the importer
+/// entry so the lockfile keeps a complete description of the
+/// workspace graph.
+#[test]
+fn workspace_link_direct_dep_kept_when_exclude_links_from_lockfile_true() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "app",
+        "version": "1.0.0",
+        "dependencies": { "shared": "workspace:*" },
+    }));
+
+    let link_node = make_link_node("../shared", json!({ "name": "shared", "version": "1.0.0" }));
+    let mut graph = DependenciesGraph::new();
+    graph.insert(link_node.dep_path.clone(), link_node.clone());
+
+    let mut direct = BTreeMap::new();
+    direct.insert("shared".to_string(), link_node.dep_path);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, true, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let deps = importer.dependencies.as_ref().expect("dependencies map");
+    let shared = deps.get(&PkgName::parse("shared").unwrap()).expect("shared entry");
+    assert_eq!(shared.specifier, "workspace:*");
+    match &shared.version {
+        ImporterDepVersion::Link(target) => assert_eq!(target, "../shared"),
+        other => panic!("expected Link(..), got {other:?}"),
+    }
 }

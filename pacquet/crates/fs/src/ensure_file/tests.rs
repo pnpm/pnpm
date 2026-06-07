@@ -102,8 +102,8 @@ fn unix_mode_is_applied_on_new_files() {
 /// parity). Pins the naming scheme so future tweaks stay explicit.
 #[test]
 fn temp_path_strips_exec_suffix() {
-    let p = Path::new("/tmp/store/v11/files/ab/cdef-exec");
-    let tmp = temp_path_for(p);
+    let store_path = Path::new("/tmp/store/v11/files/ab/cdef-exec");
+    let tmp = temp_path_for(store_path);
     let name = tmp.file_name().unwrap().to_string_lossy().into_owned();
     assert!(name.starts_with("cdefx"), "got {name}");
 }
@@ -112,8 +112,8 @@ fn temp_path_strips_exec_suffix() {
 /// counter suffix.
 #[test]
 fn temp_path_passes_plain_basename_through() {
-    let p = Path::new("/tmp/store/v11/files/ab/cdef");
-    let tmp = temp_path_for(p);
+    let store_path = Path::new("/tmp/store/v11/files/ab/cdef");
+    let tmp = temp_path_for(store_path);
     let name = tmp.file_name().unwrap().to_string_lossy().into_owned();
     assert!(name.starts_with("cdef"), "got {name}");
     assert_ne!(name, "cdef", "must include pid + counter suffix");

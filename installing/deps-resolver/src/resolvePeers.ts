@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { createPeerDepGraphHash, depPathToFilename, type PeerId } from '@pnpm/deps.path'
+import { createPeerDepGraphHash, depPathToFilename, parseDepPath, type PeerId } from '@pnpm/deps.path'
 import type {
   DepPath,
   ParentPackages,
@@ -69,6 +69,8 @@ export interface GenericDependenciesGraphWithResolvedChildren<T extends PartialR
 
 export interface ProjectToResolve {
   directNodeIdsByAlias: Map<string, NodeId>
+  declaredDirectDependencies?: Set<string>
+  explicitlyRequestedDirectDependencies?: Set<string>
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
   topParents: Array<{ name: string, version: string, alias?: string }>
@@ -93,24 +95,44 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     resolvedImporters: ResolvedImporters
     peersSuffixMaxLength: number
     workspaceProjectIds: Set<string>
+    resolvedPeerProviderPaths?: Map<NodeId, DepPath>
   }
 ): Promise<{
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<T>
   dependenciesByProjectId: DependenciesByProjectId
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
+  pathsByNodeId: Map<NodeId, DepPath>
 }> {
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = new Map<NodeId, DepPath>()
   const pathsByNodeIdPromises = new Map<NodeId, DeferredPromise<DepPath>>()
   const depPathsByPkgId = new Map<PkgIdWithPatchHash, Set<DepPath>>()
+  const nodeIdsByPreviousDepPath = opts.resolvedPeerProviderPaths == null
+    ? new Map<DepPath, NodeId>()
+    : getNodeIdsByPreviousDepPath(opts.dependenciesTree)
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
-  const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
+  const workspaceRootProject = opts.resolvePeersFromWorkspaceRoot && opts.projects.length > 1
+    ? opts.projects.find(({ id }) => id === '.')
+    : undefined
+  const rootPkgsByName = workspaceRootProject == null ? {} : _createPkgsByName(workspaceRootProject)
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
 
   const finishingList: FinishingResolutionPromise[] = []
   const peersCache = new Map<PkgIdWithPatchHash, PeersCacheItem[]>()
   const purePkgs = new Set<PkgIdWithPatchHash>()
-  for (const { directNodeIdsByAlias, topParents, rootDir, id } of opts.projects) {
+  for (const { directNodeIdsByAlias, declaredDirectDependencies, explicitlyRequestedDirectDependencies, topParents, rootDir, id } of opts.projects) {
+    const currentProviderSources: CurrentProviderSource[] = [{
+      directNodeIdsByAlias,
+      declaredDirectDependencies: declaredDirectDependencies ?? new Set(),
+      explicitlyRequestedDirectDependencies: explicitlyRequestedDirectDependencies ?? new Set(),
+    }]
+    if (workspaceRootProject != null && workspaceRootProject.id !== id) {
+      currentProviderSources.push({
+        directNodeIdsByAlias: workspaceRootProject.directNodeIdsByAlias,
+        declaredDirectDependencies: workspaceRootProject.declaredDirectDependencies ?? new Set(),
+        explicitlyRequestedDirectDependencies: workspaceRootProject.explicitlyRequestedDirectDependencies ?? new Set(),
+      })
+    }
     const peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'> = { bad: {}, missing: {} }
     const pkgsByName = Object.fromEntries(Object.entries({
       ...rootPkgsByName,
@@ -134,6 +156,9 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       pathsByNodeId,
       pathsByNodeIdPromises,
       depPathsByPkgId,
+      nodeIdsByPreviousDepPath,
+      resolvedPeerProviderPaths: opts.resolvedPeerProviderPaths,
+      currentProviderSources,
       peersCache,
       peerDependencyIssues,
       purePkgs,
@@ -199,6 +224,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     dependenciesGraph: depGraphWithResolvedChildren,
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
+    pathsByNodeId,
   }
 }
 
@@ -293,11 +319,6 @@ function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
   return true
 }
 
-function getRootPkgsByName<T extends PartialResolvedPackage> (dependenciesTree: DependenciesTree<T>, projects: ProjectToResolve[]): ParentRefs {
-  const rootProject = projects.length > 1 ? projects.find(({ id }) => id === '.') : null
-  return rootProject == null ? {} : createPkgsByName(dependenciesTree, rootProject)
-}
-
 function createPkgsByName<T extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<T>,
   { directNodeIdsByAlias, topParents }: {
@@ -356,6 +377,15 @@ interface ResolvePeersContext {
   pathsByNodeId: Map<NodeId, DepPath>
   pathsByNodeIdPromises: Map<NodeId, DeferredPromise<DepPath>>
   depPathsByPkgId?: Map<PkgIdWithPatchHash, Set<DepPath>>
+  nodeIdsByPreviousDepPath: Map<DepPath, NodeId>
+  resolvedPeerProviderPaths?: Map<NodeId, DepPath>
+  currentProviderSources: CurrentProviderSource[]
+}
+
+interface CurrentProviderSource {
+  directNodeIdsByAlias: Map<string, NodeId>
+  declaredDirectDependencies: Set<string>
+  explicitlyRequestedDirectDependencies: Set<string>
 }
 
 type CalculateDepPath = (cycles: string[][]) => Promise<void>
@@ -429,13 +459,50 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     const _parentPkgsMatch = parentPkgsMatch.bind(null, ctx.dependenciesTree)
     for (const [newParentPkgName, newParentPkg] of Object.entries(newParentPkgs)) {
       if (parentPkgs[newParentPkgName]) {
-        if (!_parentPkgsMatch(parentPkgs[newParentPkgName], newParentPkg)) {
+        if (
+          !_parentPkgsMatch(parentPkgs[newParentPkgName], newParentPkg) ||
+          inheritedParentPkgBreaksPeerDiamond(ctx, parentPkgs, parentPkgs[newParentPkgName], newParentPkg, children)
+        ) {
           newParentPkg.occurrence = parentPkgs[newParentPkgName].occurrence + 1
           parentPkgs[newParentPkgName] = newParentPkg
         }
       } else {
         parentPkgs[newParentPkgName] = newParentPkg
       }
+    }
+  }
+  if (node.lockedPeerContext != null && ctx.resolvedPeerProviderPaths != null) {
+    for (const [peerName, previousPeerDepPath] of Object.entries(node.lockedPeerContext)) {
+      const peerNodeId = ctx.nodeIdsByPreviousDepPath.get(previousPeerDepPath)
+      const peerDependency = resolvedPackage.peerDependencies[peerName]
+      if (peerNodeId == null || peerDependency == null) continue
+      if (ctx.resolvedPeerProviderPaths?.get(peerNodeId) !== previousPeerDepPath) continue
+      // Only pin providers that have no peer context of their own. A provider
+      // whose locked depPath carries a peer suffix is itself context-dependent
+      // — and self-referential for cyclic peers — so reusing it can re-expand
+      // cyclic suffixes and break the deterministic resolution that
+      // https://github.com/pnpm/pnpm/issues/8155 established. Stable leaf
+      // providers are the ones worth pinning; anything else falls back to
+      // fresh resolution.
+      if (parseDepPath(previousPeerDepPath).peerDepGraphHash !== '') continue
+      // A provider that already resolved to a different path this pass no longer
+      // matches its locked context; pinning it would leave pathsByNodeId
+      // pointing at a depPath that was never added to the graph.
+      const currentPeerDepPath = ctx.pathsByNodeId.get(peerNodeId)
+      if (currentPeerDepPath != null && currentPeerDepPath !== previousPeerDepPath) continue
+      if (hasCurrentPeerProviderThatMustWin(peerName, parentPkgs, ctx)) continue
+      const lockedPeer = toPkgByName([{
+        alias: peerName,
+        node: ctx.dependenciesTree.get(peerNodeId)!,
+        nodeId: peerNodeId,
+        parentNodeIds,
+      }])[peerName]
+      if (!semverUtils.satisfiesWithPrereleases(lockedPeer.version, peerDependency.version.replace(/^workspace:/, ''), true)) continue
+      const peerPathPromise = ctx.pathsByNodeIdPromises.get(peerNodeId) ?? pDefer<DepPath>()
+      ctx.pathsByNodeIdPromises.set(peerNodeId, peerPathPromise)
+      ctx.pathsByNodeId.set(peerNodeId, previousPeerDepPath)
+      peerPathPromise.resolve(previousPeerDepPath)
+      parentPkgs[peerName] = lockedPeer
     }
   }
   const hit = findHit(ctx, parentPkgs, resolvedPackage.pkgIdWithPatchHash)
@@ -555,9 +622,16 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     pendingPeerNodes: PendingPeer[],
     cycles: string[][]
   ): Promise<void> {
-    const cyclicPeerAliases = new Set()
+    const cyclicPeerAliases = new Set<string>()
+    const pendingPeerAliases = new Set(pendingPeerNodes.map(({ alias }) => alias))
     for (const cycle of cycles) {
-      if (cycle.includes(currentAlias)) {
+      // A cycle has to be short-circuited at this level whenever any of
+      // its members is involved in the current resolution — either as
+      // currentAlias or among the pending peers we are about to await.
+      // When a cycle member hits the `findHit` cache instead of running
+      // its own calculateDepPath, only the awaiting siblings at this
+      // level can release the cached promise. See pnpm/pnpm#11999.
+      if (cycle.includes(currentAlias) || cycle.some((alias) => pendingPeerAliases.has(alias))) {
         for (const peerAlias of cycle) {
           cyclicPeerAliases.add(peerAlias)
         }
@@ -634,6 +708,49 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 }
 
+function getNodeIdsByPreviousDepPath<T> (dependenciesTree: DependenciesTree<T>): Map<DepPath, NodeId> {
+  const nodeIdsByPreviousDepPath = new Map<DepPath, NodeId>()
+  for (const [nodeId, node] of dependenciesTree.entries()) {
+    if (node.previousDepPath != null && !nodeIdsByPreviousDepPath.has(node.previousDepPath)) {
+      nodeIdsByPreviousDepPath.set(node.previousDepPath, nodeId)
+    }
+  }
+  return nodeIdsByPreviousDepPath
+}
+
+function hasCurrentPeerProviderThatMustWin<T extends PartialResolvedPackage> (
+  peerName: string,
+  parentPkgs: ParentRefs,
+  ctx: {
+    currentProviderSources: CurrentProviderSource[]
+    parentNodeIds: NodeId[]
+    dependenciesTree: DependenciesTree<T>
+  }
+): boolean {
+  const peerNodeId = parentPkgs[peerName]?.nodeId
+  if (peerNodeId == null) return false
+  for (const source of ctx.currentProviderSources) {
+    for (const [alias, directNodeId] of source.directNodeIdsByAlias) {
+      if (directNodeId === peerNodeId &&
+        (alias !== peerName ||
+          source.explicitlyRequestedDirectDependencies.has(alias) ||
+          (source.declaredDirectDependencies.has(alias) &&
+            ctx.dependenciesTree.get(peerNodeId)?.previousDepPath == null)
+        )) return true
+    }
+  }
+  for (const parentNodeId of ctx.parentNodeIds) {
+    const parentNode = ctx.dependenciesTree.get(parentNodeId)
+    if (parentNode == null) continue
+    const children = typeof parentNode.children === 'function' ? parentNode.children() : parentNode.children
+    parentNode.children = children
+    if ([...(parentNode.dependencyNamesWhoseCurrentProviderMustWin ?? [])].some((alias) =>
+      children[alias] === peerNodeId
+    )) return true
+  }
+  return false
+}
+
 interface PendingPeer {
   alias: string
   nodeId: NodeId
@@ -655,6 +772,68 @@ function parentPkgsMatch<T> (
   const newParentResolvedPkg = newParentPkg.nodeId && dependenciesTree.get(newParentPkg.nodeId)?.resolvedPackage
   if (newParentResolvedPkg == null) return true
   return currentParentResolvedPkg.name === newParentResolvedPkg.name
+}
+
+// A package that is both inherited from an ancestor and present among the
+// current node's own children is normally not duplicated: the inherited
+// instance is reused (see https://github.com/pnpm/pnpm/issues/8370). That reuse
+// is unsafe when a sibling peer-depends both this package and one of this
+// package's own peer dependencies. The sibling must see a single, consistent
+// instance of that shared peer, but the inherited instance resolved it in a
+// different context. In that case the node's own child has to be used instead.
+// See https://github.com/pnpm/pnpm/issues/12079
+function inheritedParentPkgBreaksPeerDiamond<T extends PartialResolvedPackage> (
+  ctx: {
+    dependenciesTree: DependenciesTree<T>
+    parentPkgsOfNode: ParentPkgsOfNode
+    allPeerDepNames: Set<string>
+  },
+  parentPkgs: ParentRefs,
+  inheritedParentPkg: ParentRef,
+  ownChildParentPkg: ParentRef,
+  children: ChildrenMap
+): boolean {
+  if (inheritedParentPkg.nodeId == null || ownChildParentPkg.nodeId == null) return false
+  if (inheritedParentPkg.nodeId === ownChildParentPkg.nodeId) return false
+  const inheritedContext = ctx.parentPkgsOfNode.get(inheritedParentPkg.nodeId)
+  if (inheritedContext == null) return false
+  const parentPkg = ctx.dependenciesTree.get(ownChildParentPkg.nodeId)?.resolvedPackage as T | undefined
+  if (parentPkg == null) return false
+
+  const conflictingPeers = new Set<string>()
+  for (const peerName of Object.keys(parentPkg.peerDependencies)) {
+    if (!ctx.allPeerDepNames.has(peerName)) continue
+    const inheritedPeer = inheritedContext[peerName]
+    const currentPeer = parentPkgs[peerName]
+    if (inheritedPeer == null || currentPeer == null) continue
+    if (parentPeerDiffers(ctx.dependenciesTree, currentPeer, inheritedPeer)) {
+      conflictingPeers.add(peerName)
+    }
+  }
+  if (conflictingPeers.size === 0) return false
+
+  for (const childNodeId of Object.values(children)) {
+    const childPeerDependencies = (ctx.dependenciesTree.get(childNodeId)?.resolvedPackage as T | undefined)?.peerDependencies
+    if (childPeerDependencies == null || childPeerDependencies[parentPkg.name] == null) continue
+    for (const peerName of conflictingPeers) {
+      if (childPeerDependencies[peerName] != null) return true
+    }
+  }
+  return false
+}
+
+function parentPeerDiffers<T extends PartialResolvedPackage> (
+  dependenciesTree: DependenciesTree<T>,
+  currentPeer: ParentRef,
+  inheritedPeer: ParentPkgInfo
+): boolean {
+  if (inheritedPeer.pkgIdWithPatchHash != null) {
+    if (currentPeer.nodeId == null || (typeof currentPeer.nodeId === 'string' && currentPeer.nodeId.startsWith('link:'))) {
+      return true
+    }
+    return (dependenciesTree.get(currentPeer.nodeId)?.resolvedPackage as T | undefined)?.pkgIdWithPatchHash !== inheritedPeer.pkgIdWithPatchHash
+  }
+  return currentPeer.version !== inheritedPeer.version
 }
 
 function findHit<T extends PartialResolvedPackage> (ctx: {

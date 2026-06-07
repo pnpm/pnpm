@@ -1,5 +1,31 @@
 # @pnpm/calc-dep-state
 
+## 1100.2.3
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/engine.runtime.system-version@1100.0.1
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.11
+
+## 1100.2.2
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/engine.runtime.system-version@1100.0.0
+  - @pnpm/types@1101.2.0
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/resolving.resolver-base@1100.3.1
+
 ## 1100.2.1
 
 ### Patch Changes

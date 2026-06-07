@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/has-not-compatible-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/not-compatible-with-any-os": "1.0.0"
+  }
+}

@@ -240,6 +240,60 @@ impl PackageManifest {
         Ok(())
     }
 
+    /// Names eligible for `pnpm remove` to target.
+    ///
+    /// When `save_type` is `Some`, the keys of just that field; when
+    /// `None`, the union of `dependencies`, `devDependencies`, and
+    /// `optionalDependencies` (peer dependencies excluded), preserving
+    /// first-seen order. Mirrors pnpm's `getAllDependenciesFromManifest`
+    /// (called without `autoInstallPeers`) at
+    /// <https://github.com/pnpm/pnpm/blob/9cad8274fd/pkg-manifest/utils/src/getAllDependenciesFromManifest.ts>,
+    /// the set `pnpm remove` validates removal targets against.
+    pub fn available_dependency_names(&self, save_type: Option<DependencyGroup>) -> Vec<String> {
+        let groups: &[DependencyGroup] = match save_type {
+            Some(ref group) => std::slice::from_ref(group),
+            None => &[DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional],
+        };
+        let mut seen = std::collections::HashSet::new();
+        self.dependencies(groups.iter().copied())
+            .filter(|(name, _)| seen.insert(*name))
+            .map(|(name, _)| name.to_string())
+            .collect()
+    }
+
+    /// Drop `removed_packages` from the manifest's dependency maps.
+    ///
+    /// Ports pnpm's
+    /// [`removeDeps`](https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/deps-installer/src/uninstall/removeDeps.ts):
+    /// when `save_type` is `Some`, only that field is touched; otherwise
+    /// every field in pnpm's `DEPENDENCIES_FIELDS` (`optionalDependencies`,
+    /// `dependencies`, `devDependencies`) is scanned. `peerDependencies`
+    /// and `dependenciesMeta` entries for the removed names are always
+    /// dropped, regardless of `save_type`.
+    pub fn remove_dependencies(
+        &mut self,
+        removed_packages: &[String],
+        save_type: Option<DependencyGroup>,
+    ) {
+        let groups: &[DependencyGroup] = match save_type {
+            Some(ref group) => std::slice::from_ref(group),
+            None => &[DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev],
+        };
+        for group in groups {
+            self.remove_from_object((*group).into(), removed_packages);
+        }
+        self.remove_from_object("peerDependencies", removed_packages);
+        self.remove_from_object("dependenciesMeta", removed_packages);
+    }
+
+    fn remove_from_object(&mut self, key: &str, removed_packages: &[String]) {
+        if let Some(object) = self.value.get_mut(key).and_then(Value::as_object_mut) {
+            for name in removed_packages {
+                object.remove(name);
+            }
+        }
+    }
+
     pub fn script(
         &self,
         command: &str,

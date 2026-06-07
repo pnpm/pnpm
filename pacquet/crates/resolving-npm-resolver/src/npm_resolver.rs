@@ -24,22 +24,19 @@
 //!   registry fetch when the lockfile-pinned tarball is already in the
 //!   store. Pacquet today goes through the picker unconditionally;
 //!   restoring the fast path is a separate item.
-//! - **Trust-policy enforcement.** The resolver-side
-//!   `failIfTrustDowngraded` call is wired through the verifier crate
-//!   only; the resolver path doesn't enforce it yet.
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use node_semver::Version;
-use pacquet_config::version_policy::PackageVersionPolicy;
+use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolutionPolicyViolation, ResolveError, ResolveFuture,
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
-    WorkspacePackages,
+    WorkspacePackages, parse_packument_timestamp,
 };
 
 use crate::{
@@ -52,6 +49,7 @@ use crate::{
         resolve_from_local_package, try_resolve_from_workspace,
         try_resolve_from_workspace_packages,
     },
+    trust_checks::{TrustCheckOptions, fail_if_trust_downgraded},
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
 
@@ -122,6 +120,10 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// [`PickPackageContext::full_metadata`]. Mirrors upstream's
     /// [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175).
     pub full_metadata: bool,
+    /// Retry budget threaded through to
+    /// [`PickPackageContext::retry_opts`]. Sourced from the install's
+    /// `fetch-retries` config.
+    pub retry_opts: RetryOpts,
 }
 
 impl<Cache: PackageMetaCache + 'static> Resolver for NpmResolver<Cache> {
@@ -264,6 +266,15 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             }
         };
 
+        // Resolver-time `trustPolicy='no-downgrade'` gate. Runs on the
+        // registry pick before the workspace shadow, matching upstream's
+        // [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/index.ts#L548-L550)
+        // call site. A downgrade is a hard error that aborts the
+        // install, so it propagates as a `ResolveError` rather than the
+        // soft [`ResolveResult::policy_violation`] used for
+        // `minimumReleaseAge`.
+        fail_if_trust_downgraded_for_pick(opts, &picked)?;
+
         // Registry pick succeeded — prefer the workspace copy when it
         // matches (or is newer, or `preferWorkspacePackages` is on).
         // Mirrors upstream's
@@ -364,6 +375,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             include_latest_tag: opts.update == UpdateBehavior::Latest,
             dry_run: opts.dry_run,
             optional,
+            update_checksums: opts.update_checksums,
         };
 
         let ctx = PickPackageContext {
@@ -376,6 +388,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             prefer_offline: self.prefer_offline,
             ignore_missing_time_field: self.ignore_missing_time_field,
             full_metadata: self.full_metadata,
+            retry_opts: self.retry_opts,
         };
 
         let pick_result = pick_package(&ctx, spec, &pick_opts)
@@ -619,6 +632,30 @@ pub(crate) fn build_resolve_result(
     })
 }
 
+/// Resolver-time `trustPolicy='no-downgrade'` check on a fresh pick.
+/// No-op unless the policy is `NoDowngrade`. When active, runs
+/// [`fail_if_trust_downgraded`] against the picked version using the
+/// full packument the picker fetched (forced to full metadata under
+/// this policy by the install layer) and propagates a downgrade as a
+/// hard [`ResolveError`]. Mirrors upstream's resolver-time
+/// [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/index.ts#L548-L550)
+/// call.
+fn fail_if_trust_downgraded_for_pick(
+    opts: &ResolveOptions,
+    picked: &PickedFromRegistry,
+) -> Result<(), ResolveError> {
+    if opts.trust_policy != Some(TrustPolicy::NoDowngrade) {
+        return Ok(());
+    }
+    let trust_opts = TrustCheckOptions {
+        trust_policy_exclude: opts.trust_policy_exclude.as_ref(),
+        trust_policy_ignore_after_minutes: opts.trust_policy_ignore_after,
+        now: None,
+    };
+    fail_if_trust_downgraded(&picked.meta, &picked.version.version.to_string(), &trust_opts)
+        .map_err(|err| Box::new(err) as ResolveError)
+}
+
 /// Resolver-time `minimumReleaseAge` check. Returns a violation entry
 /// when the picked version's publish timestamp falls past the policy
 /// cutoff and isn't excluded by name/version. Mirrors upstream's
@@ -645,7 +682,7 @@ fn detect_min_release_age_violation(
             _ => {}
         }
     }
-    let parsed = DateTime::parse_from_rfc3339(timestamp).ok()?.with_timezone(&Utc);
+    let parsed = parse_packument_timestamp(timestamp)?;
     if parsed <= cutoff {
         return None;
     }

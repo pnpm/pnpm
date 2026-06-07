@@ -3,7 +3,7 @@ use pacquet_store_dir::StoreDir;
 use std::{env, path::PathBuf};
 
 #[cfg(windows)]
-use std::{path::Component, path::Path};
+use std::path::{Component, Path};
 
 pub fn default_hoist_pattern() -> Vec<String> {
     vec!["*".to_string()]
@@ -113,7 +113,7 @@ where
         return default_store_dir_windows(&home_dir, &current_dir).into();
     }
 
-    // https://doc.rust-lang.org/std/env/consts/constant.OS.html
+    // <https://doc.rust-lang.org/std/env/consts/constant.OS.html>
     match env::consts::OS {
         "linux" => home_dir.join(".local/share/pnpm/store").into(),
         "macos" => home_dir.join("Library/pnpm/store").into(),
@@ -127,38 +127,23 @@ pub fn default_modules_dir() -> PathBuf {
 }
 
 /// Resolve the directory pnpm reads `config.yaml` (the global config
-/// file) from.
-///
-/// Port of pnpm's
-/// [`getConfigDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L67-L86).
-/// Resolution order:
-///
-/// 1. `$XDG_CONFIG_HOME/pnpm`.
-/// 2. macOS: `~/Library/Preferences/pnpm`.
-/// 3. Other non-Windows: `~/.config/pnpm`.
-/// 4. Windows: `%LOCALAPPDATA%/pnpm/config`, falling back to
-///    `~/.config/pnpm` when `LOCALAPPDATA` is unset.
-///
-/// Returns `None` when the home directory is unavailable and the env
-/// vars that bypass it are also unset — the caller treats that as
-/// "no global config file."
+/// file) from. Threads this crate's [`EnvVar`] / [`GetHomeDir`] seam
+/// into [`pacquet_config_dir::config_dir`] — the shared port of
+/// pnpm's `getConfigDir`, also used by the registry server — under
+/// the `pnpm` leaf.
 pub fn default_config_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
 {
-    if let Some(xdg_config_home) = Sys::var("XDG_CONFIG_HOME") {
-        return Some(PathBuf::from(xdg_config_home).join("pnpm"));
-    }
-    if env::consts::OS == "windows"
-        && let Some(local_app_data) = Sys::var("LOCALAPPDATA")
-    {
-        return Some(PathBuf::from(local_app_data).join("pnpm/config"));
-    }
-    let home_dir = Sys::home_dir()?;
-    Some(match env::consts::OS {
-        "macos" => home_dir.join("Library/Preferences/pnpm"),
-        _ => home_dir.join(".config/pnpm"),
-    })
+    let xdg_config_home = Sys::var("XDG_CONFIG_HOME");
+    let local_app_data = Sys::var("LOCALAPPDATA");
+    pacquet_config_dir::config_dir(
+        "pnpm",
+        env::consts::OS,
+        xdg_config_home.as_deref(),
+        local_app_data.as_deref(),
+        Sys::home_dir,
+    )
 }
 
 /// Resolve the default packument-cache directory.
@@ -242,6 +227,19 @@ pub fn default_virtual_store_dir_max_length() -> u64 {
     120
 }
 
+/// Default `peersSuffixMaxLength` matching pnpm's fallback at
+/// <https://github.com/pnpm/pnpm/blob/39101f5e37/deps/path/src/index.ts#L197>
+/// (parameter default on `createPeerDepGraphHash`).
+///
+/// Kept as a free function (not a re-export of
+/// `pacquet_lockfile::DEFAULT_PEERS_SUFFIX_MAX_LENGTH`) so
+/// `pacquet-config` doesn't pull in the lockfile crate just for one
+/// integer. Both copies must agree; the lockfile side carries the
+/// same upstream link.
+pub fn default_peers_suffix_max_length() -> u64 {
+    1000
+}
+
 pub fn default_fetch_retries() -> u32 {
     2
 }
@@ -256,6 +254,32 @@ pub fn default_fetch_retry_mintimeout() -> u64 {
 
 pub fn default_fetch_retry_maxtimeout() -> u64 {
     60_000
+}
+
+/// pacquet's user-facing release version — the same value
+/// `pacquet --version` prints. Single source of truth so the CLI
+/// version string and the default `User-Agent` (`default_user_agent`)
+/// can't drift apart.
+pub const PACQUET_VERSION: &str = "0.2.2";
+
+pub fn default_fetch_timeout() -> u64 {
+    pacquet_network::DEFAULT_FETCH_TIMEOUT_MS
+}
+
+/// Default `User-Agent`, mirroring pnpm v11's
+/// [`config/reader/src/index.ts:293`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L293)
+/// format `${name}/${version} npm/? node/${nodeVersion} ${platform} ${arch}`.
+/// The `name/version` segment is `pnpm/pacquet-<version>` so registries can
+/// tell pacquet's traffic apart from the TypeScript pnpm CLI. pacquet has no
+/// embedded Node runtime, so the `node/` segment is the `?` placeholder pnpm
+/// already uses for `npm/`. Platform and arch use Node's naming via
+/// [`pacquet_detect_libc::host_platform`] / [`pacquet_detect_libc::host_arch`].
+pub fn default_user_agent() -> String {
+    format!(
+        "pnpm/pacquet-{PACQUET_VERSION} npm/? node/? {} {}",
+        pacquet_detect_libc::host_platform(),
+        pacquet_detect_libc::host_arch(),
+    )
 }
 
 /// Default `childConcurrency` matching upstream's

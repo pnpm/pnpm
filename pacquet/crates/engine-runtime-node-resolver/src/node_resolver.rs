@@ -357,7 +357,7 @@ fn node_bins_for_current_os(platform: &str) -> serde_json::Value {
 }
 
 /// Host platform string in pnpm's normalised form (`win32`, `darwin`,
-/// `linux`, …). Reads `std::env::consts::OS` rather than spawning a
+/// `linux`, ...). Reads `std::env::consts::OS` rather than spawning a
 /// helper so the lookup is allocation-free.
 fn current_platform() -> &'static str {
     match std::env::consts::OS {

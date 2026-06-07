@@ -9,6 +9,7 @@ import { and, groupBy, isEmpty, pickBy, pipe, pluck, uniqBy } from 'ramda'
 export interface ChoiceRow {
   name: string
   value: string
+  message: string
   disabled?: boolean
 }
 
@@ -71,6 +72,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
       if (i === 0) {
         return {
           name: renderedTable[i],
+          message: renderedTable[i],
           value: '',
           disabled: true,
           hint: '',

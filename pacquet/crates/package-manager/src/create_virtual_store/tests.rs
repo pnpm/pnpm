@@ -40,12 +40,12 @@ fn snapshot_with_dep(child: &str, ref_str: &str) -> SnapshotEntry {
 }
 
 /// `emit_warm_snapshot_progress` fires `resolved` then
-/// `found_in_store` in that order for one (package_id, requester)
-/// pair. Both events carry the same identifiers — pnpm's per-package
-/// counter relies on the pair to pin the tick to the right package
-/// row.
+/// `found_in_store` when no earlier fetch path already emitted the
+/// package status. Both events carry the same identifiers — pnpm's
+/// per-package counter relies on the pair to pin the tick to the right
+/// package row.
 #[test]
-fn emits_resolved_then_found_in_store_with_matching_identifiers() {
+fn emits_resolved_then_found_in_store_when_not_progress_reported() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
@@ -56,7 +56,7 @@ fn emits_resolved_then_found_in_store_with_matching_identifiers() {
     }
 
     EVENTS.lock().unwrap().clear();
-    emit_warm_snapshot_progress::<RecordingReporter>("react@18.0.0", "/proj");
+    emit_warm_snapshot_progress::<RecordingReporter>("react@18.0.0", "/proj", false);
 
     let captured = EVENTS.lock().unwrap();
     assert!(
@@ -76,6 +76,38 @@ fn emits_resolved_then_found_in_store_with_matching_identifiers() {
             ),
         ),
         "warm-snapshot pair must be (Resolved, FoundInStore) with matching identifiers; got {captured:?}",
+    );
+}
+
+/// When an earlier fetch path already emitted `fetched` or
+/// `found_in_store`, the warm batch emits only `resolved` so the
+/// package status is not double-counted. Regression guard for
+/// <https://github.com/pnpm/pnpm/issues/12235>.
+#[test]
+fn emits_only_resolved_when_progress_reported() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    EVENTS.lock().unwrap().clear();
+    emit_warm_snapshot_progress::<RecordingReporter>("react@18.0.0", "/proj", true);
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        matches!(
+            captured.as_slice(),
+            [LogEvent::Progress(r)] if matches!(
+                &r.message,
+                ProgressMessage::Resolved { package_id, requester }
+                    if package_id == "react@18.0.0" && requester == "/proj"
+            ),
+        ),
+        "already-reported warm snapshot must report only Resolved; got {captured:?}",
     );
 }
 
@@ -104,9 +136,9 @@ fn snapshot_deps_equal_treats_absent_and_empty_alike() {
 /// transitive.
 #[test]
 fn snapshot_deps_equal_distinguishes_different_dependency_values() {
-    let a = snapshot_with_dep("react", "17.0.2");
-    let b = snapshot_with_dep("react", "18.0.0");
-    assert!(!snapshot_deps_equal(&a, &b));
+    let entry_a = snapshot_with_dep("react", "17.0.2");
+    let entry_b = snapshot_with_dep("react", "18.0.0");
+    assert!(!snapshot_deps_equal(&entry_a, &entry_b));
 }
 
 /// `optionalDependencies` participate in the comparison the same way
@@ -115,15 +147,15 @@ fn snapshot_deps_equal_distinguishes_different_dependency_values() {
 #[test]
 fn snapshot_deps_equal_distinguishes_different_optional_dependency_values() {
     let dep_ref: SnapshotDepRef = "1.0.0".parse().expect("parse dep ref");
-    let a = SnapshotEntry {
+    let entry_a = SnapshotEntry {
         optional_dependencies: Some(HashMap::from([(name("react"), dep_ref.clone())])),
         ..Default::default()
     };
-    let b = SnapshotEntry {
+    let entry_b = SnapshotEntry {
         optional_dependencies: Some(HashMap::from([(name("react-dom"), dep_ref)])),
         ..Default::default()
     };
-    assert!(!snapshot_deps_equal(&a, &b));
+    assert!(!snapshot_deps_equal(&entry_a, &entry_b));
 }
 
 /// `integrity_equal` mirrors upstream's `isIntegrityEqual` —
@@ -132,24 +164,24 @@ fn snapshot_deps_equal_distinguishes_different_optional_dependency_values() {
 /// force a re-fetch.
 #[test]
 fn integrity_equal_matches_when_integrities_agree() {
-    let a = metadata_with_integrity(
+    let entry_a = metadata_with_integrity(
         "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     );
-    let b = metadata_with_integrity(
+    let entry_b = metadata_with_integrity(
         "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     );
-    assert!(integrity_equal(Some(&a), Some(&b)));
+    assert!(integrity_equal(Some(&entry_a), Some(&entry_b)));
 }
 
 #[test]
 fn integrity_equal_distinguishes_changed_integrities() {
-    let a = metadata_with_integrity(
+    let entry_a = metadata_with_integrity(
         "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     );
-    let b = metadata_with_integrity(
+    let entry_b = metadata_with_integrity(
         "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
     );
-    assert!(!integrity_equal(Some(&a), Some(&b)));
+    assert!(!integrity_equal(Some(&entry_a), Some(&entry_b)));
 }
 
 /// Missing metadata on either side (a malformed lockfile, or the

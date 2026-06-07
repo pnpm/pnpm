@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { confirm } from '@inquirer/prompts'
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
@@ -9,7 +10,6 @@ import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean }
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { ProjectManifest } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
-import enquirer from 'enquirer'
 import { pick } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import { renderHelp } from 'render-help'
@@ -188,14 +188,20 @@ export async function publish (
       )
     }
     if (!branches.includes(currentBranch)) {
-      const { confirm } = await enquirer.prompt({
-        message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
-Do you want to continue?`,
-        name: 'confirm',
-        type: 'confirm',
-      } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      let isConfirmed: boolean
+      try {
+        isConfirmed = await confirm({
+          message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". Do you want to continue?`,
+        })
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'ExitPromptError') {
+          isConfirmed = false
+        } else {
+          throw err
+        }
+      }
 
-      if (!confirm) {
+      if (!isConfirmed) {
         throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branches.join('|')}'.`, {
           hint: GIT_CHECKS_HINT,
         })

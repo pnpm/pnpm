@@ -222,7 +222,7 @@ impl<'a> GitFetcher<'a> {
 /// We do this via the source chain instead of mutating the message
 /// (no JS-style `err.message = ...` available), so the wrapped error
 /// shows up in `miette`'s rendered chain as "Failed to prepare git-
-/// hosted package … → Failed to prepare package → ERR_PNPM_PREPARE_PACKAGE".
+/// hosted package ... → Failed to prepare package → ERR_PNPM_PREPARE_PACKAGE".
 fn wrap_prepare_error(_repo: &str, err: PreparePackageError) -> GitFetcherError {
     // For the MVP we preserve `err` as the source; the install log
     // line at the dispatcher level already includes the repo URL via
@@ -284,22 +284,6 @@ fn prefix_git_args() -> &'static [&'static str] {
     {
         &[]
     }
-}
-
-/// Run `git` with `args` (prefixed with [`prefix_git_args`]) and
-/// capture stdout. Returns `Err(GitFetcherError::GitNotFound)` when
-/// the binary is missing so callers can produce a friendly install
-/// hint, and `Err(GitFetcherError::GitExec { stderr, … })` for non-
-/// zero exit codes.
-///
-/// Resolves `git` through `PATH` — convenience wrapper around
-/// [`exec_git_with`] for fixture-setup helpers and ad-hoc tests
-/// that don't need to override the binary location. Test-only
-/// because the only non-test caller now passes a `git_bin` override
-/// through `GitFetcher::run_sync`'s [`exec_git_with`] call.
-#[cfg(test)]
-fn exec_git(args: &[&str], cwd: Option<&Path>) -> Result<String, GitFetcherError> {
-    exec_git_with(Path::new("git"), args, cwd)
 }
 
 /// `exec_git` with an explicit binary path. The fetcher uses this so

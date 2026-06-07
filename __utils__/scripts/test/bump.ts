@@ -11,8 +11,27 @@ import {
   hideReleased,
   listChangesetIds,
   readReleased,
+  releaseBranchToTarget,
   restoreHidden,
 } from '../src/bump.js'
+
+describe('releaseBranchToTarget', () => {
+  test('strips the release-pr/ prefix to recover the target branch', () => {
+    expect(releaseBranchToTarget('release-pr/main')).toBe('main')
+  })
+
+  test('preserves slashes in the target branch', () => {
+    expect(releaseBranchToTarget('release-pr/release/11.1')).toBe('release/11.1')
+  })
+
+  test('returns a branch without the prefix unchanged', () => {
+    expect(releaseBranchToTarget('main')).toBe('main')
+  })
+
+  test('throws when the prefix has no target after it', () => {
+    expect(() => releaseBranchToTarget('release-pr/')).toThrow()
+  })
+})
 
 describe('branchToFilename', () => {
   test('plain branch name', () => {

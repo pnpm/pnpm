@@ -116,3 +116,106 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
     expect(subsequent).toEqual(first)
   }
 })
+
+// Regression test for https://github.com/pnpm/pnpm/issues/11999.
+//
+// An aliased install (`a@npm:a-real`) pulls in two siblings `b` and `c` that
+// each bring a transitive package — `x` under `b`, `y` under `c` — declaring
+// each other as peer dependencies. Both `x` and `y` are auto-installed at the
+// importer root via the missing-peer hoist. The aliased install also yields a
+// transitive peer back to `a`. The deep instances of `x` and `y` populate the
+// peersCache during `a`'s subtree walk, so the auto-installed top-level
+// instances hit findHit instead of running their own calculateDepPath. The
+// cycle between `x` and `y` is detected at the project root level but does
+// not include the root alias `a`, so awaiting it must not deadlock.
+test('aliased install with a transitive mutual-peer cycle should not hang', async () => {
+  const rootProject = prepareEmpty()
+  const lockfileDir = rootProject.dir()
+
+  const aRealName = '@pnpm.e2e/aliased-cycle-a-real'
+  const bRealName = '@pnpm.e2e/aliased-cycle-b-real'
+  const cRealName = '@pnpm.e2e/aliased-cycle-c-real'
+  const xName = '@pnpm.e2e/aliased-cycle-x'
+  const yName = '@pnpm.e2e/aliased-cycle-y'
+
+  const manifest: ProjectManifest = {
+    name: 'root',
+    dependencies: {
+      a: `npm:${aRealName}@1.0.0`,
+    },
+  }
+  const allProjects: ProjectOptions[] = [{
+    buildIndex: 0,
+    manifest,
+    rootDir: lockfileDir as ProjectRootDir,
+  }]
+  const options = {
+    ...testDefaults(
+      { allProjects, autoInstallPeers: true, forceFullResolution: true },
+      { retry: { retries: 0 } }
+    ),
+    lockfileDir,
+    lockfileOnly: true,
+  } satisfies MutateModulesOptions
+
+  const installProjects: MutatedProject[] = [{
+    mutation: 'install',
+    rootDir: lockfileDir as ProjectRootDir,
+  }]
+
+  const registryUrl = options.registries.default.replace(/\/$/, '')
+
+  function makeMeta (name: string, deps: Record<string, string>, peerDeps: Record<string, string>): PackageMeta {
+    return {
+      name,
+      versions: {
+        '1.0.0': {
+          name,
+          version: '1.0.0',
+          dependencies: deps,
+          peerDependencies: peerDeps,
+          dist: {
+            shasum: '0000000000000000000000000000000000000000',
+            tarball: `${options.registries.default}/${encodeURIComponent(name)}-1.0.0.tgz`,
+          },
+        },
+      },
+      'dist-tags': { latest: '1.0.0' },
+    }
+  }
+
+  const metaByName = {
+    [aRealName]: makeMeta(aRealName, {
+      b: `npm:${bRealName}@1.0.0`,
+      c: `npm:${cRealName}@1.0.0`,
+    }, {}),
+    [bRealName]: makeMeta(bRealName, {
+      [xName]: '1.0.0',
+    }, {
+      a: `npm:${aRealName}@1.0.0`,
+    }),
+    [cRealName]: makeMeta(cRealName, {
+      [yName]: '1.0.0',
+    }, {
+      a: `npm:${aRealName}@1.0.0`,
+    }),
+    [xName]: makeMeta(xName, {}, {
+      [yName]: '1.0.0',
+    }),
+    [yName]: makeMeta(yName, {}, {
+      [xName]: '1.0.0',
+    }),
+  }
+
+  await setupMockAgent()
+  const agent = getMockAgent().get(registryUrl)
+  for (const [name, meta] of Object.entries(metaByName)) {
+    agent.intercept({ path: `/${name.replaceAll('/', '%2F')}`, method: 'GET' }).reply(200, meta).persist()
+  }
+
+  options.storeController.clearResolutionCache()
+  await mutateModules(installProjects, options)
+
+  const lockfile = rootProject.readLockfile()
+  expect(lockfile.importers?.['.']?.dependencies?.a?.version).toContain(`${aRealName}@1.0.0`)
+})

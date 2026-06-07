@@ -1,5 +1,24 @@
 # @pnpm/read-project-manifest
 
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/pkg-manifest.utils@1100.2.2
+  - @pnpm/workspace.project-manifest-writer@1100.0.6
+
+## 1100.0.9
+
+### Patch Changes
+
+- a456dc7: Limit concurrent project manifest reads while listing large workspaces to avoid `EMFILE` errors.
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/pkg-manifest.utils@1100.2.1
+  - @pnpm/workspace.project-manifest-writer@1100.0.5
+
 ## 1100.0.8
 
 ### Patch Changes

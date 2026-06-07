@@ -13,10 +13,14 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use indexmap::IndexMap;
+use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_lockfile::{
-    ComVer, ImporterDepVersion, Lockfile, LockfileSettings, LockfileVersion, PackageKey,
-    PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
-    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings,
+    LockfileVersion, PackageKey, PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer,
+    PkgVerPeer, ProjectSnapshot, ResolvedCatalogEntry, ResolvedDependencyMap,
+    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
@@ -60,12 +64,56 @@ pub struct GraphToLockfileOptions<'a> {
     /// so a subsequent pnpm install can compare its own settings via
     /// `@pnpm/lockfile.settings-checker`'s `getOutdatedLockfileSetting`.
     pub auto_install_peers: bool,
+    /// When `true`, the resolver ran with `dedupePeers` on and the
+    /// lockfile records `dedupePeers: true` in its `settings:` block.
+    /// When `false`, the key is omitted from the lockfile, mirroring
+    /// pnpm's
+    /// [`opts.dedupePeers || undefined`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L602)
+    /// shorthand.
+    pub dedupe_peers: bool,
     pub exclude_links_from_lockfile: bool,
+    /// `injectWorkspacePackages` recorded the same way. Mirrors
+    /// upstream's `lockfile.settings.injectWorkspacePackages`. `false`
+    /// is omitted on save via [`LockfileSettings`]'s serde
+    /// `skip_serializing_if`, matching
+    /// [`lockfileFormatConverters.ts:70-72`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/lockfileFormatConverters.ts#L70-L72).
+    pub inject_workspace_packages: bool,
+    /// `peersSuffixMaxLength` round-tripped into the lockfile's
+    /// `settings.peersSuffixMaxLength` so a later install detects
+    /// drift via `@pnpm/lockfile.settings-checker`. Pass `None` when
+    /// the value equals upstream's default (1000) so the field is
+    /// stripped from the serialized lockfile, matching upstream's
+    /// [`convertToLockfileFile`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/lockfileFormatConverters.ts#L67-L69)
+    /// strip-on-default behavior.
+    pub peers_suffix_max_length: Option<u64>,
     /// `overrides` recorded into the lockfile so a later install can
     /// detect drift. Mirrors upstream's `lockfile.overrides` field.
-    pub overrides: Option<HashMap<String, String>>,
+    /// An [`IndexMap`] so the user's declaration order is preserved on
+    /// serialization, matching pnpm (which leaves this map unsorted).
+    pub overrides: Option<IndexMap<String, String>>,
     /// `ignoredOptionalDependencies` recorded the same way.
     pub ignored_optional_dependencies: Option<Vec<String>>,
+    /// `packageExtensionsChecksum` recorded the same way. Mirrors
+    /// upstream's
+    /// [`packageExtensionsChecksum`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L608)
+    /// assignment. `None` when no extensions are configured (matches
+    /// pnpm's `hashObjectNullableWithPrefix` short-circuit on empty
+    /// input).
+    pub package_extensions_checksum: Option<String>,
+    /// The workspace catalogs (with any `add` / `update` edits already
+    /// merged in) used to render the lockfile's `catalogs:` snapshot —
+    /// the resolved specifier + version for every `catalog:` direct
+    /// dependency. Empty for projects with no catalogs.
+    pub catalogs: &'a Catalogs,
+    /// Default registry URL, used to decide whether a resolved registry
+    /// package's tarball URL is reconstructible (and so droppable from the
+    /// lockfile in favor of bare `{integrity}`). Mirrors the `registry`
+    /// argument pnpm threads into
+    /// [`toLockfileResolution`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/utils/src/toLockfileResolution.ts).
+    pub registry: &'a str,
+    /// When `true`, registry tarball URLs are kept in the lockfile even when
+    /// reconstructible. Mirrors pnpm's `lockfileIncludeTarballUrl` setting.
+    pub lockfile_include_tarball_url: bool,
 }
 
 /// Build a [`Lockfile`] from the resolver's [`DependenciesGraph`] plus
@@ -89,31 +137,98 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         importers: importer_inputs,
         graph,
         auto_install_peers,
+        dedupe_peers,
         exclude_links_from_lockfile,
+        inject_workspace_packages,
+        peers_suffix_max_length,
         overrides,
         ignored_optional_dependencies,
+        package_extensions_checksum,
+        catalogs,
+        registry,
+        lockfile_include_tarball_url,
     } = opts;
 
     let optional_overrides = compute_corrected_optional(&importer_inputs, graph);
-    let (packages, snapshots) = build_packages_and_snapshots(graph, &optional_overrides);
+    let (packages, snapshots) = build_packages_and_snapshots(
+        graph,
+        &optional_overrides,
+        registry,
+        lockfile_include_tarball_url,
+    );
 
     let mut importers: HashMap<String, ProjectSnapshot> =
         HashMap::with_capacity(importer_inputs.len());
     for (id, input) in &importer_inputs {
-        importers.insert(id.clone(), build_importer(input, graph));
+        importers.insert(id.clone(), build_importer(input, graph, exclude_links_from_lockfile));
     }
+
+    let catalog_snapshots = build_catalog_snapshots(&importers, catalogs);
 
     Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
             .expect("lockfileVersion 9.0 is always compatible with MAJOR=9"),
-        settings: Some(LockfileSettings { auto_install_peers, exclude_links_from_lockfile }),
+        settings: Some(LockfileSettings {
+            auto_install_peers,
+            dedupe_peers: dedupe_peers.then_some(true),
+            exclude_links_from_lockfile,
+            inject_workspace_packages,
+            peers_suffix_max_length,
+        }),
+        catalogs: catalog_snapshots,
         overrides: overrides.filter(|map| !map.is_empty()),
+        package_extensions_checksum,
         ignored_optional_dependencies: ignored_optional_dependencies
             .filter(|list| !list.is_empty()),
         importers,
         packages: (!packages.is_empty()).then_some(packages),
         snapshots: (!snapshots.is_empty()).then_some(snapshots),
     }
+}
+
+/// Build the lockfile's `catalogs:` snapshot from the resolved importers.
+///
+/// Ports pnpm's
+/// [`getCatalogSnapshots`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/installing/deps-resolver/src/getCatalogSnapshots.ts):
+/// for every importer dependency whose recorded specifier is a `catalog:`
+/// protocol, emit `{ specifier: <catalog entry>, version: <resolved> }`. The
+/// `specifier` comes from `catalogs` (which already carries any `add` /
+/// `update` edit), and the `version` from the importer's resolved dep map.
+fn build_catalog_snapshots(
+    importers: &HashMap<String, ProjectSnapshot>,
+    catalogs: &Catalogs,
+) -> Option<CatalogSnapshots> {
+    let mut snapshots: CatalogSnapshots = BTreeMap::new();
+    for importer in importers.values() {
+        let Some(specifiers) = importer.specifiers.as_ref() else { continue };
+        for (alias, specifier) in specifiers {
+            let Some(catalog_name) = parse_catalog_protocol(specifier) else { continue };
+            let Some(entry_specifier) =
+                catalogs.get(catalog_name).and_then(|catalog| catalog.get(alias))
+            else {
+                continue;
+            };
+            let Some(version) = importer_resolved_version(importer, alias) else { continue };
+            snapshots.entry(catalog_name.to_string()).or_default().insert(
+                alias.clone(),
+                ResolvedCatalogEntry { specifier: entry_specifier.clone(), version },
+            );
+        }
+    }
+    (!snapshots.is_empty()).then_some(snapshots)
+}
+
+/// The concrete version `alias` resolved to in `importer`, read from whichever
+/// dependency group carries it. Returns the peer-stripped version, matching
+/// pnpm's `dep.version` in a catalog snapshot.
+fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<String> {
+    let key = PkgName::parse(alias).ok()?;
+    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+        .into_iter()
+        .flatten()
+        .find_map(|map| map.get(&key))
+        .and_then(|spec| spec.version.as_regular())
+        .map(|version| version.version().to_string())
 }
 
 /// Build an importer's [`ProjectSnapshot`] from its on-disk manifest
@@ -125,7 +240,20 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
 /// the manifest decides which dep group each alias lives under, and the
 /// resolver decides the resolved version (peer-suffixed when peers are
 /// involved, alias-prefixed when the alias and real name differ).
-fn build_importer(input: &ImporterLockfileInput<'_>, graph: &DependenciesGraph) -> ProjectSnapshot {
+///
+/// When `exclude_links_from_lockfile` is `true`, a `link:` direct
+/// dependency is omitted from the importer's `specifiers` and
+/// `dependencies` / `devDependencies` / `optionalDependencies` maps
+/// — unless its manifest specifier starts with `workspace:`, which
+/// still records the resolved workspace-sibling target so the
+/// lockfile stays a complete description of the workspace graph.
+/// Mirrors upstream's
+/// [exclude-link gate](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L449-L456).
+fn build_importer(
+    input: &ImporterLockfileInput<'_>,
+    graph: &DependenciesGraph,
+    exclude_links_from_lockfile: bool,
+) -> ProjectSnapshot {
     let manifest = input.manifest;
     let direct = &input.direct_dependencies_by_alias;
 
@@ -155,6 +283,9 @@ fn build_importer(input: &ImporterLockfileInput<'_>, graph: &DependenciesGraph) 
         // direct deps must be present in the graph — a missing entry
         // means the resolver dropped the edge, so skip.
         let version = if let Some(target) = dep_path.as_str().strip_prefix("link:") {
+            if exclude_links_from_lockfile && !specifier.starts_with("workspace:") {
+                continue;
+            }
             ImporterDepVersion::Link(target.to_string())
         } else {
             let Some(node) = graph.get(dep_path) else { continue };
@@ -233,6 +364,13 @@ fn read_manifest_specifier(manifest: &PackageManifest, alias: &str) -> Option<St
 ///   the [`ImporterDepVersion::Link`] arm so the lockfile records the
 ///   sibling project's relative path instead of trying to parse it as
 ///   `name@version`.
+/// - When the depPath is an injected workspace id (`file:<rel-path>`
+///   plus optional `(peer@suffix)`), emit the
+///   [`ImporterDepVersion::File`] arm so the importer entry records
+///   the `file:` snapshot key instead of trying to parse it as
+///   `name@version`. The injected workspace dep didn't dedupe back to
+///   `link:` because its children weren't a subset of the target
+///   project's direct deps (or `dedupeInjectedDeps` is off).
 /// - When the resolved real name equals the manifest alias and the
 ///   depPath starts with `<name>@`, drop the prefix so the importer
 ///   carries just the version-with-peer string.
@@ -244,6 +382,9 @@ fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDe
 
     if let Some(target) = dep_path_str.strip_prefix("link:") {
         return ImporterDepVersion::Link(target.to_string());
+    }
+    if let Some(target) = dep_path_str.strip_prefix("file:") {
+        return ImporterDepVersion::File(target.to_string());
     }
 
     let real_name = real_name(&node.resolve_result);
@@ -269,7 +410,33 @@ fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDe
 /// uses in the resolve-peers walker — and the same shape the
 /// `name_ver` field carries upstream.
 fn real_name(result: &ResolveResult) -> Option<String> {
-    Some(result.name_ver.as_ref()?.name.to_string())
+    if let Some(name_ver) = result.name_ver.as_ref() {
+        return Some(name_ver.name.to_string());
+    }
+    // A remote (non-registry, non-git) http(s) tarball direct dep leaves
+    // `name_ver` unset and carries its name in the fetched manifest.
+    // Reading it lets `importer_dep_version` strip the `name@` prefix off
+    // the depPath so the importer records just the URL (`version: <url>`),
+    // matching pnpm's `depPathToRef`. Other manifest-only resolutions
+    // (`file:` / git) are deliberately left to the `None` path so their
+    // importer entries keep pacquet's current prefixed shape — bringing
+    // those in line with `depPathToRef` is separate from
+    // <https://github.com/pnpm/pnpm/issues/12053>.
+    let LockfileResolution::Tarball(tarball) = &result.resolution else {
+        return None;
+    };
+    if tarball.git_hosted == Some(true) || !is_remote_http_tarball(&tarball.tarball) {
+        return None;
+    }
+    result.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
+}
+
+/// `true` for an `http(s)://` tarball URL — the remote tarball deps
+/// covered by <https://github.com/pnpm/pnpm/issues/12053>. Excludes
+/// `file:` tarballs and registry-reconstructed resolutions that carry
+/// no URL.
+fn is_remote_http_tarball(tarball: &str) -> bool {
+    tarball.starts_with("http:") || tarball.starts_with("https:")
 }
 
 /// Walk the depPath-keyed [`DependenciesGraph`] and emit the matching
@@ -285,6 +452,8 @@ fn real_name(result: &ResolveResult) -> Option<String> {
 fn build_packages_and_snapshots(
     graph: &DependenciesGraph,
     optional_overrides: &HashMap<DepPath, bool>,
+    registry: &str,
+    lockfile_include_tarball_url: bool,
 ) -> (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>) {
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
@@ -296,7 +465,9 @@ fn build_packages_and_snapshots(
         let snapshot = build_snapshot_entry(node, graph, optional_overrides);
         snapshots.insert(snapshot_key, snapshot);
 
-        packages.entry(metadata_key).or_insert_with(|| build_package_metadata(node));
+        packages.entry(metadata_key).or_insert_with_key(|key| {
+            build_package_metadata(node, key, registry, lockfile_include_tarball_url)
+        });
     }
 
     (packages, snapshots)
@@ -312,7 +483,12 @@ fn build_packages_and_snapshots(
 /// for the per-package half (excludes the per-snapshot fields
 /// `dependencies` / `optionalDependencies` / `transitivePeerDependencies` /
 /// `optional` / `patched`, which go on the snapshot below).
-fn build_package_metadata(node: &DependenciesGraphNode) -> PackageMetadata {
+fn build_package_metadata(
+    node: &DependenciesGraphNode,
+    metadata_key: &PackageKey,
+    registry: &str,
+    lockfile_include_tarball_url: bool,
+) -> PackageMetadata {
     let manifest = node.resolve_result.manifest.as_deref();
 
     let engines = manifest
@@ -345,8 +521,15 @@ fn build_package_metadata(node: &DependenciesGraphNode) -> PackageMetadata {
 
     let (peer_dependencies, peer_dependencies_meta) = build_peer_dep_blocks(node);
 
+    let resolution = node.resolve_result.resolution.to_lockfile_form(
+        &metadata_key.name.to_string(),
+        &metadata_key.suffix.version().to_string(),
+        registry,
+        lockfile_include_tarball_url,
+    );
+
     PackageMetadata {
-        resolution: node.resolve_result.resolution.clone(),
+        resolution,
         engines,
         cpu,
         os,

@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import { beforeAll, describe, expect, it, test } from '@jest/globals'
 import type {
+  DepPath,
   PeerDependencyIssuesByProjects,
   PkgIdWithPatchHash,
   PkgResolutionId,
@@ -8,7 +9,7 @@ import type {
 } from '@pnpm/types'
 
 import type { NodeId } from '../lib/nextNodeId.js'
-import type { DependenciesTreeNode, PeerDependencies } from '../lib/resolveDependencies.js'
+import type { ChildrenMap, DependenciesTreeNode, PeerDependencies } from '../lib/resolveDependencies.js'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
 
 test('resolve peer dependencies of cyclic dependencies', async () => {
@@ -675,6 +676,282 @@ test('resolve peer dependencies with npm aliases', async () => {
   ])
 })
 
+describe('locked peer provider preferences', () => {
+  const currentPeerNodeId = '>peer/1.0.0>' as NodeId
+  const retainedPeerNodeId = '>retainer/1.0.0>peer/2.0.0>' as NodeId
+  const retainerNodeId = '>retainer/1.0.0>' as NodeId
+  const wrapperNodeId = '>wrapper/1.0.0>' as NodeId
+  const consumerNodeId = '>wrapper/1.0.0>consumer/1.0.0>' as NodeId
+
+  const peer1Pkg = {
+    name: 'peer',
+    pkgIdWithPatchHash: 'peer/1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {} as PeerDependencies,
+    id: '' as PkgResolutionId,
+  }
+  const peer2Pkg = {
+    name: 'peer',
+    pkgIdWithPatchHash: 'peer/2.0.0' as PkgIdWithPatchHash,
+    version: '2.0.0',
+    peerDependencies: {} as PeerDependencies,
+    id: '' as PkgResolutionId,
+  }
+  const wrapperPkg = {
+    name: 'wrapper',
+    pkgIdWithPatchHash: 'wrapper/1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {} as PeerDependencies,
+    id: '' as PkgResolutionId,
+  }
+  const retainerPkg = {
+    name: 'retainer',
+    pkgIdWithPatchHash: 'retainer/1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {} as PeerDependencies,
+    id: '' as PkgResolutionId,
+  }
+  const consumerPkg = {
+    name: 'consumer',
+    pkgIdWithPatchHash: 'consumer/1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      peer: { version: '>=1' },
+    },
+    id: '' as PkgResolutionId,
+  }
+
+  function createTree (
+    declaredPeerNodeId?: NodeId,
+    currentPeerWasPreviouslyLocked = true,
+    peerRange = '>=1'
+  ): Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>> {
+    const wrapperChildren: ChildrenMap = { consumer: consumerNodeId }
+    if (declaredPeerNodeId != null) wrapperChildren.peer = declaredPeerNodeId
+    return new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      [currentPeerNodeId, {
+        children: {},
+        installable: true,
+        previousDepPath: currentPeerWasPreviouslyLocked ? 'peer/1.0.0' as DepPath : undefined,
+        resolvedPackage: peer1Pkg,
+        depth: 0,
+      }],
+      [retainerNodeId, {
+        children: { peer: retainedPeerNodeId },
+        installable: true,
+        resolvedPackage: retainerPkg,
+        depth: 0,
+      }],
+      [retainedPeerNodeId, {
+        children: {},
+        installable: true,
+        previousDepPath: 'peer/2.0.0' as DepPath,
+        resolvedPackage: peer2Pkg,
+        depth: 1,
+      }],
+      [wrapperNodeId, {
+        children: wrapperChildren,
+        dependencyNamesWhoseCurrentProviderMustWin: declaredPeerNodeId == null ? undefined : new Set(['peer']),
+        installable: true,
+        resolvedPackage: wrapperPkg,
+        depth: 0,
+      }],
+      [consumerNodeId, {
+        children: {},
+        installable: true,
+        lockedPeerContext: { peer: 'peer/2.0.0' as DepPath },
+        resolvedPackage: {
+          ...consumerPkg,
+          peerDependencies: {
+            peer: { version: peerRange },
+          },
+        },
+        depth: 1,
+      }],
+    ])
+  }
+
+  function options (
+    dependenciesTree: Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>,
+    directNodeIdsByAlias: Map<string, NodeId>,
+    declaredDirectDependencies: Set<string> = new Set(),
+    explicitlyRequestedDirectDependencies: Set<string> = new Set()
+  ) {
+    return {
+      allPeerDepNames: new Set(['peer']),
+      projects: [{
+        directNodeIdsByAlias,
+        declaredDirectDependencies,
+        explicitlyRequestedDirectDependencies,
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: '',
+      }],
+      resolvedImporters: {},
+      dependenciesTree,
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set<string>(),
+    }
+  }
+
+  test('prefers a compatible locked provider that remains reachable in the current graph', async () => {
+    const resolutionOpts = options(createTree(), new Map([
+      ['peer', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(initial.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeTruthy()
+  })
+
+  test('does not replace a newly resolved nested peer provider', async () => {
+    const resolutionOpts = options(createTree(currentPeerNodeId), new Map([
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('does not replace a newly declared importer peer provider', async () => {
+    const resolutionOpts = options(createTree(undefined, false), new Map([
+      ['consumer', consumerNodeId],
+      ['peer', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+    ]), new Set(['consumer', 'peer', 'retainer']))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('does not replace an explicitly updated importer peer provider that existed before', async () => {
+    const resolutionOpts = options(createTree(), new Map([
+      ['consumer', consumerNodeId],
+      ['peer', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+    ]), new Set(['consumer', 'peer', 'retainer']), new Set(['peer']))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('does not replace an explicitly requested importer provider for a nested consumer', async () => {
+    const resolutionOpts = options(createTree(), new Map([
+      ['peer', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]), new Set(['peer', 'retainer', 'wrapper']), new Set(['peer']))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('does not replace an explicitly requested workspace root provider', async () => {
+    const resolutionOpts = options(createTree(), new Map([
+      ['consumer', consumerNodeId],
+      ['retainer', retainerNodeId],
+    ]))
+    resolutionOpts.projects.unshift({
+      directNodeIdsByAlias: new Map([['peer', currentPeerNodeId]]),
+      declaredDirectDependencies: new Set(['peer']),
+      explicitlyRequestedDirectDependencies: new Set(['peer']),
+      topParents: [],
+      rootDir: '' as ProjectRootDir,
+      id: '.',
+    })
+    const initial = await resolvePeers({
+      ...resolutionOpts,
+      resolvePeersFromWorkspaceRoot: true,
+    })
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvePeersFromWorkspaceRoot: true,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('does not replace an explicitly requested importer peer provider installed by alias', async () => {
+    const resolutionOpts = options(createTree(), new Map([
+      ['peer-alias', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]), new Set(['peer-alias', 'retainer', 'wrapper']), new Set(['peer-alias']))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('does not replace an existing importer peer provider installed by alias', async () => {
+    const resolutionOpts = options(createTree(), new Map([
+      ['peer-alias', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]), new Set(['peer-alias', 'retainer', 'wrapper']))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+
+  test('does not reuse a locked provider outside the current peer range', async () => {
+    const resolutionOpts = options(createTree(undefined, true, '^1.0.0'), new Map([
+      ['peer', currentPeerNodeId],
+      ['retainer', retainerNodeId],
+      ['wrapper', wrapperNodeId],
+    ]))
+    const initial = await resolvePeers(resolutionOpts)
+    const preferred = await resolvePeers({
+      ...resolutionOpts,
+      resolvedPeerProviderPaths: initial.pathsByNodeId,
+    })
+
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/1.0.0)' as DepPath]).toBeTruthy()
+    expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+  })
+})
+
 describe('dedupePeers', () => {
   test('uses version-only peer suffixes without nested dep paths', async () => {
     // Simulates: react@18, @emotion/react@11(peer: react), @emotion/styled@11(peer: react, @emotion/react)
@@ -924,5 +1201,131 @@ describe('dedupePeers', () => {
     // Each project gets the correct instance
     expect(dependenciesByProjectId['project-a'].get('plugin')).toBe('plugin/1.0.0(react@17.0.0)')
     expect(dependenciesByProjectId['project-b'].get('plugin')).toBe('plugin/1.0.0(react@18.0.0)')
+  })
+
+  // https://github.com/pnpm/pnpm/issues/12079
+  test("a peer's own peer is shared with a sibling that peer-depends both", async () => {
+    // plugin peer-depends both parser and typescript; parser peer-depends typescript.
+    // So plugin's parser and plugin's typescript must agree. A top-level parser that
+    // resolved typescript@2.0.0 must not shadow umbrella's own parser, which resolves
+    // typescript@1.0.0 — the version that plugin itself uses.
+    const ts1Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const ts2Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/2.0.0' as PkgIdWithPatchHash,
+      version: '2.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const parserPkg = {
+      name: 'parser',
+      pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const pluginPkg = {
+      name: 'plugin',
+      pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const umbrellaPkg = {
+      name: 'umbrella',
+      pkgIdWithPatchHash: 'umbrella/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const appPkg = {
+      name: 'app',
+      pkgIdWithPatchHash: 'app/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph } = await resolvePeers({
+      allPeerDepNames: new Set(['typescript', 'parser']),
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['typescript', '>typescript/2.0.0>' as NodeId],
+            ['parser', '>parser/1.0.0>' as NodeId],
+            ['app', '>app/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '.',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>typescript/2.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts2Pkg,
+          depth: 0,
+        }],
+        ['>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 0,
+        }],
+        ['>app/1.0.0>' as NodeId, {
+          children: {
+            typescript: '>app/1.0.0>typescript/1.0.0>' as NodeId,
+            umbrella: '>app/1.0.0>umbrella/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: appPkg,
+          depth: 0,
+        }],
+        ['>app/1.0.0>typescript/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts1Pkg,
+          depth: 1,
+        }],
+        ['>app/1.0.0>umbrella/1.0.0>' as NodeId, {
+          children: {
+            plugin: '>app/1.0.0>umbrella/1.0.0>plugin/1.0.0>' as NodeId,
+            parser: '>app/1.0.0>umbrella/1.0.0>parser/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: umbrellaPkg,
+          depth: 1,
+        }],
+        ['>app/1.0.0>umbrella/1.0.0>plugin/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: pluginPkg,
+          depth: 2,
+        }],
+        ['>app/1.0.0>umbrella/1.0.0>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 2,
+        }],
+      ]),
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+    // plugin and its parser both use typescript@1.0.0; the typescript@2.0.0 parser
+    // from the top level is not pulled into plugin.
+    const depPaths = Object.keys(dependenciesGraph)
+    expect(depPaths).toContain('plugin/1.0.0(parser/1.0.0(typescript/1.0.0))(typescript/1.0.0)')
+    expect(depPaths).not.toContain('plugin/1.0.0(parser/1.0.0(typescript/2.0.0))(typescript/1.0.0)')
   })
 })

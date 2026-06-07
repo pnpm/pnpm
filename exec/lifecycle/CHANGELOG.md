@@ -1,5 +1,31 @@
 # @pnpm/lifecycle
 
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/bins.linker@1100.0.11
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/fetching.directory-fetcher@1100.0.14
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/store.controller-types@1100.1.3
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/fetching.directory-fetcher@1100.0.13
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/store.controller-types@1100.1.2
+
 ## 1100.0.13
 
 ### Patch Changes

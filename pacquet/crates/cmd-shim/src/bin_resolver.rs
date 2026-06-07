@@ -1,4 +1,5 @@
-use crate::{capabilities::FsWalkFiles, path_util::lexical_normalize};
+use crate::capabilities::FsWalkFiles;
+use pacquet_fs::is_subdir;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -181,17 +182,6 @@ fn is_safe_bin_name(name: &str) -> bool {
         byte.is_ascii_alphanumeric()
             || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
     })
-}
-
-/// Whether `child` resolves to a path under `parent`, after lexically
-/// normalising `..` segments. Mirrors `isSubdir(pkgPath, binPath)` from pnpm's
-/// `is-subdir`. We deliberately do not canonicalize via the filesystem.
-/// The guard runs before the bin file exists at its final location, and
-/// pnpm's implementation is purely lexical too.
-fn is_subdir(parent: &Path, child: &Path) -> bool {
-    let parent_norm = lexical_normalize(parent);
-    let child_norm = lexical_normalize(child);
-    child_norm.starts_with(&parent_norm)
 }
 
 #[cfg(test)]

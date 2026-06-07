@@ -11,13 +11,13 @@ on:
     types: [opened, synchronize]
     paths:
       - 'pacquet/**/*.rs'
-      - 'registry/**/*.rs'
+      - 'pnpr/**/*.rs'
   push:
     branches:
       - main
     paths:
       - 'pacquet/**/*.rs'
-      - 'registry/**/*.rs'
+      - 'pnpr/**/*.rs'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -38,12 +38,12 @@ jobs:
         uses: ./.github/actions/rustup
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
         with:
           tool: cargo-llvm-cov
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
         with:
           tool: cargo-nextest
 
@@ -66,7 +66,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
         with:
           tool: just
 
@@ -75,16 +75,12 @@ jobs:
 
       - name: Run
         run: |
-          just registry-mock launch
-
           # removing env vars is a temporary workaround for unit tests in pacquet relying on external environment
           # this should be removed in the future
           unset PNPM_HOME
           unset XDG_DATA_HOME
 
           cargo codecov --lcov --output-path lcov.info
-
-          just registry-mock end
 
       - name: Upload Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -109,7 +105,7 @@ jobs:
           name: codecov
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true

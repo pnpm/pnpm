@@ -2,6 +2,7 @@ import { describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { audit, buildAuditPathIndex, lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
 import type { PnpmError } from '@pnpm/error'
+import type { PackageSnapshots } from '@pnpm/lockfile.types'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
@@ -83,6 +84,68 @@ describe('audit', () => {
     expect(info.paths).toEqual(expect.arrayContaining(['.>a>lodash', '.>b>lodash']))
   })
 
+  test('buildAuditPathIndex() prunes non-vulnerable subtrees while enumerating paths', () => {
+    let coldReads = 0
+    const importers: Record<ProjectId, { dependencies: Record<string, string>, specifiers: Record<string, string> }> = {}
+    const packages: PackageSnapshots = {
+      ['vuln@1.0.0' as DepPath]: { resolution: { integrity: 'vuln-integrity' } },
+    }
+    Object.defineProperty(packages, 'cold@1.0.0', {
+      enumerable: true,
+      get: () => {
+        coldReads++
+        return { dependencies: { 'cold-leaf': '1.0.0' }, resolution: { integrity: 'cold-integrity' } }
+      },
+    })
+    packages['cold-leaf@1.0.0' as DepPath] = { resolution: { integrity: 'cold-leaf-integrity' } }
+    for (let i = 0; i < 50; i++) {
+      const parentName = `parent-${i}`
+      importers[`.${i}` as ProjectId] = {
+        dependencies: { [parentName]: '1.0.0' },
+        specifiers: { [parentName]: '1.0.0' },
+      }
+      packages[`${parentName}@1.0.0` as DepPath] = {
+        dependencies: { cold: '1.0.0', vuln: '1.0.0' },
+        resolution: { integrity: `${parentName}-integrity` },
+      }
+    }
+    const result = buildAuditPathIndex({
+      importers,
+      lockfileVersion: LOCKFILE_VERSION,
+      packages,
+    }, new Set(['vuln']), { depTypes: {}, optionalOnly: new Set() })
+
+    expect(result['vuln']!.get('1.0.0')!.paths).toHaveLength(50)
+    expect(coldReads).toBe(1)
+  })
+
+  test('buildAuditPathIndex() stops reading saturated vulnerable nodes', () => {
+    let vulnReads = 0
+    const importers: Record<ProjectId, { dependencies: Record<string, string>, specifiers: Record<string, string> }> = {}
+    const packages: PackageSnapshots = {}
+    Object.defineProperty(packages, 'vuln@1.0.0', {
+      enumerable: true,
+      get: () => {
+        vulnReads++
+        return { resolution: { integrity: 'vuln-integrity' } }
+      },
+    })
+    for (let i = 0; i < 150; i++) {
+      importers[`.${i}` as ProjectId] = {
+        dependencies: { vuln: '1.0.0' },
+        specifiers: { vuln: '1.0.0' },
+      }
+    }
+    const result = buildAuditPathIndex({
+      importers,
+      lockfileVersion: LOCKFILE_VERSION,
+      packages,
+    }, new Set(['vuln']), { depTypes: {}, optionalOnly: new Set() })
+
+    expect(result['vuln']!.get('1.0.0')!.paths).toHaveLength(100)
+    expect(vulnReads).toBe(101)
+  })
+
   test('buildAuditPathIndex() classifies as optional when the only non-optional path runs through an excluded devDependency', () => {
     // shared-pkg is reachable two ways: via a devDependency chain (excluded
     // when include.devDependencies === false) and via an optionalDependency
@@ -145,6 +208,104 @@ describe('audit', () => {
       dev: false,
       optional: true,
     })
+  })
+
+  test('buildAuditPathIndex() preserves reachability across cyclic dependencies', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { a: '1.0.0' },
+          specifiers: { a: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['a@1.0.0' as DepPath]: {
+          dependencies: { b: '1.0.0' },
+          resolution: { integrity: 'a-integrity' },
+        },
+        ['b@1.0.0' as DepPath]: {
+          dependencies: { a: '1.0.0' },
+          resolution: { integrity: 'b-integrity' },
+        },
+      } as PackageSnapshots,
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['a', 'b']), {})
+
+    expect(result['a']!.get('1.0.0')).toEqual({
+      paths: ['.>a'],
+      dev: false,
+      optional: false,
+    })
+    expect(result['b']!.get('1.0.0')).toEqual({
+      paths: ['.>a>b'],
+      dev: false,
+      optional: false,
+    })
+  })
+
+  test('buildAuditPathIndex() preserves vulnerability reachability when cycle root is queried second', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { root: '1.0.0' },
+          specifiers: { root: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['root@1.0.0' as DepPath]: {
+          dependencies: { b: '1.0.0' },
+          resolution: { integrity: 'root-integrity' },
+        },
+        ['a@1.0.0' as DepPath]: {
+          dependencies: { b: '1.0.0' },
+          resolution: { integrity: 'a-integrity' },
+        },
+        ['b@1.0.0' as DepPath]: {
+          dependencies: { a: '1.0.0' },
+          resolution: { integrity: 'b-integrity' },
+        },
+      } as PackageSnapshots,
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['a']), {})
+
+    expect(result['a']!.get('1.0.0')).toEqual({
+      paths: ['.>root>b>a'],
+      dev: false,
+      optional: false,
+    })
+  })
+
+  test('buildAuditPathIndex() keeps paths reached through a non-entry cycle member', () => {
+    // The importer reaches the b<->c cycle through both c and b. Visiting c
+    // first must not memoize an under-approximated reachable set for b that
+    // would prune the still-valid `.>b>c>x` path to the vulnerable package.
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { c: '1.0.0', b: '1.0.0' },
+          specifiers: { c: '^1.0.0', b: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['b@1.0.0' as DepPath]: {
+          dependencies: { c: '1.0.0' },
+          resolution: { integrity: 'b-integrity' },
+        },
+        ['c@1.0.0' as DepPath]: {
+          dependencies: { b: '1.0.0', x: '1.0.0' },
+          resolution: { integrity: 'c-integrity' },
+        },
+        ['x@1.0.0' as DepPath]: {
+          resolution: { integrity: 'x-integrity' },
+        },
+      } as PackageSnapshots,
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['x']), {})
+
+    expect(result['x']!.get('1.0.0')!.paths.sort()).toEqual(['.>b>c>x', '.>c>x'])
   })
 
   test('buildAuditPathIndex() replaces slashes in workspace importer ids', () => {

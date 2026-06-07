@@ -1,5 +1,48 @@
 # @pnpm/audit
 
+## 1101.0.13
+
+### Patch Changes
+
+- Updated dependencies [60a1eec]
+- Updated dependencies [a017bf3]
+  - @pnpm/network.fetch@1100.1.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/lockfile.detect-dep-types@1100.0.9
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/lockfile.walker@1100.0.9
+
+## 1101.0.12
+
+### Patch Changes
+
+- 719cc21: Improve `pnpm audit` performance by pruning non-vulnerable lockfile subtrees and stopping path enumeration once vulnerable findings reach the path cap.
+
+## 1101.0.11
+
+### Patch Changes
+
+- Updated dependencies [b1fa2d5]
+  - @pnpm/network.fetch@1100.0.8
+
+## 1101.0.10
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/lockfile.detect-dep-types@1100.0.8
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/lockfile.walker@1100.0.8
+  - @pnpm/network.fetch@1100.0.7
+
 ## 1101.0.9
 
 ### Patch Changes

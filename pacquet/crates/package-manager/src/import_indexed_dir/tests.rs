@@ -40,9 +40,9 @@ fn fresh_target_links_files() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
-    let a = write_source(&src_root, "a.txt", b"alpha");
-    let b = write_source(&src_root, "b.txt", b"beta");
-    let cas = cas_map(&[("package.json", a), ("lib/index.js", b)]);
+    let file_a = write_source(&src_root, "a.txt", b"alpha");
+    let file_b = write_source(&src_root, "b.txt", b"beta");
+    let cas = cas_map(&[("package.json", file_a), ("lib/index.js", file_b)]);
 
     let target = tmp.path().join("pkg");
     import_indexed_dir::<SilentReporter>(
@@ -208,8 +208,8 @@ fn force_replaces_regular_file_target() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
-    let a = write_source(&src_root, "a.txt", b"contents");
-    let cas = cas_map(&[("package.json", a)]);
+    let file_a = write_source(&src_root, "a.txt", b"contents");
+    let cas = cas_map(&[("package.json", file_a)]);
 
     let target = tmp.path().join("pkg");
     fs::write(&target, b"a file, not a dir").unwrap();
@@ -236,8 +236,8 @@ fn force_replaces_symlink_target_without_following() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
-    let a = write_source(&src_root, "a.txt", b"new");
-    let cas = cas_map(&[("package.json", a)]);
+    let file_a = write_source(&src_root, "a.txt", b"new");
+    let cas = cas_map(&[("package.json", file_a)]);
 
     // Make a real directory elsewhere with a file we don't want
     // overwritten, then point `target` at it via a symlink.
@@ -272,9 +272,9 @@ fn fresh_target_creates_nested_directories() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
-    let a = write_source(&src_root, "a.txt", b"deep");
-    let b = write_source(&src_root, "b.txt", b"deeper");
-    let cas = cas_map(&[("lib/deep/file.js", a), ("lib/deep/nested/file.js", b)]);
+    let file_a = write_source(&src_root, "a.txt", b"deep");
+    let file_b = write_source(&src_root, "b.txt", b"deeper");
+    let cas = cas_map(&[("lib/deep/file.js", file_a), ("lib/deep/nested/file.js", file_b)]);
 
     let target = tmp.path().join("pkg");
     import_indexed_dir::<SilentReporter>(
@@ -492,10 +492,10 @@ fn concurrent_force_imports_into_different_targets_do_not_collide() {
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");
     fs::create_dir_all(&src_root).unwrap();
-    let a = write_source(&src_root, "a.txt", b"one");
-    let b = write_source(&src_root, "b.txt", b"two");
-    let cas_a = cas_map(&[("package.json", a)]);
-    let cas_b = cas_map(&[("package.json", b)]);
+    let file_a = write_source(&src_root, "a.txt", b"one");
+    let file_b = write_source(&src_root, "b.txt", b"two");
+    let cas_a = cas_map(&[("package.json", file_a)]);
+    let cas_b = cas_map(&[("package.json", file_b)]);
 
     let target_a = tmp.path().join("pkg-a");
     let target_b = tmp.path().join("pkg-b");

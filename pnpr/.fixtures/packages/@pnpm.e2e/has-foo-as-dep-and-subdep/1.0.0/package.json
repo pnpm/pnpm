@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/has-foo-as-dep-and-subdep",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/foo": "100.0.0",
+    "@pnpm.e2e/requires-any-foo": "1.0.0"
+  }
+}

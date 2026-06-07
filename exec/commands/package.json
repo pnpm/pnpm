@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.commands",
-  "version": "1100.1.12",
+  "version": "1100.2.2",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",
@@ -33,6 +33,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@inquirer/prompts": "catalog:",
     "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/building.commands": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
@@ -62,7 +63,6 @@
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "didyoumean2": "catalog:",
-    "enquirer": "catalog:",
     "execa": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",
@@ -81,7 +81,6 @@
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/testing.command-defaults": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",

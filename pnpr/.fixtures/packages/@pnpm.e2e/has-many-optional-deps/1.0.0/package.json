@@ -1,0 +1,11 @@
+{
+  "name": "@pnpm.e2e/has-many-optional-deps",
+  "version": "1.0.0",
+  "optionalDependencies": {
+    "@pnpm.e2e/darwin-x64": "1.0.0",
+    "@pnpm.e2e/darwin-arm64": "1.0.0",
+    "@pnpm.e2e/linux-x64": "1.0.0",
+    "@pnpm.e2e/linux-arm64": "1.0.0",
+    "@pnpm.e2e/windows-x64": "1.0.0"
+  }
+}

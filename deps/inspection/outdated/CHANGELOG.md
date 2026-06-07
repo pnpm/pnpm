@@ -1,5 +1,48 @@
 # @pnpm/outdated
 
+## 1100.1.5
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [722b9cd]
+- Updated dependencies [6d17b66]
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.5.0
+  - @pnpm/installing.client@1100.2.5
+  - @pnpm/config.version-policy@1100.1.3
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/hooks.read-package-hook@1100.0.6
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/pkg-manifest.utils@1100.2.2
+
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [6235428]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/installing.client@1100.2.4
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+- Updated dependencies [0721d64]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/installing.client@1100.2.3
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/config.version-policy@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/hooks.read-package-hook@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.2.1
+
 ## 1100.1.2
 
 ### Patch Changes

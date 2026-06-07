@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
 
-#[derive(Debug, Clone, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageVersion {
     pub name: String,
@@ -84,7 +84,18 @@ pub struct PackageVersion {
         skip_serializing_if = "Option::is_none"
     )]
     pub deprecated: Option<String>,
+
+    /// Every other field of the registry's per-version manifest, captured
+    /// verbatim. pnpm's resolver returns the whole picked manifest, and the
+    /// lockfile writer reads `engines` / `cpu` / `os` / `libc` / `bin` /
+    /// `bundleDependencies` off it to populate the `packages:` entry. Keeping a
+    /// flatten catch-all (rather than a typed field per key) mirrors that
+    /// passthrough and tolerates the historical shape variance npm serves.
+    #[serde(flatten)]
+    pub other: HashMap<String, serde_json::Value>,
 }
+
+impl Eq for PackageVersion {}
 
 /// Deserialize a `Record<string, string>`-shaped dependency map while
 /// tolerating historical npm registry entries whose values are objects
@@ -191,9 +202,9 @@ pub struct PeerDependencyMeta {
 }
 
 /// `_npmUser` field on a per-version manifest. The verifier reads
-/// `trusted_publisher` to assign the higher of the two trust ranks
-/// (`trustedPublisher` > `provenance` > none). `name` / `email` are
-/// kept for round-trip parity.
+/// `approver` and `trusted_publisher` to assign the trust rank
+/// (`stagedPublish` > `trustedPublisher` > `provenance` > none).
+/// `name` / `email` are kept for round-trip parity.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NpmUser {
@@ -202,7 +213,22 @@ pub struct NpmUser {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approver: Option<Approver>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trusted_publisher: Option<TrustedPublisher>,
+}
+
+/// `_npmUser.approver` record on a per-version manifest. Its presence
+/// marks a staged publish — one that required a 2FA publish approval,
+/// the strongest trust signal. The verifier only checks for the
+/// field's presence; `name` / `email` are kept for round-trip parity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Approver {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
 }
 
 /// OIDC trusted-publisher record on `_npmUser.trustedPublisher`.
@@ -282,100 +308,4 @@ impl PackageVersion {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{AuthHeaders, PackageTag, PackageVersion, ThrottledClient};
-
-    /// [`PackageVersion::fetch_from_registry`] must attach the
-    /// registry-keyed `Authorization` header on every tag GET, just
-    /// like [`crate::Package::fetch_from_registry`].
-    #[tokio::test]
-    async fn fetch_from_registry_attaches_authorization_header() {
-        let mut server = mockito::Server::new_async().await;
-        let body = r#"{
-            "name": "acme",
-            "version": "1.0.0",
-            "dist": {
-                "integrity": "sha512-AAAA",
-                "shasum": "0000000000000000000000000000000000000000",
-                "tarball": "https://registry.test/acme-1.0.0.tgz"
-            }
-        }"#;
-        let mock = server
-            .mock("GET", "/acme/latest")
-            .match_header("authorization", "Bearer top-secret")
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(body)
-            .expect(1)
-            .create_async()
-            .await;
-
-        let registry = format!("{}/", server.url());
-        let client = ThrottledClient::default();
-        let auth_headers = AuthHeaders::from_creds_map(
-            [(pacquet_network::nerf_dart(&registry), "Bearer top-secret".to_owned())],
-            None,
-        );
-
-        let pkg_version = PackageVersion::fetch_from_registry(
-            "acme",
-            PackageTag::Latest,
-            &client,
-            &registry,
-            &auth_headers,
-        )
-        .await
-        .expect("server should accept the request once the bearer header is attached");
-        assert_eq!(pkg_version.name, "acme");
-        mock.assert_async().await;
-    }
-
-    /// The abbreviated registry response (`application/vnd.npm.install-v1+json`)
-    /// carries `optionalDependencies` and `peerDependenciesMeta` for any
-    /// package that publishes them. Both must round-trip through
-    /// [`PackageVersion`] so the resolver's `extract_children` reads the
-    /// optional-dep edges and `extract_peer_dependencies` reads the
-    /// per-peer `optional` flag. Dropping either field silently treats
-    /// optional peers as required (auto-installed via
-    /// `autoInstallPeers`) and skips `optionalDependencies` entirely.
-    #[test]
-    fn deserializes_optional_dependencies_and_peer_dependencies_meta() {
-        let body = r#"{
-            "name": "unstorage",
-            "version": "1.17.5",
-            "dist": {
-                "integrity": "sha512-AAAA",
-                "shasum": "0000000000000000000000000000000000000000",
-                "tarball": "https://registry.test/unstorage-1.17.5.tgz"
-            },
-            "peerDependencies": {
-                "@vercel/kv": "^1 || ^2 || ^3",
-                "ioredis": "^5.4.2"
-            },
-            "peerDependenciesMeta": {
-                "@vercel/kv": { "optional": true },
-                "ioredis": { "optional": true }
-            },
-            "optionalDependencies": {
-                "sharp": "^0.34.0"
-            }
-        }"#;
-
-        let pkg: PackageVersion =
-            serde_json::from_str(body).expect("deserialize PackageVersion fixture");
-
-        let optional = pkg.optional_dependencies.as_ref().expect("optionalDependencies present");
-        assert_eq!(optional.get("sharp").map(String::as_str), Some("^0.34.0"));
-
-        let peer_meta = pkg.peer_dependencies_meta.as_ref().expect("peerDependenciesMeta present");
-        assert_eq!(peer_meta["@vercel/kv"].optional, Some(true));
-        assert_eq!(peer_meta["ioredis"].optional, Some(true));
-
-        // The JSON shape `serde_json::to_value(pkg)` produces feeds
-        // `extract_children` / `extract_peer_dependencies` downstream;
-        // both consume the camelCase keys verbatim.
-        let value = serde_json::to_value(&pkg).expect("serialize PackageVersion");
-        assert!(value.get("optionalDependencies").is_some_and(|v| v.is_object()));
-        assert!(value.get("peerDependenciesMeta").is_some_and(|v| v.is_object()));
-    }
-}
+mod tests;

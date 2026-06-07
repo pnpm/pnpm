@@ -17,12 +17,14 @@ import {
   fetchFullMetadataCached,
   type FetchFullMetadataCachedOptions,
 } from './fetchFullMetadataCached.js'
+import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import { BUILTIN_NAMED_REGISTRIES } from './parseBareSpecifier.js'
 import type { PackageMetaCache } from './pickPackage.js'
 import { getPkgMirrorPath, loadMeta, warnMissingTimeFieldOnce } from './pickPackage.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+  TARBALL_URL_MISMATCH_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
 } from './violationCodes.js'
 
@@ -95,11 +97,14 @@ export interface CreateNpmResolutionVerifierOptions {
 }
 
 /**
- * Returns a `ResolutionVerifier` that re-applies the `minimumReleaseAge`
- * and/or `trustPolicy='no-downgrade'` policies to npm-registry-resolved
- * lockfile entries, or `undefined` when no policy is active. Pairs with
- * `createNpmResolver`: each resolver factory may export a sibling
- * verifier factory that the default-resolver combines.
+ * Returns a `ResolutionVerifier` for npm-registry-resolved lockfile
+ * entries. It always binds each entry's recorded tarball URL to the
+ * artifact the registry's metadata lists (an anti-tamper check that does
+ * not depend on any policy), and additionally re-applies the
+ * `minimumReleaseAge` and/or `trustPolicy='no-downgrade'` policies when
+ * those are configured. Pairs with `createNpmResolver`: each resolver
+ * factory may export a sibling verifier factory that the default-resolver
+ * combines.
  *
  * Designed for fail-closed semantics: if the manifest can't be loaded or
  * the pinned version is missing from it, the verifier reports a violation
@@ -108,12 +113,9 @@ export interface CreateNpmResolutionVerifierOptions {
  */
 export function createNpmResolutionVerifier (
   opts: CreateNpmResolutionVerifierOptions
-): ResolutionVerifier | undefined {
+): ResolutionVerifier {
   const ageCheckActive = Boolean(opts.minimumReleaseAge)
   const trustCheckActive = opts.trustPolicy === 'no-downgrade'
-  // No policy → no verifier. Skipping early keeps the install-side fan-out
-  // empty when nothing is configured.
-  if (!ageCheckActive && !trustCheckActive) return undefined
 
   const cutoff = ageCheckActive
     ? (opts.now ?? Date.now()) - opts.minimumReleaseAge! * 60 * 1000
@@ -174,19 +176,35 @@ export function createNpmResolutionVerifier (
   const trustPolicy = opts.trustPolicy
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
 
-  const verify: ResolutionVerifier['verify'] = async (resolution, { name, version }) => {
+  const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion }) => {
     if (!isNpmRegistryResolution(resolution)) return { ok: true }
-    // Non-semver versions identify URL tarballs, file: refs, git refs, etc.
-    // Neither the age nor the trust policy applies, and a registry lookup
+    // URL/git-keyed entries are deliberate non-registry deps. They can still
+    // carry a semver `version` copied from the resolved manifest, so the
+    // semver guard below isn't enough on its own — the registry policies and
+    // the tarball-URL binding don't apply to them, and a registry lookup
     // would 404.
+    if (nonSemverVersion != null) return { ok: true }
     if (!semver.valid(version)) return { ok: true }
+
+    const tarballUrl = (resolution as { tarball?: string }).tarball
+    const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
+
+    // A registry entry that pins an explicit tarball URL must point at the
+    // artifact the registry's own metadata lists. Otherwise a trusted
+    // `name@version` could front bytes from an attacker-chosen URL (with a
+    // matching integrity for those bytes). This binding is unconditional —
+    // it does not depend on `minimumReleaseAge`/`trustPolicy` and isn't
+    // narrowed by their exclude lists, since it guards integrity rather
+    // than maturity/trust. Registry entries with no tarball URL reconstruct
+    // it from name+version+registry, so they're inherently bound.
+    if (typeof tarballUrl === 'string') {
+      const urlViolation = await runTarballUrlCheck(lookupContext, registry, name, version, tarballUrl)
+      if (urlViolation) return urlViolation
+    }
 
     const ageApplies = ageCheckActive && !isExcluded(excludePolicy, name, version)
     const trustApplies = trustCheckActive && !isExcluded(trustExcludePolicy, name, version)
     if (!ageApplies && !trustApplies) return { ok: true }
-
-    const tarballUrl = (resolution as { tarball?: string }).tarball
-    const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
 
     if (ageApplies) {
       const ageViolation = await runAgeCheck(lookupContext, registry, name, version, cutoff, opts.ignoreMissingTimeField === true)
@@ -217,6 +235,12 @@ export function createNpmResolutionVerifier (
   return {
     verify,
     policy: {
+      // Marks runs that enforced the tarball-URL binding. A cache record
+      // written before this rule existed lacks the flag, so
+      // `canTrustPastCheck` rejects it and forces a re-verification that
+      // applies the binding — otherwise an upgrade could keep trusting a
+      // lockfile that was only ever age/trust-checked.
+      tarballUrlBinding: true,
       minimumReleaseAge,
       minimumReleaseAgeExclude: sortedMinAgeExcludes,
       trustPolicy: trustPolicy ?? null,
@@ -224,6 +248,10 @@ export function createNpmResolutionVerifier (
       trustPolicyIgnoreAfter: trustPolicyIgnoreAfter ?? null,
     },
     canTrustPastCheck: (cached) => {
+      // The tarball-URL binding is unconditional today; a cached run that
+      // didn't record it can't be trusted to have enforced it.
+      if (cached.tarballUrlBinding !== true) return false
+
       // Maturity: a previously cached run under a larger cutoff
       // (stricter window) is trustworthy under a smaller current one —
       // its set of accepted versions is a subset of today's. The
@@ -317,6 +345,53 @@ async function runAgeCheck (
     }
   }
   return undefined
+}
+
+/**
+ * Confirm the lockfile-pinned tarball URL is the artifact the registry's
+ * own metadata lists for this exact `name@version`.
+ *
+ * Fail-closed: the entry passes only when the registry metadata
+ * affirmatively lists this version with a matching tarball URL. If the
+ * metadata can't be fetched, doesn't list the version, or omits
+ * `dist.tarball`, the entry can't be confirmed and is rejected — otherwise
+ * a tampered lockfile could smuggle a malicious URL past the check by
+ * pointing it at a `name@version` the registry can't vouch for.
+ */
+async function runTarballUrlCheck (
+  context: PublishedAtLookupContext,
+  registry: string,
+  name: string,
+  version: string,
+  lockfileTarball: string
+): Promise<{ ok: false, code: string, reason: string } | undefined> {
+  const meta = await fetchAbbreviatedMeta(context, registry, name)
+  const registryTarball = meta?.versionTarballs?.get(version)
+  if (registryTarball != null && sameTarballUrl(lockfileTarball, registryTarball)) {
+    return undefined
+  }
+  return {
+    ok: false,
+    code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+    reason: registryTarball == null
+      ? "could not be verified against the registry's published metadata"
+      : `has a tarball URL (${lockfileTarball}) that does not match the registry's published metadata (${registryTarball})`,
+  }
+}
+
+function sameTarballUrl (a: string, b: string): boolean {
+  return canonicalTarballUrl(a) === canonicalTarballUrl(b)
+}
+
+// Mirror the tolerance toLockfileResolution applies when it decides whether
+// a tarball URL is "the expected one": ignore the protocol and `%2f` scope
+// encoding so a benign http/https or encoding difference isn't read as
+// tampering. The `%2f` match is case-insensitive because `normalizeRegistryUrl`
+// (`new URL().toString()`) can upper-case percent-escapes to `%2F`.
+function canonicalTarballUrl (url: string): string {
+  const normalized = normalizeRegistryUrl(url).replace(/%2f/gi, '/')
+  const schemeEnd = normalized.indexOf('://')
+  return schemeEnd === -1 ? normalized : normalized.slice(schemeEnd + 3)
 }
 
 /**
@@ -451,12 +526,23 @@ function projectTrustManifest (manifest: PackageInRegistry): PackageInRegistry {
   // reads them; cast away the unsoundness so callers see the same nominal
   // shape without the per-version dependency graph / scripts / README bulk
   // carrying through. `_npmUser` is similarly narrowed to just
-  // `trustedPublisher` — the only sub-field the trust check inspects — so
-  // we don't keep maintainer name/email PII resident in the cache.
+  // `trustedPublisher` and `approver` — the only sub-fields the trust check
+  // inspects — so we don't keep maintainer name/email PII resident in the
+  // cache.
+  const approver = manifest._npmUser?.approver
   const trustedPublisher = manifest._npmUser?.trustedPublisher
   const provenance = manifest.dist?.attestations?.provenance
+  let npmUser: PackageInRegistry['_npmUser'] = undefined
+  if (approver) {
+    npmUser ||= {}
+    npmUser.approver = {}
+  }
+  if (trustedPublisher) {
+    npmUser ||= {}
+    npmUser.trustedPublisher = trustedPublisher
+  }
   return {
-    _npmUser: trustedPublisher != null ? { trustedPublisher } : undefined,
+    _npmUser: npmUser,
     dist: provenance != null
       ? { attestations: { provenance } }
       : undefined,
@@ -619,7 +705,7 @@ async function tryAbbreviatedModifiedShortcut (
   // publish time — but only for versions the registry currently lists.
   // An unpublished or never-published pin would otherwise pass the gate
   // on a stale package-level timestamp.
-  if (!meta?.versionNames?.has(version)) return undefined
+  if (!meta?.versionTarballs?.has(version)) return undefined
   return modified
 }
 
@@ -691,24 +777,33 @@ function validateSharedMeta (meta: PackageMeta | undefined, name: string): Packa
   return meta
 }
 
-// Project the abbreviated packument down to the two fields the verifier
-// actually reads — package-level `modified` and the set of version names
-// for the existence check inside `tryAbbreviatedModifiedShortcut`. The
+// Project the abbreviated packument down to the few fields the verifier
+// actually reads — package-level `modified`, plus a per-version map of
+// `dist.tarball` (whose keys double as the version-existence set for the
+// `tryAbbreviatedModifiedShortcut` check and the tarball-URL binding). The
 // resolver populates the abbreviated mirror with every version's
 // dependency / engine / dist info, which can run to hundreds of KB per
 // package and accumulate to many GB across a multi-thousand-entry
 // lockfile (see #11860). The full document is GC-able as soon as this
-// closure returns.
+// closure returns; only the short tarball-URL strings are retained.
 function projectAbbreviatedMeta (meta: PackageMeta): AbbreviatedMetaProjection {
+  let versionTarballs: Map<string, string | undefined> | undefined
+  if (meta.versions) {
+    versionTarballs = new Map()
+    for (const [version, manifest] of Object.entries(meta.versions)) {
+      versionTarballs.set(version, manifest.dist?.tarball)
+    }
+  }
   return {
     modified: meta.modified,
-    versionNames: meta.versions ? new Set(Object.keys(meta.versions)) : undefined,
+    versionTarballs,
   }
 }
 
 interface AbbreviatedMetaProjection {
   modified?: string
-  versionNames?: Set<string>
+  /** version → `dist.tarball`; key presence means the version is published. */
+  versionTarballs?: Map<string, string | undefined>
 }
 
 function readLocalMetaTime (
@@ -766,11 +861,13 @@ function pickRegistryForVersion (
   // origin we'd otherwise miss. Match the longest prefix so that two named
   // registries sharing a host but differing by path don't collide.
   if (tarballUrl) {
-    const normalized = tryParseUrl(tarballUrl)?.toString()
-    if (normalized) {
-      for (const prefix of namedRegistryPrefixes) {
-        if (normalized.startsWith(prefix)) return prefix
-      }
+    // Match on the same canonical form the tarball comparison uses, so a
+    // named-registry tarball that differs from the configured base only by
+    // scheme or `%2f` encoding still routes to its registry instead of
+    // falling back (and then failing closed against the wrong packument).
+    const normalized = canonicalTarballUrl(tarballUrl)
+    for (const prefix of namedRegistryPrefixes) {
+      if (normalized.startsWith(canonicalTarballUrl(prefix))) return prefix
     }
   }
   return pickRegistryForPackage(registries, name)
@@ -819,5 +916,12 @@ function isNpmRegistryResolution (resolution: Resolution | unknown): boolean {
   // Git-hosted tarballs (codeload/gitlab/bitbucket) are special-cased in
   // the resolver and aren't subject to release-age policy.
   if ('gitHosted' in resolution && (resolution as { gitHosted?: boolean }).gitHosted) return false
+  const tarball = (resolution as { tarball?: unknown }).tarball
+  if (typeof tarball === 'string') {
+    // Local/non-registry tarballs (for example `file:`) have no packument
+    // metadata, so minimumReleaseAge/trustPolicy verification cannot apply.
+    const protocol = tryParseUrl(tarball)?.protocol
+    if (protocol != null && protocol !== 'http:' && protocol !== 'https:') return false
+  }
   return 'tarball' in resolution || 'integrity' in resolution
 }

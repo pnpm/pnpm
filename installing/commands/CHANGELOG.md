@@ -1,5 +1,159 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.7.2
+
+### Patch Changes
+
+- a017bf3: Renamed the experimental `agent` setting to `pnprServer` so the pnpm CLI matches the same setting name pacquet uses for offloading resolution to a [pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) server. Point pnpm at a pnpr server with `pnprServer: <url>` in `pnpm-workspace.yaml` (or `--pnpr-server <url>`); the previous `agent` / `--agent` name no longer works. The client package was likewise renamed from `@pnpm/agent.client` to `@pnpm/pnpr.client`.
+- Updated dependencies [e7e99f0]
+- Updated dependencies [4e740d5]
+- Updated dependencies [5192edf]
+- Updated dependencies [a017bf3]
+- Updated dependencies [f429f93]
+- Updated dependencies [a017bf3]
+- Updated dependencies [a358ee0]
+- Updated dependencies [722b9cd]
+- Updated dependencies [6d17b66]
+  - @pnpm/installing.deps-installer@1101.7.0
+  - @pnpm/building.after-install@1101.0.19
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.5.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/global.commands@1100.0.25
+  - @pnpm/installing.env-installer@1101.1.6
+  - @pnpm/deps.status@1100.0.22
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/workspace.state@1100.0.19
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.pick-registry-for-package@1100.0.7
+  - @pnpm/config.writer@1100.0.11
+  - @pnpm/deps.inspection.outdated@1100.1.5
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/hooks.pnpmfile@1100.0.12
+  - @pnpm/installing.context@1100.0.15
+  - @pnpm/installing.dedupe.check@1100.0.9
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/pkg-manifest.utils@1100.2.2
+  - @pnpm/store.controller@1101.0.11
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+  - @pnpm/workspace.project-manifest-writer@1100.0.6
+  - @pnpm/workspace.projects-filter@1100.0.18
+  - @pnpm/workspace.projects-graph@1100.0.15
+  - @pnpm/workspace.projects-reader@1101.0.9
+  - @pnpm/workspace.projects-sorter@1100.0.5
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.11
+
+## 1100.7.1
+
+### Patch Changes
+
+- Updated dependencies [37669c2]
+  - @pnpm/workspace.state@1100.0.18
+  - @pnpm/deps.status@1100.0.21
+  - @pnpm/installing.deps-installer@1101.6.1
+  - @pnpm/installing.env-installer@1101.1.5
+  - @pnpm/global.commands@1100.0.24
+
+## 1100.7.0
+
+### Minor Changes
+
+- a39a83d: Added a new `hoistingLimits` setting for `nodeLinker: hoisted` installs, mirroring yarn's `nmHoistingLimits`. It accepts `none` (the default — hoist as far as possible), `workspaces` (hoist only as far as each workspace package), or `dependencies` (hoist only up to each workspace package's direct dependencies). Originally proposed in [#6468](https://github.com/pnpm/pnpm/pull/6468), closing [#6457](https://github.com/pnpm/pnpm/issues/6457).
+- 2cadfb5: Replaced `enquirer` with `@inquirer/prompts` for all interactive prompts. Fixes the `update -i` scrolling overflow bug where long choice lists were clipped in the terminal [#6643](https://github.com/pnpm/pnpm/issues/6643).
+
+  **User-facing changes:**
+
+  - `pnpm update -i` / `pnpm update -i --latest`: Scrolling now works correctly when many packages are available; the new library uses visual-line-aware pagination via `usePagination`
+  - `pnpm audit --fix -i`: Same scrolling fix for vulnerability selection
+  - `pnpm approve-builds`: Interactive build approval prompts updated
+  - `pnpm patch`: Version selection and "apply to all" prompts updated
+  - `pnpm patch-remove`: Patch removal selection updated
+  - `pnpm publish`: Branch confirmation prompt updated
+  - `pnpm login`: Credential prompts updated
+  - `pnpm run` / `pnpm exec` (with `verifyDepsBeforeRun=prompt`): Confirmation prompt updated
+
+  Vim-style `j`/`k` keys still work for up/down navigation in all interactive prompts.
+
+  **Internal:** The `OtpEnquirer` and `LoginEnquirer` DI interfaces changed from `{ prompt }` to `{ input }` / `{ input, password }` respectively. Plugins or custom builds that inject their own enquirer mock will need to update.
+
+### Patch Changes
+
+- Updated dependencies [6235428]
+- Updated dependencies [a39a83d]
+- Updated dependencies [2cadfb5]
+- Updated dependencies [a33c4bf]
+- Updated dependencies [1e9ab29]
+  - @pnpm/resolving.npm-resolver@1101.4.0
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.deps-installer@1101.6.0
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/installing.env-installer@1101.1.4
+  - @pnpm/deps.inspection.outdated@1100.1.4
+  - @pnpm/workspace.projects-graph@1100.0.14
+  - @pnpm/store.controller@1101.0.10
+  - @pnpm/building.after-install@1101.0.18
+  - @pnpm/deps.status@1100.0.20
+  - @pnpm/global.commands@1100.0.23
+  - @pnpm/store.connection-manager@1100.2.5
+  - @pnpm/workspace.state@1100.0.17
+  - @pnpm/workspace.projects-filter@1100.0.17
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.10
+
+## 1100.6.0
+
+### Minor Changes
+
+- aa6149d: Treat tarball-integrity mismatches against the lockfile as a hard failure by default. Previously, `pnpm install` (non-frozen) would log `ERR_PNPM_TARBALL_INTEGRITY`, silently re-resolve from the registry, and overwrite the locked integrity — which meant a compromised registry, proxy, or republished version could substitute attacker-controlled content on a clean machine even though the project shipped a committed lockfile.
+
+  `pnpm install` now exits with `ERR_PNPM_TARBALL_INTEGRITY` and a hint pointing at the new opt-in flag.
+
+  The only opt-in is **`pnpm install --update-checksums`** — narrowly scoped to refreshing the locked integrity values from what the registry currently serves. Mirrors yarn's flag of the same name. A warning still prints when the bypass takes effect so the operation is auditable.
+
+  `--force` and `pnpm update` deliberately do **not** bypass the integrity check. They are routine refresh operations; silently overwriting a locked integrity in those flows would erase the protection a committed lockfile is supposed to provide. `--frozen-lockfile` behavior is unchanged. `--fix-lockfile` keeps its documented purpose (filling in missing lockfile entries) and is also not a bypass.
+
+### Patch Changes
+
+- 572842a: Improve the log message that pnpm prints after auto-adding entries to `minimumReleaseAgeExclude` when `minimumReleaseAge` is set without `minimumReleaseAgeStrict`. The message previously referred to the internal "loose mode" terminology, which wasn't searchable in the docs; it now tells the user to set `minimumReleaseAgeStrict` to `true` if they want these updates gated behind a prompt instead [#11747](https://github.com/pnpm/pnpm/issues/11747).
+- Updated dependencies [e8b3ae1]
+- Updated dependencies [a23956e]
+- Updated dependencies [aa6149d]
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+- Updated dependencies [440e155]
+- Updated dependencies [0721d64]
+  - @pnpm/workspace.projects-reader@1101.0.8
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/installing.deps-installer@1101.5.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/global.commands@1100.0.22
+  - @pnpm/resolving.npm-resolver@1101.3.3
+  - @pnpm/deps.status@1100.0.19
+  - @pnpm/workspace.projects-filter@1100.0.16
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.10
+  - @pnpm/building.after-install@1101.0.17
+  - @pnpm/store.connection-manager@1100.2.4
+  - @pnpm/workspace.state@1100.0.16
+  - @pnpm/installing.env-installer@1101.1.3
+  - @pnpm/cli.utils@1101.0.8
+  - @pnpm/deps.inspection.outdated@1100.1.3
+  - @pnpm/config.pick-registry-for-package@1100.0.6
+  - @pnpm/config.writer@1100.0.10
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/hooks.pnpmfile@1100.0.11
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/installing.dedupe.check@1100.0.8
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/pkg-manifest.utils@1100.2.1
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.controller@1101.0.9
+  - @pnpm/workspace.project-manifest-writer@1100.0.5
+  - @pnpm/workspace.projects-graph@1100.0.13
+  - @pnpm/workspace.projects-sorter@1100.0.4
+
 ## 1100.5.0
 
 ### Minor Changes
