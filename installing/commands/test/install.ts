@@ -186,12 +186,10 @@ test('install respects --minimum-release-age passed as a CLI option', async () =
     },
   })
 
-  // is-odd@0.1.1 was released at 2016-12-07T07:18:01.205Z
-  // Set minimumReleaseAge high enough that it should prevent installation
   const isOdd011ReleaseDate = new Date('2016-12-07T07:18:01.205Z')
-  const diff = Date.now() - isOdd011ReleaseDate.getTime()
-  const minimumReleaseAge = diff / (60 * 1000)
-
+  const diffMinutes = (Date.now() - isOdd011ReleaseDate.getTime()) / (60 * 1000)
+  // Add a small buffer so the computed cutoff is guaranteed to be before the known publish time.
+  const minimumReleaseAge = Math.ceil(diffMinutes) + 1
   await expect(install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
