@@ -19,7 +19,8 @@ use pacquet_lockfile::{
     LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
 };
 use pacquet_lockfile_verification::{
-    VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
+    VerifyError, VerifyLockfileResolutionsOptions, record_lockfile_verified,
+    verify_lockfile_resolutions,
 };
 use pacquet_modules_yaml::{
     Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
@@ -631,21 +632,21 @@ where
         // install short-circuit the verifier's own fetch chain, and
         // vice versa. Mirrors pnpm's `installing/client` wiring.
         let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+        let resolution_verifiers = build_resolution_verifiers(
+            config,
+            Arc::clone(&http_client_arc),
+            Some(Arc::clone(&meta_cache)
+                as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
+            auth_override.clone(),
+        )
+        .map_err(InstallError::BuildVerifiers)?;
 
         if let Some(loaded_lockfile) = lockfile.filter(|_| !trust_lockfile) {
             let derived_lockfile_path = lockfile_path
                 .map_or_else(|| workspace_root.join(Lockfile::FILE_NAME), Path::to_path_buf);
-            let verifiers = build_resolution_verifiers(
-                config,
-                Arc::clone(&http_client_arc),
-                Some(Arc::clone(&meta_cache)
-                    as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
-                auth_override.clone(),
-            )
-            .map_err(InstallError::BuildVerifiers)?;
             verify_lockfile_resolutions::<Reporter>(
                 loaded_lockfile,
-                &verifiers,
+                &resolution_verifiers,
                 &VerifyLockfileResolutionsOptions {
                     concurrency: None,
                     lockfile_path: Some(&derived_lockfile_path),
@@ -984,6 +985,18 @@ where
             .run::<Reporter>()
             .await
             .map_err(InstallError::WithFreshLockfile)?;
+
+            if fresh_result.can_record_lockfile_verification
+                && let Some(lockfile) = fresh_result.wanted_lockfile.as_ref()
+            {
+                let lockfile_path = workspace_root.join(Lockfile::FILE_NAME);
+                record_lockfile_verified(
+                    Some(&config.cache_dir),
+                    &lockfile_path,
+                    lockfile,
+                    &resolution_verifiers,
+                );
+            }
 
             (
                 fresh_result.hoisted_dependencies,

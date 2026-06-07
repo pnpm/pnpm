@@ -5977,6 +5977,135 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     drop((dir, mock_instance));
 }
 
+#[tokio::test]
+async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let cache_dir = dir.path().join("cache");
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.cache_dir = cache_dir.clone();
+    config.store_dir = store_dir.clone().into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("first install must succeed");
+
+    let lockfile_path = project_root.join(Lockfile::FILE_NAME);
+    let wanted_lockfile =
+        Lockfile::load_wanted_from_dir(&project_root).expect("load wanted lockfile").unwrap();
+
+    drop(mock_instance);
+
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let manifest_text = std::fs::read_to_string(&manifest_path).expect("read package.json");
+    std::fs::write(&manifest_path, manifest_text).expect("refresh package.json mtime");
+    let touched_manifest = PackageManifest::from_path(manifest_path).expect("reload manifest");
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let mut second_config = Config::new();
+    second_config.cache_dir = cache_dir;
+    second_config.store_dir = store_dir.into();
+    second_config.modules_dir = modules_dir;
+    second_config.virtual_store_dir = virtual_store_dir;
+    second_config.registry = "http://127.0.0.1:9/".to_string();
+    let second_config = second_config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config: second_config,
+        manifest: &touched_manifest,
+        lockfile: Some(&wanted_lockfile),
+        lockfile_path: Some(&lockfile_path),
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("second install must no-op without contacting the stopped registry");
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Pnpm(log)
+                if log.message == "Lockfile is up to date, resolution step is skipped"
+        )),
+        "second install must reach the modules/current-lockfile no-op path; got {captured:#?}",
+    );
+    assert!(
+        !captured.iter().any(|event| matches!(event, LogEvent::LockfileVerification(_))),
+        "verification cache hit must skip the lockfile-verification fan-out; got {captured:#?}",
+    );
+
+    drop(dir);
+}
+
 /// `packageExtensions` adds entries to a dependency's manifest at
 /// resolve time and the resulting lockfile records the merged shape.
 ///
