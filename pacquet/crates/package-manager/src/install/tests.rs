@@ -6038,9 +6038,15 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
 
     drop(mock_instance);
 
-    std::thread::sleep(std::time::Duration::from_millis(20));
     let manifest_text = std::fs::read_to_string(&manifest_path).expect("read package.json");
     std::fs::write(&manifest_path, manifest_text).expect("refresh package.json mtime");
+    let forced_mtime = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&manifest_path)
+        .expect("open package.json")
+        .set_times(std::fs::FileTimes::new().set_modified(forced_mtime))
+        .expect("force package.json mtime");
     let touched_manifest = PackageManifest::from_path(manifest_path).expect("reload manifest");
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
