@@ -37,7 +37,7 @@ use pacquet_resolving_resolver_base::{
 };
 use pacquet_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
 use pacquet_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
-use pacquet_tarball::MemCache;
+use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
@@ -173,6 +173,10 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// Per-invocation `Authorization`-header override; `None` uses
     /// `config.auth_headers`. See [`crate::Install::auth_override`].
     pub auth_override: Option<Arc<AuthHeaders>>,
+    /// Sink notified for each resolved tarball package as the tree walk
+    /// yields it. `None` for every local install; the pnpr server sets
+    /// one. See [`crate::Install::resolution_observer`].
+    pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
 }
 
 /// Which lockfile-pinned `(name, version)` pairs to *withhold* from the
@@ -430,6 +434,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             lockfile_only,
             update_seed_policy,
             auth_override,
+            resolution_observer,
         } = self;
 
         // The pnpr override when supplied, else the config's npmrc headers;
@@ -535,6 +540,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
 
         let verified_files_cache = SharedVerifiedFilesCache::default();
+
+        // Records package-status progress emitted by resolve-time
+        // prefetches. `CreateVirtualStore` still emits `resolved` later,
+        // but skips duplicate `fetched` / `found_in_store` statuses for
+        // keys already reported here.
+        let progress_reported = SharedReportedProgressKeys::default();
 
         let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
             registries,
@@ -691,8 +702,21 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     verified_files_cache: &verified_files_cache,
                     config,
                     requester,
+                    progress_reported: &progress_reported,
                 },
             ))
+        };
+
+        // The pnpr server resolves `--lockfile-only` and reports each
+        // resolved tarball to the client as it lands, so the client can
+        // fetch in parallel with the server's resolution. Wrap the chain
+        // last so the observer sees every resolve regardless of whether
+        // the prefetcher above is in play (it isn't under
+        // `--lockfile-only`, which is the pnpr resolve path). A no-op for
+        // every local install (`resolution_observer` is `None`).
+        let resolver: Box<dyn Resolver> = match resolution_observer {
+            Some(observer) => Box::new(crate::ObservingResolver::new(resolver, observer)),
+            None => resolver,
         };
 
         // Compile `minimumReleaseAge` (and its exclude pattern set)
@@ -1266,6 +1290,18 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             skipped: &skipped,
             workspace_root: lockfile_dir,
             node_linker,
+            progress_reported: &progress_reported,
+            // Share the resolve-time prefetcher's in-flight downloads with
+            // the cold batch. The `PrefetchingResolver` streams each
+            // tarball into `tarball_mem_cache` keyed by URL; the cold
+            // batch's only on-disk dedup is the store-index row, which the
+            // prefetcher's writer commits asynchronously. Without the
+            // shared cache a snapshot whose prefetch hasn't committed its
+            // row yet is classified cold and re-downloaded — the race in
+            // <https://github.com/pnpm/pnpm/issues/12241>. Routing the cold
+            // batch through the mem cache makes it reuse the in-flight
+            // download instead.
+            tarball_mem_cache: Some(&tarball_mem_cache),
         }
         .run::<Reporter>()
         .await
@@ -1332,6 +1368,24 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // adapter shape); `hoisted_locations` carries the walker's
         // placements so `.modules.yaml` round-trips them.
         let (hoisted_dependencies, hoisted_locations) = if is_hoisted {
+            // The hoisted walker runs the installability check, which
+            // consults `engines.node`. Detect the host node version (as the
+            // frozen path does) whenever a package carries an installability
+            // constraint, so the engine check resolves against a real version
+            // instead of erroring on an empty one. Skip the `node --version`
+            // probe entirely when nothing constrains it.
+            let host_node = if built_lockfile
+                .packages
+                .as_ref()
+                .is_some_and(crate::any_installability_constraint)
+            {
+                tokio::task::spawn_blocking(crate::InstallabilityHost::detect)
+                    .await
+                    .ok()
+                    .map(|host| (host.node_detected, host.node_version))
+            } else {
+                None
+            };
             let output = crate::install_frozen_lockfile::run_hoisted_linker::<Reporter>(
                 crate::install_frozen_lockfile::HoistedLinkerInputs {
                     config,
@@ -1345,11 +1399,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     dependency_groups: &dependency_groups,
                     walker_lockfile_dir: lockfile_dir,
                     symlink_workspace_root: symlink_root,
-                    // No installability host was probed on the fresh
-                    // path (the resolver's `PackageVersion` carries no
-                    // engine/cpu/os/libc constraints), so the walker
-                    // falls back to its default host triple.
-                    host_node: None,
+                    host_node: host_node.as_ref(),
                     supported_architectures,
                     cas_paths_by_pkg_id,
                     logged_methods,
@@ -1698,6 +1748,8 @@ fn build_fresh_lockfile(
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
         package_extensions_checksum: compute_package_extensions_checksum(config),
         catalogs,
+        registry: &config.registry,
+        lockfile_include_tarball_url: config.lockfile_include_tarball_url,
     })
 }
 

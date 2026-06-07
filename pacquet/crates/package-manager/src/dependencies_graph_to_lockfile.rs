@@ -105,6 +105,15 @@ pub struct GraphToLockfileOptions<'a> {
     /// the resolved specifier + version for every `catalog:` direct
     /// dependency. Empty for projects with no catalogs.
     pub catalogs: &'a Catalogs,
+    /// Default registry URL, used to decide whether a resolved registry
+    /// package's tarball URL is reconstructible (and so droppable from the
+    /// lockfile in favor of bare `{integrity}`). Mirrors the `registry`
+    /// argument pnpm threads into
+    /// [`toLockfileResolution`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/utils/src/toLockfileResolution.ts).
+    pub registry: &'a str,
+    /// When `true`, registry tarball URLs are kept in the lockfile even when
+    /// reconstructible. Mirrors pnpm's `lockfileIncludeTarballUrl` setting.
+    pub lockfile_include_tarball_url: bool,
 }
 
 /// Build a [`Lockfile`] from the resolver's [`DependenciesGraph`] plus
@@ -137,10 +146,17 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         ignored_optional_dependencies,
         package_extensions_checksum,
         catalogs,
+        registry,
+        lockfile_include_tarball_url,
     } = opts;
 
     let optional_overrides = compute_corrected_optional(&importer_inputs, graph);
-    let (packages, snapshots) = build_packages_and_snapshots(graph, &optional_overrides);
+    let (packages, snapshots) = build_packages_and_snapshots(
+        graph,
+        &optional_overrides,
+        registry,
+        lockfile_include_tarball_url,
+    );
 
     let mut importers: HashMap<String, ProjectSnapshot> =
         HashMap::with_capacity(importer_inputs.len());
@@ -437,6 +453,8 @@ fn is_remote_http_tarball(tarball: &str) -> bool {
 fn build_packages_and_snapshots(
     graph: &DependenciesGraph,
     optional_overrides: &HashMap<DepPath, bool>,
+    registry: &str,
+    lockfile_include_tarball_url: bool,
 ) -> (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>) {
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
@@ -448,7 +466,9 @@ fn build_packages_and_snapshots(
         let snapshot = build_snapshot_entry(node, graph, optional_overrides);
         snapshots.insert(snapshot_key, snapshot);
 
-        packages.entry(metadata_key).or_insert_with(|| build_package_metadata(node));
+        packages.entry(metadata_key).or_insert_with_key(|key| {
+            build_package_metadata(node, key, registry, lockfile_include_tarball_url)
+        });
     }
 
     (packages, snapshots)
@@ -464,7 +484,12 @@ fn build_packages_and_snapshots(
 /// for the per-package half (excludes the per-snapshot fields
 /// `dependencies` / `optionalDependencies` / `transitivePeerDependencies` /
 /// `optional` / `patched`, which go on the snapshot below).
-fn build_package_metadata(node: &DependenciesGraphNode) -> PackageMetadata {
+fn build_package_metadata(
+    node: &DependenciesGraphNode,
+    metadata_key: &PackageKey,
+    registry: &str,
+    lockfile_include_tarball_url: bool,
+) -> PackageMetadata {
     let manifest = node.resolve_result.manifest.as_deref();
 
     let engines = manifest
@@ -497,8 +522,15 @@ fn build_package_metadata(node: &DependenciesGraphNode) -> PackageMetadata {
 
     let (peer_dependencies, peer_dependencies_meta) = build_peer_dep_blocks(node);
 
+    let resolution = node.resolve_result.resolution.to_lockfile_form(
+        &metadata_key.name.to_string(),
+        &metadata_key.suffix.version().to_string(),
+        registry,
+        lockfile_include_tarball_url,
+    );
+
     PackageMetadata {
-        resolution: node.resolve_result.resolution.clone(),
+        resolution,
         engines,
         cpu,
         os,

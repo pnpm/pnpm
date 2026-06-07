@@ -68,9 +68,9 @@ struct AppInner {
     /// two concurrent writers to the same package on this instance can't
     /// lose each other's changes. See [`PackageLocks`].
     package_locks: PackageLocks,
-    /// Lazily-built engine backing the `/v1/install` endpoint. Built on
+    /// Lazily-built engine backing the `/v1/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
-    install_accelerator: std::sync::OnceLock<crate::install_accelerator::InstallAccelerator>,
+    resolver: std::sync::OnceLock<crate::resolver::Resolver>,
 }
 
 /// Per-package serialization for the read-modify-write packument flows
@@ -151,16 +151,16 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
             config,
             auth,
             package_locks: PackageLocks::new(),
-            install_accelerator: std::sync::OnceLock::new(),
+            resolver: std::sync::OnceLock::new(),
         }),
     };
     Router::new()
         .route("/-/ping", get(serve_ping))
-        // pnpr install accelerator: opt-in, versioned endpoints layered on the
+        // pnpr resolver: opt-in, versioned endpoints layered on the
         // registry core. Non-pnpm clients never touch these. `/-/pnpr`
         // is the capability handshake (404 on a plain registry).
         .route("/-/pnpr", get(serve_pnpr_handshake))
-        .route("/v1/install", post(serve_install))
+        .route("/v1/resolve", post(serve_resolve))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -180,17 +180,17 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // gzip`, matching how a real (CDN-fronted) registry serves
         // packuments — pnpr is commonly hit directly with no proxy in
         // front, so the application is the only layer that can compress.
-        // Scoped to JSON: the binary endpoints are excluded so we never
-        // re-gzip an already-compressed payload — tarballs
-        // (`application/octet-stream`, already `.tgz`) and the install
-        // accelerator response (`application/x-pnpr-install-inline`,
-        // already gzipped). Already-`Content-Encoding` responses are
-        // skipped by the layer regardless.
+        // Scoped to JSON: tarballs (`application/octet-stream`, already
+        // `.tgz`) are excluded so we never re-gzip an already-compressed
+        // payload. The `/v1/resolve` NDJSON stream
+        // (`application/x-ndjson`) is excluded too: gzip-buffering it
+        // would defeat the point of streaming — frames must flush to the
+        // client as each package resolves, not wait for the encoder.
         .layer(
             CompressionLayer::new().compress_when(
                 DefaultPredicate::new()
                     .and(NotForContentType::const_new("application/octet-stream"))
-                    .and(NotForContentType::const_new("application/x-pnpr-install-inline")),
+                    .and(NotForContentType::const_new("application/x-ndjson")),
             ),
         )
         // One structured access record per HTTP request: a span
@@ -1656,32 +1656,20 @@ async fn serve_ping(State(_state): State<AppState>) -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
 }
 
-/// `GET /-/pnpr` — capability handshake for the pnpr install-accelerator
+/// `GET /-/pnpr` — capability handshake for the pnpr resolver
 /// protocol. A plain npm registry has no such route and 404s, so a
 /// client can fail fast against a misconfigured server. `versions`
-/// lists the `/vN/install` protocol versions this server speaks.
+/// lists the `/vN/resolve` protocol versions this server speaks.
 async fn serve_pnpr_handshake() -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
 }
 
-async fn serve_install(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    body: axum::body::Bytes,
-) -> Response {
-    let runtime = crate::install_accelerator::InstallAccelerator::get_or_init(
-        &state.inner.install_accelerator,
-        &state.inner.config,
-    );
-    let identity = match resolve_identity(&state, &headers).await {
-        Ok(identity) => identity,
-        Err(err) => return error_response(&err),
-    };
-    crate::install_accelerator::handle_install(
-        runtime,
-        &state.inner.config.policies,
-        identity,
-        body,
-    )
-    .await
+async fn serve_resolve(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+    // pnpr resolves but serves no file content, so there is no per-package
+    // read gate here: the client fetches every tarball directly from the
+    // registry with its own credentials, and resolution uses the client's
+    // forwarded credentials for private packages.
+    let runtime =
+        crate::resolver::Resolver::get_or_init(&state.inner.resolver, &state.inner.config);
+    crate::resolver::handle_resolve(runtime, body).await
 }

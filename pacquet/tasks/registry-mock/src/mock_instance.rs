@@ -34,6 +34,7 @@ impl Drop for MockInstance {
 pub struct MockInstanceOptions<'a> {
     pub client: &'a Client,
     pub port: u16,
+    pub public_url: Option<&'a str>,
     pub stdout: Option<&'a Path>,
     pub stderr: Option<&'a Path>,
     pub max_retries: usize,
@@ -71,7 +72,7 @@ impl MockInstanceOptions<'_> {
     }
 
     pub(crate) async fn spawn(self) -> MockInstance {
-        let MockInstanceOptions { port, stdout, stderr, .. } = self;
+        let MockInstanceOptions { port, public_url, stdout, stderr, .. } = self;
 
         let stdout = stdout.map_or_else(Stdio::null, |stdout| {
             File::create(stdout).expect("create file for stdout").into()
@@ -84,7 +85,7 @@ impl MockInstanceOptions<'_> {
         // `pnpr_command`. pnpr runs in proxy mode
         // against npmjs.org so off-fixture packages fall through to
         // npm; see `pnpr_command` for the rationale.
-        let process = pnpr_command(port)
+        let process = pnpr_command(port, public_url)
             .stdin(Stdio::null())
             .stdout(stdout)
             .stderr(stderr)
@@ -131,6 +132,7 @@ impl AutoMockInstance {
         let anchor = RegistryAnchor::load_or_init(MockInstanceOptions {
             client: &client,
             port: pick_unused_port().expect("pick an unused port"),
+            public_url: None,
             stdout: None,
             stderr: None,
             max_retries: 20,

@@ -78,6 +78,7 @@ async fn should_install_dependencies() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -151,6 +152,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -199,6 +201,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -276,6 +279,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -346,6 +350,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -435,6 +440,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -507,6 +513,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -599,6 +606,7 @@ async fn install_emits_pnpm_event_sequence() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -748,6 +756,7 @@ async fn install_writes_modules_yaml() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -853,6 +862,7 @@ async fn install_writes_workspace_state() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -1081,6 +1091,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -1158,6 +1169,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -1258,6 +1270,7 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -1394,6 +1407,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -1496,6 +1510,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<RecordingReporter>()
     .await;
@@ -1606,6 +1621,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -1660,6 +1676,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -1756,6 +1773,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -1862,6 +1880,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -1930,6 +1949,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -1999,6 +2019,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -2094,6 +2115,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -2205,6 +2227,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -2270,6 +2293,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -2362,6 +2386,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -2473,6 +2498,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -2591,6 +2617,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -2675,6 +2702,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -2879,6 +2907,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3007,6 +3036,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3111,6 +3141,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -3221,6 +3252,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3316,6 +3348,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -3414,6 +3447,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -3511,6 +3545,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3603,6 +3638,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3703,6 +3739,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3801,6 +3838,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3903,6 +3941,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -4007,6 +4046,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -4097,6 +4137,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4185,6 +4226,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4259,6 +4301,7 @@ async fn fresh_install_records_user_written_specifier() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4329,6 +4372,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4398,6 +4442,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4470,6 +4515,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4558,6 +4604,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4624,6 +4671,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4715,6 +4763,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4786,6 +4835,7 @@ async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -4861,6 +4911,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4937,6 +4988,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -5007,6 +5059,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -5263,6 +5316,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -5448,6 +5502,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -5600,6 +5655,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -5753,6 +5809,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<RecordingReporter>()
     .await;
@@ -5835,6 +5892,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -5890,6 +5948,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -6001,6 +6060,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await
@@ -6100,6 +6160,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
         lockfile_only: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -6181,6 +6242,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
+        resolution_observer: None,
     }
     .run::<Reporter>()
     .await

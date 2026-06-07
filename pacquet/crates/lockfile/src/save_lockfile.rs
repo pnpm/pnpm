@@ -19,7 +19,7 @@ pub enum SaveLockfileError {
 
     #[display("Failed to serialize lockfile to YAML: {_0}")]
     #[diagnostic(code(pacquet_lockfile::serialize_yaml))]
-    SerializeYaml(serde_saphyr::ser::Error),
+    SerializeYaml(serde_json::Error),
 
     #[display("Failed to write lockfile content: {_0}")]
     #[diagnostic(code(pacquet_lockfile::write_file))]

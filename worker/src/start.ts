@@ -34,7 +34,6 @@ import type {
   ReadPkgFromCafsMessage,
   SymlinkAllModulesMessage,
   TarballExtractMessage,
-  WriteCafsFilesMessage,
 } from './types.js'
 
 export function startWorker (): void {
@@ -65,7 +64,6 @@ async function handleMessage (
   | SymlinkAllModulesMessage
   | HardLinkDirMessage
   | InitStoreMessage
-  | WriteCafsFilesMessage
   | false
 ): Promise<void> {
   if (message === false) {
@@ -167,10 +165,6 @@ async function handleMessage (
       case 'hardLinkDir': {
         hardLinkDir(message.src, message.destDirs)
         parentPort!.postMessage({ status: 'success' })
-        break
-      }
-      case 'write-cafs-files': {
-        parentPort!.postMessage(await writeCafsFiles(message))
         break
       }
     }
@@ -499,75 +493,5 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success'
     }
   }
   return { status: 'success' }
-}
-
-async function writeCafsFiles (message: WriteCafsFilesMessage): Promise<{ status: string, filesWritten: number }> {
-  const { contentPathFromHex } = await import('@pnpm/store.cafs')
-
-  // `message.payload` is the already-decompressed file portion of a
-  // `/v1/install` response: a length-prefixed JSON header, then one
-  // `[64-byte digest][u32 size][1-byte exec][content]` frame per file,
-  // terminated by 64 zero bytes.
-  const payload = Buffer.from(message.payload.buffer, message.payload.byteOffset, message.payload.byteLength)
-  const END_MARKER = Buffer.alloc(64, 0)
-  const createdDirs = new Set<string>()
-
-  if (payload.length < 4) {
-    throw new Error('pnpr server /v1/install file payload is truncated')
-  }
-  // Skip the length-prefixed JSON header that precedes the frames.
-  const jsonLen = payload.readUInt32BE(0)
-  let offset = 4 + jsonLen
-  let filesWritten = 0
-  let endMarkerSeen = false
-
-  while (offset + 64 <= payload.length) {
-    if (payload.subarray(offset, offset + 64).equals(END_MARKER)) {
-      endMarkerSeen = true
-      offset += 64
-      break
-    }
-    if (offset + 69 > payload.length) break // 64 digest + 4 size + 1 mode
-    const size = payload.readUInt32BE(offset + 64)
-    const entryLen = 69 + size
-    if (offset + entryLen > payload.length) break // incomplete entry
-
-    const digest = payload.subarray(offset, offset + 64).toString('hex')
-    const executable = (payload[offset + 68] & 0x01) !== 0
-    const content = payload.subarray(offset + 69, offset + entryLen)
-
-    const relPath = contentPathFromHex(executable ? 'exec' : 'nonexec', digest)
-    const fullPath = path.join(message.storeDir, relPath)
-    const dir = path.dirname(fullPath)
-    if (!createdDirs.has(dir)) {
-      fs.mkdirSync(dir, { recursive: true })
-      createdDirs.add(dir)
-    }
-    try {
-      fs.writeFileSync(fullPath, content, { flag: 'wx', mode: executable ? 0o755 : 0o644 })
-    } catch (err: unknown) {
-      if (!(err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'EEXIST')) {
-        throw err
-      }
-      // EEXIST means the same digest is already at this CAFS path. CAFS is
-      // content-addressed, so a complete file is by definition correct. But a
-      // previous process could have crashed mid-write and left a truncated
-      // file — the pnpr path skips integrity verification, so we'd silently
-      // install garbage. Detect truncation by size and overwrite atomically.
-      const onDiskSize = fs.statSync(fullPath).size
-      if (onDiskSize !== content.length) {
-        const tmpPath = `${fullPath}.tmp-${process.pid}-${Date.now()}`
-        fs.writeFileSync(tmpPath, content, { mode: executable ? 0o755 : 0o644 })
-        fs.renameSync(tmpPath, fullPath)
-      }
-    }
-    filesWritten++
-    offset += entryLen
-  }
-
-  if (!endMarkerSeen) {
-    throw new Error('pnpr server /v1/install file payload ended without the end marker')
-  }
-  return { status: 'success', filesWritten }
 }
 

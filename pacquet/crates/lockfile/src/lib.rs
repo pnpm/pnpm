@@ -18,6 +18,7 @@ mod serialize_yaml;
 mod snapshot_dep_ref;
 mod snapshot_entry;
 mod yaml_documents;
+mod yaml_emit;
 
 pub use catalog_snapshots::*;
 pub use comver::*;

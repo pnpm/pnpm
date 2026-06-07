@@ -14,6 +14,26 @@ fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
 }
 
+/// Render a resolution exactly as it appears under a `packages:` entry, then
+/// dedent the `resolution:` block. Exercises the real write path: the deep key
+/// sort and the single-line-vs-block decision both depend on the `resolution`
+/// key and its enclosing `packages` context, so a bare top-level serialization
+/// would not reflect what pnpm writes.
+fn render_resolution(resolution: &LockfileResolution) -> String {
+    let document = serde_json::json!({
+        "packages": {
+            "p@1.0.0": { "resolution": serde_json::to_value(resolution).unwrap() },
+        },
+    });
+    serialize_yaml::to_string(&document)
+        .unwrap()
+        .lines()
+        .skip_while(|line| !line.trim_start().starts_with("resolution:"))
+        .map(|line| line.strip_prefix("    ").unwrap_or(line))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn deserialize_tarball_resolution() {
     eprintln!("CASE: without integrity");
@@ -147,12 +167,9 @@ fn serialize_tarball_resolution() {
         git_hosted: None,
         path: None,
     });
-    let received = serialize_yaml::to_string(&resolution).unwrap();
-    let received = received.trim();
+    let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
-    let expected = text_block! {
-        "tarball: file:ts-pipe-compose-0.2.1.tgz"
-    };
+    let expected = "resolution: {tarball: file:ts-pipe-compose-0.2.1.tgz}";
     assert_eq!(received, expected);
 
     eprintln!("CASE: with integrity");
@@ -162,13 +179,9 @@ fn serialize_tarball_resolution() {
         git_hosted: None,
         path: None,
     });
-    let received = serialize_yaml::to_string(&resolution).unwrap();
-    let received = received.trim();
+    let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
-    let expected = text_block! {
-        "tarball: file:ts-pipe-compose-0.2.1.tgz"
-        "integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
-    };
+    let expected = "resolution: {integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==, tarball: file:ts-pipe-compose-0.2.1.tgz}";
     assert_eq!(received, expected);
 }
 
@@ -200,14 +213,9 @@ fn serialize_tarball_resolution_with_path() {
         git_hosted: Some(true),
         path: Some("packages/sub".to_string()),
     });
-    let received = serialize_yaml::to_string(&resolution).unwrap();
-    let received = received.trim();
+    let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
-    let expected = text_block! {
-        "tarball: https://codeload.github.com/foo/bar/tar.gz/abc1234"
-        "gitHosted: true"
-        "path: packages/sub"
-    };
+    let expected = "resolution: {gitHosted: true, path: packages/sub, tarball: https://codeload.github.com/foo/bar/tar.gz/abc1234}";
     assert_eq!(received, expected);
 }
 
@@ -219,14 +227,9 @@ fn serialize_tarball_resolution_with_git_hosted() {
         git_hosted: Some(true),
         path: None,
     });
-    let received = serialize_yaml::to_string(&resolution).unwrap();
-    let received = received.trim();
+    let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
-    let expected = text_block! {
-        "tarball: https://codeload.github.com/foo/bar/tar.gz/abc1234"
-        "integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
-        "gitHosted: true"
-    };
+    let expected = "resolution: {gitHosted: true, integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==, tarball: https://codeload.github.com/foo/bar/tar.gz/abc1234}";
     assert_eq!(received, expected);
 }
 
@@ -252,12 +255,9 @@ fn serialize_registry_resolution() {
             "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==",
         ),
     });
-    let received = serialize_yaml::to_string(&resolution).unwrap();
-    let received = received.trim();
+    let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
-    let expected = text_block! {
-        "integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
-    };
+    let expected = "resolution: {integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==}";
     assert_eq!(received, expected);
 }
 
@@ -280,13 +280,9 @@ fn serialize_directory_resolution() {
     let resolution = LockfileResolution::Directory(DirectoryResolution {
         directory: "ts-pipe-compose-0.2.1/package".to_string(),
     });
-    let received = serialize_yaml::to_string(&resolution).unwrap();
-    let received = received.trim();
+    let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
-    let expected = text_block! {
-        "type: directory"
-        "directory: ts-pipe-compose-0.2.1/package"
-    };
+    let expected = "resolution: {directory: ts-pipe-compose-0.2.1/package, type: directory}";
     assert_eq!(received, expected);
 }
 
@@ -331,14 +327,9 @@ fn serialize_git_resolution() {
         commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
         path: None,
     });
-    let received = serialize_yaml::to_string(&resolution).unwrap();
-    let received = received.trim();
+    let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
-    let expected = text_block! {
-        "type: git"
-        "repo: https://github.com/ksxnodemodules/ts-pipe-compose.git"
-        "commit: e63c09e460269b0c535e4c34debf69bb91d57b22"
-    };
+    let expected = "resolution: {commit: e63c09e460269b0c535e4c34debf69bb91d57b22, repo: https://github.com/ksxnodemodules/ts-pipe-compose.git, type: git}";
     assert_eq!(received, expected);
 }
 
@@ -349,15 +340,9 @@ fn serialize_git_resolution_with_path() {
         commit: "e63c09e460269b0c535e4c34debf69bb91d57b22".to_string(),
         path: Some("packages/sub".to_string()),
     });
-    let received = serialize_yaml::to_string(&resolution).unwrap();
-    let received = received.trim();
+    let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
-    let expected = text_block! {
-        "type: git"
-        "repo: https://github.com/ksxnodemodules/ts-pipe-compose.git"
-        "commit: e63c09e460269b0c535e4c34debf69bb91d57b22"
-        "path: packages/sub"
-    };
+    let expected = "resolution: {commit: e63c09e460269b0c535e4c34debf69bb91d57b22, path: packages/sub, repo: https://github.com/ksxnodemodules/ts-pipe-compose.git, type: git}";
     assert_eq!(received, expected);
 }
 
@@ -433,17 +418,17 @@ fn serialize_binary_resolution_tarball() {
         archive: BinaryArchive::Tarball,
         prefix: None,
     });
-    let received = serialize_yaml::to_string(&resolution).unwrap();
-    let received = received.trim();
+    let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
-    // Field order follows the struct declaration; `prefix: None`
-    // skips serialization.
+    // Binary resolutions render in block style (excluded from the single-line
+    // rule) with keys deep-sorted; `prefix: None` skips serialization.
     let expected = text_block! {
-        "type: binary"
-        "url: https://nodejs.org/dist/v22.0.0/node-v22.0.0-darwin-arm64.tar.gz"
-        "integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
-        "bin: bin/node"
-        "archive: tarball"
+        "resolution:"
+        "  archive: tarball"
+        "  bin: bin/node"
+        "  integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
+        "  type: binary"
+        "  url: https://nodejs.org/dist/v22.0.0/node-v22.0.0-darwin-arm64.tar.gz"
     };
     assert_eq!(received, expected);
 }
@@ -514,21 +499,21 @@ fn serialize_variations_resolution() {
             }],
         }],
     });
-    let received = serialize_yaml::to_string(&resolution).unwrap();
-    let received = received.trim();
+    let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
     let expected = text_block! {
-        "type: variations"
-        "variants:"
-        "- resolution:"
-        "    type: binary"
-        "    url: https://nodejs.org/dist/v22.0.0/node-v22.0.0-darwin-arm64.tar.gz"
-        "    integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
-        "    bin: bin/node"
-        "    archive: tarball"
-        "  targets:"
-        "  - os: darwin"
-        "    cpu: arm64"
+        "resolution:"
+        "  type: variations"
+        "  variants:"
+        "    - resolution:"
+        "        archive: tarball"
+        "        bin: bin/node"
+        "        integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
+        "        type: binary"
+        "        url: https://nodejs.org/dist/v22.0.0/node-v22.0.0-darwin-arm64.tar.gz"
+        "      targets:"
+        "        - cpu: arm64"
+        "          os: darwin"
     };
     assert_eq!(received, expected);
 }

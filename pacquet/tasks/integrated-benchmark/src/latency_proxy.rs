@@ -1,14 +1,22 @@
-//! A latency-injecting TCP proxy, used to front a pnpr server so the
-//! benchmark measures it as the *remote* service it is in production
-//! rather than a loopback peer.
+//! A network-link-emulating TCP proxy, used to front a pnpr server or the
+//! registry so the benchmark measures them as the *remote* services they
+//! are in production rather than loopback peers.
 //!
-//! pnpr's round-trip cost is invisible on localhost (RTT ≈ 0), which is
-//! exactly the cost that matters once the server is across a network. The
-//! proxy reintroduces it: a chunk read at time `t` is forwarded no
-//! earlier than `t + one_way_delay`, in each direction independently. A
-//! request → response exchange therefore pays the delay twice — one full
-//! round trip — while a single large transfer pays it once at the front
-//! and then streams, matching how TCP behaves over a link with latency.
+//! Two costs are invisible on localhost but dominate once a service is
+//! across a real network, so the proxy reintroduces both
+//! ([`LinkProfile`]):
+//!
+//! * **Latency** — a chunk read at time `t` is forwarded no earlier than
+//!   `t + one_way`, in each direction independently. A request → response
+//!   exchange pays the delay twice (one round trip); a single large
+//!   transfer pays it once at the front and then streams.
+//! * **Bandwidth** — with a `rate_limit`, each direction serializes bytes
+//!   at no more than the cap, so a tarball download takes
+//!   `≈ one_way + size / rate`. Without it, loopback throughput (~GB/s)
+//!   makes every download effectively free, which hides exactly the cost
+//!   the public npm registry imposes (measured ~20-25 MB/s peak, and far
+//!   less on a typical link) — and with it the fetch-overlaps-resolution
+//!   win has nothing to overlap.
 //!
 //! It is deliberately dependency-free (std threads + blocking sockets):
 //! the integrated-benchmark orchestrator drives everything synchronously,
@@ -17,7 +25,7 @@
 
 use std::{
     io::{Read as _, Write as _},
-    net::{Shutdown, SocketAddr, TcpListener, TcpStream},
+    net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -26,6 +34,16 @@ use std::{
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
+
+/// The emulated link applied to each direction of a proxied connection.
+#[derive(Clone, Copy)]
+pub struct LinkProfile {
+    /// One-way propagation delay. A round trip pays it twice.
+    pub one_way: Duration,
+    /// Per-direction throughput cap in bytes per second; `None` leaves
+    /// the direction at loopback speed (unlimited).
+    pub rate_limit: Option<u64>,
+}
 
 /// A running proxy. Drop stops accepting new connections and joins the
 /// accept thread; the benchmark holds it alongside the pnpr server guard
@@ -37,21 +55,42 @@ pub struct LatencyProxy {
 }
 
 impl LatencyProxy {
-    /// Front `upstream` with a proxy that delays each direction by
-    /// `one_way_delay`. Returns the local address callers should connect
-    /// to instead of `upstream`.
-    pub fn spawn(upstream: SocketAddr, one_way_delay: Duration) -> std::io::Result<LatencyProxy> {
-        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    /// Front `upstream` with a proxy that applies `profile` to each
+    /// direction. Returns the local address callers should connect to
+    /// instead of `upstream`.
+    pub fn spawn(upstream: SocketAddr, profile: LinkProfile) -> std::io::Result<LatencyProxy> {
+        Self::spawn_on(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), upstream, profile)
+    }
+
+    /// Front `upstream` with a proxy bound to `listen`.
+    pub fn spawn_on(
+        listen: SocketAddr,
+        upstream: SocketAddr,
+        profile: LinkProfile,
+    ) -> std::io::Result<LatencyProxy> {
+        let listener = TcpListener::bind(listen)?;
         let addr = listener.local_addr()?;
         listener.set_nonblocking(true)?;
 
         let stop = Arc::new(AtomicBool::new(false));
         let accept_stop = Arc::clone(&stop);
         let accept_thread =
-            thread::spawn(move || accept_loop(&listener, upstream, one_way_delay, &accept_stop));
+            thread::spawn(move || accept_loop(&listener, upstream, profile, &accept_stop));
 
         Ok(LatencyProxy { addr, stop, accept_thread: Some(accept_thread) })
     }
+}
+
+/// Convert a megabits-per-second figure into a bytes-per-second cap for
+/// [`LinkProfile`], or `None` for a non-positive / non-finite value (no
+/// cap). 1 Mbit/s = 1_000_000 bits/s = 125_000 bytes/s. A positive rate
+/// never collapses to `Some(0)`: a 0 byte/s cap would stall the proxy
+/// (the pacing math divides by the rate), so it's floored at 1 byte/s.
+pub fn mbps_to_bytes_per_sec(mbps: f64) -> Option<u64> {
+    if !mbps.is_finite() || mbps <= 0.0 {
+        return None;
+    }
+    Some(((mbps * 125_000.0).round() as u64).max(1))
 }
 
 impl Drop for LatencyProxy {
@@ -66,13 +105,13 @@ impl Drop for LatencyProxy {
 fn accept_loop(
     listener: &TcpListener,
     upstream: SocketAddr,
-    one_way_delay: Duration,
+    profile: LinkProfile,
     stop: &AtomicBool,
 ) {
     while !stop.load(Ordering::SeqCst) {
         match listener.accept() {
             Ok((inbound, _)) => {
-                thread::spawn(move || handle_connection(inbound, upstream, one_way_delay));
+                thread::spawn(move || handle_connection(inbound, upstream, profile));
             }
             Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
                 thread::sleep(Duration::from_millis(5));
@@ -84,11 +123,11 @@ fn accept_loop(
     }
 }
 
-/// Bridge one accepted connection to `upstream`, delaying both
-/// directions. Runs the server→client pump on this thread and the
+/// Bridge one accepted connection to `upstream`, applying `profile` to
+/// both directions. Runs the server→client pump on this thread and the
 /// client→server pump on a spawned one, so the connection's threads end
 /// together when either side closes.
-fn handle_connection(inbound: TcpStream, upstream: SocketAddr, one_way_delay: Duration) {
+fn handle_connection(inbound: TcpStream, upstream: SocketAddr, profile: LinkProfile) {
     let Ok(outbound) = TcpStream::connect(upstream) else { return };
     let _ = inbound.set_nodelay(true);
     let _ = outbound.set_nodelay(true);
@@ -97,17 +136,19 @@ fn handle_connection(inbound: TcpStream, upstream: SocketAddr, one_way_delay: Du
         return;
     };
 
-    let up = thread::spawn(move || pump(client_read, server_write, one_way_delay));
-    pump(outbound, inbound, one_way_delay);
+    let up = thread::spawn(move || pump(client_read, server_write, profile));
+    pump(outbound, inbound, profile);
     let _ = up.join();
 }
 
-/// Copy `src` → `dst`, holding each chunk back until `one_way_delay` has
-/// elapsed since it was read. A reader thread stamps and queues chunks so
-/// the source is never blocked by the delay — back-to-back chunks all
-/// shift by the same delay and then stream out, rather than each paying
-/// it serially.
-fn pump(mut src: TcpStream, mut dst: TcpStream, one_way_delay: Duration) {
+/// Copy `src` → `dst`, applying the link `profile`: each chunk is held
+/// back until `one_way` has elapsed since it was read (latency), and —
+/// when a `rate_limit` is set — chunks are paced so the direction never
+/// transmits faster than the cap (bandwidth). A reader thread stamps and
+/// queues chunks so the source is never blocked by the delay; the writer
+/// tracks when the link next frees up so a back-to-back burst is spread
+/// at the cap rate instead of flushed at loopback speed.
+fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
     let (tx, rx) = mpsc::channel::<(Instant, Vec<u8>)>();
 
     let reader = thread::spawn(move || {
@@ -116,7 +157,7 @@ fn pump(mut src: TcpStream, mut dst: TcpStream, one_way_delay: Duration) {
             match src.read(&mut buf) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    let release = Instant::now() + one_way_delay;
+                    let release = Instant::now() + profile.one_way;
                     if tx.send((release, buf[..n].to_vec())).is_err() {
                         break;
                     }
@@ -125,10 +166,20 @@ fn pump(mut src: TcpStream, mut dst: TcpStream, one_way_delay: Duration) {
         }
     });
 
+    // Earliest instant the link is free to begin the next chunk. Advances
+    // by each chunk's serialization time (`len / rate`) so the cap is a
+    // sustained throughput limit, not just a per-chunk cap.
+    let mut link_free_at = Instant::now();
     while let Ok((release, bytes)) = rx.recv() {
+        // A chunk leaves no earlier than its latency release *and* no
+        // earlier than the link finishing the previous chunk.
+        let send_at = release.max(link_free_at);
         let now = Instant::now();
-        if release > now {
-            thread::sleep(release - now);
+        if send_at > now {
+            thread::sleep(send_at - now);
+        }
+        if let Some(rate) = profile.rate_limit {
+            link_free_at = send_at + Duration::from_secs_f64(bytes.len() as f64 / rate as f64);
         }
         if dst.write_all(&bytes).is_err() {
             break;

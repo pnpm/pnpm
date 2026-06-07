@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant, UNIX_EPOCH},
 };
 
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
 use pacquet_fs::file_mode;
@@ -44,6 +44,42 @@ use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 fn post_download_semaphore() -> &'static Semaphore {
     static SEM: OnceLock<Semaphore> = OnceLock::new();
     SEM.get_or_init(|| Semaphore::new(num_cpus::get().saturating_mul(2).max(4)))
+}
+
+/// Dedicated rayon pool for the per-file CAS-write phase of extraction
+/// ([`extract_tarball_entries`]).
+///
+/// Kept separate from rayon's global pool on purpose. The install
+/// pipeline overlaps tarball extraction with linking each package into
+/// `node_modules`, and the linker runs its per-package work through
+/// `rayon::join` / `par_iter` on the *global* pool. If extraction also
+/// used the global pool, a burst of extraction work (hundreds of
+/// tarballs finishing downloads at once) would queue ahead of the
+/// linker's jobs and stall linking for seconds. Routing the CAS writes
+/// through their own pool lets the two phases run concurrently without
+/// one starving the other.
+///
+/// Sized to the core count: the work is CPU-bound (SHA-512 + CAFS
+/// write), so more threads than cores only adds scheduling contention.
+/// Returns `None` if the pool can't be built, in which case the caller
+/// falls back to the global pool.
+fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(num_cpus::get().max(1))
+            .thread_name(|index| format!("cas-write-{index}"))
+            .build()
+            .map_err(|error| {
+                tracing::warn!(
+                    target: "pacquet::download",
+                    ?error,
+                    "failed to build the dedicated CAS-write pool; falling back to the global rayon pool",
+                );
+            })
+            .ok()
+    })
+    .as_ref()
 }
 
 /// Reqwest's own [`std::fmt::Display`] for a request-stage failure renders as
@@ -273,6 +309,23 @@ pub enum CacheValue {
 /// The key of this hashmap is the url of each tarball.
 pub type MemCache = DashMap<String, Arc<RwLock<CacheValue>>>;
 
+/// Install-scoped set of store-index cache keys
+/// (`store_index_key(integrity, pkg_id)`) whose package status
+/// (`fetched` or `found_in_store`) has already been emitted during this
+/// install.
+///
+/// The resolve-time prefetcher emits download/cache-hit progress as soon
+/// as it knows the outcome, then records the key here. The later
+/// virtual-store warm batch still emits `resolved`, but skips the second
+/// package status for recorded keys, so progress is timely without
+/// double-counting. See <https://github.com/pnpm/pnpm/issues/12235>.
+pub type ReportedProgressKeys = DashSet<String>;
+
+/// Shared handle to a [`ReportedProgressKeys`] set, allocated once per
+/// install and shared between early fetchers and the later install-pass
+/// reporter.
+pub type SharedReportedProgressKeys = Arc<ReportedProgressKeys>;
+
 /// Build the buffer that the tarball body streams into, pre-sized
 /// from the response's advertised `Content-Length` when it fits and
 /// can actually be reserved without allocation failure.
@@ -418,6 +471,44 @@ fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<serde_json::V
     if picked.is_empty() { None } else { Some(serde_json::Value::Object(picked)) }
 }
 
+/// One regular-file tar entry whose path has been validated and
+/// cleaned, paired with a borrow of its payload inside the decompressed
+/// archive buffer. Collected serially while walking the tar stream, then
+/// hashed and written to the CAFS — serially or across the rayon pool —
+/// in [`write_cas_entry`].
+struct PendingFile<'a> {
+    cleaned_path: String,
+    data: &'a [u8],
+    executable: bool,
+    mode: u32,
+    size: u64,
+}
+
+/// Hash one [`PendingFile`] into the content-addressed store and build
+/// its [`CafsFileInfo`] index row. Pure given the inputs and the store
+/// dir's content-addressed layout, so it is safe to run concurrently
+/// across entries of the same tarball.
+fn write_cas_entry(
+    store_dir: &StoreDir,
+    file: &PendingFile<'_>,
+) -> Result<(String, PathBuf, CafsFileInfo), TarballError> {
+    let (file_path, file_hash) =
+        store_dir.write_cas_file(file.data, file.executable).map_err(TarballError::WriteCasFile)?;
+    // `as_millis()` returns `u128`; narrow to `u64` to match the store
+    // index schema (see `CafsFileInfo::checked_at`). Drop the timestamp
+    // if the clock reports something unrepresentable — `checkedAt` is
+    // optional and pnpm tolerates `None`.
+    let checked_at =
+        UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
+    let info = CafsFileInfo {
+        digest: format!("{file_hash:x}"),
+        mode: file.mode,
+        size: file.size,
+        checked_at,
+    };
+    Ok((file.cleaned_path.clone(), file_path, info))
+}
+
 /// Walk decompressed tar bytes, writing each regular-file entry into
 /// the CAFS and returning the `{in-tarball path → CAFS path}` map plus
 /// the per-tarball [`PackageFilesIndex`] row to hand off to the shared
@@ -465,14 +556,15 @@ fn extract_tarball_entries(
         });
 
     let ((_, Some(capacity)) | (capacity, None)) = entries.size_hint();
-    let mut cas_paths = HashMap::<String, PathBuf>::with_capacity(capacity);
-    let mut pkg_files_idx = PackageFilesIndex {
-        manifest: None,
-        requires_build: None,
-        algo: "sha512".to_string(),
-        files: HashMap::with_capacity(capacity),
-        side_effects: None,
-    };
+
+    // Phase 1 (serial): walk the seekable tar stream, validate and clean
+    // each regular-file path, and capture the byte slice of its payload.
+    // Header parsing has to run sequentially against the single archive
+    // stream, but it's cheap; the expensive per-file hashing + CAS write
+    // is deferred to the parallel phase below. The bundled `package.json`
+    // manifest is captured here too, off the raw payload slice.
+    let mut pending: Vec<PendingFile<'_>> = Vec::with_capacity(capacity);
+    let mut manifest = None;
 
     for entry in entries {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
@@ -559,14 +651,6 @@ fn extract_tarball_entries(
         {
             continue;
         }
-        let (file_path, file_hash) = store_dir
-            .write_cas_file(entry_data, file_is_executable)
-            .map_err(TarballError::WriteCasFile)?;
-
-        if let Some(previous) = cas_paths.insert(cleaned_entry_path.clone(), file_path) {
-            tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
-        }
-
         // Capture the parsed manifest whenever we see `package.json`.
         // Mirrors pnpm's `bundledManifest` pass-through at
         // [pnpm/pnpm@4750fd370c]: pnpm stuffs the narrowed manifest
@@ -594,39 +678,72 @@ fn extract_tarball_entries(
         // [`addFilesFromTarball`]: <https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/addFilesFromTarball.ts#L41-L43>
         if cleaned_entry_path == "package.json" {
             match serde_json::from_slice::<serde_json::Value>(entry_data) {
-                Ok(parsed) => pkg_files_idx.manifest = normalize_bundled_manifest(&parsed),
+                Ok(parsed) => manifest = normalize_bundled_manifest(&parsed),
                 Err(error) => {
                     tracing::debug!(
                         ?error,
                         "package.json in tarball failed to parse as JSON; bundled manifest cleared",
                     );
-                    pkg_files_idx.manifest = None;
+                    manifest = None;
                 }
             }
         }
 
-        // `as_millis()` returns `u128`; narrow to `u64` to match the
-        // store index schema — see `CafsFileInfo::checked_at` for why
-        // `u64` is used. Using `u64::try_from` rather than `as u64`
-        // avoids a silent wrap: even though millisecond epochs don't
-        // overflow `u64` for ~584M years, the intent should be
-        // explicit. If the clock ever reports something
-        // unrepresentable, drop the timestamp — the `checkedAt` field
-        // is optional and pnpm tolerates `None`.
-        let checked_at =
-            UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
-        let file_attrs = CafsFileInfo {
-            digest: format!("{file_hash:x}"),
+        pending.push(PendingFile {
+            cleaned_path: cleaned_entry_path,
+            data: entry_data,
+            executable: file_is_executable,
             mode: file_mode,
             size: file_size,
-            checked_at,
+        });
+    }
+
+    // Phase 2: hash and write every file into the content-addressed
+    // store. A tarball used to extract on a single blocking thread, so a
+    // package with thousands of files (e.g. `core-js`) pinned one core
+    // while the rest sat idle — most costly at the makespan tail, when
+    // it's the last extraction still running. `write_cas_entry` is safe
+    // to run concurrently, so large tarballs fan out across the dedicated
+    // [`cas_write_pool`]; small ones stay serial to skip rayon's per-job
+    // dispatch cost when there's nothing to gain. The dedicated pool
+    // keeps this off the global pool the linker uses, so an extraction
+    // burst can't stall node_modules linking running concurrently.
+    const PARALLEL_EXTRACT_THRESHOLD: usize = 32;
+    let written: Vec<(String, PathBuf, CafsFileInfo)> =
+        if pending.len() >= PARALLEL_EXTRACT_THRESHOLD {
+            let write_all = || -> Result<Vec<(String, PathBuf, CafsFileInfo)>, TarballError> {
+                pending.par_iter().map(|file| write_cas_entry(store_dir, file)).collect()
+            };
+            match cas_write_pool() {
+                Some(pool) => pool.install(write_all),
+                None => write_all(),
+            }?
+        } else {
+            pending.iter().map(|file| write_cas_entry(store_dir, file)).collect::<Result<_, _>>()?
         };
 
-        if let Some(previous) = pkg_files_idx.files.insert(cleaned_entry_path, file_attrs) {
+    // Phase 3 (serial): assemble the output maps. `written` preserves
+    // `pending` order, so a tarball with duplicate paths keeps the last
+    // entry — matching the previous insert-in-order behavior and pnpm's
+    // last-wins `filesIndex.set`.
+    let mut cas_paths = HashMap::<String, PathBuf>::with_capacity(written.len());
+    let mut files = HashMap::with_capacity(written.len());
+    for (path, file_path, info) in written {
+        if let Some(previous) = cas_paths.insert(path.clone(), file_path) {
+            tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
+        }
+        if let Some(previous) = files.insert(path, info) {
             tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
         }
     }
 
+    let pkg_files_idx = PackageFilesIndex {
+        manifest,
+        requires_build: None,
+        algo: "sha512".to_string(),
+        files,
+        side_effects: None,
+    };
     Ok((cas_paths, pkg_files_idx))
 }
 
@@ -1143,6 +1260,12 @@ async fn load_cached_cas_paths(
 /// This subroutine downloads and extracts a tarball to the store directory.
 ///
 /// It returns a CAS map of files in the tarball.
+///
+/// `Clone` is cheap — every field is a reference, a `Copy` scalar, or an
+/// `Arc` — so a caller can keep a copy to retry through a different entry
+/// point (e.g. fall back to [`Self::run_without_mem_cache`] after a
+/// best-effort [`Self::run_with_mem_cache`] reports a sibling failure).
+#[derive(Clone)]
 #[must_use]
 pub struct DownloadTarballToStore<'a> {
     pub http_client: &'a ThrottledClient,
@@ -1250,6 +1373,14 @@ pub struct DownloadTarballToStore<'a> {
     /// pins every resolution), so this gate is pacquet's most useful
     /// interpretation of the flag for frozen installs.
     pub offline: bool,
+    /// Install-scoped set used to de-duplicate package-status progress.
+    /// When `Some`, a `fetched` or `found_in_store` emit records its
+    /// `store_index_key(integrity, pkg_id)` here. Later callers that see
+    /// the same key skip their own package-status emit, while still doing
+    /// the underlying fetch/cache work. Only the fresh install path
+    /// threads this set through, because resolve-time prefetches can
+    /// otherwise report the same package again in the warm batch.
+    pub progress_reported: Option<SharedReportedProgressKeys>,
 }
 
 /// Project [`TarballError`] onto pnpm's `requestRetryLogger`'s
@@ -1620,7 +1751,14 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
 /// Emit `pnpm:progress found_in_store` for a (`package_id`, requester)
 /// pair the cache resolved without a download. Mirrors pnpm's emit at
 /// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L435>.
-fn emit_progress_found_in_store<Reporter: self::Reporter>(package_id: &str, requester: &str) {
+fn emit_progress_found_in_store<Reporter: self::Reporter>(
+    package_id: &str,
+    requester: &str,
+    progress_key: Option<(&SharedReportedProgressKeys, &str)>,
+) {
+    if progress_already_reported(progress_key) {
+        return;
+    }
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::FoundInStore {
@@ -1628,6 +1766,27 @@ fn emit_progress_found_in_store<Reporter: self::Reporter>(package_id: &str, requ
             requester: requester.to_owned(),
         },
     }));
+}
+
+fn emit_progress_fetched<Reporter: self::Reporter>(
+    package_id: &str,
+    requester: &str,
+    progress_key: Option<(&SharedReportedProgressKeys, &str)>,
+) {
+    if progress_already_reported(progress_key) {
+        return;
+    }
+    Reporter::emit(&LogEvent::Progress(ProgressLog {
+        level: LogLevel::Debug,
+        message: ProgressMessage::Fetched {
+            package_id: package_id.to_owned(),
+            requester: requester.to_owned(),
+        },
+    }));
+}
+
+fn progress_already_reported(progress_key: Option<(&SharedReportedProgressKeys, &str)>) -> bool {
+    progress_key.is_some_and(|(reported, key)| !reported.insert(key.to_owned()))
 }
 
 // 9 arguments — over the default clippy threshold but each is
@@ -1651,6 +1810,7 @@ async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     retry_opts: RetryOpts,
     auth_headers: &AuthHeaders,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    progress_key: Option<(&SharedReportedProgressKeys, &str)>,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let mut attempt: u32 = 0;
     loop {
@@ -1672,13 +1832,7 @@ async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
                 // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L435>:
                 // one event per (resolved) package once the tarball
                 // has been pulled from the network and extracted.
-                Reporter::emit(&LogEvent::Progress(ProgressLog {
-                    level: LogLevel::Debug,
-                    message: ProgressMessage::Fetched {
-                        package_id: package_id.to_owned(),
-                        requester: requester.to_owned(),
-                    },
-                }));
+                emit_progress_fetched::<Reporter>(package_id, requester, progress_key);
                 return Ok(value);
             }
             Err(err) if !is_transient_error(&err) => return Err(err),
@@ -1763,6 +1917,9 @@ impl<'a> DownloadTarballToStore<'a> {
             requester,
             ..
         } = &self;
+        let cache_key = store_index_key(&package_integrity.to_string(), package_id);
+        let progress_key =
+            self.progress_reported.as_ref().map(|reported| (reported, cache_key.as_str()));
 
         // Warm-cache fast path: when [`prefetch_cas_paths`] already
         // batched the `(integrity, pkg_id)` row in at install start,
@@ -1781,22 +1938,20 @@ impl<'a> DownloadTarballToStore<'a> {
         // without re-checking the prefetched map. Matches what the
         // normal path does with the result of
         // [`Self::run_without_mem_cache`].
-        if let Some(prefetched) = prefetched_cas_paths {
-            let cache_key = store_index_key(&package_integrity.to_string(), package_id);
-            if let Some(cas_paths) = prefetched.get(&cache_key) {
-                tracing::info!(
-                    target: "pacquet::download",
-                    ?package_url,
-                    ?package_id,
-                    "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
-                );
-                emit_progress_found_in_store::<Reporter>(package_id, requester);
-                let cas_paths = Arc::clone(cas_paths);
-                let cache_lock =
-                    Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
-                mem_cache.insert(package_url.to_string(), cache_lock);
-                return Ok(cas_paths);
-            }
+        if let Some(prefetched) = prefetched_cas_paths
+            && let Some(cas_paths) = prefetched.get(&cache_key)
+        {
+            tracing::info!(
+                target: "pacquet::download",
+                ?package_url,
+                ?package_id,
+                "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
+            );
+            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
+            let cas_paths = Arc::clone(cas_paths);
+            let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
+            mem_cache.insert(package_url.to_string(), cache_lock);
+            return Ok(cas_paths);
         }
 
         // QUESTION: I see no copying from existing store_dir, is there such mechanism?
@@ -1829,19 +1984,12 @@ impl<'a> DownloadTarballToStore<'a> {
             // still makes progress.
             let notify = match &*cache_lock.read().await {
                 CacheValue::Available(cas_paths) => {
-                    // Another task (typically the resolve-time
-                    // `PrefetchingResolver` spawn) already populated
-                    // the slot. The owner's `run_without_mem_cache`
-                    // path emitted `pnpm:progress fetched` /
-                    // `found_in_store` on its own reporter — usually
-                    // the silent prefetcher reporter, so the install
-                    // pass needs to emit the equivalent now from its
-                    // own reporter so consumers see the
-                    // `resolved → found_in_store → imported` triple.
-                    // Treat this as a `found_in_store` (the content
-                    // is already on disk / in cache from our
-                    // perspective).
-                    emit_progress_found_in_store::<Reporter>(package_id, requester);
+                    // The first owner already reported its package
+                    // status. If the caller supplied a shared
+                    // progress set, this emit is skipped for keys the
+                    // owner reported; otherwise preserve the legacy
+                    // per-caller cache-hit progress.
+                    emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
                     return Ok(Arc::clone(cas_paths));
                 }
                 CacheValue::InProgress(notify) => Arc::clone(notify),
@@ -1857,10 +2005,8 @@ impl<'a> DownloadTarballToStore<'a> {
             match &*cache_lock.read().await {
                 CacheValue::Available(cas_paths) => {
                     // Same rationale as the pre-notify `Available`
-                    // branch above — emit `found_in_store` so the
-                    // install pass's reporter sees the event the
-                    // owner's silent emit dropped.
-                    emit_progress_found_in_store::<Reporter>(package_id, requester);
+                    // branch above.
+                    emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
                     Ok(Arc::clone(cas_paths))
                 }
                 CacheValue::Failed => {
@@ -1954,6 +2100,8 @@ impl<'a> DownloadTarballToStore<'a> {
         // an undecodable entry, or any CAFS file that has gone missing
         // from disk all fall through to the download path below.
         let cache_key = store_index_key(&package_integrity.to_string(), package_id);
+        let progress_key =
+            self.progress_reported.as_ref().map(|reported| (reported, cache_key.as_str()));
         // Hot path on warm installs: the install-scoped `prefetch_cas_paths`
         // task already ran one batched SELECT + integrity-check pass for
         // every (integrity, pkg_id) the lockfile mentions. If our key is
@@ -1982,20 +2130,20 @@ impl<'a> DownloadTarballToStore<'a> {
                 ?package_id,
                 "Reusing prefetched CAFS entry — skipping download",
             );
-            emit_progress_found_in_store::<Reporter>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
             return Ok((**cas_paths).clone());
         }
         if let Some(cas_paths) = load_cached_cas_paths(
             store_index,
             store_dir,
-            cache_key,
+            cache_key.clone(),
             verify_store_integrity,
             verified_files_cache,
         )
         .await
         {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
-            emit_progress_found_in_store::<Reporter>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
             return Ok(cas_paths);
         }
 
@@ -2042,6 +2190,7 @@ impl<'a> DownloadTarballToStore<'a> {
                 retry_opts,
                 auth_headers,
                 ignore_file_pattern,
+                progress_key,
             )
             .await?;
 
@@ -2054,7 +2203,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // writer failed to open or the caller handed us none — the row
         // is dropped with a `warn!` and the next install misses on this
         // cache key, matching the read path's stance.
-        let index_key = store_index_key(&package_integrity.to_string(), package_id);
+        let index_key = cache_key;
         if let Some(writer) = store_index_writer {
             writer.queue(index_key, pkg_files_idx);
         } else {
@@ -2130,6 +2279,7 @@ impl FetchTarballForResolution<'_> {
             store_dir,
             retry_opts,
             auth_headers,
+            None,
             None,
         )
         .await?;
@@ -2520,7 +2670,7 @@ impl DownloadZipArchiveToStore<'_> {
                 ?package_id,
                 "Reusing prefetched CAFS entry — skipping zip download",
             );
-            emit_progress_found_in_store::<Reporter>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester, None);
             return Ok((**cas_paths).clone());
         }
         if let Some(cas_paths) = load_cached_cas_paths(
@@ -2533,7 +2683,7 @@ impl DownloadZipArchiveToStore<'_> {
         .await
         {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping zip download");
-            emit_progress_found_in_store::<Reporter>(package_id, requester);
+            emit_progress_found_in_store::<Reporter>(package_id, requester, None);
             return Ok(cas_paths);
         }
 

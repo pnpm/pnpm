@@ -10,10 +10,10 @@
 mod auth;
 mod config;
 mod error;
-mod install_accelerator;
 mod package_name;
 mod policy;
 mod publish;
+mod resolver;
 mod s3;
 mod search;
 mod server;

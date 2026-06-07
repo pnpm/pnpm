@@ -94,7 +94,7 @@ base64 = { version = "0.22.1" }
 bcrypt = { version = "0.19.1" }
 bytes = { version = "1.11.0" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
-dashmap = { version = "6.1.0" }
+dashmap = { version = "6.2.1" }
 derive_more = { version = "2.1.1", features = ["full"] }
 dialoguer = { version = "0.11.0", default-features = false }
 diffy = { version = "0.5.0" }
@@ -134,7 +134,7 @@ rmp-serde = { version = "1.3.0" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", features = ["preserve_order"] }
-serde-saphyr = { version = "0.0.26" }
+serde-saphyr = { version = "0.0.27" }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2               = { version = "0.10.9" }
 smart-default      = { version = "0.7.1" }
@@ -142,7 +142,7 @@ split-first-char   = { version = "2.0.1" }
 ssri               = { version = "9.2.0" }
 strum              = { version = "0.28.0", features = ["derive"] }
 sysinfo            = { version = "0.39.2" }
-tabled             = { version = "0.17" }
+tabled             = { version = "0.20" }
 tar                = { version = "0.4.46" }
 text-block-macros  = { version = "0.2.0" }
 tower              = { version = "0.5.3" }
