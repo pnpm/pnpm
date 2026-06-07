@@ -386,6 +386,12 @@ pub struct InstallWithFreshLockfileResult {
     /// `config.lockfile=false`). The caller mirrors the same gate when
     /// deciding whether to persist the current-lockfile.
     pub wanted_lockfile: Option<Lockfile>,
+    /// `true` when the wanted lockfile written to disk is the same
+    /// typed lockfile returned in [`Self::wanted_lockfile`]. A
+    /// non-null `afterAllResolved` hook result can mutate fields the
+    /// typed model tracks, so the caller must not record a verification
+    /// cache entry for that case.
+    pub can_record_lockfile_verification: bool,
 }
 
 impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> {
@@ -1082,17 +1088,17 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 &direct_by_importer,
                 &catalogs,
             );
-            let wanted_lockfile = if config.lockfile {
-                save_wanted_lockfile(
+            let (wanted_lockfile, can_record_lockfile_verification) = if config.lockfile {
+                let can_record_lockfile_verification = save_wanted_lockfile(
                     &built_lockfile,
                     &lockfile_dir.join(Lockfile::FILE_NAME),
                     after_all_resolved_hook.as_ref(),
                     after_all_resolved_log.clone(),
                 )
                 .await?;
-                Some(built_lockfile)
+                (Some(built_lockfile), can_record_lockfile_verification)
             } else {
-                None
+                (None, false)
             };
 
             // Close the store-index writer cleanly even though no rows
@@ -1122,6 +1128,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 hoisted_dependencies: HoistedDependencies::new(),
                 hoisted_locations: BTreeMap::new(),
                 wanted_lockfile,
+                can_record_lockfile_verification,
             });
         }
 
@@ -1560,18 +1567,18 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // safety property — a manifest-write failure must not leave a
         // current-lockfile pointing at an incomplete install — needs
         // `.modules.yaml` to land first.
-        let wanted_lockfile = if config.lockfile {
+        let (wanted_lockfile, can_record_lockfile_verification) = if config.lockfile {
             let target = lockfile_dir.join(Lockfile::FILE_NAME);
-            save_wanted_lockfile(
+            let can_record_lockfile_verification = save_wanted_lockfile(
                 &built_lockfile,
                 &target,
                 after_all_resolved_hook.as_ref(),
                 after_all_resolved_log.clone(),
             )
             .await?;
-            Some(built_lockfile)
+            (Some(built_lockfile), can_record_lockfile_verification)
         } else {
-            None
+            (None, false)
         };
 
         // Mirrors upstream `link.ts:167-170`: `importing_done` fires once
@@ -1589,6 +1596,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             hoisted_dependencies,
             hoisted_locations,
             wanted_lockfile,
+            can_record_lockfile_verification,
         })
     }
 }
@@ -1682,11 +1690,12 @@ async fn save_wanted_lockfile(
     target: &Path,
     hook: Option<&Arc<dyn pacquet_hooks::PnpmfileHooks>>,
     log: Option<pacquet_hooks::LogFn>,
-) -> Result<(), InstallWithFreshLockfileError> {
+) -> Result<bool, InstallWithFreshLockfileError> {
     let Some(hook) = hook else {
-        return built_lockfile
+        built_lockfile
             .save_to_path(target)
-            .map_err(InstallWithFreshLockfileError::SaveWantedLockfile);
+            .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
+        return Ok(true);
     };
 
     let value = serde_json::to_value(built_lockfile)
@@ -1704,7 +1713,8 @@ async fn save_wanted_lockfile(
     } else {
         pacquet_lockfile::save_value_to_path(&result, target)
     }
-    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)
+    .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
+    Ok(result.is_null())
 }
 
 /// Build the [`Lockfile`] for `<lockfile_dir>/pnpm-lock.yaml` from the

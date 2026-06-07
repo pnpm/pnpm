@@ -89,6 +89,14 @@ pub type VerifyFuture<'a> = Pin<Box<dyn Future<Output = ResolutionVerification> 
 /// Mirrors pnpm's
 /// [`ResolutionVerifier`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L113-L131).
 pub trait ResolutionVerifier: Send + Sync {
+    /// Cheap synchronous filter used before the runner allocates the
+    /// verifier future. Returning `false` must be equivalent to
+    /// `verify(...)` returning [`ResolutionVerification::Ok`] for the
+    /// same entry.
+    fn might_verify(&self, _resolution: &LockfileResolution, _ctx: VerifyCtx<'_>) -> bool {
+        true
+    }
+
     fn verify<'a>(
         &'a self,
         resolution: &'a LockfileResolution,
