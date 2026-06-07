@@ -371,7 +371,7 @@ test('add: fail trying to install @pnpm/exe', async () => {
 test('minimumReleaseAge with minimumReleaseAgeStrict enabled makes install fail if there is no version that was published before the cutoff', async () => {
   prepareEmpty()
 
-  const isOdd011ReleaseDate = new Date(2016, 11, 7 - 2) // 0.1.1 was released at 2016-12-07T07:18:01.205Z
+  const isOdd011ReleaseDate = new Date('2016-12-07T07:18:01.205Z') // 0.1.1 was released at 2016-12-07T07:18:01.205Z
   const diff = Date.now() - isOdd011ReleaseDate.getTime()
   const minimumReleaseAge = diff / (60 * 1000) // converting to minutes
 
@@ -387,7 +387,7 @@ test('minimumReleaseAge with minimumReleaseAgeStrict enabled makes install fail 
 test('minimumReleaseAgeExclude allows bypassing minimumReleaseAge for specific packages', async () => {
   prepareEmpty()
 
-  const isOdd011ReleaseDate = new Date(2016, 11, 7 - 2) // 0.1.1 was released at 2016-12-07T07:18:01.205Z
+  const isOdd011ReleaseDate = new Date('2016-12-07T07:18:01.205Z') // 0.1.1 was released at 2016-12-07T07:18:01.205Z
   const diff = Date.now() - isOdd011ReleaseDate.getTime()
   const minimumReleaseAge = diff / (60 * 1000) // converting to minutes
 
