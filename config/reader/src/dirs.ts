@@ -1,6 +1,12 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { GLOBAL_CONFIG_YAML_FILENAME } from '@pnpm/constants'
+
+export function getGlobalConfigPath (configDir: string): string {
+  return path.join(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+}
+
 export function getCacheDir (
   opts: {
     env: NodeJS.ProcessEnv
