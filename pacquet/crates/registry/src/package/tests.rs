@@ -21,7 +21,7 @@ pub fn package_version_should_include_peers() {
         peer_dependencies: Some(peer_dependencies),
         optional_dependencies: None,
         peer_dependencies_meta: None,
-        other: Default::default(),
+        other: HashMap::default(),
         npm_user: None,
         deprecated: None,
     };
@@ -45,7 +45,7 @@ pub fn serialized_according_to_params() {
         peer_dependencies: None,
         optional_dependencies: None,
         peer_dependencies_meta: None,
-        other: Default::default(),
+        other: HashMap::default(),
         npm_user: None,
         deprecated: None,
     };
@@ -103,7 +103,7 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
                     peer_dependencies: None,
                     optional_dependencies: None,
                     peer_dependencies_meta: None,
-                    other: Default::default(),
+                    other: HashMap::default(),
                     npm_user: None,
                     deprecated: None,
                 },

@@ -28,7 +28,7 @@ use std::{
     sync::atomic::AtomicU8,
 };
 
-/// Bundled package manifests recovered from the SQLite store index
+/// Bundled package manifests recovered from the `SQLite` store index
 /// during [`CreateVirtualStore::run`], keyed by the same
 /// `PkgNameVerPeer` (without peer suffix) that
 /// [`pacquet_lockfile::Lockfile::packages`] uses. Consumed by the
@@ -192,7 +192,7 @@ pub enum CreateVirtualStoreError {
     MissingPackagesSection,
 }
 
-impl<'a> CreateVirtualStore<'a> {
+impl CreateVirtualStore<'_> {
     /// Execute the subroutine. Returns the set of bundled manifests
     /// recovered from `index.db` for the warm-batch slots — the
     /// bin linker uses these to avoid re-reading `package.json` per
@@ -658,7 +658,20 @@ impl<'a> CreateVirtualStore<'a> {
         });
 
         let import_method = config.package_import_method;
-        if !is_hoisted {
+        if is_hoisted {
+            // Hoisted still wants the progress reporter to fire so
+            // `pnpm:progress imported`-style updates render the warm
+            // hits — the link work just happens later, in
+            // `link_hoisted_modules`.
+            for (snapshot_key, _, _, cache_key) in &warm {
+                let package_id = snapshot_key.without_peer().to_string();
+                emit_warm_snapshot_progress::<Reporter>(
+                    &package_id,
+                    requester,
+                    progress_reported.contains(*cache_key),
+                );
+            }
+        } else {
             use rayon::prelude::*;
             // Driving the warm batch from inside an `async fn` means
             // the `par_iter` blocks the calling tokio worker for the
@@ -716,19 +729,6 @@ impl<'a> CreateVirtualStore<'a> {
                 tokio::task::block_in_place(warm_work)?;
             } else {
                 warm_work()?;
-            }
-        } else {
-            // Hoisted still wants the progress reporter to fire so
-            // `pnpm:progress imported`-style updates render the warm
-            // hits — the link work just happens later, in
-            // `link_hoisted_modules`.
-            for (snapshot_key, _, _, cache_key) in &warm {
-                let package_id = snapshot_key.without_peer().to_string();
-                emit_warm_snapshot_progress::<Reporter>(
-                    &package_id,
-                    requester,
-                    progress_reported.contains(*cache_key),
-                );
             }
         }
 

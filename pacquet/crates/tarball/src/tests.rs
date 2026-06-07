@@ -225,7 +225,7 @@ async fn network_fetch_records_progress_key() {
     let progress_reported = SharedReportedProgressKeys::default();
 
     DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,

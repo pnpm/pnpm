@@ -286,6 +286,7 @@ impl LockfileResolution {
     ///
     /// Port of pnpm's
     /// [`toLockfileResolution`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/utils/src/toLockfileResolution.ts).
+    #[must_use]
     pub fn to_lockfile_form(
         &self,
         name: &str,

@@ -160,7 +160,7 @@ impl Resolver {
 
         let mut config = PacquetConfig::new();
         config.store_dir = self.store_dir.clone();
-        config.cache_dir = self.cache_dir.clone();
+        config.cache_dir.clone_from(&self.cache_dir);
         config.registry = registry;
         config.named_registries = request.named_registries.clone();
         config.overrides = overrides;
@@ -172,12 +172,12 @@ impl Resolver {
         // `trustPolicy` checks, so newly-resolved entries are held to the
         // same policy as the reused ones.
         config.minimum_release_age = request.minimum_release_age;
-        config.minimum_release_age_exclude = request.minimum_release_age_exclude.clone();
+        config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
         if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
             config.minimum_release_age_ignore_missing_time = ignore_missing_time;
         }
         config.trust_policy = request.trust_policy;
-        config.trust_policy_exclude = request.trust_policy_exclude.clone();
+        config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);
         config.trust_policy_ignore_after = request.trust_policy_ignore_after;
         let config: &'static PacquetConfig = config.leak();
         configs.insert(key, config);
@@ -393,7 +393,7 @@ impl pacquet_package_manager::ResolutionObserver for StreamObserver {
 /// Terminal `done` frame: the full resolved lockfile + stats. The client
 /// writes the lockfile and fetches every tarball itself.
 fn done_frame(lockfile: &Lockfile) -> Vec<u8> {
-    let total_packages = lockfile.packages.as_ref().map_or(0, |packages| packages.len());
+    let total_packages = lockfile.packages.as_ref().map_or(0, std::collections::HashMap::len);
     let frame = serde_json::json!({
         "type": "done",
         "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),

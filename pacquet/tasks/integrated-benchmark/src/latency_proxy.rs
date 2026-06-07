@@ -83,7 +83,7 @@ impl LatencyProxy {
 
 /// Convert a megabits-per-second figure into a bytes-per-second cap for
 /// [`LinkProfile`], or `None` for a non-positive / non-finite value (no
-/// cap). 1 Mbit/s = 1_000_000 bits/s = 125_000 bytes/s. A positive rate
+/// cap). 1 Mbit/s = `1_000_000` bits/s = `125_000` bytes/s. A positive rate
 /// never collapses to `Some(0)`: a 0 byte/s cap would stall the proxy
 /// (the pacing math divides by the rate), so it's floored at 1 byte/s.
 pub fn mbps_to_bytes_per_sec(mbps: f64) -> Option<u64> {
