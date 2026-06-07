@@ -1,4 +1,7 @@
+import path from 'node:path'
+
 import { isIniConfigKey, types } from '@pnpm/config.reader'
+import { GLOBAL_CONFIG_YAML_FILENAME } from '@pnpm/constants'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import camelcase from 'camelcase'
@@ -34,6 +37,9 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
       }
     }
     return { value: opts.authConfig[key] }
+  }
+  if (key === 'globalconfig') {
+    return { value: path.join(opts.configDir, GLOBAL_CONFIG_YAML_FILENAME) }
   }
   const kebabKey = isCamelCase(key) ? kebabCase(key) : key
   // Resolve typed keys from Config — check explicitly set values first,

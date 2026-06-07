@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { describe, expect, test } from '@jest/globals'
 import { config } from '@pnpm/config.commands'
 
@@ -267,7 +269,20 @@ test('config get with scoped registry key that does not exist', async () => {
   expect(getOutputString(getResult)).toBe('undefined')
 })
 
-// globalconfig and npm-globalconfig tests removed — pnpm no longer exposes these npm-compat properties
+test('config get globalconfig returns the global config.yaml path', async () => {
+  const configDir = path.join(process.cwd(), 'global-config')
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    authConfig: {},
+  }), ['get', 'globalconfig'])
+
+  expect(getOutputString(getResult)).toBe(path.join(configDir, 'config.yaml'))
+})
+
+// npm-globalconfig tests removed — pnpm no longer exposes these npm-compat properties
 
 describe('does not traverse the prototype chain (#10296)', () => {
   test.each([

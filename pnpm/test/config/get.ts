@@ -276,6 +276,7 @@ test('pnpm config get shows settings from global config.yaml', () => {
   expect(configGet('dangerously-allow-all-builds')).toBe('true')
   expect(configGet('dlxCacheMaxAge')).toBe('1234')
   expect(configGet('dlx-cache-max-age')).toBe('1234')
+  expect(configGet('globalconfig')).toBe(path.join(configDir, 'config.yaml'))
 
   // doesn't list CLI options
   expect(configGet('dev')).toBe('undefined')
