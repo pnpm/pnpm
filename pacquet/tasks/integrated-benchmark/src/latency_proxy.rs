@@ -25,7 +25,7 @@
 
 use std::{
     io::{Read as _, Write as _},
-    net::{Shutdown, SocketAddr, TcpListener, TcpStream},
+    net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -59,7 +59,16 @@ impl LatencyProxy {
     /// direction. Returns the local address callers should connect to
     /// instead of `upstream`.
     pub fn spawn(upstream: SocketAddr, profile: LinkProfile) -> std::io::Result<LatencyProxy> {
-        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        Self::spawn_on(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), upstream, profile)
+    }
+
+    /// Front `upstream` with a proxy bound to `listen`.
+    pub fn spawn_on(
+        listen: SocketAddr,
+        upstream: SocketAddr,
+        profile: LinkProfile,
+    ) -> std::io::Result<LatencyProxy> {
+        let listener = TcpListener::bind(listen)?;
         let addr = listener.local_addr()?;
         listener.set_nonblocking(true)?;
 
@@ -70,6 +79,18 @@ impl LatencyProxy {
 
         Ok(LatencyProxy { addr, stop, accept_thread: Some(accept_thread) })
     }
+}
+
+/// Convert a megabits-per-second figure into a bytes-per-second cap for
+/// [`LinkProfile`], or `None` for a non-positive / non-finite value (no
+/// cap). 1 Mbit/s = 1_000_000 bits/s = 125_000 bytes/s. A positive rate
+/// never collapses to `Some(0)`: a 0 byte/s cap would stall the proxy
+/// (the pacing math divides by the rate), so it's floored at 1 byte/s.
+pub fn mbps_to_bytes_per_sec(mbps: f64) -> Option<u64> {
+    if !mbps.is_finite() || mbps <= 0.0 {
+        return None;
+    }
+    Some(((mbps * 125_000.0).round() as u64).max(1))
 }
 
 impl Drop for LatencyProxy {
