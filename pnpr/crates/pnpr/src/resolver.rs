@@ -237,8 +237,12 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
         };
     }
 
-    // Short-circuit paths that produce the whole lockfile without an
-    // incremental tree walk: nothing to stream, so emit only `done`.
+    // Short-circuit paths produce the whole lockfile without an
+    // incremental tree walk, so emit only `done`. Keep these paths
+    // frame-free unless the protocol lets the client consume `done`
+    // without waiting for synthetic package frames: the benchmarked
+    // pnpm/pnpm#12259 experiment regressed hot-store installs because
+    // prefetch had little useful work to overlap.
     if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
         return ndjson_single_frame(&done_frame(&lockfile));
     }
