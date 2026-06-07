@@ -39,6 +39,10 @@ privatePackages/store
 
 ## Verdaccio storage
 storage
+# ...but not the pnpr crate's `storage` source module (the bare rule above
+# is unanchored and would otherwise swallow this source directory).
+!/pnpr/crates/pnpr/src/storage/
+!/pnpr/crates/pnpr/src/storage/**
 
 yarn.lock
 

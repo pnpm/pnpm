@@ -8,11 +8,11 @@ use crate::{
         PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
-    storage::Storage,
+    storage::{CachedPackument, Storage},
     streaming,
     upstream::{
-        FetchOutcome, Upstream, abbreviate_packument, extract_version_manifest,
-        rewrite_tarball_urls,
+        CacheValidators, FetchOutcome, FetchedPackument, PackumentFetch, Upstream,
+        abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
     },
 };
 use axum::{
@@ -211,6 +211,9 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
                         "request",
                         method = %request.method(),
                         uri = %request.uri(),
+                        // Filled in by `record_cache_status` for packument
+                        // reads (e.g. `cache=hit`); stays absent otherwise.
+                        cache = tracing::field::Empty,
                     )
                 })
                 .on_request(())
@@ -1566,7 +1569,10 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
     // authoritative: serve it as-is and never overwrite it with an
     // upstream refresh, so hosted versions can't be masked or lost.
     match state.inner.storage.read_hosted_packument(name).await {
-        Ok(Some(bytes)) => return PackumentLoad::Ok(bytes),
+        Ok(Some(bytes)) => {
+            record_cache_status("hosted");
+            return PackumentLoad::Ok(bytes);
+        }
         Ok(None) => {}
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), "published packument read failed")
@@ -1578,36 +1584,133 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
         // left is a leftover cache entry (e.g. a `proxy:` rule was
         // removed after the package was mirrored).
         return match state.inner.storage.read_cached_packument(name).await {
-            Ok(Some(bytes)) => PackumentLoad::Ok(bytes),
+            Ok(Some(bytes)) => {
+                // Served regardless of age — there's no upstream left to
+                // revalidate against — so this is not a fresh `hit`.
+                record_cache_status("orphaned");
+                PackumentLoad::Ok(bytes)
+            }
             Ok(None) => PackumentLoad::NotFound,
             Err(err) => PackumentLoad::Err(err),
         };
     };
 
+    // Freshness window for the proxy cache: a cached packument younger
+    // than `ttl` is served straight from disk; older than `ttl` it's
+    // "stale" and revalidated against the upstream below. Lower = newer
+    // versions surface sooner but more upstream traffic; higher = the
+    // reverse. The conditional GET on the stale path keeps a high `ttl`
+    // cheap (a `304` refreshes the entry without re-downloading it).
     let ttl = state.inner.config.packument_ttl;
-    match state.inner.storage.read_fresh_cached_packument(name, ttl).await {
-        Ok(Some(bytes)) => return PackumentLoad::Ok(bytes),
-        Ok(None) => {}
-        Err(err) => tracing::warn!(?err, package = %name.as_str(), "cache read failed"),
-    }
-
-    match upstream.fetch_packument(name).await {
-        Ok(FetchOutcome::Ok(bytes)) => {
-            if let Err(err) = state.inner.storage.write_cached_packument(name, &bytes).await {
-                tracing::warn!(?err, package = %name.as_str(), "packument cache write failed");
-            }
-            PackumentLoad::Ok(bytes)
+    // A fresh entry serves immediately (and moves its bytes out — a
+    // packument can be multiple MB). A stale entry yields only its
+    // validators; its body stays on disk until a `304`/error path below
+    // actually needs it, so the common stale→`200` refresh never reads it.
+    let validators = match state.inner.storage.read_cached_packument_entry(name, ttl).await {
+        Ok(Some(CachedPackument::Fresh(bytes))) => {
+            record_cache_status("hit");
+            return PackumentLoad::Ok(bytes);
         }
-        Ok(FetchOutcome::NotFound) => PackumentLoad::NotFound,
+        Ok(Some(CachedPackument::Stale(validators))) => validators,
+        Ok(None) => CacheValidators::default(),
+        Err(err) => {
+            tracing::warn!(?err, package = %name.as_str(), "cache read failed");
+            CacheValidators::default()
+        }
+    };
+
+    // Revalidate conditionally when we hold a stale copy: the upstream
+    // can answer `304` and save us re-downloading an unchanged packument.
+    match upstream.fetch_packument(name, &validators).await {
+        Ok(PackumentFetch::Modified(fetched)) => {
+            store_fetched_packument(state, name, fetched).await
+        }
+        // `304` confirmed our stale copy is current: read it now (deferred
+        // until here), re-write it to bump the cache mtime so it's fresh
+        // again until the next TTL window, and serve it.
+        Ok(PackumentFetch::NotModified) => {
+            match state.inner.storage.read_cached_packument(name).await {
+                Ok(Some(bytes)) => {
+                    if let Err(err) =
+                        state.inner.storage.write_cached_packument(name, &bytes, &validators).await
+                    {
+                        tracing::warn!(?err, package = %name.as_str(), "packument cache refresh failed");
+                    }
+                    record_cache_status("revalidated");
+                    PackumentLoad::Ok(bytes)
+                }
+                // The body vanished between the freshness check and this read
+                // (cache wiped concurrently). The upstream just confirmed the
+                // package exists, so re-fetch it unconditionally and self-heal
+                // rather than 404-ing a present package.
+                Ok(None) => match upstream.fetch_packument(name, &CacheValidators::default()).await
+                {
+                    Ok(PackumentFetch::Modified(fetched)) => {
+                        store_fetched_packument(state, name, fetched).await
+                    }
+                    Ok(_) => PackumentLoad::NotFound,
+                    Err(err) => PackumentLoad::Err(err),
+                },
+                Err(err) => PackumentLoad::Err(err),
+            }
+        }
+        Ok(PackumentFetch::NotFound) => PackumentLoad::NotFound,
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), "upstream packument fetch failed");
             match state.inner.storage.read_cached_packument(name).await {
-                Ok(Some(bytes)) => PackumentLoad::Ok(bytes),
+                Ok(Some(bytes)) => {
+                    record_cache_status("stale");
+                    PackumentLoad::Ok(bytes)
+                }
+                // No cache to fall back on: surface the upstream failure.
                 Ok(None) => PackumentLoad::Err(err),
+                // The cache itself is unreadable: surface that I/O error
+                // rather than the upstream one — it's the more actionable
+                // failure when both go wrong.
                 Err(cache_err) => PackumentLoad::Err(cache_err),
             }
         }
     }
+}
+
+/// Persist a freshly fetched packument to the proxy cache and return it,
+/// tagging the access record as a `miss`. A cache-write failure is logged
+/// but not fatal — the fetched bytes are still served.
+async fn store_fetched_packument(
+    state: &AppState,
+    name: &PackageName,
+    fetched: FetchedPackument,
+) -> PackumentLoad {
+    if let Err(err) =
+        state.inner.storage.write_cached_packument(name, &fetched.bytes, &fetched.validators).await
+    {
+        tracing::warn!(?err, package = %name.as_str(), "packument cache write failed");
+    }
+    record_cache_status("miss");
+    PackumentLoad::Ok(fetched.bytes)
+}
+
+/// Tag the current `pnpr::access` request span with how a packument
+/// request was served against the proxy cache, surfacing as a `cache=…`
+/// field on that request's access-log record:
+///
+/// * `hit` — served from a fresh cache entry (within `packument_ttl`)
+///   without contacting the upstream.
+/// * `revalidated` — entry was stale; the upstream answered `304 Not
+///   Modified`, so the cached body was reused.
+/// * `miss` — fetched a fresh body from the upstream.
+/// * `stale` — upstream was unreachable; a stale cached body was served
+///   as a fallback.
+/// * `orphaned` — a leftover mirror served with no upstream left to
+///   revalidate against (its `proxy:` rule was removed after the package
+///   was mirrored). Served regardless of age, so distinct from `hit`.
+/// * `hosted` — served from the authoritative hosted store (a published
+///   or static package), bypassing the proxy cache entirely.
+///
+/// A no-op when called outside a request span (e.g. unit tests), so the
+/// field is simply absent on those records.
+fn record_cache_status(status: &'static str) {
+    Span::current().record("cache", status);
 }
 
 /// Parse the on-disk packument, rewrite `dist.tarball` URLs, and
