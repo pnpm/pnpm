@@ -13,6 +13,7 @@ import spawn from 'cross-spawn'
 import semver from 'semver'
 
 import { exit } from './exit.js'
+
 export async function switchCliVersion (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null) return

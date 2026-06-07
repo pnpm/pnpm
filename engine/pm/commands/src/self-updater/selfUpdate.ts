@@ -321,3 +321,4 @@ async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spe
   }
   return lockfilePinned ?? specMin
 }
+
