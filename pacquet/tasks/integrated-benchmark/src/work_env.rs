@@ -3,7 +3,7 @@ use crate::{
         BenchmarkScenario, Cleanup, HyperfineOptions, RegistryMode, TargetKind, TargetSpec,
     },
     fixtures::{LOCKFILE, PACKAGE_JSON},
-    latency_proxy::{LatencyProxy, LinkProfile},
+    latency_proxy::{LatencyProxy, LinkProfile, mbps_to_bytes_per_sec},
     verify::executor,
     workspace_manifest::MinimalWorkspaceManifest,
 };
@@ -29,7 +29,10 @@ pub struct WorkEnv {
     pub root: PathBuf,
     pub with_pnpm: bool,
     pub targets: Vec<TargetSpec>,
+    /// Registry URL used by benchmarked clients.
     pub registry: String,
+    /// Registry URL used only by the pre-benchmark cache populator.
+    pub registry_cache_populator: String,
     pub registry_mode: RegistryMode,
     pub repository: PathBuf,
     pub pnpm_repository: Option<PathBuf>,
@@ -554,13 +557,11 @@ impl WorkEnv {
     }
 
     pub fn run(&self) {
-        // Front the registry with the emulated link, when requested. The
-        // guard lives for the whole run so installs (in `benchmark`) cross
-        // it; the URL is baked into every target's config during `init`.
-        // Every client that touches the registry — direct pacquet/pnpm,
-        // the pnpr server resolving, and the pnpr client fetching tarballs
-        // — goes through it, so the registry-mock is uniformly as remote as
-        // the real npm registry (see [`Self::registry_for`]).
+        // Virtual mode points at an already-running registry, so this
+        // method can only wrap it with a random local proxy and bake that
+        // URL into the benchmark configs. Verdaccio mode is handled in
+        // `main`: the proxy must own the public registry port before
+        // registry-mock starts so packuments advertise proxied tarball URLs.
         let registry_proxy = self.start_registry_proxy();
         let client_registry = registry_proxy
             .as_ref()
@@ -594,13 +595,14 @@ impl WorkEnv {
         }
     }
 
-    /// Start a proxy in front of the registry that emulates a real link
-    /// (latency + bandwidth cap) for every client, or `None` when neither
-    /// is requested or the registry is already remote (`npm` mode).
+    /// Start a proxy in front of an external virtual registry that emulates
+    /// a real link (latency + bandwidth cap) for every client, or `None`
+    /// when neither is requested. Spawned Verdaccio registries are proxied
+    /// in `main` so their advertised tarball URLs use the proxied port.
     fn start_registry_proxy(&self) -> Option<LatencyProxy> {
         let rate_limit = mbps_to_bytes_per_sec(self.registry_bandwidth_mbps);
         if (self.registry_latency_ms == 0 && rate_limit.is_none())
-            || matches!(self.registry_mode, RegistryMode::Npm)
+            || matches!(self.registry_mode, RegistryMode::Npm | RegistryMode::Verdaccio)
         {
             return None;
         }
@@ -626,11 +628,10 @@ impl WorkEnv {
     /// target — direct *and* pnpr — uses `client_registry` (the emulated
     /// link when throttling is on; the raw registry otherwise), because a
     /// request to the registry-mock should cost the same regardless of who
-    /// makes it. Only the proxy-cache populator keeps the raw (fast) link:
-    /// it warms the registry-mock's on-disk cache before timing starts, so
-    /// its cost isn't measured and there's no reason to slow it down.
+    /// makes it. The proxy-cache populator may use a separate registry URL
+    /// for untimed cache priming.
     fn registry_for<'a>(&'a self, id: BenchId, client_registry: &'a str) -> &'a str {
-        if id.is_proxy_cache_populator() { &self.registry } else { client_registry }
+        if id.is_proxy_cache_populator() { &self.registry_cache_populator } else { client_registry }
     }
 }
 
@@ -651,18 +652,6 @@ fn dir_contains_file(dir: &Path) -> bool {
         }
     }
     false
-}
-
-/// Convert a megabits-per-second figure into a bytes-per-second cap for
-/// [`LinkProfile`], or `None` for a non-positive / non-finite value (no
-/// cap). 1 Mbit/s = 1_000_000 bits/s = 125_000 bytes/s. A positive rate
-/// never collapses to `Some(0)`: a 0 byte/s cap would stall the proxy
-/// (the pacing math divides by the rate), so it's floored at 1 byte/s.
-fn mbps_to_bytes_per_sec(mbps: f64) -> Option<u64> {
-    if !mbps.is_finite() || mbps <= 0.0 {
-        return None;
-    }
-    Some(((mbps * 125_000.0).round() as u64).max(1))
 }
 
 /// A pnpr resolver server spawned for one `pnpr@<rev>`
