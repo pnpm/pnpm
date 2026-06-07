@@ -282,8 +282,6 @@ test('config get globalconfig returns the global config.yaml path', async () => 
   expect(getOutputString(getResult)).toBe(path.join(configDir, 'config.yaml'))
 })
 
-// npm-globalconfig tests removed — pnpm no longer exposes these npm-compat properties
-
 describe('does not traverse the prototype chain (#10296)', () => {
   test.each([
     'constructor',

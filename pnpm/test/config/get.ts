@@ -290,3 +290,18 @@ test('pnpm config get shows settings from global config.yaml', () => {
   expect(configGet('packageExtensions')).toBe('undefined')
   expect(configGet('package-extensions')).toBe('undefined')
 })
+
+test('the path from "config get globalconfig" is the file that pnpm actually reads global settings from', () => {
+  prepare()
+
+  const XDG_CONFIG_HOME = path.resolve('.config')
+  const env = { XDG_CONFIG_HOME }
+  const configGet = (key: string) =>
+    execPnpmSync(['config', 'get', key], { expectSuccess: true, env }).stdout.toString().trim()
+
+  const globalConfigPath = configGet('globalconfig')
+  fs.mkdirSync(path.dirname(globalConfigPath), { recursive: true })
+  fs.writeFileSync(globalConfigPath, 'dlxCacheMaxAge: 4321\n')
+
+  expect(configGet('dlx-cache-max-age')).toBe('4321')
+})

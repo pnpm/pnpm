@@ -1,5 +1,6 @@
 ---
 "@pnpm/config.commands": patch
+"@pnpm/config.reader": patch
 "pnpm": patch
 ---
 

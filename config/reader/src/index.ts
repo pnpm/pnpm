@@ -36,7 +36,7 @@ import type {
 } from './Config.js'
 import { isConfigFileKey } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
-import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
+import { getCacheDir, getConfigDir, getDataDir, getGlobalConfigPath, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
@@ -52,6 +52,7 @@ import { types } from './types.js'
 export { types }
 
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
+export { getGlobalConfigPath } from './dirs.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
 export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 export type { Creds } from './parseCreds.js'
@@ -305,7 +306,7 @@ export async function getConfig (opts: {
       }
     }
     if (ignoredKeys.length > 0) {
-      const globalYamlConfigPath = path.join(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+      const globalYamlConfigPath = getGlobalConfigPath(configDir)
       warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
