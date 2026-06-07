@@ -522,6 +522,17 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         && !link.lockfile_only
         && let Some(lockfile) = state.lockfile.as_ref()
     {
+        let prefetcher = TarballPrefetcher::new(
+            state.config,
+            &state.http_client,
+            &state.tarball_mem_cache,
+            None,
+            &lockfile_dir.to_string_lossy(),
+        )
+        .await;
+        prefetcher.prefetch_lockfile(lockfile, state.config);
+        tokio::task::yield_now().await;
+
         let lockfile_verification_override: Option<LockfileVerificationOverride<'_>> =
             if link.trust_lockfile {
                 None
@@ -567,15 +578,17 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             resolution_observer: None,
         };
 
-        match lockfile_verification_override {
+        let result = match lockfile_verification_override {
             Some(lockfile_verification_override) => {
                 install
                     .run_with_lockfile_verification::<Reporter>(lockfile_verification_override)
                     .await
             }
             None => install.run::<Reporter>().await,
-        }
-        .wrap_err("restoring dependencies from the local lockfile via pnpr verification")?;
+        };
+        result.wrap_err("restoring dependencies from the local lockfile via pnpr verification")?;
+
+        prefetcher.shutdown().await;
 
         return Ok(());
     }

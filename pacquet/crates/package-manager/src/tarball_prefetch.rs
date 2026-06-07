@@ -18,6 +18,7 @@
 use crate::retry_config::retry_opts_from_config;
 use dashmap::DashSet;
 use pacquet_config::Config;
+use pacquet_lockfile::{Lockfile, LockfileResolution, PackageKey};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_reporter::SilentReporter;
 use pacquet_store_dir::{
@@ -240,6 +241,22 @@ impl TarballPrefetcher {
         });
     }
 
+    pub fn prefetch_lockfile(&self, lockfile: &Lockfile, config: &Config) {
+        let Some(packages) = lockfile.packages.as_ref() else {
+            return;
+        };
+        for (package_key, metadata) in packages {
+            let LockfileResolution::Registry(registry_resolution) = &metadata.resolution else {
+                continue;
+            };
+            self.prefetch(
+                package_key.without_peer().to_string(),
+                registry_tarball_url(package_key, config),
+                &registry_resolution.integrity.to_string(),
+            );
+        }
+    }
+
     /// Drain the store-index writer. Call after the materialization
     /// install has returned: by then every prefetch download has
     /// finished (the install awaited each tarball's mem-cache slot) and
@@ -263,4 +280,12 @@ impl TarballPrefetcher {
             ),
         }
     }
+}
+
+fn registry_tarball_url(package_key: &PackageKey, config: &Config) -> String {
+    let registry = config.registry.strip_suffix('/').unwrap_or(&config.registry);
+    let name = &package_key.name;
+    let version = package_key.suffix.version();
+    let bare_name = name.bare.as_str();
+    format!("{registry}/{name}/-/{bare_name}-{version}.tgz")
 }
