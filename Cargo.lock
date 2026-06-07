@@ -3145,6 +3145,7 @@ dependencies = [
  "reqwest 0.13.4",
  "serde",
  "serde-saphyr",
+ "serde_json",
  "tokio",
  "which 8.0.2",
 ]

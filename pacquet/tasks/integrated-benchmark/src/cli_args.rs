@@ -49,28 +49,36 @@ pub struct CliArgs {
     #[clap(long, default_value_t = 0)]
     pub pnpr_latency_ms: u64,
 
-    /// Round-trip latency, in milliseconds, to inject on the link to the
-    /// *registry*, applied to **every** client that touches it: direct
-    /// `pacquet@<rev>` / `pnpm@<rev>` installs, the `pnpr@<rev>` server's
-    /// resolution, and the pnpr client's tarball fetches. A request to the
-    /// registry-mock should cost the same regardless of who makes it, so
-    /// the registry-mock is uniformly as remote as the real one; pnpr's
-    /// advantage then shows up as fewer client round trips (one
-    /// `--pnpr-latency-ms` hop to the server) rather than a faster
-    /// backend. `0` disables injection; ignored with `--registry=npm`
-    /// (already remote).
+    /// Round-trip latency, in milliseconds, to inject on the client link
+    /// to the registry. Direct `pacquet@<rev>` / `pnpm@<rev>` installs and
+    /// pnpr clients' tarball fetches use this link. The pnpr server's own
+    /// resolution uses `--pnpr-server-registry-latency-ms` instead, so a
+    /// benchmark can model a co-located warm server resolving quickly while
+    /// remote clients still fetch tarballs across the slower registry link.
+    /// `0` disables injection; ignored with `--registry=npm` (already
+    /// remote).
     #[clap(long, default_value_t = 0)]
     pub registry_latency_ms: u64,
 
+    /// Round-trip latency, in milliseconds, to inject between each
+    /// `pnpr@<rev>` server and the registry it uses for resolution. Keep
+    /// this low (often `0`) when modeling production, where pnpr sits near
+    /// its registry/cache backend; otherwise the server resolves too slowly
+    /// and the benchmark under-represents the client's cold materialization
+    /// batch. Direct installs and pnpr clients' tarball fetches are
+    /// unaffected; they use `--registry-latency-ms`.
+    #[clap(long, default_value_t = 0)]
+    pub pnpr_server_registry_latency_ms: u64,
+
     /// Download-bandwidth cap, in **megabits per second**, on the link to
-    /// the registry, applied to every client (direct installs and the pnpr
-    /// server + client alike), so tarball fetches take the time they would
-    /// over a real connection instead of being free on loopback. Loopback
-    /// serves at ~GB/s; the public npm registry measured ~190 Mbit/s
-    /// (~24 MB/s) peak on a fast link, and typical home/CI links are
-    /// 50–200 Mbit/s. Pairs with `--registry-latency-ms` (latency
-    /// dominates small packages, bandwidth dominates large ones). `0`
-    /// leaves the registry at loopback speed; ignored with
+    /// the client-facing registry, applied to direct installs and pnpr
+    /// clients' tarball fetches, so tarballs take the time they would over
+    /// a real connection instead of being free on loopback. Loopback serves
+    /// at ~GB/s; the public npm registry measured ~190 Mbit/s (~24 MB/s)
+    /// peak on a fast link, and typical home/CI links are 50–200 Mbit/s.
+    /// Pairs with `--registry-latency-ms` (latency dominates small
+    /// packages, bandwidth dominates large ones). `0` leaves the registry
+    /// at loopback speed; ignored with
     /// `--registry=npm` (already remote).
     #[clap(long, default_value_t = 0.0)]
     pub registry_bandwidth_mbps: f64,
@@ -164,7 +172,7 @@ pub enum RegistryMode {
     clippy::enum_variant_names,
     reason = "the shared `Isolated` prefix mirrors the scenario slug and keeps the linker grouping legible; it stops firing once other linker buckets land"
 )]
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum BenchmarkScenario {
     /// No lockfile, cold cache + cold store. Mirrors `pnpm install` with nothing on disk.
     #[value(name = "isolated-linker.fresh-install.cold-cache.cold-store")]
@@ -302,6 +310,18 @@ impl BenchmarkScenario {
     /// store before hyperfine's warmup runs.
     pub fn enables_gvs(self) -> bool {
         matches!(self, BenchmarkScenario::GvsFreshRestoreHotCacheHotStore)
+    }
+
+    /// Scenarios where pnpr's server-side resolution is expected to beat
+    /// or match a direct pacquet install. Hot-cache scenarios deliberately
+    /// skip this canary because there is little resolution work left to
+    /// offload and the remote pnpr hop can dominate.
+    pub fn expects_pnpr_not_slower_than_direct(self) -> bool {
+        matches!(
+            self,
+            BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
+                | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore,
+        )
     }
 }
 

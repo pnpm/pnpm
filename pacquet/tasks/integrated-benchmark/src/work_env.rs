@@ -12,8 +12,11 @@ use os_display::Quotable;
 use pacquet_fs::file_mode::make_file_executable;
 use pacquet_registry_mock::pick_unused_port;
 use pipe_trait::Pipe;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{
     borrow::Cow,
+    collections::HashMap,
     fmt,
     fs::{self, File},
     io::Write,
@@ -23,6 +26,13 @@ use std::{
     thread,
     time::Duration,
 };
+
+const BENCHMARK_OUTPUT_LOG: &str = "BENCHMARK_OUTPUT.ndjson";
+const BENCHMARK_DIAGNOSTICS_JSON: &str = "BENCHMARK_DIAGNOSTICS.json";
+const BENCHMARK_DIAGNOSTICS_MD: &str = "BENCHMARK_DIAGNOSTICS.md";
+const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
+const PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
+const PNPR_TARBALL_REWRITE_FROM_ENV: &str = "PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM";
 
 #[derive(Debug)]
 pub struct WorkEnv {
@@ -47,6 +57,12 @@ pub struct WorkEnv {
     /// `0` leaves the registry on loopback. Ignored in `--registry=npm`
     /// mode (already remote).
     pub registry_latency_ms: u64,
+    /// Round-trip latency (ms) between a pnpr server and the registry it
+    /// resolves against. Separate from `registry_latency_ms` so the
+    /// benchmark can model a co-located server with fast metadata access
+    /// while clients still fetch tarballs over a remote link. Ignored in
+    /// `--registry=npm` mode.
+    pub pnpr_server_registry_latency_ms: u64,
     /// Download-bandwidth cap (megabits/sec) on the link to the registry,
     /// applied to every client, so tarball fetches cost real time instead
     /// of being free on loopback. `0` leaves the registry at loopback
@@ -201,7 +217,7 @@ impl WorkEnv {
             fs::create_dir_all(&dir).expect("create directory for the revision");
             create_package_json(&dir, self.fixture_dir.as_deref());
             create_pnpm_workspace(&dir, self.fixture_dir.as_deref(), registry, scenario);
-            create_install_script(&dir, scenario, &WorkEnv::install_command(id), id.is_pnpr());
+            create_install_script(&dir, scenario, &WorkEnv::install_command(id), id);
             create_npmrc(&dir, registry, scenario);
             may_create_lockfile(&dir, scenario, self.fixture_dir.as_deref());
             save_pristine_copies(&dir);
@@ -378,7 +394,7 @@ impl WorkEnv {
             .pipe(executor("pnpm run compile-only"));
     }
 
-    fn benchmark(&self) {
+    fn benchmark(&self, pnpr_server_registry: &str) {
         let scenario = self.scenario.expect("scenario set when benchmark() is reached");
 
         // Pre-benchmark wipe of `node_modules`, `store-dir`, and
@@ -406,6 +422,10 @@ impl WorkEnv {
                     fs::remove_dir_all(&path).expect("pre-benchmark wipe");
                 }
             }
+            let output_log = dir.join(BENCHMARK_OUTPUT_LOG);
+            if output_log.exists() {
+                fs::remove_file(output_log).expect("pre-benchmark metrics-log wipe");
+            }
         }
 
         // Start a pnpr server per `pnpr@<rev>` target and keep the guards
@@ -413,7 +433,7 @@ impl WorkEnv {
         // the end of this method. Empty (no-op) when there are no pnpr
         // targets. Spawned before the GVS pre-warm below so a pnpr target
         // would have its server up if a scenario ever combines the two.
-        let _pnpr_servers = self.start_pnpr_servers();
+        let _pnpr_servers = self.start_pnpr_servers(pnpr_server_registry);
 
         // For GVS-warm we need a pre-warm pass: hyperfine's `--warmup`
         // would otherwise time-from-empty for the first run since the
@@ -462,6 +482,7 @@ impl WorkEnv {
             .arg(self.root().join("BENCHMARK_REPORT.md"));
 
         executor("hyperfine")(&mut command);
+        self.write_benchmark_diagnostics();
     }
 
     /// Start a pnpr resolver server for every `pnpr@<rev>`
@@ -469,14 +490,14 @@ impl WorkEnv {
     /// server gets an isolated `<bench_dir>/pnpr-storage`. The returned
     /// guards keep the servers alive and kill them on drop; the vec is
     /// empty when no target is a pnpr target.
-    fn start_pnpr_servers(&self) -> Vec<PnprServer> {
+    fn start_pnpr_servers(&self, pnpr_server_registry: &str) -> Vec<PnprServer> {
         self.benchmarked_ids()
             .filter(|id| id.is_pnpr())
-            .map(|id| self.start_pnpr_server(id))
+            .map(|id| self.start_pnpr_server(id, pnpr_server_registry))
             .collect()
     }
 
-    fn start_pnpr_server(&self, id: BenchId) -> PnprServer {
+    fn start_pnpr_server(&self, id: BenchId, pnpr_server_registry: &str) -> PnprServer {
         let bench_dir = self.bench_dir(id);
         let binary = bench_dir.join("pacquet").join("target").join("release").join("pnpr");
         assert!(
@@ -547,9 +568,19 @@ impl WorkEnv {
         // bare `PNPR_SERVER` is silently ignored and the install runs
         // *direct* instead of through pnpr — making every `pnpr@<rev>`
         // target a duplicate of its `pacquet@<rev>` row.
+        // `PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM` is a source
+        // prefix, not the client fetch path. Some registry fixtures return
+        // raw upstream tarball URLs even when the server resolves through a
+        // latency proxy; the pacquet client rewrites this prefix to its
+        // configured registry, which is `client_registry` from `.npmrc`.
         fs::write(
             bench_dir.join(".pnpr-env"),
-            format!("export PNPM_CONFIG_PNPR_SERVER={client_url}\n"),
+            format!(
+                "export PNPM_CONFIG_PNPR_SERVER={client_url}\n\
+                 export {PNPR_SERVER_REGISTRY_ENV}={pnpr_server_registry}\n\
+                 export {PNPR_TARBALL_REWRITE_FROM_ENV}={tarball_rewrite_from}\n",
+                tarball_rewrite_from = self.registry,
+            ),
         )
         .expect("write .pnpr-env");
 
@@ -557,22 +588,29 @@ impl WorkEnv {
     }
 
     pub fn run(&self) {
-        // Virtual mode points at an already-running registry, so this
-        // method can only wrap it with a random local proxy and bake that
-        // URL into the benchmark configs. Verdaccio mode is handled in
-        // `main`: the proxy must own the public registry port before
-        // registry-mock starts so packuments advertise proxied tarball URLs.
-        let registry_proxy = self.start_registry_proxy();
+        // The client registry URL is baked into every target's config
+        // during `init`. Direct pacquet/pnpm and the pnpr client tarball
+        // materialization go through this URL. The pnpr server receives a
+        // separate resolve-registry URL so server-side metadata access can
+        // be measured independently.
+        let registry_proxy = self.start_client_registry_proxy();
         let client_registry = registry_proxy
             .as_ref()
             .map(|proxy| format!("http://{}/", proxy.addr))
             .unwrap_or_else(|| self.registry.clone());
+        let pnpr_server_registry_proxy = self.start_pnpr_server_registry_proxy();
+        let pnpr_server_registry = pnpr_server_registry_proxy
+            .as_ref()
+            .map(|proxy| format!("http://{}/", proxy.addr))
+            .unwrap_or_else(|| self.registry_cache_populator.clone());
 
         self.init(&client_registry);
         self.build();
-        self.benchmark();
+        self.benchmark(&pnpr_server_registry);
+        drop(pnpr_server_registry_proxy);
         drop(registry_proxy);
         self.verify_pnpr_targets_were_routed();
+        self.verify_benchmark_diagnostics();
     }
 
     /// Fail the run if a `pnpr@<rev>` target never actually went through its
@@ -596,10 +634,11 @@ impl WorkEnv {
     }
 
     /// Start a proxy in front of an external virtual registry that emulates
-    /// a real link (latency + bandwidth cap) for every client, or `None`
-    /// when neither is requested. Spawned Verdaccio registries are proxied
-    /// in `main` so their advertised tarball URLs use the proxied port.
-    fn start_registry_proxy(&self) -> Option<LatencyProxy> {
+    /// a real link (latency + bandwidth cap) for benchmark clients, or
+    /// `None` when neither is requested. Spawned Verdaccio registries are
+    /// proxied in `main` so their advertised tarball URLs use the proxied
+    /// public port.
+    fn start_client_registry_proxy(&self) -> Option<LatencyProxy> {
         let rate_limit = mbps_to_bytes_per_sec(self.registry_bandwidth_mbps);
         if (self.registry_latency_ms == 0 && rate_limit.is_none())
             || matches!(self.registry_mode, RegistryMode::Npm | RegistryMode::Verdaccio)
@@ -624,15 +663,401 @@ impl WorkEnv {
         Some(proxy)
     }
 
-    /// The registry a given bench id resolves against. Every benchmarked
-    /// target — direct *and* pnpr — uses `client_registry` (the emulated
-    /// link when throttling is on; the raw registry otherwise), because a
-    /// request to the registry-mock should cost the same regardless of who
-    /// makes it. The proxy-cache populator may use a separate registry URL
-    /// for untimed cache priming.
+    /// Start a latency-only proxy for pnpr server-side registry access.
+    /// The client still uses [`Self::start_client_registry_proxy`], which
+    /// may have a higher latency and a bandwidth cap for tarball fetches.
+    fn start_pnpr_server_registry_proxy(&self) -> Option<LatencyProxy> {
+        if self.pnpr_server_registry_latency_ms == 0
+            || matches!(self.registry_mode, RegistryMode::Npm)
+        {
+            return None;
+        }
+        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, self.registry_port));
+        let profile = LinkProfile {
+            one_way: Duration::from_millis(self.pnpr_server_registry_latency_ms) / 2,
+            rate_limit: None,
+        };
+        let proxy =
+            LatencyProxy::spawn(upstream, profile).expect("spawn pnpr server registry proxy");
+        eprintln!(
+            "Fronting the pnpr server registry link with {}ms round-trip latency (proxy at {})",
+            self.pnpr_server_registry_latency_ms, proxy.addr,
+        );
+        Some(proxy)
+    }
+
+    /// The registry a given bench id resolves against from the client's
+    /// point of view. Direct targets use this for every registry request;
+    /// pnpr targets keep it as the materialization registry while their
+    /// server receives a separate resolve-registry override in `.pnpr-env`.
+    /// The proxy-cache populator may use a separate registry URL for
+    /// untimed cache priming.
     fn registry_for<'a>(&'a self, id: BenchId, client_registry: &'a str) -> &'a str {
         if id.is_proxy_cache_populator() { &self.registry_cache_populator } else { client_registry }
     }
+
+    fn write_benchmark_diagnostics(&self) {
+        let diagnostics = self.collect_benchmark_diagnostics();
+        let json = serde_json::to_string_pretty(&diagnostics).expect("serialize diagnostics JSON");
+        fs::write(self.root().join(BENCHMARK_DIAGNOSTICS_JSON), json)
+            .expect("write benchmark diagnostics JSON");
+        let markdown = render_diagnostics_markdown(&diagnostics, self.scenario);
+        fs::write(self.root().join(BENCHMARK_DIAGNOSTICS_MD), &markdown)
+            .expect("write benchmark diagnostics markdown");
+    }
+
+    fn collect_benchmark_diagnostics(&self) -> BenchmarkDiagnostics {
+        let hyperfine = read_hyperfine_report(&self.root().join("BENCHMARK_REPORT.json"));
+        let commands_by_name: HashMap<String, HyperfineCommand> = hyperfine
+            .results
+            .into_iter()
+            .map(|command| (command.name().to_string(), command))
+            .collect();
+        let targets = self
+            .benchmarked_ids()
+            .map(|id| {
+                let id = id.to_string();
+                let phase_events =
+                    read_phase_events(&self.root().join(&id).join(BENCHMARK_OUTPUT_LOG));
+                let command = commands_by_name.get(&id);
+                BenchmarkTargetDiagnostics {
+                    id,
+                    hyperfine_mean_seconds: command.map(|command| command.mean),
+                    phase_summary: summarize_phase_events(&phase_events),
+                    phase_events,
+                }
+            })
+            .collect();
+
+        BenchmarkDiagnostics {
+            targets,
+            pnpr_direct_ratios: collect_pnpr_direct_ratios(&commands_by_name),
+        }
+    }
+
+    fn verify_benchmark_diagnostics(&self) {
+        let diagnostics = read_benchmark_diagnostics(&self.root().join(BENCHMARK_DIAGNOSTICS_JSON));
+        self.verify_fresh_pnpr_cold_batch(&diagnostics);
+        self.verify_pnpr_direct_ratios(&diagnostics);
+    }
+
+    fn verify_fresh_pnpr_cold_batch(&self, diagnostics: &BenchmarkDiagnostics) {
+        if self.scenario != Some(BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore) {
+            return;
+        }
+        for target in diagnostics
+            .targets
+            .iter()
+            .filter(|target| requires_fresh_pnpr_cold_batch_metrics(&target.id))
+        {
+            let Some(partition) = target.phase_summary.partition.as_ref() else {
+                panic!(
+                    "{id} did not emit create_virtual_store_partition metrics; \
+                     benchmark cannot prove the pnpr fresh install exercised the cold batch",
+                    id = target.id,
+                );
+            };
+            assert!(
+                non_trivial_cold_batch(partition.cold, partition.total),
+                "{id} did not exercise a non-trivial cold batch: warm={} cold={} skipped={} total={}",
+                partition.warm,
+                partition.cold,
+                partition.skipped,
+                partition.total,
+                id = target.id,
+            );
+        }
+    }
+
+    fn verify_pnpr_direct_ratios(&self, diagnostics: &BenchmarkDiagnostics) {
+        let Some(scenario) = self.scenario else { return };
+        if !scenario.expects_pnpr_not_slower_than_direct() {
+            return;
+        }
+        for ratio in &diagnostics.pnpr_direct_ratios {
+            if ratio.revision != "HEAD" {
+                continue;
+            }
+            assert!(
+                ratio.ratio <= PNPR_DIRECT_RATIO_MAX,
+                "pnpr@{} was slower than pacquet@{}: ratio {:.3} > {:.3} (pnpr {:.3}s, pacquet {:.3}s)",
+                ratio.revision,
+                ratio.revision,
+                ratio.ratio,
+                PNPR_DIRECT_RATIO_MAX,
+                ratio.pnpr_mean_seconds,
+                ratio.pacquet_mean_seconds,
+            );
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct HyperfineReport {
+    results: Vec<HyperfineCommand>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct HyperfineCommand {
+    command: String,
+    #[serde(default)]
+    command_name: Option<String>,
+    mean: f64,
+}
+
+impl HyperfineCommand {
+    fn name(&self) -> &str {
+        self.command_name.as_deref().unwrap_or(&self.command)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct BenchmarkDiagnostics {
+    targets: Vec<BenchmarkTargetDiagnostics>,
+    pnpr_direct_ratios: Vec<PnprDirectRatio>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct BenchmarkTargetDiagnostics {
+    id: String,
+    hyperfine_mean_seconds: Option<f64>,
+    phase_summary: PhaseSummary,
+    phase_events: Vec<PhaseEvent>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct PhaseSummary {
+    partition: Option<PartitionMetric>,
+    create_virtual_store_mean_ms: Option<f64>,
+    link_slots: Vec<LinkSlotsMetric>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PartitionMetric {
+    warm: u64,
+    cold: u64,
+    skipped: u64,
+    total: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct LinkSlotsMetric {
+    batch: String,
+    slots: u64,
+    mean_ms: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PhaseEvent {
+    phase: String,
+    elapsed_ms: Option<u64>,
+    warm: Option<u64>,
+    cold: Option<u64>,
+    skipped: Option<u64>,
+    total: Option<u64>,
+    batch: Option<String>,
+    slots: Option<u64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PnprDirectRatio {
+    revision: String,
+    pnpr_mean_seconds: f64,
+    pacquet_mean_seconds: f64,
+    ratio: f64,
+}
+
+fn read_hyperfine_report(path: &Path) -> HyperfineReport {
+    let text = fs::read_to_string(path)
+        .unwrap_or_else(|err| panic!("read hyperfine report at {}: {err}", path.display()));
+    serde_json::from_str(&text)
+        .unwrap_or_else(|err| panic!("parse hyperfine report at {}: {err}", path.display()))
+}
+
+fn read_benchmark_diagnostics(path: &Path) -> BenchmarkDiagnostics {
+    let text = fs::read_to_string(path)
+        .unwrap_or_else(|err| panic!("read benchmark diagnostics at {}: {err}", path.display()));
+    serde_json::from_str(&text)
+        .unwrap_or_else(|err| panic!("parse benchmark diagnostics at {}: {err}", path.display()))
+}
+
+fn read_phase_events(path: &Path) -> Vec<PhaseEvent> {
+    let Ok(text) = fs::read_to_string(path) else { return Vec::new() };
+    text.lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .filter(|value| {
+            value.get("target").and_then(Value::as_str) == Some("pacquet::install::phase")
+        })
+        .filter_map(|value| {
+            let phase = event_str(&value, "phase")?.to_string();
+            Some(PhaseEvent {
+                phase,
+                elapsed_ms: event_u64(&value, "elapsed_ms"),
+                warm: event_u64(&value, "warm"),
+                cold: event_u64(&value, "cold"),
+                skipped: event_u64(&value, "skipped"),
+                total: event_u64(&value, "total"),
+                batch: event_str(&value, "batch").map(str::to_string),
+                slots: event_u64(&value, "slots"),
+            })
+        })
+        .collect()
+}
+
+fn event_field<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
+    value.get(key).or_else(|| value.get("fields").and_then(|fields| fields.get(key)))
+}
+
+fn event_str<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
+    event_field(value, key).and_then(Value::as_str)
+}
+
+fn event_u64(value: &Value, key: &str) -> Option<u64> {
+    let value = event_field(value, key)?;
+    value.as_u64().or_else(|| value.as_str().and_then(|text| text.parse().ok()))
+}
+
+fn summarize_phase_events(events: &[PhaseEvent]) -> PhaseSummary {
+    let partition =
+        events.iter().rev().find(|event| event.phase == "create_virtual_store_partition").and_then(
+            |event| {
+                Some(PartitionMetric {
+                    warm: event.warm?,
+                    cold: event.cold?,
+                    skipped: event.skipped.unwrap_or(0),
+                    total: event.total?,
+                })
+            },
+        );
+    let create_virtual_store_mean_ms = mean(
+        events
+            .iter()
+            .filter(|event| event.phase == "create_virtual_store")
+            .filter_map(|event| event.elapsed_ms)
+            .map(|elapsed| elapsed as f64),
+    );
+    let link_slots = ["warm", "cold"]
+        .into_iter()
+        .filter_map(|batch| {
+            let matching: Vec<&PhaseEvent> = events
+                .iter()
+                .filter(|event| {
+                    event.phase == "link_slots" && event.batch.as_deref() == Some(batch)
+                })
+                .collect();
+            if matching.is_empty() {
+                return None;
+            }
+            let slots = matching.iter().filter_map(|event| event.slots).max().unwrap_or(0);
+            let mean_ms =
+                mean(matching.iter().filter_map(|event| event.elapsed_ms).map(|ms| ms as f64))?;
+            Some(LinkSlotsMetric { batch: batch.to_string(), slots, mean_ms })
+        })
+        .collect();
+    PhaseSummary { partition, create_virtual_store_mean_ms, link_slots }
+}
+
+fn mean(values: impl Iterator<Item = f64>) -> Option<f64> {
+    let mut total = 0.0;
+    let mut count = 0_u64;
+    for value in values {
+        total += value;
+        count += 1;
+    }
+    (count > 0).then_some(total / count as f64)
+}
+
+fn collect_pnpr_direct_ratios(
+    commands_by_name: &HashMap<String, HyperfineCommand>,
+) -> Vec<PnprDirectRatio> {
+    let mut ratios: Vec<PnprDirectRatio> = commands_by_name
+        .iter()
+        .filter_map(|(name, pnpr)| {
+            let revision = name.strip_prefix("pnpr@")?;
+            let direct = commands_by_name.get(&format!("pacquet@{revision}"))?;
+            Some(PnprDirectRatio {
+                revision: revision.to_string(),
+                pnpr_mean_seconds: pnpr.mean,
+                pacquet_mean_seconds: direct.mean,
+                ratio: pnpr.mean / direct.mean,
+            })
+        })
+        .collect();
+    ratios.sort_by(|a, b| a.revision.cmp(&b.revision));
+    ratios
+}
+
+fn non_trivial_cold_batch(cold: u64, total: u64) -> bool {
+    cold > 0 && (total < 10 || cold.saturating_mul(10) >= total)
+}
+
+fn requires_fresh_pnpr_cold_batch_metrics(target_id: &str) -> bool {
+    target_id == "pnpr@HEAD"
+}
+
+fn render_diagnostics_markdown(
+    diagnostics: &BenchmarkDiagnostics,
+    scenario: Option<BenchmarkScenario>,
+) -> String {
+    let mut out = String::from("## Pacquet benchmark diagnostics\n\n");
+    if scenario == Some(BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore)
+        && contains_uninstrumented_pnpr_main(diagnostics)
+    {
+        out.push_str(
+            "> Note: `pnpr@main` in this no-lockfile cold-store report predates the benchmark tarball URL rewrite, so newly resolved tarballs can use raw loopback registry URLs. `pnpr@HEAD` rewrites those URLs to the client-facing registry and pays the configured registry latency/bandwidth. Treat `pnpr@HEAD / pacquet@HEAD` as the guarded comparison here, not `pnpr@HEAD` versus `pnpr@main`.\n\n",
+        );
+    }
+    out.push_str(
+        "| Target | hyperfine mean | warm | cold | skipped | CreateVirtualStore mean | link warm mean | link cold mean |\n",
+    );
+    out.push_str("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
+    for target in &diagnostics.targets {
+        let partition = target.phase_summary.partition.as_ref();
+        out.push_str(&format!(
+            "| {} | {} | {} | {} | {} | {} | {} | {} |\n",
+            target.id,
+            format_seconds(target.hyperfine_mean_seconds),
+            format_u64(partition.map(|metric| metric.warm)),
+            format_u64(partition.map(|metric| metric.cold)),
+            format_u64(partition.map(|metric| metric.skipped)),
+            format_ms(target.phase_summary.create_virtual_store_mean_ms),
+            format_ms(link_slots_mean(&target.phase_summary, "warm")),
+            format_ms(link_slots_mean(&target.phase_summary, "cold")),
+        ));
+    }
+    if !diagnostics.pnpr_direct_ratios.is_empty() {
+        out.push_str("\n| Ratio | value |\n| --- | ---: |\n");
+        for ratio in &diagnostics.pnpr_direct_ratios {
+            out.push_str(&format!(
+                "| pnpr@{} / pacquet@{} | {:.3} |\n",
+                ratio.revision, ratio.revision, ratio.ratio,
+            ));
+        }
+    }
+    out
+}
+
+fn contains_uninstrumented_pnpr_main(diagnostics: &BenchmarkDiagnostics) -> bool {
+    diagnostics
+        .targets
+        .iter()
+        .any(|target| target.id == "pnpr@main" && target.phase_summary.partition.is_none())
+}
+
+fn link_slots_mean(summary: &PhaseSummary, batch: &str) -> Option<f64> {
+    summary.link_slots.iter().find(|metric| metric.batch == batch).map(|metric| metric.mean_ms)
+}
+
+fn format_seconds(value: Option<f64>) -> String {
+    value.map_or_else(|| "-".to_string(), |value| format!("{value:.3}s"))
+}
+
+fn format_ms(value: Option<f64>) -> String {
+    value.map_or_else(|| "-".to_string(), |value| format!("{value:.1}ms"))
+}
+
+fn format_u64(value: Option<u64>) -> String {
+    value.map_or_else(|| "-".to_string(), |value| value.to_string())
 }
 
 /// Whether `dir` contains at least one regular file, recursively. Used to
@@ -961,13 +1386,9 @@ fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Opt
 /// client picks up `PNPM_CONFIG_PNPR_SERVER` and routes the install
 /// through it. The `source` fails loudly under `errexit` if the file is
 /// missing, rather than silently falling back to a direct install.
-fn create_install_script(
-    dir: &Path,
-    scenario: BenchmarkScenario,
-    command: &str,
-    needs_pnpr_env: bool,
-) {
+fn create_install_script(dir: &Path, scenario: BenchmarkScenario, command: &str, id: BenchId) {
     let path = dir.join("install.bash");
+    let capture_pacquet_metrics = id.is_pacquet_like();
 
     eprintln!("Creating script {path:?}...");
     let mut file = File::create(&path).expect("create install.bash");
@@ -975,13 +1396,33 @@ fn create_install_script(
     writeln!(file, "#!/bin/bash").unwrap();
     writeln!(file, "set -o errexit -o nounset -o pipefail").unwrap();
     writeln!(file, r#"cd "$(dirname "$0")""#).unwrap();
-    if needs_pnpr_env {
+    if id.is_pnpr() {
         writeln!(file, "source ./.pnpr-env").unwrap();
+    }
+    if capture_pacquet_metrics {
+        // pnpm targets cannot emit pacquet phase events, so diagnostics are
+        // pacquet/pnpr-only. This adds a small one-sided tracing + file-I/O
+        // cost to pnpm comparisons, but keeps materialization regressions
+        // visible in the benchmark report.
+        writeln!(file, r#"export TRACE="${{TRACE:-pacquet::install::phase=info}}""#).unwrap();
+        writeln!(file, r#"export TRACE_FORMAT="${{TRACE_FORMAT:-json}}""#).unwrap();
+        writeln!(
+            file,
+            r#"printf '{{"benchmarkTarget":"{}","event":"runStart"}}\n' >> {}"#,
+            id, BENCHMARK_OUTPUT_LOG,
+        )
+        .unwrap();
     }
 
     write!(file, "exec {command}").unwrap();
+    if capture_pacquet_metrics {
+        write!(file, " --reporter ndjson").unwrap();
+    }
     for arg in scenario.install_args() {
         write!(file, " {arg}").unwrap();
+    }
+    if capture_pacquet_metrics {
+        write!(file, " >> {BENCHMARK_OUTPUT_LOG} 2>&1").unwrap();
     }
     writeln!(file).unwrap();
 
@@ -1016,6 +1457,12 @@ impl BenchId<'_> {
         matches!(self, BenchId::PnprRevision(_))
     }
 
+    /// Whether this bench id runs the Rust pacquet client, either
+    /// directly or through a pnpr server.
+    fn is_pacquet_like(self) -> bool {
+        matches!(self, BenchId::PacquetRevision(_) | BenchId::PnprRevision(_))
+    }
+
     /// Whether this is the proxy-cache populator (untimed setup that
     /// warms the registry cache), which always uses the real registry.
     fn is_proxy_cache_populator(self) -> bool {
@@ -1033,3 +1480,6 @@ impl<'a> fmt::Display for BenchId<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

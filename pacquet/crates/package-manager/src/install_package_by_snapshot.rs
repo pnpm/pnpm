@@ -124,6 +124,9 @@ pub struct InstallPackageBySnapshot<'a> {
     /// once its tarball is in the store. No effect under
     /// [`NodeLinker::Hoisted`], which never writes virtual-store slots.
     pub defer_link: bool,
+    #[cfg(test)]
+    pub(crate) link_concurrency_probe:
+        Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
 }
 
 /// Error type of [`InstallPackageBySnapshot`].
@@ -259,6 +262,8 @@ impl<'a> InstallPackageBySnapshot<'a> {
             workspace_root,
             node_linker,
             defer_link,
+            #[cfg(test)]
+            link_concurrency_probe,
         } = self;
 
         // TODO: skip when already exists in store?
@@ -559,6 +564,8 @@ impl<'a> InstallPackageBySnapshot<'a> {
                 package_key,
                 snapshot,
                 skipped,
+                #[cfg(test)]
+                link_concurrency_probe,
             }
             .run::<Reporter>()
             .map_err(InstallPackageBySnapshotError::CreateVirtualDir)?;

@@ -24,6 +24,7 @@ os_display   = { workspace = true }
 pipe-trait   = { workspace = true }
 reqwest      = { workspace = true }
 serde        = { workspace = true }
+serde_json   = { workspace = true }
 serde-saphyr = { workspace = true }
 tokio        = { workspace = true }
 which        = { workspace = true }

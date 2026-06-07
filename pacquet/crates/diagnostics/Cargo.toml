@@ -13,7 +13,7 @@ repository.workspace  = true
 [dependencies]
 miette             = { workspace = true }
 tracing            = { workspace = true }
-tracing-subscriber = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["json"] }
 
 [lints]
 workspace = true
