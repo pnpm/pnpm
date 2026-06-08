@@ -2269,3 +2269,63 @@ test('no deadlock on circular aliased peers', async () => {
 
   expect(fs.existsSync(path.resolve(WANTED_LOCKFILE))).toBeTruthy()
 })
+
+test('transitivePeerDependencies does not cause lockfile instability', async () => {
+  const project = prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/transitive-peer-parent', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/transitive-peer-carrier-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/transitive-peer-carrier-b', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/uses-optional-peer', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/has-optional-peer', version: '1.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/transitive-peer-parent@1.0.0', '@pnpm.e2e/peer-c@1.0.0'],
+    testDefaults(),
+  )
+
+  {
+    const lockfile = project.readLockfile()
+    expect(lockfile.snapshots['@pnpm.e2e/transitive-peer-carrier-a@1.0.0']?.transitivePeerDependencies).toStrictEqual(['@pnpm.e2e/peer-c'])
+    expect(lockfile.snapshots['@pnpm.e2e/transitive-peer-carrier-b@1.0.0']?.transitivePeerDependencies).toStrictEqual(['@pnpm.e2e/peer-c'])
+  }
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults())
+
+  const lockfileAfterSecondInstall = project.readLockfile()
+  expect(lockfileAfterSecondInstall.snapshots['@pnpm.e2e/transitive-peer-carrier-a@1.0.0']?.transitivePeerDependencies).toStrictEqual(['@pnpm.e2e/peer-c'])
+  expect(lockfileAfterSecondInstall.snapshots['@pnpm.e2e/transitive-peer-carrier-b@1.0.0']?.transitivePeerDependencies).toStrictEqual(['@pnpm.e2e/peer-c'])
+})
+
+test('adding unrelated dep does not churn transitivePeerDependencies', async () => {
+  const project = prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/transitive-peer-parent', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/transitive-peer-carrier-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/transitive-peer-carrier-b', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/uses-optional-peer', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/has-optional-peer', version: '1.0.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/transitive-peer-parent@1.0.0', '@pnpm.e2e/peer-c@1.0.0'],
+    testDefaults(),
+  )
+
+  const lockfileBefore = project.readLockfile()
+  const carrierASnapshotBefore = lockfileBefore.snapshots['@pnpm.e2e/transitive-peer-carrier-a@1.0.0']
+  const carrierBSnapshotBefore = lockfileBefore.snapshots['@pnpm.e2e/transitive-peer-carrier-b@1.0.0']
+
+  await addDependenciesToPackage(
+    {},
+    ['is-negative@1.0.0'],
+    testDefaults(),
+  )
+
+  const lockfileAfter = project.readLockfile()
+  expect(lockfileAfter.snapshots['@pnpm.e2e/transitive-peer-carrier-a@1.0.0']).toStrictEqual(carrierASnapshotBefore)
+  expect(lockfileAfter.snapshots['@pnpm.e2e/transitive-peer-carrier-b@1.0.0']).toStrictEqual(carrierBSnapshotBefore)
+})
