@@ -2280,8 +2280,8 @@ test('transitivePeerDependencies does not cause lockfile instability', async () 
 
   const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
-    ['@pnpm.e2e/transitive-peer-parent@1.0.0', '@pnpm.e2e/peer-c@1.0.0'],
-    testDefaults(),
+    ['@pnpm.e2e/transitive-peer-parent@1.0.0'],
+    testDefaults()
   )
 
   {
@@ -2309,23 +2309,28 @@ test('adding unrelated dep does not churn transitivePeerDependencies', async () 
   await addDistTag({ package: '@pnpm.e2e/uses-optional-peer', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/has-optional-peer', version: '1.0.0', distTag: 'latest' })
 
-  await addDependenciesToPackage(
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
-    ['@pnpm.e2e/transitive-peer-parent@1.0.0', '@pnpm.e2e/peer-c@1.0.0'],
-    testDefaults(),
+    ['@pnpm.e2e/transitive-peer-parent@1.0.0'],
+    testDefaults()
   )
 
   const lockfileBefore = project.readLockfile()
-  const carrierASnapshotBefore = lockfileBefore.snapshots['@pnpm.e2e/transitive-peer-carrier-a@1.0.0']
-  const carrierBSnapshotBefore = lockfileBefore.snapshots['@pnpm.e2e/transitive-peer-carrier-b@1.0.0']
+  const snapshotKeysBefore = Object.keys(lockfileBefore.snapshots).filter((k) => k.includes('transitive-peer-carrier'))
+  expect(snapshotKeysBefore).toHaveLength(2)
+
+  const carrierASnapshotBefore = lockfileBefore.snapshots[snapshotKeysBefore[0]]
+  const carrierBSnapshotBefore = lockfileBefore.snapshots[snapshotKeysBefore[1]]
 
   await addDependenciesToPackage(
-    {},
+    manifest,
     ['is-negative@1.0.0'],
-    testDefaults(),
+    testDefaults()
   )
 
   const lockfileAfter = project.readLockfile()
-  expect(lockfileAfter.snapshots['@pnpm.e2e/transitive-peer-carrier-a@1.0.0']).toStrictEqual(carrierASnapshotBefore)
-  expect(lockfileAfter.snapshots['@pnpm.e2e/transitive-peer-carrier-b@1.0.0']).toStrictEqual(carrierBSnapshotBefore)
+  const snapshotKeysAfter = Object.keys(lockfileAfter.snapshots).filter((k) => k.includes('transitive-peer-carrier'))
+  expect(snapshotKeysAfter).toStrictEqual(snapshotKeysBefore)
+  expect(lockfileAfter.snapshots[snapshotKeysAfter[0]]).toStrictEqual(carrierASnapshotBefore)
+  expect(lockfileAfter.snapshots[snapshotKeysAfter[1]]).toStrictEqual(carrierBSnapshotBefore)
 })
