@@ -891,16 +891,10 @@ impl<'tree> Walker<'tree> {
         let dep_path = if all_resolved_peers.is_empty() {
             DepPath::from(pkg.id.clone())
         } else {
-            let mut peer_ids: Vec<PeerId> = all_resolved_peers
+            let peer_ids: Vec<PeerId> = all_resolved_peers
                 .iter()
                 .map(|(peer_alias, peer_node_id)| self.build_peer_id(peer_alias, peer_node_id))
                 .collect();
-            // Sorting happens inside `create_peer_dep_graph_hash`, but
-            // we deduplicate by stringified form here to mirror
-            // upstream's `Map<alias, NodeId>` semantics (each peer
-            // contributes at most once).
-            peer_ids.sort_by_key(PeerId::as_segment);
-            peer_ids.dedup_by_key(|p| p.as_segment());
             let suffix = create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
             DepPath::from(format!("{}{}", pkg.id, suffix))
         };
@@ -1210,7 +1204,7 @@ impl<'tree> Walker<'tree> {
                 if peers.is_empty() {
                     continue;
                 }
-                let mut peer_ids: Vec<PeerId> = peers
+                let peer_ids: Vec<PeerId> = peers
                     .iter()
                     .map(|(peer_alias, peer_node_id)| {
                         self.final_peer_id(
@@ -1222,8 +1216,6 @@ impl<'tree> Walker<'tree> {
                         )
                     })
                     .collect();
-                peer_ids.sort_by_key(PeerId::as_segment);
-                peer_ids.dedup_by_key(|peer_id| peer_id.as_segment());
                 let suffix =
                     create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
                 let pkg_id = &self.tree.dependencies_tree[node_id].resolved_package_id;
