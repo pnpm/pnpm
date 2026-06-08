@@ -135,8 +135,8 @@ export async function handler (
   }
 
   if (info.bin) {
-    const bins = typeof info.bin === 'string' ?  [info.bin] : Object.keys(info.bin)
-    lines.push('');
+    const bins = typeof info.bin === 'string' ? [info.bin] : Object.keys(info.bin)
+    lines.push('')
     lines.push(`bin: ${chalk.cyan(bins.join(', '))}`)
   }
 
