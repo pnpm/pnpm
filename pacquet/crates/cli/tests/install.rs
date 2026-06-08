@@ -939,6 +939,7 @@ fn install_with_peer_alias_deps(dependencies: serde_json::Value) -> String {
     }
     workspace_yaml.push_str("autoInstallPeers: false\n");
     workspace_yaml.push_str("strictPeerDependencies: false\n");
+    workspace_yaml.push_str("peersSuffixMaxLength: 1000\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
     fs::write(
