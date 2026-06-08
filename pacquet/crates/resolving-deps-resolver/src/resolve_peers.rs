@@ -1770,10 +1770,12 @@ impl<'tree> Walker<'tree> {
             && parent_pkgs_have_single_occurrence(current_parents);
         for (name, cached_info) in cached_parents {
             let Some(current_info) = current_parents.get(name) else { return false };
-            // Version-only match covers `link:` parents whose nodeIds
-            // don't index into the dependencies tree.
-            if cached_info.version.is_some() || current_info.version.is_some() {
-                if cached_info.version == current_info.version {
+            // Version-only match covers `link:` parents only when
+            // both recorded contexts are version-only.
+            if let (Some(cached_version), Some(current_version)) =
+                (&cached_info.version, &current_info.version)
+            {
+                if cached_version == current_version {
                     continue;
                 }
                 return false;
