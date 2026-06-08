@@ -42,8 +42,6 @@ To quote the [Rush](https://rushjs.io/) team:
       <td align="center" valign="middle">
         <a href="https://bit.cloud/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://openai.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
