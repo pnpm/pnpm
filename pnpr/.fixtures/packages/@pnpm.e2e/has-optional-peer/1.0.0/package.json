@@ -1,0 +1,12 @@
+{
+  "name": "@pnpm.e2e/has-optional-peer",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/peer-c": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@pnpm.e2e/peer-c": {
+      "optional": true
+    }
+  }
+}
