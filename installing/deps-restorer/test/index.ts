@@ -941,3 +941,29 @@ test('headlessInstall: peer-variant snapshot without `resolution` does not crash
     projects,
   }))
 })
+
+test('headlessInstall with dryRun does not prune orphan packages', async () => {
+  const projectDir = f.prepare('simple-with-more-deps')
+
+  await headlessInstall(await testDefaults({
+    lockfileDir: projectDir,
+  }))
+
+  const simpleDir = f.find('simple')
+  fs.copyFileSync(
+    path.join(simpleDir, 'package.json'),
+    path.join(projectDir, 'package.json')
+  )
+  fs.copyFileSync(
+    path.join(simpleDir, WANTED_LOCKFILE),
+    path.join(projectDir, WANTED_LOCKFILE)
+  )
+
+  await headlessInstall(await testDefaults({
+    lockfileDir: projectDir,
+    dryRun: true,
+  }))
+
+  const project = assertProject(projectDir)
+  project.has('resolve-from')
+})

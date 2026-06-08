@@ -18,6 +18,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'cpu',
     'dangerously-allow-all-builds',
     'dev',
+    'dry-run',
     'engine-strict',
     'fetch-retries',
     'fetch-retry-factor',
@@ -137,6 +138,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Skip reinstall if the workspace state is up-to-date',
             name: '--optimistic-repeat-install',
+          },
+          {
+            description: 'Validate that the lockfile is up-to-date without installing packages. Exits with a non-zero exit code if the lockfile is outdated.',
+            name: '--dry-run',
           },
           {
             description: '`optionalDependencies` are not installed',
@@ -305,6 +310,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'depth'
 | 'dev'
 | 'enableGlobalVirtualStore'
+| 'dryRun'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
 | 'frozenLockfile'
@@ -415,6 +421,14 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
   if (opts.resolutionOnly) {
     installDepsOptions.lockfileOnly = true
     installDepsOptions.forceFullResolution = true
+  }
+  if (opts.dryRun) {
+    if (opts.resolutionOnly) {
+      throw new PnpmError('CONFIG_CONFLICT_DRY_RUN_WITH_RESOLUTION_ONLY',
+        'Cannot use --dry-run with --resolution-only')
+    }
+    installDepsOptions.frozenLockfile = true
+    installDepsOptions.lockfileOnly = true
   }
   return installDeps(installDepsOptions, [])
 }

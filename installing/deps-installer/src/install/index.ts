@@ -1044,8 +1044,9 @@ Note that in CI environments, this setting is enabled by default.`,
       }
     }
     if (opts.lockfileOnly) {
-      // The lockfile will only be changed if the workspace will have new projects with no dependencies.
-      await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
+      if (!frozenLockfile) {
+        await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
+      }
       return {
         updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
         ignoredBuilds: undefined,

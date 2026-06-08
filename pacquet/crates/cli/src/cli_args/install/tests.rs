@@ -305,3 +305,13 @@ fn pnpr_benchmark_override_keeps_resolve_registry_separate_from_tarball_rewrite(
         "http://client-registry.test/foo/-/foo-1.0.0.tgz",
     );
 }
+
+#[test]
+fn dry_run_flag_parses() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
+    assert!(!parsed.args.dry_run, "flag absent → false");
+
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--dry-run"])
+        .expect("parses --dry-run");
+    assert!(parsed.args.dry_run, "flag present → true");
+}

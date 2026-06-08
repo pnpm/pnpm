@@ -199,3 +199,29 @@ test('install restores a deleted pnpm-lock.yaml from the current lockfile withou
 
   expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(originalLockfile)
 })
+
+test('install --dry-run fails when lockfile is not up-to-date', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  // Modify package.json so the lockfile is now stale
+  fs.writeFileSync('package.json', JSON.stringify({
+    dependencies: { 'is-positive': '^3.0.0' },
+  }))
+
+  await expect(
+    install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      dryRun: true,
+    })
+  ).rejects.toThrow(/frozen-lockfile/)
+})

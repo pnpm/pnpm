@@ -88,6 +88,13 @@ pub struct InstallArgs {
     #[clap(long)]
     pub frozen_lockfile: bool,
 
+    /// Validate that the lockfile is up-to-date without installing
+    /// packages. Exits with a non-zero exit code if the lockfile is
+    /// outdated. Equivalent to `--frozen-lockfile --lockfile-only`.
+    /// Mirrors pnpm's `--dry-run`.
+    #[clap(long = "dry-run")]
+    pub dry_run: bool,
+
     /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is
     /// updated. Resolution still runs, but nothing is fetched into the
     /// store and no `node_modules` is created. Mirrors pnpm's
@@ -329,6 +336,7 @@ impl InstallArgs {
             dependency_options,
             supported_architectures,
             frozen_lockfile,
+            dry_run,
             lockfile_only,
             prefer_frozen_lockfile,
             no_prefer_frozen_lockfile,
@@ -363,6 +371,10 @@ impl InstallArgs {
         } else {
             None
         };
+
+        // --dry-run: validate lockfile is in sync without installing.
+        let frozen_lockfile = frozen_lockfile || dry_run;
+        let lockfile_only = lockfile_only || dry_run;
 
         // Merge CLI overrides with the yaml-derived value before
         // handing off to the install pipeline. `state.config` is a
