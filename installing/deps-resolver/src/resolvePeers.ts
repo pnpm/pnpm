@@ -265,7 +265,16 @@ function deduplicateDepPaths<T extends PartialResolvedPackage> (
   duplicates: Array<Set<DepPath>>,
   depGraph: GenericDependenciesGraphWithResolvedChildren<T>
 ): DeduplicateDepPathsResult {
-  const depCountSorter = (depPath1: DepPath, depPath2: DepPath) => nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2])
+  // The dep paths arrive in resolution order, which varies between platforms.
+  // Tie-break equal dependency counts on the dep path itself so the chosen
+  // collapse target is the same everywhere — when a variant is a subset of
+  // several incompatible larger variants, the winner must not hinge on
+  // iteration order, or the lockfile becomes machine-dependent.
+  const depCountSorter = (depPath1: DepPath, depPath2: DepPath) => {
+    const countDiff = nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2])
+    if (countDiff !== 0) return countDiff
+    return depPath1 < depPath2 ? -1 : depPath1 > depPath2 ? 1 : 0
+  }
   const depPathsMap: Record<DepPath, DepPath> = {}
   const remainingDuplicates: Array<Set<DepPath>> = []
 

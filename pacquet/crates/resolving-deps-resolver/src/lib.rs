@@ -65,6 +65,7 @@
 //!   `pacquet-lockfile-preferred-versions` crate.
 
 mod dedupe_injected_deps;
+mod dedupe_peer_dependents;
 mod dependencies_graph;
 mod hoist_peers;
 mod lockfile_reuse;
