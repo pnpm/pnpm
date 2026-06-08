@@ -61,8 +61,9 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
     { include: opts.include }
   )
 
+  const importerIdSet = new Set<string>(importerIds)
+
   if (opts.workspacePackages) {
-    const importerIdSet = new Set<string>(importerIds)
 
     const workspaceDepTypes = new Map<string, DepType>()
     for (const dep of workspaceDeps.links) {
@@ -123,10 +124,17 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
     : undefined
 
   await Promise.all(
-    importerWalkers.map(async ({ step }) => {
+    importerWalkers.map(async ({ importerId, step }) => {
+      let parentPurl = rootPurl
+      if (!importerIdSet.has(importerId as ProjectId)) {
+        const info = opts.workspacePackages?.[importerId as ProjectId]
+        if (info) {
+          parentPurl = buildPurl({ name: info.name, version: info.version })
+        }
+      }
       await walkStep(
         step,
-        rootPurl,
+        parentPurl,
         depTypes,
         componentsMap,
         relationships,

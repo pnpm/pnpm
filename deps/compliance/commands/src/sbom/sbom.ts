@@ -183,10 +183,12 @@ export async function handler (
     return handleSplit(opts, serialOpts, ctx)
   }
 
-  const { output } = await generateSbomForProject(opts, serialOpts, ctx)
+  const { output, rootName, rootVersion } = await generateSbomForProject(opts, serialOpts, ctx)
 
   if (opts.out) {
     const filePath = opts.out
+      .replaceAll('%s', sanitizePathSegment(sanitizePackageName(rootName)))
+      .replaceAll('%v', sanitizePathSegment(rootVersion))
     fs.mkdirSync(path.dirname(filePath), { recursive: true })
     fs.writeFileSync(filePath, output)
     return { output: filePath, exitCode: 0 }
@@ -304,7 +306,7 @@ async function generateSbomForProject (
   serialOpts: SerializeOptions,
   ctx: SharedContext,
   compact?: boolean
-): Promise<{ output: string, exitCode: number }> {
+): Promise<{ output: string, exitCode: number, rootName: string, rootVersion: string }> {
   const { lockfile, rootManifest } = ctx
 
   const include = {
@@ -388,7 +390,7 @@ async function generateSbomForProject (
     })
     : serializeSpdx(result, { compact })
 
-  return { output, exitCode: 0 }
+  return { output, exitCode: 0, rootName, rootVersion }
 }
 
 function validateSbomType (value: string | undefined): SbomComponentType {
