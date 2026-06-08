@@ -338,6 +338,204 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
 
+/// Drift in `enableGlobalVirtualStore` invalidates the cached state.
+/// Toggling it moves the virtual store between `<storeDir>/links` and
+/// each project's `node_modules/.pnpm`, so the previous install's
+/// layout no longer matches a fresh resolution. Mirrors pnpm's fix for
+/// [#12142](https://github.com/pnpm/pnpm/issues/12142): the toggle was
+/// invisible to the freshness check until the key joined the comparison.
+#[test]
+fn returns_skipped_when_enable_global_virtual_store_drifts() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    config.enable_global_virtual_store = true;
+    let config = config.leak();
+
+    let mut stale_config = Config::new();
+    stale_config.modules_dir = config.modules_dir.clone();
+    stale_config.enable_global_virtual_store = false;
+    let stale_settings =
+        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+
+    let decision = check_optimistic_repeat_install(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(workspace_root.to_path_buf(), &manifest)],
+        false,
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
+
+/// A pnpm-written state that records `enableGlobalVirtualStore: false`
+/// (the value pnpm forces under CI) stays on the fast path for a pacquet
+/// install with the store off, which omits the key. `false` and the
+/// omitted `None` are the same "store off" state, so the coercion in
+/// `enable_global_virtual_store_match` keeps the cross-package-manager
+/// file from tripping a needless reinstall.
+#[test]
+fn returns_up_to_date_when_recorded_global_virtual_store_is_explicit_off() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+
+    let mut settings =
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    settings.enable_global_virtual_store = Some(false);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(dir.path().to_path_buf(), &manifest)],
+        false,
+    );
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// Drift in `excludeLinksFromLockfile` invalidates the cached state.
+/// pnpm resolves it to a concrete `false` default and records it, so
+/// pacquet must record and compare it too — otherwise pnpm's all-key
+/// freshness check reports drift on every command after a pacquet
+/// install.
+#[test]
+fn returns_skipped_when_exclude_links_from_lockfile_drifts() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    config.exclude_links_from_lockfile = true;
+    let config = config.leak();
+
+    let mut stale_config = Config::new();
+    stale_config.modules_dir = config.modules_dir.clone();
+    stale_config.exclude_links_from_lockfile = false;
+    let stale_settings =
+        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+
+    let decision = check_optimistic_repeat_install(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(workspace_root.to_path_buf(), &manifest)],
+        false,
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
+
+/// Drift in `minimumReleaseAge` invalidates the cached state. pnpm
+/// resolves it to a concrete `1440` default and records it verbatim
+/// (the raw value, not the `Some(0)`-disabled resolution), so pacquet
+/// records and compares the raw value too.
+#[test]
+fn returns_skipped_when_minimum_release_age_drifts() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    config.minimum_release_age = Some(2880);
+    let config = config.leak();
+
+    let mut stale_config = Config::new();
+    stale_config.modules_dir = config.modules_dir.clone();
+    stale_config.minimum_release_age = Some(1440);
+    let stale_settings =
+        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+
+    let decision = check_optimistic_repeat_install(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(workspace_root.to_path_buf(), &manifest)],
+        false,
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
+
+/// Drift in `minimumReleaseAgeIgnoreMissingTime` invalidates the cached
+/// state. pnpm resolves it to a concrete `true` default and records it,
+/// so pacquet records and compares it too.
+#[test]
+fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    config.minimum_release_age_ignore_missing_time = false;
+    let config = config.leak();
+
+    let mut stale_config = Config::new();
+    stale_config.modules_dir = config.modules_dir.clone();
+    stale_config.minimum_release_age_ignore_missing_time = true;
+    let stale_settings =
+        current_settings(&stale_config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+
+    let decision = check_optimistic_repeat_install(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(workspace_root.to_path_buf(), &manifest)],
+        false,
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
+
 /// Drift in `ignoredOptionalDependencies` invalidates the cached
 /// state.
 ///
@@ -721,12 +919,9 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
 
     let mut settings =
         current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
-    // Populate every field pacquet doesn't surface through
-    // `current_settings` today. Each is an upstream pnpm setting
-    // listed in pnpm/pnpm#12009.
-    settings.exclude_links_from_lockfile = Some(false);
-    // `catalogs` is always ignored by pnpm itself; pacquet
-    // mirrors that.
+    // Populate fields pacquet records but `settings_match` does not
+    // compare, to prove a difference on them keeps the fast path.
+    // `catalogs` is always ignored by pnpm itself; pacquet mirrors that.
     settings.catalogs = Some(serde_json::json!({"default": {"react": "^18.0.0"}}));
     // `workspacePackagePatterns` is recorded by pnpm from
     // pnpm-workspace.yaml's `packages:` field, which pacquet
