@@ -1012,6 +1012,114 @@ mod peers {
         assert_eq!(p_node.depth, 1, "p's graph depth must be the minimum (1), not 2");
     }
 
+    /// Port of upstream's
+    /// [`"a peer's own peer is shared with a sibling that peer-depends both"`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/test/resolvePeers.ts#L1207).
+    /// `plugin` peer-depends both `parser` and `typescript`; `parser`
+    /// peer-depends `typescript`. `plugin` and `parser` live under
+    /// `umbrella` (under `app`, which also brings `typescript@1.0.0`), while
+    /// the importer also has a top-level `typescript@2.0.0` + `parser@1.0.0`.
+    /// `plugin`'s `parser` must resolve `typescript@1.0.0` — the version
+    /// `plugin` itself uses — not be shadowed by the top-level `parser` that
+    /// resolved `typescript@2.0.0`. Exercises the depPath suffix machinery.
+    #[tokio::test]
+    async fn peers_own_peer_shared_with_sibling_that_peer_depends_both() {
+        let mut table = HashMap::new();
+        for version in ["1.0.0", "2.0.0"] {
+            table.insert(
+                ("typescript".to_string(), version.to_string()),
+                fake_result(
+                    "typescript",
+                    version,
+                    serde_json::json!({ "name": "typescript", "version": version }),
+                ),
+            );
+        }
+        table.insert(
+            ("parser".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "parser",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "parser",
+                    "version": "1.0.0",
+                    "peerDependencies": { "typescript": "*" }
+                }),
+            ),
+        );
+        table.insert(
+            ("plugin".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "plugin",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "plugin",
+                    "version": "1.0.0",
+                    "peerDependencies": { "parser": "*", "typescript": "*" }
+                }),
+            ),
+        );
+        table.insert(
+            ("umbrella".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "umbrella",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "umbrella",
+                    "version": "1.0.0",
+                    "dependencies": { "plugin": "1.0.0", "parser": "1.0.0" },
+                    "peerDependencies": { "typescript": "*" }
+                }),
+            ),
+        );
+        table.insert(
+            ("app".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "app",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "dependencies": { "typescript": "1.0.0", "umbrella": "1.0.0" }
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({
+            "typescript": "2.0.0",
+            "parser": "1.0.0",
+            "app": "1.0.0",
+        }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+        let keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+        assert!(
+            keys.contains(
+                &"plugin@1.0.0(parser@1.0.0(typescript@1.0.0))(typescript@1.0.0)".to_string()
+            ),
+            "plugin's parser must resolve typescript@1.0.0; got: {keys:?}",
+        );
+        assert!(
+            !keys.contains(
+                &"plugin@1.0.0(parser@1.0.0(typescript@2.0.0))(typescript@1.0.0)".to_string()
+            ),
+            "plugin's parser must not be shadowed by the top-level typescript@2.0.0: {keys:?}",
+        );
+    }
+
     /// A peer that is a walk-ancestor must still carry its own peer
     /// suffix in the dependent's depPath. `a` is a direct dep with peer
     /// `c`; its child `b` peer-depends on `a`. While `b`'s suffix is

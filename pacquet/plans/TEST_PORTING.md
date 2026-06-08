@@ -836,3 +836,32 @@ Tracks pnpm/pnpm#12196. The `catalogMode` mismatch gate landed earlier (pnpm#117
 
 - Settings drift comparison is field-by-field on `WorkspaceStateSettings::PartialEq` rather than the upstream `Object.entries` walk. Equivalent in behavior: any field present in the cached state but `None` in today's `current_settings` (or vice versa) trips the check.
 - The settings construction is shared between the writer (`build_workspace_state` in `install.rs`) and the reader (`current_settings` in `optimistic_repeat_install.rs`) so adding a tracked field on one side automatically updates the other.
+
+## Peer Resolution (`installing/deps-resolver/test/resolvePeers.ts`, `hoistPeers.test.ts`)
+
+Status of the upstream peer-resolution suites, audited while landing the
+lockfile-parity peer fixes (pnpm/pnpm#12266, pnpm/pnpm#12267).
+
+### `hoistPeers.test.ts` — fully ported
+
+- [x] All 11 cases (`hoistPeers` × 8 + `getHoistableOptionalPeers` × 3) are ported in `hoist_peers/tests.rs`, plus two prerelease siblings pacquet adds.
+
+### `resolvePeers.ts` — ported / covered
+
+- [x] `transitive peers use version-only suffixes` — `dedupe_peers_propagates_transitive_peer_to_parent`.
+- [x] `uses version-only peer suffixes without nested dep paths` — `dedupe_peers_collapses_nested_peer_suffixes` / `no_dedupe_peers_keeps_nested_peer_suffixes`.
+- [x] `resolve peer dependencies of cyclic dependencies` — `cyclic_peer_dependencies_resolve_cleanly`.
+- [x] `when a package is referenced twice … still try to resolve it in the other occurrence` — `revisit_resolves_peer_in_one_occurrence_misses_in_other`.
+- [x] `should return from where the bad peer dependency is resolved` — `bad_peer_inside_subtree_records_resolved_from_parent`.
+- [x] `should find peer dependency conflicts` — covered by `bad_peer_version_is_reported`.
+- [x] `a peer's own peer is shared with a sibling that peer-depends both` — ported as `peers_own_peer_shared_with_sibling_that_peer_depends_both`.
+- [x] Walk-ancestor suffix propagation (no direct upstream case — pacquet-specific manifestation of the deferred `calculateDepPath`) — `ancestor_peer_carries_its_own_suffix`.
+- [x] Optional peer not hoisted from the run-resolved tree (resolveRootDependencies behavior behind `getHoistableOptionalPeers`) — `optional_peer_only_in_resolved_tree_is_not_hoisted`.
+- [x] `build_final_graph` min-depth tie-break across `pure_pkgs`/`find_hit` revisits (pacquet-specific) — `shallower_pure_pkgs_revisit_lowers_graph_depth`.
+
+### `resolvePeers.ts` — not yet ported
+
+- [ ] `multi-project: different peer versions produce different instances` — needs the multi-importer `resolve_peers_workspace` harness; general workspace peer-separation, partially covered by `dedupes_when_the_same_package_appears_in_two_subtrees`.
+- [ ] `resolve peer dependencies with npm aliases` — npm-alias peer suffixes.
+- [ ] `should find peer dependency conflicts when the peer is an optional peer of one of the dependencies`, `should ignore conflicts between missing optional peer dependencies`, `should pick the single wanted peer dependency range`, `should return the intersection of two compatible ranges`, the two prerelease-warning cases — peer-issue reporting edge cases.
+- [ ] The `lockedPeerContext` / `resolvedPeerProviderPaths` series (`prefers a compatible locked provider …`, the six `does not replace …` cases, `does not reuse a locked provider outside the current peer range`) — pacquet hasn't ported `lockedPeerContext`/`resolvedPeerProviderPaths`, so these gate on that feature, not on the lockfile-parity peer fixes.
