@@ -1485,7 +1485,9 @@ impl<'tree> Walker<'tree> {
                 .get(parent_node_id)
                 .is_some_and(|node| node.resolved_package_id == current_pkg_id);
             if same_pkg {
-                children.extend(self.realize_children(parent_node_id));
+                for (alias, child_node_id) in self.realize_children(parent_node_id) {
+                    children.entry(alias).or_insert(child_node_id);
+                }
             }
         }
         children

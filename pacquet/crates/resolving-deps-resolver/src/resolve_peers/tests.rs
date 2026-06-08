@@ -1,5 +1,6 @@
-use super::{ResolvePeersOptions, resolve_peers, satisfies_with_prereleases};
+use super::{ResolvePeersOptions, Walker, resolve_peers, satisfies_with_prereleases};
 use crate::{
+    dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
     node_id::NodeId,
     resolved_tree::{
         DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren,
@@ -270,12 +271,65 @@ fn same_package_child_replaces_inherited_parent_when_peer_diamond_conflicts() {
     );
 }
 
+#[test]
+fn previously_resolved_children_prefers_closest_same_package_ancestor() {
+    let far_parent = NodeId::next();
+    let close_parent = NodeId::next();
+    let far_child = NodeId::leaf("shared@1.0.0");
+    let close_child = NodeId::leaf("shared@2.0.0");
+
+    let mut far_children = BTreeMap::new();
+    far_children.insert("shared".to_string(), far_child);
+    let mut close_children = BTreeMap::new();
+    close_children.insert("shared".to_string(), close_child.clone());
+
+    let mut tree = ResolvedTree {
+        direct: Vec::new(),
+        packages: HashMap::from([("loop@1.0.0".to_string(), package("loop", "1.0.0", &[], false))]),
+        dependencies_tree: HashMap::from([
+            (far_parent.clone(), tree_node("loop@1.0.0", far_children, 0)),
+            (close_parent.clone(), tree_node("loop@1.0.0", close_children, 2)),
+        ]),
+        all_peer_dep_names: HashSet::new(),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+    let mut walker = walker_for_tests(&mut tree);
+
+    let children = walker.previously_resolved_children(
+        &[far_parent, close_parent],
+        &["loop@1.0.0".to_string()],
+        "loop@1.0.0",
+    );
+
+    assert_eq!(children.get("shared"), Some(&close_child));
+}
+
 fn tree_node(pkg_id: &str, children: BTreeMap<String, NodeId>, depth: i32) -> DependenciesTreeNode {
     DependenciesTreeNode {
         resolved_package_id: pkg_id.to_string(),
         children: TreeChildren::Realized(children),
         depth,
         installable: true,
+    }
+}
+
+fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
+    Walker {
+        tree,
+        opts: ResolvePeersOptions::default(),
+        graph: DependenciesGraph::new(),
+        issues: PeerDependencyIssues::default(),
+        node_dep_paths: HashMap::new(),
+        node_external_peers: HashMap::new(),
+        node_missing_peers: HashMap::new(),
+        in_progress: HashSet::new(),
+        pending_peer_edges: Vec::new(),
+        pure_pkgs: HashSet::new(),
+        peers_cache: HashMap::new(),
+        parent_pkgs_of_node: HashMap::new(),
+        node_records: HashMap::new(),
     }
 }
 
