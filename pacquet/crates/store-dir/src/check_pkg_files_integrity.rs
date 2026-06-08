@@ -270,6 +270,10 @@ fn build_side_effects_maps(
 /// fails, so operators can see *which* package file invalidated the
 /// store-index row in the log.
 ///
+/// **Trust boundary.** This verification is for corruption detection
+/// in a trusted local store. It is not a tamper boundary for a store
+/// writable by untrusted users or jobs.
+///
 /// **Locking discipline.** The fast path (`is_modified == false`, i.e.
 /// the file's mtime is within 100 ms of the recorded `checked_at`)
 /// runs lock-free — it never touches the file's bytes and never
