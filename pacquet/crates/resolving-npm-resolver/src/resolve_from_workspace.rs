@@ -323,9 +323,10 @@ fn pathdiff_string(base: &Path, target: &Path) -> Option<String> {
     for component in target_components {
         out.push(component.as_os_str());
     }
-    if out.as_os_str().is_empty() {
-        out.push(".");
-    }
+    // `base == target` (a workspace package depending on itself) yields an
+    // empty relative path, which must stay empty: pnpm renders the id as
+    // `link:` (bare), matching `path.relative(projectDir, projectDir) === ''`
+    // — not `link:.`.
     Some(out.display().to_string())
 }
 
