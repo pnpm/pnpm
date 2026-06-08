@@ -1316,9 +1316,28 @@ impl<'tree> Walker<'tree> {
     /// previously collapsed by the cycle fallback now split into
     /// distinct entries.
     fn build_final_graph(&self, final_dep_paths: &HashMap<NodeId, DepPath>) -> DependenciesGraph {
+        // Minimum tree depth across *every* occurrence that resolves to a
+        // given final depPath. `pure_pkgs` / `find_hit` revisits
+        // short-circuit before a [`NodeRecord`] is created, so iterating
+        // `node_records` alone would restore the first (possibly deeper)
+        // walk's depth and miss a later shallower revisit. `node_dep_paths`
+        // carries every walked NodeId, so recompute the `Math.min` depth
+        // tie-break here — the inline build threaded it through `self.graph`,
+        // which this rebuild discards.
+        let mut min_depth: HashMap<DepPath, i32> = HashMap::new();
+        for node_id in self.node_dep_paths.keys() {
+            let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else { continue };
+            let dep_path = self.final_dep_path_of(node_id, final_dep_paths);
+            min_depth
+                .entry(dep_path)
+                .and_modify(|depth| *depth = (*depth).min(tree_node.depth))
+                .or_insert(tree_node.depth);
+        }
+
         let mut graph = DependenciesGraph::new();
         for (node_id, record) in &self.node_records {
             let dep_path = self.final_dep_path_of(node_id, final_dep_paths);
+            let depth = min_depth.get(&dep_path).copied().unwrap_or(record.depth);
             let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.clone();
             let pkg = &self.tree.packages[&pkg_id];
             let children: BTreeMap<String, DepPath> = record
@@ -1336,8 +1355,8 @@ impl<'tree> Walker<'tree> {
             graph
                 .entry(dep_path.clone())
                 .and_modify(|node| {
-                    if node.depth > record.depth {
-                        node.depth = record.depth;
+                    if node.depth > depth {
+                        node.depth = depth;
                     }
                 })
                 .or_insert(DependenciesGraphNode {
@@ -1348,7 +1367,7 @@ impl<'tree> Walker<'tree> {
                     peer_dependencies: pkg.peer_dependencies.clone(),
                     transitive_peer_dependencies: record.transitive_peer_dependencies.clone(),
                     resolved_peer_names,
-                    depth: record.depth,
+                    depth,
                     installable: record.installable,
                     is_pure: record.is_pure,
                     optional: pkg.optional,

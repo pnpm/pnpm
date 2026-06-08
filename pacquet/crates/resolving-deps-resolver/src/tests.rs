@@ -921,6 +921,97 @@ mod peers {
         );
     }
 
+    /// A package's graph-node `depth` is the minimum across all
+    /// occurrences, even when the shallower one short-circuits through the
+    /// `pure_pkgs` fast path (which has no `NodeRecord`). `p` is reached at
+    /// depth 2 via `a → b → p` (walked first, so its record carries depth
+    /// 2) and at depth 1 via `c → p` (a pure-pkgs revisit). The rebuilt
+    /// graph must record depth 1. Regression guard for the `build_final_graph`
+    /// depth tie-break.
+    #[tokio::test]
+    async fn shallower_pure_pkgs_revisit_lowers_graph_depth() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("a".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "a",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "a",
+                    "version": "1.0.0",
+                    "dependencies": { "b": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("b".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "b",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "b",
+                    "version": "1.0.0",
+                    "dependencies": { "p": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("c".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "c",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "c",
+                    "version": "1.0.0",
+                    "dependencies": { "p": "1.0.0" }
+                }),
+            ),
+        );
+        // `p` has a dep `q` so it gets per-occurrence NodeIds (a shared
+        // leaf would already carry its minimum depth in the tree). Its
+        // whole subtree is peer-free, so the second, shallower occurrence
+        // under `c` takes the `pure_pkgs` fast path — which records no
+        // `NodeRecord`, the case the rebuild must still account for.
+        table.insert(
+            ("p".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "p",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "p",
+                    "version": "1.0.0",
+                    "dependencies": { "q": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("q".to_string(), "1.0.0".to_string()),
+            fake_result("q", "1.0.0", serde_json::json!({ "name": "q", "version": "1.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        // `a` precedes `c` so `p` is first walked at depth 2 (`a → b → p`),
+        // then revisited at depth 1 (`c → p`).
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "1.0.0", "c": "1.0.0" }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+        let p_node = &result.graph[&DepPath::from("p@1.0.0".to_string())];
+        assert_eq!(p_node.depth, 1, "p's graph depth must be the minimum (1), not 2");
+    }
+
     /// A peer that is a walk-ancestor must still carry its own peer
     /// suffix in the dependent's depPath. `a` is a direct dep with peer
     /// `c`; its child `b` peer-depends on `a`. While `b`'s suffix is
