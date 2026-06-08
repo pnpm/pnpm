@@ -2318,9 +2318,11 @@ test('adding unrelated dep does not churn transitivePeerDependencies', async () 
   const lockfileBefore = project.readLockfile()
   const snapshotKeysBefore = Object.keys(lockfileBefore.snapshots).filter((k) => k.includes('transitive-peer-carrier'))
   expect(snapshotKeysBefore).toHaveLength(2)
+  for (const key of snapshotKeysBefore) {
+    expect(lockfileBefore.snapshots[key]?.transitivePeerDependencies).toStrictEqual(['@pnpm.e2e/peer-c'])
+  }
 
-  const carrierASnapshotBefore = lockfileBefore.snapshots[snapshotKeysBefore[0]]
-  const carrierBSnapshotBefore = lockfileBefore.snapshots[snapshotKeysBefore[1]]
+  const allSnapshotsBefore = { ...lockfileBefore.snapshots }
 
   await addDependenciesToPackage(
     manifest,
@@ -2329,8 +2331,7 @@ test('adding unrelated dep does not churn transitivePeerDependencies', async () 
   )
 
   const lockfileAfter = project.readLockfile()
-  const snapshotKeysAfter = Object.keys(lockfileAfter.snapshots).filter((k) => k.includes('transitive-peer-carrier'))
-  expect(snapshotKeysAfter).toStrictEqual(snapshotKeysBefore)
-  expect(lockfileAfter.snapshots[snapshotKeysAfter[0]]).toStrictEqual(carrierASnapshotBefore)
-  expect(lockfileAfter.snapshots[snapshotKeysAfter[1]]).toStrictEqual(carrierBSnapshotBefore)
+  for (const [key, snapshot] of Object.entries(allSnapshotsBefore)) {
+    expect(lockfileAfter.snapshots[key]).toStrictEqual(snapshot)
+  }
 })
