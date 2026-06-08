@@ -221,13 +221,19 @@ fn build_catalog_snapshots(
 /// The concrete version `alias` resolved to in `importer`, read from whichever
 /// dependency group carries it. Returns the peer-stripped version, matching
 /// pnpm's `dep.version` in a catalog snapshot.
+///
+/// Uses [`ImporterDepVersion::ver_peer`] rather than `as_regular` so a catalog
+/// entry resolved through an `npm:` alias (e.g. `js-yaml: npm:@zkochan/js-yaml@0.0.11`,
+/// stored as [`ImporterDepVersion::Alias`]) still records its version (`0.0.11`)
+/// — `as_regular` returns `None` for aliases, which silently dropped aliased
+/// catalog entries from the `catalogs:` snapshot.
 fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<String> {
     let key = PkgName::parse(alias).ok()?;
     [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
         .into_iter()
         .flatten()
         .find_map(|map| map.get(&key))
-        .and_then(|spec| spec.version.as_regular())
+        .and_then(|spec| spec.version.ver_peer())
         .map(|version| version.version().to_string())
 }
 
