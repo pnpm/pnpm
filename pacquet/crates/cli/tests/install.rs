@@ -374,9 +374,9 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
 ///
 /// This is the scenario behind the pnpm regression in
 /// [pnpm/pnpm#12079](https://github.com/pnpm/pnpm/issues/12079). pacquet
-/// resolves it consistently — `bump_occurrence_on_shadow` always prefers
-/// the node's own child over an inherited same-version instance, so it
-/// never reuses the root-level `ts@2.0.0` parser for the nested plugin.
+/// resolves it consistently by switching from the inherited same-version
+/// parser to the node's own child when that inherited parser carries a
+/// conflicting peer context.
 /// Mirrors the upstream coverage in
 /// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/762e80be49/installing/deps-installer/test/install/peerDependencies.ts).
 #[test]
