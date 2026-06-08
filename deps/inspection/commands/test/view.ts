@@ -125,8 +125,8 @@ test('view: text output includes header with name@version', async () => {
 })
 
 test('view: text output includes bin', async () => {
-  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['uuid@10.0.0']) as string
-  expect(result).toContain('bin: uuid')
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['@pnpm.e2e/touch-file-one-bin@1.0.0']) as string
+  expect(result).toMatch(/^bin: t/m)
 })
 
 test('view: text output includes dist section', async () => {
@@ -149,8 +149,8 @@ test('view: text output for package with dependencies shows deps count', async (
 })
 
 test('view: text output for deprecated package shows deprecation', async () => {
-  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['uuid@10.0.0']) as string
-  expect(result).toContain('DEPRECATED! - ')
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['@pnpm.e2e/deprecated@1.0.0']) as string
+  expect(result).toMatch(/^DEPRECATED! - .+/m)
 })
 
 test('view: text output for package without dependencies shows deps: none', async () => {
