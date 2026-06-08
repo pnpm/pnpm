@@ -87,6 +87,17 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         <a href="https://bit.cloud/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
       </td>
     </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://openai.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/openai_dark.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/openai_light.svg" />
+            <img src="https://pnpm.io/img/users/openai_dark.svg" width="160" alt="OpenAI" />
+          </picture>
+        </a>
+      </td>
+    </tr>
   </tbody>
 </table>
 
