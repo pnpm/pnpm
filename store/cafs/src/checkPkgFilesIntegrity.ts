@@ -168,8 +168,9 @@ function verifyFile (
     }
     return passed
   }
-  // If a file was not edited, we are skipping integrity check.
-  // We assume that nobody will manually remove a file in the store and create a new one.
+  // Fast path for trusted stores: if metadata says the file is unchanged, skip the
+  // digest read. Store integrity verification detects corruption; it does not make
+  // a store writable by untrusted users safe.
   return true
 }
 

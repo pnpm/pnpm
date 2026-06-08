@@ -387,7 +387,9 @@ pub struct Config {
     /// true to hoist them for you.
     pub shamefully_hoist: bool,
 
-    /// The location where all the packages are saved on the disk.
+    /// The location where all packages are saved on disk. Share a
+    /// writable store only between mutually trusted users, jobs, and
+    /// processes.
     #[default(_code = "default_store_dir::<Host>()")]
     pub store_dir: StoreDir,
 
@@ -792,6 +794,9 @@ pub struct Config {
     /// lookup skips that verification entirely and trusts the index — a
     /// missing blob is discovered lazily at link time instead.
     ///
+    /// This is corruption detection for a trusted store, not a tamper
+    /// boundary for a store writable by untrusted users or jobs.
+    ///
     /// Matches pnpm's `verifyStoreIntegrity` camelCase key in
     /// `pnpm-workspace.yaml` (same `true` default as pnpm's
     /// `installing/deps-installer/src/install/extendInstallOptions.ts`).
@@ -1152,6 +1157,8 @@ pub struct Config {
     /// verification gate to memoize past results in
     /// `<cache_dir>/lockfile-verified.jsonl`, and by the npm verifier
     /// to mirror full-metadata responses for conditional GETs.
+    /// Share a writable cache only between mutually trusted users,
+    /// jobs, and processes.
     ///
     /// Mirrors pnpm's
     /// [`cacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L159);
