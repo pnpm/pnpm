@@ -124,6 +124,11 @@ export async function handler (
     lines.push(chalk.underline.blue(info.homepage))
   }
 
+  if (info.deprecated) {
+    lines.push('')
+    lines.push(`${chalk.red('DEPRECATED!')} - ${info.deprecated}`)
+  }
+
   if (info.keywords && info.keywords.length > 0) {
     lines.push('')
     lines.push(`keywords: ${chalk.cyan(info.keywords.join(', '))}`)

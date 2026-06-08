@@ -143,6 +143,11 @@ test('view: text output for package with dependencies shows deps count', async (
   expect(firstLine).not.toContain('deps: none')
 })
 
+test('view: text output for deprecated package shows deprecation', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['uuid@10.0.0']) as string
+  expect(result).toContain('DEPRECATED! - ')
+})
+
 test('view: text output for package without dependencies shows deps: none', async () => {
   const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['is-negative@1.0.0']) as string
   const firstLine = result.split('\n')[0]
