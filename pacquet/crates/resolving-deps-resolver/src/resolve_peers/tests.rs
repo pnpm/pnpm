@@ -144,6 +144,60 @@ fn own_peer_is_resolved_from_peer_relevant_child() {
 }
 
 #[test]
+fn own_peer_is_resolved_from_aliased_child_real_name() {
+    let peer_c = NodeId::leaf("peer-c@2.0.0");
+    let consumer = NodeId::next();
+    let parent = NodeId::next();
+
+    let mut parent_children = BTreeMap::new();
+    parent_children.insert("consumer".to_string(), consumer.clone());
+    parent_children.insert("peer-c1".to_string(), peer_c.clone());
+
+    let mut tree = ResolvedTree {
+        direct: vec![DirectDep {
+            alias: "parent".to_string(),
+            node_id: parent.clone(),
+            id: "parent@1.0.0".to_string(),
+        }],
+        packages: HashMap::from([
+            ("peer-c@2.0.0".to_string(), package("peer-c", "2.0.0", &[], true)),
+            (
+                "consumer@1.0.0".to_string(),
+                package_with_peer_dependencies(
+                    "consumer",
+                    "1.0.0",
+                    &[("peer-c", "*", false)],
+                    false,
+                ),
+            ),
+            ("parent@1.0.0".to_string(), package("parent", "1.0.0", &[], false)),
+        ]),
+        dependencies_tree: HashMap::from([
+            (peer_c, tree_node("peer-c@2.0.0", BTreeMap::new(), 1)),
+            (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 1)),
+            (parent, tree_node("parent@1.0.0", parent_children, 0)),
+        ]),
+        all_peer_dep_names: HashSet::from(["peer-c".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let dep_path = DepPath::from("consumer@1.0.0(peer-c@2.0.0)");
+
+    assert!(
+        result.graph.contains_key(&dep_path),
+        "consumer should resolve peer-c from the peer-c1 alias child: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+    assert_eq!(
+        result.graph[&dep_path].children.get("peer-c"),
+        Some(&DepPath::from("peer-c@2.0.0")),
+    );
+}
+
+#[test]
 fn cached_optional_peer_resolution_bubbles_to_later_parent_without_provider() {
     let types = NodeId::leaf("types@1.0.0");
     let config_from_core = NodeId::next();

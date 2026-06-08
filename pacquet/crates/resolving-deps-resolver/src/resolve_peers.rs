@@ -731,13 +731,17 @@ impl<'tree> Walker<'tree> {
         let mut child_parent_refs = parent_parent_refs.clone();
         let mut new_parent_refs = ParentRefs::new();
         for (alias, child_node_id) in &children_map {
-            if !self.tree.all_peer_dep_names.contains(alias) {
-                continue;
-            }
+            let alias_is_peer_relevant = self.tree.all_peer_dep_names.contains(alias);
             let Some(child_tree) = self.tree.dependencies_tree.get(child_node_id) else { continue };
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
                 continue;
             };
+            if !alias_is_peer_relevant {
+                let (child_name, _) = pkg_name_version(&child_pkg.result);
+                if !self.tree.all_peer_dep_names.contains(&child_name) {
+                    continue;
+                }
+            }
             insert_parent_ref(
                 &mut new_parent_refs,
                 alias,
