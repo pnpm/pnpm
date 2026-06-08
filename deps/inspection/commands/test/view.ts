@@ -124,6 +124,11 @@ test('view: text output includes header with name@version', async () => {
   expect(firstLine).toContain('is-negative@1.0.0')
 })
 
+test('view: text output includes bin', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['uuid@10.0.0']) as string
+  expect(result).toContain('bin: uuid')
+})
+
 test('view: text output includes dist section', async () => {
   const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['is-negative@1.0.0']) as string
   expect(result).toContain('.tarball:')

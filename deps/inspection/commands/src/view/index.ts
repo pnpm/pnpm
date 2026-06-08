@@ -134,6 +134,12 @@ export async function handler (
     lines.push(`keywords: ${chalk.cyan(info.keywords.join(', '))}`)
   }
 
+  if (info.bin) {
+    const bins = typeof info.bin === 'string' ?  [info.bin] : Object.keys(info.bin)
+    lines.push('');
+    lines.push(`bin: ${chalk.cyan(bins.join(', '))}`)
+  }
+
   if (info.dist) {
     lines.push('')
     lines.push(chalk.bold('dist'))
