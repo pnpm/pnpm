@@ -921,6 +921,84 @@ mod peers {
         );
     }
 
+    /// A peer that is a walk-ancestor must still carry its own peer
+    /// suffix in the dependent's depPath. `a` is a direct dep with peer
+    /// `c`; its child `b` peer-depends on `a`. While `b`'s suffix is
+    /// being built, `a` is mid-walk (in-progress) so its depPath isn't
+    /// finalized yet. The post-walk [`build_final_dep_paths`] pass must
+    /// resolve `a` to its full `a@1.0.0(c@1.0.0)` — not the collapsed
+    /// `a@1.0.0` the cycle fallback would emit (pnpm only collapses
+    /// genuine cycles, and `a→b→a` here resolves because `a` and `b`
+    /// don't form a peer-graph SCC). Regression test for
+    /// <https://github.com/pnpm/pnpm/issues/12266>.
+    #[tokio::test]
+    async fn ancestor_peer_carries_its_own_suffix() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("a".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "a",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "a",
+                    "version": "1.0.0",
+                    "dependencies": { "b": "1.0.0" },
+                    "peerDependencies": { "c": "*" }
+                }),
+            ),
+        );
+        table.insert(
+            ("b".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "b",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "b",
+                    "version": "1.0.0",
+                    "peerDependencies": { "a": "*" }
+                }),
+            ),
+        );
+        table.insert(
+            ("c".to_string(), "1.0.0".to_string()),
+            fake_result("c", "1.0.0", serde_json::json!({ "name": "c", "version": "1.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "1.0.0", "c": "1.0.0" }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+        let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                "a@1.0.0(c@1.0.0)".to_string(),
+                "b@1.0.0(a@1.0.0(c@1.0.0))".to_string(),
+                "c@1.0.0".to_string(),
+            ],
+        );
+
+        // `c` is `a`'s peer, not `b`'s — it must not leak into `b`'s
+        // dependencies (only `b`'s own peer `a` is a child of `b`).
+        let b_node = &result.graph[&DepPath::from("b@1.0.0(a@1.0.0(c@1.0.0))".to_string())];
+        let b_children: Vec<&str> = b_node.children.keys().map(String::as_str).collect();
+        assert_eq!(b_children, vec!["a"]);
+    }
+
     /// Shared fixture for the `dedupe_peers_*` pair: react@18 plus
     /// `@emotion/react@11` (peer: react) plus `@emotion/styled@11`
     /// (peers: react, @emotion/react). Mirrors upstream's
