@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { envReplace } from '@pnpm/config.env-replace'
 import { PnpmError } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
 import type {
   AllowedDeprecatedVersions,
   PackageExtension,
@@ -31,8 +32,11 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
     assertValidOverrides(settings.overrides)
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
-    } else if (manifest) {
-      settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
+    } else {
+      warnAboutDeprecatedVersionReferences(settings.overrides)
+      if (manifest) {
+        settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
+      }
     }
   }
   if (pnpmSettings.patchedDependencies) {
@@ -90,6 +94,16 @@ function replaceEnvInStringValues (value: unknown): unknown {
     out[k] = typeof v === 'string' ? envReplace(v, process.env) : v
   }
   return out
+}
+
+function warnAboutDeprecatedVersionReferences (overrides: Record<string, string>): void {
+  const selectors = Object.keys(overrides).filter((selector) => overrides[selector][0] === '$')
+  if (selectors.length === 0) return
+  globalWarn(
+    `The "$" version reference syntax in overrides is deprecated (used by: ${selectors.join(', ')}). ` +
+    'Define the version in a catalog and reference it with the "catalog:" protocol instead. ' +
+    'See https://pnpm.io/catalogs'
+  )
 }
 
 function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: string) => string {
