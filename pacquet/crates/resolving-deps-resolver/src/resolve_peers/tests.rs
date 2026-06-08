@@ -198,6 +198,55 @@ fn own_peer_is_resolved_from_aliased_child_real_name() {
 }
 
 #[test]
+fn importer_parent_refs_skip_direct_deps_irrelevant_by_alias_and_real_name() {
+    let alias_relevant = NodeId::leaf("alias-real@1.0.0");
+    let real_name_relevant = NodeId::leaf("peer-c@2.0.0");
+    let irrelevant = NodeId::leaf("unused@1.0.0");
+
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep {
+                alias: "alias-peer".to_string(),
+                node_id: alias_relevant.clone(),
+                id: "alias-real@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "peer-c1".to_string(),
+                node_id: real_name_relevant.clone(),
+                id: "peer-c@2.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "unused".to_string(),
+                node_id: irrelevant.clone(),
+                id: "unused@1.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from([
+            ("alias-real@1.0.0".to_string(), package("alias-real", "1.0.0", &[], true)),
+            ("peer-c@2.0.0".to_string(), package("peer-c", "2.0.0", &[], true)),
+            ("unused@1.0.0".to_string(), package("unused", "1.0.0", &[], true)),
+        ]),
+        dependencies_tree: HashMap::from([
+            (alias_relevant, tree_node("alias-real@1.0.0", BTreeMap::new(), 0)),
+            (real_name_relevant, tree_node("peer-c@2.0.0", BTreeMap::new(), 0)),
+            (irrelevant, tree_node("unused@1.0.0", BTreeMap::new(), 0)),
+        ]),
+        all_peer_dep_names: HashSet::from(["alias-peer".to_string(), "peer-c".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+    let walker = walker_for_tests(&mut tree);
+
+    let refs = walker.build_importer_parents_from(&walker.tree.direct);
+
+    assert!(refs.contains_key("alias-peer"));
+    assert!(refs.contains_key("peer-c1"));
+    assert!(refs.contains_key("peer-c"));
+    assert!(!refs.contains_key("unused"));
+}
+
+#[test]
 fn cached_optional_peer_resolution_bubbles_to_later_parent_without_provider() {
     let types = NodeId::leaf("types@1.0.0");
     let config_from_core = NodeId::next();

@@ -613,6 +613,12 @@ impl<'tree> Walker<'tree> {
             let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id) else {
                 continue;
             };
+            let (real_name, _) = pkg_name_version(&pkg.result);
+            if !self.tree.all_peer_dep_names.contains(&direct.alias)
+                && !self.tree.all_peer_dep_names.contains(&real_name)
+            {
+                continue;
+            }
             let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, &pkg.result)
                 .unwrap_or_else(|| direct.node_id.clone());
             insert_parent_ref(&mut refs, &direct.alias, parent_node_id, pkg, tree_node.depth);
