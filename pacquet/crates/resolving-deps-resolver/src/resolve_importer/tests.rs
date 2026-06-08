@@ -715,6 +715,71 @@ async fn auto_install_does_not_hoist_when_root_already_has_dep() {
     );
 }
 
+/// An *optional* peer that is only available deep in the freshly
+/// resolved tree (brought by a sibling, not pinned in the wanted
+/// lockfile) must NOT be hoisted, so the consumer's depPath stays bare.
+/// `getHoistableOptionalPeers` reads upstream's static
+/// `ctx.allPreferredVersions` (lockfile + manifests, empty on a fresh
+/// install) — never the run-resolved versions. Feeding the latter in
+/// would resolve the optional peer where pnpm leaves it unresolved, and
+/// non-deterministically at that (the result would depend on resolution
+/// order). Regression test for <https://github.com/pnpm/pnpm/issues/12266>.
+#[tokio::test]
+async fn optional_peer_only_in_resolved_tree_is_not_hoisted() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("needs-opt".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "needs-opt",
+            "1.0.0",
+            serde_json::json!({
+                "name": "needs-opt",
+                "version": "1.0.0",
+                "peerDependencies": { "opt": "^1.0.0" },
+                "peerDependenciesMeta": { "opt": { "optional": true } },
+            }),
+        ),
+    );
+    // `provider` pulls `opt@1.0.0` deep in the tree — a sibling of
+    // `needs-opt`, not an ancestor, so `opt` is out of `needs-opt`'s
+    // resolution scope.
+    table.insert(
+        ("provider".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "provider",
+            "1.0.0",
+            serde_json::json!({
+                "name": "provider",
+                "version": "1.0.0",
+                "dependencies": { "opt": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("opt".to_string(), "1.0.0".to_string()),
+        fake_result("opt", "1.0.0", serde_json::json!({ "name": "opt", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "needs-opt": "1.0.0",
+        "provider": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    // `opt` must not be hoisted to the importer, and `needs-opt`'s
+    // optional peer must stay unresolved — bare `needs-opt@1.0.0`.
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(!direct.contains(&"opt"), "optional peer `opt` must not be hoisted: {direct:?}");
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("needs-opt"),
+        Some(&DepPath::from("needs-opt@1.0.0".to_string())),
+    );
+}
+
 /// Port of "don't install the same missing peer dependency twice": a
 /// transitive chain where each layer adds the same peer must produce a
 /// single hoisted entry.
