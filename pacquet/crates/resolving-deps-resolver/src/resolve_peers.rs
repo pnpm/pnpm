@@ -43,6 +43,7 @@
 
 use crate::{
     dedupe_injected_deps::dedupe_injected_deps,
+    dedupe_peer_dependents::dedupe_peer_dependents,
     dependencies_graph::{
         DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentPackageRef,
         PeerDependencyIssue, PeerDependencyIssues,
@@ -225,6 +226,7 @@ pub fn resolve_peers_workspace(
     importers: &[ImporterPeerInput],
     lockfile_dir: &Path,
     dedupe_injected_deps_enabled: bool,
+    dedupe_peer_dependents_enabled: bool,
     opts: ResolvePeersOptions,
 ) -> WorkspaceResolvePeersResult {
     let mut walker = Walker {
@@ -277,6 +279,13 @@ pub fn resolve_peers_workspace(
             &importer_root_dirs,
             lockfile_dir,
         );
+    }
+
+    // Runs after the injected-deps dedupe (matching upstream's ordering)
+    // so a `file:`→`link:` rewrite is already reflected in the graph
+    // before peer-dependent variants collapse.
+    if dedupe_peer_dependents_enabled {
+        dedupe_peer_dependents(&mut graph, &mut direct_dependencies_by_importer);
     }
 
     WorkspaceResolvePeersResult {

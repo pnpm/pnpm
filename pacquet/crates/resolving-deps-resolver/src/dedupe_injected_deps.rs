@@ -157,11 +157,17 @@ fn make_link_dep_path(source_root: &Path, target_root: &Path, lockfile_dir: &Pat
     DepPath::from(format!("link:{rel_posix}"))
 }
 
-/// Remove graph nodes no importer reaches after dedupe, mirroring
+/// Remove graph nodes no importer reaches after a dedupe pass, mirroring
 /// pnpm's [`pruneSharedLockfile`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/pruner/src/index.ts).
-/// The deduped `file:` snapshot would otherwise remain in
-/// `merged_graph` and surface in `pnpm-lock.yaml` as an orphan.
-fn prune_unreachable(graph: &mut DependenciesGraph, direct_by_importer: &DirectByImporter) {
+/// A snapshot that loses all references — an injected `file:` rewritten
+/// to `link:`, or a peer-variant collapsed by
+/// [`fn@crate::dedupe_peer_dependents::dedupe_peer_dependents`] — would
+/// otherwise remain in the graph and surface in `pnpm-lock.yaml` as an
+/// orphan, since pacquet has no unified post-resolve lockfile pruner.
+pub(crate) fn prune_unreachable(
+    graph: &mut DependenciesGraph,
+    direct_by_importer: &DirectByImporter,
+) {
     let mut reachable: HashSet<DepPath> = HashSet::new();
     let mut stack: Vec<DepPath> =
         direct_by_importer.values().flat_map(|direct| direct.values().cloned()).collect();
