@@ -5,7 +5,7 @@ import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { type CafsLocker, createPackageStore, type StoreController } from '@pnpm/store.controller'
-import { StoreIndex } from '@pnpm/store.index'
+import { ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
 
 type CreateResolverOptions = Pick<Config,
 | 'fetchRetries'
@@ -76,7 +76,7 @@ export async function createNewStoreController (
   if (!opts.frozenStore) {
     await fs.mkdir(opts.storeDir, { recursive: true })
   }
-  const storeIndex = new StoreIndex(opts.storeDir, { frozen: opts.frozenStore === true })
+  const storeIndex = opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir)
   const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,

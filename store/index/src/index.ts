@@ -144,74 +144,21 @@ export function closeAllStoreIndexes (): void {
 }
 
 export class StoreIndex {
-  private db: DatabaseSyncType
-  private closed = false
-  private frozen = false
+  protected db!: DatabaseSyncType
+  protected closed = false
   private pendingWrites: Array<{ key: string, buffer: Uint8Array }> = []
   private flushScheduled = false
-  private stmtGet: StatementSync
-  private stmtSet!: StatementSync
-  private stmtDel!: StatementSync
-  private stmtHas: StatementSync
-  private stmtAll: StatementSync
-  private stmtKeys: StatementSync
+  protected stmtGet!: StatementSync
+  protected stmtSet!: StatementSync
+  protected stmtDel!: StatementSync
+  protected stmtHas!: StatementSync
+  protected stmtAll!: StatementSync
+  protected stmtKeys!: StatementSync
   private readonly exitHandler: () => void
 
-  constructor (storeDir: string, opts?: { frozen?: boolean }) {
-    const dbPath = `${storeDir}/index.db`
-    if (opts?.frozen) {
-      this.frozen = true
-      // Open the index read-only via the SQLite `immutable=1` URI. This is
-      // required (rather than a plain read-only open) when the store lives on a
-      // read-only filesystem: the index is a WAL-mode database, and a WAL read
-      // normally creates an `index.db-shm` sidecar in the store directory —
-      // which fails on a read-only directory and surfaces as "attempt to write a
-      // readonly database" on the first query. `immutable=1` tells SQLite the
-      // file cannot change, so it bypasses the WAL/shm machinery and reads the
-      // file directly, creating no sidecars. The store is assumed complete; any
-      // write is a programming error and the mutators below throw.
-      if (!nodeSupportsImmutableSqliteUri()) {
-        throw new PnpmError(
-          'FROZEN_STORE_UNSUPPORTED_NODE',
-          `frozenStore opens the store index read-only via a SQLite "immutable" URI, which requires Node.js >=22.15.0 (or >=24), but the current version is ${process.versions.node}. Upgrade Node.js, or run without frozenStore.`
-        )
-      }
-      this.db = new DatabaseSync(immutableSqliteUri(dbPath))
-      this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
-      this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
-      this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
-      this.stmtKeys = this.db.prepare('SELECT key FROM package_index')
-    } else {
-      fs.mkdirSync(storeDir, { recursive: true })
-      this.db = new DatabaseSync(dbPath)
-      // Set busy_timeout FIRST so SQLite's internal busy handler is active
-      // during all subsequent operations. On Windows, file locking is mandatory
-      // and concurrent processes (e.g. parallel dlx calls) will contend.
-      this.db.exec('PRAGMA busy_timeout=5000')
-      sqliteRetry(() => {
-        this.db.exec('PRAGMA journal_mode=WAL')
-        this.db.exec('PRAGMA synchronous=NORMAL')
-        // Increase memory map size to 512MB
-        this.db.exec('PRAGMA mmap_size=536870912')
-        // Increase page cache size to ~32MB
-        this.db.exec('PRAGMA cache_size=-32000')
-        this.db.exec('PRAGMA temp_store=MEMORY')
-        // Increase wal autocheckpoint interval to reduce I/O during heavy writes
-        this.db.exec('PRAGMA wal_autocheckpoint=10000')
-        this.db.exec(`
-          CREATE TABLE IF NOT EXISTS package_index (
-            key TEXT PRIMARY KEY,
-            data BLOB NOT NULL
-          ) WITHOUT ROWID
-        `)
-      })
-      this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
-      this.stmtSet = this.db.prepare('INSERT OR REPLACE INTO package_index (key, data) VALUES (?, ?)')
-      this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
-      this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
-      this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
-      this.stmtKeys = this.db.prepare('SELECT key FROM package_index')
-    }
+  constructor (storeDir: string) {
+    this.openDatabase(storeDir)
+    this.prepareStatements()
     this.exitHandler = () => this.close()
     // Multiple StoreIndex instances may be created (e.g. in tests), each adding
     // an exit listener. Raise the limit to avoid MaxListenersExceededWarning.
@@ -222,6 +169,43 @@ export class StoreIndex {
     }
     process.on('exit', this.exitHandler)
     openInstances.add(this)
+  }
+
+  /** Open the SQLite connection. Overridden by {@link ReadOnlyStoreIndex}. */
+  protected openDatabase (storeDir: string): void {
+    fs.mkdirSync(storeDir, { recursive: true })
+    this.db = new DatabaseSync(`${storeDir}/index.db`)
+    // Set busy_timeout FIRST so SQLite's internal busy handler is active
+    // during all subsequent operations. On Windows, file locking is mandatory
+    // and concurrent processes (e.g. parallel dlx calls) will contend.
+    this.db.exec('PRAGMA busy_timeout=5000')
+    sqliteRetry(() => {
+      this.db.exec('PRAGMA journal_mode=WAL')
+      this.db.exec('PRAGMA synchronous=NORMAL')
+      // Increase memory map size to 512MB
+      this.db.exec('PRAGMA mmap_size=536870912')
+      // Increase page cache size to ~32MB
+      this.db.exec('PRAGMA cache_size=-32000')
+      this.db.exec('PRAGMA temp_store=MEMORY')
+      // Increase wal autocheckpoint interval to reduce I/O during heavy writes
+      this.db.exec('PRAGMA wal_autocheckpoint=10000')
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS package_index (
+          key TEXT PRIMARY KEY,
+          data BLOB NOT NULL
+        ) WITHOUT ROWID
+      `)
+    })
+  }
+
+  /** Prepare the prepared statements. Overridden by {@link ReadOnlyStoreIndex} to skip the write statements. */
+  protected prepareStatements (): void {
+    this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
+    this.stmtSet = this.db.prepare('INSERT OR REPLACE INTO package_index (key, data) VALUES (?, ?)')
+    this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
+    this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
+    this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
+    this.stmtKeys = this.db.prepare('SELECT key FROM package_index')
   }
 
   get (key: string): unknown | undefined {
@@ -241,7 +225,6 @@ export class StoreIndex {
   }
 
   set (key: string, data: unknown): void {
-    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     const buffer = packr.pack(data)
     sqliteRetry(() => {
       this.stmtSet.run(key, buffer)
@@ -249,7 +232,6 @@ export class StoreIndex {
   }
 
   delete (key: string): boolean {
-    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     let result!: { changes: number | bigint }
     sqliteRetry(() => {
       result = this.stmtDel.run(key)
@@ -286,7 +268,6 @@ export class StoreIndex {
    * Used by the fetch phase for throughput.
    */
   queueWrites (writes: Array<{ key: string, buffer: Uint8Array }>): void {
-    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     for (const w of writes) {
       this.pendingWrites.push(w)
     }
@@ -301,7 +282,6 @@ export class StoreIndex {
    */
   flush (): void {
     this.flushScheduled = false
-    if (this.frozen) return
     if (this.pendingWrites.length === 0) return
     this.setRawMany(this.pendingWrites)
     this.pendingWrites = []
@@ -312,7 +292,6 @@ export class StoreIndex {
    * The buffers must already be msgpack-encoded.
    */
   setRawMany (entries: Array<{ key: string, buffer: Uint8Array }>): void {
-    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     if (this.closed || entries.length === 0) return
     if (entries.length === 1) {
       sqliteRetry(() => {
@@ -344,7 +323,6 @@ export class StoreIndex {
    * then VACUUM to reclaim disk space.
    */
   deleteMany (keys: string[]): void {
-    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     if (keys.length === 0) return
     if (keys.length === 1) {
       this.delete(keys[0])
@@ -372,7 +350,6 @@ export class StoreIndex {
   }
 
   checkpoint (): void {
-    if (this.frozen) throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
     this.flush()
     // wal_checkpoint can hit SQLITE_BUSY if another process is reading the
     // same index.db concurrently. Retry for consistency with other ops here.
@@ -387,17 +364,80 @@ export class StoreIndex {
     this.closed = true
     openInstances.delete(this)
     process.removeListener('exit', this.exitHandler)
-    if (!this.frozen) {
-      try {
-        this.db.exec('PRAGMA optimize')
-      } catch {
-        // PRAGMA optimize is a performance hint; safe to ignore if the DB is locked.
-      }
-    }
+    this.optimizeBeforeClose()
     try {
       this.db.close()
     } catch {
       // The DB may be locked by another connection; the OS will reclaim it on process exit.
     }
+  }
+
+  /** Run `PRAGMA optimize` before closing. Overridden by {@link ReadOnlyStoreIndex} to skip it (the DB is immutable). */
+  protected optimizeBeforeClose (): void {
+    try {
+      this.db.exec('PRAGMA optimize')
+    } catch {
+      // PRAGMA optimize is a performance hint; safe to ignore if the DB is locked.
+    }
+  }
+}
+
+/**
+ * A {@link StoreIndex} opened read-only for installs against a store on a
+ * read-only filesystem (`frozenStore`). The index is a WAL-mode database, and a
+ * normal WAL read creates an `index.db-shm` sidecar in the store directory —
+ * which fails on a read-only directory and surfaces as "attempt to write a
+ * readonly database" on the first query. Opening via the SQLite `immutable=1`
+ * URI tells SQLite the file cannot change, so it bypasses the WAL/shm machinery
+ * and reads the file directly, creating no sidecars.
+ *
+ * The store is assumed complete; every write is a programming error and throws.
+ */
+export class ReadOnlyStoreIndex extends StoreIndex {
+  protected override openDatabase (storeDir: string): void {
+    if (!nodeSupportsImmutableSqliteUri()) {
+      throw new PnpmError(
+        'FROZEN_STORE_UNSUPPORTED_NODE',
+        `frozenStore opens the store index read-only via a SQLite "immutable" URI, which requires Node.js >=22.15.0 (or >=24), but the current version is ${process.versions.node}. Upgrade Node.js, or run without frozenStore.`
+      )
+    }
+    this.db = new DatabaseSync(immutableSqliteUri(`${storeDir}/index.db`))
+  }
+
+  protected override prepareStatements (): void {
+    this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
+    this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
+    this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
+    this.stmtKeys = this.db.prepare('SELECT key FROM package_index')
+  }
+
+  protected override optimizeBeforeClose (): void {}
+
+  override set (_key: string, _data: unknown): void {
+    this.throwReadOnly()
+  }
+
+  override delete (_key: string): boolean {
+    this.throwReadOnly()
+  }
+
+  override queueWrites (_writes: Array<{ key: string, buffer: Uint8Array }>): void {
+    this.throwReadOnly()
+  }
+
+  override setRawMany (_entries: Array<{ key: string, buffer: Uint8Array }>): void {
+    this.throwReadOnly()
+  }
+
+  override deleteMany (_keys: string[]): void {
+    this.throwReadOnly()
+  }
+
+  override checkpoint (): void {
+    this.throwReadOnly()
+  }
+
+  private throwReadOnly (): never {
+    throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
   }
 }

@@ -34,7 +34,7 @@ import npa from '@pnpm/npm-package-arg'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { createStoreController } from '@pnpm/store.connection-manager'
-import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
+import { pickStoreIndexKey, ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
 import type {
   DepPath,
   IgnoredBuilds,
@@ -366,7 +366,7 @@ async function _rebuild (
   // concurrent side-effects uploads mutate `index.db`, which immutable reads
   // would not see.
   const storeIndex = opts.skipIfHasSideEffectsCache
-    ? new StoreIndex(opts.storeDir, { frozen: opts.frozenStore === true })
+    ? (opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir))
     : undefined
 
   // Under GVS, packages live at `<globalVirtualStoreDir>/<hash>/node_modules/<name>`,

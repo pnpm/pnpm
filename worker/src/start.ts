@@ -22,7 +22,7 @@ import {
 } from '@pnpm/store.cafs'
 import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
-import { packForStorage, StoreIndex } from '@pnpm/store.index'
+import { packForStorage, ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
@@ -53,7 +53,7 @@ function getStoreIndex (storeDir: string, frozen = false): StoreIndex {
   // cached handle with a writable open of the same directory. Key on both.
   const cacheKey = frozen ? `${storeDir}\0frozen` : storeDir
   if (!storeIndexCache.has(cacheKey)) {
-    storeIndexCache.set(cacheKey, new StoreIndex(storeDir, { frozen }))
+    storeIndexCache.set(cacheKey, frozen ? new ReadOnlyStoreIndex(storeDir) : new StoreIndex(storeDir))
   }
   return storeIndexCache.get(cacheKey)!
 }

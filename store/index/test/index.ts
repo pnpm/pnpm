@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import { ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
 
 test('StoreIndex round-trips data via SQLite key', () => {
@@ -82,7 +82,7 @@ testFrozenOpen('StoreIndex frozen mode reads a WAL db on a read-only directory a
   // SQLite cannot create any -shm / -wal sidecar.
   fs.chmodSync(storeDir, 0o555)
   try {
-    const idx = new StoreIndex(storeDir, { frozen: true })
+    const idx = new ReadOnlyStoreIndex(storeDir)
     try {
       const result = idx.get(key) as typeof data
       expect(result).toBeDefined()
@@ -123,7 +123,7 @@ testFrozenOpen('StoreIndex frozen mode opens under a store path containing a "?"
   seed.set(key, data)
   seed.close()
 
-  const idx = new StoreIndex(storeDir, { frozen: true })
+  const idx = new ReadOnlyStoreIndex(storeDir)
   try {
     expect(idx.has(key)).toBe(true)
     expect((idx.get(key) as typeof data).algo).toBe('sha512')
@@ -139,6 +139,6 @@ const testUnsupportedNode = frozenOpenSupported ? test.skip : test
 
 testUnsupportedNode('StoreIndex frozen mode refuses to open on a Node.js without immutable-URI support', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
-  expect(() => new StoreIndex(storeDir, { frozen: true }))
+  expect(() => new ReadOnlyStoreIndex(storeDir))
     .toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE' }))
 })
