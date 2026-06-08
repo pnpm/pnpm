@@ -43,7 +43,7 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
   // any global flags the user put BEFORE `with` (e.g. `--dir`, `--filter`)
   // are preserved.
   if (result.cmd === 'with' && result.params[0] === 'current') {
-    const withIdx = findWithCurrentIndex(inputArgv)
+    const withIdx = findWithCurrentIndex(inputArgv, GLOBAL_OPTIONS)
     if (withIdx < 0 || inputArgv.length - withIdx - 2 === 0) {
       throw new PnpmError('MISSING_WITH_CURRENT_CMD',
         'Missing command after "current". Usage: pnpm with current <command> [args...]')
@@ -63,14 +63,26 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
  * is the one. Good enough for realistic CLI usage — no pnpm option is
  * expected to take the literal value `with`.
  */
-function findWithCurrentIndex (argv: string[]): number {
+function findWithCurrentIndex (argv: string[], optionTypes: Record<string, unknown>): number {
   for (let i = 0; i < argv.length - 1; i++) {
     if (argv[i] !== 'with' || argv[i + 1] !== 'current') continue
     const prev = argv[i - 1]
-    // If the previous token is a long flag without an `=value` form, it may
-    // be consuming `with` as its value — skip this occurrence in that case.
-    if (prev != null && prev.startsWith('--') && !prev.includes('=')) continue
+    // A preceding long option that takes a value would consume `with` as its
+    // value, so this `with current` pair isn't the command — skip it. Boolean
+    // flags (e.g. `--color`) and `--no-` negations don't consume a value.
+    if (prev != null && longOptionConsumesValue(prev, optionTypes)) continue
     return i
   }
   return -1
+}
+
+function longOptionConsumesValue (token: string, optionTypes: Record<string, unknown>): boolean {
+  if (!token.startsWith('--') || token.includes('=')) return false
+  const name = token.slice(2)
+  if (name.startsWith('no-')) return false
+  return !isBooleanType(optionTypes[name])
+}
+
+function isBooleanType (type: unknown): boolean {
+  return type === Boolean || (Array.isArray(type) && type.includes(Boolean))
 }
