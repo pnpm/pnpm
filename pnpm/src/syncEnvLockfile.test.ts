@@ -11,7 +11,7 @@ import { tempDir } from '@pnpm/prepare'
 // Simulate what the real resolvePackageManagerIntegrities does that this test
 // cares about: record the resolved pnpm version under
 // packageManagerDependencies and persist the lockfile to disk.
-const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: { envLockfile?: EnvLockfile, rootDir: string, save?: boolean }) => Promise<EnvLockfile>>(
+const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: { envLockfile?: EnvLockfile, registries?: unknown, rootDir: string, save?: boolean }) => Promise<EnvLockfile>>(
   async (version, opts) => {
     const lockfile = opts.envLockfile ?? ({ lockfileVersion: '9.0', importers: { '.': { configDependencies: {} } }, packages: {}, snapshots: {} } as EnvLockfile)
     lockfile.importers['.'].packageManagerDependencies = {
@@ -133,6 +133,59 @@ test('updates the lockfile when locked version no longer satisfies wanted versio
     specifier: packageManager.version,
     version: packageManager.version,
   })
+})
+
+test('uses trusted package-manager registries instead of project registries', async () => {
+  const dir = tempDir()
+  const projectRegistries = {
+    '@pnpm': 'https://project-pnpm.example.com/',
+    default: 'https://project.example.com/',
+  }
+  const packageManagerRegistries = {
+    '@pnpm': 'https://trusted-pnpm.example.com/',
+    default: 'https://trusted.example.com/',
+  }
+
+  await syncEnvLockfile({
+    packageManagerRegistries,
+    registries: projectRegistries,
+  } as unknown as Config, makeContext(dir, {
+    wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
+  }))
+
+  expect(createStoreController).toHaveBeenCalledWith(expect.objectContaining({
+    registries: packageManagerRegistries,
+  }))
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
+    registries: packageManagerRegistries,
+  }))
+  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
+    registries: projectRegistries,
+  }))
+})
+
+test('defaults package-manager registries to npmjs instead of project registries', async () => {
+  const dir = tempDir()
+  const projectRegistries = {
+    '@pnpm': 'https://project-pnpm.example.com/',
+    default: 'https://project.example.com/',
+  }
+
+  await syncEnvLockfile({
+    registries: projectRegistries,
+  } as unknown as Config, makeContext(dir, {
+    wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
+  }))
+
+  expect(createStoreController).toHaveBeenCalledWith(expect.objectContaining({
+    registries: { default: 'https://registry.npmjs.org/' },
+  }))
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
+    registries: { default: 'https://registry.npmjs.org/' },
+  }))
+  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
+    registries: projectRegistries,
+  }))
 })
 
 function writeStaleEnvLockfile (dir: string, pnpmVersion: string): void {

@@ -5,6 +5,8 @@ import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import semver from 'semver'
 
+import { getPackageManagerRegistries } from './packageManagerRegistries.js'
+
 /**
  * Records the currently running pnpm version in the env lockfile's
  * `packageManagerDependencies` entry when the project opts in to
@@ -31,11 +33,12 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   const lockedVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
   if (lockedVersion != null && semver.satisfies(lockedVersion, pm.version, { includePrerelease: true })) return
 
-  const store = await createStoreController({ ...config, ...context })
+  const packageManagerRegistries = getPackageManagerRegistries(config)
+  const store = await createStoreController({ ...config, ...context, registries: packageManagerRegistries })
   try {
     await resolvePackageManagerIntegrities(packageManager.version, {
       envLockfile: envLockfile ?? undefined,
-      registries: config.registries,
+      registries: packageManagerRegistries,
       rootDir: context.rootProjectManifestDir,
       storeController: store.ctrl,
       storeDir: store.dir,

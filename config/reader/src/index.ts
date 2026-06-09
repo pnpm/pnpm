@@ -322,9 +322,15 @@ export async function getConfig (opts: {
     default: normalizeRegistryUrl(pnpmConfig.authConfig.registry),
     ...networkConfigs.registries,
   }
+  const trustedAuthConfig = pickIniConfig(npmrcResult.trustedConfig)
+  const trustedNetworkConfigs = getNetworkConfigs(trustedAuthConfig)
   pnpmConfig.registries = { ...registriesFromNpmrc }
   if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
     pnpmConfig.registries.default = normalizeRegistryUrl(pnpmConfig.registry)
+  }
+  pnpmConfig.packageManagerRegistries = {
+    default: normalizeRegistryUrl(trustedAuthConfig.registry as string),
+    ...trustedNetworkConfigs.registries,
   }
   pnpmConfig.configByUri = { ...networkConfigs.configByUri }
 
@@ -496,6 +502,7 @@ export async function getConfig (opts: {
         throw new TypeError(`Unexpected type of registry, expecting a string but received ${JSON.stringify(value)}`)
       }
       pnpmConfig.registries.default = normalizeRegistryUrl(value)
+      pnpmConfig.packageManagerRegistries.default = normalizeRegistryUrl(value)
     }
   }
 

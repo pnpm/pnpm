@@ -226,6 +226,7 @@ export interface Config extends OptionsFromRootManifest {
   pnprServer?: string
 
   registries: Registries
+  packageManagerRegistries?: Registries
   namedRegistries?: Record<string, string>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean
