@@ -1108,15 +1108,6 @@ fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
 ///
 /// Mirrors the upstream end-to-end coverage in
 /// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/4b07ee0228/installing/deps-installer/test/install/peerDependencies.ts).
-///
-/// Ignored: the TPD propagation fix (pnpm/pnpm#12286) correctly adds
-/// `@pnpm.e2e/peer-c` to `abc-grand-parent-with-c`'s transitive peer
-/// deps. The lockfile now records this TPD, and on the second install
-/// pacquet's lockfile-reuse path merges the nested `peer-c@1.x`
-/// context into the root `peer-c@2.0.0` context instead of preserving
-/// both. This is a pacquet lockfile-reuse bug exposed by correct TPD,
-/// not a bug in the propagation itself. The fix belongs in the reuse
-/// path, not in the propagation.
 #[test]
 fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
     // The binary is re-spawned per install via `new_pacquet_command`, so the
