@@ -182,20 +182,44 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
 
   const depGraphWithResolvedChildren = resolveChildren(depGraph)
 
-  let tpdChanged = true
-  while (tpdChanged) {
-    tpdChanged = false
-    for (const entry of Object.values(depGraphWithResolvedChildren)) {
-      for (const childDepPath of Object.values<DepPath>(entry.children)) {
-        const childEntry = depGraphWithResolvedChildren[childDepPath]
-        if (childEntry?.transitivePeerDependencies.size) {
-          for (const tpd of childEntry.transitivePeerDependencies) {
-            if (!entry.transitivePeerDependencies.has(tpd) && !entry.peerDependencies?.[tpd]) {
-              entry.transitivePeerDependencies.add(tpd)
-              tpdChanged = true
-            }
-          }
+  const parentsOf: Record<string, Set<DepPath>> = {}
+  for (const [parentPath, entry] of Object.entries(depGraphWithResolvedChildren)) {
+    for (const childPath of Object.values<DepPath>(entry.children)) {
+      if (!parentsOf[childPath]) {
+        parentsOf[childPath] = new Set()
+      }
+      parentsOf[childPath].add(parentPath as DepPath)
+    }
+  }
+
+  const worklist = new Set<DepPath>()
+  for (const [path, entry] of Object.entries(depGraphWithResolvedChildren)) {
+    if (entry.transitivePeerDependencies.size > 0) {
+      worklist.add(path as DepPath)
+    }
+  }
+
+  while (worklist.size > 0) {
+    const childPath = worklist.values().next().value!
+    worklist.delete(childPath)
+    const childEntry = depGraphWithResolvedChildren[childPath]
+    if (!childEntry?.transitivePeerDependencies.size) continue
+
+    const parents = parentsOf[childPath]
+    if (!parents) continue
+
+    for (const parentPath of parents) {
+      const parentEntry = depGraphWithResolvedChildren[parentPath]
+      if (!parentEntry) continue
+      let gained = false
+      for (const tpd of childEntry.transitivePeerDependencies) {
+        if (!parentEntry.transitivePeerDependencies.has(tpd) && !parentEntry.peerDependencies?.[tpd]) {
+          parentEntry.transitivePeerDependencies.add(tpd)
+          gained = true
         }
+      }
+      if (gained) {
+        worklist.add(parentPath)
       }
     }
   }

@@ -60,7 +60,7 @@ use pacquet_deps_path::{
 };
 use pacquet_resolving_resolver_base::ResolveResult;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -439,33 +439,50 @@ struct ParentRef {
 type ParentRefs = HashMap<String, ParentRef>;
 
 pub(crate) fn propagate_transitive_peer_dependencies(graph: &mut DependenciesGraph) {
-    let mut changed = true;
-    while changed {
-        changed = false;
-        let additions: Vec<(DepPath, HashSet<String>)> = graph
-            .iter()
-            .filter_map(|(dep_path, entry)| {
-                let mut new_tpd = HashSet::new();
-                for child_dep_path in entry.children.values() {
-                    if let Some(child) = graph.get(child_dep_path) {
-                        for tpd in &child.transitive_peer_dependencies {
-                            if !entry.transitive_peer_dependencies.contains(tpd)
-                                && !entry.peer_dependencies.contains_key(tpd)
-                            {
-                                new_tpd.insert(tpd.clone());
-                            }
-                        }
+    let mut parents_of: HashMap<DepPath, Vec<DepPath>> = HashMap::new();
+    for (parent_path, entry) in graph.iter() {
+        for child_path in entry.children.values() {
+            parents_of
+                .entry(child_path.clone())
+                .or_default()
+                .push(parent_path.clone());
+        }
+    }
+
+    let mut worklist: VecDeque<DepPath> = graph
+        .iter()
+        .filter(|(_, entry)| !entry.transitive_peer_dependencies.is_empty())
+        .map(|(path, _)| path.clone())
+        .collect();
+
+    while let Some(child_path) = worklist.pop_front() {
+        let child_tpd: Vec<String> = graph
+            .get(&child_path)
+            .map(|c| c.transitive_peer_dependencies.iter().cloned().collect())
+            .unwrap_or_default();
+        if child_tpd.is_empty() {
+            continue;
+        }
+        let Some(parents) = parents_of.get(&child_path).cloned() else { continue };
+
+        for parent_path in parents {
+            let mut new_tpd = Vec::new();
+            {
+                let Some(parent) = graph.get(&parent_path) else { continue };
+                for tpd in &child_tpd {
+                    if !parent.transitive_peer_dependencies.contains(tpd)
+                        && !parent.peer_dependencies.contains_key(tpd)
+                    {
+                        new_tpd.push(tpd.clone());
                     }
                 }
-                if new_tpd.is_empty() { None } else { Some((dep_path.clone(), new_tpd)) }
-            })
-            .collect();
-        for (dep_path, new_tpd) in additions {
-            if let Some(entry) = graph.get_mut(&dep_path) {
+            }
+            if !new_tpd.is_empty() {
+                let parent = graph.get_mut(&parent_path).unwrap();
                 for tpd in new_tpd {
-                    entry.transitive_peer_dependencies.insert(tpd);
-                    changed = true;
+                    parent.transitive_peer_dependencies.insert(tpd);
                 }
+                worklist.push_back(parent_path);
             }
         }
     }
