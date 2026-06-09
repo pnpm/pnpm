@@ -3046,6 +3046,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-env-installer"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "futures-util",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-config",
+ "pacquet-diagnostics",
+ "pacquet-fs",
+ "pacquet-graph-hasher",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-package-is-installable",
+ "pacquet-package-manager",
+ "pacquet-registry",
+ "pacquet-reporter",
+ "pacquet-resolving-npm-resolver",
+ "pacquet-resolving-resolver-base",
+ "pacquet-store-dir",
+ "pacquet-tarball",
+ "pacquet-testing-utils",
+ "pacquet-workspace-state",
+ "pretty_assertions",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pacquet-env-replace"
 version = "0.0.1"
 dependencies = [
