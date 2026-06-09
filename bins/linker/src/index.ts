@@ -258,6 +258,26 @@ export interface LinkBinOptions {
   preferSymlinkedExecutables?: boolean
 }
 
+// `fixBin` chmods the bin's source file (which lives inside the store) to make
+// it executable. Under the global virtual store that source is `{storeDir}/links/...`,
+// so on a read-only store (e.g. `frozenStore`) the chmod is refused with
+// EPERM/EACCES. A complete seed already ships its bins executable, so that chmod
+// is redundant: treat an already-executable target as a no-op, keeping bin-linking
+// write-free (see building/during-install: "Bin-linking reuses existing symlinks
+// write-free"). A genuinely non-executable bin on a read-only store still throws,
+// because that means the seed is broken and the bin would not run.
+async function ensureExecutable (file: string, mode: number): Promise<void> {
+  try {
+    await fixBin(file, mode)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'EPERM' || err.code === 'EACCES') {
+      const stat = await fs.stat(file).catch(() => undefined)
+      if (stat != null && (stat.mode & 0o111) !== 0) return
+    }
+    throw err
+  }
+}
+
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
   // Skip if the existing bin already references the correct target.
@@ -310,7 +330,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
-      await fixBin(cmd.path, 0o755)
+      await ensureExecutable(cmd.path, 0o755)
     } catch (err: any) { // eslint-disable-line
       if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
         throw err
@@ -357,7 +377,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    await fixBin(cmd.path, 0o755)
+    await ensureExecutable(cmd.path, 0o755)
   }
 }
 
