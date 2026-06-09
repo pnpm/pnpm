@@ -483,9 +483,38 @@ fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
             path: dir.to_path_buf(),
             error,
         })?;
-        if let Some(name) = entry.file_name().to_str() {
-            names.push(name.to_string());
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue };
+        // Skip dot-dirs (`.bin`, `.pnpm`, etc.), matching `readModulesDir`.
+        if name.starts_with('.') {
+            continue;
         }
+        // A scope dir holds the actual `@scope/<pkg>` entries one level
+        // down; expand it so the returned names match the scoped package
+        // keys callers compare against. Mirrors upstream's `readModulesDir`.
+        if name.starts_with('@') {
+            let scope_dir = dir.join(&name);
+            match fs::read_dir(&scope_dir) {
+                Ok(children) => {
+                    for child in children {
+                        let child = child.map_err(|error| ConfigDepError::ReadConfigModules {
+                            path: scope_dir.clone(),
+                            error,
+                        })?;
+                        if let Some(child_name) = child.file_name().to_str()
+                            && !child_name.starts_with('.')
+                        {
+                            names.push(format!("{name}/{child_name}"));
+                        }
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(ConfigDepError::ReadConfigModules { path: scope_dir, error });
+                }
+            }
+            continue;
+        }
+        names.push(name);
     }
     Ok(names)
 }

@@ -1,7 +1,12 @@
-use crate::{ConfigDepError, ConfigDepsInstallOptions, resolve_and_install_config_deps};
-use pacquet_lockfile::{EnvLockfile, LockfileResolution};
+use crate::{
+    ConfigDepError, ConfigDepsInstallOptions, prune_env_lockfile, resolve_and_install_config_deps,
+};
+use pacquet_lockfile::{
+    EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution,
+    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
+};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_reporter::SilentReporter;
+use pacquet_reporter::{InstallingConfigDepsStatus, LogEvent, Reporter, SilentReporter};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
@@ -10,7 +15,11 @@ use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency
 use pacquet_store_dir::StoreDir;
 use pacquet_testing_utils::registry::TestRegistry;
 use pacquet_workspace_state::ConfigDependency;
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::{Arc, Mutex},
+};
 use tempfile::TempDir;
 
 /// Resolve `name@version` against the mock registry and return its
@@ -317,4 +326,138 @@ async fn frozen_lockfile_succeeds_when_up_to_date() {
     )
     .await
     .expect("frozen install with an up-to-date env lockfile succeeds");
+}
+
+#[tokio::test]
+async fn frozen_lockfile_rejects_old_format_migration() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    // An old inline-integrity entry that isn't yet in the env lockfile
+    // needs migrating — which mutates the lockfile, so --frozen-lockfile
+    // must reject it (the `lockfile_changed` branch, distinct from the
+    // clean-specifier resolve branch).
+    let integrity = integrity_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert(
+        "@pnpm.e2e/foo".to_string(),
+        ConfigDependency::VersionWithIntegrity(format!("100.0.0+{integrity}")),
+    );
+
+    let error = resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), true),
+    )
+    .await
+    .expect_err("migrating an old-format config dep under --frozen-lockfile must fail");
+    assert!(
+        matches!(error, ConfigDepError::FrozenLockfileOutdated { .. }),
+        "unexpected error: {error:?}",
+    );
+}
+
+/// Recording reporter capturing `pnpm:installing-config-deps` statuses.
+struct RecordingReporter;
+static CONFIG_DEP_EVENTS: Mutex<Vec<InstallingConfigDepsStatus>> = Mutex::new(Vec::new());
+
+impl Reporter for RecordingReporter {
+    fn emit(event: &LogEvent) {
+        if let LogEvent::InstallingConfigDeps(log) = event {
+            CONFIG_DEP_EVENTS.lock().unwrap().push(log.status);
+        }
+    }
+}
+
+#[tokio::test]
+async fn emits_installing_config_deps_events_only_when_work_is_needed() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+
+    CONFIG_DEP_EVENTS.lock().unwrap().clear();
+    resolve_and_install_config_deps::<RecordingReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+    // First install does work: a `started` then a `done`.
+    let first = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
+    assert!(
+        first.contains(&InstallingConfigDepsStatus::Started)
+            && first.contains(&InstallingConfigDepsStatus::Done),
+        "first install emits started + done: {first:?}",
+    );
+
+    resolve_and_install_config_deps::<RecordingReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+    // Everything is already in place — no events on the second install.
+    let second = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
+    assert!(second.is_empty(), "a no-op install emits nothing: {second:?}");
+}
+
+#[test]
+fn prune_drops_orphan_packages_and_snapshots() {
+    fn registry_pkg() -> PackageMetadata {
+        PackageMetadata {
+            resolution: LockfileResolution::Registry(RegistryResolution {
+                integrity: ssri::Integrity::from(b"x"),
+            }),
+            version: None,
+            engines: None,
+            cpu: None,
+            os: None,
+            libc: None,
+            deprecated: None,
+            has_bin: None,
+            prepare: None,
+            bundled_dependencies: None,
+            peer_dependencies: None,
+            peer_dependencies_meta: None,
+        }
+    }
+
+    let mut env = EnvLockfile::create();
+    // A config dep with one optional subdep — both reachable.
+    let parent: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let subdep: PackageKey = "@pnpm.e2e/bar@1.0.0".parse().unwrap();
+    env.root_importer_mut().config_dependencies.insert(
+        "@pnpm.e2e/foo".to_string(),
+        SpecifierAndResolution { specifier: "100.0.0".to_string(), version: "100.0.0".to_string() },
+    );
+    env.packages.insert(parent.clone(), registry_pkg());
+    env.packages.insert(subdep.clone(), registry_pkg());
+    let mut optionals = std::collections::HashMap::new();
+    optionals
+        .insert("@pnpm.e2e/bar".parse().unwrap(), SnapshotDepRef::Plain("1.0.0".parse().unwrap()));
+    env.snapshots.insert(
+        parent.clone(),
+        SnapshotEntry { optional_dependencies: Some(optionals), ..SnapshotEntry::default() },
+    );
+    env.snapshots
+        .insert(subdep.clone(), SnapshotEntry { optional: true, ..SnapshotEntry::default() });
+
+    // An orphan left over from a previous resolution: no importer (and no
+    // reachable snapshot) references it.
+    let orphan: PackageKey = "@pnpm.e2e/foo@99.0.0".parse().unwrap();
+    env.packages.insert(orphan.clone(), registry_pkg());
+    env.snapshots.insert(orphan.clone(), SnapshotEntry::default());
+
+    prune_env_lockfile(&mut env);
+
+    assert!(env.packages.contains_key(&parent), "reachable config dep kept");
+    assert!(env.packages.contains_key(&subdep), "reachable optional subdep kept");
+    assert!(!env.packages.contains_key(&orphan), "orphan package pruned");
+    assert!(!env.snapshots.contains_key(&orphan), "orphan snapshot pruned");
 }
