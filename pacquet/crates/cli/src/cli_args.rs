@@ -11,7 +11,7 @@ pub mod supported_architectures;
 pub mod update;
 pub mod update_interactive;
 
-use crate::{State, config_overrides::ConfigOverrides};
+use crate::{State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use dlx::DlxArgs;
@@ -262,11 +262,39 @@ impl CliArgs {
                     cfg.pnpr_server = Some(pnpr_server);
                 }
                 let require_lockfile = args.frozen_lockfile;
-                let state = State::init(manifest_path(), cfg, require_lockfile)
-                    .wrap_err("initialize the state")?;
+                let frozen_lockfile = args.frozen_lockfile;
+                // Downgrade the `&'static mut Config` (no more mutation
+                // past this point) so it can be shared across the
+                // config-dep install and `State::init`.
+                let cfg: &'static Config = cfg;
+                // Resolve + install configurational dependencies before
+                // the main install: the env lockfile must land at the top
+                // of `pnpm-lock.yaml` before `State::init` loads the
+                // wanted lockfile and the install rewrites it. Mirrors
+                // pnpm running this at config-finalization time.
                 match reporter {
-                    ReporterType::Ndjson => args.run::<NdjsonReporter>(state).await?,
-                    ReporterType::Silent => args.run::<SilentReporter>(state).await?,
+                    ReporterType::Ndjson => {
+                        config_deps::install_config_deps::<NdjsonReporter>(
+                            cfg,
+                            &dir,
+                            frozen_lockfile,
+                        )
+                        .await?;
+                        let state = State::init(manifest_path(), cfg, require_lockfile)
+                            .wrap_err("initialize the state")?;
+                        args.run::<NdjsonReporter>(state).await?;
+                    }
+                    ReporterType::Silent => {
+                        config_deps::install_config_deps::<SilentReporter>(
+                            cfg,
+                            &dir,
+                            frozen_lockfile,
+                        )
+                        .await?;
+                        let state = State::init(manifest_path(), cfg, require_lockfile)
+                            .wrap_err("initialize the state")?;
+                        args.run::<SilentReporter>(state).await?;
+                    }
                 }
             }
             CliCommand::Test => {
