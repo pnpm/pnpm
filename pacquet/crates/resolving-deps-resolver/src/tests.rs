@@ -3476,8 +3476,7 @@ mod propagate_tpd_unit {
             "react".to_string(),
             PeerDep { version: "^18.0.0".to_string(), optional: false, meta_only: false },
         );
-        let parent =
-            make_node("parent@1.0.0", parent_children, HashSet::new(), parent_peers);
+        let parent = make_node("parent@1.0.0", parent_children, HashSet::new(), parent_peers);
 
         let mut graph: DependenciesGraph = HashMap::new();
         graph.insert(child_dp, child);

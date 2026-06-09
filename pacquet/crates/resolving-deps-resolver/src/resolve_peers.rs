@@ -377,6 +377,20 @@ pub fn resolve_peers_workspace(
         }
     }
     walker.patch_pending_peer_edges();
+    // Recompute depPaths with full peer suffixes once, after every
+    // importer is walked, then rebuild the graph and re-key each
+    // importer's direct deps.
+    let final_dep_paths = walker.build_final_dep_paths();
+    for importer in importers {
+        let direct_by_alias: BTreeMap<String, DepPath> = importer
+            .direct
+            .iter()
+            .map(|dep| {
+                (dep.alias.clone(), walker.final_dep_path_of(&dep.node_id, &final_dep_paths))
+            })
+            .collect();
+        direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
+    }
     let mut graph = walker.build_final_graph(&final_dep_paths);
     propagate_transitive_peer_dependencies(&mut graph);
 
@@ -442,10 +456,7 @@ pub(crate) fn propagate_transitive_peer_dependencies(graph: &mut DependenciesGra
     let mut parents_of: HashMap<DepPath, Vec<DepPath>> = HashMap::new();
     for (parent_path, entry) in graph.iter() {
         for child_path in entry.children.values() {
-            parents_of
-                .entry(child_path.clone())
-                .or_default()
-                .push(parent_path.clone());
+            parents_of.entry(child_path.clone()).or_default().push(parent_path.clone());
         }
     }
 
