@@ -515,7 +515,10 @@ fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
 /// classifier is disabled and any `rename` error propagates
 /// immediately.
 fn is_transient_rename_error(
-    #[cfg_attr(not(windows), allow(unused, reason = "only inspected in the Windows branch below"))]
+    #[cfg_attr(
+        not(windows),
+        expect(unused, reason = "only inspected in the Windows branch below")
+    )]
     error: &io::Error,
 ) -> bool {
     #[cfg(windows)]

@@ -687,7 +687,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 /// Bundling these into a struct would just shuffle the same fields
 /// into a wrapper without removing any work; allowing the lint is
 /// the lower-noise option.
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "bundling these independent inputs into a struct moves the fields into a wrapper without removing work"
 )]
