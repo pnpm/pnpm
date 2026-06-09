@@ -25,7 +25,7 @@ pub async fn resolve_optional_subdeps(
     env_lockfile: &mut EnvLockfile,
 ) -> Result<Option<HashMap<PkgName, SnapshotDepRef>>, ConfigDepError> {
     let Some(optional_deps) =
-        parent_manifest.get("optionalDependencies").and_then(|v| v.as_object())
+        parent_manifest.get("optionalDependencies").and_then(|value| value.as_object())
     else {
         return Ok(None);
     };
@@ -63,21 +63,21 @@ pub async fn resolve_optional_subdeps(
             })?
             .ok_or_else(|| ConfigDepError::BadConfigDep {
                 message: format!(
-                    r#"Cannot resolve optionalDependency "{subdep_name}" of config dependency "{parent_name}" because it has no integrity"#
+                    r#"Cannot resolve optionalDependency "{subdep_name}" of config dependency "{parent_name}" because it has no integrity"#,
                 ),
             })?;
 
         let Some(name_ver) = result.name_ver.as_ref() else {
             return Err(ConfigDepError::BadConfigDep {
                 message: format!(
-                    r#"Cannot resolve optionalDependency "{subdep_name}" of config dependency "{parent_name}" because it has no integrity"#
+                    r#"Cannot resolve optionalDependency "{subdep_name}" of config dependency "{parent_name}" because it has no integrity"#,
                 ),
             });
         };
         if !resolution_has_integrity(&result.resolution) {
             return Err(ConfigDepError::BadConfigDep {
                 message: format!(
-                    r#"Cannot resolve optionalDependency "{subdep_name}" of config dependency "{parent_name}" because it has no integrity"#
+                    r#"Cannot resolve optionalDependency "{subdep_name}" of config dependency "{parent_name}" because it has no integrity"#,
                 ),
             });
         }
@@ -120,7 +120,7 @@ pub async fn resolve_optional_subdeps(
         let ver_peer =
             subdep_version.parse::<PkgVerPeer>().map_err(|_| ConfigDepError::BadConfigDep {
                 message: format!(
-                    "Resolved optionalDependency version {subdep_version} is not a valid version"
+                    "Resolved optionalDependency version {subdep_version} is not a valid version",
                 ),
             })?;
         let pkg_name: PkgName = subdep_name.parse().map_err(|_| ConfigDepError::BadConfigDep {
@@ -139,7 +139,7 @@ fn platform_field(manifest: Option<&serde_json::Value>, key: &str) -> Option<Vec
         .get(key)?
         .as_array()?
         .iter()
-        .filter_map(|v| v.as_str().map(str::to_string))
+        .filter_map(|value| value.as_str().map(str::to_string))
         .collect();
     (!values.is_empty()).then_some(values)
 }

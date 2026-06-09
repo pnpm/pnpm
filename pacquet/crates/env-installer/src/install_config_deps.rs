@@ -35,7 +35,7 @@ use std::{
 
 /// Install every config dependency described by `env_lockfile` and
 /// prune any `.pnpm-config` entry that is no longer present.
-pub async fn install_config_deps<R: Reporter>(
+pub async fn install_config_deps<Reporter: self::Reporter>(
     env_lockfile: &EnvLockfile,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
@@ -50,7 +50,7 @@ pub async fn install_config_deps<R: Reporter>(
     // Drop config deps that are no longer declared.
     for name in &existing {
         if !normalized.contains_key(name) {
-            started.report::<R>();
+            started.report::<Reporter>();
             let _ = fs::remove_dir_all(config_modules_dir.join(name));
         }
     }
@@ -77,12 +77,12 @@ pub async fn install_config_deps<R: Reporter>(
         let leaf_node_modules = global_virtual_store_dir.join(&rel_path).join("node_modules");
         let pkg_dir_in_gvs = leaf_node_modules.join(name);
 
-        let parent_symlink_already_correct = existing.iter().any(|e| e == name)
+        let parent_symlink_already_correct = existing.iter().any(|entry| entry == name)
             && symlink_points_to(&config_dep_path, &pkg_dir_in_gvs);
 
         if !pkg_dir_in_gvs.join("package.json").exists() {
-            started.report::<R>();
-            materialize::<R>(
+            started.report::<Reporter>();
+            materialize::<Reporter>(
                 opts,
                 &logged_methods,
                 name,
@@ -95,7 +95,7 @@ pub async fn install_config_deps<R: Reporter>(
         }
 
         if !dep.optional_subdeps.is_empty() {
-            install_optional_subdeps::<R>(
+            install_optional_subdeps::<Reporter>(
                 opts,
                 &logged_methods,
                 &mut started,
@@ -111,7 +111,7 @@ pub async fn install_config_deps<R: Reporter>(
         if parent_symlink_already_correct {
             continue;
         }
-        started.report::<R>();
+        started.report::<Reporter>();
         if let Some(parent) = config_dep_path.parent() {
             fs::create_dir_all(parent).map_err(|error| ConfigDepError::Symlink {
                 path: config_dep_path.clone(),
@@ -124,7 +124,7 @@ pub async fn install_config_deps<R: Reporter>(
     }
 
     if !installed.is_empty() {
-        R::emit(&LogEvent::InstallingConfigDeps(InstallingConfigDepsLog {
+        Reporter::emit(&LogEvent::InstallingConfigDeps(InstallingConfigDepsLog {
             level: LogLevel::Debug,
             status: InstallingConfigDepsStatus::Done,
             deps: installed,
@@ -145,12 +145,12 @@ impl StartedGate {
         StartedGate { emitted: false }
     }
 
-    fn report<R: Reporter>(&mut self) {
+    fn report<Reporter: self::Reporter>(&mut self) {
         if self.emitted {
             return;
         }
         self.emitted = true;
-        R::emit(&LogEvent::InstallingConfigDeps(InstallingConfigDepsLog {
+        Reporter::emit(&LogEvent::InstallingConfigDeps(InstallingConfigDepsLog {
             level: LogLevel::Debug,
             status: InstallingConfigDepsStatus::Started,
             deps: Vec::new(),
@@ -164,7 +164,7 @@ fn full_pkg_id(name: &str, version: &str, integrity: &Integrity) -> String {
     format!("{name}@{version}:{integrity}")
 }
 
-async fn materialize<R: Reporter>(
+async fn materialize<Reporter: self::Reporter>(
     opts: &ConfigDepsInstallOptions<'_>,
     logged_methods: &AtomicU8,
     name: &str,
@@ -193,11 +193,11 @@ async fn materialize<R: Reporter>(
         offline: opts.offline,
         progress_reported: None,
     }
-    .run_without_mem_cache::<R>()
+    .run_without_mem_cache::<Reporter>()
     .await
     .map_err(ConfigDepError::DownloadTarball)?;
 
-    import_indexed_dir::<R>(
+    import_indexed_dir::<Reporter>(
         logged_methods,
         opts.package_import_method,
         dir,
@@ -208,7 +208,7 @@ async fn materialize<R: Reporter>(
 }
 
 #[expect(clippy::too_many_arguments, reason = "mirrors upstream's installOptionalSubdeps")]
-async fn install_optional_subdeps<R: Reporter>(
+async fn install_optional_subdeps<Reporter: self::Reporter>(
     opts: &ConfigDepsInstallOptions<'_>,
     logged_methods: &AtomicU8,
     started: &mut StartedGate,
@@ -220,7 +220,7 @@ async fn install_optional_subdeps<R: Reporter>(
 ) -> Result<(), ConfigDepError> {
     let mut compatible: Vec<&NormalizedSubdep> = Vec::new();
     for subdep in subdeps {
-        if is_compatible::<R>(opts, parent_name, parent_version, subdep) {
+        if is_compatible::<Reporter>(opts, parent_name, parent_version, subdep) {
             compatible.push(subdep);
         }
     }
@@ -234,7 +234,7 @@ async fn install_optional_subdeps<R: Reporter>(
     }
     for sibling in read_dir_names(parent_node_modules_dir)? {
         if !expected.contains(sibling.as_str()) {
-            started.report::<R>();
+            started.report::<Reporter>();
             let _ = fs::remove_dir_all(parent_node_modules_dir.join(&sibling));
         }
     }
@@ -246,8 +246,8 @@ async fn install_optional_subdeps<R: Reporter>(
         let subdep_dir =
             global_virtual_store_dir.join(&subdep_rel).join("node_modules").join(&subdep.name);
         if !subdep_dir.join("package.json").exists() {
-            started.report::<R>();
-            materialize::<R>(
+            started.report::<Reporter>();
+            materialize::<Reporter>(
                 opts,
                 logged_methods,
                 &subdep.name,
@@ -262,7 +262,7 @@ async fn install_optional_subdeps<R: Reporter>(
         if symlink_points_to(&link_path, &subdep_dir) {
             continue;
         }
-        started.report::<R>();
+        started.report::<Reporter>();
         if let Some(parent) = link_path.parent() {
             fs::create_dir_all(parent)
                 .map_err(|error| ConfigDepError::Symlink { path: link_path.clone(), error })?;
@@ -280,7 +280,7 @@ async fn install_optional_subdeps<R: Reporter>(
 /// `checkPackage` (rather than `packageIsInstallable`, which would warn
 /// loudly on every install because the env lockfile records all
 /// platform variants).
-fn is_compatible<R: Reporter>(
+fn is_compatible<Reporter: self::Reporter>(
     opts: &ConfigDepsInstallOptions<'_>,
     parent_name: &str,
     parent_version: &str,
@@ -307,7 +307,7 @@ fn is_compatible<R: Reporter>(
     match check_package(&id, &manifest, &options) {
         Ok(None) => true,
         Ok(Some(error)) => {
-            R::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+            Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                 level: LogLevel::Debug,
                 details: Some(error.to_string()),
                 package: SkippedOptionalPackage::Installed {
@@ -351,14 +351,14 @@ fn normalize_from_lockfile(
         let pkg_key = format!("{name}@{}", spec.version);
         let key = pkg_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
-                "pnpm-lock.yaml has an unparseable config-dependency key \"{pkg_key}\""
+                "pnpm-lock.yaml has an unparseable config-dependency key \"{pkg_key}\"",
             ),
         })?;
         let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
             ConfigDepError::EnvLockfileCorrupted {
                 message: format!(
                     "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
-                     \"{pkg_key}\" referenced from importers['.'].configDependencies"
+                     \"{pkg_key}\" referenced from importers['.'].configDependencies",
                 ),
             }
         })?;
@@ -370,7 +370,7 @@ fn normalize_from_lockfile(
         )
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
-                "pnpm-lock.yaml is corrupted or incomplete: missing integrity for \"{pkg_key}\""
+                "pnpm-lock.yaml is corrupted or incomplete: missing integrity for \"{pkg_key}\"",
             ),
         })?;
 
@@ -416,7 +416,7 @@ fn read_optional_subdeps(
                 message: format!(
                     "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
                      \"{subdep_key}\" referenced from optionalDependencies of config dependency \
-                     \"{parent_name}\""
+                     \"{parent_name}\"",
                 ),
             }
         })?;
@@ -429,7 +429,7 @@ fn read_optional_subdeps(
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
                 "pnpm-lock.yaml is corrupted or incomplete: missing integrity for \
-                         \"{subdep_key}\""
+                         \"{subdep_key}\"",
             ),
         })?;
         subdeps.push(NormalizedSubdep {

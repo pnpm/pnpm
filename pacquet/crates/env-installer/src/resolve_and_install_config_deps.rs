@@ -26,7 +26,7 @@ use std::collections::BTreeMap;
 
 /// Resolve + install the config dependencies declared in
 /// `pnpm-workspace.yaml` (`config_deps`).
-pub async fn resolve_and_install_config_deps<R: Reporter>(
+pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     config_deps: &BTreeMap<String, ConfigDependency>,
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
@@ -97,7 +97,7 @@ pub async fn resolve_and_install_config_deps<R: Reporter>(
         if lockfile_changed {
             env_lockfile.write(opts.root_dir).map_err(ConfigDepError::WriteLockfile)?;
         }
-        return install_config_deps::<R>(&env_lockfile, opts).await;
+        return install_config_deps::<Reporter>(&env_lockfile, opts).await;
     }
 
     for (name, specifier) in &to_resolve {
@@ -106,7 +106,7 @@ pub async fn resolve_and_install_config_deps<R: Reporter>(
 
     prune_env_lockfile(&mut env_lockfile);
     env_lockfile.write(opts.root_dir).map_err(ConfigDepError::WriteLockfile)?;
-    install_config_deps::<R>(&env_lockfile, opts).await
+    install_config_deps::<Reporter>(&env_lockfile, opts).await
 }
 
 /// Resolve a single clean-specifier config dependency and record it
@@ -130,7 +130,7 @@ async fn resolve_one(
     };
     let no_integrity = || ConfigDepError::BadConfigDep {
         message: format!(
-            "Cannot resolve {name}@{specifier} as a configuration dependency because it has no integrity"
+            "Cannot resolve {name}@{specifier} as a configuration dependency because it has no integrity",
         ),
     };
     let result = resolver
