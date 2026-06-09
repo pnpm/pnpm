@@ -23,13 +23,18 @@ async function main () {
 
   const embedded = readEmbeddedFingerprints()
   const missing = fingerprints.filter((fp) => !embedded.includes(fp))
+  // Keys embedded here but no longer in the canonical list (e.g. revoked/rotated)
+  // must NOT stay in the trust set, so they fail the check too.
+  const extra = embedded.filter((fp) => !fingerprints.includes(fp))
 
   if (!update) {
-    if (missing.length === 0) {
+    if (missing.length === 0 && extra.length === 0) {
       console.log(`✓ Embedded Node.js release keys are up to date (${embedded.length} key(s)).`)
       return
     }
-    console.error(`✗ Embedded Node.js release keys are out of date. Missing: ${missing.join(', ')}`)
+    console.error('✗ Embedded Node.js release keys are out of sync with nodejs/release-keys.')
+    if (missing.length > 0) console.error(`  Missing (add): ${missing.join(', ')}`)
+    if (extra.length > 0) console.error(`  No longer canonical (remove — possibly revoked): ${extra.join(', ')}`)
     console.error(`Run: node ${path.relative(process.cwd(), fileURLToPath(import.meta.url))} --update`)
     process.exit(1)
   }
