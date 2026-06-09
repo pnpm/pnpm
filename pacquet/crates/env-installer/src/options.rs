@@ -11,7 +11,7 @@ const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 /// Handles and settings the config-dependency resolve/install pass
 /// needs. Assembled by the caller (the config-finalization seam) from
 /// the resolved [`pacquet_config::Config`] plus a network client, then
-/// passed by reference into [`crate::resolve_and_install_config_deps`].
+/// passed by reference into [`crate::resolve_and_install_config_deps()`].
 ///
 /// Every field borrows so the caller keeps ownership of the long-lived
 /// install handles (HTTP client, auth headers, registries map).

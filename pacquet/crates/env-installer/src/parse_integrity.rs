@@ -44,7 +44,7 @@ pub fn parse_integrity(
         .parse::<Integrity>()
         .map_err(|error| ConfigDepError::BadConfigDep {
             message: format!(
-                r#"Config dependency "{pkg_name}" has an unparseable integrity "{integrity}": {error}"#,
+                r#"Config dependency "{pkg_name}" has an unparsable integrity "{integrity}": {error}"#,
             ),
         })?;
     Ok((version.to_string(), integrity))

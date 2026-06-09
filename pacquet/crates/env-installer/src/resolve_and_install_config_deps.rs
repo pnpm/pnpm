@@ -225,6 +225,6 @@ fn config_dep<'a>(env_lockfile: &'a EnvLockfile, name: &str) -> Option<&'a Speci
 
 fn pkg_key(name: &str, version: &str) -> Result<PackageKey, ConfigDepError> {
     format!("{name}@{version}").parse().map_err(|_| ConfigDepError::BadConfigDep {
-        message: format!("Config dependency {name}@{version} has an unparseable lockfile key"),
+        message: format!("Config dependency {name}@{version} has an unparsable lockfile key"),
     })
 }

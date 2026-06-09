@@ -86,7 +86,7 @@ pub async fn resolve_optional_subdeps(
         let pkg_key: PackageKey = format!("{subdep_name}@{subdep_version}")
             .parse()
             .map_err(|_| ConfigDepError::BadConfigDep {
-                message: format!("Resolved optionalDependency {subdep_name}@{subdep_version} has an unparseable key"),
+                message: format!("Resolved optionalDependency {subdep_name}@{subdep_version} has an unparsable key"),
             })?;
 
         let manifest = result.manifest.as_deref();

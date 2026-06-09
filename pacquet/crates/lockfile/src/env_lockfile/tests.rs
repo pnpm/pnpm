@@ -80,27 +80,22 @@ fn write_preserves_existing_main_document() {
 #[test]
 fn saving_main_lockfile_preserves_env_document() {
     let dir = TempDir::new().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+
+    // Write the env document (leaving an empty main doc), then append a
+    // real main lockfile under it. Appending — rather than constructing
+    // a `Lockfile` literal — keeps the test robust as the `Lockfile`
+    // struct gains fields.
     let env = sample_env_lockfile();
     env.write(dir.path()).unwrap();
+    let combined = std::fs::read_to_string(&path).unwrap();
+    let main_doc = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      is-odd:\n        specifier: 1.0.0\n        version: 1.0.0\n";
+    std::fs::write(&path, format!("{combined}{main_doc}")).unwrap();
 
-    let mut main = Lockfile::load_wanted_from_dir(dir.path()).unwrap().unwrap_or_else(|| {
-        // Env-only file: synthesize an empty main lockfile to re-save.
-        crate::Lockfile {
-            lockfile_version: crate::LockfileVersion::<9>::try_from(crate::ComVer::new(9, 0))
-                .unwrap(),
-            settings: None,
-            catalogs: None,
-            overrides: None,
-            package_extensions_checksum: None,
-            pnpmfile_checksum: None,
-            ignored_optional_dependencies: None,
-            importers: Default::default(),
-            packages: None,
-            snapshots: None,
-        }
-    });
-    main.importers.insert(".".to_string(), Default::default());
-    main.save_to_path(&dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    // Load the typed main lockfile and re-save it — the install flow's
+    // path — and confirm the env document survives.
+    let main = Lockfile::load_wanted_from_dir(dir.path()).unwrap().expect("main lockfile loads");
+    main.save_to_path(&path).unwrap();
 
     let read_back = EnvLockfile::read(dir.path()).unwrap();
     assert!(read_back.is_some(), "env document must survive a main-lockfile re-save");
