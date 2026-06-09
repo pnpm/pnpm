@@ -137,7 +137,7 @@ export async function handler (
   if (info.bin) {
     let bins: string[] = []
     if (typeof info.bin === 'string') {
-      if (info.bin.length > 0) {
+      if (info.bin.length > 0 && info.name) {
         bins = [info.name[0] === '@' ? info.name.slice(info.name.indexOf('/') + 1) : info.name]
       }
     } else {
