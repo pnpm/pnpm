@@ -181,6 +181,7 @@ fn ignores_env_vars_inside_workspace_registry_values() {
     let yaml = r#"
 registry: https://${WORK_HOST}/npm/
 namedRegistries:
+  literal: 'https://registry.example.com/${/npm/'
   stable: https://registry.example.com/npm/
   work: https://${WORK_HOST}/npm/
 "#;
@@ -193,7 +194,51 @@ namedRegistries:
         config.named_registries.get("stable").map(String::as_str),
         Some("https://registry.example.com/npm/"),
     );
+    assert_eq!(
+        config.named_registries.get("literal").map(String::as_str),
+        Some("https://registry.example.com/${/npm/"),
+    );
     assert_eq!(config.named_registries.get("work"), None);
+}
+
+#[test]
+fn expands_env_vars_inside_non_registry_workspace_values() {
+    struct EnvWithPaths;
+    impl EnvVar for EnvWithPaths {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CACHE_DIR" => Some("cache-dir".to_owned()),
+                "HOOK" => Some("hook.js".to_owned()),
+                "PNPR_HOST" => Some("127.0.0.1:5813".to_owned()),
+                "SHELL" => Some("custom-shell".to_owned()),
+                "STORE_DIR" => Some("store-dir".to_owned()),
+                "USER_AGENT" => Some("pacquet-test/1.0".to_owned()),
+                _ => None,
+            }
+        }
+    }
+
+    let yaml = r#"
+storeDir: ${STORE_DIR}
+cacheDir: ${CACHE_DIR}
+pnprServer: http://${PNPR_HOST}
+scriptShell: ${SHELL}
+nodeOptions: --require=${HOOK}
+userAgent: ${USER_AGENT}
+"#;
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env::<EnvWithPaths>();
+
+    let base = Path::new("/workspace/root");
+    let mut config = Config::new();
+    settings.apply_to(&mut config, base);
+
+    assert_eq!(config.store_dir, StoreDir::from(base.join("store-dir")));
+    assert_eq!(config.cache_dir, base.join("cache-dir"));
+    assert_eq!(config.pnpr_server.as_deref(), Some("http://127.0.0.1:5813"));
+    assert_eq!(config.script_shell.as_deref(), Some("custom-shell"));
+    assert_eq!(config.node_options.as_deref(), Some("--require=hook.js"));
+    assert_eq!(config.user_agent, "pacquet-test/1.0");
 }
 
 /// `verifyStoreIntegrity` is a camelCase key that serde's rename

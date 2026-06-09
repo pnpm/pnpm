@@ -1610,9 +1610,9 @@ impl Config {
         self.modules_dir = start_dir.join("node_modules");
         self.virtual_store_dir = start_dir.join("node_modules/.pnpm");
 
-        // Read the nearest .npmrc (start_dir first, home second) and apply
-        // only the auth/network subset. Everything else is intentionally
-        // ignored.
+        // Read the project/workspace .npmrc plus trusted user-level sources
+        // and apply only the auth/network subset. Everything else is
+        // intentionally ignored.
         //
         // pnpm reads several `.npmrc` sources and merges them
         // (`user < auth.ini < workspace`), pinning each file's *unscoped*
@@ -1626,8 +1626,44 @@ impl Config {
         // participates in the user-level path resolution below, and its
         // directory is where `auth.ini` lives.
         let global_config_dir = default_config_dir::<Sys>();
-        let global_settings =
+        let mut global_settings =
             global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
+        if let Some(global_settings) = global_settings.as_mut() {
+            global_settings.substitute_env::<Sys>();
+        }
+
+        // Resolve the workspace dir before reading the project `.npmrc`
+        // so subdirectory invocations use the workspace-root config,
+        // matching pnpm's `opts.workspaceDir ?? localPrefix` boundary.
+        let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
+            .or_else(|| Sys::var_os("npm_config_workspace_dir"))
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from);
+        let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
+            // Env-var path: load yaml directly from the env dir. A
+            // missing file is silent (matching upstream), but the
+            // re-anchor still fires because the user has explicitly
+            // told us where the workspace lives.
+            let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
+            match fs::read_to_string(&yaml_path) {
+                Ok(text) => {
+                    let settings: WorkspaceSettings =
+                        serde_saphyr::from_str(&text).map_err(Box::new).map_err(|source| {
+                            LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source }
+                        })?;
+                    Some((env_dir, Some(settings)))
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
+                Err(source) => {
+                    return Err(LoadWorkspaceYamlError::ReadFile { path: yaml_path, source });
+                }
+            }
+        } else {
+            WorkspaceSettings::find_and_load(start_dir)?.map(|(path, settings)| {
+                let base_dir = path.parent().unwrap_or(start_dir).to_path_buf();
+                (base_dir, Some(settings))
+            })
+        };
 
         // Resolve the user-level `.npmrc` path. Precedence (pnpm's
         // [`index.ts:230`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L230)):
@@ -1657,8 +1693,11 @@ impl Config {
             auth.rescope_unscoped(label);
             auth
         };
-        let project_source = read_npmrc(start_dir).map(|text| {
-            let mut auth = crate::npmrc_auth::NpmrcAuth::from_project_ini::<Sys>(&text, start_dir);
+        let project_npmrc_dir =
+            workspace_yaml.as_ref().map(|(base_dir, _)| base_dir.as_path()).unwrap_or(start_dir);
+        let project_source = read_npmrc(project_npmrc_dir).map(|text| {
+            let mut auth =
+                crate::npmrc_auth::NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir);
             auth.rescope_unscoped("<project>/.npmrc");
             auth
         });
@@ -1735,32 +1774,18 @@ impl Config {
         // must fire only when the user has *not* pinned a path. See
         // [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
-        if let Some(mut global_settings) = global_settings {
+        if let Some(global_settings) = global_settings {
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
             store_dir_explicit |= global_settings.store_dir.is_some();
-            global_settings.substitute_env::<Sys>();
             let saved_workspace_dir = self.workspace_dir.take();
             global_settings.apply_to(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
         }
 
         // Layer pnpm-workspace.yaml overrides on top. A missing file is
-        // silent. Read or parse failures propagate to the caller.
-        //
-        // Resolve the workspace dir: `NPM_CONFIG_WORKSPACE_DIR`
-        // override first (mirroring upstream's `findWorkspaceDir` and
-        // [`pacquet_workspace::find_workspace_dir`]; both must agree on
-        // where the workspace lives, otherwise the per-importer
-        // `SymlinkDirectDependencies` writes and the virtual store
-        // would end up in different directories). Fall back to the
-        // upward walk for `pnpm-workspace.yaml` when the env var is
-        // unset or empty.
-        //
-        // The env var is read here rather than via
-        // [`pacquet_workspace`] to avoid adding a cross-crate
-        // dependency just for the lookup — the contract is fixed by
-        // pnpm upstream, so the duplication is low-risk.
+        // silent. Read or parse failures propagated while resolving
+        // `workspace_yaml` above.
         //
         // Capture the "did yaml set this field" booleans *before*
         // applying yaml so the GVS derivation downstream can tell apart
@@ -1769,36 +1794,6 @@ impl Config {
         // (SmartDefault wrote them in) and would either always or never
         // re-point them, neither of which matches upstream's
         // [`extendInstallOptions.ts:343-355`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/extendInstallOptions.ts#L343-L355).
-        let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
-            .or_else(|| Sys::var_os("npm_config_workspace_dir"))
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from);
-        let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
-            // Env-var path: load yaml directly from the env dir. A
-            // missing file is silent (matching upstream), but the
-            // re-anchor still fires because the user has explicitly
-            // told us where the workspace lives.
-            let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
-            match fs::read_to_string(&yaml_path) {
-                Ok(text) => {
-                    let settings: WorkspaceSettings =
-                        serde_saphyr::from_str(&text).map_err(Box::new).map_err(|source| {
-                            LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source }
-                        })?;
-                    Some((env_dir, Some(settings)))
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
-                Err(source) => {
-                    return Err(LoadWorkspaceYamlError::ReadFile { path: yaml_path, source });
-                }
-            }
-        } else {
-            WorkspaceSettings::find_and_load(start_dir)?.map(|(path, settings)| {
-                let base_dir = path.parent().unwrap_or(start_dir).to_path_buf();
-                (base_dir, Some(settings))
-            })
-        };
-
         if let Some((base_dir, settings)) = workspace_yaml {
             // Re-anchor the path-valued defaults to the workspace root
             // before applying settings. Without this, a `pacquet install`

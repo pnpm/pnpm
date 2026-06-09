@@ -673,7 +673,9 @@ fn is_registry_key(key: &str) -> bool {
 }
 
 fn has_env_placeholder(value: &str) -> bool {
-    value.contains("${")
+    value
+        .match_indices("${")
+        .any(|(start, _)| value[start + 2..].find('}').is_some_and(|end| end > 0))
 }
 
 /// Read a `cafile` path and split the contents on
@@ -779,8 +781,9 @@ fn base64_decode(input: &str) -> Option<String> {
 const CREDS_SUFFIXES: &[&str] = &["_authToken", "_auth", "_password", "username"];
 
 fn is_auth_value_key(key: &str) -> bool {
-    matches!(key, "_authToken" | "_auth" | "_password" | "username")
+    matches!(key, "_authToken" | "_auth" | "_password" | "username" | "cert" | "key")
         || split_creds_key(key).is_some()
+        || split_inline_identity_key(key).is_some()
 }
 
 fn split_creds_key(key: &str) -> Option<(&str, &str)> {
@@ -845,6 +848,11 @@ fn split_ssl_key(key: &str) -> Option<(&str, &'static str, bool)> {
         }
     }
     None
+}
+
+fn split_inline_identity_key(key: &str) -> Option<(&str, &'static str)> {
+    let (uri, field, is_file) = split_ssl_key(key)?;
+    (!is_file && matches!(field, "cert" | "key")).then_some((uri, field))
 }
 
 /// Write a per-registry TLS value onto a [`RegistryTls`] entry.

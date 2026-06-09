@@ -5,6 +5,7 @@ use crate::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
+use pacquet_env_replace::env_replace_lossy;
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::ConfigDependency;
@@ -645,15 +646,28 @@ impl WorkspaceSettings {
         Ok(None)
     }
 
-    /// Drop `${VAR}` placeholders inside workspace-controlled registry
-    /// URL fields. The upstream
+    /// Expand `${VAR}` in ordinary string settings, but drop
+    /// placeholders inside workspace-controlled registry URL fields.
+    /// The upstream
     /// [`replaceEnvInSettings`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L66-L84)
-    /// pass filters `registry`, `registries`, and `namedRegistries`
-    /// instead of expanding environment variables into request URLs.
+    /// pass still runs `envReplace` on scalar strings while filtering
+    /// `registry`, `registries`, and `namedRegistries` instead of
+    /// expanding environment variables into request URLs.
     ///
-    /// Call this before [`Self::apply_to`] so filtered values do not
-    /// land in [`Config`].
+    /// Call this before [`Self::apply_to`] so expanded values land in
+    /// [`Config`] and filtered values do not.
     pub fn substitute_env<Sys: EnvVar>(&mut self) {
+        substitute_optional_string::<Sys>(&mut self.store_dir);
+        substitute_optional_string::<Sys>(&mut self.modules_dir);
+        substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
+        substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
+        substitute_optional_string::<Sys>(&mut self.pnpr_server);
+        substitute_optional_string::<Sys>(&mut self.user_agent);
+        substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
+        substitute_optional_string::<Sys>(&mut self.cache_dir);
+        substitute_optional_inner_string::<Sys>(&mut self.script_shell);
+        substitute_optional_inner_string::<Sys>(&mut self.node_options);
+
         if self.registry.as_deref().is_some_and(has_env_placeholder) {
             self.registry = None;
         }
@@ -873,7 +887,23 @@ impl WorkspaceSettings {
 }
 
 fn has_env_placeholder(value: &str) -> bool {
-    value.contains("${")
+    value
+        .match_indices("${")
+        .any(|(start, _)| value[start + 2..].find('}').is_some_and(|end| end > 0))
+}
+
+fn substitute_optional_string<Sys: EnvVar>(value: &mut Option<String>) {
+    if let Some(value) = value {
+        let (substituted, _) = env_replace_lossy::<Sys>(value);
+        *value = substituted;
+    }
+}
+
+fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<Option<String>>) {
+    if let Some(Some(value)) = value {
+        let (substituted, _) = env_replace_lossy::<Sys>(value);
+        *value = substituted;
+    }
 }
 
 fn resolve(base: &Path, value: &str) -> PathBuf {

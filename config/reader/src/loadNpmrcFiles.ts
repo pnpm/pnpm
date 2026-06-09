@@ -242,7 +242,7 @@ function isRegistryKey (key: string): boolean {
   return key === 'registry' || (key.startsWith('@') && key.endsWith(':registry'))
 }
 
-const AUTH_VALUE_KEYS = ['_authToken', '_auth', '_password', 'username', 'tokenHelper'] as const
+const AUTH_VALUE_KEYS = ['_authToken', '_auth', '_password', 'username', 'tokenHelper', 'cert', 'key'] as const
 const AUTH_VALUE_KEY_SUFFIXES = AUTH_VALUE_KEYS.map(key => `:${key}`)
 
 function isAuthValueKey (key: string): boolean {

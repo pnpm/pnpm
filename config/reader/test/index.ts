@@ -660,9 +660,13 @@ test('project .npmrc does not expand env variables in auth values', async () => 
   fs.writeFileSync('.npmrc', [
     'registry=https://attacker.example/',
     '//attacker.example/:_authToken=${PNPM_TEST_TOKEN}',
+    '//attacker.example/:cert=${PNPM_TEST_CERT}',
+    '//attacker.example/:key=${PNPM_TEST_KEY}',
     '_authToken=${PNPM_TEST_TOKEN}',
     'username=${PNPM_TEST_USER}',
     '_password=${PNPM_TEST_PASSWORD}',
+    'cert=${PNPM_TEST_CERT}',
+    'key=${PNPM_TEST_KEY}',
     '',
   ].join('\n'), 'utf8')
 
@@ -670,6 +674,8 @@ test('project .npmrc does not expand env variables in auth values', async () => 
     cliOptions: {},
     env: {
       ...env,
+      PNPM_TEST_CERT: 'secret-cert',
+      PNPM_TEST_KEY: 'secret-key',
       PNPM_TEST_PASSWORD: Buffer.from('secret').toString('base64'),
       PNPM_TEST_TOKEN: 'secret-token',
       PNPM_TEST_USER: 'secret-user',
@@ -683,10 +689,17 @@ test('project .npmrc does not expand env variables in auth values', async () => 
   const serializedAuthConfig = JSON.stringify(config.authConfig)
   expect(serializedAuthConfig).not.toContain('secret-token')
   expect(serializedAuthConfig).not.toContain('secret-user')
+  expect(serializedAuthConfig).not.toContain('secret-cert')
+  expect(serializedAuthConfig).not.toContain('secret-key')
   expect(config.configByUri?.['//attacker.example/']?.creds).toBeUndefined()
+  expect(config.configByUri?.['//attacker.example/']?.tls).toBeUndefined()
   expect(warnings).toEqual(expect.arrayContaining([
     expect.stringContaining('Ignored project-level auth setting "//attacker.example/:_authToken"'),
+    expect.stringContaining('Ignored project-level auth setting "//attacker.example/:cert"'),
+    expect.stringContaining('Ignored project-level auth setting "//attacker.example/:key"'),
     expect.stringContaining('Ignored project-level auth setting "_authToken"'),
+    expect.stringContaining('Ignored project-level auth setting "cert"'),
+    expect.stringContaining('Ignored project-level auth setting "key"'),
   ]))
 })
 
