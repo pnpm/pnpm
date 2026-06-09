@@ -42,9 +42,13 @@ export type VerifyPnpmEngineIdentityOptions = VerifySignaturesOptions & {
  * its own key pair; the signed packument is fetched from the configured registry,
  * which an npm mirror proxies transparently.
  *
- * Throws when verification detects tampering (an invalid signature) or that a
- * package/version is absent from the registry. When the registry simply cannot
- * be reached (offline), it warns and returns: that is not evidence of tampering.
+ * Throws when verification detects tampering (an invalid signature), when a
+ * package/version is absent from the registry, or when an engine component
+ * present in the lockfile carries no integrity metadata — pnpm can install a
+ * tarball without integrity, so a missing integrity must fail closed rather
+ * than silently exempt that component from verification. Even an unreachable
+ * registry fails closed (with `PNPM_ENGINE_IDENTITY_UNVERIFIABLE`): the
+ * lockfile integrity is project-controlled, so it is not a safe fallback.
  * This runs only when the engine is actually being installed (a store cache
  * miss), so it does not add a network round trip to every command.
  */
@@ -96,10 +100,7 @@ function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registries: Re
   for (const name of ['pnpm', '@pnpm/exe']) {
     const version = pmDeps[name]?.version
     if (version == null) continue
-    const integrity = registryIntegrity(envLockfile.packages[`${name}@${version}`]?.resolution)
-    if (integrity != null) {
-      toVerify.push({ name, version, registry: pickRegistryForPackage(registries, name), integrity })
-    }
+    toVerify.push(engineComponentToVerify(envLockfile, registries, { name, version }))
   }
 
   // The bytes actually executed are the host's `@pnpm/exe` platform binary,
@@ -115,15 +116,29 @@ function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registries: Re
     for (const platformName of candidateNames) {
       const platformVersion = optionalDeps[platformName]
       if (platformVersion == null) continue
-      const integrity = registryIntegrity(envLockfile.packages[`${platformName}@${platformVersion}`]?.resolution)
-      if (integrity != null) {
-        toVerify.push({ name: platformName, version: platformVersion, registry: pickRegistryForPackage(registries, platformName), integrity })
-      }
+      // The first candidate present in the lockfile is the binary the install
+      // will link and execute, so it is the one that must be verifiable.
+      toVerify.push(engineComponentToVerify(envLockfile, registries, { name: platformName, version: platformVersion }))
       break
     }
   }
 
   return toVerify
+}
+
+function engineComponentToVerify (
+  envLockfile: EnvLockfile,
+  registries: Registries,
+  { name, version }: { name: string, version: string }
+): InstalledPackageToVerify {
+  const integrity = registryIntegrity(envLockfile.packages[`${name}@${version}`]?.resolution)
+  if (integrity == null) {
+    throw new PnpmError(
+      'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
+      `Cannot verify the identity of ${name}@${version}: its integrity metadata is missing from pnpm-lock.yaml.`
+    )
+  }
+  return { name, version, registry: pickRegistryForPackage(registries, name), integrity }
 }
 
 function registryIntegrity (resolution: unknown): string | undefined {

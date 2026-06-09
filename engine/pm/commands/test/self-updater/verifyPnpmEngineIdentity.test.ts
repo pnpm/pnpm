@@ -3,12 +3,15 @@ import crypto from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import { familySync } from 'detect-libc'
 
-const { verifyPnpmEngineIdentity } = await import('@pnpm/engine.pm.commands')
+const { exePlatformPkgDirName, verifyPnpmEngineIdentity } = await import('@pnpm/engine.pm.commands')
 
 const REGISTRY = 'https://registry.example.test/'
 const PNPM_INTEGRITY = 'sha512-pnpm-integrity'
 const EXE_INTEGRITY = 'sha512-exe-integrity'
+const PLATFORM_INTEGRITY = 'sha512-platform-integrity'
+const PLATFORM_PKG_NAME = `@pnpm/${exePlatformPkgDirName(process.platform, process.arch, familySync())}`
 
 beforeEach(async () => {
   await setupMockAgent()
@@ -61,6 +64,41 @@ describe('verifyPnpmEngineIdentity', () => {
 
   test('skips (no throw) when no trusted keys are provided', async () => {
     await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', { registries: { default: REGISTRY }, trustedKeys: [] })).resolves.toBeUndefined()
+  })
+
+  test('throws when an engine component in the lockfile has no integrity metadata', async () => {
+    const key = createSigningKey()
+    mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }])
+
+    const lockfile = envLockfile()
+    ;(lockfile.packages as Record<string, unknown>)['@pnpm/exe@9.1.0'] = { resolution: { tarball: `${REGISTRY}@pnpm/exe/-/exe-9.1.0.tgz` } }
+
+    await expect(verifyPnpmEngineIdentity(lockfile, '9.1.0', optsTrusting(key))).rejects.toThrow(/integrity metadata is missing/)
+  })
+
+  test('throws when the platform binary in the lockfile has no integrity metadata', async () => {
+    const key = createSigningKey()
+    mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }])
+    mockPackument('@pnpm/exe', EXE_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('@pnpm/exe@9.1.0', EXE_INTEGRITY) }])
+
+    const lockfile = envLockfile()
+    ;(lockfile.snapshots as Record<string, unknown>)['@pnpm/exe@9.1.0'] = { optionalDependencies: { [PLATFORM_PKG_NAME]: '9.1.0' } }
+    ;(lockfile.packages as Record<string, unknown>)[`${PLATFORM_PKG_NAME}@9.1.0`] = { resolution: { tarball: `${REGISTRY}${PLATFORM_PKG_NAME}/-/x-9.1.0.tgz` } }
+
+    await expect(verifyPnpmEngineIdentity(lockfile, '9.1.0', optsTrusting(key))).rejects.toThrow(/integrity metadata is missing/)
+  })
+
+  test('resolves when the platform binary carries a valid registry signature', async () => {
+    const key = createSigningKey()
+    mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }])
+    mockPackument('@pnpm/exe', EXE_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('@pnpm/exe@9.1.0', EXE_INTEGRITY) }])
+    mockPackument(PLATFORM_PKG_NAME, PLATFORM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@9.1.0`, PLATFORM_INTEGRITY) }])
+
+    const lockfile = envLockfile()
+    ;(lockfile.snapshots as Record<string, unknown>)['@pnpm/exe@9.1.0'] = { optionalDependencies: { [PLATFORM_PKG_NAME]: '9.1.0' } }
+    ;(lockfile.packages as Record<string, unknown>)[`${PLATFORM_PKG_NAME}@9.1.0`] = { resolution: { integrity: PLATFORM_INTEGRITY } }
+
+    await expect(verifyPnpmEngineIdentity(lockfile, '9.1.0', optsTrusting(key))).resolves.toBeUndefined()
   })
 })
 
