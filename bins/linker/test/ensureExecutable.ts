@@ -67,3 +67,38 @@ testOnPosix('linkBins() rethrows EPERM from fixBin when the bin source is not ex
   const warn = jest.fn()
   await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).rejects.toHaveProperty('code', 'EPERM')
 })
+
+testOnPosix('linkBins() tolerates EROFS from fixBin when the bin source is already executable', async () => {
+  // A genuinely read-only filesystem (the primary frozenStore target) refuses
+  // chmod with EROFS rather than EPERM/EACCES.
+  const erofs = Object.assign(new Error('EROFS: read-only file system, chmod'), { code: 'EROFS' })
+  fixBinMock.mockRejectedValue(erofs)
+
+  const binTarget = temporaryDirectory()
+  const fixture = f.prepare('simple-fixture')
+  const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
+  fs.chmodSync(binSource, 0o755)
+
+  const warn = jest.fn()
+  await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).resolves.toBeDefined()
+
+  expect(fixBinMock).toHaveBeenCalledWith(binSource, 0o755)
+  expect(fs.existsSync(path.join(binTarget, 'simple'))).toBe(true)
+})
+
+testOnPosix('linkBins() rethrows a chmod failure when the bin still has a CRLF shebang', async () => {
+  // fixBin chmods *before* normalizing the shebang, so a chmod failure means the
+  // CRLF was never rewritten. An executable-but-CRLF bin would not run on POSIX,
+  // so the failure must surface even though the execute bit is set.
+  const erofs = Object.assign(new Error('EROFS: read-only file system, chmod'), { code: 'EROFS' })
+  fixBinMock.mockRejectedValue(erofs)
+
+  const binTarget = temporaryDirectory()
+  const fixture = f.prepare('simple-fixture')
+  const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
+  fs.writeFileSync(binSource, '#!/usr/bin/env node\r\nconsole.log("hi")\n')
+  fs.chmodSync(binSource, 0o755)
+
+  const warn = jest.fn()
+  await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).rejects.toHaveProperty('code', 'EROFS')
+})
