@@ -60,11 +60,13 @@ function nodeSupportsImmutableSqliteUri (): boolean {
   return true
 }
 
-// chmod 0555 has no effect on Windows, so the read-only-directory
-// assertion below cannot hold there. The frozen open also needs a runtime that
-// honors the immutable URI.
-const frozenOpenSupported = process.platform !== 'win32' && nodeSupportsImmutableSqliteUri()
-const testFrozenOpen = frozenOpenSupported ? test : test.skip
+// The immutable open only works on a runtime that honors the immutable URI;
+// this is purely a Node-version property, independent of platform.
+const supportsImmutableUri = nodeSupportsImmutableSqliteUri()
+// chmod 0555 has no effect on Windows (and `?` is illegal in filenames there),
+// so the read-only-directory tests below cannot hold on win32.
+const canAssertReadonlyDir = process.platform !== 'win32'
+const testFrozenOpen = (canAssertReadonlyDir && supportsImmutableUri) ? test : test.skip
 
 testFrozenOpen('StoreIndex frozen mode reads a WAL db on a read-only directory and refuses writes', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
@@ -134,8 +136,9 @@ testFrozenOpen('StoreIndex frozen mode opens under a store path containing a "?"
 
 // On a runtime that cannot honor the immutable URI, a frozen open must fail
 // fast with actionable guidance rather than SQLite's cryptic "unable to open
-// database file". Only meaningful where the capability is actually absent.
-const testUnsupportedNode = frozenOpenSupported ? test.skip : test
+// database file". This is keyed only off the Node version (the error is
+// platform-independent), so it runs on Windows too when the runtime is old.
+const testUnsupportedNode = supportsImmutableUri ? test.skip : test
 
 testUnsupportedNode('StoreIndex frozen mode refuses to open on a Node.js without immutable-URI support', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
