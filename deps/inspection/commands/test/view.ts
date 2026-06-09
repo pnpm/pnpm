@@ -124,9 +124,14 @@ test('view: text output includes header with name@version', async () => {
   expect(firstLine).toContain('is-negative@1.0.0')
 })
 
-test('view: text output includes bin', async () => {
+test('view: text output includes bin from object', async () => {
   const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['@pnpm.e2e/touch-file-one-bin@1.0.0']) as string
   expect(result).toMatch(/^bin: t/m)
+})
+
+test('view: text output includes bin from string', async () => {
+  const result = await view.handler(VIEW_OPTIONS as unknown as Config & ConfigContext, ['@pnpm.e2e/hello-world-js-bin']) as string
+  expect(result).toMatch(/^bin: hello-world-js-bin/m)
 })
 
 test('view: text output includes dist section', async () => {

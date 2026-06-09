@@ -135,9 +135,18 @@ export async function handler (
   }
 
   if (info.bin) {
-    const bins = typeof info.bin === 'string' ? [info.bin] : Object.keys(info.bin)
-    lines.push('')
-    lines.push(`bin: ${chalk.cyan(bins.join(', '))}`)
+    let bins: string[] = []
+    if (typeof info.bin === 'string') {
+      if (info.bin.length > 0) {
+        bins = [info.name[0] === '@' ? info.name.slice(info.name.indexOf('/') + 1) : info.name]
+      }
+    } else {
+      bins = Object.keys(info.bin)
+    }
+    if (bins.length > 0) {
+      lines.push('')
+      lines.push(`bin: ${chalk.cyan(bins.join(', '))}`)
+    }
   }
 
   if (info.dist) {
