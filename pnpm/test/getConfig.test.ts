@@ -49,7 +49,7 @@ afterEach(() => {
   jest.mocked(console.warn).mockRestore()
 })
 
-test('console a warning when the .npmrc has an env variable that does not exist', async () => {
+test('console a warning when the project .npmrc sets a request destination from an env variable', async () => {
   prepare()
 
   fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8')
@@ -61,7 +61,7 @@ test('console a warning when the .npmrc has an env variable that does not exist'
     excludeReporter: false,
   })
 
-  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
+  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Ignored project-level request destination "registry"'))
 })
 
 describe('calcPnpmfilePathsOfPluginDeps', () => {
