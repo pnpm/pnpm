@@ -41,6 +41,7 @@ fn integrity() -> Integrity {
 fn metadata(has_bin: bool) -> PackageMetadata {
     PackageMetadata {
         resolution: LockfileResolution::Registry(RegistryResolution { integrity: integrity() }),
+        version: None,
         engines: None,
         cpu: None,
         os: None,

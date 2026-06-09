@@ -6,7 +6,10 @@
 //! default-resolver dispatcher can route `node@runtime:<spec>`
 //! dependencies through it.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -349,7 +352,11 @@ fn parse_node_file_name(file_name: &str, version: &str) -> Option<NodeFileName> 
 }
 
 fn bin_spec_for_platform(platform: &str) -> BinarySpec {
-    BinarySpec::Single(if platform == "win32" { "node.exe" } else { "bin/node" }.to_string())
+    // pnpm records the runtime variant's `bin` as a named map keyed by the
+    // executable name (`{ node: bin/node }`), not a bare string — mirror
+    // that so the `variants[].resolution.bin` block round-trips.
+    let path = if platform == "win32" { "node.exe" } else { "bin/node" };
+    BinarySpec::Map(BTreeMap::from([("node".to_string(), path.to_string())]))
 }
 
 fn node_bins_for_current_os(platform: &str) -> serde_json::Value {

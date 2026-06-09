@@ -419,19 +419,25 @@ fn real_name(result: &ResolveResult) -> Option<String> {
     if let Some(name_ver) = result.name_ver.as_ref() {
         return Some(name_ver.name.to_string());
     }
-    // A remote (non-registry, non-git) http(s) tarball direct dep leaves
-    // `name_ver` unset and carries its name in the fetched manifest.
-    // Reading it lets `importer_dep_version` strip the `name@` prefix off
-    // the depPath so the importer records just the URL (`version: <url>`),
-    // matching pnpm's `depPathToRef`. Other manifest-only resolutions
-    // (`file:` / git) are deliberately left to the `None` path so their
-    // importer entries keep pacquet's current prefixed shape — bringing
-    // those in line with `depPathToRef` is separate from
+    // `name_ver` is unset for resolutions that learn the canonical name
+    // from the fetched manifest. Read it for the two shapes whose `name@`
+    // prefix pnpm's `depPathToRef` strips off the importer entry:
+    // - a remote (non-registry, non-git) http(s) tarball direct dep
+    //   (`<name>@<tarball-url>` -> `version: <url>`), and
+    // - a runtime dep (`<name>@runtime:<ver>`, a Variations resolution ->
+    //   `version: runtime:<ver>`).
+    // Other manifest-only resolutions (`file:` / git) are deliberately
+    // left to the `None` path so their importer entries keep pacquet's
+    // current prefixed shape — bringing those in line is separate from
     // <https://github.com/pnpm/pnpm/issues/12053>.
-    let LockfileResolution::Tarball(tarball) = &result.resolution else {
-        return None;
+    let reads_name_from_manifest = match &result.resolution {
+        LockfileResolution::Variations(_) => true,
+        LockfileResolution::Tarball(tarball) => {
+            tarball.git_hosted != Some(true) && is_remote_http_tarball(&tarball.tarball)
+        }
+        _ => false,
     };
-    if tarball.git_hosted == Some(true) || !is_remote_http_tarball(&tarball.tarball) {
+    if !reads_name_from_manifest {
         return None;
     }
     result.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
@@ -534,8 +540,20 @@ fn build_package_metadata(
         lockfile_include_tarball_url,
     );
 
+    // pnpm records `version` only for non-registry packages (depPath carries
+    // a `:`), and only when the manifest declares one and the resolution
+    // isn't a local directory — see `toLockfileDependency`. Registry packages
+    // omit it because their version is already the depPath suffix.
+    let version = (node.dep_path.as_str().contains(':')
+        && !matches!(resolution, LockfileResolution::Directory(_)))
+    .then(|| {
+        manifest.and_then(|m| m.get("version")).and_then(Value::as_str).map(ToString::to_string)
+    })
+    .flatten();
+
     PackageMetadata {
         resolution,
+        version,
         engines,
         cpu,
         os,

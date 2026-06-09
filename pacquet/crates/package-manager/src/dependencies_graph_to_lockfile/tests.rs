@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{
     DirectoryResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, PkgNameVer,
-    RegistryResolution, SnapshotDepRef,
+    RegistryResolution, SnapshotDepRef, VariationsResolution,
 };
 use pacquet_package_manifest::PackageManifest;
 use pacquet_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode, PeerDep};
@@ -371,6 +371,80 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         .expect("aliased catalog entry recorded");
     assert_eq!(entry.specifier, "npm:@zkochan/js-yaml@0.0.11");
     assert_eq!(entry.version, "0.0.11");
+}
+
+/// A `runtime:` dependency (`node@runtime:26.3.0`, a `Variations`
+/// resolution whose name lives only in the fetched manifest) records the
+/// prefix-stripped importer version (`runtime:26.3.0`, not
+/// `node@runtime:26.3.0`) and a `version: 26.3.0` field on its `packages:`
+/// entry — matching pnpm's `depPathToRef` and `toLockfileDependency`
+/// (`depPath.includes(':')` ⇒ emit the manifest version for non-directory
+/// resolutions).
+#[test]
+fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "node": "runtime:26.3.0" },
+    }));
+
+    let dep_path = DepPath::from("node@runtime:26.3.0".to_string());
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from("node@runtime:26.3.0"),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(std::sync::Arc::new(json!({
+            "name": "node",
+            "version": "26.3.0",
+            "bin": { "node": "bin/node" },
+        }))),
+        resolution: LockfileResolution::Variations(VariationsResolution { variants: vec![] }),
+        resolved_via: "node-runtime".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("node".to_string()),
+        policy_violation: None,
+    };
+    let node = DependenciesGraphNode {
+        dep_path: dep_path.clone(),
+        resolved_package_id: "node@runtime:26.3.0".to_string(),
+        resolve_result: std::sync::Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::new(),
+        resolved_peer_names: HashSet::new(),
+        depth: 1,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    };
+
+    let mut graph = DependenciesGraph::new();
+    graph.insert(dep_path.clone(), node);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("node".to_string(), dep_path);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .expect("deps")
+        .get(&PkgName::parse("node").unwrap())
+        .unwrap();
+    assert_eq!(entry.specifier, "runtime:26.3.0");
+    match &entry.version {
+        ImporterDepVersion::Regular(ver) => assert_eq!(ver.to_string(), "runtime:26.3.0"),
+        other => panic!("expected Regular(runtime:26.3.0), got {other:?}"),
+    }
+
+    let metadata_key: PackageKey = "node@runtime:26.3.0".parse().unwrap();
+    let metadata = &lockfile.packages.as_ref().expect("packages")[&metadata_key];
+    assert_eq!(metadata.version.as_deref(), Some("26.3.0"));
 }
 
 /// A package with a peer-suffixed depPath produces a peer-keyed snapshot

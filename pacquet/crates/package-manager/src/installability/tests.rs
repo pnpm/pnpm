@@ -56,6 +56,7 @@ fn synthetic_metadata(
             git_hosted: None,
             path: None,
         }),
+        version: None,
         engines: engines.map(|entries| {
             entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
         }),

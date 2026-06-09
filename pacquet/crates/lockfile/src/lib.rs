@@ -238,6 +238,7 @@ impl Lockfile {
         for (key, directory_resolution) in to_insert {
             packages.entry(key).or_insert_with(|| PackageMetadata {
                 resolution: LockfileResolution::Directory(directory_resolution),
+                version: None,
                 engines: None,
                 cpu: None,
                 os: None,

@@ -4,7 +4,7 @@ use pacquet_network::ThrottledClient;
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pretty_assertions::assert_eq;
 
-use super::{NodeResolver, parse_node_file_name};
+use super::{NodeResolver, bin_spec_for_platform, parse_node_file_name};
 
 fn resolver() -> NodeResolver {
     NodeResolver::new(Arc::new(ThrottledClient::new_for_installs()))
@@ -81,4 +81,23 @@ fn parses_node_file_names() {
 
     assert!(parse_node_file_name("node-v22.0.0.pkg", version).is_none());
     assert!(parse_node_file_name("node-v22.0.0-headers.tar.gz", version).is_none());
+}
+
+/// A variant's `bin` is a named map keyed by the executable name — pnpm
+/// writes `bin: { node: bin/node }` on unix and `bin: { node: node.exe }`
+/// on win32, never a bare string. Mirrors the `variants[].resolution.bin`
+/// block in pnpm's runtime lockfile entry.
+#[test]
+fn bin_spec_is_a_named_map() {
+    use pacquet_lockfile::BinarySpec;
+    use std::collections::BTreeMap;
+
+    assert_eq!(
+        bin_spec_for_platform("linux"),
+        BinarySpec::Map(BTreeMap::from([("node".to_string(), "bin/node".to_string())])),
+    );
+    assert_eq!(
+        bin_spec_for_platform("win32"),
+        BinarySpec::Map(BTreeMap::from([("node".to_string(), "node.exe".to_string())])),
+    );
 }
