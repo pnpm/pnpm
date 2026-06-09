@@ -272,8 +272,12 @@ function verifyPackageSignatures (
       failures.push(`${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but no corresponding public key can be found`)
       continue
     }
-    // Without publish time metadata we cannot safely compare against key expiry,
-    // so keep verifying with the key instead of failing closed on incomplete metadata.
+    // Key expiry is a consistency check, not a security boundary: the publish
+    // time comes from the same unauthenticated packument as the signatures, so
+    // a forger holding an expired trusted key could backdate it anyway. The
+    // signature verification below is what gates acceptance. That is why a
+    // missing publish time keeps the key usable instead of failing closed —
+    // the same trade-off npm's pacote makes by substituting a pre-expiry date.
     if (key.expires && publishedTime != null && publishedTime >= Date.parse(key.expires)) {
       failures.push(`${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but the corresponding public key has expired ${key.expires}`)
       continue
