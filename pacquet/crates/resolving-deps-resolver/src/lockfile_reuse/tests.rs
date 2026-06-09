@@ -46,6 +46,7 @@ fn registry_metadata() -> PackageMetadata {
                 .parse()
                 .expect("parse integrity"),
         }),
+        version: None,
         engines: None,
         cpu: None,
         os: None,

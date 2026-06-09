@@ -252,6 +252,7 @@ fn packages_filtered_to_surviving_metadata_keys() {
             git_hosted: None,
             path: None,
         }),
+        version: None,
         engines: None,
         cpu: None,
         os: None,

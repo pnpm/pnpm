@@ -466,6 +466,7 @@ fn pkg_metadata_with_peer(peer_name: &str) -> pacquet_lockfile::PackageMetadata 
             git_hosted: None,
             path: None,
         }),
+        version: None,
         engines: None,
         cpu: None,
         os: None,

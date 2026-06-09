@@ -567,6 +567,15 @@ Rust port notes:
 
 ## Installation Of Runtimes
 
+The runtime lockfile *format* (importer `version: runtime:<ver>`, the
+`packages[node@runtime:<ver>].version: <ver>` field, and the
+`variants[].resolution.bin: { node: … }` map asserted in
+`nodeRuntime.ts:236-269`) is covered at pacquet's adapter/resolver layer by
+`dependencies_graph_to_lockfile::tests::runtime_dependency_strips_importer_prefix_and_records_package_version`
+and `node_resolver::tests::bin_spec_is_a_named_map`. The full
+install-and-reinstall integration tests below are still unported (they
+download real runtime artifacts).
+
 Node runtime tests:
 
 - [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:209` `installing Node.js runtime` includes frozen/offline reinstall after deleting `node_modules`.

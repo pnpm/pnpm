@@ -148,6 +148,7 @@ fn directory_resolution(directory: &str) -> LockfileResolution {
 fn metadata_stub() -> PackageMetadata {
     PackageMetadata {
         resolution: directory_resolution("/dev/null/stub"),
+        version: None,
         engines: None,
         cpu: None,
         os: None,

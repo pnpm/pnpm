@@ -531,6 +531,7 @@ fn metadata_with_resolution(
 ) -> PackageMetadata {
     PackageMetadata {
         resolution,
+        version: None,
         engines: None,
         cpu: None,
         os: None,
