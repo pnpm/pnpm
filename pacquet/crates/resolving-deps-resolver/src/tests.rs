@@ -3140,13 +3140,12 @@ mod propagate_tpd_unit {
 
     use crate::{
         dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
+        resolve_peers::propagate_transitive_peer_dependencies,
         resolved_tree::PeerDep,
     };
     use pacquet_deps_path::DepPath;
     use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
     use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
-
-    use crate::resolve_peers::propagate_transitive_peer_dependencies;
 
     fn make_node(
         id: &str,
