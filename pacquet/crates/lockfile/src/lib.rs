@@ -164,6 +164,23 @@ pub struct Lockfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignored_optional_dependencies: Option<Vec<String>>,
 
+    /// `patchedDependencies` recorded by the install that wrote this
+    /// lockfile: each configured `patchedDependencies` key (e.g.
+    /// `graceful-fs@4.2.11`) mapped to the SHA-256 hex digest of its
+    /// patch file. Top-level in the v9 wire shape, sitting between
+    /// `pnpmfileChecksum` and `importers` in pnpm's
+    /// [`sortLockfileKeys`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/lockfile/fs/src/sortLockfileKeys.ts#L34-L42)
+    /// root-key order. Mirrors upstream's
+    /// [`patchedDependencies`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/types/src/index.ts#L23)
+    /// field, which records
+    /// [`calcPatchHashes(opts.patchedDependencies)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L547-L549).
+    /// A [`BTreeMap`] so the entries serialize sorted by key, matching
+    /// pnpm's `sortDirectKeys` pass over this map.
+    ///
+    /// [`BTreeMap`]: std::collections::BTreeMap
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub patched_dependencies: Option<std::collections::BTreeMap<String, String>>,
+
     #[serde(
         default,
         skip_serializing_if = "HashMap::is_empty",

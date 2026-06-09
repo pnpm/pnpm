@@ -10,7 +10,10 @@ mod workspace_yaml;
 pub use crate::api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe};
 
 use indexmap::IndexMap;
-use pacquet_patching::{PatchGroupRecord, ResolvePatchedDependenciesError, resolve_and_group};
+use pacquet_patching::{
+    CalcPatchHashError, PatchGroupRecord, ResolvePatchedDependenciesError, calc_patch_hashes,
+    resolve_and_group,
+};
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
@@ -1523,6 +1526,43 @@ impl Config {
             return Ok(None);
         };
         resolve_and_group(workspace_dir, raw)
+    }
+
+    /// Resolve relative patch file paths in
+    /// [`Config::patched_dependencies`] against
+    /// [`Config::workspace_dir`] and hash each file, producing the
+    /// `patchedDependencies` map the lockfile records: each configured
+    /// key mapped to its patch file's SHA-256 hex digest.
+    ///
+    /// Mirrors upstream's
+    /// [`calcPatchHashes(opts.patchedDependencies)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L547-L549),
+    /// where `opts.patchedDependencies` is the manifest-dir-resolved
+    /// map produced by
+    /// [`getOptionsFromRootManifest`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts#L44-L46).
+    /// Distinct from [`Self::resolved_patched_dependencies`], which
+    /// groups the same entries by package name for the resolver — this
+    /// keeps the user's verbatim keys so the lockfile is byte-faithful
+    /// (e.g. a bare `foo` and `foo@*` stay separate keys rather than
+    /// collapsing into one group bucket).
+    ///
+    /// Returns `Ok(None)` when either field is unset.
+    pub fn patched_dependency_hashes(
+        &self,
+    ) -> Result<Option<BTreeMap<String, String>>, CalcPatchHashError> {
+        let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)
+        else {
+            return Ok(None);
+        };
+        let resolved = raw.iter().map(|(key, rel_or_abs)| {
+            let candidate = Path::new(rel_or_abs);
+            let path = if candidate.is_absolute() {
+                candidate.to_path_buf()
+            } else {
+                workspace_dir.join(candidate)
+            };
+            (key.clone(), path)
+        });
+        Ok(Some(calc_patch_hashes(resolved)?))
     }
 
     /// Build the runtime config by layering:

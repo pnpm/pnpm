@@ -290,6 +290,11 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     ResolvePatchedDependencies(#[error(source)] pacquet_patching::ResolvePatchedDependenciesError),
 
+    /// Failed to read or hash a patch file when computing the
+    /// lockfile's top-level `patchedDependencies` block.
+    #[diagnostic(transparent)]
+    CalcPatchHashes(#[error(source)] pacquet_patching::CalcPatchHashError),
+
     /// A user-defined `namedRegistries` entry mapped an alias to a
     /// non-http(s) URL. Surfaced at resolver construction so the
     /// install fails fast with a specific error code instead of a
@@ -829,6 +834,15 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             .resolved_patched_dependencies()
             .map_err(InstallWithFreshLockfileError::ResolvePatchedDependencies)?
             .map(Arc::new);
+        // The verbatim `patchedDependencies` key → patch-file-hash map
+        // recorded in the lockfile's top-level `patchedDependencies`
+        // block. Computed separately from the grouped record above
+        // (which buckets by package name) so the user's exact keys
+        // survive into the lockfile, mirroring pnpm's
+        // `calcPatchHashes(opts.patchedDependencies)`.
+        let patched_dependency_hashes = config
+            .patched_dependency_hashes()
+            .map_err(InstallWithFreshLockfileError::CalcPatchHashes)?;
 
         // Build the `packageExtensions` hook once per install. The
         // closure captures an `Arc<PackageExtender>` so every importer
@@ -1100,6 +1114,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 &direct_by_importer,
                 &catalogs,
                 pnpmfile_checksum.as_deref(),
+                patched_dependency_hashes.as_ref(),
             );
             let (wanted_lockfile, can_record_lockfile_verification) = if config.lockfile {
                 let can_record_lockfile_verification = save_wanted_lockfile(
@@ -1231,6 +1246,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             &direct_by_importer,
             &catalogs,
             pnpmfile_checksum.as_deref(),
+            patched_dependency_hashes.as_ref(),
         );
         tracing::info!(
             target: "pacquet::install::phase",
@@ -1751,6 +1767,7 @@ fn build_fresh_lockfile(
     >,
     catalogs: &pacquet_catalogs_types::Catalogs,
     pnpmfile_checksum: Option<&str>,
+    patched_dependency_hashes: Option<&BTreeMap<String, String>>,
 ) -> Lockfile {
     let mut importers = BTreeMap::new();
     for (id, manifest) in importer_manifests {
@@ -1775,6 +1792,7 @@ fn build_fresh_lockfile(
             .as_ref()
             .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect()),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+        patched_dependencies: patched_dependency_hashes.cloned(),
         package_extensions_checksum: compute_package_extensions_checksum(config),
         pnpmfile_checksum: pnpmfile_checksum.map(str::to_string),
         catalogs,

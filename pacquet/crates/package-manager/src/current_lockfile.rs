@@ -98,6 +98,10 @@ pub fn filter_lockfile_for_current(
         // set and the next install's `Config` value relies on the
         // round-trip. Slice 7 wire-up.
         ignored_optional_dependencies: lockfile.ignored_optional_dependencies.clone(),
+        // Carried over verbatim: the current lockfile is a filtered
+        // view of the wanted one, so the recorded patch hashes survive
+        // the round-trip into `node_modules/.pnpm/lock.yaml`.
+        patched_dependencies: lockfile.patched_dependencies.clone(),
         importers,
         packages,
         snapshots,
