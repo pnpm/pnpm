@@ -38,6 +38,17 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     let mut to_resolve: Vec<(String, String)> = Vec::new();
     let mut lockfile_changed = false;
 
+    // Drop env-lockfile entries for config deps that were removed from
+    // `pnpm-workspace.yaml`, so they stop being installed and get pruned
+    // from `.pnpm-config`. The packages/snapshots they referenced are
+    // cleaned up by `prune_env_lockfile` below.
+    {
+        let importer = env_lockfile.root_importer_mut();
+        let before = importer.config_dependencies.len();
+        importer.config_dependencies.retain(|name, _| config_deps.contains_key(name));
+        lockfile_changed |= importer.config_dependencies.len() != before;
+    }
+
     for (name, value) in config_deps {
         match value {
             ConfigDependency::Detailed(detail) => {
@@ -95,6 +106,9 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
 
     if to_resolve.is_empty() {
         if lockfile_changed {
+            // Migration and/or removal changed the lockfile; prune any
+            // now-orphaned packages/snapshots before writing.
+            prune_env_lockfile(&mut env_lockfile);
             env_lockfile.write(opts.root_dir).map_err(ConfigDepError::WriteLockfile)?;
         }
         return install_config_deps::<Reporter>(&env_lockfile, opts).await;

@@ -462,3 +462,46 @@ fn prune_drops_orphan_packages_and_snapshots() {
     assert!(!env.packages.contains_key(&orphan), "orphan package pruned");
     assert!(!env.snapshots.contains_key(&orphan), "orphan snapshot pruned");
 }
+
+#[tokio::test]
+async fn removed_config_dep_is_pruned_from_lockfile_and_pnpm_config() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+    assert!(root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists());
+
+    // Re-resolve with the dep no longer declared: it must be dropped from
+    // the env lockfile and unlinked from `.pnpm-config`.
+    let empty = BTreeMap::new();
+    resolve_and_install_config_deps::<SilentReporter>(
+        &empty,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile present");
+    assert!(
+        env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies.is_empty(),
+        "removed config dep dropped from the env lockfile importer",
+    );
+    assert!(
+        !env.packages.contains_key(&"@pnpm.e2e/foo@100.0.0".parse().unwrap()),
+        "its package entry pruned",
+    );
+    assert!(
+        !root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo").exists(),
+        "its .pnpm-config link removed",
+    );
+}
