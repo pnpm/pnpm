@@ -5,7 +5,6 @@ use crate::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pacquet_env_replace::env_replace_lossy;
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::ConfigDependency;
@@ -646,22 +645,20 @@ impl WorkspaceSettings {
         Ok(None)
     }
 
-    /// Expand `${VAR}` placeholders inside string-valued map fields
-    /// that pnpm runs through `envReplace`. Today only
-    /// `namedRegistries` qualifies — the upstream
+    /// Drop `${VAR}` placeholders inside workspace-controlled registry
+    /// URL fields. The upstream
     /// [`replaceEnvInSettings`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L66-L84)
-    /// pass routes `registries` and `namedRegistries` through
-    /// `replaceEnvInStringValues`; pacquet exposes only the latter
-    /// at the yaml layer.
+    /// pass filters `registry`, `registries`, and `namedRegistries`
+    /// instead of expanding environment variables into request URLs.
     ///
-    /// Call this before [`Self::apply_to`] so the substituted values
+    /// Call this before [`Self::apply_to`] so filtered values do not
     /// land in [`Config`].
     pub fn substitute_env<Sys: EnvVar>(&mut self) {
+        if self.registry.as_deref().is_some_and(has_env_placeholder) {
+            self.registry = None;
+        }
         if let Some(named_registries) = self.named_registries.as_mut() {
-            for value in named_registries.values_mut() {
-                let (substituted, _) = env_replace_lossy::<Sys>(value);
-                *value = substituted;
-            }
+            named_registries.retain(|_, value| !has_env_placeholder(value));
         }
     }
 
@@ -873,6 +870,10 @@ impl WorkspaceSettings {
             config.trust_policy_ignore_after = Some(v);
         }
     }
+}
+
+fn has_env_placeholder(value: &str) -> bool {
+    value.contains("${")
 }
 
 fn resolve(base: &Path, value: &str) -> PathBuf {

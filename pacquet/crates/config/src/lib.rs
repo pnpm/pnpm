@@ -1652,16 +1652,19 @@ impl Config {
         // Build the merge sources in priority order (high → low):
         // project `.npmrc` > `auth.ini` > user-level `.npmrc`. Each is
         // parsed and rescoped independently before being folded together.
-        let parse_source = |text: String, dir: PathBuf, label: &str| {
+        let parse_trusted_source = |text: String, dir: PathBuf, label: &str| {
             let mut auth = crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text, &dir);
             auth.rescope_unscoped(label);
             auth
         };
-        let project_source = read_npmrc(start_dir)
-            .map(|text| parse_source(text, start_dir.to_path_buf(), "<project>/.npmrc"));
+        let project_source = read_npmrc(start_dir).map(|text| {
+            let mut auth = crate::npmrc_auth::NpmrcAuth::from_project_ini::<Sys>(&text, start_dir);
+            auth.rescope_unscoped("<project>/.npmrc");
+            auth
+        });
         let auth_ini_source = global_config_dir.as_deref().and_then(|dir| {
             read_npmrc_file(&dir.join("auth.ini"))
-                .map(|text| parse_source(text, dir.to_path_buf(), "auth.ini"))
+                .map(|text| parse_trusted_source(text, dir.to_path_buf(), "auth.ini"))
         });
         let user_source = match &user_npmrc_path {
             Some(path) => read_npmrc_file(path).map(|text| {
@@ -1670,10 +1673,11 @@ impl Config {
                 // that's the empty path — i.e. the process cwd — never
                 // the file itself.
                 let dir = path.parent().map(|parent| parent.to_path_buf()).unwrap_or_default();
-                parse_source(text, dir, "<user>/.npmrc")
+                parse_trusted_source(text, dir, "<user>/.npmrc")
             }),
-            None => Sys::home_dir()
-                .and_then(|dir| read_npmrc(&dir).map(|text| parse_source(text, dir, "~/.npmrc"))),
+            None => Sys::home_dir().and_then(|dir| {
+                read_npmrc(&dir).map(|text| parse_trusted_source(text, dir, "~/.npmrc"))
+            }),
         };
 
         // Fold high-priority-first: the first present source is the
