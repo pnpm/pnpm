@@ -1,16 +1,38 @@
 use crate::{ConfigDepError, ConfigDepsInstallOptions, resolve_and_install_config_deps};
-use pacquet_lockfile::EnvLockfile;
+use pacquet_lockfile::{EnvLockfile, LockfileResolution};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_reporter::SilentReporter;
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
+use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pacquet_store_dir::StoreDir;
 use pacquet_testing_utils::registry::TestRegistry;
 use pacquet_workspace_state::ConfigDependency;
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 use tempfile::TempDir;
+
+/// Resolve `name@version` against the mock registry and return its
+/// integrity string, so migration tests can build the old inline
+/// `<version>+<integrity>` format without hard-coding a checksum.
+async fn integrity_of(
+    resolver: &NpmResolver<InMemoryPackageMetaCache>,
+    name: &str,
+    version: &str,
+) -> String {
+    let wanted = WantedDependency {
+        alias: Some(name.to_string()),
+        bare_specifier: Some(version.to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    match result.resolution {
+        LockfileResolution::Tarball(tarball) => tarball.integrity.unwrap().to_string(),
+        LockfileResolution::Registry(registry) => registry.integrity.to_string(),
+        other => panic!("unexpected resolution: {other:?}"),
+    }
+}
 
 /// Build an npm resolver pointing at the in-process mock registry.
 fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, TempDir) {
@@ -230,4 +252,69 @@ async fn re_resolves_when_config_dep_version_changes() {
     assert_eq!(entry.version, "100.1.0", "version bump is reflected");
     let old_key = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     assert!(!env.packages.contains_key(&old_key), "stale version pruned from lockfile");
+}
+
+#[tokio::test]
+async fn migrates_old_inline_integrity_format() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    // The old format embeds the integrity inline as `<version>+<integrity>`,
+    // which the migration path records into the lockfile without re-resolving.
+    let integrity = integrity_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert(
+        "@pnpm.e2e/foo".to_string(),
+        ConfigDependency::VersionWithIntegrity(format!("100.0.0+{integrity}")),
+    );
+
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists(),
+        "migrated config dep is installed",
+    );
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let entry = &env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["@pnpm.e2e/foo"];
+    // The migrated specifier collapses to the bare version (the integrity
+    // moves into the lockfile's packages entry).
+    assert_eq!(entry.specifier, "100.0.0");
+    assert_eq!(entry.version, "100.0.0");
+    assert!(env.packages.contains_key(&"@pnpm.e2e/foo@100.0.0".parse().unwrap()));
+}
+
+#[tokio::test]
+async fn frozen_lockfile_succeeds_when_up_to_date() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+
+    // First install (not frozen) populates the env lockfile.
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    // A second install under --frozen-lockfile needs no changes, so it
+    // succeeds rather than raising FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE.
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), true),
+    )
+    .await
+    .expect("frozen install with an up-to-date env lockfile succeeds");
 }
