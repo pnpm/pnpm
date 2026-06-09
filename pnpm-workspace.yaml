@@ -241,6 +241,8 @@ catalog:
   npm-packlist: 10.0.4
   object-hash: 3.0.0
   open: ^7.4.2
+  openpgp: ^6.3.1
+  '@openpgp/web-stream-tools': 0.3.1
   p-defer: ^4.0.1
   p-every: ^2.0.0
   p-filter: ^4.1.0

@@ -1,4 +1,9 @@
 {
+  "ignorePaths": [
+    "**/nodeReleaseKeys.ts",
+    "**/nodeReleaseKeys.d.ts",
+    "**/node_release_keys.rs"
+  ],
   "words": [
     "adduser",
     "adipiscing",
@@ -217,6 +222,7 @@
     "ofjergrg",
     "onclickoutside",
     "oomol",
+    "openpgp",
     "ossl",
     "outfile",
     "overrider",
@@ -345,6 +351,8 @@
     "subdeps",
     "subdir",
     "subdirs",
+    "subkey",
+    "subkeys",
     "subpkg",
     "subresource",
     "supercede",

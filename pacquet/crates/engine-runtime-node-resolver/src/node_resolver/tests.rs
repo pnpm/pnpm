@@ -4,7 +4,10 @@ use pacquet_network::ThrottledClient;
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pretty_assertions::assert_eq;
 
-use super::{NodeResolver, bin_spec_for_platform, parse_node_file_name};
+use super::{
+    NodeResolver, NodeResolverError, bin_spec_for_platform, parse_node_file_name,
+    read_node_assets_from_mirror,
+};
 
 fn resolver() -> NodeResolver {
     NodeResolver::new(Arc::new(ThrottledClient::new_for_installs()))
@@ -101,3 +104,57 @@ fn bin_spec_is_a_named_map() {
         BinarySpec::Map(BTreeMap::from([("node".to_string(), "node.exe".to_string())])),
     );
 }
+
+#[tokio::test]
+async fn release_asset_reader_requires_signature_when_requested() {
+    let mut server = mockito::Server::new_async().await;
+    let _shasums = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
+        .with_status(200)
+        .with_body(SHASUMS_WITH_ONE_NODE_ASSET)
+        .create_async()
+        .await;
+    let _signature = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt.sig")
+        .with_status(404)
+        .create_async()
+        .await;
+    let err = read_node_assets_from_mirror(
+        &ThrottledClient::new_for_installs(),
+        &format!("{}/download/release/", server.url()),
+        "22.11.0",
+        false,
+        true,
+    )
+    .await
+    .expect_err("stable release assets must require a SHASUMS signature");
+    let err = err.downcast_ref::<NodeResolverError>().expect("NodeResolverError");
+
+    assert!(matches!(err, NodeResolverError::FetchVerifiedNodeShasums(_)));
+}
+
+#[tokio::test]
+async fn prerelease_asset_reader_does_not_require_signature() {
+    let mut server = mockito::Server::new_async().await;
+    let _shasums = server
+        .mock("GET", "/download/rc/v22.11.0/SHASUMS256.txt")
+        .with_status(200)
+        .with_body(SHASUMS_WITH_ONE_NODE_ASSET)
+        .create_async()
+        .await;
+    let assets = read_node_assets_from_mirror(
+        &ThrottledClient::new_for_installs(),
+        &format!("{}/download/rc/", server.url()),
+        "22.11.0",
+        false,
+        false,
+    )
+    .await
+    .expect("unsigned channels use the raw SHASUMS file");
+
+    assert_eq!(assets.len(), 1);
+}
+
+const SHASUMS_WITH_ONE_NODE_ASSET: &str = "\
+ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz
+";

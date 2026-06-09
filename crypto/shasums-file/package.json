@@ -35,10 +35,12 @@
   "dependencies": {
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetching.types": "workspace:*"
+    "@pnpm/fetching.types": "workspace:*",
+    "openpgp": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@openpgp/web-stream-tools": "catalog:",
     "@pnpm/crypto.shasums-file": "workspace:*"
   },
   "engines": {

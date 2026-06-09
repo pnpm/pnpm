@@ -1,4 +1,4 @@
-import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
+import { fetchShasumsFile, fetchVerifiedNodeShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type {
@@ -63,7 +63,7 @@ export async function resolveNodeRuntime (
   if (!version) {
     throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
   }
-  const variants = await readNodeAssets(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
+  const variants = await readNodeAssets(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version, releaseChannel)
   const range = version === versionSpec ? version : `^${version}`
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
@@ -96,14 +96,21 @@ export async function resolveLatestNodeRuntime (
   return { latestManifest: { name: 'node', version } }
 }
 
-async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<PlatformAssetResolution[]> {
-  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false })
+async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string, releaseChannel: string): Promise<PlatformAssetResolution[]> {
+  // The mirror is repository-configurable, so the SHASUMS file's hashes are only
+  // trustworthy once its OpenPGP signature is verified against the Node.js
+  // release keys embedded in pnpm. Only the `release` channel publishes a signed
+  // SHASUMS256.txt; pre-release channels (rc, nightly, …) are unsigned by Node,
+  // so they cannot be verified this way.
+  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false, verifySignature: releaseChannel === 'release' })
 
   // When using the default mirror, also fetch musl variants from unofficial-builds.nodejs.org,
-  // since musl builds are not available on the official mirror.
+  // since musl builds are not available on the official mirror. That URL is hardcoded (not
+  // repository-configurable) and signed by a different (unofficial-builds) key, so it is trusted
+  // over TLS rather than verified against the official release keys.
   if (nodeMirrorBaseUrl === DEFAULT_NODE_MIRROR_BASE_URL) {
     try {
-      const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true })
+      const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true, verifySignature: false })
       assets.push(...muslAssets)
     } catch {
       // Musl variants may not be available for all Node.js versions (e.g. very old ones)
@@ -119,11 +126,14 @@ async function readNodeAssetsFromMirror (
     nodeMirrorBaseUrl: string
     version: string
     muslOnly: boolean
+    verifySignature: boolean
   }
 ): Promise<PlatformAssetResolution[]> {
-  const { nodeMirrorBaseUrl, version, muslOnly } = opts
+  const { nodeMirrorBaseUrl, version, muslOnly, verifySignature } = opts
   const integritiesFileUrl = `${nodeMirrorBaseUrl}v${version}/SHASUMS256.txt`
-  const shasumsFileItems = await fetchShasumsFile(fetch, integritiesFileUrl)
+  const shasumsFileItems = verifySignature
+    ? await fetchVerifiedNodeShasumsFile(fetch, integritiesFileUrl)
+    : await fetchShasumsFile(fetch, integritiesFileUrl)
   const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
   // The second capture group uses [^.-]+ to stop at a dash, so that the optional
   // third group can capture the '-musl' suffix separately (e.g. 'x64' + '-musl').

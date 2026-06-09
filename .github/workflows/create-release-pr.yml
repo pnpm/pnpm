@@ -57,6 +57,13 @@ jobs:
     - name: Check embedded npm signing keys are up to date
       run: node deps/security/signatures/scripts/update-npm-signing-keys.mjs
 
+    # Fail the release if the embedded Node.js release keys (used to verify the
+    # signature of a downloaded runtime's SHASUMS256.txt) have drifted from the
+    # canonical nodejs/release-keys list, so a new release signer cannot silently
+    # break Node.js runtime verification.
+    - name: Check embedded Node.js release keys are up to date
+      run: node crypto/shasums-file/scripts/update-node-release-keys.mjs
+
     # Consumes the pending changesets: bumps versions, writes changelogs, updates
     # the ledger, and syncs manifests. A no-op (no pending changesets) leaves the
     # tree clean and the steps below skip.

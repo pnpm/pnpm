@@ -301,6 +301,9 @@ catalogs:
     '@npm/types':
       specifier: ^2.1.0
       version: 2.1.0
+    '@openpgp/web-stream-tools':
+      specifier: 0.3.1
+      version: 0.3.1
     '@pnpm/byline':
       specifier: ^1.0.0
       version: 1.0.0
@@ -772,6 +775,9 @@ catalogs:
     open:
       specifier: ^7.4.2
       version: 7.4.2
+    openpgp:
+      specifier: ^6.3.1
+      version: 6.3.1
     p-defer:
       specifier: ^4.0.1
       version: 4.0.1
@@ -2873,10 +2879,16 @@ importers:
       '@pnpm/fetching.types':
         specifier: workspace:*
         version: link:../../fetching/types
+      openpgp:
+        specifier: 'catalog:'
+        version: 6.3.1(@openpgp/web-stream-tools@0.3.1(@types/node@25.9.1)(typescript@5.9.3))
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.3.0
+      '@openpgp/web-stream-tools':
+        specifier: 'catalog:'
+        version: 0.3.1(@types/node@25.9.1)(typescript@5.9.3)
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: 'link:'
@@ -11288,6 +11300,18 @@ packages:
     resolution: {integrity: sha512-gOBg5YHMfZy+TfHArfVogwgfBeQnKbbGo3pSUyK/gSI0AVu+pEiDVcKlQb0D8Mg1LNRZILZ6XG8I5dJ4KuAd9Q==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
+  '@openpgp/web-stream-tools@0.3.1':
+    resolution: {integrity: sha512-EV+VQ4Dr8b+JmlGnc74FLgx7EhLyydOr4j6s6Hp+2scQh6sLQMs2h+1oEYUIslXcQPicWKG5ZQx+/dua0dgPWA==}
+    engines: {node: '>= 18.0.0'}
+    peerDependencies:
+      '@types/node': '>=18.0.0'
+      typescript: '>=4.7'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+      typescript:
+        optional: true
+
   '@package-json/types@0.0.12':
     resolution: {integrity: sha512-uu43FGU34B5VM9mCNjXCwLaGHYjXdNincqKLaraaCW+7S2+SmiBg1Nv8bPnmschrIfZmfKNY9f3fC376MRrObw==}
 
@@ -15512,6 +15536,15 @@ packages:
     resolution: {integrity: sha512-MVHddDVweXZF3awtlAS+6pgKLlm/JgxZ90+/NBurBoQctVOOB/zDdVjcyPzQ+0laDGbsWgrRkflI65sQeOgT9Q==}
     engines: {node: '>=8'}
 
+  openpgp@6.3.1:
+    resolution: {integrity: sha512-7oSPvmlKPojxFoyelT5DWPIAVmqWZh4qU/5pO6bdoShEtRpCw9Sye9IXUQj6EFM3XpgGssqccAr705YtTcLNQw==}
+    engines: {node: '>= 18.0.0', typescript: '>= 5.0.0'}
+    peerDependencies:
+      '@openpgp/web-stream-tools': ~0.3.0
+    peerDependenciesMeta:
+      '@openpgp/web-stream-tools':
+        optional: true
+
   opt-cli@1.5.1:
     resolution: {integrity: sha512-iRFQBiQjXZ+LX/8pis04prUhS6FOYcJiZRouofN3rUJEB282b/e0s3jp9vT7aHgXY6TUpgPwu12f0i+qF40Kjw==}
     hasBin: true
@@ -18580,6 +18613,11 @@ snapshots:
       which: 6.0.1
 
   '@npmcli/redact@4.0.0': {}
+
+  '@openpgp/web-stream-tools@0.3.1(@types/node@25.9.1)(typescript@5.9.3)':
+    optionalDependencies:
+      '@types/node': 25.9.1
+      typescript: 5.9.3
 
   '@package-json/types@0.0.12': {}
 
@@ -23935,6 +23973,10 @@ snapshots:
     dependencies:
       is-docker: 2.2.1
       is-wsl: 2.2.0
+
+  openpgp@6.3.1(@openpgp/web-stream-tools@0.3.1(@types/node@25.9.1)(typescript@5.9.3)):
+    optionalDependencies:
+      '@openpgp/web-stream-tools': 0.3.1(@types/node@25.9.1)(typescript@5.9.3)
 
   opt-cli@1.5.1:
     dependencies:
