@@ -1,0 +1,108 @@
+import {
+  type InstalledPackageToVerify,
+  verifyInstalledPackageSignatures,
+} from '@pnpm/deps.security.signatures'
+import { readEnvLockfile } from '@pnpm/lockfile.fs'
+import { logger } from '@pnpm/logger'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import type { CreateFetchFromRegistryOptions, RetryTimeoutOptions } from '@pnpm/network.fetch'
+
+// The registry that owns the `pacquet` / `@pnpm/pacquet` / `@pacquet/*` names.
+// Identity is verified against this canonical registry rather than whatever
+// registry the repository's config points at — otherwise a repo could serve
+// (and sign with its own keys) a malicious package under the same name.
+const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/'
+
+export interface VerifyPacquetIdentityOptions extends CreateFetchFromRegistryOptions {
+  lockfileDir: string
+  rootDir: string
+  retry?: RetryTimeoutOptions
+  timeout?: number
+  networkConcurrency?: number
+}
+
+/**
+ * Decides whether pnpm may spawn the pacquet binary installed under
+ * `node_modules/.pnpm-config/<packageName>` as an install engine.
+ *
+ * A repository declares pacquet in its `pnpm-workspace.yaml`
+ * `configDependencies` and controls the lockfile integrity and the registry
+ * the bytes came from — so the declaration alone cannot authorize running a
+ * native binary. This verifies, against the canonical npm registry, that the
+ * exact bytes installed on disk (the `pacquet` shim and the host's
+ * `@pacquet/<platform>-<arch>` binary, which is what actually executes) carry
+ * a valid npm registry signature for that `name@version`. The signature is
+ * checked over the *installed* integrity, so substituted or tampered bytes
+ * fail to verify.
+ *
+ * Returns `false` (and logs why) when identity cannot be confirmed; the caller
+ * then falls back to pnpm's own install engine instead of spawning pacquet.
+ */
+export async function verifyPacquetIdentity (
+  packageName: 'pacquet' | '@pnpm/pacquet',
+  opts: VerifyPacquetIdentityOptions
+): Promise<boolean> {
+  const toVerify = await collectPacquetPackagesToVerify(packageName, opts.rootDir)
+  if (toVerify == null) {
+    return skip(packageName, opts.lockfileDir, 'its entry is missing from the lockfile')
+  }
+
+  // No credentials are sent to the canonical registry: the packument and the
+  // signing keys are public, and we must not leak the repo's tokens here.
+  const getAuthHeader = createGetAuthHeaderByURI({})
+  let result
+  try {
+    result = await verifyInstalledPackageSignatures(toVerify, getAuthHeader, opts)
+  } catch (err: unknown) {
+    return skip(packageName, opts.lockfileDir, `verification could not be completed (${String(err)})`)
+  }
+
+  if (!result.verified) {
+    const detail = result.failures.map(({ name, version, reason }) => `${name}@${version}: ${reason}`).join('; ')
+    return skip(packageName, opts.lockfileDir, `its registry signature could not be verified (${detail})`)
+  }
+  return true
+}
+
+async function collectPacquetPackagesToVerify (
+  packageName: string,
+  rootDir: string
+): Promise<InstalledPackageToVerify[] | undefined> {
+  const envLockfile = await readEnvLockfile(rootDir)
+  if (envLockfile == null) return undefined
+
+  const shim = envLockfile.importers['.']?.configDependencies?.[packageName]
+  if (shim == null) return undefined
+  const shimKey = `${packageName}@${shim.version}`
+  const shimIntegrity = registryIntegrity(envLockfile.packages[shimKey]?.resolution)
+  if (shimIntegrity == null) return undefined
+
+  // Only the host's platform binary is ever spawned, so that's the one whose
+  // identity matters. If it isn't in the lockfile, pacquet couldn't run here.
+  const platformPkgName = `@pacquet/${process.platform}-${process.arch}`
+  const platformVersion = envLockfile.snapshots[shimKey]?.optionalDependencies?.[platformPkgName]
+  if (platformVersion == null) return undefined
+  const platformKey = `${platformPkgName}@${platformVersion}`
+  const platformIntegrity = registryIntegrity(envLockfile.packages[platformKey]?.resolution)
+  if (platformIntegrity == null) return undefined
+
+  return [
+    { name: packageName, version: shim.version, registry: CANONICAL_NPM_REGISTRY, integrity: shimIntegrity },
+    { name: platformPkgName, version: platformVersion, registry: CANONICAL_NPM_REGISTRY, integrity: platformIntegrity },
+  ]
+}
+
+function registryIntegrity (resolution: unknown): string | undefined {
+  const integrity = (resolution as { integrity?: unknown } | undefined)?.integrity
+  return typeof integrity === 'string' && integrity ? integrity : undefined
+}
+
+function skip (packageName: string, prefix: string, reason: string): false {
+  logger.warn({
+    message: `Not using pacquet as the install engine: ${reason}. ` +
+      `Declaring "${packageName}" in configDependencies only opts in to a registry-signature-verified pacquet release; ` +
+      "falling back to pnpm's default install engine.",
+    prefix,
+  })
+  return false
+}

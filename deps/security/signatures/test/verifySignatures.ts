@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
-import { verifySignatures } from '@pnpm/deps.security.signatures'
+import { verifyInstalledPackageSignatures, verifySignatures } from '@pnpm/deps.security.signatures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 
 const REGISTRY = 'https://registry.example.test/'
@@ -221,6 +221,88 @@ describe('verifySignatures', () => {
 
     expect(result.verified).toBe(1)
     expect(result.invalid).toEqual([])
+  })
+})
+
+describe('verifyInstalledPackageSignatures', () => {
+  beforeEach(async () => {
+    await setupMockAgent()
+  })
+
+  afterEach(async () => {
+    await teardownMockAgent()
+  })
+
+  test('verifies when the installed integrity matches what the registry signed', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    mockPackument({ signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) }] })
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], () => undefined, {})
+
+    expect(result).toEqual({ verified: true, failures: [] })
+  })
+
+  test('fails when the installed bytes differ from what the registry signed (tamper)', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    // The registry signed INTEGRITY, but a tampered lockfile claims a different one.
+    mockPackument({ signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) }] })
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: 'sha512-tampered-bytes' },
+    ], () => undefined, {})
+
+    expect(result.verified).toBe(false)
+    expect(result.failures).toHaveLength(1)
+    expect(result.failures[0]).toMatchObject({ name: 'signed-pkg', version: '1.0.0', category: 'invalid' })
+    expect(result.failures[0].reason).toContain('invalid registry signature')
+  })
+
+  test('fails when the registry provides no signing keys (no trust root)', async () => {
+    getMockAgent().get(REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/keys', method: 'GET' })
+      .reply(200, { keys: [] })
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], () => undefined, {})
+
+    expect(result.verified).toBe(false)
+    expect(result.failures[0]).toMatchObject({ category: 'unreachable' })
+    expect(result.failures[0].reason).toContain('no signing keys')
+  })
+
+  test('fails when the registry has no signature for the package', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    mockPackument({ signatures: [] })
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], () => undefined, {})
+
+    expect(result.verified).toBe(false)
+    expect(result.failures[0]).toMatchObject({ category: 'absent' })
+    expect(result.failures[0].reason).toContain('no registry signature')
+  })
+
+  test('fails when the package is not published on the registry', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    getMockAgent().get(REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(404, {})
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], () => undefined, {})
+
+    expect(result.verified).toBe(false)
+    expect(result.failures[0]).toMatchObject({ category: 'absent' })
+    expect(result.failures[0].reason).toContain('not published')
   })
 })
 

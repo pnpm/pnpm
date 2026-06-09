@@ -352,3 +352,121 @@ function isPackageSignature (signature: unknown): signature is PackageSignature 
 function sortIssue (a: SignatureIssue, b: SignatureIssue): number {
   return `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`)
 }
+
+export interface InstalledPackageToVerify {
+  name: string
+  /** The registry to verify against — should be the canonical registry that owns the package name. */
+  registry: string
+  version: string
+  /** Integrity of the bytes actually installed on disk (from the lockfile). */
+  integrity: string
+}
+
+/**
+ * Why a package failed signature verification:
+ * - `invalid`: a registry signature is present but does not validate over the
+ *   installed bytes — a strong tamper signal.
+ * - `absent`: the package/version is not on the (canonical) registry, or carries
+ *   no signature — suspicious for a package that is expected to be signed.
+ * - `unreachable`: the trust root could not be consulted (registry advertised no
+ *   signing keys, or the network request failed) — typically transient/offline,
+ *   not evidence of tampering.
+ */
+export type SignatureFailureCategory = 'invalid' | 'absent' | 'unreachable'
+
+export interface InstalledSignatureFailure {
+  name: string
+  version: string
+  reason: string
+  category: SignatureFailureCategory
+}
+
+export interface InstalledSignatureVerificationResult {
+  verified: boolean
+  failures: InstalledSignatureFailure[]
+}
+
+/**
+ * Verifies that the bytes installed on disk are exactly what the registry
+ * signed for `name@version`. The signed message is built from the
+ * caller-supplied installed {@link InstalledPackageToVerify.integrity}, not
+ * from the integrity in the freshly-fetched packument — so if the integrity
+ * on disk was tampered with (or fetched from a different registry), the
+ * registry's signature will not validate over it.
+ *
+ * Pass {@link InstalledPackageToVerify.registry} as the canonical registry
+ * that owns the package name (e.g. `https://registry.npmjs.org/`) so the
+ * signing keys and signatures come from the trust root rather than from a
+ * registry the caller cannot vouch for.
+ *
+ * A package counts as a failure when the registry advertises signing keys but
+ * the package is unsigned/unpublished/unverifiable, or when a signature is
+ * present but does not validate over the installed bytes. A registry that
+ * advertises no signing keys at all yields a failure too: there is no trust
+ * root to verify against.
+ */
+export async function verifyInstalledPackageSignatures (
+  packages: InstalledPackageToVerify[],
+  getAuthHeader: GetAuthHeader,
+  opts: VerifySignaturesOptions
+): Promise<InstalledSignatureVerificationResult> {
+  const registries = new Set(packages.map(({ registry }) => registry))
+  const keysByRegistry = await getKeysByRegistry(registries, getAuthHeader, opts)
+  const packumentCache = new Map<string, Promise<Packument | undefined>>()
+  const limit = pLimit(opts.networkConcurrency ?? 16)
+
+  const failures: InstalledSignatureFailure[] = []
+  await Promise.all(packages.map((pkg) => limit(async () => {
+    const failure = await findSignatureFailure(pkg, keysByRegistry, getAuthHeader, opts, packumentCache)
+    if (failure != null) {
+      failures.push({ name: pkg.name, version: pkg.version, ...failure })
+    }
+  })))
+
+  failures.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
+  return { verified: failures.length === 0, failures }
+}
+
+async function findSignatureFailure (
+  pkg: InstalledPackageToVerify,
+  keysByRegistry: Map<string, RegistryKey[]>,
+  getAuthHeader: GetAuthHeader,
+  opts: VerifySignaturesOptions,
+  packumentCache: Map<string, Promise<Packument | undefined>>
+): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
+  const keys = keysByRegistry.get(pkg.registry) ?? []
+  if (keys.length === 0) {
+    return { reason: `${pkg.registry} provides no signing keys to verify against`, category: 'unreachable' }
+  }
+
+  let packument: Packument | undefined
+  try {
+    packument = await getPackument(pkg, getAuthHeader, opts, packumentCache)
+  } catch (err: unknown) {
+    return { reason: util.types.isNativeError(err) ? err.message : String(err), category: 'unreachable' }
+  }
+  if (!packument) return { reason: `${pkg.name} is not published on ${pkg.registry}`, category: 'absent' }
+
+  const version = packument.versions?.[pkg.version]
+  if (!version) return { reason: `${pkg.name}@${pkg.version} was not found on ${pkg.registry}`, category: 'absent' }
+
+  const rawSignatures = version.dist?.signatures
+  if (rawSignatures != null && !Array.isArray(rawSignatures)) {
+    return { reason: `malformed registry signatures metadata for ${pkg.name}@${pkg.version}`, category: 'absent' }
+  }
+  const signatures = rawSignatures ?? []
+  if (!signatures.every(isPackageSignature)) {
+    return { reason: `malformed registry signatures metadata for ${pkg.name}@${pkg.version}`, category: 'absent' }
+  }
+  if (signatures.length === 0) {
+    return { reason: `${pkg.name}@${pkg.version} has no registry signature`, category: 'absent' }
+  }
+
+  // The message is built from the installed integrity, so a signature only
+  // validates when the installed bytes match what the registry signed.
+  const issue = verifyPackageSignatures(
+    { ...pkg, integrity: pkg.integrity, publishedAt: packument.time?.[pkg.version], signatures },
+    keys
+  )
+  return issue == null ? undefined : { reason: issue.reason ?? 'invalid registry signature', category: 'invalid' }
+}

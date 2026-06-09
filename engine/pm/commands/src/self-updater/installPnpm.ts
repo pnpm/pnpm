@@ -25,6 +25,8 @@ import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types
 import { familySync } from 'detect-libc'
 import { symlinkDir } from 'symlink-dir'
 
+import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './verifyPnpmEngineIdentity.js'
+
 // @pnpm/exe has platform-specific binaries, so its GVS hash must
 // include ENGINE_NAME for correct per-platform resolution.
 const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true }
@@ -81,7 +83,7 @@ export async function installPnpmToStore (
     registries: Registries
     virtualStoreDirMaxLength: number
     packageManager?: { name: string, version: string }
-  }
+  } & VerifyPnpmEngineIdentityOptions
 ): Promise<{ binDir: string }> {
   const currentPkgName = getCurrentPackageName()
   const wantedLockfile = buildLockfileFromEnvLockfile(opts.envLockfile, currentPkgName, pnpmVersion)
@@ -99,6 +101,10 @@ export async function installPnpmToStore (
     }
     return { binDir }
   }
+
+  // Reached only on a store cache miss (a genuine download), so verifying the
+  // pnpm engine's registry signature here does not slow down repeated commands.
+  await verifyPnpmEngineIdentity(opts.envLockfile, pnpmVersion, opts)
 
   // Install to a temporary directory — headless install with GVS enabled
   // will populate the global virtual store
@@ -188,6 +194,11 @@ async function installPnpmToGlobalDir (
 
   try {
     if (wantedLockfile != null && opts.storeController != null && opts.storeDir != null) {
+      if (opts.envLockfile != null) {
+        // Reached only when actually downloading (no matching global install),
+        // so the signature check does not run on every invocation.
+        await verifyPnpmEngineIdentity(opts.envLockfile, version, opts)
+      }
       await installFromLockfile(installDir, binDir, {
         wantedLockfile,
         allowBuilds: PNPM_ALLOW_BUILDS,

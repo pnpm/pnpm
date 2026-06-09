@@ -47,6 +47,9 @@
       "path": "../../../deps/graph-hasher"
     },
     {
+      "path": "../../../deps/security/signatures"
+    },
+    {
       "path": "../../../global/commands"
     },
     {
@@ -66,6 +69,9 @@
     },
     {
       "path": "../../../lockfile/types"
+    },
+    {
+      "path": "../../../network/auth-header"
     },
     {
       "path": "../../../resolving/npm-resolver"

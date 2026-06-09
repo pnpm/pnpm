@@ -29,6 +29,11 @@ const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, e
 beforeEach(async () => {
   await setupMockAgent()
   getMockAgent().enableNetConnect()
+  // Every self-update install runs the pnpm-engine identity check, which fetches
+  // the registry's npm signing keys. Advertise none so verification treats the
+  // fixture pnpm as "unreachable" and proceeds on lockfile integrity, instead of
+  // reaching out to the real registry.npmjs.org.
+  mockEmptySigningKeys('https://registry.npmjs.org/')
 })
 
 afterEach(async () => {
@@ -112,6 +117,18 @@ function createExeMetadata (version: string, registry: string) {
       },
     },
   }
+}
+
+/**
+ * The pnpm-engine identity check fetches the registry's npm signing keys. The
+ * mock registry advertises none, so verification treats the engine as
+ * "unreachable" and proceeds based on lockfile integrity — which is what these
+ * tests want (they install a fixture pnpm that carries no real npm signature).
+ */
+function mockEmptySigningKeys (registry: string) {
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/keys', method: 'GET' })
+    .reply(200, { keys: [] }).persist()
 }
 
 /**
