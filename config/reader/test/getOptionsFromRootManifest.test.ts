@@ -48,6 +48,26 @@ test('getOptionsFromPnpmSettings() ignores env variables inside registry setting
   expect(options.registry).toBeUndefined()
 })
 
+test('getOptionsFromPnpmSettings() may expand env variables inside trusted registry settings', () => {
+  process.env.PNPM_TEST_HOST = 'registry.example.com'
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registry: 'https://${PNPM_TEST_HOST}/npm/',
+    registries: {
+      '@scope': 'https://${PNPM_TEST_HOST}/scope/',
+    },
+    namedRegistries: {
+      work: 'https://${PNPM_TEST_HOST}/work/',
+    },
+  } as any, { expandRegistryEnv: true }) as any // eslint-disable-line
+  expect(options.registry).toBe('https://registry.example.com/npm/')
+  expect(options.registries).toStrictEqual({
+    '@scope': 'https://registry.example.com/scope/',
+  })
+  expect(options.namedRegistries).toStrictEqual({
+    work: 'https://registry.example.com/work/',
+  })
+})
+
 test('getOptionsFromPnpmSettings() converts allowBuilds', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     allowBuilds: {

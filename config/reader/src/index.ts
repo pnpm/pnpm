@@ -311,6 +311,7 @@ export async function getConfig (opts: {
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
+      expandRegistryEnv: true,
       projectManifest: undefined,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
@@ -322,6 +323,9 @@ export async function getConfig (opts: {
     ...networkConfigs.registries,
   }
   pnpmConfig.registries = { ...registriesFromNpmrc }
+  if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
+    pnpmConfig.registries.default = normalizeRegistryUrl(pnpmConfig.registry)
+  }
   pnpmConfig.configByUri = { ...networkConfigs.configByUri }
 
   // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
@@ -874,16 +878,18 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
+  expandRegistryEnv,
   projectManifest,
   workspaceManifest,
   workspaceDir,
 }: {
   configFromCliOpts: Record<string, unknown>
+  expandRegistryEnv?: boolean
   projectManifest: ProjectManifest | undefined
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
-  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, projectManifest), configFromCliOpts)
+  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRegistryEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
 

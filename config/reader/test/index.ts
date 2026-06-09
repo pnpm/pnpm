@@ -2493,13 +2493,24 @@ test.each([
 
 describe('global config.yaml', () => {
   let XDG_CONFIG_HOME: string | undefined
+  let PNPM_TEST_HOST: string | undefined
 
   beforeEach(() => {
     XDG_CONFIG_HOME = process.env.XDG_CONFIG_HOME
+    PNPM_TEST_HOST = process.env.PNPM_TEST_HOST
   })
 
   afterEach(() => {
-    process.env.XDG_CONFIG_HOME = XDG_CONFIG_HOME
+    if (XDG_CONFIG_HOME == null) {
+      delete process.env.XDG_CONFIG_HOME
+    } else {
+      process.env.XDG_CONFIG_HOME = XDG_CONFIG_HOME
+    }
+    if (PNPM_TEST_HOST == null) {
+      delete process.env.PNPM_TEST_HOST
+    } else {
+      process.env.PNPM_TEST_HOST = PNPM_TEST_HOST
+    }
   })
 
   test('reads config from global config.yaml', async () => {
@@ -2527,6 +2538,30 @@ describe('global config.yaml', () => {
 
     // NOTE: the field may appear kebab-case here, but only internally,
     expect(config.dangerouslyAllowAllBuilds).toBeDefined()
+  })
+
+  test('expands registry values from trusted global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      registry: 'https://${PNPM_TEST_HOST}/npm/',
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+    process.env.PNPM_TEST_HOST = 'trusted.example.com'
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.registry).toBe('https://trusted.example.com/npm/')
+    expect(config.registries.default).toBe('https://trusted.example.com/npm/')
   })
 
   test('reads user-level preference settings from global config.yaml', async () => {

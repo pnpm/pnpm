@@ -359,6 +359,47 @@ pub fn global_config_npmrc_auth_file_expands_env() {
     );
 }
 
+#[test]
+pub fn global_config_yaml_registry_values_expand_env() {
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        r#"
+registry: https://${REGISTRY_HOST}/npm/
+namedRegistries:
+  work: https://${REGISTRY_HOST}/work/
+"#,
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[
+        ("REGISTRY_HOST", "trusted.example.com"),
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://trusted.example.com/npm/");
+    assert_eq!(
+        config.named_registries.get("work").map(String::as_str),
+        Some("https://trusted.example.com/work/"),
+    );
+}
+
+#[test]
+pub fn pnpm_config_registry_expands_env() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[
+        ("PNPM_CONFIG_REGISTRY", "https://${REGISTRY_HOST}/npm/"),
+        ("REGISTRY_HOST", "env.example.com"),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://env.example.com/npm/");
+}
+
 fn write_file(path: &Path, contents: &str) {
     fs::write(path, contents).expect("write file");
 }

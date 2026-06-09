@@ -186,7 +186,7 @@ namedRegistries:
   work: https://${WORK_HOST}/npm/
 "#;
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env::<EnvWithHost>();
+    settings.substitute_env_untrusted::<EnvWithHost>();
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.registry, "https://registry.npmjs.org/");
@@ -227,7 +227,7 @@ nodeOptions: --require=${HOOK}
 userAgent: ${USER_AGENT}
 "#;
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env::<EnvWithPaths>();
+    settings.substitute_env_untrusted::<EnvWithPaths>();
 
     let base = Path::new("/workspace/root");
     let mut config = Config::new();
@@ -239,6 +239,36 @@ userAgent: ${USER_AGENT}
     assert_eq!(config.script_shell.as_deref(), Some("custom-shell"));
     assert_eq!(config.node_options.as_deref(), Some("--require=hook.js"));
     assert_eq!(config.user_agent, "pacquet-test/1.0");
+}
+
+#[test]
+fn trusted_settings_expand_env_vars_inside_registry_values() {
+    struct EnvWithHost;
+    impl EnvVar for EnvWithHost {
+        fn var(name: &str) -> Option<String> {
+            (name == "WORK_HOST").then(|| "internal.example.com".to_owned())
+        }
+    }
+
+    let yaml = r#"
+registry: https://${WORK_HOST}/npm/
+namedRegistries:
+  stable: https://registry.example.com/npm/
+  work: https://${WORK_HOST}/work/
+"#;
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env_trusted::<EnvWithHost>();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.registry, "https://internal.example.com/npm/");
+    assert_eq!(
+        config.named_registries.get("stable").map(String::as_str),
+        Some("https://registry.example.com/npm/"),
+    );
+    assert_eq!(
+        config.named_registries.get("work").map(String::as_str),
+        Some("https://internal.example.com/work/"),
+    );
 }
 
 /// `verifyStoreIntegrity` is a camelCase key that serde's rename

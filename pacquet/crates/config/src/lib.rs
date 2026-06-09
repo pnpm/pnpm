@@ -1629,7 +1629,7 @@ impl Config {
         let mut global_settings =
             global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
         if let Some(global_settings) = global_settings.as_mut() {
-            global_settings.substitute_env::<Sys>();
+            global_settings.substitute_env_trusted::<Sys>();
         }
 
         // Resolve the workspace dir before reading the project `.npmrc`
@@ -1832,7 +1832,7 @@ impl Config {
                 virtual_store_dir_explicit |= settings.virtual_store_dir.is_some();
                 global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
                 store_dir_explicit |= settings.store_dir.is_some();
-                settings.substitute_env::<Sys>();
+                settings.substitute_env_untrusted::<Sys>();
                 settings.apply_to(&mut self, &base_dir);
             }
         }
@@ -1856,7 +1856,7 @@ impl Config {
         virtual_store_dir_explicit |= env_settings.virtual_store_dir.is_some();
         global_virtual_store_dir_explicit |= env_settings.global_virtual_store_dir.is_some();
         store_dir_explicit |= env_settings.store_dir.is_some();
-        env_settings.substitute_env::<Sys>();
+        env_settings.substitute_env_trusted::<Sys>();
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;

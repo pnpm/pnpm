@@ -26,16 +26,34 @@ export type OptionsFromRootManifest = {
   requiredScripts?: string[]
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
 
-export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
-  const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings)
+interface GetOptionsFromPnpmSettingsOptions {
+  manifest?: ProjectManifest
+  expandRegistryEnv?: boolean
+}
+
+interface ReplaceEnvInSettingsOptions {
+  expandRegistryEnv: boolean
+}
+
+export function getOptionsFromPnpmSettings (
+  manifestDir: string | undefined,
+  pnpmSettings: PnpmSettings,
+  manifestOrOpts?: ProjectManifest | GetOptionsFromPnpmSettingsOptions
+): OptionsFromRootManifest {
+  const opts = isGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
+    ? manifestOrOpts
+    : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
+  const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
+    expandRegistryEnv: opts.expandRegistryEnv ?? false,
+  })
   if (settings.overrides) {
     assertValidOverrides(settings.overrides)
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
     } else {
       warnAboutDeprecatedVersionReferences(settings.overrides)
-      if (manifest) {
-        settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
+      if (opts.manifest) {
+        settings.overrides = mapValues(createVersionReferencesReplacer(opts.manifest), settings.overrides)
       }
     }
   }
@@ -48,6 +66,12 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
   }
 
   return settings
+}
+
+function isGetOptionsFromPnpmSettingsOptions (
+  value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
+): value is GetOptionsFromPnpmSettingsOptions {
+  return value != null && ('expandRegistryEnv' in value || 'manifest' in value)
 }
 
 function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
@@ -67,21 +91,35 @@ function renderReceivedType (value: unknown): string {
   return typeof value
 }
 
-function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
+function replaceEnvInSettings (
+  settings: PnpmSettings,
+  opts: ReplaceEnvInSettingsOptions
+): PnpmSettings {
   const newSettings: PnpmSettings = {}
   for (const [key, value] of Object.entries(settings)) {
     const newKey = envReplace(key, process.env)
     if (typeof value === 'string') {
-      if (newKey === 'registry' && hasEnvPlaceholder(value)) continue
+      if (newKey === 'registry' && !opts.expandRegistryEnv && hasEnvPlaceholder(value)) continue
       // @ts-expect-error
       newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env)
     } else if (newKey === 'registries' || newKey === 'namedRegistries') {
-      newSettings[newKey as keyof PnpmSettings] = copyStringValuesWithoutEnvPlaceholders(value) as never
+      newSettings[newKey as keyof PnpmSettings] = (opts.expandRegistryEnv
+        ? replaceEnvInStringValues(value)
+        : copyStringValuesWithoutEnvPlaceholders(value)) as never
     } else {
       newSettings[newKey as keyof PnpmSettings] = value
     }
   }
   return newSettings
+}
+
+function replaceEnvInStringValues (value: unknown): unknown {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[k] = typeof v === 'string' ? envReplace(v, process.env) : v
+  }
+  return out
 }
 
 function copyStringValuesWithoutEnvPlaceholders (value: unknown): unknown {

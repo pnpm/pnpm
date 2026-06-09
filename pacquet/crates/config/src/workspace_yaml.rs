@@ -646,6 +646,16 @@ impl WorkspaceSettings {
         Ok(None)
     }
 
+    /// Expand `${VAR}` in trusted user-controlled settings.
+    ///
+    /// Call this before [`Self::apply_to`] so expanded values land in
+    /// [`Config`].
+    pub fn substitute_env_trusted<Sys: EnvVar>(&mut self) {
+        self.substitute_env_scalars::<Sys>();
+        substitute_optional_string::<Sys>(&mut self.registry);
+        substitute_optional_string_map::<Sys>(&mut self.named_registries);
+    }
+
     /// Expand `${VAR}` in ordinary string settings, but drop
     /// placeholders inside workspace-controlled registry URL fields.
     /// The upstream
@@ -656,7 +666,18 @@ impl WorkspaceSettings {
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`] and filtered values do not.
-    pub fn substitute_env<Sys: EnvVar>(&mut self) {
+    pub fn substitute_env_untrusted<Sys: EnvVar>(&mut self) {
+        self.substitute_env_scalars::<Sys>();
+
+        if self.registry.as_deref().is_some_and(has_env_placeholder) {
+            self.registry = None;
+        }
+        if let Some(named_registries) = self.named_registries.as_mut() {
+            named_registries.retain(|_, value| !has_env_placeholder(value));
+        }
+    }
+
+    fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.store_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
@@ -667,13 +688,6 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.cache_dir);
         substitute_optional_inner_string::<Sys>(&mut self.script_shell);
         substitute_optional_inner_string::<Sys>(&mut self.node_options);
-
-        if self.registry.as_deref().is_some_and(has_env_placeholder) {
-            self.registry = None;
-        }
-        if let Some(named_registries) = self.named_registries.as_mut() {
-            named_registries.retain(|_, value| !has_env_placeholder(value));
-        }
     }
 
     /// Apply every set field onto `config`, leaving unset ones untouched.
@@ -896,6 +910,15 @@ fn substitute_optional_string<Sys: EnvVar>(value: &mut Option<String>) {
     if let Some(value) = value {
         let (substituted, _) = env_replace_lossy::<Sys>(value);
         *value = substituted;
+    }
+}
+
+fn substitute_optional_string_map<Sys: EnvVar>(value: &mut Option<BTreeMap<String, String>>) {
+    if let Some(value) = value {
+        for map_value in value.values_mut() {
+            let (substituted, _) = env_replace_lossy::<Sys>(map_value);
+            *map_value = substituted;
+        }
     }
 }
 
