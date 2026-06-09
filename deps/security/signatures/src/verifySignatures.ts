@@ -426,7 +426,7 @@ export interface InstalledSignatureVerificationResult {
  * Signatures are verified against the caller-supplied `trustedKeys` (npm's
  * embedded public keys, see {@link getNpmSigningKeys}) rather than keys fetched
  * from a registry — so a registry the caller cannot vouch for cannot answer with
- * its own keypair. The packument (which carries the signatures) is fetched from
+ * its own key pair. The packument (which carries the signatures) is fetched from
  * each package's own registry; an npm mirror works transparently because it
  * proxies the same signed packument.
  *

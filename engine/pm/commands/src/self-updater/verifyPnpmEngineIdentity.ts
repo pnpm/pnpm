@@ -32,7 +32,7 @@ export type VerifyPnpmEngineIdentityOptions = VerifySignaturesOptions & {
  * check, a cloned repository could make pnpm download and run an arbitrary
  * native binary. Signatures are verified against npm's embedded public keys
  * (see `getNpmSigningKeys`), so a project-controlled registry cannot answer with
- * its own keypair; the signed packument is fetched from the configured registry,
+ * its own key pair; the signed packument is fetched from the configured registry,
  * which an npm mirror proxies transparently.
  *
  * Throws when verification detects tampering (an invalid signature) or that a

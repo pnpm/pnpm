@@ -33,7 +33,7 @@ export interface VerifyPacquetIdentityOptions extends CreateFetchFromRegistryOpt
  * `name@version`, checked against npm's embedded public keys. The signature is
  * verified over the *installed* integrity, so substituted or tampered bytes
  * fail — and because the keys are embedded rather than fetched, a repository
- * pointing the registry at a server it controls cannot supply its own keypair.
+ * pointing the registry at a server it controls cannot supply its own key pair.
  *
  * Returns `false` (and logs why) when identity cannot be confirmed; the caller
  * then falls back to pnpm's own install engine instead of spawning pacquet.
