@@ -12,7 +12,7 @@ pub(crate) struct NodeReleaseKey {
 pub(crate) const NODE_RELEASE_KEYS: &[NodeReleaseKey] = &[
     NodeReleaseKey {
         fingerprint: "4ED778F539E3634C779C87C6D7062848A1AB005C",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQENBFq44CwBCADNRnp3EGOqifmbqOgRb64hkObYdNAClPy/aQfxyWvrZBuVw8OF
 DhtziM8M8g986wALaE/nCMufVLrWLVFr4hDHrKr9weaX8vdrPVgvbk/wLfokumnT
@@ -101,11 +101,11 @@ CGGhgXlIlvNNx29Ru5eTE0k4BVuq1ZM+rgQTTQis3x5tTICxog+joxMGVWfC5s2r
 MH8=
 =H626
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "94AE36675C464D64BAFA68DD7434390BDBE9B9C5",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFWujE4BEAC8YwRvCMbhE0CV0F7U3Swr96hLPerVWEVmFoVshq9acXc8x+NL
 a4BjGBt+GBZR2E6cRw4kEbIHmNj/XEE2fF4MG/L149feRxMwk8SuakQbcbvopSmZ
@@ -156,11 +156,11 @@ zTbeFyQlqZoK409fCdxzre1KxNOoox38cH79ffsjinQf1Q5zUIdR2QCnVNhbHMj4
 mMJZL+1dR71q
 =sm/t
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "1C050899334244A8AF75E53792EF661D867B9DFA",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQENBFtYnJsBCACdDOWJYl/Zd38Mt6kg3j+ooN7sl1bR+SBPEv4yS+lK0cLenv3F
 M+cYZEy152H8542OpJpASvQQ+N4TSHcoqDauSR1oQYKkHOj3k+U7wgODlkh5LioO
@@ -198,11 +198,11 @@ DpOCw22UTW2cf5wZTr6THRHeuuAZUAxJXWCJ9WacTkJu7irCfNc1BebbINd+O3se
 HiCpJpIGZQQfnMzE+CsMSu3u2gwUnWHBVHzof7wbgs94u+xEgNBjQ6QkbbY=
 =ZsQu
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "B9AE9905FFD7803F25714661B63B535A4C206CA9",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFZypZgBEADeIdm42LaylSWw5CosOAte2m6S9DgAGEBrg/yHSFTZWz341EZr
 lq1fghIC9nHh09wVlJNOOo3orB9tYoJ3LArB0MQb7Ha7dcnfn98O1od0T4QTlEro
@@ -277,11 +277,11 @@ W+4+S206EIfKl43eLd/PME1ot+FAOepT9CXkQxaAs+ZH7rKmlx8mmowujwX0Cb1j
 pkatHhJZAsqY8KUjSXqFfVjPHglxLyP/8ywgi/MBlwSnTTtbHyKmqDyts1PP
 =CMP0
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "77984A986EBC2AA786BC0F66B01FBB92821C587A",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFf3hmYBEAC6YQyQighf1meU1gG8OyjlfRp7KMJJHmxtBjtH5fWtM8IWCdmZ
 nCoUgNbJHIYD2Fn3h/ijX4/S/492mbymadmW24D7mYde/OBuAQCmffjypBCUS5Gh
@@ -332,11 +332,11 @@ wzSUzZBpKVw/+hPrbFbpoRzpjDSAe0XePuiTcVbGZIQtjsAgJsK6t+mGHppWTri/
 KoZmFSI=
 =Fwcs
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "71DCFD284A79C3B38668286BC97EC7A07EDE3FC1",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFRgAMsBEAC1SlN8Db9p/+pQcrlXM0xtbVDOZksBQynOzUV+Y/NBTmeBnYMo
 gh+gTau0Iv7UlDanKlB8pQubo1Gwp6ToLB6pcoh+Zuy6BRB1yHYtNFhrb33QZ5Qu
@@ -481,11 +481,11 @@ GuyYaS3LXdYyGTKWNrxto1CEkGQArS4Ei+CrTbeb6GAXEn8GDhzfpw09JT2c3Ab5
 ntI6COSRy17o3GzXm9d4V70=
 =h9up
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "61FC681DFB92A079F1685E77973F295594EC4689",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBF5MceABEADFVslAVcrIyj7pcWEPeYgnr+psd6CNKlqOslf0+WUFSf0RVl45
 uTckfS/D46llZRGbnOOixtM0v0fK60iSjLfWOTQJWAF8BIHaCEb3nAafZcFGnRb/
@@ -537,11 +537,11 @@ I24uLT/RC+8e8xwGqvcPc5HZ5POrQJLknW+xnSDoAQNcjwcyD3oX9nH3dfPAV6LP
 +SMSBsOPDf0=
 =i++9
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "FD3A5288F042B6850C66B31F09FE44734EB7990E",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFM7JpoBEACmf7uB5P5QJ8X38ARQn+dr+/O+6/wzkKzUcoFvRArwZTcpdEO/
 0C12kNSpK2UkVMh4sorYwA8W0yv3spZJWU3TiIfCVryxqZaAWEIU+dwsQ0P6EAUy
@@ -652,11 +652,11 @@ FuIInPdrU0Bg1jqBWQZDqjEvfRHYIDQpd3Ahxbv56J02tl6s29gMT5dYRFE7OhaJ
 0CCphsH66qcPvWImsyQ3OdVJ7AU3fuFRFVIgQwoohTpKKCIGTJ8u1g==
 =NfOh
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "8FCCA13FEF1D0C2E91008E09770F7A9A5AE15600",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFcGZx4BEACa92SjEniMQIBdb0btnZRu8vzOGNe+ndzXIWPyu2h+p0xZ/2JN
 MDQW5hc8USoV4/rTssdqDOqcu3AkmLtZi14IaRJ1TQP6Zb05I8MOEm58WXXn7fSF
@@ -724,11 +724,11 @@ VpZxqzy2y5PDphbf/Rbx4ePeziYIsa0PRyjrS6fPu5QUV/EBK2V6nibMHsGuSfin
 R/5R
 =+ahi
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "C4F0DFFF4E8C1A8236409D08E73BC641CC11F4C8",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFaVjpQBEADt/ZC4FsskPNkAgLq240K+CjPJzq/0cuEyABJeAVeYWJFUJRcb
 zNHBVzr85vW0pEKJUGyTyVxGV1P9VzkqaL5RRiupViwC5lf48P78fCMgEa2z4LIt
@@ -956,11 +956,11 @@ Ku9xqajxZHvDBZ9cNCnpq3PQIWLai1YFCGDmsEDc7nF/g89NnfQRoTvbTm2v+iYt
 4G5Uhcw=
 =YIVB
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "890C08DB8579162FEE0DF9DB8BEAB4DFCF555EF4",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQGNBGKD3OQBDAC3ESxNd7dHfM7Hl3sE7Xn2osS4UZkJtmXA7hdbfybzf164wCbL
 cYECq0GrGfgdnKEMWNzr2S08KkUWQwJZd70Jt1voVpqWVXdtBH/KxGwifixMkTEy
@@ -1001,11 +1001,11 @@ Mj+1hz8EOU7J3vY04ZRHDyapCRYoRXd/N8MUnsZ/ySRdA/Sk57Ujn9UH3nFEhD6A
 H9y08K6zB4JFN7saJiCj2Q7W2nXuEUhRVs2K
 =L7AX
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "C82FA3AE1CBEDC6BE46B9360C43CEC45C17AB93C",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBF222c0BEAC/wIiI7EYmA7yprNa/0en2leF+CrF09BlCItTHH5IgjSLGq2tI
 Bi3hIhf7TitDlu6GphHlFjvhj6UDgdEmr0itcoOLRhtER6WlmMaXtS+im5fPSLWW
@@ -1095,11 +1095,11 @@ ibYKg149T1Y2+JrwHaXdKiM0U4k3a9X+TjA8BCV0+m3eY97cuFqXItaEGg/3FJyf
 NBG2Fw==
 =Cg9A
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "DD8F2338BAE7501E3DD5AC78C273792F7D83545D",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQENBFKKodABCADiE7Ex8GXnQNgipqbTADO5+BfufYFeq9YLEKkuOUfnjAZ8Wzle
 4eLL4rdfFSuwuUO0rkSFOpNjkjKqxfRo0RkmlMxdHwT2auf/yrfX4EyhyKDn1Vh8
@@ -1135,11 +1135,11 @@ Zpiqs673aIg0MoZPCyTTO6Atfsv2Li8EossDZpvJuroJFZw5zvIEy7AiDAcCZjMj
 8FLoLzom0A1FNxCvgzOraMITOobs
 =dTMc
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "A48C2BEE680E841632CD4E44F07496B3EB3C1762",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFhJehkBEADNX8qrO9msK8u1znGaBG+Fr0FS5qzMxpC9oStGZV8abX/rrLkN
 NiImTUMQG6Ooz7luOBSSF7VbYT2xSrgzuYV8WrSJE4Oo0AjVNn2YnbwgyzcQ5FhY
@@ -1190,11 +1190,11 @@ npqSZaj8YOWI+DPDYGYzqQwFgyGLH0J32l5zzpcggwhEoDsQSMHKxekHD9bX0Bck
 fyCIa9sx6lcYB+gDJgESL0Nt
 =hSfG
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "B9E2F5981AA6E0CD28160D9FF13993A75599653C",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFl60g4BEAChHPOjxooUAUjigTKIERl8uYyOTA0JL9nICb7Azbl2J3ygmku6
 HdbaqgfaHRwap+hE0s8/oLkccFJVnab6b0rexWQEvarOtzkARJ0wqbxQIQBJKhfS
@@ -1245,11 +1245,11 @@ d83bmcM7vvf4bBddioM4BiiydSKXAYoFDZzs7xXuce3LpCleYnUISVBF5g3KVLSE
 1j7Q6fERAXlFlv7ciEuKBz5A3SK7Xt7Eb7vQ
 =kARQ
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "108F52B48DB57BB0CC439B2997B01419BD92F80A",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFltAggBEADHYmcgBOWwJTVRJCnqEpC8IvOber468ikSgNolQHFbyUkJy/kd
 cx+byBnvqs+s050N6EocIkmPvaa+ptNYf21uDnGKPyFqPMKn68iAXwVDasUK1SST
@@ -1300,11 +1300,11 @@ n+uWqOu9Yo24d3z8jRopp7dTponoPYTQKmH8uzNeqvO3DFxm7fJ7TSrXaYJndOQ3
 AI4=
 =Sf/w
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "9554F04D7259F04124DE6B476D5A82AC7E37093B",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQENBFTROWUBCACslqx8p2znj3CwEqWK+bEgyfxykVC1iFEABB6UCQ5UrlAiYTjI
 0vwFaTlbWkD3dWBxiFN2+n24Lro549ATmXGO+i0Sacr7DTgawZdkJuM17nNmlAW1
@@ -1334,11 +1334,11 @@ fb3Fyii+q1BCWWZsyZjkLW7kcpf62i/YlrJHjWRheWLblLtxqy4ZiKqqLCtyfh9a
 xr5u2jsokh8=
 =2Ugv
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "93C7E9E91B49E432C2F75674B0A78B0A6C481CF6",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQENBEx8nbMBCACjmblSAGggunFHAWRGZLWLKltA2PG6rIM0bOokJFWtGwRqBCAa
 dKuNwBGy7eBwFQAxuHnNwDKqyGgCKUBe4RUuz0gKr1WgkPAzHZppo/n5BhE4iIxr
@@ -1367,11 +1367,11 @@ ZqC+u0j/R8OQqS/kVe7qt41nmNZzwsROuKuJt1xFD2GMquL+Z4oCu4YLKM13WPkd
 pYtVXNkSmiSUWMmh7QfVNFrWDqlP8vUi3BIEV3FtjXblPkbKbow=
 =o1Jn
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "56730D5401028683275BD23C23EFEFE93C4CFFFE",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFiGktYBEADoBPdUkwVA9dNViz2wxb+e3XiaQaesSHvRReDpOpWQ7yuw2yLd
 xeUer6Iexcoje/i18x+eD7FF1gi+Lo2J1LVIRchTCx2vGs9P2iYW1iypCRl89C72
@@ -1422,11 +1422,11 @@ Q6hquBOorI1gxgDFkGoq928iFLyN0C3mV1qAmlWq5EKlKr3U4DEwbRMUYIFcqO2r
 OweTnxa0BqWTj1O87/SvSKdOd9ZI5GIp
 =K6ke
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "114F43EE0176B71C7BC219DD50A3051F888C628D",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBFSvCTEBEADIa8J6pku+vT9RZ/cU4wKmC441OVghEZ8Cuct4AynkZQZ8Hpra
 4mq9SEjB9t2KSM7kvN/yBrrJBJwAnR7Q+e3+gfthL8Hmgr7K2J+qJdSm7Va/LcSK
@@ -1477,11 +1477,11 @@ k7rTC4J6kM9hoUCMOJ0XqBfQZVeQd2x3bkZpx1ubH6L5ilZHKSvHcqOy6HE4wyDz
 USXWhEefc3s6beE=
 =v6Nn
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "7937DFD2AB06298B2293C3187D33FF9D0246406D",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQGiBEPOjg4RBAC2iPU+EHukOrmApMnhYym03gV/VbdPDydVVj+fc7TyjULlKWP7
 iEMFZb58EBjjK4Db3O5JiC9yZ7NRgYvqCFGP7hTVBTykJucXIyT8wCmaAImrtAlg
@@ -1555,11 +1555,11 @@ gEoCGwwACgkQfTP/nQJGQG2l6ACfbyXz7xaWlSaubTDOo/N6yKFkKSQAoILPCUOi
 Uhw2iju+XrCVJ/AXUtwH
 =AG5V
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "74F12602B6F1C4E913FAA37AD3A89613643B6201",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBF/qTWsBEADlnzvN5W//gwj5oOpnyPQLjjguiXi0NPe9o0LcQgOmccD8a76R
 r4VQDDM9iFieOcmdcJzTeEcTli165+pBTilqR/RBjq63N4jFzzsiCDJaf8utUhlW
@@ -1688,11 +1688,11 @@ ZZ4mxiQ4srJvZcj63UV3H4Jsr4vXJrhRSDX5Va8mAyF+rF6g4Cjgxp1fqkB0A1lK
 ni5lUGYmUmXIuRub
 =EVa1
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "141F07595B7B3FFE74309A937405533BE57C7D57",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBGHo9TgBEADbSK0AjEvbVkjrvHk3HG1InM3H0kqEjXxenzTukSHQOl8ytLUD
 gP1PPzuHmgTqgONkNa3JNHv7AMO7lUukIYTSvtzOI6fl2i13ZeASDGCBfFHYjxeA
@@ -1778,11 +1778,11 @@ PggS8SeMj1QnC9JLQIiMKNUMpZ8Pq0XAQSQy7mWYwYN6/W3SqqZuJSxogDSIK1J6
 AdTumtl+mDJRFlYwC0LHorFIhLjym1o4FbcdU440P6xC
 =48+4
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "DD792F5973C6DE52C432CBDAC77ABFA00DDBF2B7",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mDMEZAFttBYJKwYBBAHaRw8BAQdA9UUQNclFp0rIrgtQnNw6BgjDINkFPoVbuS4H
 sQNEf+e0LEp1YW4gSm9zw6kgQXJib2xlZGEgPHNveWp1YW5hcmJvbEBnbWFpbC5j
@@ -1795,11 +1795,11 @@ twUCZAFttAIbDAAKCRDHer+gDdvytzxaAQDvYX4o1Y6R30bYwIXemGgbO8GlCkgk
 5it7MjeSk8vUygEApE5zIi5OtP8TlPiMgu2MoJbIltqqDCKWTtHPIQRNIwk=
 =IisY
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "A363A499291CBBC940DD62E41F10027AF002F8B0",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 Comment: A363 A499 291C BBC9 40DD  62E4 1F10 027A F002 F8B0
 Comment: ulises Gascon <ulisesgascongonzalez@gmail.com>
 
@@ -1984,11 +1984,11 @@ LDARUWnKPkw2YY4m7cWPDHzXF+pN3KHLej+u1O+0y1q9OmpQ0yogo1fnzmeIHvJY
 iYmSNsSq9FUzTw==
 =CCuY
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "CC68F5A3106FF448322E48ED27F5E38D5B0A215F",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBGYFoj0BEACm4UKYcykICb5oxZQQxSZRYwzkSngpeFcrruHVHfg2jcQ+VmRV
 C3NrbhSrBQuJ0pMx/zq/yZB6K4JS+EMf5GpaX2ZsVsj/MPoSKVHcyXR4clIulCxN
@@ -2040,11 +2040,11 @@ eu0agvd1+yKZrcoEo+npXyzXPckRsHchS6pbhck1vFtgKwXpPCjSC0e6IwrDgAGw
 ZWf0a3VP6Gco5bmDPhvGoLEs9Vw5
 =57kS
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "C0D6248439F1D5604AAFFB4021D900FFDB233756",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBGHwIyoBEADN55NGkn1hvOjFotJVr8aeU6/xGZF3gPLi7q2qaX5CXtVMGS2B
 5h9kiBKrNo1+xeC1+jRu9r5179lTiYV808qNFBQdr+5ZBnOoszadlMPMtU89qsR9
@@ -2096,11 +2096,11 @@ lzRFvHZnq6EP1QgDOW55OhdXTqb9v4P3bM77Ez7qHQWKoZOoC0mYvXJff3SOzkOE
 Th80Z8v5rFX5xNw+zn0Ee+yr
 =SZFY
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
     NodeReleaseKey {
         fingerprint: "5BE8A3F6C8A5C01D106C0AD820B1A390B168D356",
-        armored_key: r#"-----BEGIN PGP PUBLIC KEY BLOCK-----
+        armored_key: r"-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mDMEaGA63BYJKwYBBAHaRw8BAQdAo/yU+MutacFmmn0CEX495goNrBxR24235XLM
 cvHYjfq0L0FudG9pbmUgZHUgSGFtZWwgPGR1aGFtZWxhbnRvaW5lMTk5NUBnbWFp
@@ -2117,6 +2117,6 @@ sWjTVgUCaGA63AIbDAAKCRAgsaOQsWjTVu8oAP9Bc+QY+9FikX3YvMgWAqiDlVOy
 o0y6UIZGBMSQlF80wAD/d34LqtVIVe9oe5NO3xA75+6Ew8tGeAjUq/ovagr5dAU=
 =JsVv
 -----END PGP PUBLIC KEY BLOCK-----
-"#,
+",
     },
 ];

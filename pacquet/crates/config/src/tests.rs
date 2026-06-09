@@ -366,12 +366,12 @@ pub fn global_config_yaml_request_destination_values_expand_env() {
     fs::create_dir_all(&config_dir).expect("create config dir");
     fs::write(
         config_dir.join("config.yaml"),
-        r#"
+        r"
 registry: https://${REGISTRY_HOST}/npm/
 pnprServer: https://${REGISTRY_HOST}/pnpr/
 namedRegistries:
   work: https://${REGISTRY_HOST}/work/
-"#,
+",
     )
     .expect("write global config.yaml");
 

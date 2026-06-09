@@ -90,6 +90,7 @@ impl EnvLockfile {
     /// A fresh, empty env lockfile with the root importer seeded.
     /// Mirrors upstream's
     /// [`createEnvLockfile`](https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/fs/src/envLockfile.ts#L14-L24).
+    #[must_use]
     pub fn create() -> Self {
         let mut importers = HashMap::new();
         importers.insert(Self::ROOT_IMPORTER_KEY.to_string(), EnvImporterSnapshot::default());

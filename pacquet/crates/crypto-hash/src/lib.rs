@@ -22,6 +22,7 @@ use std::{io, path::Path};
 /// `` `sha256-${crypto.hash('sha256', input, 'base64')}` ``. This is the
 /// shape pnpm writes for `pnpmfileChecksum` and (via the object hasher)
 /// `packageExtensionsChecksum`.
+#[must_use]
 pub fn create_hash(input: &str) -> String {
     let digest = Sha256::digest(input.as_bytes());
     format!("sha256-{}", BASE64.encode(digest))

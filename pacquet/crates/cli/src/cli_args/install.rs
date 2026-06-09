@@ -466,9 +466,10 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         .map_err(|err| miette::miette!("failed to serialize overrides: {err}"))?;
     let benchmark_registry_override =
         PnprBenchmarkRegistryOverride::from_env(&state.config.registry);
-    let resolve_registry = benchmark_registry_override
-        .as_ref()
-        .map_or_else(|| state.config.registry.clone(), |registry| registry.resolve_registry());
+    let resolve_registry = benchmark_registry_override.as_ref().map_or_else(
+        || state.config.registry.clone(),
+        PnprBenchmarkRegistryOverride::resolve_registry,
+    );
 
     // Send the on-disk lockfile + the full client policy so the server
     // verifies the input lockfile under *our* policy before resolving;

@@ -118,7 +118,7 @@ async fn cold_batch_links_slots_in_parallel() {
         crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::waiting_for_overlap();
 
     CreateVirtualStore {
-        http_client: &Default::default(),
+        http_client: &pacquet_network::ThrottledClient::default(),
         config,
         packages: Some(&packages),
         snapshots: Some(&snapshots),

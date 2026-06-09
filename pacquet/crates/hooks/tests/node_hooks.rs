@@ -514,10 +514,10 @@ async fn update_config_applies_hook_result() {
     let pnpmfile_path = tmp.path().join("pnpmfile.cjs");
     std::fs::write(
         &pnpmfile_path,
-        r#"module.exports = { hooks: { updateConfig (config) {
+        r"module.exports = { hooks: { updateConfig (config) {
   config.catalogs = { default: { foo: '1.0.0' } };
   return config;
-} } }"#,
+} } }",
     )
     .expect("write pnpmfile");
 

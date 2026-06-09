@@ -51,7 +51,7 @@ impl LinkConcurrencyProbe {
             let guard = self.mutex.lock().expect("lock link-concurrency probe");
             let _ = self
                 .condvar
-                .wait_timeout_while(guard, Duration::from_secs(2), |_| {
+                .wait_timeout_while(guard, Duration::from_secs(2), |()| {
                     self.max.load(Ordering::SeqCst) < 2
                 })
                 .expect("wait for overlapping link");

@@ -249,7 +249,7 @@ fn peers_suffix_max_length_omitted_from_settings_when_unset() {
         pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
         patched_dependencies: None,
-        importers: Default::default(),
+        importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
     };
@@ -288,7 +288,7 @@ fn peers_suffix_max_length_serialized_when_set() {
         pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
         patched_dependencies: None,
-        importers: Default::default(),
+        importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
     };

@@ -6634,7 +6634,7 @@ async fn pnpmfile_with_hooks_records_pnpmfile_checksum() {
     let registry = TestRegistry::start();
     let dir = tempdir().unwrap();
 
-    let pnpmfile_src = r#"module.exports = { hooks: { readPackage (pkg) { return pkg; } } }"#;
+    let pnpmfile_src = r"module.exports = { hooks: { readPackage (pkg) { return pkg; } } }";
     install_with_pnpmfile(
         registry.url(),
         dir.path(),

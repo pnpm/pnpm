@@ -28,7 +28,7 @@ use std::{
     sync::atomic::AtomicU8,
 };
 
-/// Bundled package manifests recovered from the SQLite store index
+/// Bundled package manifests recovered from the `SQLite` store index
 /// during [`CreateVirtualStore::run`], keyed by the same
 /// `PkgNameVerPeer` (without peer suffix) that
 /// [`pacquet_lockfile::Lockfile::packages`] uses. Consumed by the
@@ -195,7 +195,7 @@ pub enum CreateVirtualStoreError {
     MissingPackagesSection,
 }
 
-impl<'a> CreateVirtualStore<'a> {
+impl CreateVirtualStore<'_> {
     /// Execute the subroutine. Returns the set of bundled manifests
     /// recovered from `index.db` for the warm-batch slots — the
     /// bin linker uses these to avoid re-reading `package.json` per
@@ -673,7 +673,20 @@ impl<'a> CreateVirtualStore<'a> {
         });
 
         let import_method = config.package_import_method;
-        if !is_hoisted {
+        if is_hoisted {
+            // Hoisted still wants the progress reporter to fire so
+            // `pnpm:progress imported`-style updates render the warm
+            // hits — the link work just happens later, in
+            // `link_hoisted_modules`.
+            for (snapshot_key, _, _, cache_key) in &warm {
+                let package_id = snapshot_key.without_peer().to_string();
+                emit_warm_snapshot_progress::<Reporter>(
+                    &package_id,
+                    requester,
+                    progress_reported.contains(*cache_key),
+                );
+            }
+        } else {
             // Hoisted skips this batch entirely: no virtual-store slot
             // gets written, so there's no per-snapshot link work to
             // do — the CAS paths captured below are the only output
@@ -702,19 +715,6 @@ impl<'a> CreateVirtualStore<'a> {
                 #[cfg(test)]
                 link_concurrency_probe,
             })?;
-        } else {
-            // Hoisted still wants the progress reporter to fire so
-            // `pnpm:progress imported`-style updates render the warm
-            // hits — the link work just happens later, in
-            // `link_hoisted_modules`.
-            for (snapshot_key, _, _, cache_key) in &warm {
-                let package_id = snapshot_key.without_peer().to_string();
-                emit_warm_snapshot_progress::<Reporter>(
-                    &package_id,
-                    requester,
-                    progress_reported.contains(*cache_key),
-                );
-            }
         }
 
         // Cold batch: snapshots that didn't prefetch — fall through to the
@@ -928,6 +928,7 @@ struct SlotLink<'a> {
     warm_cache_key: Option<&'a str>,
 }
 
+#[derive(Clone, Copy)]
 struct LinkSlotsParallel<'a> {
     batch: &'static str,
     slots: &'a [SlotLink<'a>],

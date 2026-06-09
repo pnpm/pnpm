@@ -54,6 +54,7 @@ pub fn extract_main_document(content: &str) -> &str {
 /// pacquet reads the whole lockfile into memory rather than streaming,
 /// so this skips upstream's chunked BOM/CRLF handling — the only
 /// callers pass content pacquet itself wrote with LF line endings.
+#[must_use]
 pub fn extract_env_document(content: &str) -> Option<&str> {
     let rest = content.strip_prefix(YAML_DOCUMENT_START)?;
     rest.find(YAML_DOCUMENT_SEPARATOR).map(|idx| &rest[..idx])

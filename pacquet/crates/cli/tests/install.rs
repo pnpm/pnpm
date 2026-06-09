@@ -953,6 +953,10 @@ fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
     drop((root, mock_instance)); // cleanup
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test fixture; the value is embedded whole into a serde_json::json! object"
+)]
 fn install_with_peer_alias_deps(dependencies: serde_json::Value) -> String {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

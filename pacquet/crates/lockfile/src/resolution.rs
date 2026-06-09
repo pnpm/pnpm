@@ -323,6 +323,7 @@ impl LockfileResolution {
 /// Derive the canonical npm registry tarball URL for `name@version`. Port of
 /// the [`get-npm-tarball-url`](https://www.npmjs.com/package/get-npm-tarball-url)
 /// package pnpm uses.
+#[must_use]
 pub fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
     let registry =
         if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };

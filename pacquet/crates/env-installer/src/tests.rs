@@ -103,7 +103,7 @@ fn options<'a>(
         registries: &harness.registries,
         verify_store_integrity: true,
         offline: false,
-        package_import_method: Default::default(),
+        package_import_method: pacquet_config::PackageImportMethod::default(),
         retry_opts: RetryOpts::default(),
         frozen_lockfile: frozen,
         supported_architectures: None,

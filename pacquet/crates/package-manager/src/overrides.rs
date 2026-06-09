@@ -80,6 +80,7 @@ struct LocalTarget {
 impl VersionsOverrider {
     /// Build the hook from the parsed overrides set produced by
     /// [`pacquet_config_parse_overrides::parse_overrides`].
+    #[must_use]
     pub fn new(overrides: &[VersionOverride], root_dir: &Path) -> Self {
         let mut parent_scoped = Vec::new();
         let mut generic = Vec::new();
@@ -98,6 +99,7 @@ impl VersionsOverrider {
     }
 
     /// `true` when the hook has no entries and can be skipped.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.parent_scoped.is_empty() && self.generic.is_empty()
     }
@@ -134,6 +136,7 @@ impl VersionsOverrider {
     /// Apply overrides to the resolver's shared manifest value,
     /// cloning only when at least one configured override can rewrite
     /// the manifest.
+    #[must_use]
     pub fn apply_to_arc(&self, manifest: Arc<Value>, manifest_dir: Option<&Path>) -> Arc<Value> {
         if self.is_empty() || !self.has_applicable_override(&manifest) {
             return manifest;
@@ -213,11 +216,10 @@ impl VersionsOverrider {
                 continue;
             }
 
-            let new_spec = chosen
-                .local_target
-                .as_ref()
-                .map(|target| resolve_local_override_spec(target, manifest_dir))
-                .unwrap_or_else(|| chosen.inner.new_bare_specifier.clone());
+            let new_spec = chosen.local_target.as_ref().map_or_else(
+                || chosen.inner.new_bare_specifier.clone(),
+                |target| resolve_local_override_spec(target, manifest_dir),
+            );
 
             map.insert(name, Value::String(new_spec));
         }
@@ -229,12 +231,11 @@ impl VersionsOverrider {
         dep_name: &str,
         dep_spec: &str,
     ) -> Option<&'b ResolvedOverride> {
-        self.pick_most_specific(applicable_parent_scoped, dep_name, dep_spec)
+        Self::pick_most_specific(applicable_parent_scoped, dep_name, dep_spec)
             .or_else(|| self.pick_most_specific_generic(dep_name, dep_spec))
     }
 
     fn pick_most_specific<'b>(
-        &'b self,
         candidates: &[&'b ResolvedOverride],
         dep_name: &str,
         dep_spec: &str,
@@ -364,8 +365,7 @@ fn resolve_local_override_spec(target: &LocalTarget, pkg_dir: Option<&Path>) -> 
     let path_str = match (target.specified_via_relative_path, pkg_dir) {
         (true, Some(dir)) => pathdiff::diff_paths(&target.absolute_path, dir)
             .as_deref()
-            .map(normalize_path)
-            .unwrap_or_else(|| normalize_path(&target.absolute_path)),
+            .map_or_else(|| normalize_path(&target.absolute_path), normalize_path),
         _ => normalize_path(&target.absolute_path),
     };
     format!("{}{path_str}", target.protocol.as_str())
