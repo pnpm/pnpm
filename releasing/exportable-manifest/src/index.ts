@@ -82,8 +82,11 @@ export async function createExportableManifest (
 
   overridePublishConfig(publishManifest)
 
-  if (opts?.embedReadme && opts.projectDir) {
-    publishManifest.readme ??= await readReadmeFile(opts.projectDir)
+  if (publishManifest.readme == null && opts?.embedReadme && opts.projectDir) {
+    const readme = await readReadmeFile(opts.projectDir)
+    if (readme != null) {
+      publishManifest.readme ??= readme
+    }
   }
 
   for (const hook of opts?.hooks?.beforePacking ?? []) {

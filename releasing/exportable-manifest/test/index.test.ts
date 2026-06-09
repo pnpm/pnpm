@@ -122,7 +122,7 @@ test('skipManifestObfuscation does not mutate the original manifest', async () =
   }
 
   await withTempProjectReadme('readme content', async (projectDir) => {
-    expect(await createExportableManifest(process.cwd(), manifest, {
+    expect(await createExportableManifest(projectDir, manifest, {
       ...defaultOpts,
       skipManifestObfuscation: true,
       embedReadme: true,
@@ -146,7 +146,7 @@ test('skipManifestObfuscation does not mutate the original manifest', async () =
 
 test('readme added to published manifest', async () => {
   await withTempProjectReadme('readme content', async (projectDir) => {
-    expect(await createExportableManifest(process.cwd(), {
+    expect(await createExportableManifest(projectDir, {
       name: 'foo',
       version: '1.0.0',
     }, {
