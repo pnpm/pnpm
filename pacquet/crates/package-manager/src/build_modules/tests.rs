@@ -124,7 +124,7 @@ fn explicit_allow_by_dep_path_allows_untrusted_package_identity() {
 fn explicit_allow_by_tarball_dep_path_allows_untrusted_package_identity() {
     let policy = policy_from_specs([("foo@https://example.com/foo.tgz", true)], false);
 
-    assert_eq!(policy.check_with_context("foo@https://example.com/foo.tgz", false), Some(true),);
+    assert_eq!(policy.check_with_context("foo@https://example.com/foo.tgz", false), Some(true));
 }
 
 #[test]
