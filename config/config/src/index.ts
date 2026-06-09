@@ -28,6 +28,7 @@ import { transformPathKeys } from './transformPath.js'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import {
   type Config,
+  type PackageManagerNetworkConfig,
   type ConfigWithDeprecatedSettings,
   type UniversalOptions,
   type VerifyDepsBeforeRun,
@@ -48,7 +49,7 @@ export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFro
 export * from './readLocalConfig.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 
-export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
+export type { Config, PackageManagerNetworkConfig, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
@@ -527,6 +528,48 @@ export async function getConfig (opts: {
     // @ts-expect-error
     pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
   }
+  {
+    // Package-manager bootstrap traffic (downloading the pnpm version
+    // requested by the repository's packageManager field) must not be steered
+    // by repository-controlled settings. Build the bootstrap registry/network
+    // config from trusted sources only: CLI options, env config, user and
+    // global .npmrc — never the project/workspace .npmrc (pnpm-workspace.yaml
+    // settings are also excluded because they were applied to pnpmConfig, not
+    // to the npm-conf source chain re-merged here).
+    const untrustedData = new Set(
+      ['project', 'workspace']
+        .map((name) => (npmConfig.sources[name] as { data?: Record<string, unknown> } | undefined)?.data)
+        .filter(Boolean)
+    )
+    const trustedRawConfig: Record<string, unknown> = Object.assign.apply(Object, [
+      {},
+      ...[...npmConfig.list].reverse().filter((data: Record<string, unknown>) => !untrustedData.has(data)),
+      cliOptions,
+    ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const trustedNetworkConfigs = getNetworkConfigs(trustedRawConfig as Record<string, object>)
+    pnpmConfig.packageManagerRegistries = {
+      default: typeof trustedRawConfig.registry === 'string' && trustedRawConfig.registry !== ''
+        ? normalizeRegistryUrl(trustedRawConfig.registry)
+        : 'https://registry.npmjs.org/',
+      ...trustedNetworkConfigs.registries,
+    }
+    const trustedHttpsProxy = getProxyValue(
+      trustedRawConfig['https-proxy'] ?? trustedRawConfig.proxy,
+      getProcessEnv('https_proxy')
+    )
+    pnpmConfig.packageManagerNetworkConfig = {
+      ca: trustedRawConfig.ca as string | string[] | undefined,
+      cert: trustedRawConfig.cert as string | string[] | undefined,
+      httpProxy: trustedHttpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy'),
+      httpsProxy: trustedHttpsProxy,
+      key: trustedRawConfig.key as string | undefined,
+      localAddress: trustedRawConfig['local-address'] as string | undefined,
+      noProxy: (trustedRawConfig.noproxy ?? getProcessEnv('no_proxy')) as string | boolean | undefined,
+      rawConfig: trustedRawConfig as Record<string, string>,
+      sslConfigs: trustedNetworkConfigs.sslConfigs,
+      strictSsl: trustedRawConfig['strict-ssl'] as boolean | undefined,
+    }
+  }
   switch (pnpmConfig.nodeLinker) {
   case 'pnp':
     pnpmConfig.enablePnp = pnpmConfig.nodeLinker === 'pnp'
@@ -594,6 +637,12 @@ export async function getConfig (opts: {
   transformPathKeys(pnpmConfig, os.homedir())
 
   return { config: pnpmConfig, warnings }
+}
+
+function getProxyValue (value: unknown, fallback: string | undefined): string | undefined {
+  if (value === false || value === null) return undefined
+  if (typeof value === 'string' && value.length > 0) return value
+  return fallback
 }
 
 function getProcessEnv (env: string): string | undefined {

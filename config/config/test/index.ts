@@ -460,6 +460,57 @@ test('pnpm-workspace.yaml registry setting does not expand env variables', async
 })
 /* eslint-enable no-template-curly-in-string */
 
+test('packageManagerRegistries is built from trusted config only', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', [
+    'registry=https://repo-registry.example.test/',
+    '@scope:registry=https://repo-scope.example.test/',
+    '',
+  ].join('\n'), 'utf8')
+  fs.mkdirSync('user-home')
+  const userconfig = path.resolve('user-home', '.npmrc')
+  fs.writeFileSync(userconfig, 'registry=https://user-registry.example.test/\n', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {
+      userconfig,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  // The merged registries follow the repository config, but the
+  // package-manager bootstrap registries must not.
+  expect(config.registries.default).toBe('https://repo-registry.example.test/')
+  expect(config.packageManagerRegistries?.default).toBe('https://user-registry.example.test/')
+  expect(config.packageManagerRegistries?.['@scope']).toBeUndefined()
+  expect(config.packageManagerNetworkConfig?.rawConfig.registry).toBe('https://user-registry.example.test/')
+})
+
+test('packageManagerRegistries defaults to the public npm registry', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', 'registry=https://repo-registry.example.test/\n', 'utf8')
+  fs.mkdirSync('user-home')
+  const userconfig = path.resolve('user-home', '.npmrc')
+  fs.writeFileSync(userconfig, '', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {
+      userconfig,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.packageManagerRegistries?.default).toBe('https://registry.npmjs.org/')
+})
+
 test('filter is read from .npmrc as an array', async () => {
   prepareEmpty()
 
