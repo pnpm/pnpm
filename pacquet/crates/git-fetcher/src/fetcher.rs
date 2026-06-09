@@ -146,10 +146,8 @@ impl<'a> GitFetcher<'a> {
         // brittle to future expression-reshape edits in this block.
         let empty_env: HashMap<String, String> = HashMap::new();
         let prepare_opts = PreparePackageOptions {
-            allow_build: Box::new(|name, version, trust, dep_path| {
-                (self.allow_build)(name, version, trust, dep_path)
-            }),
-            dep_path: Some(self.package_id),
+            allow_build: Box::new(|dep_path, trust| (self.allow_build)(dep_path, trust)),
+            dep_path: self.package_id,
             ignore_scripts: self.ignore_scripts,
             unsafe_perm: self.unsafe_perm,
             user_agent: self.user_agent,

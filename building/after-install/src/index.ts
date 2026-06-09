@@ -5,7 +5,7 @@ import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
-import { createAllowBuildContext, createAllowBuildFunction, normalizeBuildDepPath } from '@pnpm/building.policy'
+import { createAllowBuildContext, createAllowBuildFunction } from '@pnpm/building.policy'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -94,7 +94,7 @@ function matches (
       return manifest.name === searchedPkg
     }
     if ('depPath' in searchedPkg) {
-      return normalizeBuildDepPath(searchedPkg.depPath) === normalizeBuildDepPath(depPath)
+      return dp.removePeersSuffix(searchedPkg.depPath) === dp.getPkgIdWithPatchHash(depPath)
     }
     return searchedPkg.name === manifest.name && !!manifest.version &&
       semver.satisfies(manifest.version, searchedPkg.range)
@@ -179,8 +179,8 @@ export async function buildSelectedPkgs (
 }
 
 function matchesDepPath (packages: PackageSnapshots, pkgSpec: string): boolean {
-  const normalizedPkgSpec = normalizeBuildDepPath(pkgSpec)
-  return Object.keys(packages).some((depPath) => normalizeBuildDepPath(depPath) === normalizedPkgSpec)
+  const normalizedPkgSpec = dp.removePeersSuffix(pkgSpec)
+  return (Object.keys(packages) as DepPath[]).some((depPath) => dp.getPkgIdWithPatchHash(depPath) === normalizedPkgSpec)
 }
 
 export async function buildProjects (
@@ -345,8 +345,8 @@ async function _rebuild (
 
   const ignoredPkgs = new Set<DepPath>()
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => undefined)
-  const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
-    switch (_allowBuild(pkgName, version, createAllowBuildContext({
+  const allowBuild = (depPath: DepPath) => {
+    switch (_allowBuild(depPath, createAllowBuildContext({
       depPath,
       resolution: pkgSnapshots[depPath].resolution,
     }))) {
@@ -459,7 +459,7 @@ async function _rebuild (
           requiresBuild = pkgRequiresBuild(pgkManifest, new Map())
         }
 
-        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version, depPath) && await runPostinstallHooks({
+        const hasSideEffects = requiresBuild && allowBuild(depPath) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,

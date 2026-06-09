@@ -14,8 +14,10 @@ it('passes trusted build identity context for registry tarball metadata', () => 
     integrity: 'sha512-def',
     tarball: 'https://example.com/foo.tgz',
   }
+  const checkedDepPaths: DepPath[] = []
   const contexts: Array<AllowBuildContext | undefined> = []
-  const allowBuild: AllowBuild = (_name, _version, context) => {
+  const allowBuild: AllowBuild = (depPath, context) => {
+    checkedDepPaths.push(depPath)
     contexts.push(context)
     return true
   }
@@ -49,5 +51,5 @@ it('passes trusted build identity context for registry tarball metadata', () => 
   ))
 
   expect(contexts.map((context) => context?.trustPackageIdentity)).toStrictEqual([true, false])
-  expect(contexts.map((context) => context?.depPath)).toStrictEqual([registryDepPath, directTarballDepPath])
+  expect(checkedDepPaths).toStrictEqual([registryDepPath, directTarballDepPath])
 })

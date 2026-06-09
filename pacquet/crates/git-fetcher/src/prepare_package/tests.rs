@@ -31,8 +31,8 @@ fn write_manifest(dir: &Path, manifest: &serde_json::Value) {
 fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        allow_build: Box::new(move |_name, _version, _trust, _dep_path| allow),
-        dep_path: None,
+        allow_build: Box::new(move |_dep_path, _trust| allow),
+        dep_path: "x@https://example.com/x.tgz",
         ignore_scripts,
         unsafe_perm: true,
         user_agent: None,
@@ -48,8 +48,8 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
 fn opts_allow_trusted_only<'a>() -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        allow_build: Box::new(move |_name, _version, trust, _dep_path| trust),
-        dep_path: None,
+        allow_build: Box::new(move |_dep_path, trust| trust),
+        dep_path: "x@https://example.com/x.tgz",
         ignore_scripts: false,
         unsafe_perm: true,
         user_agent: None,
@@ -65,10 +65,8 @@ fn opts_allow_trusted_only<'a>() -> PreparePackageOptions<'a> {
 fn opts_allow_dep_path<'a>(dep_path: &'a str) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        allow_build: Box::new(move |_name, _version, trust, actual_dep_path| {
-            !trust && actual_dep_path == Some(dep_path)
-        }),
-        dep_path: Some(dep_path),
+        allow_build: Box::new(move |actual_dep_path, trust| !trust && actual_dep_path == dep_path),
+        dep_path,
         ignore_scripts: false,
         unsafe_perm: true,
         user_agent: None,

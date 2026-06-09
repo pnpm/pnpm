@@ -203,17 +203,10 @@ impl VirtualStoreLayout {
                 .keys()
                 .filter(|key| {
                     let metadata_key = key.without_peer();
-                    let name = metadata_key.name.to_string();
-                    let version = metadata_key.suffix.version().to_string();
                     let trust_package_identity =
                         package_identity_is_trusted_for_key(packages, &metadata_key);
                     let dep_path = metadata_key.to_string();
-                    policy.check_with_context(
-                        &name,
-                        &version,
-                        trust_package_identity,
-                        Some(&dep_path),
-                    ) == Some(true)
+                    policy.check_with_context(&dep_path, trust_package_identity) == Some(true)
                 })
                 .cloned()
                 .collect()

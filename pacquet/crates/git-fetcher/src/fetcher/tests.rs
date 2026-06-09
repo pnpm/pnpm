@@ -48,7 +48,7 @@ fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (Path
 }
 
 fn allow_all_builds<'a>() -> AllowBuildRef<'a> {
-    &|_, _, _, _| true
+    &|_, _| true
 }
 
 /// Create a tiny bare git repo whose single commit ships a
@@ -78,7 +78,7 @@ fn make_bare_repo(tmp: &Path) -> (PathBuf, String) {
 }
 
 fn deny_all_builds<'a>() -> AllowBuildRef<'a> {
-    &|_, _, _, _| false
+    &|_, _| false
 }
 
 #[test]
@@ -659,10 +659,9 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
     let repo_url = format!("file://{}", bare.display());
 
     // Targeted allow_build that returns true for *this* package only —
-    // catches a regression where the gate ignores the (name, version)
-    // pair and falls through to default-allow or default-deny.
-    let allow_x_only: AllowBuildRef<'_> =
-        &|name, version, _trust, _dep_path| name == "x" && version == "1.0.0";
+    // catches a regression where the gate ignores the dep path and
+    // falls through to default-allow or default-deny.
+    let allow_x_only: AllowBuildRef<'_> = &|dep_path, _trust| dep_path == "x@1.0.0";
 
     let received = GitFetcher {
         repo: &repo_url,
@@ -709,7 +708,7 @@ async fn fetcher_rejects_untrusted_manifest_identity() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let repo_url = format!("file://{}", bare.display());
-    let allow_trusted_only: AllowBuildRef<'_> = &|_, _, trust, _dep_path| trust;
+    let allow_trusted_only: AllowBuildRef<'_> = &|_dep_path, trust| trust;
 
     let err = GitFetcher {
         repo: &repo_url,
@@ -758,8 +757,7 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let repo_url = format!("file://{}", bare.display());
     let package_id = "x@git+file:///tmp/repo.git#abc123";
-    let allow_dep_path: AllowBuildRef<'_> =
-        &|_, _, trust, dep_path| !trust && dep_path == Some(package_id);
+    let allow_dep_path: AllowBuildRef<'_> = &|dep_path, trust| !trust && dep_path == package_id;
 
     let received = GitFetcher {
         repo: &repo_url,

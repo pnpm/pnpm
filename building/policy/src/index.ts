@@ -5,17 +5,13 @@ import type { AllowBuild, AllowBuildContext, DepPath } from '@pnpm/types'
 const TRUSTED_RESOLVED_VIA = new Set(['npm-registry', 'jsr-registry', 'named-registry', 'workspace'])
 
 export interface BuildPackageIdentitySource {
-  depPath?: string
+  depPath?: DepPath
   resolution?: unknown
   resolvedVia?: string
 }
 
 export function isBuildExplicitlyDisallowed (depPath: DepPath, allowBuild?: AllowBuild): boolean {
-  if (!allowBuild) return false
-  const { name, version } = dp.parse(depPath)
-  return allowBuild(name ?? '', version ?? '', {
-    depPath: normalizeBuildDepPath(depPath),
-  }) === false
+  return allowBuild?.(depPath) === false
 }
 
 export function createAllowBuildFunction (
@@ -48,20 +44,27 @@ export function createAllowBuildFunction (
     }
     const expandedAllowed = expandPackageVersionSpecs(Array.from(allowedPackageBuilds))
     const expandedDisallowed = expandPackageVersionSpecs(Array.from(disallowedPackageBuilds))
-    return (pkgName, version, context?: AllowBuildContext) => {
-      const pkgWithVersion = `${pkgName}@${version}`
-      const depPath = context?.depPath == null ? undefined : normalizeBuildDepPath(context.depPath)
-      if (depPath != null && disallowedDepPathBuilds.has(depPath)) {
+    return (depPath, context?: AllowBuildContext) => {
+      const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
+      if (disallowedDepPathBuilds.has(pkgIdWithPatchHash)) {
         return false
       }
-      if (expandedDisallowed.has(pkgName) || expandedDisallowed.has(pkgWithVersion)) {
+      const { name, version } = dp.parse(depPath)
+      const nameAtVersion = name != null && version != null ? `${name}@${version}` : undefined
+      if (
+        (name != null && expandedDisallowed.has(name)) ||
+        (nameAtVersion != null && expandedDisallowed.has(nameAtVersion))
+      ) {
         return false
       }
-      if (depPath != null && allowedDepPathBuilds.has(depPath)) {
+      if (allowedDepPathBuilds.has(pkgIdWithPatchHash)) {
         return true
       }
-      if (expandedAllowed.has(pkgName) || expandedAllowed.has(pkgWithVersion)) {
-        if (context?.trustPackageIdentity === false) return undefined
+      if (context?.trustPackageIdentity === false) return undefined
+      if (
+        (name != null && expandedAllowed.has(name)) ||
+        (nameAtVersion != null && expandedAllowed.has(nameAtVersion))
+      ) {
         return true
       }
       return undefined
@@ -72,13 +75,8 @@ export function createAllowBuildFunction (
 
 export function createAllowBuildContext (source: BuildPackageIdentitySource): AllowBuildContext {
   return {
-    depPath: source.depPath == null ? undefined : normalizeBuildDepPath(source.depPath),
     trustPackageIdentity: isPackageIdentityTrustedForBuild(source),
   }
-}
-
-export function normalizeBuildDepPath (depPath: string): string {
-  return dp.getPkgIdWithPatchHash(depPath as DepPath)
 }
 
 /**
@@ -87,7 +85,7 @@ export function normalizeBuildDepPath (depPath: string): string {
  * git/tarball artifacts, whose name alone must not approve builds.
  */
 export function allowBuildKeyFromIgnoredBuild (depPath: string): string {
-  const normalizedDepPath = normalizeBuildDepPath(depPath)
+  const normalizedDepPath = dp.removePeersSuffix(depPath)
   const parsed = dp.parse(normalizedDepPath)
   if (parsed.nonSemverVersion != null || parsed.name == null) return normalizedDepPath
   return parsed.name
@@ -114,7 +112,7 @@ function isPackageIdentityTrustedForBuild (source: BuildPackageIdentitySource): 
   return true
 }
 
-function hasTrustedPackageVersionDepPath (depPath?: string): boolean {
+function hasTrustedPackageVersionDepPath (depPath?: DepPath): boolean {
   if (depPath == null) return false
   const parsed = dp.parse(depPath)
   return parsed.name != null && parsed.version != null && parsed.nonSemverVersion == null
@@ -128,14 +126,14 @@ function addAllowBuildRule (
   }
 ): void {
   if (isDepPathAllowBuildKey(pkg)) {
-    target.depPaths.add(normalizeBuildDepPath(pkg))
+    target.depPaths.add(dp.removePeersSuffix(pkg))
   } else {
     target.packageSpecs.add(pkg)
   }
 }
 
 function isDepPathAllowBuildKey (pkg: string): boolean {
-  if (normalizeBuildDepPath(pkg) !== pkg) return true
+  if (dp.removePeersSuffix(pkg) !== pkg) return true
   if (pkg.includes('||')) return false
   const parsed = dp.parse(pkg)
   if (parsed.nonSemverVersion != null) return isSourceLikeDepPathVersion(parsed.nonSemverVersion)

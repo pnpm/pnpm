@@ -32,21 +32,21 @@ use std::{
 /// nor Yarn run it for git-hosted deps.
 const PREPUBLISH_SCRIPTS: &[&str] = &["prepublish", "prepack", "publish"];
 
-/// Closure shape used to ask the install policy whether a package
-/// (`name`, `version`, trusted identity, dep path) is allowed to run lifecycle
-/// scripts.
+/// Closure shape used to ask the install policy whether the package at
+/// a dep path (with the given identity-trust verdict) is allowed to run
+/// lifecycle scripts.
 ///
 /// We pass a closure rather than `&AllowBuildPolicy` so the
 /// `pacquet-git-fetcher` crate stays free of a back-edge into
 /// `pacquet-package-manager`. The caller adapts whatever policy
 /// structure it has into this shape.
-pub type AllowBuildFn<'a> = Box<dyn Fn(&str, &str, bool, Option<&str>) -> bool + Send + Sync + 'a>;
-pub type AllowBuildRef<'a> = &'a (dyn Fn(&str, &str, bool, Option<&str>) -> bool + Send + Sync);
+pub type AllowBuildFn<'a> = Box<dyn Fn(&str, bool) -> bool + Send + Sync + 'a>;
+pub type AllowBuildRef<'a> = &'a (dyn Fn(&str, bool) -> bool + Send + Sync);
 
 /// Caller-supplied context for [`prepare_package`].
 pub struct PreparePackageOptions<'a> {
     pub allow_build: AllowBuildFn<'a>,
-    pub dep_path: Option<&'a str>,
+    pub dep_path: &'a str,
     pub ignore_scripts: bool,
     pub unsafe_perm: bool,
     pub user_agent: Option<&'a str>,
@@ -97,13 +97,13 @@ pub fn prepare_package<Reporter: self::Reporter>(
     }
 
     // `allowBuild` check before any spawn. Upstream throws when
-    // `opts.allowBuild?.(name, version, context)` is missing or false, with
+    // `opts.allowBuild?.(depPath, context)` is missing or false, with
     // GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes from the fetched
     // artifact itself, so its name and version are never a trusted
-    // package identity.
+    // package identity; they are only used in the error message.
     let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
     let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
-    if !(opts.allow_build)(name, version, false, opts.dep_path) {
+    if !(opts.allow_build)(opts.dep_path, false) {
         return Err(PreparePackageError::NotAllowed {
             name: name.to_string(),
             version: version.to_string(),

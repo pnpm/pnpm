@@ -187,39 +187,30 @@ impl AllowBuildPolicy {
     /// lookup means `*` wildcards in specs do NOT match real
     /// package names — see [`expand_package_version_specs`] for
     /// the rationale.
-    pub fn check(&self, name: &str, version: &str) -> Option<bool> {
-        self.check_with_context(name, version, true, None)
+    pub fn check(&self, dep_path: &str) -> Option<bool> {
+        self.check_with_context(dep_path, true)
     }
 
-    pub fn check_with_context(
-        &self,
-        name: &str,
-        version: &str,
-        trust_package_identity: bool,
-        dep_path: Option<&str>,
-    ) -> Option<bool> {
+    pub fn check_with_context(&self, dep_path: &str, trust_package_identity: bool) -> Option<bool> {
         if self.dangerously_allow_all {
             return Some(true);
         }
 
-        let name_at_version = format!("{name}@{version}");
-        let normalized_dep_path = dep_path.map(normalize_build_dep_path);
-        if let Some(dep_path) = normalized_dep_path.as_deref()
-            && self.disallowed_dep_paths.contains(dep_path)
-        {
+        let normalized_dep_path = normalize_build_dep_path(dep_path);
+        if self.disallowed_dep_paths.contains(&normalized_dep_path) {
             return Some(false);
         }
-        if self.expanded_disallowed.contains(name)
+        let (name, version) = parse_name_version_from_key(&normalized_dep_path);
+        let name_at_version = format!("{name}@{version}");
+        if self.expanded_disallowed.contains(&name)
             || self.expanded_disallowed.contains(&name_at_version)
         {
             return Some(false);
         }
-        if let Some(dep_path) = normalized_dep_path.as_deref()
-            && self.allowed_dep_paths.contains(dep_path)
-        {
+        if self.allowed_dep_paths.contains(&normalized_dep_path) {
             return Some(true);
         }
-        if self.expanded_allowed.contains(name) || self.expanded_allowed.contains(&name_at_version)
+        if self.expanded_allowed.contains(&name) || self.expanded_allowed.contains(&name_at_version)
         {
             if !trust_package_identity {
                 return None;
@@ -641,12 +632,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     if requires_build {
         let trust_package_identity = package_identity_is_trusted_for_key(packages, &metadata_key);
         let dep_path = metadata_key.to_string();
-        match allow_build_policy.check_with_context(
-            &name,
-            &version,
-            trust_package_identity,
-            Some(&dep_path),
-        ) {
+        match allow_build_policy.check_with_context(&dep_path, trust_package_identity) {
             Some(false) => {
                 should_run_scripts = false;
             }

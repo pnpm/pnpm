@@ -6,7 +6,7 @@ import util from 'node:util'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import type { AllowBuild, PackageManifest } from '@pnpm/types'
+import type { AllowBuild, DepPath, PackageManifest } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import { preferredPM } from 'preferred-pm'
 
@@ -22,7 +22,7 @@ const PREPUBLISH_SCRIPTS = [
 export interface PreparePackageOptions {
   allowBuild?: AllowBuild
   ignoreScripts?: boolean
-  pkgResolutionId?: string
+  pkgResolutionId: string
   unsafePerm?: boolean
   userAgent?: string
 }
@@ -34,20 +34,18 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   if (opts.ignoreScripts) return { shouldBeBuilt: true, pkgDir }
   // Check if the package is allowed to run build scripts
   // If allowBuild is undefined or returns false, block the build.
-  // The manifest comes from the fetched artifact itself, so its name and
-  // version are never a trusted package identity.
-  const depPath = opts.pkgResolutionId == null ? undefined : `${manifest.name}@${opts.pkgResolutionId}`
-  if (!opts.allowBuild?.(manifest.name, manifest.version, {
-    depPath,
-    trustPackageIdentity: false,
-  })) {
+  // The depPath is synthesized from the resolution id rather than read from
+  // a lockfile; the manifest comes from the fetched artifact itself, so its
+  // name and version are never a trusted package identity.
+  const depPath = `${manifest.name}@${opts.pkgResolutionId}` as DepPath
+  if (!opts.allowBuild?.(depPath, { trustPackageIdentity: false })) {
     throw new PnpmError(
       'GIT_DEP_PREPARE_NOT_ALLOWED',
       `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "allowBuilds" allowlist.`,
       {
         hint: `Add the package to "allowBuilds" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
 allowBuilds:
-  ${depPath ?? manifest.name}: true`,
+  ${depPath}: true`,
       }
     )
   }

@@ -10,7 +10,7 @@ use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 use tempfile::tempdir;
 
 fn deny_all_builds<'a>() -> AllowBuildRef<'a> {
-    &|_, _, _, _| false
+    &|_, _| false
 }
 
 /// Build the `cas_paths` map the dispatcher would hand the fetcher

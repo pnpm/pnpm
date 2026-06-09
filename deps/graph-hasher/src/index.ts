@@ -345,7 +345,7 @@ function computeBuiltDepPaths (
       resolution: entry.resolution ?? entry.pkgSnapshot?.resolution,
       resolvedVia: entry.resolvedVia,
     })
-    if (allowBuild(entry.name, entry.version, context) === true) {
+    if (allowBuild(entry.depPath, context) === true) {
       builtDepPaths.add(entry.depPath)
     }
   }

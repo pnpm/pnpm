@@ -242,7 +242,7 @@ async function buildGraphFromPackages (
       // marker indicating a previous build failed or was interrupted. When the
       // marker is present, skip the fast path to force a re-fetch/re-import/re-build.
       const mightNeedBuild = opts.enableGlobalVirtualStore &&
-        opts.allowBuild?.(pkgName, pkgVersion, createAllowBuildContext({
+        opts.allowBuild?.(depPath, createAllowBuildContext({
           depPath,
           resolution: pkgSnapshot.resolution,
         })) === true

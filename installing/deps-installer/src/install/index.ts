@@ -58,7 +58,6 @@ import {
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
 import { writePnpFile } from '@pnpm/lockfile.to-pnp'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
@@ -482,20 +481,16 @@ export async function mutateModules (
     if (oldAllowBuild) {
       for (const depPath of Object.keys(ctx.wantedLockfile.packages) as DepPath[]) {
         if (ignoredBuilds?.has(depPath)) continue
-        const pkgSnapshot = ctx.wantedLockfile.packages[depPath]
-        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        if (!name || !version) continue
         // The old policy is evaluated without identity trust info so that
         // package-name approvals count as they did when they were granted,
         // even for git/tarball artifacts that the current policy no longer
         // approves by name.
-        const wasAllowed = oldAllowBuild(name, version, { depPath }) === true
-        if (!wasAllowed) continue
+        if (oldAllowBuild(depPath) !== true) continue
         const allowBuildContext = createAllowBuildContext({
           depPath,
-          resolution: pkgSnapshot.resolution,
+          resolution: ctx.wantedLockfile.packages[depPath].resolution,
         })
-        if (allowBuild?.(name, version, allowBuildContext) === undefined) {
+        if (allowBuild?.(depPath, allowBuildContext) === undefined) {
           ignoredBuilds ??= new Set()
           ignoredBuilds.add(depPath)
         }
@@ -1113,8 +1108,7 @@ async function runUnignoredDependencyBuilds (
   for (const ignoredPkg of previousIgnoredBuilds) {
     const pkgSnapshot = currentLockfile.packages?.[ignoredPkg]
     if (!pkgSnapshot) continue
-    const pkgInfo = nameVerFromPkgSnapshot(ignoredPkg, pkgSnapshot)
-    const allowed = allowBuild(pkgInfo.name, pkgInfo.version, createAllowBuildContext({
+    const allowed = allowBuild(ignoredPkg, createAllowBuildContext({
       depPath: ignoredPkg,
       resolution: pkgSnapshot.resolution,
     }))

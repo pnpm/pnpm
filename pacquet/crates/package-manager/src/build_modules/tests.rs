@@ -82,24 +82,21 @@ fn missing_metadata_trusts_only_semver_dep_paths() {
 #[test]
 fn default_policy_denies_all() {
     let policy = AllowBuildPolicy::default();
-    assert_eq!(policy.check("any-package", "1.0.0"), None);
+    assert_eq!(policy.check("any-package@1.0.0"), None);
 }
 
 #[test]
 fn explicit_allow() {
     let policy = policy_from_specs([("@pnpm.e2e/install-script-example", true)], false);
-    assert_eq!(policy.check("@pnpm.e2e/install-script-example", "1.0.0"), Some(true));
+    assert_eq!(policy.check("@pnpm.e2e/install-script-example@1.0.0"), Some(true));
 }
 
 #[test]
 fn explicit_allow_requires_trusted_package_identity() {
     let policy = policy_from_specs([("@pnpm.e2e/install-script-example", true)], false);
+    assert_eq!(policy.check_with_context("@pnpm.e2e/install-script-example@1.0.0", false), None);
     assert_eq!(
-        policy.check_with_context("@pnpm.e2e/install-script-example", "1.0.0", false, None),
-        None,
-    );
-    assert_eq!(
-        policy.check_with_context("@pnpm.e2e/install-script-example", "1.0.0", true, None),
+        policy.check_with_context("@pnpm.e2e/install-script-example@1.0.0", true),
         Some(true),
     );
 }
@@ -112,20 +109,13 @@ fn explicit_allow_by_dep_path_allows_untrusted_package_identity() {
     );
     assert_eq!(
         policy.check_with_context(
-            "foo",
-            "1.0.0",
-            false,
-            Some("foo@git+https://github.com/org/foo.git#abc123(react@19.0.0)"),
+            "foo@git+https://github.com/org/foo.git#abc123(react@19.0.0)",
+            false
         ),
         Some(true),
     );
     assert_eq!(
-        policy.check_with_context(
-            "foo",
-            "1.0.0",
-            false,
-            Some("foo@git+https://github.com/attacker/foo.git#abc123"),
-        ),
+        policy.check_with_context("foo@git+https://github.com/attacker/foo.git#abc123", false),
         None,
     );
 }
@@ -134,22 +124,19 @@ fn explicit_allow_by_dep_path_allows_untrusted_package_identity() {
 fn explicit_allow_by_tarball_dep_path_allows_untrusted_package_identity() {
     let policy = policy_from_specs([("foo@https://example.com/foo.tgz", true)], false);
 
-    assert_eq!(
-        policy.check_with_context("foo", "1.0.0", false, Some("foo@https://example.com/foo.tgz")),
-        Some(true),
-    );
+    assert_eq!(policy.check_with_context("foo@https://example.com/foo.tgz", false), Some(true),);
 }
 
 #[test]
 fn explicit_deny() {
     let policy = policy_from_specs([("@pnpm.e2e/bad-package", false)], false);
-    assert_eq!(policy.check("@pnpm.e2e/bad-package", "1.0.0"), Some(false));
+    assert_eq!(policy.check("@pnpm.e2e/bad-package@1.0.0"), Some(false));
 }
 
 #[test]
 fn unlisted_returns_none() {
     let policy = policy_from_specs([("@pnpm.e2e/allowed", true)], false);
-    assert_eq!(policy.check("@pnpm.e2e/not-listed", "1.0.0"), None);
+    assert_eq!(policy.check("@pnpm.e2e/not-listed@1.0.0"), None);
 }
 
 /// Upstream checks `expandedDisallowed` before `expandedAllowed`
@@ -163,8 +150,8 @@ fn unlisted_returns_none() {
 fn disallow_bare_name_wins_over_allow_exact_version() {
     let policy =
         policy_from_specs([("@pnpm.e2e/pkg@1.0.0", true), ("@pnpm.e2e/pkg", false)], false);
-    assert_eq!(policy.check("@pnpm.e2e/pkg", "1.0.0"), Some(false));
-    assert_eq!(policy.check("@pnpm.e2e/pkg", "2.0.0"), Some(false));
+    assert_eq!(policy.check("@pnpm.e2e/pkg@1.0.0"), Some(false));
+    assert_eq!(policy.check("@pnpm.e2e/pkg@2.0.0"), Some(false));
 }
 
 /// The converse: a bare-name allow combined with an exact-version
@@ -174,33 +161,33 @@ fn disallow_bare_name_wins_over_allow_exact_version() {
 fn disallow_exact_version_with_allow_bare_name() {
     let policy =
         policy_from_specs([("@pnpm.e2e/pkg", true), ("@pnpm.e2e/pkg@1.0.0", false)], false);
-    assert_eq!(policy.check("@pnpm.e2e/pkg", "1.0.0"), Some(false));
-    assert_eq!(policy.check("@pnpm.e2e/pkg", "2.0.0"), Some(true));
+    assert_eq!(policy.check("@pnpm.e2e/pkg@1.0.0"), Some(false));
+    assert_eq!(policy.check("@pnpm.e2e/pkg@2.0.0"), Some(true));
 }
 
 #[test]
 fn empty_rules_denies_all() {
     let policy = policy_from_specs([], false);
-    assert_eq!(policy.check("any-package", "1.0.0"), None);
+    assert_eq!(policy.check("any-package@1.0.0"), None);
 }
 
 #[test]
 fn dangerously_allow_all_builds() {
     let policy = policy_from_specs([], true);
-    assert_eq!(policy.check("any-package", "1.0.0"), Some(true));
-    assert_eq!(policy.check("other-package", "2.0.0"), Some(true));
+    assert_eq!(policy.check("any-package@1.0.0"), Some(true));
+    assert_eq!(policy.check("other-package@2.0.0"), Some(true));
 }
 
 #[test]
 fn dangerously_allow_all_allows_untrusted_package_identity() {
     let policy = policy_from_specs([], true);
-    assert_eq!(policy.check_with_context("anything", "1.0.0", false, None), Some(true));
+    assert_eq!(policy.check_with_context("anything@1.0.0", false), Some(true));
 }
 
 #[test]
 fn dangerously_allow_all_overrides_deny() {
     let policy = policy_from_specs([("@pnpm.e2e/pkg", false)], true);
-    assert_eq!(policy.check("@pnpm.e2e/pkg", "1.0.0"), Some(true));
+    assert_eq!(policy.check("@pnpm.e2e/pkg@1.0.0"), Some(true));
 }
 
 /// Mirrors upstream's
@@ -211,11 +198,11 @@ fn dangerously_allow_all_overrides_deny() {
 #[test]
 fn allow_via_version_union() {
     let policy = policy_from_specs([("foo", true), ("qar@1.0.0 || 2.0.0", true)], false);
-    assert_eq!(policy.check("foo", "1.0.0"), Some(true));
-    assert_eq!(policy.check("bar", "1.0.0"), None);
-    assert_eq!(policy.check("qar", "1.0.0"), Some(true));
-    assert_eq!(policy.check("qar", "2.0.0"), Some(true));
-    assert_eq!(policy.check("qar", "1.1.0"), None);
+    assert_eq!(policy.check("foo@1.0.0"), Some(true));
+    assert_eq!(policy.check("bar@1.0.0"), None);
+    assert_eq!(policy.check("qar@1.0.0"), Some(true));
+    assert_eq!(policy.check("qar@2.0.0"), Some(true));
+    assert_eq!(policy.check("qar@1.1.0"), None);
 }
 
 /// Mirrors upstream's
@@ -228,8 +215,8 @@ fn allow_via_version_union() {
 #[test]
 fn wildcard_name_in_allow_builds_does_not_match_real_package() {
     let policy = policy_from_specs([("is-*", true)], false);
-    assert_eq!(policy.check("is-odd", "1.0.0"), None);
-    assert_eq!(policy.check("is-positive", "1.0.0"), None);
+    assert_eq!(policy.check("is-odd@1.0.0"), None);
+    assert_eq!(policy.check("is-positive@1.0.0"), None);
 }
 
 /// `from_config` propagates `expand_package_version_specs` errors —
@@ -264,7 +251,7 @@ fn from_config_propagates_name_pattern_in_version_union() {
 #[test]
 fn empty_config_denies_all() {
     let policy = AllowBuildPolicy::from_config(&Config::new()).expect("empty config never errors");
-    assert_eq!(policy.check("anything", "1.0.0"), None);
+    assert_eq!(policy.check("anything@1.0.0"), None);
 }
 
 #[test]
@@ -275,9 +262,9 @@ fn from_config_consumes_allow_builds_and_dangerously_allow_all_builds() {
     config.allow_builds.insert("@pnpm.e2e/bad-package".to_string(), false);
 
     let policy = AllowBuildPolicy::from_config(&config).expect("valid specs");
-    assert_eq!(policy.check("@pnpm.e2e/install-script-example", "1.0.0"), Some(true));
-    assert_eq!(policy.check("@pnpm.e2e/bad-package", "1.0.0"), Some(false));
-    assert_eq!(policy.check("@pnpm.e2e/unrelated", "1.0.0"), None);
+    assert_eq!(policy.check("@pnpm.e2e/install-script-example@1.0.0"), Some(true));
+    assert_eq!(policy.check("@pnpm.e2e/bad-package@1.0.0"), Some(false));
+    assert_eq!(policy.check("@pnpm.e2e/unrelated@1.0.0"), None);
 }
 
 fn name(text: &str) -> PkgName {
