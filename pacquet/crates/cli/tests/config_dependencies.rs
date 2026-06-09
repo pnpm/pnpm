@@ -138,3 +138,34 @@ fn add_config_writes_workspace_yaml_and_installs() {
 
     drop((root, mock_instance));
 }
+
+/// An `updateConfig` hook can inject a `catalogs` entry that the install
+/// then resolves a `catalog:` specifier against — even though
+/// `pnpm-workspace.yaml` declares no catalog. Without the hook the
+/// `catalog:` dependency would have no entry to resolve to.
+#[test]
+fn update_config_hook_injects_catalog() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "catalog:" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) {\n  config.catalogs = { default: { '@pnpm.e2e/foo': '100.0.0' } };\n  return config;\n} } }",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    assert!(
+        workspace.join("node_modules/.pnpm/@pnpm.e2e+foo@100.0.0").exists(),
+        "the catalog: dep resolved to the version the updateConfig hook injected",
+    );
+
+    drop((root, mock_instance));
+}

@@ -10,6 +10,7 @@
 //! separately.
 
 use miette::{IntoDiagnostic, Result, WrapErr};
+use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
 use pacquet_config::{Config, WorkspaceSettings};
 use pacquet_env_installer::{ConfigDepsInstallOptions, resolve_and_install_config_deps};
 use pacquet_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
@@ -162,8 +163,10 @@ async fn resolve_and_install<Reporter: self::Reporter>(
 /// a hook changes is applied back the same way `pnpm-workspace.yaml` is.
 /// Only the keys a hook actually changed are applied, so values resolved
 /// from `.npmrc` / CLI flags that the hooks leave untouched are not
-/// clobbered. Settings pacquet models outside `WorkspaceSettings` (e.g.
-/// named `catalogs`) are not yet round-tripped.
+/// clobbered. The `catalog:`/`catalogs:` blocks — which pacquet models
+/// outside `WorkspaceSettings` — are seeded into the hook input and, when
+/// a hook changes them, captured into [`Config::catalogs`] for the install
+/// to use.
 pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     config: &mut Config,
     root_dir: &Path,
@@ -189,9 +192,23 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         }
         None => (root_dir.to_path_buf(), WorkspaceSettings::default()),
     };
-    let input = serde_json::to_value(&settings)
+    let mut input = serde_json::to_value(&settings)
         .into_diagnostic()
         .wrap_err("serialize workspace settings for updateConfig hooks")?;
+    // Seed the hook input with the catalogs read from the workspace
+    // manifest (`catalog:` + `catalogs:`), which `WorkspaceSettings`
+    // doesn't carry, so a hook can read and extend them.
+    let workspace_manifest =
+        pacquet_workspace::read_workspace_manifest(root_dir).into_diagnostic()?;
+    let yaml_catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+        .into_diagnostic()
+        .wrap_err("reading catalogs for updateConfig hooks")?;
+    if let Some(object) = input.as_object_mut() {
+        object.insert(
+            "catalogs".to_string(),
+            serde_json::to_value(&yaml_catalogs).into_diagnostic()?,
+        );
+    }
 
     let prefix = root_dir.to_string_lossy().into_owned();
     let mut current = input.clone();
@@ -205,6 +222,20 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
             .wrap_err_with(|| {
             format!("running updateConfig hook from {}", pnpmfile.display())
         })?;
+    }
+
+    // Capture hook-modified catalogs into `Config::catalogs` (the
+    // install prefers it over re-reading the manifest). Only when a hook
+    // actually changed them, so an untouched manifest still flows
+    // through the normal path.
+    if current.get("catalogs") != input.get("catalogs")
+        && let Some(catalogs_value) = current.get("catalogs")
+    {
+        config.catalogs = Some(
+            serde_json::from_value(catalogs_value.clone())
+                .into_diagnostic()
+                .wrap_err("the updateConfig hook produced an invalid catalogs value")?,
+        );
     }
 
     let delta = config_delta(&input, &current);

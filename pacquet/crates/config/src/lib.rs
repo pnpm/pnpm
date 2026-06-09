@@ -1297,6 +1297,16 @@ pub struct Config {
     /// [`'catalog-mode': 'manual'`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L132).
     pub catalog_mode: CatalogMode,
 
+    /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
+    /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
+    /// (possibly modified) by the hook. `None` when no hook changed
+    /// them, in which case the install reads catalogs straight from the
+    /// workspace manifest. `Some` carries the complete catalog set the
+    /// hook produced (existing + injected), so the install uses it as-is
+    /// — the counterpart to pnpm's `config.catalogs` after the
+    /// `updateConfig` pass.
+    pub catalogs: Option<pacquet_catalogs_types::Catalogs>,
+
     /// Name of the catalog `pnpm add` saves a new dependency into,
     /// set by `--save-catalog-name=<name>` (with `--save-catalog` a
     /// shorthand for `default`). When `Some`, an `add` writes
