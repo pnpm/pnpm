@@ -46,6 +46,7 @@ fn single_importer_opts<'a>(
         peers_suffix_max_length: None,
         overrides,
         ignored_optional_dependencies,
+        patched_dependencies: None,
         package_extensions_checksum: None,
         pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
@@ -218,6 +219,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         package_extensions_checksum: None,
         pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
@@ -244,6 +246,7 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         package_extensions_checksum: None,
         pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
@@ -254,6 +257,74 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
     assert_eq!(off_settings.dedupe_peers, None);
     let off_yaml = serde_saphyr::to_string(off_settings).unwrap();
     assert!(!off_yaml.contains("dedupePeers"), "yaml: {off_yaml}");
+}
+
+/// A non-empty `patched_dependencies` map flows verbatim into the
+/// lockfile's top-level `patchedDependencies` block; an empty map is
+/// normalized to `None` so the key is omitted on serialization.
+#[test]
+fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let node = make_node(
+        "react",
+        "17.0.2",
+        json!({ "name": "react", "version": "17.0.2" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let mut graph = DependenciesGraph::new();
+    graph.insert(node.dep_path.clone(), node);
+    let mut direct = BTreeMap::new();
+    direct.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
+
+    let build = |patched: Option<BTreeMap<String, String>>| {
+        let mut importers = BTreeMap::new();
+        importers.insert(
+            ".".to_string(),
+            ImporterLockfileInput {
+                manifest: &manifest,
+                direct_dependencies_by_alias: direct.clone(),
+            },
+        );
+        dependencies_graph_to_lockfile(GraphToLockfileOptions {
+            importers,
+            graph: &graph,
+            auto_install_peers: false,
+            dedupe_peers: false,
+            exclude_links_from_lockfile: false,
+            inject_workspace_packages: false,
+            peers_suffix_max_length: None,
+            overrides: None,
+            ignored_optional_dependencies: None,
+            patched_dependencies: patched,
+            package_extensions_checksum: None,
+            pnpmfile_checksum: None,
+            catalogs: &EMPTY_CATALOGS,
+            registry: "https://registry.npmjs.org",
+            lockfile_include_tarball_url: false,
+        })
+    };
+
+    let with_patch = build(Some(BTreeMap::from([(
+        "graceful-fs@4.2.11".to_string(),
+        "68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1".to_string(),
+    )])));
+    assert_eq!(
+        with_patch
+            .patched_dependencies
+            .as_ref()
+            .and_then(|map| map.get("graceful-fs@4.2.11"))
+            .map(String::as_str),
+        Some("68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1"),
+    );
+
+    assert!(build(Some(BTreeMap::new())).patched_dependencies.is_none());
+    assert!(build(None).patched_dependencies.is_none());
 }
 
 /// `dev` and `optional` direct dependencies land in their own importer
@@ -361,6 +432,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         package_extensions_checksum: None,
         pnpmfile_checksum: None,
         catalogs: &catalogs,
@@ -1034,6 +1106,7 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         package_extensions_checksum: None,
         pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
@@ -1162,6 +1235,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         package_extensions_checksum: None,
         pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
@@ -1319,6 +1393,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         package_extensions_checksum: None,
         pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,

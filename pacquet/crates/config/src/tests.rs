@@ -1502,6 +1502,31 @@ pub fn peers_suffix_max_length_env_var_overrides_yaml() {
     assert_eq!(config.peers_suffix_max_length, 25, "env var must win over pnpm-workspace.yaml");
 }
 
+/// `Config::patched_dependency_hashes` resolves each relative patch
+/// path against `workspace_dir`, hashes the file, and returns the
+/// verbatim key → hash map the lockfile records. Mirrors pnpm's
+/// `calcPatchHashes(opts.patchedDependencies)`.
+#[test]
+fn patched_dependency_hashes_resolves_and_hashes_each_patch() {
+    let workspace = tempdir().expect("workspace tempdir");
+    let patch_path = workspace.path().join("patches").join("graceful-fs@4.2.11.patch");
+    std::fs::create_dir_all(patch_path.parent().unwrap()).expect("create patches dir");
+    std::fs::write(&patch_path, "--- a/index.js\n+++ b/index.js\n").expect("write patch");
+    let expected =
+        pacquet_patching::create_hex_hash_from_file(&patch_path).expect("hash patch file");
+
+    let mut config = Config::new();
+    assert!(config.patched_dependency_hashes().expect("no error").is_none(), "unset → None");
+
+    config.workspace_dir = Some(workspace.path().to_path_buf());
+    config.patched_dependencies = Some(indexmap::IndexMap::from([(
+        "graceful-fs@4.2.11".to_string(),
+        "patches/graceful-fs@4.2.11.patch".to_string(),
+    )]));
+    let hashes = config.patched_dependency_hashes().expect("hash").expect("present");
+    assert_eq!(hashes.get("graceful-fs@4.2.11"), Some(&expected));
+}
+
 /// `minimumReleaseAge: 0` disables the maturity cutoff (returns
 /// `None`), matching pnpm's falsy check; any positive value passes
 /// through, and the built-in default (1440) is non-zero.

@@ -222,6 +222,7 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
             .ignored_optional_dependencies
             .as_ref()
             .is_some_and(|patterns| !patterns.is_empty())
+        || config.patched_dependencies.as_ref().is_some_and(|map| !map.is_empty())
         || config.inject_workspace_packages
     {
         return None;
@@ -230,6 +231,7 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
     let lockfile = request.lockfile.as_ref()?;
     check_lockfile_settings(
         lockfile,
+        None,
         None,
         None,
         None,
