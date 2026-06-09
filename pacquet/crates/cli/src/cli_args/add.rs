@@ -128,11 +128,13 @@ impl AddArgs {
             // No version given → resolve the `latest` tag, matching the
             // default `add` behavior.
             let specifier = parsed.bare_specifier.unwrap_or_else(|| "latest".to_string());
-            let root_dir = state
-                .manifest
-                .path()
-                .parent()
-                .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+            // configDependencies are workspace-level: write to the
+            // workspace root's `pnpm-workspace.yaml` / env lockfile /
+            // `.pnpm-config`, not the current package's. Fall back to the
+            // manifest's directory for a single-package repo.
+            let root_dir = state.config.workspace_dir.clone().unwrap_or_else(|| {
+                state.manifest.path().parent().map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+            });
             return config_deps::add_config_dependency::<Reporter>(
                 state.config,
                 &root_dir,

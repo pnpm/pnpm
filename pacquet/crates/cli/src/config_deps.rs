@@ -224,19 +224,25 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         })?;
     }
 
-    // Capture hook-modified catalogs into `Config::catalogs` (the
-    // install prefers it over re-reading the manifest). Only when a hook
-    // actually changed them, so an untouched manifest still flows
-    // through the normal path.
-    if current.get("catalogs") != input.get("catalogs")
-        && let Some(catalogs_value) = current.get("catalogs")
-    {
-        config.catalogs = Some(
-            serde_json::from_value(catalogs_value.clone())
-                .into_diagnostic()
-                .wrap_err("the updateConfig hook produced an invalid catalogs value")?,
-        );
-    }
+    // Adopt the hook output's catalogs wholesale into `Config::catalogs`
+    // (the install prefers it over re-reading the manifest). Because the
+    // input was seeded with the manifest's catalogs, the output is the
+    // authoritative post-`updateConfig` set: a hook that *added*,
+    // *replaced*, or *removed* an entry is all reflected — a removed key
+    // (absent from the output) maps to an empty set rather than silently
+    // falling back to the manifest. At least one pnpmfile ran (the empty
+    // case returned early above), so this mirrors pnpm using the
+    // post-hook `config.catalogs`.
+    config.catalogs = Some(
+        current
+            .get("catalogs")
+            .cloned()
+            .map(serde_json::from_value)
+            .transpose()
+            .into_diagnostic()
+            .wrap_err("the updateConfig hook produced an invalid catalogs value")?
+            .unwrap_or_default(),
+    );
 
     let delta = config_delta(&input, &current);
     if delta.as_object().is_none_or(serde_json::Map::is_empty) {
