@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Resolve package-manager bootstrap dependencies from trusted user or CLI registries and reject package-manager env-lockfile records that do not use registry package paths with integrity-only resolutions before auto-switch execution.
+Resolve package-manager bootstrap dependencies with trusted user or CLI registry and network config, and reject package-manager env-lockfile records that do not use registry package paths with integrity-only resolutions before auto-switch execution.

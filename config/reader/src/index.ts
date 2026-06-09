@@ -29,6 +29,7 @@ import type {
   Config,
   ConfigContext,
   ConfigWithDeprecatedSettings,
+  PackageManagerNetworkConfig,
   ProjectConfig,
   UniversalOptions,
   VerifyDepsBeforeRun,
@@ -332,6 +333,11 @@ export async function getConfig (opts: {
     default: normalizeRegistryUrl(trustedAuthConfig.registry as string),
     ...trustedNetworkConfigs.registries,
   }
+  pnpmConfig.packageManagerNetworkConfig = createPackageManagerNetworkConfig(
+    npmrcResult.trustedConfig,
+    trustedNetworkConfigs.configByUri ?? {},
+    env
+  )
   pnpmConfig.configByUri = { ...networkConfigs.configByUri }
 
   // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
@@ -721,6 +727,42 @@ function getProcessEnv (env: string): string | undefined {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
+}
+
+function createPackageManagerNetworkConfig (
+  trustedConfig: Record<string, unknown>,
+  configByUri: PackageManagerNetworkConfig['configByUri'],
+  env: Record<string, string | undefined>
+): PackageManagerNetworkConfig {
+  const httpsProxy = getProxyValue(
+    trustedConfig['https-proxy'] ?? trustedConfig.proxy,
+    getEnvValue(env, 'https_proxy')
+  )
+  const httpProxy = getProxyValue(
+    trustedConfig['http-proxy'],
+    httpsProxy ?? getEnvValue(env, 'http_proxy') ?? getEnvValue(env, 'proxy')
+  )
+  return {
+    ca: trustedConfig.ca as string | string[] | undefined,
+    cert: trustedConfig.cert as string | string[] | undefined,
+    configByUri,
+    httpProxy,
+    httpsProxy,
+    key: trustedConfig.key as string | undefined,
+    localAddress: trustedConfig['local-address'] as string | undefined,
+    noProxy: (trustedConfig['no-proxy'] ?? trustedConfig.noproxy ?? getEnvValue(env, 'no_proxy')) as string | boolean | undefined,
+    strictSsl: trustedConfig['strict-ssl'] as boolean | undefined,
+  }
+}
+
+function getEnvValue (env: Record<string, string | undefined>, key: string): string | undefined {
+  return env[key] ?? env[key.toUpperCase()] ?? env[key.toLowerCase()]
+}
+
+function getProxyValue (value: unknown, fallback: string | undefined): string | undefined {
+  if (value === false || value === null) return undefined
+  if (typeof value === 'string' && value.length > 0) return value
+  return fallback
 }
 
 // Look up a `pnpm_config_<key>` env var, accepting both lowercase and

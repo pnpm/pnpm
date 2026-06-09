@@ -825,6 +825,15 @@ test('package manager bootstrap registries ignore project workspace registries',
   fs.writeFileSync('user.npmrc', [
     'registry=https://trusted.example.com/',
     '@pnpm:registry=https://trusted-pnpm.example.com/',
+    'strict-ssl=true',
+    '//trusted.example.com/:_authToken=trusted-token',
+    '',
+  ].join('\n'), 'utf8')
+  fs.writeFileSync('.npmrc', [
+    'registry=https://project.example.com/',
+    'https-proxy=http://project-proxy.example.com:8080',
+    'strict-ssl=false',
+    '//project.example.com/:_authToken=project-token',
     '',
   ].join('\n'), 'utf8')
   writeYamlFileSync('pnpm-workspace.yaml', {
@@ -838,7 +847,12 @@ test('package manager bootstrap registries ignore project workspace registries',
     cliOptions: {
       userconfig: path.resolve('user.npmrc'),
     },
-    env: { ...env, XDG_CONFIG_HOME: path.resolve('xdg-config') },
+    env: {
+      ...env,
+      XDG_CONFIG_HOME: path.resolve('xdg-config'),
+      https_proxy: 'http://trusted-env-proxy.example.com:8080',
+      no_proxy: 'trusted-env-no-proxy.example.com',
+    },
     packageManager: { name: 'pnpm', version: '1.0.0' },
     workspaceDir: process.cwd(),
   })
@@ -851,6 +865,21 @@ test('package manager bootstrap registries ignore project workspace registries',
     '@pnpm': 'https://trusted-pnpm.example.com/',
     default: 'https://trusted.example.com/',
   })
+  expect(config.httpsProxy).toBe('http://project-proxy.example.com:8080')
+  expect(config.strictSsl).toBe(false)
+  expect(config.configByUri).toMatchObject({
+    '//project.example.com/': { creds: { authToken: 'project-token' } },
+  })
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    configByUri: {
+      '//trusted.example.com/': { creds: { authToken: 'trusted-token' } },
+    },
+    httpProxy: 'http://trusted-env-proxy.example.com:8080',
+    httpsProxy: 'http://trusted-env-proxy.example.com:8080',
+    noProxy: 'trusted-env-no-proxy.example.com',
+    strictSsl: true,
+  })
+  expect(config.packageManagerNetworkConfig?.configByUri['//project.example.com/']).toBeUndefined()
 })
 
 test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)', async () => {

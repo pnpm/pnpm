@@ -104,9 +104,30 @@ test('switchCliVersion uses trusted package-manager registries instead of projec
     '@pnpm': 'https://trusted-pnpm.example.com/',
     default: 'https://trusted.example.com/',
   }
+  const packageManagerNetworkConfig = {
+    configByUri: {
+      '//trusted.example.com/': {
+        creds: { authToken: 'trusted-token' },
+      },
+    },
+    httpProxy: 'http://trusted-http-proxy.example.com:8080',
+    httpsProxy: 'http://trusted-https-proxy.example.com:8080',
+    noProxy: 'trusted.internal',
+    strictSsl: true,
+  }
   const config = {
+    configByUri: {
+      '//project.example.com/': {
+        creds: { authToken: 'project-token' },
+      },
+    },
+    httpProxy: 'http://project-http-proxy.example.com:8080',
+    httpsProxy: 'http://project-https-proxy.example.com:8080',
+    noProxy: 'project.internal',
     packageManagerRegistries,
+    packageManagerNetworkConfig,
     registries: projectRegistries,
+    strictSsl: false,
     virtualStoreDirMaxLength: 120,
   } as unknown as Config
   const context = {
@@ -122,7 +143,12 @@ test('switchCliVersion uses trusted package-manager registries instead of projec
   await expect(switchCliVersion(config, context)).rejects.toThrow('exit 0')
 
   expect(createStoreController).toHaveBeenCalledWith(expect.objectContaining({
+    configByUri: packageManagerNetworkConfig.configByUri,
+    httpProxy: packageManagerNetworkConfig.httpProxy,
+    httpsProxy: packageManagerNetworkConfig.httpsProxy,
+    noProxy: packageManagerNetworkConfig.noProxy,
     registries: packageManagerRegistries,
+    strictSsl: packageManagerNetworkConfig.strictSsl,
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
   expect(installPnpmToStore).toHaveBeenCalledWith('9.3.0', expect.objectContaining({
@@ -145,7 +171,16 @@ test('switchCliVersion defaults package-manager registries to npmjs instead of p
     default: 'https://project.example.com/',
   }
   const config = {
+    configByUri: {
+      '//project.example.com/': {
+        creds: { authToken: 'project-token' },
+      },
+    },
+    httpProxy: 'http://project-http-proxy.example.com:8080',
+    httpsProxy: 'http://project-https-proxy.example.com:8080',
+    noProxy: 'project.internal',
     registries: projectRegistries,
+    strictSsl: false,
     virtualStoreDirMaxLength: 120,
   } as unknown as Config
   const context = {
@@ -161,7 +196,12 @@ test('switchCliVersion defaults package-manager registries to npmjs instead of p
   await expect(switchCliVersion(config, context)).rejects.toThrow('exit 0')
 
   expect(createStoreController).toHaveBeenCalledWith(expect.objectContaining({
+    configByUri: {},
+    httpProxy: undefined,
+    httpsProxy: undefined,
+    noProxy: undefined,
     registries: { default: 'https://registry.npmjs.org/' },
+    strictSsl: undefined,
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
   expect(installPnpmToStore).toHaveBeenCalledWith('9.3.0', expect.objectContaining({

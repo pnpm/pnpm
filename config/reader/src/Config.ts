@@ -18,6 +18,18 @@ export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'authConfig'>
 
 export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
 
+export interface PackageManagerNetworkConfig {
+  ca?: string | string[]
+  cert?: string | string[]
+  configByUri: Record<string, RegistryConfig>
+  httpProxy?: string
+  httpsProxy?: string
+  key?: string
+  localAddress?: string
+  noProxy?: string | boolean
+  strictSsl?: boolean
+}
+
 /**
  * Runtime state, workspace context, and CLI metadata.
  * These fields are NOT user-facing settings — they are computed at startup
@@ -227,6 +239,7 @@ export interface Config extends OptionsFromRootManifest {
 
   registries: Registries
   packageManagerRegistries?: Registries
+  packageManagerNetworkConfig?: PackageManagerNetworkConfig
   namedRegistries?: Record<string, string>
   configByUri: Record<string, RegistryConfig>
   ignoreWorkspaceRootCheck: boolean

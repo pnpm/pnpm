@@ -145,16 +145,42 @@ test('uses trusted package-manager registries instead of project registries', as
     '@pnpm': 'https://trusted-pnpm.example.com/',
     default: 'https://trusted.example.com/',
   }
+  const packageManagerNetworkConfig = {
+    configByUri: {
+      '//trusted.example.com/': {
+        creds: { authToken: 'trusted-token' },
+      },
+    },
+    httpProxy: 'http://trusted-http-proxy.example.com:8080',
+    httpsProxy: 'http://trusted-https-proxy.example.com:8080',
+    noProxy: 'trusted.internal',
+    strictSsl: true,
+  }
 
   await syncEnvLockfile({
+    configByUri: {
+      '//project.example.com/': {
+        creds: { authToken: 'project-token' },
+      },
+    },
+    httpProxy: 'http://project-http-proxy.example.com:8080',
+    httpsProxy: 'http://project-https-proxy.example.com:8080',
+    noProxy: 'project.internal',
     packageManagerRegistries,
+    packageManagerNetworkConfig,
     registries: projectRegistries,
+    strictSsl: false,
   } as unknown as Config, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
   }))
 
   expect(createStoreController).toHaveBeenCalledWith(expect.objectContaining({
+    configByUri: packageManagerNetworkConfig.configByUri,
+    httpProxy: packageManagerNetworkConfig.httpProxy,
+    httpsProxy: packageManagerNetworkConfig.httpsProxy,
+    noProxy: packageManagerNetworkConfig.noProxy,
     registries: packageManagerRegistries,
+    strictSsl: packageManagerNetworkConfig.strictSsl,
   }))
   expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
     registries: packageManagerRegistries,
@@ -172,13 +198,27 @@ test('defaults package-manager registries to npmjs instead of project registries
   }
 
   await syncEnvLockfile({
+    configByUri: {
+      '//project.example.com/': {
+        creds: { authToken: 'project-token' },
+      },
+    },
+    httpProxy: 'http://project-http-proxy.example.com:8080',
+    httpsProxy: 'http://project-https-proxy.example.com:8080',
+    noProxy: 'project.internal',
     registries: projectRegistries,
+    strictSsl: false,
   } as unknown as Config, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
   }))
 
   expect(createStoreController).toHaveBeenCalledWith(expect.objectContaining({
+    configByUri: {},
+    httpProxy: undefined,
+    httpsProxy: undefined,
+    noProxy: undefined,
     registries: { default: 'https://registry.npmjs.org/' },
+    strictSsl: undefined,
   }))
   expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
     registries: { default: 'https://registry.npmjs.org/' },

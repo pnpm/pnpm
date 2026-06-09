@@ -14,7 +14,7 @@ import semver from 'semver'
 
 import { exit } from './exit.js'
 import { assertPackageManagerLockfileUsesRegistryResolutions } from './packageManagerLockfile.js'
-import { getPackageManagerRegistries } from './packageManagerRegistries.js'
+import { getPackageManagerBootstrapConfig } from './packageManagerRegistries.js'
 
 export async function switchCliVersion (config: Config, context: ConfigContext): Promise<void> {
   const pm = context.wantedPackageManager
@@ -32,16 +32,16 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     ? (await readEnvLockfile(context.rootProjectManifestDir) ?? undefined)
     : undefined
   let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
-  const packageManagerRegistries = getPackageManagerRegistries(config)
+  const packageManagerConfig = getPackageManagerBootstrapConfig(config)
 
   // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
   let pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
   if (!pmVersion || !semver.satisfies(pmVersion, pm.version, { includePrerelease: true })) {
     // Resolve to an exact version from the registry.
-    storeToUse = await createStoreController({ ...config, ...context, registries: packageManagerRegistries })
+    storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig })
     envLockfile = await resolvePackageManagerIntegrities(pm.version, {
       envLockfile,
-      registries: packageManagerRegistries,
+      registries: packageManagerConfig.registries,
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
@@ -54,10 +54,10 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       return
     }
   } else if (!isPackageManagerResolved(envLockfile, pmVersion)) {
-    storeToUse = await createStoreController({ ...config, ...context, registries: packageManagerRegistries })
+    storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig })
     envLockfile = await resolvePackageManagerIntegrities(pmVersion, {
       envLockfile,
-      registries: packageManagerRegistries,
+      registries: packageManagerConfig.registries,
       rootDir: context.rootProjectManifestDir,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
@@ -87,7 +87,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   // We need a store controller to install pnpm. If it wasn't created during
   // integrity resolution (because integrities were already cached), create it now.
   if (!storeToUse) {
-    storeToUse = await createStoreController({ ...config, ...context, registries: packageManagerRegistries })
+    storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig })
   }
 
   let wantedPnpmBinDir: string
@@ -96,7 +96,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       envLockfile,
       storeController: storeToUse.ctrl,
       storeDir: storeToUse.dir,
-      registries: packageManagerRegistries,
+      registries: packageManagerConfig.registries,
       virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
       packageManager: { name: packageManager.name, version: packageManager.version },
       // Network settings so the engine identity check can reach the canonical
