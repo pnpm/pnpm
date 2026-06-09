@@ -200,6 +200,7 @@ async function buildDependency<T extends string> (
     hoistedLocations?: Record<string, string[]>
     builtHoistedDeps?: Record<string, DeferredPromise<void>>
     enableGlobalVirtualStore?: boolean
+    frozenStore?: boolean
     /** Resolved `engines.runtime` Node version — see [`buildModules`]. */
     nodeVersion?: string
     warn: (message: string) => void
@@ -246,7 +247,11 @@ async function buildDependency<T extends string> (
     if (opts.enableGlobalVirtualStore) {
       await fs.unlink(path.join(depNode.dir, '.pnpm-needs-build')).catch(() => {})
     }
-    if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite) {
+    // frozenStore opens the store read-only, so the side-effects cache (which
+    // lives in the store) cannot be written. extendInstallOptions already forces
+    // sideEffectsCacheWrite off under frozenStore; this guards callers that
+    // bypass it.
+    if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite && !opts.frozenStore) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
           patchFileHash: depNode.patch?.hash,
