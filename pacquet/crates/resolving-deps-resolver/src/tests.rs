@@ -3284,4 +3284,35 @@ mod propagate_tpd_unit {
             gp_node.transitive_peer_dependencies,
         );
     }
+
+    #[test]
+    fn does_not_propagate_tpd_that_parent_has_as_direct_child() {
+        let child_dp = DepPath::from("child@1.0.0".to_string());
+        let parent_dp = DepPath::from("parent@1.0.0".to_string());
+        let react_dp = DepPath::from("react@18.0.0".to_string());
+
+        let child = make_node(
+            "child@1.0.0",
+            BTreeMap::new(),
+            HashSet::from(["react".to_string()]),
+            BTreeMap::new(),
+        );
+        let mut parent_children = BTreeMap::new();
+        parent_children.insert("child".to_string(), child_dp.clone());
+        parent_children.insert("react".to_string(), react_dp);
+        let parent = make_node("parent@1.0.0", parent_children, HashSet::new(), BTreeMap::new());
+
+        let mut graph: DependenciesGraph = HashMap::new();
+        graph.insert(child_dp, child);
+        graph.insert(parent_dp.clone(), parent);
+
+        propagate_transitive_peer_dependencies(&mut graph);
+
+        let parent_node = graph.get(&parent_dp).expect("parent in graph");
+        assert!(
+            !parent_node.transitive_peer_dependencies.contains("react"),
+            "parent has 'react' as a direct child, should not appear in tpd, got {:?}",
+            parent_node.transitive_peer_dependencies,
+        );
+    }
 }

@@ -182,48 +182,6 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
 
   const depGraphWithResolvedChildren = resolveChildren(depGraph)
 
-  const parentsOf: Record<string, Set<DepPath>> = {}
-  for (const [parentPath, entry] of Object.entries(depGraphWithResolvedChildren)) {
-    for (const childPath of Object.values<DepPath>(entry.children)) {
-      if (!parentsOf[childPath]) {
-        parentsOf[childPath] = new Set()
-      }
-      parentsOf[childPath].add(parentPath as DepPath)
-    }
-  }
-
-  const worklist = new Set<DepPath>()
-  for (const [path, entry] of Object.entries(depGraphWithResolvedChildren)) {
-    if (entry.transitivePeerDependencies.size > 0) {
-      worklist.add(path as DepPath)
-    }
-  }
-
-  while (worklist.size > 0) {
-    const childPath = worklist.values().next().value!
-    worklist.delete(childPath)
-    const childEntry = depGraphWithResolvedChildren[childPath]
-    if (!childEntry?.transitivePeerDependencies.size) continue
-
-    const parents = parentsOf[childPath]
-    if (!parents) continue
-
-    for (const parentPath of parents) {
-      const parentEntry = depGraphWithResolvedChildren[parentPath]
-      if (!parentEntry) continue
-      let gained = false
-      for (const tpd of childEntry.transitivePeerDependencies) {
-        if (!parentEntry.transitivePeerDependencies.has(tpd) && !parentEntry.peerDependencies?.[tpd]) {
-          parentEntry.transitivePeerDependencies.add(tpd)
-          gained = true
-        }
-      }
-      if (gained) {
-        worklist.add(parentPath)
-      }
-    }
-  }
-
   function resolveChildren<T extends PartialResolvedPackage> (depGraph: GenericDependenciesGraph<T>): GenericDependenciesGraphWithResolvedChildren<T> {
     for (const node of Object.values(depGraph)) {
       node.children = {}
@@ -259,6 +217,48 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     for (const { id } of opts.projects) {
       for (const [alias, depPath] of dependenciesByProjectId[id].entries()) {
         dependenciesByProjectId[id].set(alias, allDepPathsMap[depPath] ?? depPath)
+      }
+    }
+  }
+
+  const parentsOf: Record<string, Set<DepPath>> = {}
+  for (const [parentPath, entry] of Object.entries(depGraphWithResolvedChildren)) {
+    for (const childPath of Object.values<DepPath>(entry.children)) {
+      if (!parentsOf[childPath]) {
+        parentsOf[childPath] = new Set()
+      }
+      parentsOf[childPath].add(parentPath as DepPath)
+    }
+  }
+
+  const worklist = new Set<DepPath>()
+  for (const [path, entry] of Object.entries(depGraphWithResolvedChildren)) {
+    if (entry.transitivePeerDependencies.size > 0) {
+      worklist.add(path as DepPath)
+    }
+  }
+
+  while (worklist.size > 0) {
+    const childPath = worklist.values().next().value!
+    worklist.delete(childPath)
+    const childEntry = depGraphWithResolvedChildren[childPath]
+    if (!childEntry?.transitivePeerDependencies.size) continue
+
+    const parents = parentsOf[childPath]
+    if (!parents) continue
+
+    for (const parentPath of parents) {
+      const parentEntry = depGraphWithResolvedChildren[parentPath]
+      if (!parentEntry) continue
+      let gained = false
+      for (const tpd of childEntry.transitivePeerDependencies) {
+        if (!parentEntry.transitivePeerDependencies.has(tpd) && !parentEntry.peerDependencies?.[tpd] && !parentEntry.children?.[tpd]) {
+          parentEntry.transitivePeerDependencies.add(tpd)
+          gained = true
+        }
+      }
+      if (gained) {
+        worklist.add(parentPath)
       }
     }
   }

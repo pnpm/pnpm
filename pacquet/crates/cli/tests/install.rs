@@ -1117,7 +1117,6 @@ fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
 /// both. This is a pacquet lockfile-reuse bug exposed by correct TPD,
 /// not a bug in the propagation itself. The fix belongs in the reuse
 /// path, not in the propagation.
-#[ignore = "pacquet lockfile-reuse collapses distinct peer contexts when TPD is present (pnpm/pnpm#12286)"]
 #[test]
 fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
     // The binary is re-spawned per install via `new_pacquet_command`, so the

@@ -392,7 +392,6 @@ pub fn resolve_peers_workspace(
         direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
     }
     let mut graph = walker.build_final_graph(&final_dep_paths);
-    propagate_transitive_peer_dependencies(&mut graph);
 
     if dedupe_injected_deps_enabled {
         dedupe_injected_deps(
@@ -403,12 +402,11 @@ pub fn resolve_peers_workspace(
         );
     }
 
-    // Runs after the injected-deps dedupe (matching upstream's ordering)
-    // so a `file:`→`link:` rewrite is already reflected in the graph
-    // before peer-dependent variants collapse.
     if dedupe_peer_dependents_enabled {
         dedupe_peer_dependents(&mut graph, &mut direct_dependencies_by_importer);
     }
+
+    propagate_transitive_peer_dependencies(&mut graph);
 
     WorkspaceResolvePeersResult {
         graph,
@@ -487,6 +485,7 @@ pub(crate) fn propagate_transitive_peer_dependencies(graph: &mut DependenciesGra
                         .filter(|tpd| {
                             !parent.transitive_peer_dependencies.contains(*tpd)
                                 && !parent.peer_dependencies.contains_key(*tpd)
+                                && !parent.children.contains_key(*tpd)
                         })
                         .cloned()
                         .collect();
