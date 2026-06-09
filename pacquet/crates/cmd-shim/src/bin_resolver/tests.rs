@@ -362,6 +362,28 @@ fn empty_bin_key_is_rejected() {
     assert_eq!(commands[0].name, "good");
 }
 
+/// The relative names `.` and `..` survive the URL-safe guard's character
+/// set (`.` is unescaped by `encodeURIComponent`) but resolve to the bin
+/// directory itself or its parent when joined to a target dir, so
+/// `is_safe_bin_name` must reject them. Scoped forms like `@scope/..`
+/// collapse to `..` after the scope strip and must be rejected too.
+#[test]
+fn reserved_relative_bin_names_are_rejected() {
+    let manifest = json!({
+        "name": "malicious",
+        "version": "1.0.0",
+        "bin": {
+            ".": "dot.js",
+            "..": "dotdot.js",
+            "@scope/..": "scoped-dotdot.js",
+            "good": "good.js",
+        },
+    });
+    let commands = get_bins_from_package_manifest::<Host>(&manifest, Path::new("/p"));
+    assert_eq!(commands.len(), 1);
+    assert_eq!(commands[0].name, "good");
+}
+
 /// [`lexical_normalize`] drops `.` (CurDir) segments. This is a direct
 /// test on the helper. The integration-style test below covers the same
 /// arm via `directories.bin`, but a direct assertion makes the CurDir
