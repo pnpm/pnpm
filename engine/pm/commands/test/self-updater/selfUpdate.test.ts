@@ -26,20 +26,13 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
 })
 const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext } = await import('@pnpm/engine.pm.commands')
 
-const originalSigningKeys = process.env.PNPM_NPM_SIGNING_KEYS
-
 beforeEach(async () => {
   await setupMockAgent()
   getMockAgent().enableNetConnect()
-  // The fixture pnpm installed here is not signed with npm's real keys, so
-  // disable the engine identity signature check for these tests.
-  process.env.PNPM_NPM_SIGNING_KEYS = '0'
 })
 
 afterEach(async () => {
   await teardownMockAgent()
-  if (originalSigningKeys == null) delete process.env.PNPM_NPM_SIGNING_KEYS
-  else process.env.PNPM_NPM_SIGNING_KEYS = originalSigningKeys
 })
 
 function prepare (manifest: object = {}) {
@@ -73,6 +66,9 @@ function prepareOptions (dir: string) {
     cacheDir: path.join(dir, '.cache'),
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     dir,
+    // The fixture pnpm installed here is not signed with npm's real keys, so
+    // skip the engine identity signature check (empty trusted-keys = skip).
+    trustedKeys: [],
   }
 }
 

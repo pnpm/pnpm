@@ -42,6 +42,8 @@ export interface InstallPnpmOptions extends GlobalAddOptions {
   storeController?: StoreController
   storeDir?: string
   packageManager?: { name: string, version: string }
+  /** See {@link VerifyPnpmEngineIdentityOptions.trustedKeys} — a test seam. */
+  trustedKeys?: VerifyPnpmEngineIdentityOptions['trustedKeys']
 }
 
 /**

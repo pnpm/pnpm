@@ -4,6 +4,7 @@ import {
   type InstalledPackageToVerify,
   verifyInstalledPackageSignatures,
 } from '@pnpm/deps.security.signatures'
+import { PnpmError } from '@pnpm/error'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
@@ -35,21 +36,22 @@ export interface VerifyPacquetIdentityOptions extends CreateFetchFromRegistryOpt
  * fail — and because the keys are embedded rather than fetched, a repository
  * pointing the registry at a server it controls cannot supply its own key pair.
  *
- * Returns `false` (and logs why) when identity cannot be confirmed; the caller
- * then falls back to pnpm's own install engine instead of spawning pacquet.
+ * Fails closed: if a declared pacquet's signature does not verify, or it cannot
+ * be verified (e.g. the registry is unreachable), this throws rather than
+ * silently running pnpm's own engine — a verification failure should be loud.
+ * The one exception is when pacquet simply has no binary for this platform: that
+ * is unavailability, not tampering, so it returns `false` and the caller uses
+ * pnpm's own install engine.
  */
 export async function verifyPacquetIdentity (
   packageName: 'pacquet' | '@pnpm/pacquet',
   opts: VerifyPacquetIdentityOptions
 ): Promise<boolean> {
   const trustedKeys = getNpmSigningKeys()
-  // Signature verification disabled by the machine's configuration — trust the
-  // declaration and delegate.
-  if (trustedKeys == null) return true
-
   const toVerify = await collectPacquetPackagesToVerify(packageName, opts.rootDir, opts.registries)
   if (toVerify == null) {
-    return skip(packageName, opts.lockfileDir, 'its entry is missing from the lockfile')
+    // pacquet has no installed binary for this platform — use pnpm's own engine.
+    return skip(opts.lockfileDir)
   }
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
@@ -57,12 +59,20 @@ export async function verifyPacquetIdentity (
   try {
     result = await verifyInstalledPackageSignatures(toVerify, trustedKeys, getAuthHeader, opts)
   } catch (err: unknown) {
-    return skip(packageName, opts.lockfileDir, `verification could not be completed (${String(err)})`)
+    throw new PnpmError(
+      'PACQUET_IDENTITY_UNVERIFIABLE',
+      `Refusing to use pacquet as the install engine: its npm registry signature could not be verified (${String(err)}).`,
+      { hint: 'The registry must be reachable to verify the pacquet release declared in configDependencies. Remove pacquet from configDependencies to use pnpm\'s own install engine.' }
+    )
   }
 
   if (!result.verified) {
     const detail = result.failures.map(({ name, version, reason }) => `${name}@${version}: ${reason}`).join('; ')
-    return skip(packageName, opts.lockfileDir, `its registry signature could not be verified (${detail})`)
+    throw new PnpmError(
+      'PACQUET_IDENTITY_MISMATCH',
+      `Refusing to use pacquet as the install engine: the bytes installed for "${packageName}" do not match a published, signed release (${detail}).`,
+      { hint: 'This can indicate a tampered lockfile or a malicious registry. Remove pacquet from configDependencies if this is unexpected.' }
+    )
   }
   return true
 }
@@ -101,11 +111,9 @@ function registryIntegrity (resolution: unknown): string | undefined {
   return typeof integrity === 'string' && integrity ? integrity : undefined
 }
 
-function skip (packageName: string, prefix: string, reason: string): false {
+function skip (prefix: string): false {
   logger.warn({
-    message: `Not using pacquet as the install engine: ${reason}. ` +
-      `Declaring "${packageName}" in configDependencies only opts in to a registry-signature-verified pacquet release; ` +
-      "falling back to pnpm's default install engine.",
+    message: "Not using pacquet as the install engine: no pacquet binary is installed for this platform. Using pnpm's own install engine.",
     prefix,
   })
   return false

@@ -359,27 +359,14 @@ export type { RegistryKey }
 
 /**
  * The trusted npm signing keys used to verify package-manager binaries before
- * pnpm spawns them. Defaults to the embedded {@link NPM_SIGNING_KEYS}.
- *
- * The `PNPM_NPM_SIGNING_KEYS` environment variable overrides this (e.g. to add a
- * key before a pnpm release ships it, or in tests): set it to a JSON document
- * of the same shape as the registry keys endpoint (`{"keys":[...]}`) or a bare
- * array, or to `0` to disable signature verification entirely. It is read from
- * the process environment, not project config, so a cloned repository cannot
- * change which keys pnpm trusts.
- *
- * Returns `null` when verification is disabled.
+ * pnpm spawns them — npm's public keys embedded in the CLI. There is
+ * deliberately no way to override or disable them at runtime: a verification
+ * off-switch would be a footgun, and npm mirrors work without one (they proxy
+ * the same signed packument, which is verified against these keys). The keys
+ * are refreshed at release time by the update-npm-signing-keys script.
  */
-export function getNpmSigningKeys (): RegistryKey[] | null {
-  const override = process.env.PNPM_NPM_SIGNING_KEYS
-  if (override == null) return NPM_SIGNING_KEYS.map((k) => ({ ...k }))
-  if (override === '0' || override.trim() === '') return null
-  const parsed: unknown = JSON.parse(override)
-  const keys = Array.isArray(parsed) ? parsed : (parsed as { keys?: unknown }).keys
-  if (!Array.isArray(keys)) {
-    throw new PnpmError('INVALID_NPM_SIGNING_KEYS', 'PNPM_NPM_SIGNING_KEYS must be a JSON array of keys or {"keys":[...]}')
-  }
-  return keys as RegistryKey[]
+export function getNpmSigningKeys (): RegistryKey[] {
+  return NPM_SIGNING_KEYS.map((k) => ({ ...k }))
 }
 
 export interface InstalledPackageToVerify {

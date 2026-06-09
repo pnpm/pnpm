@@ -205,9 +205,6 @@ function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault
     pnpm_config_fetch_retries: fallback('fetchRetries', '4'),
     pnpm_config_hoist: fallback('hoist', 'true'),
     pnpm_config_minimum_release_age: '0',
-    // The fixture pnpm/pacquet installed in tests is not signed with npm's real
-    // keys, so disable the engine/pacquet identity signature check.
-    PNPM_NPM_SIGNING_KEYS: '0',
     pnpm_config_registry: fallback('registry', `http://localhost:${REGISTRY_MOCK_PORT}/`),
     pnpm_config_silent: 'true',
     pnpm_config_store_dir: opts?.storeDir ?? fallback('storeDir', '../store'),

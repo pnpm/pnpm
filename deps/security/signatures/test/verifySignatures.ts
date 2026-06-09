@@ -306,31 +306,10 @@ function toRegistryKey (key: ReturnType<typeof createSigningKey>) {
 }
 
 describe('getNpmSigningKeys', () => {
-  const original = process.env.PNPM_NPM_SIGNING_KEYS
-  afterEach(() => {
-    if (original == null) delete process.env.PNPM_NPM_SIGNING_KEYS
-    else process.env.PNPM_NPM_SIGNING_KEYS = original
-  })
-
-  test('returns the embedded npm keys by default', () => {
-    delete process.env.PNPM_NPM_SIGNING_KEYS
+  test('returns npm\'s embedded public signing keys', () => {
     const keys = getNpmSigningKeys()
-    expect(keys?.some((k) => k.keyid === 'SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U')).toBe(true)
-  })
-
-  test('returns null (verification disabled) when set to "0"', () => {
-    process.env.PNPM_NPM_SIGNING_KEYS = '0'
-    expect(getNpmSigningKeys()).toBeNull()
-  })
-
-  test('honors an override given as {"keys":[...]}', () => {
-    process.env.PNPM_NPM_SIGNING_KEYS = JSON.stringify({ keys: [{ expires: null, keyid: 'SHA256:custom', keytype: 'ecdsa-sha2-nistp256', scheme: 'ecdsa-sha2-nistp256', key: 'x' }] })
-    expect(getNpmSigningKeys()).toEqual([{ expires: null, keyid: 'SHA256:custom', keytype: 'ecdsa-sha2-nistp256', scheme: 'ecdsa-sha2-nistp256', key: 'x' }])
-  })
-
-  test('throws on malformed override', () => {
-    process.env.PNPM_NPM_SIGNING_KEYS = 'not json'
-    expect(() => getNpmSigningKeys()).toThrow()
+    expect(keys.some((k) => k.keyid === 'SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U')).toBe(true)
+    expect(keys.every((k) => k.keytype === 'ecdsa-sha2-nistp256')).toBe(true)
   })
 })
 

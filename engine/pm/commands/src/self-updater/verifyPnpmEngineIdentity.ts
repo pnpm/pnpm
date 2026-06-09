@@ -2,13 +2,13 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import {
   getNpmSigningKeys,
   type InstalledPackageToVerify,
+  type RegistryKey,
   type SignatureFailureCategory,
   verifyInstalledPackageSignatures,
   type VerifySignaturesOptions,
 } from '@pnpm/deps.security.signatures'
 import { PnpmError } from '@pnpm/error'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
-import { globalWarn } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 import { familySync } from 'detect-libc'
@@ -18,6 +18,13 @@ import { exePlatformPkgDirName, exePlatformPkgDirNameNext } from './installPnpm.
 export type VerifyPnpmEngineIdentityOptions = VerifySignaturesOptions & {
   registries: Registries
   configByUri?: Record<string, RegistryConfig>
+  /**
+   * The npm signing keys to trust. Defaults to {@link getNpmSigningKeys} (npm's
+   * embedded public keys). A test seam only — passing an empty array skips
+   * verification. Not reachable from project config, so it cannot be used to
+   * weaken verification for a real install.
+   */
+  trustedKeys?: RegistryKey[]
 }
 
 /**
@@ -46,8 +53,8 @@ export async function verifyPnpmEngineIdentity (
   pnpmVersion: string,
   opts: VerifyPnpmEngineIdentityOptions
 ): Promise<void> {
-  const trustedKeys = getNpmSigningKeys()
-  if (trustedKeys == null) return // signature verification disabled by configuration
+  const trustedKeys = opts.trustedKeys ?? getNpmSigningKeys()
+  if (trustedKeys.length === 0) return // test seam: no trusted keys means skip
 
   const toVerify = collectEnginePackagesToVerify(envLockfile, opts.registries)
   if (toVerify.length === 0) {
@@ -62,30 +69,23 @@ export async function verifyPnpmEngineIdentity (
   try {
     result = await verifyInstalledPackageSignatures(toVerify, trustedKeys, getAuthHeader, opts)
   } catch (err: unknown) {
-    // A failure to even reach the registry is not evidence of tampering.
-    globalWarn(
-      `Could not verify the registry signature of pnpm@${pnpmVersion} (${String(err)}). ` +
-      'Proceeding based on the lockfile integrity only.'
+    // Fail closed: we will not run a downloaded pnpm we could not verify, even
+    // when the failure is "could not reach the registry". The lockfile integrity
+    // is project-controlled, so it is not a safe fallback.
+    throw new PnpmError(
+      'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
+      `Refusing to run pnpm@${pnpmVersion}: its npm registry signature could not be verified (${String(err)}).`,
+      { hint: 'The registry signing keys / packument must be reachable to verify the pnpm release. Set `pmOnFail` to `ignore` to skip the version switch.' }
     )
-    return
   }
   if (result.verified) return
 
-  const tampered = result.failures.filter((f) => f.category !== 'unreachable')
-  if (tampered.length > 0) {
-    throw new PnpmError(
-      'PNPM_ENGINE_IDENTITY_MISMATCH',
-      `Refusing to run pnpm@${pnpmVersion}: its npm registry signature could not be verified ` +
-      `(${describe(tampered)}). The bytes selected by this project's lockfile/registry do not match the published pnpm release.`,
-      { hint: 'This can indicate a tampered lockfile or a malicious registry. Remove the `packageManager` pin or set `pmOnFail` to `ignore` if this is unexpected.' }
-    )
-  }
-
-  // Only `unreachable` failures remain: don't block legitimate offline setups,
-  // but make the skipped check visible.
-  globalWarn(
-    `Could not verify the registry signature of pnpm@${pnpmVersion} (${describe(result.failures)}). ` +
-    'Proceeding based on the lockfile integrity only.'
+  const onlyUnreachable = result.failures.every((f) => f.category === 'unreachable')
+  throw new PnpmError(
+    onlyUnreachable ? 'PNPM_ENGINE_IDENTITY_UNVERIFIABLE' : 'PNPM_ENGINE_IDENTITY_MISMATCH',
+    `Refusing to run pnpm@${pnpmVersion}: its npm registry signature could not be verified ` +
+    `(${describe(result.failures)}). The bytes selected by this project's lockfile/registry do not match a published, signed pnpm release.`,
+    { hint: 'This can indicate a tampered lockfile or a malicious/unreachable registry. Set `pmOnFail` to `ignore` to skip the version switch if this is unexpected.' }
   )
 }
 
