@@ -281,6 +281,11 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
     if (existsSync(exePath)) {
+      const exeStat = await fs.stat(exePath).catch(() => null)
+      const targetStat = await fs.stat(cmd.path).catch(() => null)
+      if (exeStat?.ino && targetStat?.ino && exeStat.ino === targetStat.ino && exeStat.dev === targetStat.dev) {
+        return
+      }
       globalWarn(`The target bin directory already contains an exe called ${cmd.name}, so removing ${exePath}`)
       await rimraf(exePath)
     }

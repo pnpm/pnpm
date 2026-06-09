@@ -733,6 +733,36 @@ describe('node binary linking', () => {
     // No cmd-shim should be created since we return early
     expect(fs.existsSync(path.join(binTarget, `node${CMD_EXTENSION}`))).toBe(false)
   })
+
+  testOnWindows('linkBinsOfPackages() does not warn when node.exe is already the correct hardlink', async () => {
+    const binTarget = temporaryDirectory()
+    const nodeDir = temporaryDirectory()
+
+    fs.writeFileSync(path.join(nodeDir, 'node.exe'), 'fake-node-binary', 'utf8')
+
+    const pkgs = [
+      {
+        location: nodeDir,
+        manifest: {
+          name: 'node',
+          version: '20.0.0',
+          bin: { node: 'node.exe' },
+        },
+      },
+    ]
+
+    // First call creates the hardlink
+    await linkBinsOfPackages(pkgs, binTarget)
+    jest.mocked(globalWarn).mockClear()
+
+    // Second call should not warn because the .exe is already the correct hardlink
+    await linkBinsOfPackages(pkgs, binTarget)
+
+    expect(globalWarn).not.toHaveBeenCalled()
+    const exePath = path.join(binTarget, 'node.exe')
+    expect(fs.existsSync(exePath)).toBe(true)
+    expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
+  })
 })
 
 test('linkBins() resolves conflicts using BIN_OWNER_OVERRIDES (npx owned by npm)', async () => {
