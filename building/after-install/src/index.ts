@@ -94,7 +94,7 @@ function matches (
       return manifest.name === searchedPkg
     }
     if ('depPath' in searchedPkg) {
-      return dp.removePeersSuffix(searchedPkg.depPath) === dp.getPkgIdWithPatchHash(depPath)
+      return dp.removePeersSuffix(searchedPkg.depPath) === dp.removePeersSuffix(depPath)
     }
     return searchedPkg.name === manifest.name && !!manifest.version &&
       semver.satisfies(manifest.version, searchedPkg.range)
@@ -180,7 +180,7 @@ export async function buildSelectedPkgs (
 
 function matchesDepPath (packages: PackageSnapshots, pkgSpec: string): boolean {
   const normalizedPkgSpec = dp.removePeersSuffix(pkgSpec)
-  return (Object.keys(packages) as DepPath[]).some((depPath) => dp.getPkgIdWithPatchHash(depPath) === normalizedPkgSpec)
+  return Object.keys(packages).some((depPath) => dp.removePeersSuffix(depPath) === normalizedPkgSpec)
 }
 
 export async function buildProjects (
