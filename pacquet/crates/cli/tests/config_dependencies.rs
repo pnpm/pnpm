@@ -2,10 +2,9 @@ pub mod _utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fs::is_symlink_or_junction,
-};
+use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+#[cfg(unix)]
+use pacquet_testing_utils::fs::is_symlink_or_junction;
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -96,6 +95,13 @@ fn update_config_hook_mutates_config_before_install() {
 
     let dep = workspace.join("node_modules/@pnpm.e2e/foo");
     assert!(dep.join("package.json").exists(), "dependency is installed");
+    // On Unix, hoisted linking materializes the dep as a real directory
+    // (isolated would symlink it), which proves the hook flipped
+    // `nodeLinker`. Windows top-level deps are junctions under both
+    // linkers — see `hoisted_node_linker.rs`'s `#![cfg(unix)]` gate — so
+    // the cross-platform proof that `updateConfig` ran lives in
+    // `update_config_hook_injects_catalog`.
+    #[cfg(unix)]
     assert!(
         !is_symlink_or_junction(&dep).unwrap(),
         "updateConfig forced nodeLinker: hoisted, so the dep is a real directory, not a symlink",
