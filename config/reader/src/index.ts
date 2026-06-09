@@ -311,7 +311,7 @@ export async function getConfig (opts: {
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
-      expandRegistryEnv: true,
+      expandRequestDestinationEnv: true,
       projectManifest: undefined,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
@@ -878,18 +878,18 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
-  expandRegistryEnv,
+  expandRequestDestinationEnv,
   projectManifest,
   workspaceManifest,
   workspaceDir,
 }: {
   configFromCliOpts: Record<string, unknown>
-  expandRegistryEnv?: boolean
+  expandRequestDestinationEnv?: boolean
   projectManifest: ProjectManifest | undefined
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
-  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRegistryEnv }), configFromCliOpts)
+  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
 

@@ -360,7 +360,7 @@ pub fn global_config_npmrc_auth_file_expands_env() {
 }
 
 #[test]
-pub fn global_config_yaml_registry_values_expand_env() {
+pub fn global_config_yaml_request_destination_values_expand_env() {
     let xdg = tempdir().expect("xdg tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
@@ -368,6 +368,7 @@ pub fn global_config_yaml_registry_values_expand_env() {
         config_dir.join("config.yaml"),
         r#"
 registry: https://${REGISTRY_HOST}/npm/
+pnprServer: https://${REGISTRY_HOST}/pnpr/
 namedRegistries:
   work: https://${REGISTRY_HOST}/work/
 "#,
@@ -382,6 +383,7 @@ namedRegistries:
     let config = load_with_fake_env(project.path());
 
     assert_eq!(config.registry, "https://trusted.example.com/npm/");
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://trusted.example.com/pnpr/"));
     assert_eq!(
         config.named_registries.get("work").map(String::as_str),
         Some("https://trusted.example.com/work/"),
@@ -389,14 +391,16 @@ namedRegistries:
 }
 
 #[test]
-pub fn pnpm_config_registry_expands_env() {
+pub fn pnpm_config_request_destinations_expand_env() {
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[
+        ("PNPM_CONFIG_PNPR_SERVER", "https://${REGISTRY_HOST}/pnpr/"),
         ("PNPM_CONFIG_REGISTRY", "https://${REGISTRY_HOST}/npm/"),
         ("REGISTRY_HOST", "env.example.com"),
     ]);
     let config = load_with_fake_env(project.path());
 
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://env.example.com/pnpr/"));
     assert_eq!(config.registry, "https://env.example.com/npm/");
 }
 

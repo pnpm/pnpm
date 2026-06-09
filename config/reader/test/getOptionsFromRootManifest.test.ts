@@ -48,9 +48,18 @@ test('getOptionsFromPnpmSettings() ignores env variables inside registry setting
   expect(options.registry).toBeUndefined()
 })
 
-test('getOptionsFromPnpmSettings() may expand env variables inside trusted registry settings', () => {
+test('getOptionsFromPnpmSettings() ignores env variables inside pnprServer setting', () => {
   process.env.PNPM_TEST_HOST = 'registry.example.com'
   const options = getOptionsFromPnpmSettings(process.cwd(), {
+    pnprServer: 'https://${PNPM_TEST_HOST}/pnpr/',
+  } as any) as any // eslint-disable-line
+  expect(options.pnprServer).toBeUndefined()
+})
+
+test('getOptionsFromPnpmSettings() may expand env variables inside trusted request destinations', () => {
+  process.env.PNPM_TEST_HOST = 'registry.example.com'
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    pnprServer: 'https://${PNPM_TEST_HOST}/pnpr/',
     registry: 'https://${PNPM_TEST_HOST}/npm/',
     registries: {
       '@scope': 'https://${PNPM_TEST_HOST}/scope/',
@@ -58,7 +67,8 @@ test('getOptionsFromPnpmSettings() may expand env variables inside trusted regis
     namedRegistries: {
       work: 'https://${PNPM_TEST_HOST}/work/',
     },
-  } as any, { expandRegistryEnv: true }) as any // eslint-disable-line
+  } as any, { expandRequestDestinationEnv: true }) as any // eslint-disable-line
+  expect(options.pnprServer).toBe('https://registry.example.com/pnpr/')
   expect(options.registry).toBe('https://registry.example.com/npm/')
   expect(options.registries).toStrictEqual({
     '@scope': 'https://registry.example.com/scope/',

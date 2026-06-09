@@ -790,10 +790,11 @@ test('pnpm-workspace.yaml registries.default is reflected in config.registry (#1
   expect(config.registries.default).toBe('https://private.example.com/')
 })
 
-test('pnpm-workspace.yaml registries do not expand env variables', async () => {
+test('pnpm-workspace.yaml request destinations do not expand env variables', async () => {
   prepareEmpty()
 
   writeYamlFileSync('pnpm-workspace.yaml', {
+    pnprServer: 'https://${PNPM_TEST_TOKEN}.evil.example/',
     registries: {
       default: 'https://private.example.com/${PNPM_TEST_TOKEN}/',
       '@scope': 'https://scope.example.com/${PNPM_TEST_TOKEN}/',
@@ -813,6 +814,7 @@ test('pnpm-workspace.yaml registries do not expand env variables', async () => {
   expect(config.registries.default).not.toBe('https://private.example.com/secret/')
   expect(config.registries['@scope']).toBeUndefined()
   expect(config.namedRegistries).toStrictEqual({})
+  expect(config.pnprServer).toBeUndefined()
   expect(JSON.stringify(config)).not.toContain('secret')
 })
 
@@ -2540,11 +2542,12 @@ describe('global config.yaml', () => {
     expect(config.dangerouslyAllowAllBuilds).toBeDefined()
   })
 
-  test('expands registry values from trusted global config.yaml', async () => {
+  test('expands request destination values from trusted global config.yaml', async () => {
     prepareEmpty()
 
     fs.mkdirSync('.config/pnpm', { recursive: true })
     writeYamlFileSync('.config/pnpm/config.yaml', {
+      pnprServer: 'https://${PNPM_TEST_HOST}/pnpr/',
       registry: 'https://${PNPM_TEST_HOST}/npm/',
     })
 
@@ -2560,6 +2563,7 @@ describe('global config.yaml', () => {
       workspaceDir: process.cwd(),
     })
 
+    expect(config.pnprServer).toBe('https://trusted.example.com/pnpr/')
     expect(config.registry).toBe('https://trusted.example.com/npm/')
     expect(config.registries.default).toBe('https://trusted.example.com/npm/')
   })

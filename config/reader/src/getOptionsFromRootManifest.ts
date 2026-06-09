@@ -28,12 +28,14 @@ export type OptionsFromRootManifest = {
 
 interface GetOptionsFromPnpmSettingsOptions {
   manifest?: ProjectManifest
-  expandRegistryEnv?: boolean
+  expandRequestDestinationEnv?: boolean
 }
 
 interface ReplaceEnvInSettingsOptions {
-  expandRegistryEnv: boolean
+  expandRequestDestinationEnv: boolean
 }
+
+const REQUEST_DESTINATION_SCALAR_KEYS = new Set(['pnprServer', 'registry'])
 
 export function getOptionsFromPnpmSettings (
   manifestDir: string | undefined,
@@ -44,7 +46,7 @@ export function getOptionsFromPnpmSettings (
     ? manifestOrOpts
     : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
-    expandRegistryEnv: opts.expandRegistryEnv ?? false,
+    expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
   if (settings.overrides) {
     assertValidOverrides(settings.overrides)
@@ -71,7 +73,7 @@ export function getOptionsFromPnpmSettings (
 function isGetOptionsFromPnpmSettingsOptions (
   value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
 ): value is GetOptionsFromPnpmSettingsOptions {
-  return value != null && ('expandRegistryEnv' in value || 'manifest' in value)
+  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value)
 }
 
 function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
@@ -99,11 +101,11 @@ function replaceEnvInSettings (
   for (const [key, value] of Object.entries(settings)) {
     const newKey = envReplace(key, process.env)
     if (typeof value === 'string') {
-      if (newKey === 'registry' && !opts.expandRegistryEnv && hasEnvPlaceholder(value)) continue
+      if (REQUEST_DESTINATION_SCALAR_KEYS.has(newKey) && !opts.expandRequestDestinationEnv && hasEnvPlaceholder(value)) continue
       // @ts-expect-error
       newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env)
     } else if (newKey === 'registries' || newKey === 'namedRegistries') {
-      newSettings[newKey as keyof PnpmSettings] = (opts.expandRegistryEnv
+      newSettings[newKey as keyof PnpmSettings] = (opts.expandRequestDestinationEnv
         ? replaceEnvInStringValues(value)
         : copyStringValuesWithoutEnvPlaceholders(value)) as never
     } else {

@@ -652,17 +652,19 @@ impl WorkspaceSettings {
     /// [`Config`].
     pub fn substitute_env_trusted<Sys: EnvVar>(&mut self) {
         self.substitute_env_scalars::<Sys>();
+        substitute_optional_string::<Sys>(&mut self.pnpr_server);
         substitute_optional_string::<Sys>(&mut self.registry);
         substitute_optional_string_map::<Sys>(&mut self.named_registries);
     }
 
     /// Expand `${VAR}` in ordinary string settings, but drop
-    /// placeholders inside workspace-controlled registry URL fields.
+    /// placeholders inside workspace-controlled request-destination
+    /// fields.
     /// The upstream
     /// [`replaceEnvInSettings`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L66-L84)
     /// pass still runs `envReplace` on scalar strings while filtering
-    /// `registry`, `registries`, and `namedRegistries` instead of
-    /// expanding environment variables into request URLs.
+    /// `registry`, `registries`, `namedRegistries`, and `pnprServer`
+    /// instead of expanding environment variables into request URLs.
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`] and filtered values do not.
@@ -675,6 +677,9 @@ impl WorkspaceSettings {
         if let Some(named_registries) = self.named_registries.as_mut() {
             named_registries.retain(|_, value| !has_env_placeholder(value));
         }
+        if self.pnpr_server.as_deref().is_some_and(has_env_placeholder) {
+            self.pnpr_server = None;
+        }
     }
 
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
@@ -682,7 +687,6 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
-        substitute_optional_string::<Sys>(&mut self.pnpr_server);
         substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
         substitute_optional_string::<Sys>(&mut self.cache_dir);
