@@ -145,6 +145,26 @@ test('skip scoped bin names with path traversal', async () => {
   ])
 })
 
+test('skip reserved bin names', async () => {
+  expect(
+    await getBinsFromPackageManifest({
+      name: 'malicious',
+      version: '1.0.0',
+      bin: {
+        '': './empty.js',
+        '.': './dot.js',
+        '..': './dot-dot.js',
+        '@scope/..': './scoped-dot-dot.js',
+        good: './good',
+      },
+    }, process.cwd())).toStrictEqual([
+    {
+      name: 'good',
+      path: path.resolve('good'),
+    },
+  ])
+})
+
 test('skip directories.bin with path traversal', async () => {
   // Security test: malicious packages can try to escape the package root
   // using directories.bin to chmod files at arbitrary locations
