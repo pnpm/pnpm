@@ -5,7 +5,7 @@ import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
-import { createAllowBuildContext, createAllowBuildFunction } from '@pnpm/building.policy'
+import { createAllowBuildContext, createAllowBuildFunction, normalizeBuildDepPath } from '@pnpm/building.policy'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -94,7 +94,7 @@ function matches (
       return manifest.name === searchedPkg
     }
     if ('depPath' in searchedPkg) {
-      return searchedPkg.depPath === depPath || searchedPkg.depPath === dp.removeSuffix(depPath)
+      return normalizeBuildDepPath(searchedPkg.depPath) === normalizeBuildDepPath(depPath)
     }
     return searchedPkg.name === manifest.name && !!manifest.version &&
       semver.satisfies(manifest.version, searchedPkg.range)
@@ -179,7 +179,8 @@ export async function buildSelectedPkgs (
 }
 
 function matchesDepPath (packages: PackageSnapshots, pkgSpec: string): boolean {
-  return Object.keys(packages).some((depPath) => depPath === pkgSpec || dp.removeSuffix(depPath) === pkgSpec)
+  const normalizedPkgSpec = normalizeBuildDepPath(pkgSpec)
+  return Object.keys(packages).some((depPath) => normalizeBuildDepPath(depPath) === normalizedPkgSpec)
 }
 
 export async function buildProjects (
