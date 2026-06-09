@@ -1,7 +1,8 @@
 {
   "ignorePaths": [
     "**/nodeReleaseKeys.ts",
-    "**/nodeReleaseKeys.d.ts"
+    "**/nodeReleaseKeys.d.ts",
+    "**/node_release_keys.rs"
   ],
   "words": [
     "adduser",

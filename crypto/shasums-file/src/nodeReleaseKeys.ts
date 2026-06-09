@@ -1,7 +1,7 @@
 /* eslint-disable */
 // cspell:disable
 // GENERATED — the Node.js release team's OpenPGP public keys, mirrored from
-// https://github.com/nodejs/release-keys (keys.list + keys/<fingerprint>.asc).
+// <https://github.com/nodejs/release-keys> (keys.list + keys/<fingerprint>.asc).
 //
 // Used to verify the signature of a Node.js release's SHASUMS256.txt before
 // trusting its hashes. Refresh with:
