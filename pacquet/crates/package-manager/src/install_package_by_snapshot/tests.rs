@@ -307,6 +307,7 @@ fn registry_metadata() -> pacquet_lockfile::PackageMetadata {
         resolution: LockfileResolution::Registry(pacquet_lockfile::RegistryResolution {
             integrity: DUMMY_SHA512.parse().expect("parse integrity"),
         }),
+        version: None,
         engines: None,
         cpu: None,
         os: None,

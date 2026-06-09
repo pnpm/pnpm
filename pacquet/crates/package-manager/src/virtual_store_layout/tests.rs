@@ -58,6 +58,7 @@ fn slot_dir_uses_gvs_layout_when_gvs_on() {
                     .parse()
                     .expect("parse integrity"),
             }),
+            version: None,
             engines: None,
             cpu: None,
             os: None,
@@ -111,6 +112,7 @@ fn slot_dir_prefixes_unscoped_with_at_slash_under_gvs() {
                     .parse()
                     .expect("parse integrity"),
             }),
+            version: None,
             engines: None,
             cpu: None,
             os: None,
@@ -161,6 +163,7 @@ fn slot_dir_engine_agnostic_with_empty_allow_build_policy() {
                     .parse()
                     .expect("parse integrity"),
             }),
+            version: None,
             engines: None,
             cpu: None,
             os: None,
@@ -219,6 +222,7 @@ fn slot_dir_engine_specific_when_snapshot_is_built() {
                     .parse()
                     .expect("parse integrity"),
             }),
+            version: None,
             engines: None,
             cpu: None,
             os: None,
@@ -305,6 +309,7 @@ fn cross_pinning_siblings_get_distinct_slots() {
                 resolution: LockfileResolution::Registry(RegistryResolution {
                     integrity: integrity_str.parse().expect("parse integrity"),
                 }),
+                version: None,
                 engines: None,
                 cpu: None,
                 os: None,
@@ -385,6 +390,7 @@ fn full_pkg_id_keeps_patch_hash_when_present() {
                     .parse()
                     .expect("parse integrity"),
             }),
+            version: None,
             engines: None,
             cpu: None,
             os: None,

@@ -89,12 +89,19 @@ pub fn filter_lockfile_for_current(
         catalogs: lockfile.catalogs.clone(),
         overrides: lockfile.overrides.clone(),
         package_extensions_checksum: lockfile.package_extensions_checksum.clone(),
+        // Carried over verbatim — the current lockfile is a filtered
+        // view of the wanted one, so its pnpmfile checksum round-trips.
+        pnpmfile_checksum: lockfile.pnpmfile_checksum.clone(),
         // Preserve the wanted lockfile's `ignored_optional_dependencies`
         // verbatim — the current lockfile is a filtered view of the
         // wanted one, and a future drift check between this recorded
         // set and the next install's `Config` value relies on the
         // round-trip. Slice 7 wire-up.
         ignored_optional_dependencies: lockfile.ignored_optional_dependencies.clone(),
+        // Carried over verbatim: the current lockfile is a filtered
+        // view of the wanted one, so the recorded patch hashes survive
+        // the round-trip into `node_modules/.pnpm/lock.yaml`.
+        patched_dependencies: lockfile.patched_dependencies.clone(),
         importers,
         packages,
         snapshots,

@@ -29,6 +29,30 @@ fn test_find_pnpmfile_fallback_to_cjs() {
     assert!(found.unwrap().ends_with(".pnpmfile.cjs"));
 }
 
+#[tokio::test]
+async fn calculate_pnpmfile_checksum_hashes_normalized_contents_when_hooks_exported() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    let src = "module.exports = { hooks: { readPackage: (pkg) => pkg } }\n";
+    std::fs::write(&pnpmfile_path, src).expect("write pnpmfile");
+
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let checksum = hooks.calculate_pnpmfile_checksum().await;
+
+    assert_eq!(checksum, Some(pacquet_crypto_hash::create_hash(src)));
+}
+
+#[tokio::test]
+async fn calculate_pnpmfile_checksum_is_none_when_no_hooks_exported() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(&pnpmfile_path, "module.exports = {}\n").expect("write pnpmfile");
+
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+
+    assert_eq!(hooks.calculate_pnpmfile_checksum().await, None);
+}
+
 #[test]
 fn test_find_pnpmfile_none_when_missing() {
     let tmp = TempDir::new().expect("temp dir");
@@ -436,4 +460,86 @@ async fn worker_forwards_read_package_context_log() {
         .expect("readPackage should succeed");
 
     assert_eq!(logs.lock().unwrap().as_slice(), &["hello from foo".to_string()]);
+}
+
+fn noop_context() -> pacquet_hooks::HookContext {
+    pacquet_hooks::HookContext { log: Arc::new(|_| {}) }
+}
+
+#[test]
+fn is_plugin_name_matches_the_three_patterns() {
+    assert!(finder::is_plugin_name("pnpm-plugin-foo"));
+    assert!(finder::is_plugin_name("@pnpm/plugin-foo"));
+    assert!(finder::is_plugin_name("@my-org/pnpm-plugin-foo"));
+
+    assert!(!finder::is_plugin_name("foo"));
+    assert!(!finder::is_plugin_name("@pnpm.e2e/foo"));
+    assert!(!finder::is_plugin_name("@my-org/not-a-plugin"));
+    assert!(!finder::is_plugin_name("my-pnpm-plugin-foo"));
+}
+
+#[test]
+fn calc_pnpmfile_paths_skips_non_plugins_and_missing_dirs() {
+    let tmp = TempDir::new().expect("temp dir");
+    let config_modules = tmp.path().join(".pnpm-config");
+
+    // A plugin with a pnpmfile.cjs.
+    let cjs_plugin = config_modules.join("pnpm-plugin-a");
+    std::fs::create_dir_all(&cjs_plugin).unwrap();
+    std::fs::write(cjs_plugin.join("pnpmfile.cjs"), "module.exports = {}").unwrap();
+
+    // A scoped plugin with a pnpmfile.mjs (preferred over cjs).
+    let mjs_plugin = config_modules.join("@scope/pnpm-plugin-b");
+    std::fs::create_dir_all(&mjs_plugin).unwrap();
+    std::fs::write(mjs_plugin.join("pnpmfile.mjs"), "export const hooks = {}").unwrap();
+    std::fs::write(mjs_plugin.join("pnpmfile.cjs"), "module.exports = {}").unwrap();
+
+    // A non-plugin config dep (no pnpmfile loaded) and a plugin whose
+    // directory was never installed (skipped silently).
+    std::fs::create_dir_all(config_modules.join("@pnpm.e2e/foo")).unwrap();
+
+    let names = ["pnpm-plugin-a", "@scope/pnpm-plugin-b", "@pnpm.e2e/foo", "pnpm-plugin-missing"];
+    let paths = finder::calc_pnpmfile_paths_of_plugin_deps(&config_modules, names);
+
+    assert_eq!(
+        paths,
+        vec![mjs_plugin.join("pnpmfile.mjs"), cjs_plugin.join("pnpmfile.cjs")],
+        "plugins sort lexically; mjs is preferred; non-plugins and missing dirs are dropped",
+    );
+}
+
+#[tokio::test]
+async fn update_config_applies_hook_result() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join("pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r#"module.exports = { hooks: { updateConfig (config) {
+  config.catalogs = { default: { foo: '1.0.0' } };
+  return config;
+} } }"#,
+    )
+    .expect("write pnpmfile");
+
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let updated = hooks
+        .update_config(serde_json::json!({ "registry": "https://r/" }), noop_context())
+        .await
+        .expect("updateConfig should succeed");
+
+    assert_eq!(updated["registry"], "https://r/", "untouched keys are preserved");
+    assert_eq!(updated["catalogs"]["default"]["foo"], "1.0.0", "hook-set key is applied");
+}
+
+#[tokio::test]
+async fn update_config_without_hook_returns_config_unchanged() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join("pnpmfile.cjs");
+    std::fs::write(&pnpmfile_path, "module.exports = { hooks: {} }").expect("write pnpmfile");
+
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let config = serde_json::json!({ "registry": "https://r/" });
+    let updated = hooks.update_config(config.clone(), noop_context()).await.expect("ok");
+
+    assert_eq!(updated, config, "a pnpmfile without updateConfig leaves config unchanged");
 }

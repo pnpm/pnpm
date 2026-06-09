@@ -146,6 +146,18 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         self.worker().await?.call("afterAllResolved", lockfile, ctx.log).await
     }
 
+    async fn update_config(
+        &self,
+        config: Value,
+        ctx: crate::HookContext,
+    ) -> Result<Value, HookError> {
+        // The worker returns `null` when the pnpmfile exports no
+        // `updateConfig` hook (the generic `typeof fn === 'function'`
+        // branch); in that case the config is left unchanged.
+        let result = self.worker().await?.call("updateConfig", config.clone(), ctx.log).await?;
+        Ok(if result.is_null() { config } else { result })
+    }
+
     async fn pre_resolution(
         &self,
         ctx: crate::PreResolutionHookContext,
@@ -170,6 +182,18 @@ impl crate::PnpmfileHooks for NodeJsHooks {
             Ok(value) => value.as_bool().unwrap_or(true),
             Err(_) => true,
         }
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        // Gate on the loaded module exporting `hooks`, mirroring pnpm's
+        // `entries.some(entry => entry.hooks != null)`. The checksum
+        // value itself is a pure hash of the pnpmfile's normalized
+        // bytes — only this gate needs to consult the evaluated module.
+        let worker = self.worker().await.ok()?;
+        if !worker.has_hooks().await {
+            return None;
+        }
+        pacquet_crypto_hash::create_hash_from_file(&self.file).ok()
     }
 
     fn source_path(&self) -> Option<&std::path::Path> {

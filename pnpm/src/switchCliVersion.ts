@@ -89,6 +89,19 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       registries: config.registries,
       virtualStoreDirMaxLength: config.virtualStoreDirMaxLength,
       packageManager: { name: packageManager.name, version: packageManager.version },
+      // Network settings so the engine identity check can reach the canonical
+      // npm registry through the user's proxy / TLS configuration.
+      ca: config.ca,
+      cert: config.cert,
+      key: config.key,
+      httpProxy: config.httpProxy,
+      httpsProxy: config.httpsProxy,
+      noProxy: config.noProxy,
+      strictSsl: config.strictSsl,
+      localAddress: config.localAddress,
+      maxSockets: config.maxSockets,
+      configByUri: config.configByUri,
+      timeout: config.fetchTimeout,
     }))
   } finally {
     await storeToUse.ctrl.close()

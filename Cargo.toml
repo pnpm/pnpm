@@ -25,6 +25,7 @@ pacquet-crypto-shasums-file               = { path = "pacquet/crates/crypto-shas
 pacquet-engine-runtime-bun-resolver       = { path = "pacquet/crates/engine-runtime-bun-resolver" }
 pacquet-engine-runtime-deno-resolver      = { path = "pacquet/crates/engine-runtime-deno-resolver" }
 pacquet-engine-runtime-node-resolver      = { path = "pacquet/crates/engine-runtime-node-resolver" }
+pacquet-env-installer                     = { path = "pacquet/crates/env-installer" }
 pacquet-env-replace                       = { path = "pacquet/crates/env-replace" }
 pacquet-fs                                = { path = "pacquet/crates/fs" }
 pacquet-registry                          = { path = "pacquet/crates/registry" }

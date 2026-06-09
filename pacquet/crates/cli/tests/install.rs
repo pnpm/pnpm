@@ -253,39 +253,21 @@ fn should_install_circular_dependencies() {
     drop((root, mock_instance)); // cleanup
 }
 
-/// End-to-end coverage for `${VAR}` substitution in `.npmrc`.
-///
-/// `<Host as EnvVar>::var` (the `std::env::var` bridge in
-/// `crates/config/src/api.rs`) is unreachable by every other test
-/// because `add_mocked_registry` writes literal values, so
-/// `env_replace` short-circuits at the no-`$` branch.
-///
-/// This test rewrites the registry URL to `${PACQUET_TEST_REGISTRY}`,
-/// sets that variable on the spawned process, and asserts the install
-/// succeeds. The auth-token `${VAR}` substitution path covered by
-/// upstream's [`installing/deps-installer/test/install/auth.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/installing/deps-installer/test/install/auth.ts)
-/// is not exercised here. The mock registry doesn't gate on auth, so
-/// substituting the registry URL is the smallest scenario that drives
-/// `<Host as EnvVar>::var` end-to-end. Token-substitution coverage
-/// belongs in a test against a registry that actually validates the
-/// header.
 #[test]
-fn install_resolves_env_var_in_npmrc_registry() {
+fn install_resolves_env_var_in_user_npmrc_registry() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
 
-    eprintln!("Patching .npmrc to use ${{PACQUET_TEST_REGISTRY}}...");
-    // Replace the literal `registry=` line written by
-    // `add_mocked_registry` with one that references an env var.
-    // Keep the other lines (`store-dir`, `cache-dir`) intact.
     let mocked_registry_url = mock_instance.url();
     let original = fs::read_to_string(&npmrc_path).expect("read .npmrc");
-    let patched = original
-        .replace(&format!("registry={mocked_registry_url}"), "registry=${PACQUET_TEST_REGISTRY}");
+    let patched = original.replace(&format!("registry={mocked_registry_url}\n"), "");
     eprintln!("npmrc_path={npmrc_path:?}\noriginal_npmrc={original:?}\npatched_npmrc={patched:?}");
     assert_ne!(original, patched, ".npmrc layout drifted; update this test");
     fs::write(&npmrc_path, &patched).expect("rewrite .npmrc");
+
+    let user_npmrc_path = root.path().join("trusted-user.npmrc");
+    fs::write(&user_npmrc_path, "registry=${PACQUET_TEST_REGISTRY}\n").expect("write user .npmrc");
 
     eprintln!("Creating package.json...");
     let manifest_path = workspace.join("package.json");
@@ -299,6 +281,8 @@ fn install_resolves_env_var_in_npmrc_registry() {
     eprintln!("Executing command with PACQUET_TEST_REGISTRY set...");
     pacquet
         .with_env("PACQUET_TEST_REGISTRY", &mocked_registry_url)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(user_npmrc_path)
         .with_arg("install")
         .assert()
         .success();
@@ -307,6 +291,49 @@ fn install_resolves_env_var_in_npmrc_registry() {
     let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
     let installed = is_symlink_or_junction(&symlink_path).unwrap();
     eprintln!("symlink_path={symlink_path:?} installed={installed}");
+    assert!(installed, "expected installed symlink/junction at {symlink_path:?}");
+
+    drop((root, mock_instance)); // cleanup
+}
+
+#[test]
+fn install_ignores_env_var_in_project_npmrc_registry() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+
+    let mocked_registry_url = mock_instance.url();
+    let original = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let patched = original
+        .replace(&format!("registry={mocked_registry_url}"), "registry=${PACQUET_TEST_REGISTRY}");
+    eprintln!("npmrc_path={npmrc_path:?}\noriginal_npmrc={original:?}\npatched_npmrc={patched:?}");
+    assert_ne!(original, patched, ".npmrc layout drifted; update this test");
+    fs::write(&npmrc_path, &patched).expect("rewrite .npmrc");
+
+    let user_npmrc_path = root.path().join("trusted-user.npmrc");
+    fs::write(&user_npmrc_path, format!("registry={mocked_registry_url}\n"))
+        .expect("write user .npmrc");
+
+    eprintln!("Creating package.json...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Executing command with PACQUET_TEST_REGISTRY set...");
+    pacquet
+        .with_env("PACQUET_TEST_REGISTRY", "http://127.0.0.1:9/leaked/")
+        .with_arg("--npmrc-auth-file")
+        .with_arg(user_npmrc_path)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
+    let installed = is_symlink_or_junction(&symlink_path).unwrap();
     assert!(installed, "expected installed symlink/junction at {symlink_path:?}");
 
     drop((root, mock_instance)); // cleanup
@@ -374,9 +401,9 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
 ///
 /// This is the scenario behind the pnpm regression in
 /// [pnpm/pnpm#12079](https://github.com/pnpm/pnpm/issues/12079). pacquet
-/// resolves it consistently — `bump_occurrence_on_shadow` always prefers
-/// the node's own child over an inherited same-version instance, so it
-/// never reuses the root-level `ts@2.0.0` parser for the nested plugin.
+/// resolves it consistently by switching from the inherited same-version
+/// parser to the node's own child when that inherited parser carries a
+/// conflicting peer context.
 /// Mirrors the upstream coverage in
 /// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/762e80be49/installing/deps-installer/test/install/peerDependencies.ts).
 #[test]
@@ -411,6 +438,93 @@ fn peer_shared_through_a_diamond_is_resolved_consistently() {
     );
 
     drop((root, mock_instance)); // cleanup
+}
+
+#[test]
+fn peer_dependencies_resolve_from_aliased_subdependencies() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/abc-parent-with-aliases": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.1)"),
+        "aliased subdependencies should satisfy abc's peers; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_resolves_from_aliased_direct_dependency() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "peer-a": "npm:@pnpm.e2e/peer-a@1.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)"),
+        "aliased direct dependency should satisfy abc's peer-a; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_resolves_from_alias_that_differs_from_real_name() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/peer-b": "npm:@pnpm.e2e/peer-a@1.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)"),
+        "abc's snapshot key should keep both peer-a contributions; lockfile:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("'@pnpm.e2e/peer-a': 1.0.0"),
+        "real peer name should be linked in abc's snapshot dependencies; lockfile:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("'@pnpm.e2e/peer-b': '@pnpm.e2e/peer-a@1.0.0'"),
+        "alias peer name should also be linked to the aliased provider; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_prefers_highest_version_among_aliases_of_same_package() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "peer-c3": "npm:@pnpm.e2e/peer-c@1.0.0",
+        "peer-c2": "npm:@pnpm.e2e/peer-c@1.0.1",
+        "peer-c1": "npm:@pnpm.e2e/peer-c@2.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)"),
+        "highest aliased peer-c version should satisfy abc's peer-c; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_prefers_non_aliased_provider_over_alias() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/peer-c": "1.0.0",
+        "peer-c": "npm:@pnpm.e2e/peer-c@2.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@1.0.0)"),
+        "non-aliased peer-c should win over the aliased provider; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_prefers_highest_aliased_subdependency_version() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/abc-parent-with-aliases-of-same-pkg": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)"),
+        "highest aliased peer-c subdependency should satisfy abc's peer-c; lockfile:\n{lockfile}",
+    );
 }
 
 /// `catalog:` on a direct dep should be dereferenced through
@@ -837,6 +951,36 @@ fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
     );
 
     drop((root, mock_instance)); // cleanup
+}
+
+fn install_with_peer_alias_deps(dependencies: serde_json::Value) -> String {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("autoInstallPeers: false\n");
+    workspace_yaml.push_str("strictPeerDependencies: false\n");
+    workspace_yaml.push_str("peersSuffixMaxLength: 1000\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": dependencies }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+
+    drop((root, mock_instance));
+    lockfile
 }
 
 /// A fresh `pacquet` command rooted at `workspace`, for tests that run the

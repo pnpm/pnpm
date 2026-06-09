@@ -52,6 +52,7 @@ import {
 } from './recursive.js'
 import { makeRunPacquet } from './runPacquet.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -217,11 +218,26 @@ export async function installDeps (
   // optional `@pacquet/<plat>-<arch>` binary sub-packages, so the
   // resolved \`node_modules/.pnpm-config/<name>\` layout pacquet's
   // wrapper expects is identical either way.
-  const pacquetConfigDepName = opts.configDependencies?.['@pnpm/pacquet'] != null
+  //
+  // `configDependencies` come from the repository's `pnpm-workspace.yaml`, so
+  // the declaration cannot be trusted to authorize spawning a native binary on
+  // its own. `verifyPacquetIdentity` confirms, against the canonical npm
+  // registry, that the installed bytes carry a valid registry signature for
+  // that `name@version` before we delegate; otherwise we fall back to pnpm's
+  // own engine.
+  const declaredPacquetConfigDepName = opts.configDependencies?.['@pnpm/pacquet'] != null
     ? '@pnpm/pacquet'
     : opts.configDependencies?.pacquet != null
       ? 'pacquet'
       : undefined
+  const pacquetConfigDepName = declaredPacquetConfigDepName != null &&
+    await verifyPacquetIdentity(declaredPacquetConfigDepName, {
+      ...opts,
+      lockfileDir: opts.lockfileDir ?? opts.dir,
+      rootDir: opts.lockfileDir ?? opts.dir,
+    })
+    ? declaredPacquetConfigDepName
+    : undefined
   const runPacquet = pacquetConfigDepName != null
     ? makeRunPacquet({
       lockfileDir: opts.lockfileDir ?? opts.dir,

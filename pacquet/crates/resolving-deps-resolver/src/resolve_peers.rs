@@ -207,6 +207,7 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
         pure_pkgs: HashSet::new(),
         peers_cache: HashMap::new(),
         parent_pkgs_of_node: HashMap::new(),
+        node_records: HashMap::new(),
     };
     walker.walk()
 }
@@ -242,6 +243,7 @@ pub fn resolve_peers_workspace(
         pure_pkgs: HashSet::new(),
         peers_cache: HashMap::new(),
         parent_pkgs_of_node: HashMap::new(),
+        node_records: HashMap::new(),
     };
 
     let mut direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>> =
@@ -257,20 +259,44 @@ pub fn resolve_peers_workspace(
         walker.opts.modules_dir = importer.modules_dir.clone();
         let importer_parents = walker.build_importer_parents_from(&importer.direct);
         let parent_chain_names: Vec<String> = Vec::new();
-        let mut direct_by_alias = BTreeMap::new();
+        let parent_node_ids: Vec<NodeId> = Vec::new();
+        let parent_pkg_ids_chain: Vec<String> = Vec::new();
+        let importer_parent_dep_paths = walker.parent_dep_paths_from_refs(&importer_parents);
         for dep in &importer.direct {
-            let output =
-                walker.resolve_node(dep.node_id.clone(), &importer_parents, &parent_chain_names, 0);
-            direct_by_alias.insert(dep.alias.clone(), output.dep_path);
+            walker
+                .parent_pkgs_of_node
+                .insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
         }
-        direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
+        for dep in &importer.direct {
+            walker.resolve_node(
+                dep.node_id.clone(),
+                &importer_parents,
+                &parent_chain_names,
+                &parent_node_ids,
+                &parent_pkg_ids_chain,
+            );
+        }
         let issues = std::mem::take(&mut walker.issues);
         if !issues.bad.is_empty() || !issues.missing.is_empty() {
             peer_dependency_issues_by_importer.insert(importer.id.clone(), issues);
         }
     }
     walker.patch_pending_peer_edges();
-    let mut graph = walker.graph;
+    // Recompute depPaths with full peer suffixes once, after every
+    // importer is walked, then rebuild the graph and re-key each
+    // importer's direct deps.
+    let final_dep_paths = walker.build_final_dep_paths();
+    for importer in importers {
+        let direct_by_alias: BTreeMap<String, DepPath> = importer
+            .direct
+            .iter()
+            .map(|dep| {
+                (dep.alias.clone(), walker.final_dep_path_of(&dep.node_id, &final_dep_paths))
+            })
+            .collect();
+        direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
+    }
+    let mut graph = walker.build_final_graph(&final_dep_paths);
 
     if dedupe_injected_deps_enabled {
         dedupe_injected_deps(
@@ -308,11 +334,6 @@ struct ParentRef {
     node_id: Option<NodeId>,
     /// Local install name in `node_modules`. May differ from the
     /// package's real name for npm-alias entries.
-    ///
-    /// Recorded for upstream parity but not read in this slice.
-    /// Reserved for the npm-alias cache-validation path
-    /// (pnpm/pnpm#11907).
-    #[allow(dead_code, reason = "future npm-alias cache validation")]
     alias: Option<String>,
     /// Depth at which this parent was added. Threaded into
     /// [`ParentPkgInfo`] so [`Walker::parent_packages_match`] can
@@ -357,14 +378,14 @@ struct Walker<'tree> {
     /// is a cycle — the recursion bottoms out with a `name@version`
     /// peer-id and the original visit drives the actual graph insert.
     in_progress: HashSet<NodeId>,
-    /// Peer edges whose target `NodeId` had no `DepPath` yet at the
+    /// Graph edges whose target `NodeId` had no `DepPath` yet at the
     /// time we built the parent's `graph_children` map — typically
-    /// because the peer is a later sibling direct dep that the walker
+    /// because the target is a later sibling direct dep that the walker
     /// hasn't reached yet. `walk()` drains this list once every direct
-    /// dep is walked and patches the recorded entries with the now-
-    /// known peer `DepPath`. Without this post-pass the install layer
+    /// dep is walked and patches the recorded entries with the now-known
+    /// `DepPath`. Without this post-pass the install layer
     /// would walk the parent's `children` map and find no symlink edge
-    /// for the peer, leaving the package without the peer in its slot.
+    /// for the child, leaving the package without it in its slot.
     pending_peer_edges: Vec<PendingPeerEdge>,
     /// Set of `pkgIdWithPatchHash` values whose full subtree resolved
     /// with zero external peers and zero missing peers. A revisit of
@@ -401,6 +422,10 @@ struct Walker<'tree> {
     /// [`parentPkgsOfNode`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L356)
     /// + [`parentPackagesMatch`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L701-L731).
     parent_pkgs_of_node: HashMap<NodeId, HashMap<String, ParentPkgInfo>>,
+    /// Per-`NodeId` snapshot captured at graph-insert time, consumed by
+    /// the post-walk [`Walker::build_final_dep_paths`] /
+    /// [`Walker::build_final_graph`] pass. See [`NodeRecord`].
+    node_records: HashMap<NodeId, NodeRecord>,
 }
 
 /// Per-peer-name snapshot stored on [`Walker::parent_pkgs_of_node`].
@@ -434,13 +459,37 @@ struct PeersCacheItem {
     missing_peers: HashMap<String, MissingPeerInfo>,
 }
 
-/// One `parent → peer` edge whose peer target wasn't walked yet at the
+/// One `parent → child` edge whose target wasn't walked yet at the
 /// time the parent's `graph_children` was built. Patched up by
 /// [`Walker::patch_pending_peer_edges`] after the main walk completes.
 struct PendingPeerEdge {
     parent_dep_path: DepPath,
-    peer_alias: String,
-    peer_node_id: NodeId,
+    child_alias: String,
+    child_node_id: NodeId,
+}
+
+/// Per-`NodeId` data captured during the walk so the post-walk
+/// [`Walker::build_final_dep_paths`] pass can recompute each node's
+/// depPath with its resolved peers' *full* suffixes — matching pnpm's
+/// deferred [`calculateDepPath`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/src/resolvePeers.ts#L629),
+/// which awaits each pending peer's depPath and collapses to
+/// `name@version` only for genuinely detected cycles.
+///
+/// The walk itself is left untouched: it still computes the provisional
+/// depPaths that [`Walker::find_hit`] reads, so peer-resolution and
+/// cache decisions are byte-for-byte identical. Only the rendered
+/// depPaths change, which is why a node whose suffix was previously
+/// collapsed by the cycle fallback now splits into its own graph entry.
+struct NodeRecord {
+    /// `alias → child/peer NodeId` edges, in the same shape the inline
+    /// `graph_children` map carries (children overlaid with resolved-peer
+    /// edges) but holding NodeIds, so the rebuild can map each edge to
+    /// its final depPath.
+    edges: BTreeMap<String, NodeId>,
+    transitive_peer_dependencies: HashSet<String>,
+    depth: i32,
+    installable: bool,
+    is_pure: bool,
 }
 
 /// Sentinel for "this node's subtree is still missing peer `X`". The
@@ -472,20 +521,40 @@ impl<'tree> Walker<'tree> {
     fn walk(mut self) -> ResolvePeersResult {
         let importer_parents = self.build_importer_parents();
         let parent_chain_names: Vec<String> = Vec::new();
+        let parent_node_ids: Vec<NodeId> = Vec::new();
+        let parent_pkg_ids_chain: Vec<String> = Vec::new();
         let mut direct_by_alias = BTreeMap::new();
         // Clone direct deps into an owned `Vec` so the recursion
         // below can mutate `self.tree` (realising lazy children)
         // without conflicting with this loop's borrow of
         // `self.tree.direct`.
         let direct: Vec<DirectDep> = self.tree.direct.clone();
+        let importer_parent_dep_paths = self.parent_dep_paths_from_refs(&importer_parents);
         for dep in &direct {
-            let output =
-                self.resolve_node(dep.node_id.clone(), &importer_parents, &parent_chain_names, 0);
-            direct_by_alias.insert(dep.alias.clone(), output.dep_path);
+            self.parent_pkgs_of_node.insert(dep.node_id.clone(), importer_parent_dep_paths.clone());
+        }
+        for dep in &direct {
+            self.resolve_node(
+                dep.node_id.clone(),
+                &importer_parents,
+                &parent_chain_names,
+                &parent_node_ids,
+                &parent_pkg_ids_chain,
+            );
         }
         self.patch_pending_peer_edges();
+        // Recompute depPaths so each resolved peer carries its full
+        // suffix (the cycle fallback during the walk collapses peers
+        // that are walk-ancestors), then rebuild the graph from the
+        // per-node records keyed by the corrected depPaths.
+        let final_dep_paths = self.build_final_dep_paths();
+        for dep in &direct {
+            direct_by_alias
+                .insert(dep.alias.clone(), self.final_dep_path_of(&dep.node_id, &final_dep_paths));
+        }
+        let graph = self.build_final_graph(&final_dep_paths);
         ResolvePeersResult {
-            graph: self.graph,
+            graph,
             direct_dependencies_by_alias: direct_by_alias,
             peer_dependency_issues: self.issues,
         }
@@ -501,7 +570,7 @@ impl<'tree> Walker<'tree> {
     /// surfaced via [`PeerDependencyIssues::missing`].
     fn patch_pending_peer_edges(&mut self) {
         for edge in std::mem::take(&mut self.pending_peer_edges) {
-            let Some(peer_dep_path) = self.node_dep_paths.get(&edge.peer_node_id).cloned() else {
+            let Some(child_dep_path) = self.node_dep_paths.get(&edge.child_node_id).cloned() else {
                 continue;
             };
             if let Some(node) = self.graph.get_mut(&edge.parent_dep_path) {
@@ -509,7 +578,7 @@ impl<'tree> Walker<'tree> {
                 // if a later walk of the same `dep_path` already
                 // populated the edge (e.g. via the cycle path), we
                 // don't want to overwrite a more specific entry.
-                node.children.entry(edge.peer_alias).or_insert(peer_dep_path);
+                node.children.entry(edge.child_alias).or_insert(child_dep_path);
             }
         }
     }
@@ -544,23 +613,26 @@ impl<'tree> Walker<'tree> {
             let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id) else {
                 continue;
             };
+            let (real_name, _) = pkg_name_version(&pkg.result);
+            if !self.tree.all_peer_dep_names.contains(&direct.alias)
+                && !self.tree.all_peer_dep_names.contains(&real_name)
+            {
+                continue;
+            }
             let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, &pkg.result)
                 .unwrap_or_else(|| direct.node_id.clone());
-            insert_parent_ref(&mut refs, &direct.alias, parent_node_id, pkg, self.tree);
+            insert_parent_ref(&mut refs, &direct.alias, parent_node_id, pkg, tree_node.depth);
         }
         refs
     }
 
-    #[allow(
-        clippy::only_used_in_recursion,
-        reason = "`depth` is kept for upstream parity with `currentDepth`"
-    )]
     fn resolve_node(
         &mut self,
         node_id: NodeId,
         parent_parent_refs: &ParentRefs,
         parent_chain_names: &[String],
-        depth: i32,
+        parent_node_ids: &[NodeId],
+        parent_pkg_ids_chain: &[String],
     ) -> NodeOutput {
         // `purePkgs` fast-path. When the subtree below this
         // `pkgIdWithPatchHash` resolved with zero external peers and
@@ -598,8 +670,12 @@ impl<'tree> Walker<'tree> {
             }
             let pkg_peer_dependencies_empty =
                 self.tree.packages[&pkg_id].peer_dependencies.is_empty();
-            if self.pure_pkgs.contains(&pkg_id) && pkg_peer_dependencies_empty {
-                let dep_path = DepPath::from(pkg_id);
+            let bare_dep_path = DepPath::from(pkg_id.clone());
+            if self.pure_pkgs.contains(&pkg_id)
+                && pkg_peer_dependencies_empty
+                && self.graph.get(&bare_dep_path).is_some_and(|node| node.depth <= tree_node_depth)
+            {
+                let dep_path = bare_dep_path;
                 self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
                 // Lower the existing graph entry's `depth` if this
                 // occurrence reached the package shallower than the
@@ -649,42 +725,54 @@ impl<'tree> Walker<'tree> {
         let pkg = self.tree.packages[&tree_node.resolved_package_id].clone();
         let (pkg_name, _pkg_version) = pkg_name_version(&pkg.result);
 
+        let mut current_parent_node_ids = parent_node_ids.to_vec();
+        current_parent_node_ids.push(node_id.clone());
+        let mut child_parent_pkg_ids_chain = parent_pkg_ids_chain.to_vec();
+        if !child_parent_pkg_ids_chain.contains(&pkg.id) {
+            child_parent_pkg_ids_chain.push(pkg.id.clone());
+        }
+
         // Build the ParentRefs map that descendants of this node see:
-        // parent's view + this node's own children, restricted to
-        // names that are declared as peers somewhere in the install.
-        // The `occurrence` counter follows upstream's shadowing rule:
-        // adding a same-name parent whose `(pkg_id, version)` doesn't
-        // match the existing entry bumps `occurrence` and replaces
-        // the entry. `parentPackagesMatch` keys off the counter to
-        // reject cache hits when shadowing differs.
+        // parent's view + this node's own peer-relevant children.
         let mut child_parent_refs = parent_parent_refs.clone();
-        let child_depth = depth + 1;
+        let mut new_parent_refs = ParentRefs::new();
         for (alias, child_node_id) in &children_map {
+            let alias_is_peer_relevant = self.tree.all_peer_dep_names.contains(alias);
             let Some(child_tree) = self.tree.dependencies_tree.get(child_node_id) else { continue };
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
                 continue;
             };
-            let (child_real_name, child_version) = pkg_name_version(&child_pkg.result);
-            // Only peer-relevant aliases need to land in `parentRefs`.
-            // Pnpm filters with `allPeerDepNames` to keep the propagated
-            // map small.
-            let alias_relevant = self.tree.all_peer_dep_names.contains(alias);
-            let real_relevant = self.tree.all_peer_dep_names.contains(&child_real_name);
-            if !alias_relevant && !real_relevant {
-                continue;
+            if !alias_is_peer_relevant {
+                let (child_name, _) = pkg_name_version(&child_pkg.result);
+                if !self.tree.all_peer_dep_names.contains(&child_name) {
+                    continue;
+                }
             }
-            let parent_ref = ParentRef {
-                version: child_version,
-                node_id: Some(child_node_id.clone()),
-                alias: (alias != &child_real_name).then(|| alias.clone()),
-                depth: child_depth,
-                occurrence: 0,
-            };
-            if alias_relevant {
-                bump_occurrence_on_shadow(&mut child_parent_refs, alias, &parent_ref);
-            }
-            if real_relevant && alias != &child_real_name {
-                bump_occurrence_on_shadow(&mut child_parent_refs, &child_real_name, &parent_ref);
+            insert_parent_ref(
+                &mut new_parent_refs,
+                alias,
+                child_node_id.clone(),
+                child_pkg,
+                child_tree.depth,
+            );
+        }
+        let mut child_parent_refs_with_new = child_parent_refs.clone();
+        child_parent_refs_with_new.extend(new_parent_refs.clone());
+        for (name, mut new_parent_ref) in new_parent_refs {
+            if let Some(existing) = child_parent_refs.get(&name) {
+                if !self.parent_refs_match(existing, &new_parent_ref)
+                    || self.inherited_parent_pkg_breaks_peer_diamond(
+                        &child_parent_refs_with_new,
+                        existing,
+                        &new_parent_ref,
+                        &children_map,
+                    )
+                {
+                    new_parent_ref.occurrence = existing.occurrence + 1;
+                    child_parent_refs.insert(name, new_parent_ref);
+                }
+            } else {
+                child_parent_refs.insert(name, new_parent_ref);
             }
         }
 
@@ -762,19 +850,12 @@ impl<'tree> Walker<'tree> {
                 child_node_id.clone(),
                 &child_parent_refs,
                 &child_chain_names,
-                depth + 1,
+                &current_parent_node_ids,
+                &child_parent_pkg_ids_chain,
             );
             child_dep_paths.insert(alias.clone(), child_output.dep_path);
             for (peer_alias, peer_node_id) in child_output.external_resolved_peers {
-                if children_map.values().any(|id| id == &peer_node_id) {
-                    // Resolved against one of *this node's* children —
-                    // not external from this node's perspective.
-                    // Compare by NodeId (not alias) because `children`
-                    // is keyed by install alias while `peer_alias` can
-                    // be the resolved package's real name (the
-                    // [`ParentRefs`] map indexes parents under both
-                    // alias and real name when they differ). An
-                    // alias-only check misses npm-aliased children.
+                if children_map.contains_key(&peer_alias) {
                     continue;
                 }
                 external_from_children.insert(peer_alias, peer_node_id);
@@ -784,10 +865,8 @@ impl<'tree> Walker<'tree> {
             }
         }
 
-        // Resolve this node's own peer requirements against the
-        // ParentRefs visible at this node — that is, the ones its
-        // parent passed in, *not* the augmented child view (a node
-        // does not satisfy its own peers from its own children).
+        // Resolve this node's own peer requirements against the augmented
+        // ParentRefs visible at this node, including peer-relevant children.
         let mut own_resolved_peers: HashMap<String, NodeId> = HashMap::new();
         let mut own_missing_peers: HashMap<String, MissingPeerInfo> = HashMap::new();
         for (peer_name, peer_dep) in &pkg.peer_dependencies {
@@ -795,7 +874,7 @@ impl<'tree> Walker<'tree> {
                 &pkg_name,
                 peer_name,
                 peer_dep,
-                parent_parent_refs,
+                &child_parent_refs,
                 &child_chain_names,
                 &mut own_resolved_peers,
                 &mut own_missing_peers,
@@ -822,16 +901,10 @@ impl<'tree> Walker<'tree> {
         let dep_path = if all_resolved_peers.is_empty() {
             DepPath::from(pkg.id.clone())
         } else {
-            let mut peer_ids: Vec<PeerId> = all_resolved_peers
+            let peer_ids: Vec<PeerId> = all_resolved_peers
                 .iter()
                 .map(|(peer_alias, peer_node_id)| self.build_peer_id(peer_alias, peer_node_id))
                 .collect();
-            // Sorting happens inside `create_peer_dep_graph_hash`, but
-            // we deduplicate by stringified form here to mirror
-            // upstream's `Map<alias, NodeId>` semantics (each peer
-            // contributes at most once).
-            peer_ids.sort_by_key(PeerId::as_segment);
-            peer_ids.dedup_by_key(|p| p.as_segment());
             let suffix = create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
             DepPath::from(format!("{}{}", pkg.id, suffix))
         };
@@ -851,26 +924,22 @@ impl<'tree> Walker<'tree> {
         // install layer drives off `graph_children`, so skipping the
         // edge entirely would leave the peer un-symlinked in the
         // parent's slot.
-        let mut graph_children = child_dep_paths.clone();
+        let mut graph_children = BTreeMap::new();
+        for (alias, child_node_id) in
+            self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id)
+        {
+            self.add_graph_child_or_pending(&mut graph_children, &dep_path, alias, child_node_id);
+        }
+        for (alias, child_dep_path) in child_dep_paths {
+            graph_children.insert(alias, child_dep_path);
+        }
         for (peer_alias, peer_node_id) in &all_resolved_peers {
-            if let Some(peer_dep_path) = self.node_dep_paths.get(peer_node_id) {
-                graph_children.insert(peer_alias.clone(), peer_dep_path.clone());
-            } else if let Some(link_dep_path) = link_node_id_as_dep_path(peer_node_id) {
-                // Mirrors upstream's
-                // [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L164)
-                // fallback in `resolveChildren`. `topParents` linked-dep
-                // NodeIds never enter the tree, so `node_dep_paths` is
-                // empty for them; the `link:<rel>` NodeId is itself a
-                // valid DepPath, so the snapshot's child edge can use
-                // it verbatim.
-                graph_children.insert(peer_alias.clone(), link_dep_path);
-            } else {
-                self.pending_peer_edges.push(PendingPeerEdge {
-                    parent_dep_path: dep_path.clone(),
-                    peer_alias: peer_alias.clone(),
-                    peer_node_id: peer_node_id.clone(),
-                });
-            }
+            self.add_graph_child_or_pending(
+                &mut graph_children,
+                &dep_path,
+                peer_alias.clone(),
+                peer_node_id.clone(),
+            );
         }
 
         // Compute transitive peer set: peers visible in this subtree
@@ -888,6 +957,34 @@ impl<'tree> Walker<'tree> {
         }
 
         let is_pure = all_resolved_peers.is_empty() && all_missing_peers.is_empty();
+
+        // Capture this node's NodeId-level edges + metadata for the
+        // post-walk [`Walker::build_final_dep_paths`] rebuild. Edges are
+        // the node's regular children overlaid with its *own* resolved
+        // peers — mirroring upstream's
+        // [`childrenNodeIds: { ...children, ...resolvedPeers }`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/src/resolvePeers.ts#L700-L705),
+        // where `resolvedPeers` is this node's own peer resolution, not
+        // the descendants' peers bubbled up for the suffix. A peer a
+        // descendant resolved (e.g. `debug`'s optional `supports-color`)
+        // is symlinked at the descendant that declares it, so it must
+        // not appear in this node's dependencies. Carries NodeIds so the
+        // rebuild can resolve each to its corrected final depPath.
+        let mut record_edges =
+            self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id);
+        record_edges.extend(children_map.clone());
+        for (peer_alias, peer_node_id) in &own_resolved_peers {
+            record_edges.insert(peer_alias.clone(), peer_node_id.clone());
+        }
+        self.node_records.insert(
+            node_id.clone(),
+            NodeRecord {
+                edges: record_edges,
+                transitive_peer_dependencies: transitive_peer_dependencies.clone(),
+                depth: tree_node.depth,
+                installable: tree_node.installable,
+                is_pure,
+            },
+        );
 
         // Record this walk's outcome in the per-`pkgIdWithPatchHash`
         // caches. Pure subtrees go in [`Self::pure_pkgs`] for the
@@ -933,17 +1030,9 @@ impl<'tree> Walker<'tree> {
 
         self.in_progress.remove(&node_id);
 
-        // External resolved peers reported up: this node's collected
-        // peers minus any that map to this node's own children
-        // (already covered by the children's depPaths). Filter by
-        // NodeId rather than alias for the same reason as the
-        // `external_from_children` filter above — `children` is keyed
-        // by install alias while peers may be keyed by the resolved
-        // package's real name.
-        let own_child_ids: HashSet<&NodeId> = children_map.values().collect();
         let external_to_report: HashMap<String, NodeId> = all_resolved_peers
             .into_iter()
-            .filter(|(_, peer_node_id)| !own_child_ids.contains(peer_node_id))
+            .filter(|(peer_alias, _)| !children_map.contains_key(peer_alias))
             .collect();
 
         NodeOutput {
@@ -1047,6 +1136,259 @@ impl<'tree> Walker<'tree> {
         PeerId::Pair { name, version }
     }
 
+    /// Resolve `node_id` to the depPath the rebuilt graph should key /
+    /// reference it by. Prefers the corrected `final_dep_paths` entry,
+    /// falls back to the provisional `node_dep_paths` value (correct for
+    /// peerless nodes, whose depPath is just their `pkgIdWithPatchHash`),
+    /// then to a bare `link:` id, then to the package id.
+    fn final_dep_path_of(
+        &self,
+        node_id: &NodeId,
+        final_dep_paths: &HashMap<NodeId, DepPath>,
+    ) -> DepPath {
+        if let Some(dep_path) = final_dep_paths.get(node_id) {
+            return dep_path.clone();
+        }
+        if let Some(dep_path) = self.node_dep_paths.get(node_id) {
+            return dep_path.clone();
+        }
+        if let Some(dep_path) = link_node_id_as_dep_path(node_id) {
+            return dep_path;
+        }
+        let pkg_id = &self.tree.dependencies_tree[node_id].resolved_package_id;
+        DepPath::from(self.tree.packages[pkg_id].id.clone())
+    }
+
+    /// One resolved-peer slot of `node_id`'s suffix, computed against the
+    /// already-finalized depPaths. Mirrors [`Self::build_peer_id`] but
+    /// substitutes the provisional cycle fallback with a strongly-
+    /// connected-component test: a peer is collapsed to `name@version`
+    /// only when it shares a peer-graph SCC with `node_id` (a genuine
+    /// cycle, matching pnpm's `cyclicPeerAliases` branch). Non-cyclic
+    /// peers carry their full depPath, which is the parity fix.
+    fn final_peer_id(
+        &self,
+        peer_alias: &str,
+        peer_node_id: &NodeId,
+        node_scc: usize,
+        scc_of: &HashMap<NodeId, usize>,
+        final_dep_paths: &HashMap<NodeId, DepPath>,
+    ) -> PeerId {
+        if let NodeId::Leaf(id) = peer_node_id
+            && let Some(rel) = id.strip_prefix("link:")
+        {
+            return PeerId::Pair {
+                name: peer_alias.to_string(),
+                version: link_path_to_peer_version(rel),
+            };
+        }
+        let pair = || {
+            let tree_node = &self.tree.dependencies_tree[peer_node_id];
+            let pkg = &self.tree.packages[&tree_node.resolved_package_id];
+            let (name, version) = pkg_name_version(&pkg.result);
+            PeerId::Pair { name, version }
+        };
+        if self.opts.dedupe_peers && self.tree.dependencies_tree.contains_key(peer_node_id) {
+            return pair();
+        }
+        if scc_of.get(peer_node_id) == Some(&node_scc) {
+            return pair();
+        }
+        PeerId::DepPath(self.final_dep_path_of(peer_node_id, final_dep_paths))
+    }
+
+    /// Recompute every node's depPath with its resolved peers' *full*
+    /// suffixes. Genuine peer cycles (detected as multi-node peer-graph
+    /// SCCs, or self-loops) keep the `name@version` collapse; every other
+    /// peer slot carries the peer's own depPath. This is the synchronous
+    /// equivalent of pnpm's deferred `calculateDepPath` + `analyzeGraph`
+    /// cycle detection.
+    fn build_final_dep_paths(&self) -> HashMap<NodeId, DepPath> {
+        let (sccs, scc_of) = self.peer_sccs();
+        let mut final_dep_paths: HashMap<NodeId, DepPath> = HashMap::new();
+        // SCCs come out of Tarjan in reverse-topological order, so a
+        // node's cross-SCC peers are already finalized when we reach it.
+        for (scc_index, scc) in sccs.iter().enumerate() {
+            for node_id in scc {
+                let Some(peers) = self.node_external_peers.get(node_id) else { continue };
+                if peers.is_empty() {
+                    continue;
+                }
+                let peer_ids: Vec<PeerId> = peers
+                    .iter()
+                    .map(|(peer_alias, peer_node_id)| {
+                        self.final_peer_id(
+                            peer_alias,
+                            peer_node_id,
+                            scc_index,
+                            &scc_of,
+                            &final_dep_paths,
+                        )
+                    })
+                    .collect();
+                let suffix =
+                    create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
+                let pkg_id = &self.tree.dependencies_tree[node_id].resolved_package_id;
+                let dep_path =
+                    DepPath::from(format!("{}{}", self.tree.packages[pkg_id].id, suffix));
+                final_dep_paths.insert(node_id.clone(), dep_path);
+            }
+        }
+        final_dep_paths
+    }
+
+    /// Strongly-connected components of the peer graph (node → resolved
+    /// peers, restricted to peers that themselves carry peers — peerless
+    /// peers can't close a cycle). Iterative Tarjan, returning the SCCs
+    /// in reverse-topological order plus a `NodeId → SCC index` map.
+    fn peer_sccs(&self) -> (Vec<Vec<NodeId>>, HashMap<NodeId, usize>) {
+        let participants: HashSet<&NodeId> = self
+            .node_external_peers
+            .iter()
+            .filter(|(_, peers)| !peers.is_empty())
+            .map(|(node_id, _)| node_id)
+            .collect();
+        let neighbors = |node_id: &NodeId| -> Vec<NodeId> {
+            self.node_external_peers
+                .get(node_id)
+                .into_iter()
+                .flat_map(|peers| peers.values())
+                .filter(|peer| participants.contains(*peer))
+                .cloned()
+                .collect()
+        };
+
+        let mut index_of: HashMap<NodeId, u32> = HashMap::new();
+        let mut low_of: HashMap<NodeId, u32> = HashMap::new();
+        let mut on_stack: HashSet<NodeId> = HashSet::new();
+        let mut tarjan_stack: Vec<NodeId> = Vec::new();
+        let mut sccs: Vec<Vec<NodeId>> = Vec::new();
+        let mut scc_of: HashMap<NodeId, usize> = HashMap::new();
+        let mut next_index: u32 = 0;
+
+        // Explicit DFS stack of (node, neighbors, cursor) so deep peer
+        // graphs don't overflow the call stack.
+        for root in &participants {
+            if index_of.contains_key(*root) {
+                continue;
+            }
+            let mut work: Vec<(NodeId, Vec<NodeId>, usize)> =
+                vec![((*root).clone(), neighbors(root), 0)];
+            while let Some((node_id, succ, cursor)) = work.last_mut() {
+                if *cursor == 0 {
+                    index_of.insert(node_id.clone(), next_index);
+                    low_of.insert(node_id.clone(), next_index);
+                    next_index += 1;
+                    on_stack.insert(node_id.clone());
+                    tarjan_stack.push(node_id.clone());
+                }
+                if *cursor < succ.len() {
+                    let child = succ[*cursor].clone();
+                    *cursor += 1;
+                    if !index_of.contains_key(&child) {
+                        let child_succ = neighbors(&child);
+                        work.push((child, child_succ, 0));
+                    } else if on_stack.contains(&child) {
+                        let node_low = low_of[node_id];
+                        let child_index = index_of[&child];
+                        low_of.insert(node_id.clone(), node_low.min(child_index));
+                    }
+                    continue;
+                }
+                // All successors visited — close this node.
+                let node_id = node_id.clone();
+                if low_of[&node_id] == index_of[&node_id] {
+                    let scc_index = sccs.len();
+                    let mut component = Vec::new();
+                    while let Some(member) = tarjan_stack.pop() {
+                        on_stack.remove(&member);
+                        scc_of.insert(member.clone(), scc_index);
+                        let is_root = member == node_id;
+                        component.push(member);
+                        if is_root {
+                            break;
+                        }
+                    }
+                    sccs.push(component);
+                }
+                work.pop();
+                if let Some((parent, _, _)) = work.last() {
+                    let parent_low = low_of[parent];
+                    let node_low = low_of[&node_id];
+                    low_of.insert(parent.clone(), parent_low.min(node_low));
+                }
+            }
+        }
+        (sccs, scc_of)
+    }
+
+    /// Rebuild the depPath-keyed graph from the per-`NodeId`
+    /// [`NodeRecord`]s using the corrected `final_dep_paths`. Nodes that
+    /// resolve to the same final depPath merge (taking the smallest
+    /// `depth`, like the inline build); nodes whose suffix was
+    /// previously collapsed by the cycle fallback now split into
+    /// distinct entries.
+    fn build_final_graph(&self, final_dep_paths: &HashMap<NodeId, DepPath>) -> DependenciesGraph {
+        // Minimum tree depth across *every* occurrence that resolves to a
+        // given final depPath. `pure_pkgs` / `find_hit` revisits
+        // short-circuit before a [`NodeRecord`] is created, so iterating
+        // `node_records` alone would restore the first (possibly deeper)
+        // walk's depth and miss a later shallower revisit. `node_dep_paths`
+        // carries every walked NodeId, so recompute the `Math.min` depth
+        // tie-break here — the inline build threaded it through `self.graph`,
+        // which this rebuild discards.
+        let mut min_depth: HashMap<DepPath, i32> = HashMap::new();
+        for node_id in self.node_dep_paths.keys() {
+            let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else { continue };
+            let dep_path = self.final_dep_path_of(node_id, final_dep_paths);
+            min_depth
+                .entry(dep_path)
+                .and_modify(|depth| *depth = (*depth).min(tree_node.depth))
+                .or_insert(tree_node.depth);
+        }
+
+        let mut graph = DependenciesGraph::new();
+        for (node_id, record) in &self.node_records {
+            let dep_path = self.final_dep_path_of(node_id, final_dep_paths);
+            let depth = min_depth.get(&dep_path).copied().unwrap_or(record.depth);
+            let pkg_id = self.tree.dependencies_tree[node_id].resolved_package_id.clone();
+            let pkg = &self.tree.packages[&pkg_id];
+            let children: BTreeMap<String, DepPath> = record
+                .edges
+                .iter()
+                .map(|(alias, edge_node_id)| {
+                    (alias.clone(), self.final_dep_path_of(edge_node_id, final_dep_paths))
+                })
+                .collect();
+            let resolved_peer_names: HashSet<String> = self
+                .node_external_peers
+                .get(node_id)
+                .map(|peers| peers.keys().cloned().collect())
+                .unwrap_or_default();
+            graph
+                .entry(dep_path.clone())
+                .and_modify(|node| {
+                    if node.depth > depth {
+                        node.depth = depth;
+                    }
+                })
+                .or_insert(DependenciesGraphNode {
+                    dep_path,
+                    resolved_package_id: pkg_id.clone(),
+                    resolve_result: Arc::clone(&pkg.result),
+                    children,
+                    peer_dependencies: pkg.peer_dependencies.clone(),
+                    transitive_peer_dependencies: record.transitive_peer_dependencies.clone(),
+                    resolved_peer_names,
+                    depth,
+                    installable: record.installable,
+                    is_pure: record.is_pure,
+                    optional: pkg.optional,
+                });
+        }
+        graph
+    }
+
     /// Realize the `(alias → NodeId)` children of `node_id` if it's
     /// currently a [`TreeChildren::Lazy`] entry; return the realized
     /// map (cloned for the caller). On a [`TreeChildren::Realized`]
@@ -1128,6 +1470,158 @@ impl<'tree> Walker<'tree> {
         realized
     }
 
+    fn previously_resolved_children(
+        &mut self,
+        parent_node_ids: &[NodeId],
+        parent_pkg_ids_chain: &[String],
+        current_pkg_id: &str,
+    ) -> BTreeMap<String, NodeId> {
+        let mut children = BTreeMap::new();
+        if !parent_pkg_ids_chain.iter().any(|pkg_id| pkg_id == current_pkg_id) {
+            return children;
+        }
+        for parent_node_id in parent_node_ids.iter().rev() {
+            let same_pkg = self
+                .tree
+                .dependencies_tree
+                .get(parent_node_id)
+                .is_some_and(|node| node.resolved_package_id == current_pkg_id);
+            if same_pkg {
+                for (alias, child_node_id) in self.realize_children(parent_node_id) {
+                    children.entry(alias).or_insert(child_node_id);
+                }
+            }
+        }
+        children
+    }
+
+    fn add_graph_child_or_pending(
+        &mut self,
+        graph_children: &mut BTreeMap<String, DepPath>,
+        parent_dep_path: &DepPath,
+        alias: String,
+        node_id: NodeId,
+    ) {
+        if let Some(dep_path) = self.node_dep_paths.get(&node_id) {
+            graph_children.insert(alias, dep_path.clone());
+        } else if let Some(link_dep_path) = link_node_id_as_dep_path(&node_id) {
+            // Mirrors upstream's
+            // [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L164)
+            // fallback in `resolveChildren`. `topParents` linked-dep
+            // NodeIds never enter the tree, so `node_dep_paths` is
+            // empty for them; the `link:<rel>` NodeId is itself a
+            // valid DepPath, so the snapshot's child edge can use
+            // it verbatim.
+            graph_children.insert(alias, link_dep_path);
+        } else {
+            self.pending_peer_edges.push(PendingPeerEdge {
+                parent_dep_path: parent_dep_path.clone(),
+                child_alias: alias,
+                child_node_id: node_id,
+            });
+        }
+    }
+
+    fn parent_refs_match(&self, current: &ParentRef, new: &ParentRef) -> bool {
+        if current.version != new.version || current.alias != new.alias {
+            return false;
+        }
+        let Some(current_name) = self.parent_ref_package_name(current) else {
+            return true;
+        };
+        let Some(new_name) = self.parent_ref_package_name(new) else {
+            return true;
+        };
+        current_name == new_name
+    }
+
+    fn parent_ref_package_name(&self, parent_ref: &ParentRef) -> Option<String> {
+        let node_id = parent_ref.node_id.as_ref()?;
+        let tree_node = self.tree.dependencies_tree.get(node_id)?;
+        let pkg = self.tree.packages.get(&tree_node.resolved_package_id)?;
+        Some(pkg_name_version(&pkg.result).0)
+    }
+
+    fn inherited_parent_pkg_breaks_peer_diamond(
+        &self,
+        parent_refs: &ParentRefs,
+        inherited_parent_pkg: &ParentRef,
+        own_child_parent_pkg: &ParentRef,
+        children: &BTreeMap<String, NodeId>,
+    ) -> bool {
+        let (Some(inherited_node_id), Some(own_child_node_id)) =
+            (inherited_parent_pkg.node_id.as_ref(), own_child_parent_pkg.node_id.as_ref())
+        else {
+            return false;
+        };
+        if inherited_node_id == own_child_node_id {
+            return false;
+        }
+        let Some(inherited_context) = self.parent_pkgs_of_node.get(inherited_node_id) else {
+            return false;
+        };
+        let Some(parent_pkg) = self
+            .tree
+            .dependencies_tree
+            .get(own_child_node_id)
+            .and_then(|node| self.tree.packages.get(&node.resolved_package_id))
+        else {
+            return false;
+        };
+        let (parent_pkg_name, _) = pkg_name_version(&parent_pkg.result);
+
+        let mut conflicting_peers = HashSet::new();
+        for peer_name in parent_pkg.peer_dependencies.keys() {
+            if !self.tree.all_peer_dep_names.contains(peer_name) {
+                continue;
+            }
+            let Some(inherited_peer) = inherited_context.get(peer_name) else { continue };
+            let Some(current_peer) = parent_refs.get(peer_name) else { continue };
+            if self.parent_peer_differs(current_peer, inherited_peer) {
+                conflicting_peers.insert(peer_name.clone());
+            }
+        }
+        if conflicting_peers.is_empty() {
+            return false;
+        }
+
+        for child_node_id in children.values() {
+            let Some(child_pkg) = self
+                .tree
+                .dependencies_tree
+                .get(child_node_id)
+                .and_then(|node| self.tree.packages.get(&node.resolved_package_id))
+            else {
+                continue;
+            };
+            if !child_pkg.peer_dependencies.contains_key(&parent_pkg_name) {
+                continue;
+            }
+            if conflicting_peers.iter().any(|peer| child_pkg.peer_dependencies.contains_key(peer)) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn parent_peer_differs(
+        &self,
+        current_peer: &ParentRef,
+        inherited_peer: &ParentPkgInfo,
+    ) -> bool {
+        if let Some(inherited_pkg_id) = inherited_peer.pkg_id.as_ref() {
+            let Some(current_node_id) = current_peer.node_id.as_ref() else {
+                return true;
+            };
+            return self
+                .tree
+                .dependencies_tree
+                .get(current_node_id)
+                .is_none_or(|node| node.resolved_package_id != *inherited_pkg_id);
+        }
+        inherited_peer.version.as_ref() != Some(&current_peer.version)
+    }
+
     /// Build the `(peer_name → ParentPkgInfo)` snapshot that gets
     /// stored on [`Self::parent_pkgs_of_node`] for each child the
     /// caller is about to descend into. Mirrors upstream's
@@ -1151,11 +1645,12 @@ impl<'tree> Walker<'tree> {
                 .as_ref()
                 .and_then(|nid| self.tree.dependencies_tree.get(nid))
                 .map(|tn| tn.resolved_package_id.clone());
+            let version = pkg_id.is_none().then(|| parent_ref.version.clone());
             out.insert(
                 name.clone(),
                 ParentPkgInfo {
                     pkg_id,
-                    version: Some(parent_ref.version.clone()),
+                    version,
                     depth: parent_ref.depth,
                     occurrence: parent_ref.occurrence,
                 },
@@ -1172,7 +1667,9 @@ impl<'tree> Walker<'tree> {
     /// A cache item matches when, for every cached resolved peer:
     ///
     /// 1. The current `parent_refs` has a counterpart entry for the
-    ///    same name with a real `NodeId`.
+    ///    same name with a real `NodeId`, unless the package declares
+    ///    that cached peer as optional and the current context has no
+    ///    provider for it.
     /// 2. Either the two `NodeId`s are equal, OR they map to the
     ///    same already-computed [`DepPath`] in
     ///    [`Self::node_dep_paths`], OR the two tree-nodes' resolved
@@ -1188,8 +1685,15 @@ impl<'tree> Walker<'tree> {
         let cache_items = self.peers_cache.get(pkg_id)?;
         cache_items.iter().find(|item| {
             for (name, cached_node_id) in &item.resolved_peers {
-                let Some(current_ref) = parent_refs.get(name) else { return false };
-                let Some(current_node_id) = current_ref.node_id.as_ref() else { return false };
+                let Some(current_ref) = parent_refs.get(name) else {
+                    if self.peer_dependency_is_optional(pkg_id, name) {
+                        continue;
+                    }
+                    return false;
+                };
+                let Some(current_node_id) = current_ref.node_id.as_ref() else {
+                    return false;
+                };
                 if current_node_id == cached_node_id {
                     continue;
                 }
@@ -1233,6 +1737,14 @@ impl<'tree> Walker<'tree> {
         })
     }
 
+    fn peer_dependency_is_optional(&self, pkg_id: &str, peer_name: &str) -> bool {
+        self.tree
+            .packages
+            .get(pkg_id)
+            .and_then(|pkg| pkg.peer_dependencies.get(peer_name))
+            .is_some_and(|peer| peer.optional)
+    }
+
     /// Compare two `NodeId`s' recorded parent peer contexts. Mirrors
     /// upstream's
     /// [`parentPackagesMatch`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L701-L731):
@@ -1258,12 +1770,12 @@ impl<'tree> Walker<'tree> {
             && parent_pkgs_have_single_occurrence(current_parents);
         for (name, cached_info) in cached_parents {
             let Some(current_info) = current_parents.get(name) else { return false };
-            // Version-only match: when both sides recorded a
-            // `version`, pure version equality is enough (covers
-            // `link:` parents whose nodeIds don't index into the
-            // dependencies tree).
-            if cached_info.version.is_some() && current_info.version.is_some() {
-                if cached_info.version == current_info.version {
+            // Version-only match covers `link:` parents only when
+            // both recorded contexts are version-only.
+            if let (Some(cached_version), Some(current_version)) =
+                (&cached_info.version, &current_info.version)
+            {
+                if cached_version == current_version {
                     continue;
                 }
                 return false;
@@ -1291,10 +1803,10 @@ fn parent_pkgs_have_single_occurrence(parents: &HashMap<String, ParentPkgInfo>) 
     parents.values().all(|info| info.occurrence == 0)
 }
 
-/// Reproduce upstream's `Map<NodeId, ParentRef>` dual-keying: each
-/// parent is recorded by its install alias *and* its real name when
-/// the two differ. Mirrors
-/// [`updateParentRefs`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts#L1035-L1044).
+/// Reproduce upstream's parent-ref dual-keying: each parent is recorded
+/// by its install alias *and* its real name when the two differ.
+/// Mirrors
+/// [`toPkgByName`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts#L1015-L1033).
 ///
 /// `parent_node_id` is the [`NodeId`] the parent should appear under
 /// in the [`ParentRefs`] map. For most parents this is just
@@ -1306,26 +1818,40 @@ fn insert_parent_ref(
     direct_alias: &str,
     parent_node_id: NodeId,
     pkg: &ResolvedPackage,
-    tree: &ResolvedTree,
+    depth: i32,
 ) {
     let (real_name, version) = pkg_name_version(&pkg.result);
-    let alias_relevant = tree.all_peer_dep_names.contains(direct_alias);
-    let real_relevant = tree.all_peer_dep_names.contains(&real_name);
-    if !alias_relevant && !real_relevant {
-        return;
-    }
     let parent_ref = ParentRef {
         version,
         node_id: Some(parent_node_id),
         alias: (direct_alias != real_name).then(|| direct_alias.to_string()),
-        depth: 0,
+        depth,
         occurrence: 0,
     };
-    if alias_relevant {
-        refs.insert(direct_alias.to_string(), parent_ref.clone());
+    update_parent_refs(refs, direct_alias, &parent_ref);
+    if direct_alias != real_name {
+        update_parent_refs(refs, &real_name, &parent_ref);
     }
-    if real_relevant && direct_alias != real_name {
-        refs.insert(real_name, parent_ref);
+}
+
+fn update_parent_refs(refs: &mut ParentRefs, new_alias: &str, parent_ref: &ParentRef) {
+    if let Some(existing) = refs.get(new_alias) {
+        let existing_has_alias = existing.alias.as_deref().is_some_and(|alias| alias != new_alias);
+        if !existing_has_alias {
+            return;
+        }
+        let new_has_alias = parent_ref.alias.as_deref().is_some_and(|alias| alias != new_alias);
+        if new_has_alias && version_gte(&existing.version, &parent_ref.version) {
+            return;
+        }
+    }
+    refs.insert(new_alias.to_string(), parent_ref.clone());
+}
+
+fn version_gte(left: &str, right: &str) -> bool {
+    match (Version::parse(left), Version::parse(right)) {
+        (Ok(left), Ok(right)) => left >= right,
+        _ => left >= right,
     }
 }
 
@@ -1369,26 +1895,6 @@ fn remap_link_node_id(
     let rel = pathdiff::diff_paths(&target, lockfile_dir)?;
     let rel = rel.display().to_string().replace('\\', "/");
     Some(NodeId::leaf(&format!("link:{rel}")))
-}
-
-/// Insert `parent_ref` under `name` in `refs`, bumping `occurrence`
-/// when shadowing an existing entry whose `(pkg_id, version)` differs.
-/// Mirrors upstream's
-/// [`addParentPkg` shadowing arm](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L430-L439):
-/// when a same-name parent gets added at a deeper depth and doesn't
-/// match the existing record, the new entry replaces with a higher
-/// `occurrence` so [`Walker::parent_packages_match`] can flag the
-/// shadowing.
-fn bump_occurrence_on_shadow(refs: &mut ParentRefs, name: &str, parent_ref: &ParentRef) {
-    let next = match refs.get(name) {
-        Some(existing) if existing.node_id == parent_ref.node_id => {
-            // Identical entry — keep the existing occurrence value.
-            return;
-        }
-        Some(existing) => ParentRef { occurrence: existing.occurrence + 1, ..parent_ref.clone() },
-        None => parent_ref.clone(),
-    };
-    refs.insert(name.to_string(), next);
 }
 
 /// Build the `parents` chain attached to a peer issue. Upstream uses

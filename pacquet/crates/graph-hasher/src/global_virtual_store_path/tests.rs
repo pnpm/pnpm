@@ -1,6 +1,9 @@
-use super::{calc_graph_node_hash, format_global_virtual_store_path};
+use super::{
+    calc_global_virtual_store_path_with_subdeps, calc_graph_node_hash,
+    calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
+};
 use crate::dep_state::DepsGraphNode;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Scoped packages don't get the `@/` prefix — they already start
 /// with `@<scope>/`. Unscoped packages do.
@@ -299,4 +302,62 @@ fn different_children_change_hash() {
         &mut br_b,
     );
     assert_ne!(with_dep, without_dep, "same root, different children must not collide on GVS hash");
+}
+
+/// The leaf hasher must produce the same digest as the general graph
+/// hasher fed a single childless node with `engine = null`. This ties
+/// `calc_leaf_global_virtual_store_path` to the already-parity-tested
+/// `calc_graph_node_hash` recursion, so the leaf path stays byte-for-
+/// byte identical to what pnpm computes.
+#[test]
+fn leaf_matches_single_node_graph_hash() {
+    let full = "leaf@1.0.0:sha512-x";
+    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    graph.insert(
+        "leaf@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: full.to_string(), children: HashMap::new() },
+    );
+    let mut cache = HashMap::new();
+    let mut br = HashMap::new();
+    let digest =
+        calc_graph_node_hash(&graph, &mut cache, &"leaf@1.0.0".to_string(), None, None, &mut br);
+    assert_eq!(
+        calc_leaf_global_virtual_store_path(full, "leaf", "1.0.0"),
+        format_global_virtual_store_path("leaf", "1.0.0", &digest),
+    );
+}
+
+/// With no subdeps, the subdeps hasher collapses to the leaf hasher:
+/// an empty `deps` map hashes identically to `calcLeafGlobalVirtualStorePath`'s
+/// `{ id, deps: {} }`.
+#[test]
+fn with_empty_subdeps_equals_leaf() {
+    let full = "@scope/cfg@2.0.0:sha512-y";
+    assert_eq!(
+        calc_global_virtual_store_path_with_subdeps(full, "@scope/cfg", "2.0.0", &BTreeMap::new()),
+        calc_leaf_global_virtual_store_path(full, "@scope/cfg", "2.0.0"),
+    );
+}
+
+/// Adding an optional subdep, and changing its resolved id, must each
+/// change the parent's GVS path — otherwise a subdep version swap would
+/// silently reuse the parent's existing leaf directory.
+#[test]
+fn subdeps_partition_the_hash() {
+    let parent = "cfg@1.0.0:sha512-p";
+    let none =
+        calc_global_virtual_store_path_with_subdeps(parent, "cfg", "1.0.0", &BTreeMap::new());
+
+    let mut one = BTreeMap::new();
+    one.insert("sub".to_string(), "sub@1.0.0:sha512-a".to_string());
+    let with_sub = calc_global_virtual_store_path_with_subdeps(parent, "cfg", "1.0.0", &one);
+
+    let mut other = BTreeMap::new();
+    other.insert("sub".to_string(), "sub@1.0.1:sha512-b".to_string());
+    let with_other_sub =
+        calc_global_virtual_store_path_with_subdeps(parent, "cfg", "1.0.0", &other);
+
+    assert_ne!(none, with_sub, "adding a subdep must change the parent hash");
+    assert_ne!(with_sub, with_other_sub, "changing a subdep id must change the parent hash");
+    assert_eq!(with_sub.matches('/').count(), 3, "path stays at <prefix>name/version/hash depth");
 }

@@ -921,6 +921,283 @@ mod peers {
         );
     }
 
+    /// A package's graph-node `depth` is the minimum across all
+    /// occurrences, even when the shallower one short-circuits through the
+    /// `pure_pkgs` fast path (which has no `NodeRecord`). `p` is reached at
+    /// depth 2 via `a → b → p` (walked first, so its record carries depth
+    /// 2) and at depth 1 via `c → p` (a pure-pkgs revisit). The rebuilt
+    /// graph must record depth 1. Regression guard for the `build_final_graph`
+    /// depth tie-break.
+    #[tokio::test]
+    async fn shallower_pure_pkgs_revisit_lowers_graph_depth() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("a".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "a",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "a",
+                    "version": "1.0.0",
+                    "dependencies": { "b": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("b".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "b",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "b",
+                    "version": "1.0.0",
+                    "dependencies": { "p": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("c".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "c",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "c",
+                    "version": "1.0.0",
+                    "dependencies": { "p": "1.0.0" }
+                }),
+            ),
+        );
+        // `p` has a dep `q` so it gets per-occurrence NodeIds (a shared
+        // leaf would already carry its minimum depth in the tree). Its
+        // whole subtree is peer-free, so the second, shallower occurrence
+        // under `c` takes the `pure_pkgs` fast path — which records no
+        // `NodeRecord`, the case the rebuild must still account for.
+        table.insert(
+            ("p".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "p",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "p",
+                    "version": "1.0.0",
+                    "dependencies": { "q": "1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("q".to_string(), "1.0.0".to_string()),
+            fake_result("q", "1.0.0", serde_json::json!({ "name": "q", "version": "1.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        // `a` precedes `c` so `p` is first walked at depth 2 (`a → b → p`),
+        // then revisited at depth 1 (`c → p`).
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "1.0.0", "c": "1.0.0" }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+        let p_node = &result.graph[&DepPath::from("p@1.0.0".to_string())];
+        assert_eq!(p_node.depth, 1, "p's graph depth must be the minimum (1), not 2");
+    }
+
+    /// Port of upstream's
+    /// [`"a peer's own peer is shared with a sibling that peer-depends both"`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/test/resolvePeers.ts#L1207).
+    /// `plugin` peer-depends both `parser` and `typescript`; `parser`
+    /// peer-depends `typescript`. `plugin` and `parser` live under
+    /// `umbrella` (under `app`, which also brings `typescript@1.0.0`), while
+    /// the importer also has a top-level `typescript@2.0.0` + `parser@1.0.0`.
+    /// `plugin`'s `parser` must resolve `typescript@1.0.0` — the version
+    /// `plugin` itself uses — not be shadowed by the top-level `parser` that
+    /// resolved `typescript@2.0.0`. Exercises the depPath suffix machinery.
+    #[tokio::test]
+    async fn peers_own_peer_shared_with_sibling_that_peer_depends_both() {
+        let mut table = HashMap::new();
+        for version in ["1.0.0", "2.0.0"] {
+            table.insert(
+                ("typescript".to_string(), version.to_string()),
+                fake_result(
+                    "typescript",
+                    version,
+                    serde_json::json!({ "name": "typescript", "version": version }),
+                ),
+            );
+        }
+        table.insert(
+            ("parser".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "parser",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "parser",
+                    "version": "1.0.0",
+                    "peerDependencies": { "typescript": "*" }
+                }),
+            ),
+        );
+        table.insert(
+            ("plugin".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "plugin",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "plugin",
+                    "version": "1.0.0",
+                    "peerDependencies": { "parser": "*", "typescript": "*" }
+                }),
+            ),
+        );
+        table.insert(
+            ("umbrella".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "umbrella",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "umbrella",
+                    "version": "1.0.0",
+                    "dependencies": { "plugin": "1.0.0", "parser": "1.0.0" },
+                    "peerDependencies": { "typescript": "*" }
+                }),
+            ),
+        );
+        table.insert(
+            ("app".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "app",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "dependencies": { "typescript": "1.0.0", "umbrella": "1.0.0" }
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({
+            "typescript": "2.0.0",
+            "parser": "1.0.0",
+            "app": "1.0.0",
+        }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+        let keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+        assert!(
+            keys.contains(
+                &"plugin@1.0.0(parser@1.0.0(typescript@1.0.0))(typescript@1.0.0)".to_string()
+            ),
+            "plugin's parser must resolve typescript@1.0.0; got: {keys:?}",
+        );
+        assert!(
+            !keys.contains(
+                &"plugin@1.0.0(parser@1.0.0(typescript@2.0.0))(typescript@1.0.0)".to_string()
+            ),
+            "plugin's parser must not be shadowed by the top-level typescript@2.0.0: {keys:?}",
+        );
+    }
+
+    /// A peer that is a walk-ancestor must still carry its own peer
+    /// suffix in the dependent's depPath. `a` is a direct dep with peer
+    /// `c`; its child `b` peer-depends on `a`. While `b`'s suffix is
+    /// being built, `a` is mid-walk (in-progress) so its depPath isn't
+    /// finalized yet. The post-walk [`build_final_dep_paths`] pass must
+    /// resolve `a` to its full `a@1.0.0(c@1.0.0)` — not the collapsed
+    /// `a@1.0.0` the cycle fallback would emit (pnpm only collapses
+    /// genuine cycles, and `a→b→a` here resolves because `a` and `b`
+    /// don't form a peer-graph SCC). Regression test for
+    /// <https://github.com/pnpm/pnpm/issues/12266>.
+    #[tokio::test]
+    async fn ancestor_peer_carries_its_own_suffix() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("a".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "a",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "a",
+                    "version": "1.0.0",
+                    "dependencies": { "b": "1.0.0" },
+                    "peerDependencies": { "c": "*" }
+                }),
+            ),
+        );
+        table.insert(
+            ("b".to_string(), "1.0.0".to_string()),
+            fake_result(
+                "b",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "b",
+                    "version": "1.0.0",
+                    "peerDependencies": { "a": "*" }
+                }),
+            ),
+        );
+        table.insert(
+            ("c".to_string(), "1.0.0".to_string()),
+            fake_result("c", "1.0.0", serde_json::json!({ "name": "c", "version": "1.0.0" })),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "1.0.0", "c": "1.0.0" }));
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+        let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                "a@1.0.0(c@1.0.0)".to_string(),
+                "b@1.0.0(a@1.0.0(c@1.0.0))".to_string(),
+                "c@1.0.0".to_string(),
+            ],
+        );
+
+        // `c` is `a`'s peer, not `b`'s — it must not leak into `b`'s
+        // dependencies (only `b`'s own peer `a` is a child of `b`).
+        let b_node = &result.graph[&DepPath::from("b@1.0.0(a@1.0.0(c@1.0.0))".to_string())];
+        let b_children: Vec<&str> = b_node.children.keys().map(String::as_str).collect();
+        assert_eq!(b_children, vec!["a"]);
+    }
+
     /// Shared fixture for the `dedupe_peers_*` pair: react@18 plus
     /// `@emotion/react@11` (peer: react) plus `@emotion/styled@11`
     /// (peers: react, @emotion/react). Mirrors upstream's

@@ -171,11 +171,15 @@ fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Ve
 ///
 /// `encodeURIComponent` leaves the following bytes unescaped:
 /// `A-Z a-z 0-9 - _ . ! ~ * ' ( )`.
+///
+/// `.` and `..` survive `encodeURIComponent` unchanged but resolve to the bin
+/// directory itself or its parent when joined to a target dir, so they are
+/// rejected explicitly.
 fn is_safe_bin_name(name: &str) -> bool {
     if name == "$" {
         return true;
     }
-    if name.is_empty() {
+    if name.is_empty() || name == "." || name == ".." {
         return false;
     }
     name.bytes().all(|byte| {

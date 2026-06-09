@@ -16,14 +16,18 @@
 //!   — the underlying check.
 //!
 //! Scope: the mtime-vs-`lastValidatedTimestamp` branch (upstream's
-//! `modifiedProjects.length === 0` exit at lines 263-271). Branches
-//! that detect a modified project and then re-verify the lockfile —
-//! `assertWantedLockfileUpToDate`, `patchesOrHooksAreModified` — are
-//! NOT ported here. When any manifest is newer than the last
-//! validation, this function returns `Decision::Skipped` and the
-//! caller proceeds with the full install path, which still has its
-//! own freshness guards (`check_lockfile_freshness`, the no-op
-//! short-circuit). Future work tracked at
+//! `modifiedProjects.length === 0` exit at lines 263-271), plus the
+//! patch-file branch of upstream's
+//! [`patchesOrHooksAreModified`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L597-L612):
+//! a configured patch file whose mtime is newer than
+//! `lastValidatedTimestamp` invalidates the fast path even when its
+//! `patchedDependencies` config entry is unchanged (a content edit the
+//! key→path settings comparison can't see). The pnpmfile branch of
+//! `patchesOrHooksAreModified` and the `assertWantedLockfileUpToDate`
+//! re-verification are NOT ported here. When this function returns
+//! `Decision::Skipped` the caller proceeds with the full install path,
+//! which still has its own freshness guards (`check_lockfile_freshness`,
+//! the no-op short-circuit). Remaining work tracked at
 //! pnpm/pnpm#11940 (this issue).
 //!
 //! [`checkDepsStatus`]: https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts
@@ -148,6 +152,16 @@ pub fn check_optimistic_repeat_install(
     // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L593-L596>).
     if !is_workspace_install && !workspace_root.join(Lockfile::FILE_NAME).exists() {
         return Decision::Skipped { reason: "wanted lockfile missing" };
+    }
+
+    // A patch file edited in place keeps the same `patchedDependencies`
+    // key→path entry (so `settings_match` can't see the change) but
+    // changes the patched output and the patch hash. Upstream catches
+    // this in `patchesOrHooksAreModified` before the manifest-modified
+    // exit; mirror that ordering so the patch reason wins when both a
+    // patch and a manifest are newer than the last validation.
+    if patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
+        return Decision::Skipped { reason: "a patch file is newer than the last validation" };
     }
 
     // The fast-path conclusion. Upstream walks every manifest and
@@ -441,6 +455,38 @@ fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String
 /// [`statManifestFile`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/statManifestFile.ts)
 /// behavior on missing files (it throws, which `checkDepsStatus`
 /// catches via the outer `try`).
+/// Whether any configured patch file's mtime is newer than the last
+/// validation. Mirrors the patch branch of upstream's
+/// [`patchesOrHooksAreModified`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L604-L613):
+/// `allPatchStats.some(patch => patch && patch.mtime > lastValidatedTimestamp)`.
+/// A patch that can't be stat'd is treated as not-modified — pnpm's
+/// `safeStat` returns null and the `patch &&` guard drops it, leaving a
+/// genuinely missing patch to surface on the full install path. Patch
+/// paths are resolved against `workspace_root` (the `pnpm-workspace.yaml`
+/// dir, where `patchedDependencies` is declared), matching how
+/// [`Config::patched_dependency_hashes`] resolves them.
+fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64) -> bool {
+    let Some(patches) = config.patched_dependencies.as_ref() else {
+        return false;
+    };
+    patches.values().any(|rel_or_abs| {
+        let candidate = Path::new(rel_or_abs);
+        let path = if candidate.is_absolute() {
+            candidate.to_path_buf()
+        } else {
+            workspace_root.join(candidate)
+        };
+        let Ok(modified) = fs::metadata(&path).and_then(|metadata| metadata.modified()) else {
+            return false;
+        };
+        let Ok(elapsed) = modified.duration_since(SystemTime::UNIX_EPOCH) else {
+            return false;
+        };
+        let modified_ms = i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
+        modified_ms > cutoff_ms
+    })
+}
+
 fn manifests_unchanged_since(
     cutoff_ms: i64,
     project_manifests: &[(PathBuf, &PackageManifest)],

@@ -6112,6 +6112,140 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     drop(dir);
 }
 
+#[tokio::test]
+async fn fresh_lockfile_applies_overrides_to_direct_dependencies() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+        &[("@pnpm.e2e/foo", "^100.0.0")],
+        &[("@pnpm.e2e/foo@^100.0.0", "100.0.0")],
+        None,
+    )
+    .await;
+
+    assert_package_present(&lockfile, "@pnpm.e2e/foo@100.0.0");
+    assert_package_absent(&lockfile, "@pnpm.e2e/foo@100.1.0");
+}
+
+#[tokio::test]
+async fn fresh_lockfile_applies_overrides_to_transitive_dependencies() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+        &[("@pnpm.e2e/has-foo-100.0.0-range-dep", "1.0.0")],
+        &[("@pnpm.e2e/foo@^100.0.0", "100.0.0")],
+        None,
+    )
+    .await;
+
+    assert_package_present(&lockfile, "@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0");
+    assert_package_present(&lockfile, "@pnpm.e2e/foo@100.0.0");
+    assert_package_absent(&lockfile, "@pnpm.e2e/foo@100.1.0");
+}
+
+#[tokio::test]
+async fn fresh_lockfile_resolves_catalog_protocol_in_overrides() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+        &[("@pnpm.e2e/foo", "^100.0.0")],
+        &[("@pnpm.e2e/foo@^100.0.0", "catalog:")],
+        Some("catalog:\n  '@pnpm.e2e/foo': '100.0.0'\n"),
+    )
+    .await;
+
+    assert_package_present(&lockfile, "@pnpm.e2e/foo@100.0.0");
+    assert_package_absent(&lockfile, "@pnpm.e2e/foo@100.1.0");
+    assert_eq!(
+        lockfile
+            .overrides
+            .as_ref()
+            .and_then(|overrides| overrides.get("@pnpm.e2e/foo@^100.0.0"))
+            .map(String::as_str),
+        Some("100.0.0"),
+    );
+}
+
+async fn fresh_lockfile_only_with_overrides(
+    dependencies: &[(&str, &str)],
+    overrides: &[(&str, &str)],
+    workspace_yaml: Option<&str>,
+) -> (tempfile::TempDir, Lockfile) {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    if let Some(workspace_yaml) = workspace_yaml {
+        std::fs::write(dir.path().join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    }
+    let store_dir = dir.path().join("pacquet-store");
+    let modules_dir = dir.path().join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    for (name, spec) in dependencies {
+        manifest.add_dependency(name, spec, DependencyGroup::Prod).unwrap();
+    }
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    if !overrides.is_empty() {
+        let mut map = indexmap::IndexMap::new();
+        for (selector, spec) in overrides {
+            map.insert((*selector).to_string(), (*spec).to_string());
+        }
+        config.overrides = Some(map);
+    }
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: true,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("lockfile-only install should succeed");
+
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let content = std::fs::read_to_string(lockfile_path).expect("read lockfile");
+    let lockfile = serde_saphyr::from_str(&content).expect("parse lockfile");
+    (dir, lockfile)
+}
+
+fn assert_package_present(lockfile: &Lockfile, key: &str) {
+    let key: pacquet_lockfile::PackageKey = key.parse().unwrap();
+    assert!(
+        lockfile.packages.as_ref().is_some_and(|packages| packages.contains_key(&key)),
+        "expected packages to contain {key}",
+    );
+}
+
+fn assert_package_absent(lockfile: &Lockfile, key: &str) {
+    let key: pacquet_lockfile::PackageKey = key.parse().unwrap();
+    assert!(
+        lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&key)),
+        "expected packages not to contain {key}",
+    );
+}
+
 /// `packageExtensions` adds entries to a dependency's manifest at
 /// resolve time and the resulting lockfile records the merged shape.
 ///
@@ -6484,6 +6618,58 @@ async fn after_all_resolved_hook_modifies_written_lockfile() {
     );
     // The lockfile is still a valid lockfile carrying the resolved package.
     assert!(lockfile_text.contains("@pnpm.e2e/pkg-with-1-dep"));
+}
+
+// Ports pnpm's `adding or changing pnpmfile should change
+// pnpmfileChecksum` (pnpm/test/hooks.ts): a project pnpmfile that
+// exports hooks makes the install record its normalized-content hash as
+// `pnpmfileChecksum` in pnpm-lock.yaml.
+#[tokio::test]
+async fn pnpmfile_with_hooks_records_pnpmfile_checksum() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    let pnpmfile_src = r#"module.exports = { hooks: { readPackage (pkg) { return pkg; } } }"#;
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        pnpmfile_src,
+    )
+    .await
+    .expect("install should succeed");
+
+    let lockfile_text = std::fs::read_to_string(dir.path().join("pnpm-lock.yaml")).unwrap();
+    eprintln!("{lockfile_text}");
+    let expected = pacquet_crypto_hash::create_hash(pnpmfile_src);
+    assert!(
+        lockfile_text.contains(&format!("pnpmfileChecksum: {expected}")),
+        "pnpm-lock.yaml must record the pnpmfile's checksum",
+    );
+}
+
+// A pnpmfile that exports no `hooks` object contributes no checksum,
+// matching pnpm's `entries.some(entry => entry.hooks != null)` gate.
+#[tokio::test]
+async fn pnpmfile_without_hooks_omits_pnpmfile_checksum() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        "module.exports = {}",
+    )
+    .await
+    .expect("install should succeed");
+
+    let lockfile_text = std::fs::read_to_string(dir.path().join("pnpm-lock.yaml")).unwrap();
+    eprintln!("{lockfile_text}");
+    assert!(
+        !lockfile_text.contains("pnpmfileChecksum"),
+        "a pnpmfile without hooks must not record a checksum",
+    );
 }
 
 // A throwing afterAllResolved hook aborts the install, matching pnpm.

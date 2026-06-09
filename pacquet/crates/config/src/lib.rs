@@ -10,7 +10,10 @@ mod workspace_yaml;
 pub use crate::api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe};
 
 use indexmap::IndexMap;
-use pacquet_patching::{PatchGroupRecord, ResolvePatchedDependenciesError, resolve_and_group};
+use pacquet_patching::{
+    CalcPatchHashError, PatchGroupRecord, ResolvePatchedDependenciesError, calc_patch_hashes,
+    resolve_and_group,
+};
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
@@ -41,7 +44,7 @@ pub use workspace_yaml::{
     workspace_root_or,
 };
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeLinker {
     /// dependencies are symlinked from a virtual store at node_modules/.pnpm.
@@ -75,7 +78,7 @@ pub enum NodeLinker {
 /// No effect under `nodeLinker: isolated`. The user-facing mode is
 /// translated into the per-locator border map the hoister consumes
 /// by `crate::get_hoisting_limits` in `pacquet-package-manager`.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum HoistingLimits {
     #[default]
@@ -125,6 +128,16 @@ pub enum ScriptsPrependNodePath {
     /// node in PATH differs from the running interpreter, do not
     /// prepend.
     WarnOnly,
+}
+
+impl serde::Serialize for ScriptsPrependNodePath {
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        match self {
+            ScriptsPrependNodePath::Always => serializer.serialize_bool(true),
+            ScriptsPrependNodePath::Never => serializer.serialize_bool(false),
+            ScriptsPrependNodePath::WarnOnly => serializer.serialize_str("warn-only"),
+        }
+    }
 }
 
 impl<'de> serde::Deserialize<'de> for ScriptsPrependNodePath {
@@ -207,6 +220,16 @@ impl LinkWorkspacePackages {
     }
 }
 
+impl serde::Serialize for LinkWorkspacePackages {
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        match self {
+            LinkWorkspacePackages::Off => serializer.serialize_bool(false),
+            LinkWorkspacePackages::DirectOnly => serializer.serialize_bool(true),
+            LinkWorkspacePackages::Deep => serializer.serialize_str("deep"),
+        }
+    }
+}
+
 impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
@@ -256,7 +279,7 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
 /// [`ResolutionMode::TimeBased`] the resolver additionally constrains
 /// subdependencies to versions published no later than the newest
 /// resolved direct dependency (plus a one-hour delta).
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ResolutionMode {
     /// Pick the highest version that satisfies the range, everywhere.
@@ -288,7 +311,7 @@ impl ResolutionMode {
 /// against a `catalog:` entry for the same package. Mirrors pnpm's
 /// [`catalogMode`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L186)
 /// setting.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum CatalogMode {
     /// The catalog is consulted only for explicit `catalog:` specifiers;
@@ -308,7 +331,7 @@ pub enum CatalogMode {
     Prefer,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PackageImportMethod {
     ///  try to clone packages from the store. If cloning is not supported then hardlink packages
@@ -1274,6 +1297,16 @@ pub struct Config {
     /// [`'catalog-mode': 'manual'`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L132).
     pub catalog_mode: CatalogMode,
 
+    /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
+    /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
+    /// (possibly modified) by the hook. `None` when no hook changed
+    /// them, in which case the install reads catalogs straight from the
+    /// workspace manifest. `Some` carries the complete catalog set the
+    /// hook produced (existing + injected), so the install uses it as-is
+    /// — the counterpart to pnpm's `config.catalogs` after the
+    /// `updateConfig` pass.
+    pub catalogs: Option<pacquet_catalogs_types::Catalogs>,
+
     /// Name of the catalog `pnpm add` saves a new dependency into,
     /// set by `--save-catalog-name=<name>` (with `--save-catalog` a
     /// shorthand for `default`). When `Some`, an `add` writes
@@ -1525,6 +1558,43 @@ impl Config {
         resolve_and_group(workspace_dir, raw)
     }
 
+    /// Resolve relative patch file paths in
+    /// [`Config::patched_dependencies`] against
+    /// [`Config::workspace_dir`] and hash each file, producing the
+    /// `patchedDependencies` map the lockfile records: each configured
+    /// key mapped to its patch file's SHA-256 hex digest.
+    ///
+    /// Mirrors upstream's
+    /// [`calcPatchHashes(opts.patchedDependencies)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L547-L549),
+    /// where `opts.patchedDependencies` is the manifest-dir-resolved
+    /// map produced by
+    /// [`getOptionsFromRootManifest`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts#L44-L46).
+    /// Distinct from [`Self::resolved_patched_dependencies`], which
+    /// groups the same entries by package name for the resolver — this
+    /// keeps the user's verbatim keys so the lockfile is byte-faithful
+    /// (e.g. a bare `foo` and `foo@*` stay separate keys rather than
+    /// collapsing into one group bucket).
+    ///
+    /// Returns `Ok(None)` when either field is unset.
+    pub fn patched_dependency_hashes(
+        &self,
+    ) -> Result<Option<BTreeMap<String, String>>, CalcPatchHashError> {
+        let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)
+        else {
+            return Ok(None);
+        };
+        let resolved = raw.iter().map(|(key, rel_or_abs)| {
+            let candidate = Path::new(rel_or_abs);
+            let path = if candidate.is_absolute() {
+                candidate.to_path_buf()
+            } else {
+                workspace_dir.join(candidate)
+            };
+            (key.clone(), path)
+        });
+        Ok(Some(calc_patch_hashes(resolved)?))
+    }
+
     /// Build the runtime config by layering:
     /// 1. hard-coded defaults, then
     /// 2. the supported `.npmrc` subset read from the nearest `.npmrc`
@@ -1570,9 +1640,9 @@ impl Config {
         self.modules_dir = start_dir.join("node_modules");
         self.virtual_store_dir = start_dir.join("node_modules/.pnpm");
 
-        // Read the nearest .npmrc (start_dir first, home second) and apply
-        // only the auth/network subset. Everything else is intentionally
-        // ignored.
+        // Read the project/workspace .npmrc plus trusted user-level sources
+        // and apply only the auth/network subset. Everything else is
+        // intentionally ignored.
         //
         // pnpm reads several `.npmrc` sources and merges them
         // (`user < auth.ini < workspace`), pinning each file's *unscoped*
@@ -1586,8 +1656,44 @@ impl Config {
         // participates in the user-level path resolution below, and its
         // directory is where `auth.ini` lives.
         let global_config_dir = default_config_dir::<Sys>();
-        let global_settings =
+        let mut global_settings =
             global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
+        if let Some(global_settings) = global_settings.as_mut() {
+            global_settings.substitute_env_trusted::<Sys>();
+        }
+
+        // Resolve the workspace dir before reading the project `.npmrc`
+        // so subdirectory invocations use the workspace-root config,
+        // matching pnpm's `opts.workspaceDir ?? localPrefix` boundary.
+        let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
+            .or_else(|| Sys::var_os("npm_config_workspace_dir"))
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from);
+        let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
+            // Env-var path: load yaml directly from the env dir. A
+            // missing file is silent (matching upstream), but the
+            // re-anchor still fires because the user has explicitly
+            // told us where the workspace lives.
+            let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
+            match fs::read_to_string(&yaml_path) {
+                Ok(text) => {
+                    let settings: WorkspaceSettings =
+                        serde_saphyr::from_str(&text).map_err(Box::new).map_err(|source| {
+                            LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source }
+                        })?;
+                    Some((env_dir, Some(settings)))
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
+                Err(source) => {
+                    return Err(LoadWorkspaceYamlError::ReadFile { path: yaml_path, source });
+                }
+            }
+        } else {
+            WorkspaceSettings::find_and_load(start_dir)?.map(|(path, settings)| {
+                let base_dir = path.parent().unwrap_or(start_dir).to_path_buf();
+                (base_dir, Some(settings))
+            })
+        };
 
         // Resolve the user-level `.npmrc` path. Precedence (pnpm's
         // [`index.ts:230`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L230)):
@@ -1612,16 +1718,22 @@ impl Config {
         // Build the merge sources in priority order (high → low):
         // project `.npmrc` > `auth.ini` > user-level `.npmrc`. Each is
         // parsed and rescoped independently before being folded together.
-        let parse_source = |text: String, dir: PathBuf, label: &str| {
+        let parse_trusted_source = |text: String, dir: PathBuf, label: &str| {
             let mut auth = crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text, &dir);
             auth.rescope_unscoped(label);
             auth
         };
-        let project_source = read_npmrc(start_dir)
-            .map(|text| parse_source(text, start_dir.to_path_buf(), "<project>/.npmrc"));
+        let project_npmrc_dir =
+            workspace_yaml.as_ref().map(|(base_dir, _)| base_dir.as_path()).unwrap_or(start_dir);
+        let project_source = read_npmrc(project_npmrc_dir).map(|text| {
+            let mut auth =
+                crate::npmrc_auth::NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir);
+            auth.rescope_unscoped("<project>/.npmrc");
+            auth
+        });
         let auth_ini_source = global_config_dir.as_deref().and_then(|dir| {
             read_npmrc_file(&dir.join("auth.ini"))
-                .map(|text| parse_source(text, dir.to_path_buf(), "auth.ini"))
+                .map(|text| parse_trusted_source(text, dir.to_path_buf(), "auth.ini"))
         });
         let user_source = match &user_npmrc_path {
             Some(path) => read_npmrc_file(path).map(|text| {
@@ -1630,10 +1742,11 @@ impl Config {
                 // that's the empty path — i.e. the process cwd — never
                 // the file itself.
                 let dir = path.parent().map(|parent| parent.to_path_buf()).unwrap_or_default();
-                parse_source(text, dir, "<user>/.npmrc")
+                parse_trusted_source(text, dir, "<user>/.npmrc")
             }),
-            None => Sys::home_dir()
-                .and_then(|dir| read_npmrc(&dir).map(|text| parse_source(text, dir, "~/.npmrc"))),
+            None => Sys::home_dir().and_then(|dir| {
+                read_npmrc(&dir).map(|text| parse_trusted_source(text, dir, "~/.npmrc"))
+            }),
         };
 
         // Fold high-priority-first: the first present source is the
@@ -1691,32 +1804,18 @@ impl Config {
         // must fire only when the user has *not* pinned a path. See
         // [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
-        if let Some(mut global_settings) = global_settings {
+        if let Some(global_settings) = global_settings {
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
             store_dir_explicit |= global_settings.store_dir.is_some();
-            global_settings.substitute_env::<Sys>();
             let saved_workspace_dir = self.workspace_dir.take();
             global_settings.apply_to(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
         }
 
         // Layer pnpm-workspace.yaml overrides on top. A missing file is
-        // silent. Read or parse failures propagate to the caller.
-        //
-        // Resolve the workspace dir: `NPM_CONFIG_WORKSPACE_DIR`
-        // override first (mirroring upstream's `findWorkspaceDir` and
-        // [`pacquet_workspace::find_workspace_dir`]; both must agree on
-        // where the workspace lives, otherwise the per-importer
-        // `SymlinkDirectDependencies` writes and the virtual store
-        // would end up in different directories). Fall back to the
-        // upward walk for `pnpm-workspace.yaml` when the env var is
-        // unset or empty.
-        //
-        // The env var is read here rather than via
-        // [`pacquet_workspace`] to avoid adding a cross-crate
-        // dependency just for the lookup — the contract is fixed by
-        // pnpm upstream, so the duplication is low-risk.
+        // silent. Read or parse failures propagated while resolving
+        // `workspace_yaml` above.
         //
         // Capture the "did yaml set this field" booleans *before*
         // applying yaml so the GVS derivation downstream can tell apart
@@ -1725,36 +1824,6 @@ impl Config {
         // (SmartDefault wrote them in) and would either always or never
         // re-point them, neither of which matches upstream's
         // [`extendInstallOptions.ts:343-355`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/extendInstallOptions.ts#L343-L355).
-        let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
-            .or_else(|| Sys::var_os("npm_config_workspace_dir"))
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from);
-        let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
-            // Env-var path: load yaml directly from the env dir. A
-            // missing file is silent (matching upstream), but the
-            // re-anchor still fires because the user has explicitly
-            // told us where the workspace lives.
-            let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
-            match fs::read_to_string(&yaml_path) {
-                Ok(text) => {
-                    let settings: WorkspaceSettings =
-                        serde_saphyr::from_str(&text).map_err(Box::new).map_err(|source| {
-                            LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source }
-                        })?;
-                    Some((env_dir, Some(settings)))
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
-                Err(source) => {
-                    return Err(LoadWorkspaceYamlError::ReadFile { path: yaml_path, source });
-                }
-            }
-        } else {
-            WorkspaceSettings::find_and_load(start_dir)?.map(|(path, settings)| {
-                let base_dir = path.parent().unwrap_or(start_dir).to_path_buf();
-                (base_dir, Some(settings))
-            })
-        };
-
         if let Some((base_dir, settings)) = workspace_yaml {
             // Re-anchor the path-valued defaults to the workspace root
             // before applying settings. Without this, a `pacquet install`
@@ -1793,7 +1862,7 @@ impl Config {
                 virtual_store_dir_explicit |= settings.virtual_store_dir.is_some();
                 global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
                 store_dir_explicit |= settings.store_dir.is_some();
-                settings.substitute_env::<Sys>();
+                settings.substitute_env_untrusted::<Sys>();
                 settings.apply_to(&mut self, &base_dir);
             }
         }
@@ -1817,7 +1886,7 @@ impl Config {
         virtual_store_dir_explicit |= env_settings.virtual_store_dir.is_some();
         global_virtual_store_dir_explicit |= env_settings.global_virtual_store_dir.is_some();
         store_dir_explicit |= env_settings.store_dir.is_some();
-        env_settings.substitute_env::<Sys>();
+        env_settings.substitute_env_trusted::<Sys>();
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;

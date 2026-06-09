@@ -625,6 +625,100 @@ fn returns_skipped_when_patched_dependencies_drift() {
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
 
+/// A patch file edited in place (same `patchedDependencies` entry, new
+/// contents) invalidates the fast path. The `settings_match` key→path
+/// comparison can't see a content edit, so this exercises the
+/// patch-mtime branch ported from pnpm's `patchesOrHooksAreModified`.
+#[test]
+fn returns_skipped_when_patch_file_modified_after_validation() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
+
+    let patch_path = workspace_root.join("patches").join("foo.patch");
+    fs::create_dir_all(patch_path.parent().unwrap()).unwrap();
+    fs::write(&patch_path, "--- a\n+++ b\n").unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    let mut patched = indexmap::IndexMap::new();
+    patched.insert("foo@1.0.0".to_string(), "patches/foo.patch".to_string());
+    config.patched_dependencies = Some(patched);
+    let config = config.leak();
+
+    let settings =
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    // Validate "now", then bump the patch's mtime past that timestamp.
+    write_state(workspace_root, now_millis(), settings, projects);
+    sleep(Duration::from_millis(20));
+    fs::write(&patch_path, "--- a\n+++ b\n+edited\n").unwrap();
+
+    let decision = check_optimistic_repeat_install(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(workspace_root.to_path_buf(), &manifest)],
+        false,
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("patch")));
+}
+
+/// An unchanged patch file (mtime older than the last validation)
+/// leaves the fast path intact — the patch-mtime branch must not
+/// false-positive on every install that merely configures a patch.
+#[test]
+fn returns_up_to_date_when_patch_file_unchanged() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
+
+    let patch_path = workspace_root.join("patches").join("foo.patch");
+    fs::create_dir_all(patch_path.parent().unwrap()).unwrap();
+    fs::write(&patch_path, "--- a\n+++ b\n").unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    let mut patched = indexmap::IndexMap::new();
+    patched.insert("foo@1.0.0".to_string(), "patches/foo.patch".to_string());
+    config.patched_dependencies = Some(patched);
+    let config = config.leak();
+
+    let settings =
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    // Both the manifest and patch were written before this timestamp.
+    sleep(Duration::from_millis(20));
+    write_state(workspace_root, now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &[(workspace_root.to_path_buf(), &manifest)],
+        false,
+    );
+    assert_eq!(decision, Decision::UpToDate);
+}
+
 /// Drift in `dedupePeers` invalidates the cached state. Mirrors
 /// pnpm's
 /// [`getOutdatedLockfileSetting` settings.dedupePeers branch](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L65-L67),

@@ -3,11 +3,12 @@ use crate::{
     GraphToLockfileOptions, HoistedDependencies, ImporterLockfileInput,
     InstallPackageFromRegistryError, LinkVirtualStoreBins, LinkVirtualStoreBinsError,
     PrefetchContext, PrefetchingResolver, SkippedSnapshots, SymlinkDirectDependencies,
-    SymlinkDirectDependenciesError, VersionPolicyError, VirtualStoreLayout,
+    SymlinkDirectDependenciesError, VersionPolicyError, VersionsOverrider, VirtualStoreLayout,
     dependencies_graph_to_lockfile, store_init::init_store_dir_best_effort,
 };
 use dashmap::DashMap;
 use derive_more::{Display, Error};
+use indexmap::IndexMap;
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
@@ -22,7 +23,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
-    ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
+    ManifestHook, ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
 };
 use pacquet_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
 use pacquet_resolving_local_resolver::{
@@ -290,6 +291,11 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     ResolvePatchedDependencies(#[error(source)] pacquet_patching::ResolvePatchedDependenciesError),
 
+    /// Failed to read or hash a patch file when computing the
+    /// lockfile's top-level `patchedDependencies` block.
+    #[diagnostic(transparent)]
+    CalcPatchHashes(#[error(source)] pacquet_patching::CalcPatchHashError),
+
     /// A user-defined `namedRegistries` entry mapped an alias to a
     /// non-http(s) URL. Surfaced at resolver construction so the
     /// install fails fast with a specific error code instead of a
@@ -309,6 +315,11 @@ pub enum InstallWithFreshLockfileError {
     InvalidPackageExtensionSelector(
         #[error(source)] crate::package_extender::InvalidPackageExtensionSelector,
     ),
+
+    /// A value in `pnpm.overrides` couldn't be parsed before the
+    /// fresh resolver's read-package hook was built.
+    #[diagnostic(transparent)]
+    InvalidOverrides(#[error(source)] pacquet_config_parse_overrides::ParseOverridesError),
 
     /// The first writer of a shared `(name, version)` slot dropped its
     /// completion signal without sending `true`. In practice this only
@@ -765,6 +776,69 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             .transpose()
             .map_err(InstallWithFreshLockfileError::TrustPolicyExclude)?;
 
+        let parsed_overrides = parse_config_overrides(config, &catalogs)?;
+        let resolved_overrides = parsed_overrides.as_deref().map(resolved_overrides_map);
+
+        // Build pnpm's built-in read-package hook chain for manifests
+        // that fresh resolution consumes. The order matches
+        // `createReadPackageHook`: packageExtensions first, overrides
+        // after that. The pnpmfile readPackage hook is still threaded
+        // separately and runs after this built-in hook in the resolver.
+        let package_extender = match config.package_extensions.as_ref() {
+            Some(extensions) => {
+                let extender = crate::PackageExtender::new(extensions)
+                    .map_err(InstallWithFreshLockfileError::InvalidPackageExtensionSelector)?;
+                (!extender.is_empty()).then(|| Arc::new(extender))
+            }
+            None => None,
+        };
+        let versions_overrider = parsed_overrides
+            .as_ref()
+            .map(|parsed| Arc::new(VersionsOverrider::new(parsed, lockfile_dir)));
+
+        let mut effective_importer_manifests_holder = BTreeMap::new();
+        if package_extender.is_some()
+            || versions_overrider.as_ref().is_some_and(|overrider| !overrider.is_empty())
+        {
+            for (id, manifest) in &importer_manifests {
+                let mut cloned = (*manifest).clone();
+                if let Some(extender) = package_extender.as_ref() {
+                    extender.apply(cloned.value_mut());
+                }
+                if let Some(overrider) = versions_overrider.as_ref() {
+                    let manifest_dir = cloned.path().parent().map(Path::to_path_buf);
+                    overrider.apply(&mut cloned, manifest_dir.as_deref());
+                }
+                effective_importer_manifests_holder.insert(id.clone(), cloned);
+            }
+        }
+        let importer_manifests: BTreeMap<String, &PackageManifest> =
+            if effective_importer_manifests_holder.is_empty() {
+                importer_manifests
+            } else {
+                effective_importer_manifests_holder
+                    .iter()
+                    .map(|(id, manifest)| (id.clone(), manifest))
+                    .collect()
+            };
+
+        let package_extensions_hook: Option<ManifestHook> =
+            package_extender.as_ref().map(|extender| {
+                let extender = Arc::clone(extender);
+                Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
+            });
+        let overrides_hook: Option<ManifestHook> =
+            versions_overrider.as_ref().and_then(|overrider| {
+                if overrider.is_empty() {
+                    None
+                } else {
+                    let overrider = Arc::clone(overrider);
+                    Some(Arc::new(move |manifest| overrider.apply_to_arc(manifest, None))
+                        as ManifestHook)
+                }
+            });
+        let manifest_hook = compose_manifest_hooks(package_extensions_hook, overrides_hook);
+
         // Seed `allPreferredVersions` from every importer's manifest +
         // the wanted lockfile's snapshots (when an existing one is
         // present and is being rewritten). Mirrors upstream's
@@ -829,23 +903,15 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             .resolved_patched_dependencies()
             .map_err(InstallWithFreshLockfileError::ResolvePatchedDependencies)?
             .map(Arc::new);
-
-        // Build the `packageExtensions` hook once per install. The
-        // closure captures an `Arc<PackageExtender>` so every importer
-        // and every concurrent resolve clones the same grouped-by-name
-        // lookup table. `None` when no extensions are configured so the
-        // resolver hot path skips the per-resolve dispatch.
-        //
-        // An invalid `@<range>` in any selector surfaces here, before
-        // the resolver runs — same intent as upstream's TypeError out
-        // of `semver.satisfies`, but lifted to install start so the
-        // user sees the bad selector before any tarballs are fetched.
-        let package_extensions_hook = match config.package_extensions.as_ref() {
-            Some(extensions) => crate::PackageExtender::new(extensions)
-                .map_err(InstallWithFreshLockfileError::InvalidPackageExtensionSelector)?
-                .into_manifest_hook(),
-            None => None,
-        };
+        // The verbatim `patchedDependencies` key → patch-file-hash map
+        // recorded in the lockfile's top-level `patchedDependencies`
+        // block. Computed separately from the grouped record above
+        // (which buckets by package name) so the user's exact keys
+        // survive into the lockfile, mirroring pnpm's
+        // `calcPatchHashes(opts.patchedDependencies)`.
+        let patched_dependency_hashes = config
+            .patched_dependency_hashes()
+            .map_err(InstallWithFreshLockfileError::CalcPatchHashes)?;
 
         // Loop per workspace project. Each importer gets its own
         // resolve_importer call with its own `project_dir` so
@@ -929,7 +995,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             exclude_links_from_lockfile: config.exclude_links_from_lockfile,
             lockfile_dir: lockfile_dir.to_path_buf(),
             peers_suffix_max_length,
-            manifest_hook: package_extensions_hook.clone(),
+            manifest_hook: manifest_hook.clone(),
             pnpmfile_hook,
             read_package_log,
             pick_lowest_direct,
@@ -937,17 +1003,15 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             // Hand the resolver the prior lockfile so it can reuse
             // already-resolved subtrees instead of re-resolving from the
             // registry (see pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md).
-            // Withhold it when `packageExtensions` drifted: a changed
-            // extension rewrites packages' dependency sets, so the recorded
-            // subtree is stale — pnpm likewise invalidates the lockfile on a
-            // settings change. (`overrides` are applied to the manifest
-            // before the importer-level reuse gate re-checks the specifier;
-            // a follow-up should also guard transitive reuse against
-            // overrides drift.)
+            // Withhold it when packageExtensions or overrides drifted:
+            // both settings rewrite package dependency sets, so the
+            // recorded subtree is stale. pnpm likewise invalidates the
+            // lockfile on these settings changes.
             wanted_lockfile: wanted_lockfile
                 .filter(|lockfile| {
                     lockfile.package_extensions_checksum
                         == compute_package_extensions_checksum(config)
+                        && overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
                 })
                 .cloned()
                 .map(Arc::new),
@@ -1025,7 +1089,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                     modules_dir: Some(importer_modules_dir),
                     peers_suffix_max_length,
                     catalog_server: false,
-                    manifest_hook: package_extensions_hook.clone(),
+                    manifest_hook: manifest_hook.clone(),
                     pnpmfile_hook: None,
                 }
             },
@@ -1075,6 +1139,17 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         drop(fetch_locker);
         drop(picked_manifest_cache);
 
+        // Compute the `pnpmfileChecksum` once for both lockfile-build
+        // paths below. Mirrors pnpm's `calculatePnpmfileChecksum`: the
+        // hash of the project's `.pnpmfile.{cjs,mjs}` when it exports
+        // hooks, `None` otherwise. Resolution has already spawned the
+        // pnpmfile worker (every `readPackage` runs through it), so the
+        // gate query is cheap here.
+        let pnpmfile_checksum: Option<String> = match after_all_resolved_hook.as_ref() {
+            Some(hook) => hook.calculate_pnpmfile_checksum().await,
+            None => None,
+        };
+
         // `--lockfile-only`: the graph is resolved, so build and write
         // `pnpm-lock.yaml` and return before any materialization. No
         // tarball was prefetched (the resolver ran without the
@@ -1082,13 +1157,16 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // there is no `node_modules`, `.modules.yaml`, or current
         // lockfile — matching pnpm's lockfileOnly resolve pass.
         if lockfile_only {
-            let built_lockfile = build_fresh_lockfile(
+            let built_lockfile = build_fresh_lockfile(FreshLockfileBuildOptions {
                 config,
-                &importer_manifests,
-                &merged_graph,
-                &direct_by_importer,
-                &catalogs,
-            );
+                importer_manifests: &importer_manifests,
+                graph: &merged_graph,
+                direct_by_importer: &direct_by_importer,
+                resolved_overrides: resolved_overrides.clone(),
+                catalogs: &catalogs,
+                pnpmfile_checksum: pnpmfile_checksum.as_deref(),
+                patched_dependency_hashes: patched_dependency_hashes.as_ref(),
+            });
             let (wanted_lockfile, can_record_lockfile_verification) = if config.lockfile {
                 let can_record_lockfile_verification = save_wanted_lockfile(
                     &built_lockfile,
@@ -1212,13 +1290,16 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         // [`Self::wanted_lockfile`], which is the *previous* run's
         // lockfile threaded in for preferred-versions seeding.
         let phase_start = std::time::Instant::now();
-        let built_lockfile = build_fresh_lockfile(
+        let built_lockfile = build_fresh_lockfile(FreshLockfileBuildOptions {
             config,
-            &importer_manifests,
-            &merged_graph,
-            &direct_by_importer,
-            &catalogs,
-        );
+            importer_manifests: &importer_manifests,
+            graph: &merged_graph,
+            direct_by_importer: &direct_by_importer,
+            resolved_overrides: resolved_overrides.clone(),
+            catalogs: &catalogs,
+            pnpmfile_checksum: pnpmfile_checksum.as_deref(),
+            patched_dependency_hashes: patched_dependency_hashes.as_ref(),
+        });
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "build_fresh_lockfile",
@@ -1720,6 +1801,60 @@ async fn save_wanted_lockfile(
     Ok(result.is_null())
 }
 
+fn parse_config_overrides(
+    config: &Config,
+    catalogs: &Catalogs,
+) -> Result<
+    Option<Vec<pacquet_config_parse_overrides::VersionOverride>>,
+    InstallWithFreshLockfileError,
+> {
+    match config.overrides.as_ref() {
+        Some(map) if !map.is_empty() => {
+            pacquet_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)
+                .map(Some)
+                .map_err(InstallWithFreshLockfileError::InvalidOverrides)
+        }
+        _ => Ok(None),
+    }
+}
+
+fn resolved_overrides_map(
+    parsed: &[pacquet_config_parse_overrides::VersionOverride],
+) -> IndexMap<String, String> {
+    parsed.iter().map(|entry| (entry.selector.clone(), entry.new_bare_specifier.clone())).collect()
+}
+
+fn overrides_match(
+    lockfile: Option<&IndexMap<String, String>>,
+    config: Option<&IndexMap<String, String>>,
+) -> bool {
+    let lockfile = lockfile.filter(|map| !map.is_empty());
+    let config = config.filter(|map| !map.is_empty());
+    match (lockfile, config) {
+        (None, None) => true,
+        (Some(lockfile), Some(config)) => {
+            lockfile.len() == config.len()
+                && lockfile.iter().all(|(key, value)| {
+                    config.get(key).is_some_and(|config_value| config_value == value)
+                })
+        }
+        _ => false,
+    }
+}
+
+fn compose_manifest_hooks(
+    first: Option<ManifestHook>,
+    second: Option<ManifestHook>,
+) -> Option<ManifestHook> {
+    match (first, second) {
+        (None, None) => None,
+        (Some(hook), None) | (None, Some(hook)) => Some(hook),
+        (Some(first), Some(second)) => {
+            Some(Arc::new(move |manifest| second(first(manifest))) as ManifestHook)
+        }
+    }
+}
+
 /// Build the [`Lockfile`] for `<lockfile_dir>/pnpm-lock.yaml` from the
 /// merged resolver graph + per-importer direct-deps maps.
 ///
@@ -1728,16 +1863,29 @@ async fn save_wanted_lockfile(
 /// then the
 /// [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/094aa6e57b/lockfile/fs/src/write.ts#L133)
 /// fan-out, with [`dependencies_graph_to_lockfile()`] doing the wire-shape lifting.
-fn build_fresh_lockfile(
-    config: &Config,
-    importer_manifests: &BTreeMap<String, &PackageManifest>,
-    graph: &pacquet_resolving_deps_resolver::DependenciesGraph,
-    direct_by_importer: &BTreeMap<
-        String,
-        BTreeMap<String, pacquet_resolving_deps_resolver::DepPath>,
-    >,
-    catalogs: &pacquet_catalogs_types::Catalogs,
-) -> Lockfile {
+struct FreshLockfileBuildOptions<'a> {
+    config: &'a Config,
+    importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
+    graph: &'a pacquet_resolving_deps_resolver::DependenciesGraph,
+    direct_by_importer:
+        &'a BTreeMap<String, BTreeMap<String, pacquet_resolving_deps_resolver::DepPath>>,
+    resolved_overrides: Option<IndexMap<String, String>>,
+    catalogs: &'a pacquet_catalogs_types::Catalogs,
+    pnpmfile_checksum: Option<&'a str>,
+    patched_dependency_hashes: Option<&'a BTreeMap<String, String>>,
+}
+
+fn build_fresh_lockfile(opts: FreshLockfileBuildOptions<'_>) -> Lockfile {
+    let FreshLockfileBuildOptions {
+        config,
+        importer_manifests,
+        graph,
+        direct_by_importer,
+        resolved_overrides,
+        catalogs,
+        pnpmfile_checksum,
+        patched_dependency_hashes,
+    } = opts;
     let mut importers = BTreeMap::new();
     for (id, manifest) in importer_manifests {
         let direct = direct_by_importer.get(id).cloned().unwrap_or_default();
@@ -1756,12 +1904,11 @@ fn build_fresh_lockfile(
         peers_suffix_max_length: (config.peers_suffix_max_length
             != pacquet_config::default_peers_suffix_max_length())
         .then_some(config.peers_suffix_max_length),
-        overrides: config
-            .overrides
-            .as_ref()
-            .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect()),
+        overrides: resolved_overrides,
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+        patched_dependencies: patched_dependency_hashes.cloned(),
         package_extensions_checksum: compute_package_extensions_checksum(config),
+        pnpmfile_checksum: pnpmfile_checksum.map(str::to_string),
         catalogs,
         registry: &config.registry,
         lockfile_include_tarball_url: config.lockfile_include_tarball_url,
