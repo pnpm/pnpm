@@ -6,18 +6,20 @@ import { NODE_RELEASE_KEYS } from './nodeReleaseKeys.js'
 
 export interface ArmoredKey { armoredKey: string }
 
-let bundledKeysPromise: Promise<openpgp.Key[]> | undefined
+let bundledKeyPacketsPromise: Promise<openpgp.AnyKeyPacket[]> | undefined
 
-async function loadTrustedKeys (trustedKeys: readonly ArmoredKey[]): Promise<openpgp.Key[]> {
+async function loadSigningKeyPackets (trustedKeys: readonly ArmoredKey[]): Promise<openpgp.AnyKeyPacket[]> {
   if (trustedKeys === NODE_RELEASE_KEYS) {
-    bundledKeysPromise ??= readKeys(NODE_RELEASE_KEYS)
-    return bundledKeysPromise
+    bundledKeyPacketsPromise ??= readSigningKeyPackets(NODE_RELEASE_KEYS)
+    return bundledKeyPacketsPromise
   }
-  return readKeys(trustedKeys)
+  return readSigningKeyPackets(trustedKeys)
 }
 
-async function readKeys (trustedKeys: readonly ArmoredKey[]): Promise<openpgp.Key[]> {
-  return Promise.all(trustedKeys.map(({ armoredKey }) => openpgp.readKey({ armoredKey })))
+async function readSigningKeyPackets (trustedKeys: readonly ArmoredKey[]): Promise<openpgp.AnyKeyPacket[]> {
+  const keys = await Promise.all(trustedKeys.map(({ armoredKey }) => openpgp.readKey({ armoredKey })))
+  // A signature may be made by the primary key or any subkey; collect both.
+  return keys.flatMap((key) => [key.keyPacket, ...key.subkeys.map((subkey) => subkey.keyPacket)])
 }
 
 /**
@@ -31,7 +33,13 @@ async function readKeys (trustedKeys: readonly ArmoredKey[]): Promise<openpgp.Ke
  * download to the real Node.js release team: a mirror serving a tampered binary
  * with a matching SHASUMS cannot also produce a valid signature.
  *
- * Throws when the signature is missing or does not verify.
+ * The signature is verified at the packet level (the cryptographic check),
+ * deliberately bypassing OpenPGP key-validity-window checks: the trusted keys
+ * are pinned (mirrored from `nodejs/release-keys`), and the Node.js release keys
+ * are re-certified over time, which would otherwise make signatures on older
+ * releases fail to validate against the current key material.
+ *
+ * Throws when the signature is missing or does not verify against a trusted key.
  */
 export async function fetchVerifiedNodeShasums (
   fetch: FetchFromRegistry,
@@ -43,24 +51,7 @@ export async function fetchVerifiedNodeShasums (
     fetchBytes(fetch, `${shasumsUrl}.sig`, 'SHASUMS256.txt.sig'),
   ])
 
-  const [message, signature, verificationKeys] = await Promise.all([
-    openpgp.createMessage({ binary: shasumsBytes }),
-    openpgp.readSignature({ binarySignature: signatureBytes }),
-    loadTrustedKeys(trustedKeys),
-  ])
-
-  let verificationResult: Awaited<ReturnType<typeof openpgp.verify>>
-  try {
-    verificationResult = await openpgp.verify({ message, signature, verificationKeys })
-  } catch (err: unknown) {
-    throw new PnpmError(
-      'NODE_SHASUMS_SIGNATURE_INVALID',
-      `The OpenPGP signature of ${shasumsUrl} could not be verified against the Node.js release keys: ${String(err)}`
-    )
-  }
-
-  const verified = await anySignatureVerifies(verificationResult.signatures)
-  if (!verified) {
+  if (!(await isSignedByTrustedKey(shasumsBytes, signatureBytes, trustedKeys))) {
     throw new PnpmError(
       'NODE_SHASUMS_SIGNATURE_INVALID',
       `The OpenPGP signature of ${shasumsUrl} does not match any trusted Node.js release key. ` +
@@ -69,6 +60,52 @@ export async function fetchVerifiedNodeShasums (
   }
 
   return Buffer.from(shasumsBytes).toString('utf8')
+}
+
+async function isSignedByTrustedKey (
+  content: Uint8Array,
+  signatureBytes: Uint8Array,
+  trustedKeys: readonly ArmoredKey[]
+): Promise<boolean> {
+  let signature: openpgp.Signature
+  let keyPackets: openpgp.AnyKeyPacket[]
+  try {
+    ;[signature, keyPackets] = await Promise.all([
+      openpgp.readSignature({ binarySignature: signatureBytes }),
+      loadSigningKeyPackets(trustedKeys),
+    ])
+  } catch (err: unknown) {
+    throw new PnpmError('NODE_SHASUMS_SIGNATURE_INVALID', `Could not read the Node.js SHASUMS signature: ${String(err)}`)
+  }
+  const message = await openpgp.createMessage({ binary: content })
+  const literalDataPacket = message.packets[0]
+
+  const perSignature = await Promise.all(
+    signature.packets.map((signaturePacket) =>
+      signaturePacketVerifies(signaturePacket, keyPackets, literalDataPacket))
+  )
+  return perSignature.some(Boolean)
+}
+
+async function signaturePacketVerifies (
+  signaturePacket: openpgp.SignaturePacket,
+  keyPackets: openpgp.AnyKeyPacket[],
+  literalDataPacket: object
+): Promise<boolean> {
+  const issuerKeyID = signaturePacket.issuerKeyID
+  if (issuerKeyID == null) return false
+  const keyPacket = keyPackets.find((packet) => packet.getKeyID().equals(issuerKeyID))
+  if (keyPacket == null) return false
+  try {
+    // Resolves on a valid signature, rejects otherwise. This is the raw
+    // cryptographic check against a pinned key — no web-of-trust / key-expiry
+    // evaluation, which is what `openpgp.verify` would (incorrectly here) apply.
+    await signaturePacket.verify(keyPacket, signaturePacket.signatureType!, literalDataPacket, signaturePacket.created ?? undefined, true)
+    return true
+  } catch {
+    // Not valid under this key/packet.
+    return false
+  }
 }
 
 async function fetchBytes (fetch: FetchFromRegistry, url: string, what: string): Promise<Uint8Array> {
@@ -80,13 +117,4 @@ async function fetchBytes (fetch: FetchFromRegistry, url: string, what: string):
     )
   }
   return new Uint8Array(await res.arrayBuffer())
-}
-
-async function anySignatureVerifies (
-  signatures: Awaited<ReturnType<typeof openpgp.verify>>['signatures']
-): Promise<boolean> {
-  // `signature.verified` rejects for a signature made by a key we do not trust,
-  // so settle them all and accept if any resolved to `true`.
-  const results = await Promise.allSettled(signatures.map((sig) => sig.verified))
-  return results.some((result) => result.status === 'fulfilled' && result.value === true)
 }

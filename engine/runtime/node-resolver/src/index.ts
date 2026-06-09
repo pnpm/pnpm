@@ -63,7 +63,7 @@ export async function resolveNodeRuntime (
   if (!version) {
     throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
   }
-  const variants = await readNodeAssets(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
+  const variants = await readNodeAssets(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version, releaseChannel)
   const range = version === versionSpec ? version : `^${version}`
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
@@ -96,11 +96,13 @@ export async function resolveLatestNodeRuntime (
   return { latestManifest: { name: 'node', version } }
 }
 
-async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<PlatformAssetResolution[]> {
+async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string, releaseChannel: string): Promise<PlatformAssetResolution[]> {
   // The mirror is repository-configurable, so the SHASUMS file's hashes are only
   // trustworthy once its OpenPGP signature is verified against the Node.js
-  // release keys embedded in pnpm.
-  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false, verifySignature: true })
+  // release keys embedded in pnpm. Only the `release` channel publishes a signed
+  // SHASUMS256.txt; pre-release channels (rc, nightly, …) are unsigned by Node,
+  // so they cannot be verified this way.
+  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false, verifySignature: releaseChannel === 'release' })
 
   // When using the default mirror, also fetch musl variants from unofficial-builds.nodejs.org,
   // since musl builds are not available on the official mirror. That URL is hardcoded (not
