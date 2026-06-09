@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-catalogs-types         = { workspace = true }
 pacquet-config-dir             = { workspace = true }
 pacquet-detect-libc            = { workspace = true }
 pacquet-env-replace            = { workspace = true }

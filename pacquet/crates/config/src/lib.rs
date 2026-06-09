@@ -44,7 +44,7 @@ pub use workspace_yaml::{
     workspace_root_or,
 };
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeLinker {
     /// dependencies are symlinked from a virtual store at node_modules/.pnpm.
@@ -78,7 +78,7 @@ pub enum NodeLinker {
 /// No effect under `nodeLinker: isolated`. The user-facing mode is
 /// translated into the per-locator border map the hoister consumes
 /// by `crate::get_hoisting_limits` in `pacquet-package-manager`.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum HoistingLimits {
     #[default]
@@ -128,6 +128,16 @@ pub enum ScriptsPrependNodePath {
     /// node in PATH differs from the running interpreter, do not
     /// prepend.
     WarnOnly,
+}
+
+impl serde::Serialize for ScriptsPrependNodePath {
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        match self {
+            ScriptsPrependNodePath::Always => serializer.serialize_bool(true),
+            ScriptsPrependNodePath::Never => serializer.serialize_bool(false),
+            ScriptsPrependNodePath::WarnOnly => serializer.serialize_str("warn-only"),
+        }
+    }
 }
 
 impl<'de> serde::Deserialize<'de> for ScriptsPrependNodePath {
@@ -210,6 +220,16 @@ impl LinkWorkspacePackages {
     }
 }
 
+impl serde::Serialize for LinkWorkspacePackages {
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        match self {
+            LinkWorkspacePackages::Off => serializer.serialize_bool(false),
+            LinkWorkspacePackages::DirectOnly => serializer.serialize_bool(true),
+            LinkWorkspacePackages::Deep => serializer.serialize_str("deep"),
+        }
+    }
+}
+
 impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
@@ -259,7 +279,7 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
 /// [`ResolutionMode::TimeBased`] the resolver additionally constrains
 /// subdependencies to versions published no later than the newest
 /// resolved direct dependency (plus a one-hour delta).
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ResolutionMode {
     /// Pick the highest version that satisfies the range, everywhere.
@@ -291,7 +311,7 @@ impl ResolutionMode {
 /// against a `catalog:` entry for the same package. Mirrors pnpm's
 /// [`catalogMode`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L186)
 /// setting.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum CatalogMode {
     /// The catalog is consulted only for explicit `catalog:` specifiers;
@@ -311,7 +331,7 @@ pub enum CatalogMode {
     Prefer,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PackageImportMethod {
     ///  try to clone packages from the store. If cloning is not supported then hardlink packages
@@ -1276,6 +1296,16 @@ pub struct Config {
     /// Default [`CatalogMode::Manual`], matching pnpm's
     /// [`'catalog-mode': 'manual'`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L132).
     pub catalog_mode: CatalogMode,
+
+    /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
+    /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
+    /// (possibly modified) by the hook. `None` when no hook changed
+    /// them, in which case the install reads catalogs straight from the
+    /// workspace manifest. `Some` carries the complete catalog set the
+    /// hook produced (existing + injected), so the install uses it as-is
+    /// — the counterpart to pnpm's `config.catalogs` after the
+    /// `updateConfig` pass.
+    pub catalogs: Option<pacquet_catalogs_types::Catalogs>,
 
     /// Name of the catalog `pnpm add` saves a new dependency into,
     /// set by `--save-catalog-name=<name>` (with `--save-catalog` a

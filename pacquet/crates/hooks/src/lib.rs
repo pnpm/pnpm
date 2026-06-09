@@ -74,6 +74,22 @@ pub trait PnpmfileHooks: Send + Sync {
         ctx: HookContext,
     ) -> Result<Value, HookError>;
 
+    /// `updateConfig` hook: transforms the resolved configuration before
+    /// install. Config-dependency plugins use it to inject settings such
+    /// as `patchedDependencies` or `catalogs`.
+    ///
+    /// Returns the (possibly modified) config object. A hook-less
+    /// pnpmfile returns `config` unchanged. A throwing hook yields a
+    /// [`HookError`] and aborts the install. Mirrors pnpm's
+    /// [`updateConfig` hook](https://github.com/pnpm/pnpm/blob/31858c544b/pnpm/src/getConfig.ts#L86-L91).
+    async fn update_config(&self, config: Value, ctx: HookContext) -> Result<Value, HookError> {
+        let _ = ctx;
+        // The default no-op returns the config unchanged. Returning it
+        // (rather than `Null`) keeps the chaining caller simple: every
+        // hook takes and returns a config object.
+        Ok(config)
+    }
+
     /// `preResolution` hook: side-effect hook called before resolution (e.g., logging, validation).
     async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger);
 

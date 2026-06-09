@@ -15,11 +15,15 @@ name = "pacquet"
 path = "src/bin/main.rs"
 
 [dependencies]
+pacquet-catalogs-config                   = { workspace = true }
 pacquet-cmd-shim                          = { workspace = true }
 pacquet-crypto-hash                       = { workspace = true }
 pacquet-pnpr-client                       = { workspace = true }
+pacquet-env-installer                     = { workspace = true }
 pacquet-executor                          = { workspace = true }
 pacquet-fs                                = { workspace = true }
+pacquet-graph-hasher                      = { workspace = true }
+pacquet-hooks                             = { workspace = true }
 pacquet-lockfile                          = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-config                            = { workspace = true }
@@ -28,11 +32,15 @@ pacquet-package-manager                   = { workspace = true }
 pacquet-package-is-installable            = { workspace = true }
 pacquet-registry                          = { workspace = true }
 pacquet-reporter                          = { workspace = true }
+pacquet-resolving-npm-resolver            = { workspace = true }
 pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pacquet-store-dir                         = { workspace = true }
 pacquet-tarball                           = { workspace = true }
 pacquet-diagnostics                       = { workspace = true }
 pacquet-workspace                         = { workspace = true }
+pacquet-workspace-manifest-writer         = { workspace = true }
 pacquet-workspace-projects-graph          = { workspace = true }
+pacquet-workspace-state                   = { workspace = true }
 
 clap         = { workspace = true }
 derive_more  = { workspace = true }
@@ -53,7 +61,6 @@ tokio        = { workspace = true }
 which        = { workspace = true }
 
 [dev-dependencies]
-pacquet-store-dir     = { workspace = true }
 pacquet-testing-utils = { workspace = true }
 pnpr                  = { workspace = true }
 

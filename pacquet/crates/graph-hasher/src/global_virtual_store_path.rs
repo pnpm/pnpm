@@ -20,10 +20,10 @@
 use crate::{
     HashEncoding,
     dep_state::{DepsGraphNode, DepsStateCache, calc_dep_graph_hash, transitively_requires_build},
-    hash_object_without_sorting,
+    hash_object, hash_object_without_sorting,
 };
 use serde_json::{Value, json};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Compute the hex digest that uniquely identifies one snapshot's
 /// position in the global virtual store. Mirrors
@@ -90,6 +90,51 @@ where
         "deps": deps_hash,
     });
     hash_object_without_sorting(&payload, HashEncoding::Hex)
+}
+
+/// Compute the GVS hash for a config dependency that has no children
+/// at all. Mirrors
+/// [`calcLeafGlobalVirtualStorePath`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L162-L166).
+///
+/// Unlike [`calc_graph_node_hash`], this doesn't walk a dependency
+/// graph — it hashes a single `{ id: full_pkg_id, deps: {} }` node and
+/// wraps it in the `{ engine: null, deps }` payload. The env-installer
+/// uses it for the platform-specific optional subdeps of a config
+/// dependency, which are installed one level deep with no further
+/// children of their own.
+pub fn calc_leaf_global_virtual_store_path(full_pkg_id: &str, name: &str, version: &str) -> String {
+    let deps_hash = hash_object(&json!({ "id": full_pkg_id, "deps": {} }));
+    let payload = json!({ "engine": Value::Null, "deps": deps_hash });
+    let hex_digest = hash_object_without_sorting(&payload, HashEncoding::Hex);
+    format_global_virtual_store_path(name, version, &hex_digest)
+}
+
+/// Compute the GVS hash for a config dependency together with its
+/// one-level optional subdeps. Mirrors
+/// [`calcGlobalVirtualStorePathWithSubdeps`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L175-L188).
+///
+/// `subdep_ids` maps each subdep alias to its `full_pkg_id`
+/// (`<name>@<version>:<integrity>`). Folding the subdeps into the
+/// parent's hash is what keeps a parent pinned to one version from
+/// colliding on the same leaf directory when a subdep version changes
+/// underneath it — without this, changing a subdep while keeping the
+/// parent pinned would silently overwrite the previous sibling
+/// symlinks.
+pub fn calc_global_virtual_store_path_with_subdeps(
+    full_pkg_id: &str,
+    name: &str,
+    version: &str,
+    subdep_ids: &BTreeMap<String, String>,
+) -> String {
+    let mut child_hashes = serde_json::Map::new();
+    for (alias, child_full_pkg_id) in subdep_ids {
+        let child_hash = hash_object(&json!({ "id": child_full_pkg_id, "deps": {} }));
+        child_hashes.insert(alias.clone(), Value::String(child_hash));
+    }
+    let deps_hash = hash_object(&json!({ "id": full_pkg_id, "deps": Value::Object(child_hashes) }));
+    let payload = json!({ "engine": Value::Null, "deps": deps_hash });
+    let hex_digest = hash_object_without_sorting(&payload, HashEncoding::Hex);
+    format_global_virtual_store_path(name, version, &hex_digest)
 }
 
 /// Format a global-virtual-store-relative path for a package. Mirrors

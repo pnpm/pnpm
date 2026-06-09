@@ -11,7 +11,7 @@ pub mod supported_architectures;
 pub mod update;
 pub mod update_interactive;
 
-use crate::{State, config_overrides::ConfigOverrides};
+use crate::{State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use dlx::DlxArgs;
@@ -262,11 +262,51 @@ impl CliArgs {
                     cfg.pnpr_server = Some(pnpr_server);
                 }
                 let require_lockfile = args.frozen_lockfile;
-                let state = State::init(manifest_path(), cfg, require_lockfile)
-                    .wrap_err("initialize the state")?;
+                let frozen_lockfile = args.frozen_lockfile;
+                // Config dependencies are workspace-level state: their
+                // `.pnpm-config` and env lockfile live at the lockfile /
+                // workspace root, not the CLI cwd. Use the same root
+                // `State::init` uses (`config.workspace_dir`, set when a
+                // `pnpm-workspace.yaml` is found), falling back to `--dir`
+                // for a single-package repo. Owned so it doesn't hold a
+                // borrow of `cfg` across the `&mut` `updateConfig` pass.
+                let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir.clone());
+                // Resolve + install configurational dependencies, then run
+                // their `updateConfig` plugin hooks, before the main
+                // install. The env lockfile must land at the top of
+                // `pnpm-lock.yaml` before `State::init` loads the wanted
+                // lockfile, and `updateConfig` must mutate `cfg` (still
+                // `&'static mut`) before it's frozen and the install reads
+                // it. Mirrors pnpm running both at config-finalization.
                 match reporter {
-                    ReporterType::Ndjson => args.run::<NdjsonReporter>(state).await?,
-                    ReporterType::Silent => args.run::<SilentReporter>(state).await?,
+                    ReporterType::Ndjson => {
+                        config_deps::install_config_deps::<NdjsonReporter>(
+                            cfg,
+                            &config_root,
+                            frozen_lockfile,
+                        )
+                        .await?;
+                        config_deps::run_update_config_hooks::<NdjsonReporter>(cfg, &config_root)
+                            .await?;
+                        let cfg: &'static Config = cfg;
+                        let state = State::init(manifest_path(), cfg, require_lockfile)
+                            .wrap_err("initialize the state")?;
+                        args.run::<NdjsonReporter>(state).await?;
+                    }
+                    ReporterType::Silent => {
+                        config_deps::install_config_deps::<SilentReporter>(
+                            cfg,
+                            &config_root,
+                            frozen_lockfile,
+                        )
+                        .await?;
+                        config_deps::run_update_config_hooks::<SilentReporter>(cfg, &config_root)
+                            .await?;
+                        let cfg: &'static Config = cfg;
+                        let state = State::init(manifest_path(), cfg, require_lockfile)
+                            .wrap_err("initialize the state")?;
+                        args.run::<SilentReporter>(state).await?;
+                    }
                 }
             }
             CliCommand::Test => {

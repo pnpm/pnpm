@@ -437,8 +437,16 @@ where
                 .map_err(InstallError::ReadWorkspaceManifest)?,
             None => None,
         };
-        let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-            .map_err(InstallError::InvalidCatalogsConfiguration)?;
+        // Prefer catalogs an `updateConfig` pnpmfile hook produced
+        // (`config.catalogs`, the complete set after the hook pass) over
+        // the raw workspace-manifest read, mirroring pnpm using the
+        // post-`updateConfig` `config.catalogs`. `None` means no hook
+        // changed them, so fall back to the manifest.
+        let catalogs = match config.catalogs.clone() {
+            Some(catalogs) => catalogs,
+            None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+                .map_err(InstallError::InvalidCatalogsConfiguration)?,
+        };
         // Use `to_string_lossy` rather than `to_str().expect(...)` so a
         // valid filesystem path with non-UTF-8 bytes (possible on Unix)
         // doesn't panic the installer. `prefix` is used only for

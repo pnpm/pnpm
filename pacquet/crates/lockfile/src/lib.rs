@@ -1,5 +1,6 @@
 mod catalog_snapshots;
 mod comver;
+mod env_lockfile;
 mod freshness;
 mod load_lockfile;
 mod lockfile_version;
@@ -22,6 +23,7 @@ mod yaml_emit;
 
 pub use catalog_snapshots::*;
 pub use comver::*;
+pub use env_lockfile::*;
 pub use freshness::*;
 pub use load_lockfile::*;
 pub use lockfile_version::*;
