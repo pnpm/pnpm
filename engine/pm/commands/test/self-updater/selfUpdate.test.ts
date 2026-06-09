@@ -66,6 +66,9 @@ function prepareOptions (dir: string) {
     cacheDir: path.join(dir, '.cache'),
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     dir,
+    // The fixture pnpm installed here is not signed with npm's real keys, so
+    // skip the engine identity signature check (empty trusted-keys = skip).
+    trustedKeys: [],
   }
 }
 

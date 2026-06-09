@@ -3880,6 +3880,9 @@ importers:
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../../cli/utils
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../../config/pick-registry-for-package
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../../config/reader
@@ -3889,6 +3892,9 @@ importers:
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: link:../../../deps/graph-hasher
+      '@pnpm/deps.security.signatures':
+        specifier: workspace:*
+        version: link:../../../deps/security/signatures
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
@@ -3913,6 +3919,9 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../../lockfile/types
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../../network/auth-header
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
         version: 3.0.1
@@ -5229,6 +5238,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../deps/path
+      '@pnpm/deps.security.signatures':
+        specifier: workspace:*
+        version: link:../../deps/security/signatures
       '@pnpm/deps.status':
         specifier: workspace:*
         version: link:../../deps/status
@@ -5259,9 +5271,18 @@ importers:
       '@pnpm/installing.env-installer':
         specifier: workspace:*
         version: link:../env-installer
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
