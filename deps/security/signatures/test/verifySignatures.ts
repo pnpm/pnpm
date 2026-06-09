@@ -136,6 +136,24 @@ describe('verifySignatures', () => {
     expect(result.invalid[0].reason).toBe('signed-pkg@1.0.0 has a registry signature with keyid SHA256:unknown-key but no corresponding public key can be found')
   })
 
+  test('accepts a package when one valid signature is present alongside a junk one', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    // A mirror could append a junk signature; a valid trusted one must still pass.
+    mockPackument({
+      signatures: [
+        { keyid: 'SHA256:junk-key', sig: 'not-a-real-signature' },
+        { keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) },
+      ],
+    })
+
+    const result = await verifySignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0' },
+    ], () => undefined, {})
+
+    expect(result).toMatchObject({ audited: 1, invalid: [], missing: [], verified: 1 })
+  })
+
   test('skips registries without signing keys', async () => {
     getMockAgent().get(REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/-/npm/v1/keys', method: 'GET' })
@@ -270,6 +288,23 @@ describe('verifyInstalledPackageSignatures', () => {
 
     expect(result.verified).toBe(false)
     expect(result.failures[0]).toMatchObject({ category: 'invalid' })
+  })
+
+  test('verifies when a valid trusted signature is present alongside an untrusted/junk one', async () => {
+    const key = createSigningKey()
+    // A malicious mirror cannot force a failure by appending a junk signature.
+    mockPackument({
+      signatures: [
+        { keyid: 'SHA256:junk-key', sig: 'not-a-real-signature' },
+        { keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) },
+      ],
+    })
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], [toRegistryKey(key)], () => undefined, {})
+
+    expect(result).toEqual({ verified: true, failures: [] })
   })
 
   test('fails when the registry has no signature for the package', async () => {

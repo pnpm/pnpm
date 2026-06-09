@@ -259,37 +259,58 @@ function verifyPackageSignatures (
   const message = `${pkg.name}@${pkg.version}:${pkg.integrity}`
   const publishedTime = pkg.publishedAt ? Date.parse(pkg.publishedAt) : undefined
 
+  // A package is accepted as soon as ONE signature made by a trusted key
+  // validates. Signatures from unknown/expired/invalid keys are recorded but do
+  // not on their own fail the package — otherwise a key rotation (a packument
+  // carrying multiple signatures) breaks, and a mirror could force a failure
+  // just by appending a junk signature. We fail only when no signature validates
+  // against a trusted key.
+  const failures: string[] = []
   for (const signature of pkg.signatures) {
     const key = keys.find(({ keyid }) => keyid === signature.keyid)
     if (!key) {
-      const reason = `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but no corresponding public key can be found`
-      return toSignatureIssue(pkg, reason)
+      failures.push(`${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but no corresponding public key can be found`)
+      continue
     }
     // Without publish time metadata we cannot safely compare against key expiry,
     // so keep verifying with the key instead of failing closed on incomplete metadata.
     if (key.expires && publishedTime != null && publishedTime >= Date.parse(key.expires)) {
-      const reason = `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but the corresponding public key has expired ${key.expires}`
-      return toSignatureIssue(pkg, reason)
+      failures.push(`${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but the corresponding public key has expired ${key.expires}`)
+      continue
     }
-    const verifier = crypto.createVerify('SHA256')
-    verifier.write(message)
-    verifier.end()
     const pem = `-----BEGIN PUBLIC KEY-----\n${key.key}\n-----END PUBLIC KEY-----`
     // crypto.verify can throw on malformed PEM key material or signature bytes
     // returned by the registry; treat any failure as an invalid signature so
     // one bad key doesn't crash the whole audit.
     let verified: boolean
     try {
+      const verifier = crypto.createVerify('SHA256')
+      verifier.write(message)
+      verifier.end()
       verified = verifier.verify(pem, signature.sig, 'base64')
     } catch {
       verified = false
     }
-    if (!verified) {
-      const reason = `${pkg.name}@${pkg.version} has an invalid registry signature with keyid ${signature.keyid}`
-      return toSignatureIssue(pkg, reason)
-    }
+    if (verified) return undefined
+    failures.push(`${pkg.name}@${pkg.version} has an invalid registry signature with keyid ${signature.keyid}`)
   }
-  return undefined
+  return toSignatureIssue(pkg, pickMostTellingFailure(pkg, failures))
+}
+
+/**
+ * The reason to surface when no signature validated against a trusted key.
+ * Prefer an invalid signature from a known key (a tamper signal) over an
+ * unknown-key or expiry reason, since unknown keys may just be junk a mirror
+ * appended.
+ */
+function pickMostTellingFailure (
+  pkg: SignaturePackage,
+  failures: string[]
+): string {
+  if (failures.length === 0) {
+    return `${pkg.name}@${pkg.version} has no registry signature from a trusted key`
+  }
+  return failures.find((reason) => reason.includes('invalid registry signature')) ?? failures[0]
 }
 
 function toSignatureIssue (
