@@ -66,7 +66,13 @@ function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string): Co
     const binName = commandName[0] === '@'
       ? commandName.slice(commandName.indexOf('/') + 1)
       : commandName
-    // Validate: must be safe (no path traversal) - only allow URL-safe chars or $
+    // Validate: must be safe (no path traversal). Reject empty and the
+    // filesystem-relative names "." and ".." (these survive encodeURIComponent
+    // unchanged but resolve to the bin directory itself or its parent when
+    // joined to a target dir), then only allow URL-safe chars or $.
+    if (binName === '' || binName === '.' || binName === '..') {
+      continue
+    }
     if (binName !== encodeURIComponent(binName) && binName !== '$') {
       continue
     }
