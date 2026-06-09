@@ -91,7 +91,7 @@ function mockRegistryKey (key: ReturnType<typeof createSigningKey>): void {
 }
 
 function mockPackument (name: string, integrity: string, signatures: unknown): void {
-  const encodedPath = name[0] === '@' ? `/${name.replace('/', '%2F')}` : `/${name}`
+  const encodedPath = name[0] === '@' ? `/${name.replace(/\//g, '%2F')}` : `/${name}`
   getMockAgent().get(REGISTRY.replace(/\/$/, ''))
     .intercept({ path: encodedPath, method: 'GET' })
     .reply(200, {
