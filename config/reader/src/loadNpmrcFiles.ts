@@ -18,6 +18,8 @@ export interface NpmrcConfigResult {
   mergedConfig: Record<string, unknown>
   /** Raw config suitable for pnpmConfig.authConfig (filtered through pickIniConfig by consumer) */
   rawConfig: Record<string, unknown>
+  /** Non-project npmrc config used for package-manager bootstrap */
+  trustedConfig: Record<string, unknown>
   /** Workspace .npmrc data */
   workspaceNpmrc: Record<string, unknown>
   /** User ~/.npmrc data (for token helpers) */
@@ -115,6 +117,15 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     }
   }
 
+  const trustedConfig: Record<string, unknown> = {}
+  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, cliOptions]) {
+    for (const [key, value] of Object.entries(source)) {
+      if (isNpmrcReadableKey(key)) {
+        trustedConfig[key] = value
+      }
+    }
+  }
+
   // Build rawConfig with same priority order
   const rawConfig = {
     ...pnpmBuiltinConfig,
@@ -128,6 +139,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   return {
     mergedConfig,
     rawConfig,
+    trustedConfig,
     workspaceNpmrc,
     userConfig,
     localPrefix,

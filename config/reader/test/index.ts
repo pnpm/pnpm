@@ -605,6 +605,7 @@ test('registries in current directory\'s .npmrc have bigger priority then global
     '@bar': 'https://bar.com/',
     '@qar': 'https://qar.com/qar',
   })
+  expect(config.packageManagerRegistries?.default).toBe('https://default.com/')
 })
 
 test('project .npmrc does not expand env variables in registry URLs', async () => {
@@ -818,6 +819,69 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
   expect(JSON.stringify(config)).not.toContain('secret')
 })
 
+test('package manager bootstrap registries ignore project workspace registries', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', [
+    'registry=https://trusted.example.com/',
+    '@pnpm:registry=https://trusted-pnpm.example.com/',
+    'strict-ssl=true',
+    '//trusted.example.com/:_authToken=trusted-token',
+    '',
+  ].join('\n'), 'utf8')
+  fs.writeFileSync('.npmrc', [
+    'registry=https://project.example.com/',
+    'https-proxy=http://project-proxy.example.com:8080',
+    'strict-ssl=false',
+    '//project.example.com/:_authToken=project-token',
+    '',
+  ].join('\n'), 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      '@pnpm': 'https://workspace-pnpm.example.com/',
+      default: 'https://workspace.example.com/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {
+      userconfig: path.resolve('user.npmrc'),
+    },
+    env: {
+      ...env,
+      XDG_CONFIG_HOME: path.resolve('xdg-config'),
+      https_proxy: 'http://trusted-env-proxy.example.com:8080',
+      no_proxy: 'trusted-env-no-proxy.example.com',
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registries).toMatchObject({
+    '@pnpm': 'https://workspace-pnpm.example.com/',
+    default: 'https://workspace.example.com/',
+  })
+  expect(config.packageManagerRegistries).toMatchObject({
+    '@pnpm': 'https://trusted-pnpm.example.com/',
+    default: 'https://trusted.example.com/',
+  })
+  expect(config.httpsProxy).toBe('http://project-proxy.example.com:8080')
+  expect(config.strictSsl).toBe(false)
+  expect(config.configByUri).toMatchObject({
+    '//project.example.com/': { creds: { authToken: 'project-token' } },
+  })
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    configByUri: {
+      '//trusted.example.com/': { creds: { authToken: 'trusted-token' } },
+    },
+    httpProxy: 'http://trusted-env-proxy.example.com:8080',
+    httpsProxy: 'http://trusted-env-proxy.example.com:8080',
+    noProxy: 'trusted-env-no-proxy.example.com',
+    strictSsl: true,
+  })
+  expect(config.packageManagerNetworkConfig?.configByUri['//project.example.com/']).toBeUndefined()
+})
+
 test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)', async () => {
   prepareEmpty()
 
@@ -834,6 +898,7 @@ test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)',
   })
 
   expect(config.registry).toBe('https://cli.example.com/')
+  expect(config.packageManagerRegistries?.default).toBe('https://cli.example.com/')
 })
 
 test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
