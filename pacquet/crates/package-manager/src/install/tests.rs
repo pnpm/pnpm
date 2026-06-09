@@ -6112,6 +6112,140 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     drop(dir);
 }
 
+#[tokio::test]
+async fn fresh_lockfile_applies_overrides_to_direct_dependencies() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+        &[("@pnpm.e2e/foo", "^100.0.0")],
+        &[("@pnpm.e2e/foo@^100.0.0", "100.0.0")],
+        None,
+    )
+    .await;
+
+    assert_package_present(&lockfile, "@pnpm.e2e/foo@100.0.0");
+    assert_package_absent(&lockfile, "@pnpm.e2e/foo@100.1.0");
+}
+
+#[tokio::test]
+async fn fresh_lockfile_applies_overrides_to_transitive_dependencies() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+        &[("@pnpm.e2e/has-foo-100.0.0-range-dep", "1.0.0")],
+        &[("@pnpm.e2e/foo@^100.0.0", "100.0.0")],
+        None,
+    )
+    .await;
+
+    assert_package_present(&lockfile, "@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0");
+    assert_package_present(&lockfile, "@pnpm.e2e/foo@100.0.0");
+    assert_package_absent(&lockfile, "@pnpm.e2e/foo@100.1.0");
+}
+
+#[tokio::test]
+async fn fresh_lockfile_resolves_catalog_protocol_in_overrides() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+        &[("@pnpm.e2e/foo", "^100.0.0")],
+        &[("@pnpm.e2e/foo@^100.0.0", "catalog:")],
+        Some("catalog:\n  '@pnpm.e2e/foo': '100.0.0'\n"),
+    )
+    .await;
+
+    assert_package_present(&lockfile, "@pnpm.e2e/foo@100.0.0");
+    assert_package_absent(&lockfile, "@pnpm.e2e/foo@100.1.0");
+    assert_eq!(
+        lockfile
+            .overrides
+            .as_ref()
+            .and_then(|overrides| overrides.get("@pnpm.e2e/foo@^100.0.0"))
+            .map(String::as_str),
+        Some("100.0.0"),
+    );
+}
+
+async fn fresh_lockfile_only_with_overrides(
+    dependencies: &[(&str, &str)],
+    overrides: &[(&str, &str)],
+    workspace_yaml: Option<&str>,
+) -> (tempfile::TempDir, Lockfile) {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    if let Some(workspace_yaml) = workspace_yaml {
+        std::fs::write(dir.path().join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    }
+    let store_dir = dir.path().join("pacquet-store");
+    let modules_dir = dir.path().join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    for (name, spec) in dependencies {
+        manifest.add_dependency(name, spec, DependencyGroup::Prod).unwrap();
+    }
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    if !overrides.is_empty() {
+        let mut map = indexmap::IndexMap::new();
+        for (selector, spec) in overrides {
+            map.insert((*selector).to_string(), (*spec).to_string());
+        }
+        config.overrides = Some(map);
+    }
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: true,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("lockfile-only install should succeed");
+
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let content = std::fs::read_to_string(lockfile_path).expect("read lockfile");
+    let lockfile = serde_saphyr::from_str(&content).expect("parse lockfile");
+    (dir, lockfile)
+}
+
+fn assert_package_present(lockfile: &Lockfile, key: &str) {
+    let key: pacquet_lockfile::PackageKey = key.parse().unwrap();
+    assert!(
+        lockfile.packages.as_ref().is_some_and(|packages| packages.contains_key(&key)),
+        "expected packages to contain {key}",
+    );
+}
+
+fn assert_package_absent(lockfile: &Lockfile, key: &str) {
+    let key: pacquet_lockfile::PackageKey = key.parse().unwrap();
+    assert!(
+        lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&key)),
+        "expected packages not to contain {key}",
+    );
+}
+
 /// `packageExtensions` adds entries to a dependency's manifest at
 /// resolve time and the resulting lockfile records the merged shape.
 ///
