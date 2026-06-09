@@ -763,7 +763,10 @@ where
                     Err(FreshnessCheckError::Stale(_) | FreshnessCheckError::NoImporter { .. }) => {
                         false
                     }
-                    Err(error @ FreshnessCheckError::InvalidOverrides(_)) => {
+                    Err(
+                        error @ (FreshnessCheckError::InvalidOverrides(_)
+                        | FreshnessCheckError::CalcPatchHashes(_)),
+                    ) => {
                         return Err(error.into());
                     }
                 }
@@ -1228,11 +1231,18 @@ fn check_lockfile_freshness(
         .and_then(|extensions| serde_json::to_value(extensions).ok())
         .as_ref()
         .and_then(pacquet_graph_hasher::hash_object_nullable_with_prefix);
+    // `calcPatchHashes(opts.patchedDependencies)` — reading the patch
+    // files here lets `check_lockfile_settings` catch an edited patch
+    // whose hash (and thus its `(patch_hash=...)` depPath suffix) drifted
+    // from what the lockfile recorded.
+    let patched_dependency_hashes =
+        config.patched_dependency_hashes().map_err(FreshnessCheckError::CalcPatchHashes)?;
     pacquet_lockfile::check_lockfile_settings(
         lockfile,
         overrides_map.as_ref(),
         package_extensions_checksum.as_deref(),
         config.ignored_optional_dependencies.as_deref(),
+        patched_dependency_hashes.as_ref(),
         config.inject_workspace_packages,
         config.peers_suffix_max_length,
     )
@@ -1315,6 +1325,12 @@ enum FreshnessCheckError {
     #[diagnostic(transparent)]
     InvalidOverrides(#[error(source)] pacquet_config_parse_overrides::ParseOverridesError),
 
+    /// A configured `patchedDependencies` patch file couldn't be read
+    /// or hashed while computing the map to compare against the
+    /// lockfile.
+    #[diagnostic(transparent)]
+    CalcPatchHashes(#[error(source)] pacquet_patching::CalcPatchHashError),
+
     /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` /
     /// current settings.
     #[display("{_0}")]
@@ -1328,6 +1344,9 @@ impl From<FreshnessCheckError> for InstallError {
                 InstallError::NoImporter { importer_id }
             }
             FreshnessCheckError::InvalidOverrides(inner) => InstallError::InvalidOverrides(inner),
+            FreshnessCheckError::CalcPatchHashes(inner) => InstallError::WithFreshLockfile(
+                InstallWithFreshLockfileError::CalcPatchHashes(inner),
+            ),
             FreshnessCheckError::Stale(reason) => InstallError::OutdatedLockfile { reason },
         }
     }
