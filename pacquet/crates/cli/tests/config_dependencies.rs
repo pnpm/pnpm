@@ -2,7 +2,10 @@ pub mod _utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pacquet_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    fs::is_symlink_or_junction,
+};
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -63,6 +66,39 @@ fn second_install_keeps_config_dependency() {
     assert!(
         workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists(),
         "config dep must remain linked after a repeat install",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// An `updateConfig` pnpmfile hook mutates the resolved config before
+/// the install runs: a hook that flips `nodeLinker` to `hoisted` changes
+/// the on-disk layout (the dependency becomes a real directory rather
+/// than a symlink into the virtual store).
+#[test]
+fn update_config_hook_mutates_config_before_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) {\n  config.nodeLinker = 'hoisted';\n  return config;\n} } }",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    let dep = workspace.join("node_modules/@pnpm.e2e/foo");
+    assert!(dep.join("package.json").exists(), "dependency is installed");
+    assert!(
+        !is_symlink_or_junction(&dep).unwrap(),
+        "updateConfig forced nodeLinker: hoisted, so the dep is a real directory, not a symlink",
     );
 
     drop((root, mock_instance));

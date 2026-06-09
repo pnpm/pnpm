@@ -2841,6 +2841,7 @@ dependencies = [
  "pacquet-executor",
  "pacquet-fs",
  "pacquet-graph-hasher",
+ "pacquet-hooks",
  "pacquet-lockfile",
  "pacquet-network",
  "pacquet-package-is-installable",

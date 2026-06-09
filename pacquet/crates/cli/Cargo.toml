@@ -22,6 +22,7 @@ pacquet-env-installer                     = { workspace = true }
 pacquet-executor                          = { workspace = true }
 pacquet-fs                                = { workspace = true }
 pacquet-graph-hasher                      = { workspace = true }
+pacquet-hooks                             = { workspace = true }
 pacquet-lockfile                          = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-config                            = { workspace = true }
@@ -32,6 +33,7 @@ pacquet-registry                          = { workspace = true }
 pacquet-reporter                          = { workspace = true }
 pacquet-resolving-npm-resolver            = { workspace = true }
 pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pacquet-store-dir                         = { workspace = true }
 pacquet-tarball                           = { workspace = true }
 pacquet-diagnostics                       = { workspace = true }
 pacquet-workspace                         = { workspace = true }
@@ -56,7 +58,6 @@ tokio        = { workspace = true }
 which        = { workspace = true }
 
 [dev-dependencies]
-pacquet-store-dir     = { workspace = true }
 pacquet-testing-utils = { workspace = true }
 pnpr                  = { workspace = true }
 

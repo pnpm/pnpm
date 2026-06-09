@@ -263,15 +263,13 @@ impl CliArgs {
                 }
                 let require_lockfile = args.frozen_lockfile;
                 let frozen_lockfile = args.frozen_lockfile;
-                // Downgrade the `&'static mut Config` (no more mutation
-                // past this point) so it can be shared across the
-                // config-dep install and `State::init`.
-                let cfg: &'static Config = cfg;
-                // Resolve + install configurational dependencies before
-                // the main install: the env lockfile must land at the top
-                // of `pnpm-lock.yaml` before `State::init` loads the
-                // wanted lockfile and the install rewrites it. Mirrors
-                // pnpm running this at config-finalization time.
+                // Resolve + install configurational dependencies, then run
+                // their `updateConfig` plugin hooks, before the main
+                // install. The env lockfile must land at the top of
+                // `pnpm-lock.yaml` before `State::init` loads the wanted
+                // lockfile, and `updateConfig` must mutate `cfg` (still
+                // `&'static mut`) before it's frozen and the install reads
+                // it. Mirrors pnpm running both at config-finalization.
                 match reporter {
                     ReporterType::Ndjson => {
                         config_deps::install_config_deps::<NdjsonReporter>(
@@ -280,6 +278,8 @@ impl CliArgs {
                             frozen_lockfile,
                         )
                         .await?;
+                        config_deps::run_update_config_hooks::<NdjsonReporter>(cfg, &dir).await?;
+                        let cfg: &'static Config = cfg;
                         let state = State::init(manifest_path(), cfg, require_lockfile)
                             .wrap_err("initialize the state")?;
                         args.run::<NdjsonReporter>(state).await?;
@@ -291,6 +291,8 @@ impl CliArgs {
                             frozen_lockfile,
                         )
                         .await?;
+                        config_deps::run_update_config_hooks::<SilentReporter>(cfg, &dir).await?;
+                        let cfg: &'static Config = cfg;
                         let state = State::init(manifest_path(), cfg, require_lockfile)
                             .wrap_err("initialize the state")?;
                         args.run::<SilentReporter>(state).await?;
