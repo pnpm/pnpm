@@ -26,7 +26,7 @@ import {
 } from './publishPackedPkg.js'
 import type { PublishRecursiveOpts } from './recursivePublish.js'
 
-export const MULTI_PUBLISH_ENDPOINT = '/-/v1/multi-publish'
+export const MULTI_PUBLISH_ENDPOINT = '/-/pnpm/v1/multi-publish'
 
 export type BatchPublishOptions = PublishRecursiveOpts
 & Pick<Config, 'embedReadme' | 'ignoreScripts' | 'nodeLinker' | 'packGzipLevel' | 'skipManifestObfuscation'>
@@ -40,7 +40,7 @@ interface PackedPkg {
 }
 
 /**
- * Publish all {@link pkgs} by sending a single `PUT /-/v1/multi-publish` request per target
+ * Publish all {@link pkgs} by sending a single `PUT /-/pnpm/v1/multi-publish` request per target
  * registry, instead of one request per package. The endpoint is not part of the standard npm
  * registry API — the registry has to implement it explicitly (pnpr does), so this whole code
  * path is opt-in via the `--batch` flag.

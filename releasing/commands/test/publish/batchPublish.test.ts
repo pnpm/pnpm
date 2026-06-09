@@ -25,7 +25,7 @@ interface RegistryStub {
 
 /**
  * A minimal registry that 404s every packument read (so recursive publish considers every package
- * unpublished) and records `PUT /-/v1/multi-publish` requests.
+ * unpublished) and records `PUT /-/pnpm/v1/multi-publish` requests.
  */
 async function createRegistryStub (): Promise<RegistryStub> {
   const received: ReceivedRequest[] = []
@@ -43,7 +43,7 @@ async function createRegistryStub (): Promise<RegistryStub> {
         url: req.url!,
         body: rawBody.length > 0 ? JSON.parse(rawBody.toString()) : undefined,
       })
-      if (req.method === 'PUT' && req.url === '/-/v1/multi-publish') {
+      if (req.method === 'PUT' && req.url === '/-/pnpm/v1/multi-publish') {
         res.statusCode = stub.multiPublishStatusCode
         res.setHeader('content-type', 'application/json')
         res.end(JSON.stringify({ ok: true, success: true }))
@@ -119,7 +119,7 @@ test('batch publish sends all packages in a single multi-publish request', async
     tag: 'next',
   }, [])
 
-  const publishRequests = registry.received.filter(({ url }) => url === '/-/v1/multi-publish')
+  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/multi-publish')
   expect(publishRequests).toHaveLength(1)
   expect(publishRequests[0].method).toBe('PUT')
 
@@ -169,7 +169,7 @@ test('batch publish with --dry-run sends no request but reports the packages', a
     json: true,
   }, [])
 
-  expect(registry.received.filter(({ url }) => url === '/-/v1/multi-publish')).toHaveLength(0)
+  expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/multi-publish')).toHaveLength(0)
   const publishedPackages = JSON.parse(result!.output!) as Array<{ name: string }>
   expect(publishedPackages.map(({ name }) => name).sort()).toStrictEqual(['batch-dry-1', 'batch-dry-2'])
 })
@@ -234,5 +234,5 @@ test('--batch without --recursive is rejected', async () => {
     recursive: false,
   }, [])).rejects.toMatchObject({ code: 'ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE' })
 
-  expect(registry.received.filter(({ url }) => url === '/-/v1/multi-publish')).toHaveLength(0)
+  expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/multi-publish')).toHaveLength(0)
 })

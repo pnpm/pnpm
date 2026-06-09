@@ -184,7 +184,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // Batch publish: one request carrying many packages' publish
         // documents. Not part of the standard npm registry API —
         // `pnpm publish --batch` opts into it explicitly.
-        .route("/-/v1/multi-publish", put(serve_multi_publish))
+        .route("/-/pnpm/v1/multi-publish", put(serve_multi_publish))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -963,7 +963,7 @@ async fn publish_package(
     publish_created_response()
 }
 
-/// `PUT /-/v1/multi-publish` — publish several packages with one
+/// `PUT /-/pnpm/v1/multi-publish` — publish several packages with one
 /// request. The body is `{"packages": [<publish doc>, ...]}` where
 /// each entry is exactly the JSON body that `PUT /:pkg` takes
 /// (packument with `_attachments`). `pnpm publish --batch` sends
