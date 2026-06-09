@@ -5,7 +5,7 @@ import {
 
 import { fetchVerifiedNodeShasums } from './verifyNodeShasums.js'
 
-export { fetchVerifiedNodeShasums }
+export { fetchVerifiedNodeShasums, type ArmoredKey } from './verifyNodeShasums.js'
 
 export interface ShasumsFileItem {
   integrity: string

@@ -2464,6 +2464,9 @@ importers:
       node-fetch:
         specifier: 'catalog:'
         version: '@pnpm/node-fetch@1.0.0'
+      openpgp:
+        specifier: 'catalog:'
+        version: 6.3.1(@openpgp/web-stream-tools@0.3.1(@types/node@25.6.0)(typescript@5.5.4))
       path-name:
         specifier: 'catalog:'
         version: 1.0.0

@@ -68,6 +68,7 @@
     "execa": "catalog:",
     "nock": "catalog:",
     "node-fetch": "catalog:",
+    "openpgp": "catalog:",
     "path-name": "catalog:",
     "tar-stream": "catalog:",
     "yazl": "catalog:"
