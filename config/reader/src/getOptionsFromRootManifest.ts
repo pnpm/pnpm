@@ -26,16 +26,36 @@ export type OptionsFromRootManifest = {
   requiredScripts?: string[]
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
 
-export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
-  const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings)
+interface GetOptionsFromPnpmSettingsOptions {
+  manifest?: ProjectManifest
+  expandRequestDestinationEnv?: boolean
+}
+
+interface ReplaceEnvInSettingsOptions {
+  expandRequestDestinationEnv: boolean
+}
+
+const REQUEST_DESTINATION_SCALAR_KEYS = new Set(['pnprServer', 'registry'])
+
+export function getOptionsFromPnpmSettings (
+  manifestDir: string | undefined,
+  pnpmSettings: PnpmSettings,
+  manifestOrOpts?: ProjectManifest | GetOptionsFromPnpmSettingsOptions
+): OptionsFromRootManifest {
+  const opts = isGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
+    ? manifestOrOpts
+    : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
+  const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
+    expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
+  })
   if (settings.overrides) {
     assertValidOverrides(settings.overrides)
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
     } else {
       warnAboutDeprecatedVersionReferences(settings.overrides)
-      if (manifest) {
-        settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
+      if (opts.manifest) {
+        settings.overrides = mapValues(createVersionReferencesReplacer(opts.manifest), settings.overrides)
       }
     }
   }
@@ -48,6 +68,12 @@ export function getOptionsFromPnpmSettings (manifestDir: string | undefined, pnp
   }
 
   return settings
+}
+
+function isGetOptionsFromPnpmSettingsOptions (
+  value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
+): value is GetOptionsFromPnpmSettingsOptions {
+  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value)
 }
 
 function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
@@ -67,19 +93,21 @@ function renderReceivedType (value: unknown): string {
   return typeof value
 }
 
-function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
+function replaceEnvInSettings (
+  settings: PnpmSettings,
+  opts: ReplaceEnvInSettingsOptions
+): PnpmSettings {
   const newSettings: PnpmSettings = {}
   for (const [key, value] of Object.entries(settings)) {
     const newKey = envReplace(key, process.env)
     if (typeof value === 'string') {
+      if (REQUEST_DESTINATION_SCALAR_KEYS.has(newKey) && !opts.expandRequestDestinationEnv && hasEnvPlaceholder(value)) continue
       // @ts-expect-error
       newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env)
     } else if (newKey === 'registries' || newKey === 'namedRegistries') {
-      // Registry URL maps in workspace yaml must support `${VAR}` substitution
-      // in their values so users can reuse the same env-var pattern they use
-      // in `.npmrc`. Only these keys are treated this way to avoid surprising
-      // behavior on unrelated object-valued settings.
-      newSettings[newKey as keyof PnpmSettings] = replaceEnvInStringValues(value) as never
+      newSettings[newKey as keyof PnpmSettings] = (opts.expandRequestDestinationEnv
+        ? replaceEnvInStringValues(value)
+        : copyStringValuesWithoutEnvPlaceholders(value)) as never
     } else {
       newSettings[newKey as keyof PnpmSettings] = value
     }
@@ -94,6 +122,20 @@ function replaceEnvInStringValues (value: unknown): unknown {
     out[k] = typeof v === 'string' ? envReplace(v, process.env) : v
   }
   return out
+}
+
+function copyStringValuesWithoutEnvPlaceholders (value: unknown): unknown {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === 'string' && hasEnvPlaceholder(v)) continue
+    out[k] = v
+  }
+  return out
+}
+
+function hasEnvPlaceholder (value: string): boolean {
+  return /\$\{[^}]+\}/.test(value)
 }
 
 function warnAboutDeprecatedVersionReferences (overrides: Record<string, string>): void {

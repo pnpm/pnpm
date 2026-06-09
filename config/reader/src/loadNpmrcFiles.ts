@@ -44,6 +44,11 @@ export interface LoadNpmrcConfigOpts {
   env?: Record<string, string | undefined>
 }
 
+interface ReadAndFilterNpmrcOptions {
+  expandAuthValueEnv?: boolean
+  expandRequestDestinationEnv?: boolean
+}
+
 export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   const warnings: string[] = []
   const env = opts.env ?? process.env as Record<string, string | undefined>
@@ -59,7 +64,8 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   const workspaceNpmrc = readAndFilterNpmrc(
     path.resolve(workspaceNpmrcDir, '.npmrc'),
     warnings,
-    env
+    env,
+    { expandAuthValueEnv: false, expandRequestDestinationEnv: false }
   )
 
   // Read user .npmrc (from npmrcAuthFile setting or ~/.npmrc)
@@ -161,7 +167,8 @@ const UNSCOPED_RESCOPABLE_KEYS = [
 function readAndFilterNpmrc (
   filePath: string,
   warnings: string[],
-  env: Record<string, string | undefined>
+  env: Record<string, string | undefined>,
+  opts: ReadAndFilterNpmrcOptions = {}
 ): Record<string, unknown> {
   let raw: Record<string, unknown>
   try {
@@ -176,12 +183,38 @@ function readAndFilterNpmrc (
 
   const npmrcDir = path.dirname(filePath)
   const result: Record<string, unknown> = {}
+  const expandAuthValueEnv = opts.expandAuthValueEnv ?? true
+  const expandRequestDestinationEnv = opts.expandRequestDestinationEnv ?? true
   for (const [rawKey, rawValue] of Object.entries(raw)) {
-    // Apply ${VAR} substitution to both keys and values
+    if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawKey) && isRequestDestinationKey(rawKey)) {
+      warnIgnoredRequestDestinationEnv(filePath, rawKey, warnings)
+      continue
+    }
+    if (!expandAuthValueEnv && hasEnvPlaceholder(rawKey) && isAuthValueKey(rawKey)) {
+      warnIgnoredAuthValueEnv(filePath, rawKey, warnings)
+      continue
+    }
     const key = substituteEnv(rawKey, env, warnings)
-    let value: unknown = typeof rawValue === 'string'
-      ? substituteEnv(rawValue, env, warnings)
-      : rawValue
+    if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawKey) && isRequestDestinationKey(key)) {
+      warnIgnoredRequestDestinationEnv(filePath, rawKey, warnings)
+      continue
+    }
+    if (!expandAuthValueEnv && hasEnvPlaceholder(rawKey) && isAuthValueKey(key)) {
+      warnIgnoredAuthValueEnv(filePath, rawKey, warnings)
+      continue
+    }
+    let value: unknown = rawValue
+    if (typeof rawValue === 'string') {
+      if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawValue) && isRequestDestinationValueKey(key)) {
+        warnIgnoredRequestDestinationEnv(filePath, key, warnings)
+        continue
+      }
+      if (!expandAuthValueEnv && hasEnvPlaceholder(rawValue) && isAuthValueKey(key)) {
+        warnIgnoredAuthValueEnv(filePath, key, warnings)
+        continue
+      }
+      value = substituteEnv(rawValue, env, warnings)
+    }
 
     // Only keep auth/registry related keys
     if (isNpmrcReadableKey(key)) {
@@ -195,6 +228,37 @@ function readAndFilterNpmrc (
     }
   }
   return rescopeUnscopedCreds(result, filePath, warnings)
+}
+
+function isRequestDestinationKey (key: string): boolean {
+  return isRegistryKey(key) || key.startsWith('//')
+}
+
+function isRequestDestinationValueKey (key: string): boolean {
+  return isRegistryKey(key) || key === 'https-proxy' || key === 'http-proxy' || key === 'proxy'
+}
+
+function isRegistryKey (key: string): boolean {
+  return key === 'registry' || (key.startsWith('@') && key.endsWith(':registry'))
+}
+
+const AUTH_VALUE_KEYS = ['_authToken', '_auth', '_password', 'username', 'tokenHelper', 'cert', 'key'] as const
+const AUTH_VALUE_KEY_SUFFIXES = AUTH_VALUE_KEYS.map(key => `:${key}`)
+
+function isAuthValueKey (key: string): boolean {
+  return (AUTH_VALUE_KEYS as readonly string[]).includes(key) || AUTH_VALUE_KEY_SUFFIXES.some(suffix => key.endsWith(suffix))
+}
+
+function hasEnvPlaceholder (value: string): boolean {
+  return /\$\{[^}]+\}/.test(value)
+}
+
+function warnIgnoredRequestDestinationEnv (filePath: string, key: string, warnings: string[]): void {
+  warnings.push(`Ignored project-level request destination "${key}" in "${filePath}": environment variables are not expanded in repository-controlled registry or proxy URLs.`)
+}
+
+function warnIgnoredAuthValueEnv (filePath: string, key: string, warnings: string[]): void {
+  warnings.push(`Ignored project-level auth setting "${key}" in "${filePath}": environment variables are not expanded in repository-controlled registry credentials.`)
 }
 
 // Rewrite any unscoped per-registry keys in `source` to their URL-scoped

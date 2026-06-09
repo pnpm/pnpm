@@ -334,6 +334,76 @@ pub fn npmrc_auth_file_npm_config_userconfig_is_compat_fallback() {
     );
 }
 
+#[test]
+pub fn global_config_npmrc_auth_file_expands_env() {
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+
+    let auth = tempdir().expect("auth tempdir");
+    let auth_file = auth.path().join("global-npmrc");
+    write_registry_auth_file(&auth_file, "https://global-auth.example.com/", "global-token");
+    fs::write(config_dir.join("config.yaml"), "npmrcAuthFile: ${AUTH_FILE}\n")
+        .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[
+        ("AUTH_FILE", auth_file.to_str().unwrap()),
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.auth_headers.for_url("https://global-auth.example.com/pkg").as_deref(),
+        Some("Bearer global-token"),
+    );
+}
+
+#[test]
+pub fn global_config_yaml_request_destination_values_expand_env() {
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        r#"
+registry: https://${REGISTRY_HOST}/npm/
+pnprServer: https://${REGISTRY_HOST}/pnpr/
+namedRegistries:
+  work: https://${REGISTRY_HOST}/work/
+"#,
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[
+        ("REGISTRY_HOST", "trusted.example.com"),
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://trusted.example.com/npm/");
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://trusted.example.com/pnpr/"));
+    assert_eq!(
+        config.named_registries.get("work").map(String::as_str),
+        Some("https://trusted.example.com/work/"),
+    );
+}
+
+#[test]
+pub fn pnpm_config_request_destinations_expand_env() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[
+        ("PNPM_CONFIG_PNPR_SERVER", "https://${REGISTRY_HOST}/pnpr/"),
+        ("PNPM_CONFIG_REGISTRY", "https://${REGISTRY_HOST}/npm/"),
+        ("REGISTRY_HOST", "env.example.com"),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://env.example.com/pnpr/"));
+    assert_eq!(config.registry, "https://env.example.com/npm/");
+}
+
 fn write_file(path: &Path, contents: &str) {
     fs::write(path, contents).expect("write file");
 }
@@ -679,6 +749,21 @@ pub fn pnpm_workspace_yaml_found_by_walking_up() {
     // the yaml should still be applied.
     let config = Config::new().current::<HostNoHome>(&nested).expect("yaml is valid");
     assert!(!config.symlink);
+}
+
+#[test]
+pub fn workspace_subdir_reads_workspace_root_npmrc() {
+    let tmp = tempdir().unwrap();
+    let nested = tmp.path().join("packages/web");
+    fs::create_dir_all(&nested).unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write to pnpm-workspace.yaml");
+    fs::write(tmp.path().join(".npmrc"), "registry=https://workspace-npmrc.example/\n")
+        .expect("write to .npmrc");
+
+    let config = Config::new().current::<HostNoHome>(&nested).expect("config loads");
+
+    assert_eq!(config.registry, "https://workspace-npmrc.example/");
 }
 
 #[test]

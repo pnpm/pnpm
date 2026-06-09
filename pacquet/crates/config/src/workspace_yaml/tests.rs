@@ -166,14 +166,11 @@ namedRegistries:
     );
 }
 
-/// Env-var placeholders inside `namedRegistries` values expand on
-/// the [`WorkspaceSettings::substitute_env`] pass, matching upstream's
-/// [`replaceEnvInStringValues`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L86-L93)
-/// behaviour for the `namedRegistries` key. Substitution lands
-/// before `apply_to` so the resolved URL is what ends up on
-/// [`Config::named_registries`].
+/// Env-var placeholders inside workspace request destinations are ignored so
+/// repository-controlled config cannot smuggle victim environment
+/// values into outbound requests.
 #[test]
-fn substitutes_env_vars_inside_named_registries_values() {
+fn ignores_env_vars_inside_workspace_request_destination_values() {
     struct EnvWithHost;
     impl EnvVar for EnvWithHost {
         fn var(name: &str) -> Option<String> {
@@ -182,16 +179,96 @@ fn substitutes_env_vars_inside_named_registries_values() {
     }
 
     let yaml = r#"
+pnprServer: https://${WORK_HOST}/pnpr/
+registry: https://${WORK_HOST}/npm/
 namedRegistries:
+  literal: 'https://registry.example.com/${/npm/'
+  stable: https://registry.example.com/npm/
   work: https://${WORK_HOST}/npm/
 "#;
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env::<EnvWithHost>();
+    settings.substitute_env_untrusted::<EnvWithHost>();
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.pnpr_server, None);
+    assert_eq!(config.registry, "https://registry.npmjs.org/");
+    assert_eq!(
+        config.named_registries.get("stable").map(String::as_str),
+        Some("https://registry.example.com/npm/"),
+    );
+    assert_eq!(
+        config.named_registries.get("literal").map(String::as_str),
+        Some("https://registry.example.com/${/npm/"),
+    );
+    assert_eq!(config.named_registries.get("work"), None);
+}
+
+#[test]
+fn expands_env_vars_inside_non_registry_workspace_values() {
+    struct EnvWithPaths;
+    impl EnvVar for EnvWithPaths {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CACHE_DIR" => Some("cache-dir".to_owned()),
+                "HOOK" => Some("hook.js".to_owned()),
+                "SHELL" => Some("custom-shell".to_owned()),
+                "STORE_DIR" => Some("store-dir".to_owned()),
+                "USER_AGENT" => Some("pacquet-test/1.0".to_owned()),
+                _ => None,
+            }
+        }
+    }
+
+    let yaml = r#"
+storeDir: ${STORE_DIR}
+cacheDir: ${CACHE_DIR}
+scriptShell: ${SHELL}
+nodeOptions: --require=${HOOK}
+userAgent: ${USER_AGENT}
+"#;
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env_untrusted::<EnvWithPaths>();
+
+    let base = Path::new("/workspace/root");
+    let mut config = Config::new();
+    settings.apply_to(&mut config, base);
+
+    assert_eq!(config.store_dir, StoreDir::from(base.join("store-dir")));
+    assert_eq!(config.cache_dir, base.join("cache-dir"));
+    assert_eq!(config.script_shell.as_deref(), Some("custom-shell"));
+    assert_eq!(config.node_options.as_deref(), Some("--require=hook.js"));
+    assert_eq!(config.user_agent, "pacquet-test/1.0");
+}
+
+#[test]
+fn trusted_settings_expand_env_vars_inside_request_destination_values() {
+    struct EnvWithHost;
+    impl EnvVar for EnvWithHost {
+        fn var(name: &str) -> Option<String> {
+            (name == "WORK_HOST").then(|| "internal.example.com".to_owned())
+        }
+    }
+
+    let yaml = r#"
+pnprServer: https://${WORK_HOST}/pnpr/
+registry: https://${WORK_HOST}/npm/
+namedRegistries:
+  stable: https://registry.example.com/npm/
+  work: https://${WORK_HOST}/work/
+"#;
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env_trusted::<EnvWithHost>();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://internal.example.com/pnpr/"));
+    assert_eq!(config.registry, "https://internal.example.com/npm/");
+    assert_eq!(
+        config.named_registries.get("stable").map(String::as_str),
+        Some("https://registry.example.com/npm/"),
+    );
     assert_eq!(
         config.named_registries.get("work").map(String::as_str),
-        Some("https://internal.example.com/npm/"),
+        Some("https://internal.example.com/work/"),
     );
 }
 
