@@ -6,11 +6,17 @@
 //! default-resolver dispatcher can route `node@runtime:<spec>`
 //! dependencies through it.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_crypto_shasums_file::{FetchShasumsFileError, fetch_shasums_file};
+use pacquet_crypto_shasums_file::{
+    FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file,
+    fetch_verified_node_shasums_file,
+};
 use pacquet_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
     PlatformAssetTarget, VariationsResolution,
@@ -61,6 +67,9 @@ pub enum NodeResolverError {
 
     #[diagnostic(transparent)]
     FetchShasumsFile(#[error(source)] FetchShasumsFileError),
+
+    #[diagnostic(transparent)]
+    FetchVerifiedNodeShasums(#[error(source)] FetchVerifiedNodeShasumsError),
 
     #[display("Failed to parse integrity {integrity} for {file_name}")]
     #[diagnostic(code(NODE_INTEGRITY_PARSE_FAILED))]
@@ -142,7 +151,7 @@ impl NodeResolver {
                     Box::new(NodeResolverError::VersionNotFound { spec: version_spec.to_string() })
                         as ResolveError
                 })?;
-        let variants = self.read_node_assets(&mirror, &version).await?;
+        let variants = self.read_node_assets(&mirror, &version, &parsed.release_channel).await?;
         let range = if version == version_spec { version.clone() } else { format!("^{version}") };
         let resolution = LockfileResolution::Variations(VariationsResolution { variants });
         let manifest = serde_json::json!({
@@ -214,12 +223,14 @@ impl NodeResolver {
         &self,
         mirror: &str,
         version: &str,
+        release_channel: &str,
     ) -> Result<Vec<PlatformAssetResolution>, ResolveError> {
         let mut assets = read_node_assets_from_mirror(
             &self.http_client,
             mirror,
             version,
             /* musl_only */ false,
+            /* verify_signature */ release_channel == "release",
         )
         .await?;
         if mirror == DEFAULT_NODE_MIRROR_BASE_URL
@@ -228,6 +239,7 @@ impl NodeResolver {
                 UNOFFICIAL_NODE_MIRROR_BASE_URL,
                 version,
                 /* musl_only */ true,
+                /* verify_signature */ false,
             )
             .await
         {
@@ -260,11 +272,18 @@ async fn read_node_assets_from_mirror(
     node_mirror_base_url: &str,
     version: &str,
     musl_only: bool,
+    verify_signature: bool,
 ) -> Result<Vec<PlatformAssetResolution>, ResolveError> {
     let integrities_url = format!("{node_mirror_base_url}v{version}/SHASUMS256.txt");
-    let items = fetch_shasums_file(http_client, &integrities_url)
-        .await
-        .map_err(|err| Box::new(NodeResolverError::FetchShasumsFile(err)) as ResolveError)?;
+    let items = if verify_signature {
+        fetch_verified_node_shasums_file(http_client, &integrities_url).await.map_err(|err| {
+            Box::new(NodeResolverError::FetchVerifiedNodeShasums(err)) as ResolveError
+        })?
+    } else {
+        fetch_shasums_file(http_client, &integrities_url)
+            .await
+            .map_err(|err| Box::new(NodeResolverError::FetchShasumsFile(err)) as ResolveError)?
+    };
     let mut assets = Vec::new();
     for item in items {
         let Some(parsed) = parse_node_file_name(&item.file_name, version) else { continue };
@@ -349,7 +368,11 @@ fn parse_node_file_name(file_name: &str, version: &str) -> Option<NodeFileName> 
 }
 
 fn bin_spec_for_platform(platform: &str) -> BinarySpec {
-    BinarySpec::Single(if platform == "win32" { "node.exe" } else { "bin/node" }.to_string())
+    // pnpm records the runtime variant's `bin` as a named map keyed by the
+    // executable name (`{ node: bin/node }`), not a bare string — mirror
+    // that so the `variants[].resolution.bin` block round-trips.
+    let path = if platform == "win32" { "node.exe" } else { "bin/node" };
+    BinarySpec::Map(BTreeMap::from([("node".to_string(), path.to_string())]))
 }
 
 fn node_bins_for_current_os(platform: &str) -> serde_json::Value {

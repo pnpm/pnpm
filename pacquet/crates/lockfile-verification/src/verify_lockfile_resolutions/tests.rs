@@ -402,6 +402,53 @@ async fn one_packages_entry_yields_one_verification() {
     assert_eq!(CALLS.load(Ordering::SeqCst), 1);
 }
 
+#[tokio::test]
+async fn uninterested_verifier_skips_candidate_fan_out() {
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    CALLS.store(0, Ordering::SeqCst);
+
+    struct Uninterested {
+        policy: serde_json::Map<String, serde_json::Value>,
+    }
+    impl ResolutionVerifier for Uninterested {
+        fn might_verify(&self, _resolution: &LockfileResolution, _ctx: VerifyCtx<'_>) -> bool {
+            false
+        }
+
+        fn verify<'a>(
+            &'a self,
+            _resolution: &'a LockfileResolution,
+            _ctx: VerifyCtx<'a>,
+        ) -> VerifyFuture<'a> {
+            CALLS.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { ResolutionVerification::Ok })
+        }
+
+        fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+            &self.policy
+        }
+
+        fn can_trust_past_check(
+            &self,
+            _cached: &serde_json::Map<String, serde_json::Value>,
+        ) -> bool {
+            true
+        }
+    }
+
+    let lockfile = parse(SINGLE_PKG_LOCKFILE);
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(Uninterested { policy: serde_json::Map::new() });
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[verifier],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect("all-ok");
+    assert_eq!(CALLS.load(Ordering::SeqCst), 0);
+}
+
 /// End-to-end cache wiring: a successful first run records the
 /// verification; a second run against the same lockfile +
 /// trustworthy verifier policies hits the cache and never invokes

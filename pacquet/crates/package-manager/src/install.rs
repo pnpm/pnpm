@@ -19,7 +19,8 @@ use pacquet_lockfile::{
     LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
 };
 use pacquet_lockfile_verification::{
-    VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
+    VerifyError, VerifyLockfileResolutionsOptions, record_lockfile_verified,
+    verify_lockfile_resolutions,
 };
 use pacquet_modules_yaml::{
     Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
@@ -436,8 +437,16 @@ where
                 .map_err(InstallError::ReadWorkspaceManifest)?,
             None => None,
         };
-        let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-            .map_err(InstallError::InvalidCatalogsConfiguration)?;
+        // Prefer catalogs an `updateConfig` pnpmfile hook produced
+        // (`config.catalogs`, the complete set after the hook pass) over
+        // the raw workspace-manifest read, mirroring pnpm using the
+        // post-`updateConfig` `config.catalogs`. `None` means no hook
+        // changed them, so fall back to the manifest.
+        let catalogs = match config.catalogs.clone() {
+            Some(catalogs) => catalogs,
+            None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+                .map_err(InstallError::InvalidCatalogsConfiguration)?,
+        };
         // Use `to_string_lossy` rather than `to_str().expect(...)` so a
         // valid filesystem path with non-UTF-8 bytes (possible on Unix)
         // doesn't panic the installer. `prefix` is used only for
@@ -631,21 +640,21 @@ where
         // install short-circuit the verifier's own fetch chain, and
         // vice versa. Mirrors pnpm's `installing/client` wiring.
         let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+        let resolution_verifiers = build_resolution_verifiers(
+            config,
+            Arc::clone(&http_client_arc),
+            Some(Arc::clone(&meta_cache)
+                as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
+            auth_override.clone(),
+        )
+        .map_err(InstallError::BuildVerifiers)?;
 
         if let Some(loaded_lockfile) = lockfile.filter(|_| !trust_lockfile) {
             let derived_lockfile_path = lockfile_path
                 .map_or_else(|| workspace_root.join(Lockfile::FILE_NAME), Path::to_path_buf);
-            let verifiers = build_resolution_verifiers(
-                config,
-                Arc::clone(&http_client_arc),
-                Some(Arc::clone(&meta_cache)
-                    as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
-                auth_override.clone(),
-            )
-            .map_err(InstallError::BuildVerifiers)?;
             verify_lockfile_resolutions::<Reporter>(
                 loaded_lockfile,
-                &verifiers,
+                &resolution_verifiers,
                 &VerifyLockfileResolutionsOptions {
                     concurrency: None,
                     lockfile_path: Some(&derived_lockfile_path),
@@ -760,7 +769,10 @@ where
                     Err(FreshnessCheckError::Stale(_) | FreshnessCheckError::NoImporter { .. }) => {
                         false
                     }
-                    Err(error @ FreshnessCheckError::InvalidOverrides(_)) => {
+                    Err(
+                        error @ (FreshnessCheckError::InvalidOverrides(_)
+                        | FreshnessCheckError::CalcPatchHashes(_)),
+                    ) => {
                         return Err(error.into());
                     }
                 }
@@ -984,6 +996,18 @@ where
             .run::<Reporter>()
             .await
             .map_err(InstallError::WithFreshLockfile)?;
+
+            if fresh_result.can_record_lockfile_verification
+                && let Some(lockfile) = fresh_result.wanted_lockfile.as_ref()
+            {
+                let lockfile_path = workspace_root.join(Lockfile::FILE_NAME);
+                record_lockfile_verified(
+                    Some(&config.cache_dir),
+                    &lockfile_path,
+                    lockfile,
+                    &resolution_verifiers,
+                );
+            }
 
             (
                 fresh_result.hoisted_dependencies,
@@ -1215,11 +1239,18 @@ fn check_lockfile_freshness(
         .and_then(|extensions| serde_json::to_value(extensions).ok())
         .as_ref()
         .and_then(pacquet_graph_hasher::hash_object_nullable_with_prefix);
+    // `calcPatchHashes(opts.patchedDependencies)` — reading the patch
+    // files here lets `check_lockfile_settings` catch an edited patch
+    // whose hash (and thus its `(patch_hash=...)` depPath suffix) drifted
+    // from what the lockfile recorded.
+    let patched_dependency_hashes =
+        config.patched_dependency_hashes().map_err(FreshnessCheckError::CalcPatchHashes)?;
     pacquet_lockfile::check_lockfile_settings(
         lockfile,
         overrides_map.as_ref(),
         package_extensions_checksum.as_deref(),
         config.ignored_optional_dependencies.as_deref(),
+        patched_dependency_hashes.as_ref(),
         config.inject_workspace_packages,
         config.peers_suffix_max_length,
     )
@@ -1302,6 +1333,12 @@ enum FreshnessCheckError {
     #[diagnostic(transparent)]
     InvalidOverrides(#[error(source)] pacquet_config_parse_overrides::ParseOverridesError),
 
+    /// A configured `patchedDependencies` patch file couldn't be read
+    /// or hashed while computing the map to compare against the
+    /// lockfile.
+    #[diagnostic(transparent)]
+    CalcPatchHashes(#[error(source)] pacquet_patching::CalcPatchHashError),
+
     /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` /
     /// current settings.
     #[display("{_0}")]
@@ -1315,6 +1352,9 @@ impl From<FreshnessCheckError> for InstallError {
                 InstallError::NoImporter { importer_id }
             }
             FreshnessCheckError::InvalidOverrides(inner) => InstallError::InvalidOverrides(inner),
+            FreshnessCheckError::CalcPatchHashes(inner) => InstallError::WithFreshLockfile(
+                InstallWithFreshLockfileError::CalcPatchHashes(inner),
+            ),
             FreshnessCheckError::Stale(reason) => InstallError::OutdatedLockfile { reason },
         }
     }

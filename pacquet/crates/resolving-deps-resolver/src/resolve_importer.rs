@@ -78,11 +78,17 @@ pub struct ResolveImporterOptions {
     /// Seed for the preferred-versions tie-break table. The
     /// orchestrator extends this in place as packages are walked —
     /// each newly-resolved `name@version` lands as a plain
-    /// [`VersionSelectorType::Version`] entry so [`hoist_peers`] and
-    /// [`get_hoistable_optional_peers`] can reuse it. Pass the result
-    /// of `get_preferred_versions_from_lockfile_and_manifests` from
-    /// the `lockfile-preferred-versions` crate, or an empty map when
-    /// no lockfile + manifest seeding is available.
+    /// [`VersionSelectorType::Version`] entry so the [`hoist_peers`]
+    /// (required-peer) picker can reuse a version a sibling already
+    /// brought. The [`get_hoistable_optional_peers`] picker instead
+    /// reads a snapshot taken *before* any run-resolved version is
+    /// folded in — mirroring upstream's static
+    /// [`ctx.allPreferredVersions`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/src/resolveDependencies.ts#L340-L342)
+    /// — so an optional peer is never hoisted against a deep-tree
+    /// provider pnpm can't see. Pass the result of
+    /// `get_preferred_versions_from_lockfile_and_manifests` from the
+    /// `lockfile-preferred-versions` crate, or an empty map when no
+    /// lockfile + manifest seeding is available.
     pub all_preferred_versions: PreferredVersions,
 
     /// Configured `patchedDependencies`, grouped by package name. The
@@ -292,6 +298,17 @@ where
     let initial_wanted =
         importer_direct_wanted_specs(manifest, dependency_groups, auto_install_peers, &catalogs)?;
     let mut direct = extend_tree(&ctx, resolver, initial_wanted, importer_id).await?;
+    // The optional-peer hoist must only consider versions that were
+    // already in scope before this run — the wanted lockfile + manifests
+    // — mirroring upstream's static
+    // [`ctx.allPreferredVersions`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/src/resolveDependencies.ts#L340-L342).
+    // Feeding freshly-resolved transitive versions into that decision
+    // would hoist an optional peer (e.g. `debug`'s `supports-color`)
+    // against a deep-tree provider pnpm never sees, resolving the peer
+    // where pnpm leaves it bare. The required-peer hoist keeps using the
+    // run-extended map below: a required peer is auto-installed either
+    // way, and reusing an in-tree version matches pnpm's picker dedup.
+    let optional_hoist_preferred_versions = all_preferred_versions.clone();
     update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
 
     let mut parent_pkg_aliases: HashSet<String> =
@@ -365,8 +382,10 @@ where
         if all_missing_optional_peers.is_empty() {
             break;
         }
-        let hoisted_optional =
-            get_hoistable_optional_peers(&all_missing_optional_peers, &all_preferred_versions);
+        let hoisted_optional = get_hoistable_optional_peers(
+            &all_missing_optional_peers,
+            &optional_hoist_preferred_versions,
+        );
         if hoisted_optional.is_empty() {
             break;
         }

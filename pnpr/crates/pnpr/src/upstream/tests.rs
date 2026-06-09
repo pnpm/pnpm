@@ -1,5 +1,6 @@
 use super::{
-    FetchOutcome, Upstream, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
+    CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
+    extract_version_manifest, rewrite_tarball_urls,
 };
 use crate::package_name::PackageName;
 use chrono::{DateTime, TimeZone, Utc};
@@ -39,9 +40,9 @@ async fn fetch_packument_forwards_configured_headers() {
 
     let upstream = Upstream::new(server.url(), auth_and_custom_headers());
     let name = PackageName::parse("foo").unwrap();
-    let outcome = upstream.fetch_packument(&name).await.unwrap();
+    let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
 
-    assert!(matches!(outcome, FetchOutcome::Ok(_)));
+    assert!(matches!(outcome, PackumentFetch::Modified(_)));
     mock.assert_async().await;
 }
 
@@ -80,9 +81,95 @@ async fn fetch_packument_sends_no_authorization_when_headers_empty() {
 
     let upstream = Upstream::new(server.url(), HeaderMap::new());
     let name = PackageName::parse("foo").unwrap();
-    let outcome = upstream.fetch_packument(&name).await.unwrap();
+    let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
 
-    assert!(matches!(outcome, FetchOutcome::Ok(_)));
+    assert!(matches!(outcome, PackumentFetch::Modified(_)));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_packument_captures_validators_from_response() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("etag", r#""abc123""#)
+        .with_header("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")
+        .with_body(json!({ "name": "foo" }).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let name = PackageName::parse("foo").unwrap();
+    let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
+
+    let PackumentFetch::Modified(fetched) = outcome else { panic!("expected a body") };
+    assert_eq!(fetched.validators.etag.as_deref(), Some(r#""abc123""#));
+    assert_eq!(fetched.validators.last_modified.as_deref(), Some("Wed, 21 Oct 2015 07:28:00 GMT"));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_packument_replays_validators_and_handles_304() {
+    let mut server = mockito::Server::new_async().await;
+    // The mock only matches when both conditional headers are present,
+    // so a `NotModified` outcome proves they rode along on the request.
+    let mock = server
+        .mock("GET", "/foo")
+        .match_header("if-none-match", r#""abc123""#)
+        .match_header("if-modified-since", "Wed, 21 Oct 2015 07:28:00 GMT")
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let name = PackageName::parse("foo").unwrap();
+    let validators = CacheValidators {
+        etag: Some(r#""abc123""#.to_string()),
+        last_modified: Some("Wed, 21 Oct 2015 07:28:00 GMT".to_string()),
+    };
+    let outcome = upstream.fetch_packument(&name, &validators).await.unwrap();
+
+    assert!(matches!(outcome, PackumentFetch::NotModified));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_packument_304_without_validators_is_an_error() {
+    let mut server = mockito::Server::new_async().await;
+    // No conditional header is sent (empty validators), so a `304` here is
+    // a misbehaving upstream — there's no body and nothing to revalidate
+    // against. It must surface as an error, not a `NotModified` that the
+    // caller could mistake for "keep serving the cache".
+    let mock = server
+        .mock("GET", "/foo")
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .match_header("if-modified-since", mockito::Matcher::Missing)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let name = PackageName::parse("foo").unwrap();
+    let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
+
+    assert!(result.is_err(), "an unconditional 304 must not be treated as NotModified");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_packument_maps_404_to_not_found() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/foo").with_status(404).expect(1).create_async().await;
+
+    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let name = PackageName::parse("foo").unwrap();
+    let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
+
+    assert!(matches!(outcome, PackumentFetch::NotFound));
     mock.assert_async().await;
 }
 

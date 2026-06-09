@@ -200,3 +200,66 @@ fn preserves_comment_when_inserting_before_commented_entry() {
         "catalog:\n  apple: 1.0.0\n  mango: 2.0.0\n  # note about zebra\n  zebra: 3.0.0\n",
     );
 }
+
+/// Run `set_config_dependency` against `original` (when `Some`) and return
+/// the resulting file contents.
+fn run_config_dep(original: Option<&str>, name: &str, specifier: &str) -> String {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    if let Some(text) = original {
+        fs::write(&path, text).expect("seed manifest");
+    }
+    crate::set_config_dependency(dir.path(), name, specifier).expect("update succeeds");
+    fs::read_to_string(&path).expect("file written")
+}
+
+#[test]
+fn config_dependency_creates_block_when_absent() {
+    let out = run_config_dep(None, "@pnpm.e2e/foo", "1.0.0");
+    assert_eq!(out, "configDependencies:\n  '@pnpm.e2e/foo': 1.0.0\n");
+}
+
+#[test]
+fn config_dependency_added_to_existing_block() {
+    let original = "configDependencies:\n  '@pnpm.e2e/bar': 2.0.0\n";
+    let out = run_config_dep(Some(original), "@pnpm.e2e/foo", "1.0.0");
+    assert_eq!(out, "configDependencies:\n  '@pnpm.e2e/bar': 2.0.0\n  '@pnpm.e2e/foo': 1.0.0\n");
+}
+
+#[test]
+fn config_dependency_upserts_existing_entry() {
+    let original = "configDependencies:\n  '@pnpm.e2e/foo': 1.0.0\n";
+    let out = run_config_dep(Some(original), "@pnpm.e2e/foo", "2.0.0");
+    assert_eq!(out, "configDependencies:\n  '@pnpm.e2e/foo': 2.0.0\n");
+}
+
+#[test]
+fn config_dependency_preserves_other_keys_and_comments() {
+    let original = "# top comment\nstoreDir: ../store\n";
+    let out = run_config_dep(Some(original), "pnpm-plugin-x", "1.2.3");
+    assert!(out.contains("# top comment"), "comment preserved");
+    assert!(out.contains("storeDir: ../store"), "existing key preserved");
+    assert!(out.contains("configDependencies:\n  pnpm-plugin-x: 1.2.3"), "block appended");
+}
+
+#[test]
+fn config_dependency_noop_when_unchanged_returns_false() {
+    use crate::{edit, model::Manifest};
+
+    let original = "configDependencies:\n  '@pnpm.e2e/foo': 1.0.0\n";
+
+    // Re-adding the identical specifier is a no-op: the writer reports
+    // "unchanged" so the caller can skip rewriting the file.
+    let mut manifest = Manifest::parse(Some(original)).unwrap();
+    assert!(
+        !edit::add_config_dependency(&mut manifest, "@pnpm.e2e/foo", "1.0.0").unwrap(),
+        "re-adding the same specifier should report no change",
+    );
+
+    // Changing the specifier is a real change.
+    let mut manifest = Manifest::parse(Some(original)).unwrap();
+    assert!(
+        edit::add_config_dependency(&mut manifest, "@pnpm.e2e/foo", "2.0.0").unwrap(),
+        "changing the specifier should report a change",
+    );
+}

@@ -16,14 +16,18 @@
 //!   — the underlying check.
 //!
 //! Scope: the mtime-vs-`lastValidatedTimestamp` branch (upstream's
-//! `modifiedProjects.length === 0` exit at lines 263-271). Branches
-//! that detect a modified project and then re-verify the lockfile —
-//! `assertWantedLockfileUpToDate`, `patchesOrHooksAreModified` — are
-//! NOT ported here. When any manifest is newer than the last
-//! validation, this function returns `Decision::Skipped` and the
-//! caller proceeds with the full install path, which still has its
-//! own freshness guards (`check_lockfile_freshness`, the no-op
-//! short-circuit). Future work tracked at
+//! `modifiedProjects.length === 0` exit at lines 263-271), plus the
+//! patch-file branch of upstream's
+//! [`patchesOrHooksAreModified`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L597-L612):
+//! a configured patch file whose mtime is newer than
+//! `lastValidatedTimestamp` invalidates the fast path even when its
+//! `patchedDependencies` config entry is unchanged (a content edit the
+//! key→path settings comparison can't see). The pnpmfile branch of
+//! `patchesOrHooksAreModified` and the `assertWantedLockfileUpToDate`
+//! re-verification are NOT ported here. When this function returns
+//! `Decision::Skipped` the caller proceeds with the full install path,
+//! which still has its own freshness guards (`check_lockfile_freshness`,
+//! the no-op short-circuit). Remaining work tracked at
 //! pnpm/pnpm#11940 (this issue).
 //!
 //! [`checkDepsStatus`]: https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts
@@ -150,6 +154,16 @@ pub fn check_optimistic_repeat_install(
         return Decision::Skipped { reason: "wanted lockfile missing" };
     }
 
+    // A patch file edited in place keeps the same `patchedDependencies`
+    // key→path entry (so `settings_match` can't see the change) but
+    // changes the patched output and the patch hash. Upstream catches
+    // this in `patchesOrHooksAreModified` before the manifest-modified
+    // exit; mirror that ordering so the patch reason wins when both a
+    // patch and a manifest are newer than the last validation.
+    if patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
+        return Decision::Skipped { reason: "a patch file is newer than the last validation" };
+    }
+
     // The fast-path conclusion. Upstream walks every manifest and
     // returns `upToDate: true` when none have an mtime newer than
     // `workspaceState.lastValidatedTimestamp`. The walk has to
@@ -165,27 +179,26 @@ pub fn check_optimistic_repeat_install(
 /// Compare today's settings against what the previous install
 /// recorded.
 ///
-/// Only the fields pacquet actively populates via [`current_settings`]
-/// participate in the comparison. Fields the upstream pnpm CLI writes
-/// but pacquet hasn't ported yet (e.g. `excludeLinksFromLockfile`) are
-/// ignored — pacquet doesn't consume them during install, so a
-/// difference can't affect the materialised `node_modules`. Without
-/// this carve-out a cross-package-manager scenario (pnpm wrote the
-/// state, pacquet reads it next) would always reject the fast path
-/// because pnpm's defaults fill those fields while pacquet's
-/// `current_settings` leaves them `None`.
+/// Only the fields pacquet populates via [`current_settings`]
+/// participate in the comparison; the rest are listed at the end of
+/// this function with the reason each is safe to skip.
 ///
-/// As each ported setting in pnpm/pnpm#12009 lands end-to-end and
-/// gets surfaced through `current_settings`, it joins the comparison
-/// here automatically.
-///
-/// Mirrors pnpm's `Object.entries(workspaceState.settings)` walk in
-/// [`checkDepsStatus`](https://github.com/pnpm/pnpm/blob/72d997cc34/deps/status/src/checkDepsStatus.ts):
-/// pnpm iterates fields *in the state*, which by symmetry only
-/// includes fields the writer cared about. The `allowBuilds` coercion
-/// mirrors pnpm's [`opts.allowBuilds ?? {}`](https://github.com/pnpm/pnpm/blob/72d997cc34/deps/status/src/checkDepsStatus.ts#L141)
-/// on the read side and pnpm's tolerance of an absent
-/// `allowBuilds` key in the recorded state on the write side.
+/// pnpm's [`checkDepsStatus`](https://github.com/pnpm/pnpm/blob/20f9362161/deps/status/src/checkDepsStatus.ts#L138)
+/// iterates the full `WORKSPACE_STATE_SETTING_KEYS` list, reading a key
+/// absent from the recorded state as `undefined`. So the reverse
+/// scenario (pacquet wrote the state, pnpm reads it next) stays on the
+/// fast path only for keys whose pnpm-resolved value is also
+/// `undefined`. Every key pnpm resolves to a concrete default —
+/// `excludeLinksFromLockfile` (`false`), `minimumReleaseAge` (`1440`),
+/// `minimumReleaseAgeIgnoreMissingTime` (`true`) — must therefore be
+/// written by [`current_settings`] and compared here, or pnpm would
+/// report drift and re-run a (no-op) install on every command after a
+/// pacquet install. `enableGlobalVirtualStore` is `undefined` by
+/// default (concrete only under `--global`/CI), so pacquet's omit-when-
+/// off encoding already matches. The `allowBuilds` coercion mirrors
+/// pnpm's [`opts.allowBuilds ?? {}`](https://github.com/pnpm/pnpm/blob/20f9362161/deps/status/src/checkDepsStatus.ts#L143)
+/// on the read side and pnpm's tolerance of an absent `allowBuilds` key
+/// in the recorded state on the write side.
 fn settings_match(
     state: &WorkspaceState,
     config: &Config,
@@ -202,11 +215,19 @@ fn settings_match(
         && recorded.dedupe_peer_dependents == live.dedupe_peer_dependents
         && recorded.dedupe_peers == live.dedupe_peers
         && recorded.dev == live.dev
+        && enable_global_virtual_store_match(
+            recorded.enable_global_virtual_store,
+            live.enable_global_virtual_store,
+        )
+        && recorded.exclude_links_from_lockfile == live.exclude_links_from_lockfile
         && recorded.hoist_pattern == live.hoist_pattern
         && recorded.hoist_workspace_packages == live.hoist_workspace_packages
         && recorded.ignored_optional_dependencies == live.ignored_optional_dependencies
         && recorded.inject_workspace_packages == live.inject_workspace_packages
         && recorded.link_workspace_packages == live.link_workspace_packages
+        && recorded.minimum_release_age == live.minimum_release_age
+        && recorded.minimum_release_age_ignore_missing_time
+            == live.minimum_release_age_ignore_missing_time
         && recorded.node_linker == live.node_linker
         && recorded.optional == live.optional
         && recorded.overrides == live.overrides
@@ -219,17 +240,36 @@ fn settings_match(
         && recorded.prefer_workspace_packages == live.prefer_workspace_packages
         && recorded.production == live.production
         && recorded.public_hoist_pattern == live.public_hoist_pattern
-    // Deliberately *not* compared (tracked at pnpm/pnpm#12009 — drop
-    // each from this list once `current_settings` writes its value):
+    // Deliberately *not* compared. pnpm leaves the first group
+    // `undefined` by default, so omitting them here still matches pnpm's
+    // all-key freshness check (`undefined == undefined`):
     //   catalogs                    (pnpm always ignores; see
     //                                ignoredSettings.add('catalogs'))
-    //   excludeLinksFromLockfile
-    //   minimumReleaseAge*          (pacquet supports it but doesn't
-    //                                round-trip through workspace state
-    //                                yet — separate follow-up).
-    //   trustPolicy*                (same situation as minimumReleaseAge)
-    //   workspacePackagePatterns    (already covered via
-    //                                pnpm-workspace.yaml `packages:`)
+    //   minimumReleaseAgeStrict     (pnpm sets it only when the user
+    //                                explicitly sets minimumReleaseAge)
+    //   minimumReleaseAgeExclude
+    //   trustPolicy*                (all `undefined` until configured)
+    //   workspacePackagePatterns    (concrete for a multi-package
+    //                                workspace, but lives in the
+    //                                workspace manifest, not `Config`;
+    //                                threading it into `current_settings`
+    //                                is a separate follow-up. pacquet
+    //                                detects project-set changes via
+    //                                `project_structure_matches`).
+}
+
+/// `enableGlobalVirtualStore` has no `?? default` coercion on pnpm's
+/// read side, but its `undefined` default and an explicit `false` both
+/// mean "global virtual store off". pnpm omits the key for the former
+/// and records `false` only when CI forces it; pacquet omits both.
+/// Normalize the absent and `false` forms before comparing so a
+/// pnpm-written file (omitted or `false`) matches a pacquet install
+/// with the store off, while a real `true`/`false` flip still trips.
+fn enable_global_virtual_store_match(
+    state_value: Option<bool>,
+    current_value: Option<bool>,
+) -> bool {
+    state_value.unwrap_or(false) == current_value.unwrap_or(false)
 }
 
 /// Pnpm writes `Some({})` for an empty `allowBuilds`; pacquet writes
@@ -290,6 +330,12 @@ pub(crate) fn current_settings(
         dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
         dedupe_peers: Some(config.dedupe_peers),
         dev: Some(included.dev_dependencies),
+        // Mirror pnpm's writer, which omits the key for its `undefined`
+        // default and records a concrete value only when forced. pacquet
+        // has no `--global` flow, so the only "on" value it ever writes
+        // is `true`; an off store maps back to the omitted `None`.
+        enable_global_virtual_store: config.enable_global_virtual_store.then_some(true),
+        exclude_links_from_lockfile: Some(config.exclude_links_from_lockfile),
         hoist_pattern: config.hoist_pattern.clone(),
         hoist_workspace_packages: Some(config.hoist_workspace_packages),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
@@ -297,6 +343,10 @@ pub(crate) fn current_settings(
         link_workspace_packages: Some(link_workspace_packages_to_json(
             config.link_workspace_packages,
         )),
+        minimum_release_age: config.minimum_release_age,
+        minimum_release_age_ignore_missing_time: Some(
+            config.minimum_release_age_ignore_missing_time,
+        ),
         node_linker: Some(map_node_linker(node_linker)),
         optional: Some(included.optional_dependencies),
         overrides: config
@@ -405,6 +455,38 @@ fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String
 /// [`statManifestFile`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/statManifestFile.ts)
 /// behavior on missing files (it throws, which `checkDepsStatus`
 /// catches via the outer `try`).
+/// Whether any configured patch file's mtime is newer than the last
+/// validation. Mirrors the patch branch of upstream's
+/// [`patchesOrHooksAreModified`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L604-L613):
+/// `allPatchStats.some(patch => patch && patch.mtime > lastValidatedTimestamp)`.
+/// A patch that can't be stat'd is treated as not-modified — pnpm's
+/// `safeStat` returns null and the `patch &&` guard drops it, leaving a
+/// genuinely missing patch to surface on the full install path. Patch
+/// paths are resolved against `workspace_root` (the `pnpm-workspace.yaml`
+/// dir, where `patchedDependencies` is declared), matching how
+/// [`Config::patched_dependency_hashes`] resolves them.
+fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64) -> bool {
+    let Some(patches) = config.patched_dependencies.as_ref() else {
+        return false;
+    };
+    patches.values().any(|rel_or_abs| {
+        let candidate = Path::new(rel_or_abs);
+        let path = if candidate.is_absolute() {
+            candidate.to_path_buf()
+        } else {
+            workspace_root.join(candidate)
+        };
+        let Ok(modified) = fs::metadata(&path).and_then(|metadata| metadata.modified()) else {
+            return false;
+        };
+        let Ok(elapsed) = modified.duration_since(SystemTime::UNIX_EPOCH) else {
+            return false;
+        };
+        let modified_ms = i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
+        modified_ms > cutoff_ms
+    })
+}
+
 fn manifests_unchanged_since(
     cutoff_ms: i64,
     project_manifests: &[(PathBuf, &PackageManifest)],

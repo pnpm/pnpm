@@ -51,6 +51,12 @@ pub struct WorkspaceResolveOptions {
     /// snapshot's children are a subset of the target project's own
     /// direct deps.
     pub dedupe_injected_deps: bool,
+    /// `true` enables [`fn@crate::resolve_peers_workspace`]'s peer-
+    /// dependent dedupe pass — peer-suffixed variants of one package
+    /// that are a subset of a larger compatible variant collapse into
+    /// it. Mirrors pnpm's `dedupePeerDependents` setting (default
+    /// `true`).
+    pub dedupe_peer_dependents: bool,
     /// Threaded into [`ResolvePeersOptions::exclude_links_from_lockfile`]
     /// for the workspace-wide peer pass. Per-importer
     /// [`ResolvePeersOptions::modules_dir`] comes from each
@@ -134,6 +140,7 @@ where
     let WorkspaceResolveOptions {
         dedupe_peers,
         dedupe_injected_deps,
+        dedupe_peer_dependents,
         exclude_links_from_lockfile,
         lockfile_dir,
         peers_suffix_max_length,
@@ -227,6 +234,7 @@ where
         &per_importer_inputs,
         &lockfile_dir,
         dedupe_injected_deps,
+        dedupe_peer_dependents,
         peer_opts,
     );
 

@@ -199,13 +199,28 @@ async fn verifies_tarball_url_when_no_policy_active() {
         git_hosted: None,
         path: None,
     });
-    let result = verifier
-        .verify(&resolution, ctx(&"aged-pkg".parse::<PkgName>().expect("parse"), "1.0.0"))
-        .await;
+    let name: PkgName = "aged-pkg".parse().expect("parse");
+    assert!(verifier.might_verify(&resolution, ctx(&name, "1.0.0")));
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
     let ResolutionVerification::Err { code, .. } = result else {
         panic!("expected Err, got {result:?}");
     };
     assert_eq!(code, "TARBALL_URL_MISMATCH");
+}
+
+#[tokio::test]
+async fn registry_resolution_with_no_active_policy_skips_metadata_lookup() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let _meta_mock = server.mock("GET", "/acme").expect(0).create_async().await;
+
+    let opts = default_opts(&registry);
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "acme".parse().expect("parse");
+    assert!(!verifier.might_verify(&registry_resolution(), ctx(&name, "1.0.0")));
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.0.0")).await;
+
+    assert_eq!(result, ResolutionVerification::Ok);
 }
 
 /// `minimum_release_age = 0` keeps the age check inactive. The bogus

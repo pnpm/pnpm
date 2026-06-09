@@ -2,11 +2,14 @@ use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs
 use clap::{Args, ValueEnum};
 use miette::Context;
 use pacquet_config::NodeLinker;
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, LockfileResolution};
 use pacquet_package_manager::{Install, TarballPrefetcher, UpdateSeedPolicy};
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions};
 use pacquet_reporter::Reporter;
+
+const BENCHMARK_PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
+const BENCHMARK_PNPR_TARBALL_REWRITE_FROM_ENV: &str = "PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM";
 
 /// `--node-linker` value parser. CLI mirror of
 /// [`pacquet_config::NodeLinker`] so the config crate stays free
@@ -461,6 +464,11 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         .map(serde_json::to_value)
         .transpose()
         .map_err(|err| miette::miette!("failed to serialize overrides: {err}"))?;
+    let benchmark_registry_override =
+        PnprBenchmarkRegistryOverride::from_env(&state.config.registry);
+    let resolve_registry = benchmark_registry_override
+        .as_ref()
+        .map_or_else(|| state.config.registry.clone(), |registry| registry.resolve_registry());
 
     // Send the on-disk lockfile + the full client policy so the server
     // verifies the input lockfile under *our* policy before resolving;
@@ -474,7 +482,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         dependencies,
         dev_dependencies,
         optional_dependencies,
-        registry: state.config.registry.clone(),
+        registry: resolve_registry,
         named_registries: state.config.named_registries.clone(),
         // Forward the whole credential map: the registries a graph
         // touches aren't known up front (scope-routed or tarball-URL
@@ -532,13 +540,17 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         Some(prefetcher) => {
             client
                 .resolve_streaming(opts, |pkg| {
-                    prefetcher.prefetch(pkg.id, pkg.tarball, &pkg.integrity);
+                    let tarball = benchmark_registry_override.as_ref().map_or_else(
+                        || pkg.tarball.clone(),
+                        |registry| registry.client_tarball_url(&pkg.tarball),
+                    );
+                    prefetcher.prefetch(pkg.id, tarball, &pkg.integrity);
                 })
                 .await
         }
         None => client.resolve(opts).await,
     };
-    let outcome = match result {
+    let mut outcome = match result {
         Ok(outcome) => outcome,
         // The server rejected the input lockfile under our policy.
         // Surface the reconstructed `VerifyError` so the abort + the
@@ -551,6 +563,9 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
                 .wrap_err("resolving dependencies via the pnpr server");
         }
     };
+    if let Some(registry) = benchmark_registry_override.as_ref() {
+        registry.rewrite_lockfile(&mut outcome.lockfile);
+    }
 
     if state.config.lockfile {
         outcome
@@ -611,6 +626,113 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     }
 
     Ok(())
+}
+
+struct PnprBenchmarkRegistryOverride {
+    resolve_registry: String,
+    tarball_rewrite: Option<BenchmarkRegistryRewrite>,
+}
+
+impl PnprBenchmarkRegistryOverride {
+    /// Benchmark-only hook for `pacquet/tasks/integrated-benchmark`.
+    ///
+    /// The benchmark runs release-built pacquet and pnpr binaries, so this
+    /// cannot be hidden behind `#[cfg(test)]`. Keep every
+    /// `PACQUET_BENCHMARK_*` env read in this type: normal pnpr installs
+    /// take one no-op branch, while benchmark runs can ask the pnpr server
+    /// to resolve against a server-side registry URL and then rewrite
+    /// server-origin tarball URLs back to the client-facing registry. The
+    /// rewrite is applied before saving the lockfile because the benchmark's
+    /// frozen materialization must use the same client-registry path that
+    /// direct installs pay for.
+    fn from_env(client_registry: &str) -> Option<Self> {
+        let resolve_registry = std::env::var(BENCHMARK_PNPR_SERVER_REGISTRY_ENV)
+            .ok()
+            .filter(|registry| !registry.is_empty())
+            .map(|registry| normalize_registry(&registry))?;
+        let tarball_rewrite_from = std::env::var(BENCHMARK_PNPR_TARBALL_REWRITE_FROM_ENV)
+            .ok()
+            .filter(|registry| !registry.is_empty());
+        let tarball_rewrite = BenchmarkRegistryRewrite::new(
+            [Some(resolve_registry.as_str()), tarball_rewrite_from.as_deref()]
+                .into_iter()
+                .flatten(),
+            client_registry,
+        );
+        Some(Self { resolve_registry, tarball_rewrite })
+    }
+
+    fn resolve_registry(&self) -> String {
+        self.resolve_registry.clone()
+    }
+
+    fn client_tarball_url(&self, url: &str) -> String {
+        self.tarball_rewrite.as_ref().map_or_else(|| url.to_string(), |rewrite| rewrite.url(url))
+    }
+
+    fn rewrite_lockfile(&self, lockfile: &mut Lockfile) {
+        let Some(rewrite) = self.tarball_rewrite.as_ref() else { return };
+        let Some(packages) = lockfile.packages.as_mut() else { return };
+        for metadata in packages.values_mut() {
+            rewrite_resolution_registry(&mut metadata.resolution, rewrite);
+        }
+    }
+}
+
+struct BenchmarkRegistryRewrite {
+    from: Vec<String>,
+    to: String,
+}
+
+impl BenchmarkRegistryRewrite {
+    pub(super) fn new<Registry, Registries>(from: Registries, to: &str) -> Option<Self>
+    where
+        Registry: AsRef<str>,
+        Registries: IntoIterator<Item = Registry>,
+    {
+        let to = normalize_registry(to);
+        let mut from_registries = Vec::new();
+        for registry in from {
+            let registry = normalize_registry(registry.as_ref());
+            if registry != to && !from_registries.contains(&registry) {
+                from_registries.push(registry);
+            }
+        }
+        (!from_registries.is_empty()).then_some(Self { from: from_registries, to })
+    }
+
+    pub(super) fn url(&self, url: &str) -> String {
+        self.from
+            .iter()
+            .find_map(|from| url.strip_prefix(from))
+            .map_or_else(|| url.to_string(), |suffix| format!("{}{}", self.to, suffix))
+    }
+}
+
+fn normalize_registry(registry: &str) -> String {
+    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
+fn rewrite_resolution_registry(
+    resolution: &mut LockfileResolution,
+    rewrite: &BenchmarkRegistryRewrite,
+) {
+    match resolution {
+        LockfileResolution::Tarball(resolution) => {
+            resolution.tarball = rewrite.url(&resolution.tarball);
+        }
+        LockfileResolution::Binary(resolution) => {
+            resolution.url = rewrite.url(&resolution.url);
+        }
+        LockfileResolution::Variations(resolution) => {
+            for variant in &mut resolution.variants {
+                rewrite_resolution_registry(&mut variant.resolution, rewrite);
+            }
+        }
+        LockfileResolution::Directory(_)
+        | LockfileResolution::Git(_)
+        | LockfileResolution::Registry(_) => {}
+    }
 }
 
 #[cfg(test)]

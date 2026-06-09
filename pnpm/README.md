@@ -42,6 +42,15 @@ To quote the [Rush](https://rushjs.io/) team:
       <td align="center" valign="middle">
         <a href="https://bit.cloud/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://openai.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/openai_dark.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/openai_light.svg" />
+            <img src="https://pnpm.io/img/users/openai_dark.svg" width="160" alt="OpenAI" />
+          </picture>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
@@ -143,10 +152,19 @@ To quote the [Rush](https://rushjs.io/) team:
         <a href="https://cybozu.co.jp/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/cybozu.svg" width="70" alt="Cybozu"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/devowlio.svg" width="100" alt="devowl.io"></a>
+        <a href="https://www.bairesdev.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/bairesdev.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/bairesdev_light.svg" />
+            <img src="https://pnpm.io/img/users/bairesdev.svg" width="160" alt="BairesDev" />
+          </picture>
+        </a>
       </td>
     </tr>
     <tr>
+      <td align="center" valign="middle">
+        <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/devowlio.svg" width="100" alt="devowl.io"></a>
+      </td>
       <td align="center" valign="middle">
         <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
@@ -159,6 +177,8 @@ To quote the [Rush](https://rushjs.io/) team:
       <td align="center" valign="middle">
         <a href="https://www.leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/leniolabs.jpg" width="40" alt="Leniolabs_"></a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://depot.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
@@ -168,8 +188,6 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://cerbos.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>

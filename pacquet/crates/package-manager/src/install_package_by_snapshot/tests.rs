@@ -307,6 +307,7 @@ fn registry_metadata() -> pacquet_lockfile::PackageMetadata {
         resolution: LockfileResolution::Registry(pacquet_lockfile::RegistryResolution {
             integrity: DUMMY_SHA512.parse().expect("parse integrity"),
         }),
+        version: None,
         engines: None,
         cpu: None,
         os: None,
@@ -405,6 +406,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
         // back directly.
         node_linker: pacquet_config::NodeLinker::Hoisted,
         defer_link: false,
+        link_concurrency_probe: None,
     }
     .run::<pacquet_reporter::SilentReporter>()
     .await
@@ -477,6 +479,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
         defer_link: false,
+        link_concurrency_probe: None,
     }
     .run::<pacquet_reporter::SilentReporter>()
     .await
@@ -549,6 +552,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
         defer_link: false,
+        link_concurrency_probe: None,
     }
     .run::<pacquet_reporter::SilentReporter>()
     .await

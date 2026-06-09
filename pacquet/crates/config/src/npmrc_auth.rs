@@ -125,6 +125,12 @@ pub(crate) struct RawCreds {
     pub password: Option<String>,
 }
 
+#[derive(Clone, Copy)]
+struct ParseOptions {
+    expand_auth_value_env: bool,
+    expand_request_destination_env: bool,
+}
+
 impl RawCreds {
     fn is_empty(&self) -> bool {
         self.auth_token.is_none()
@@ -150,6 +156,14 @@ impl RawCreds {
 const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 impl NpmrcAuth {
+    pub fn from_project_ini<Sys: EnvVar>(text: &str, npmrc_dir: &Path) -> Self {
+        Self::from_ini_with_options::<Sys>(
+            text,
+            npmrc_dir,
+            ParseOptions { expand_auth_value_env: false, expand_request_destination_env: false },
+        )
+    }
+
     /// Parse an `.npmrc` file's contents and pick out the auth/network keys.
     /// Unknown keys are silently dropped. `${VAR}` placeholders inside keys
     /// and values are resolved via the [`EnvVar`] capability; unresolved
@@ -170,6 +184,18 @@ impl NpmrcAuth {
     /// project `.npmrc` reachable via `pacquet --dir <proj>` from a
     /// different cwd still finds its CA bundle (pnpm/pnpm#11726).
     pub fn from_ini<Sys: EnvVar>(text: &str, npmrc_dir: &Path) -> Self {
+        Self::from_ini_with_options::<Sys>(
+            text,
+            npmrc_dir,
+            ParseOptions { expand_auth_value_env: true, expand_request_destination_env: true },
+        )
+    }
+
+    fn from_ini_with_options<Sys: EnvVar>(
+        text: &str,
+        npmrc_dir: &Path,
+        opts: ParseOptions,
+    ) -> Self {
         let mut auth = NpmrcAuth::default();
         for line in text.lines() {
             let line = line.trim();
@@ -185,7 +211,49 @@ impl NpmrcAuth {
             // Apply ${VAR} substitution to both the key and the value,
             // matching `readAndFilterNpmrc` in pnpm's `loadNpmrcFiles.ts`.
             // Unresolved placeholders become "" and are recorded as warnings.
+            if !opts.expand_request_destination_env
+                && has_env_placeholder(raw_key)
+                && is_request_destination_key(raw_key)
+            {
+                auth.warn_ignored_request_destination_env(raw_key);
+                continue;
+            }
+            if !opts.expand_auth_value_env
+                && has_env_placeholder(raw_key)
+                && is_auth_value_key(raw_key)
+            {
+                auth.warn_ignored_auth_value_env(raw_key);
+                continue;
+            }
             let (key, key_unresolved) = env_replace_lossy::<Sys>(raw_key);
+            if !opts.expand_request_destination_env
+                && has_env_placeholder(raw_key)
+                && is_request_destination_key(&key)
+            {
+                auth.warn_ignored_request_destination_env(raw_key);
+                continue;
+            }
+            if !opts.expand_auth_value_env
+                && has_env_placeholder(raw_key)
+                && is_auth_value_key(&key)
+            {
+                auth.warn_ignored_auth_value_env(raw_key);
+                continue;
+            }
+            if !opts.expand_request_destination_env
+                && has_env_placeholder(raw_value)
+                && is_request_destination_value_key(&key)
+            {
+                auth.warn_ignored_request_destination_env(&key);
+                continue;
+            }
+            if !opts.expand_auth_value_env
+                && has_env_placeholder(raw_value)
+                && is_auth_value_key(&key)
+            {
+                auth.warn_ignored_auth_value_env(&key);
+                continue;
+            }
             let (value, value_unresolved) = env_replace_lossy::<Sys>(raw_value);
             for placeholder in key_unresolved.into_iter().chain(value_unresolved) {
                 auth.warnings.push(format!("Failed to replace env in config: {placeholder}"));
@@ -279,6 +347,18 @@ impl NpmrcAuth {
             apply_creds_field(&mut auth.default_creds, key.as_str(), value);
         }
         auth
+    }
+
+    fn warn_ignored_request_destination_env(&mut self, key: &str) {
+        self.warnings.push(format!(
+            "Ignored project-level request destination {key:?}: environment variables are not expanded in repository-controlled registry or proxy URLs.",
+        ));
+    }
+
+    fn warn_ignored_auth_value_env(&mut self, key: &str) {
+        self.warnings.push(format!(
+            "Ignored project-level auth setting {key:?}: environment variables are not expanded in repository-controlled registry credentials.",
+        ));
     }
 
     /// Resolve the TLS + `local-address` slots on `config.tls`.
@@ -579,6 +659,24 @@ fn parse_bool(value: &str) -> Option<bool> {
     }
 }
 
+fn is_request_destination_key(key: &str) -> bool {
+    is_registry_key(key) || key.starts_with("//")
+}
+
+fn is_request_destination_value_key(key: &str) -> bool {
+    is_registry_key(key) || matches!(key, "https-proxy" | "http-proxy" | "proxy")
+}
+
+fn is_registry_key(key: &str) -> bool {
+    key == "registry" || (key.starts_with('@') && key.ends_with(":registry"))
+}
+
+fn has_env_placeholder(value: &str) -> bool {
+    value
+        .match_indices("${")
+        .any(|(start, _)| value[start + 2..].find('}').is_some_and(|end| end > 0))
+}
+
 /// Read a `cafile` path and split the contents on
 /// `-----END CERTIFICATE-----` to produce one PEM per certificate.
 /// Mirrors pnpm's
@@ -681,6 +779,12 @@ fn base64_decode(input: &str) -> Option<String> {
 /// mirroring `AUTH_SUFFIX_RE` from pnpm's `getNetworkConfigs.ts`.
 const CREDS_SUFFIXES: &[&str] = &["_authToken", "_auth", "_password", "username"];
 
+fn is_auth_value_key(key: &str) -> bool {
+    matches!(key, "_authToken" | "_auth" | "_password" | "username" | "cert" | "key")
+        || split_creds_key(key).is_some()
+        || split_inline_identity_key(key).is_some()
+}
+
 fn split_creds_key(key: &str) -> Option<(&str, &str)> {
     if !key.starts_with("//") {
         return None;
@@ -743,6 +847,11 @@ fn split_ssl_key(key: &str) -> Option<(&str, &'static str, bool)> {
         }
     }
     None
+}
+
+fn split_inline_identity_key(key: &str) -> Option<(&str, &'static str)> {
+    let (uri, field, is_file) = split_ssl_key(key)?;
+    (!is_file && matches!(field, "cert" | "key")).then_some((uri, field))
 }
 
 /// Write a per-registry TLS value onto a [`RegistryTls`] entry.

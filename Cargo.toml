@@ -25,6 +25,7 @@ pacquet-crypto-shasums-file               = { path = "pacquet/crates/crypto-shas
 pacquet-engine-runtime-bun-resolver       = { path = "pacquet/crates/engine-runtime-bun-resolver" }
 pacquet-engine-runtime-deno-resolver      = { path = "pacquet/crates/engine-runtime-deno-resolver" }
 pacquet-engine-runtime-node-resolver      = { path = "pacquet/crates/engine-runtime-node-resolver" }
+pacquet-env-installer                     = { path = "pacquet/crates/env-installer" }
 pacquet-env-replace                       = { path = "pacquet/crates/env-replace" }
 pacquet-fs                                = { path = "pacquet/crates/fs" }
 pacquet-registry                          = { path = "pacquet/crates/registry" }
@@ -129,6 +130,7 @@ reqwest = { version = "0.13", default-features = false, features = [
 node-semver = { version = "2.2.0" }
 pathdiff = { version = "0.2.3" }
 pipe-trait = { version = "0.4.0" }
+pgp = { version = "0.19.0", default-features = false }
 rayon = { version = "1.12.0" }
 rmp-serde = { version = "1.3.0" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }

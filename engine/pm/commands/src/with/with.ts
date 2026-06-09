@@ -84,6 +84,19 @@ export async function handler (
       registries: opts.registries,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       packageManager: { name: packageManager.name, version: packageManager.version },
+      // Network settings so the engine identity check can reach the canonical
+      // npm registry through the user's proxy / TLS configuration.
+      ca: opts.ca,
+      cert: opts.cert,
+      key: opts.key,
+      httpProxy: opts.httpProxy,
+      httpsProxy: opts.httpsProxy,
+      noProxy: opts.noProxy,
+      strictSsl: opts.strictSsl,
+      localAddress: opts.localAddress,
+      maxSockets: opts.maxSockets,
+      configByUri: opts.configByUri,
+      timeout: opts.fetchTimeout,
     }))
   } finally {
     await store.ctrl.close()

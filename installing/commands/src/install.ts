@@ -218,7 +218,7 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--ignore-workspace',
           },
           {
-            description: "If false, doesn't check whether packages in the store were mutated",
+            description: 'If false, skips store integrity checks. These checks detect accidental corruption, not tampering by untrusted users with write access to the store',
             name: '--[no-]verify-store-integrity',
           },
           {

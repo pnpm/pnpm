@@ -4,13 +4,13 @@
 //! Pacquet port of upstream's
 //! [`createVersionsOverrider`](https://github.com/pnpm/pnpm/blob/0d88df854f/hooks/read-package-hook/src/createVersionsOverrider.ts).
 //! Upstream's hook is a `readPackageHook` that fires on every manifest
-//! read during resolution; in pacquet's frozen-lockfile-only world the
-//! same hook only matters for the root project's manifest, since
-//! that's the only manifest the freshness check inspects. The shape of
-//! the rewrite — generic vs. parent-scoped overrides, `-` deletion,
-//! `link:` / `file:` local targets, range intersection via semver — is
-//! preserved so the lockfile written by pnpm (post-override
-//! specifiers) lines up with the manifest the freshness check sees.
+//! read during resolution. Pacquet uses the same rewrite both for
+//! frozen-lockfile freshness checks and for the fresh resolver's
+//! manifest hook. The shape of the rewrite — generic vs.
+//! parent-scoped overrides, `-` deletion, `link:` / `file:` local
+//! targets, range intersection via semver — is preserved so the
+//! resolved dependency graph and lockfile match pnpm's post-override
+//! manifest view.
 //!
 //! What's intentionally **not** ported yet:
 //! - `peerDependencies` mutation. Upstream promotes a peer to
@@ -30,26 +30,29 @@ use node_semver::{Range, Version};
 use pacquet_config_parse_overrides::{PackageSelector, VersionOverride};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// In-memory hook that applies the parsed `pnpm.overrides` set to a
 /// manifest. Cheap to construct — partitioning the overrides into the
 /// parent-scoped vs. generic buckets happens once, and each call to
 /// [`Self::apply`] walks the dep maps in place.
-pub struct VersionsOverrider<'a> {
+pub struct VersionsOverrider {
     /// Overrides whose key carries a `parent>child` shape — only
     /// applied when the manifest being rewritten matches the parent
     /// half (name + optional range).
-    parent_scoped: Vec<ResolvedOverride<'a>>,
+    parent_scoped: Vec<ResolvedOverride>,
     /// Generic overrides (no parent half). Apply to every manifest.
-    generic: Vec<ResolvedOverride<'a>>,
+    generic: Vec<ResolvedOverride>,
 }
 
 /// `VersionOverride` augmented with a pre-parsed `LocalTarget` for
 /// the local-protocol forms. Splitting once at construction time
 /// avoids re-parsing the prefix on every manifest read.
-struct ResolvedOverride<'a> {
-    inner: &'a VersionOverride,
+struct ResolvedOverride {
+    inner: VersionOverride,
     local_target: Option<LocalTarget>,
 }
 
@@ -74,16 +77,15 @@ struct LocalTarget {
     specified_via_relative_path: bool,
 }
 
-impl<'a> VersionsOverrider<'a> {
+impl VersionsOverrider {
     /// Build the hook from the parsed overrides set produced by
     /// [`pacquet_config_parse_overrides::parse_overrides`].
-    #[must_use]
-    pub fn new(overrides: &'a [VersionOverride], root_dir: &Path) -> Self {
+    pub fn new(overrides: &[VersionOverride], root_dir: &Path) -> Self {
         let mut parent_scoped = Vec::new();
         let mut generic = Vec::new();
         for override_entry in overrides {
             let resolved = ResolvedOverride {
-                inner: override_entry,
+                inner: override_entry.clone(),
                 local_target: parse_local_target(&override_entry.new_bare_specifier, root_dir),
             };
             if override_entry.parent_pkg.is_some() {
@@ -93,6 +95,11 @@ impl<'a> VersionsOverrider<'a> {
             }
         }
         VersionsOverrider { parent_scoped, generic }
+    }
+
+    /// `true` when the hook has no entries and can be skipped.
+    pub fn is_empty(&self) -> bool {
+        self.parent_scoped.is_empty() && self.generic.is_empty()
     }
 
     /// Apply the override set to `manifest` in place. `manifest_dir`
@@ -105,27 +112,12 @@ impl<'a> VersionsOverrider<'a> {
     /// Mirrors upstream's `(manifest, dir) => { ... }` body returned
     /// by `createVersionsOverrider`.
     pub fn apply(&self, manifest: &mut PackageManifest, manifest_dir: Option<&Path>) {
-        let manifest_name = manifest.value().get("name").and_then(Value::as_str).map(str::to_owned);
-        let manifest_version =
-            manifest.value().get("version").and_then(Value::as_str).map(str::to_owned);
+        self.apply_to_value(manifest.value_mut(), manifest_dir);
+    }
 
-        // Mirrors upstream's `versionOverrides.filter(({ parentPkg }) => ...)`
-        // restricting the parent-scoped set to those whose `parentPkg`
-        // matches *this* manifest.
-        let applicable_parent_scoped: Vec<&ResolvedOverride<'a>> = self
-            .parent_scoped
-            .iter()
-            .filter(|entry| {
-                let Some(parent) = entry.inner.parent_pkg.as_ref() else { return false };
-                let name_matches = manifest_name.as_deref() == Some(parent.name.as_str());
-                let range_matches = match (parent.bare_specifier.as_deref(), &manifest_version) {
-                    (None, _) => true,
-                    (Some(_), None) => false,
-                    (Some(range), Some(version)) => semver_satisfies(version, range),
-                };
-                name_matches && range_matches
-            })
-            .collect();
+    /// Apply the override set to a manifest JSON value in place.
+    pub fn apply_to_value(&self, manifest: &mut Value, manifest_dir: Option<&Path>) {
+        let applicable_parent_scoped = self.applicable_parent_scoped(manifest);
 
         // Upstream's `overrideDepsOfPkg` mutates the four dep buckets
         // (`dependencies`, `optionalDependencies`, `devDependencies`,
@@ -135,20 +127,70 @@ impl<'a> VersionsOverrider<'a> {
         for group in
             [DependencyGroup::Prod, DependencyGroup::Optional, DependencyGroup::Dev].iter().copied()
         {
-            self.override_group(
-                manifest.value_mut(),
-                group,
-                &applicable_parent_scoped,
-                manifest_dir,
-            );
+            self.override_group(manifest, group, &applicable_parent_scoped, manifest_dir);
         }
+    }
+
+    /// Apply overrides to the resolver's shared manifest value,
+    /// cloning only when at least one configured override can rewrite
+    /// the manifest.
+    pub fn apply_to_arc(&self, manifest: Arc<Value>, manifest_dir: Option<&Path>) -> Arc<Value> {
+        if self.is_empty() || !self.has_applicable_override(&manifest) {
+            return manifest;
+        }
+        let mut cloned = (*manifest).clone();
+        self.apply_to_value(&mut cloned, manifest_dir);
+        Arc::new(cloned)
+    }
+
+    fn applicable_parent_scoped<'b>(&'b self, manifest: &Value) -> Vec<&'b ResolvedOverride> {
+        let manifest_name = manifest.get("name").and_then(Value::as_str);
+        let manifest_version = manifest.get("version").and_then(Value::as_str);
+
+        self.parent_scoped
+            .iter()
+            .filter(|entry| {
+                let Some(parent) = entry.inner.parent_pkg.as_ref() else { return false };
+                let name_matches = manifest_name == Some(parent.name.as_str());
+                let range_matches = match (parent.bare_specifier.as_deref(), manifest_version) {
+                    (None, _) => true,
+                    (Some(_), None) => false,
+                    (Some(range), Some(version)) => semver_satisfies(version, range),
+                };
+                name_matches && range_matches
+            })
+            .collect()
+    }
+
+    fn has_applicable_override(&self, value: &Value) -> bool {
+        let applicable_parent_scoped = self.applicable_parent_scoped(value);
+        [DependencyGroup::Prod, DependencyGroup::Optional, DependencyGroup::Dev]
+            .iter()
+            .copied()
+            .any(|group| self.group_has_override(value, group, &applicable_parent_scoped))
+    }
+
+    fn group_has_override(
+        &self,
+        value: &Value,
+        group: DependencyGroup,
+        applicable_parent_scoped: &[&ResolvedOverride],
+    ) -> bool {
+        let key: &'static str = group.into();
+        let Some(map) = value.get(key).and_then(Value::as_object) else { return false };
+
+        map.iter().any(|(name, spec)| {
+            spec.as_str().is_some_and(|spec| {
+                self.choose_override(applicable_parent_scoped, name, spec).is_some()
+            })
+        })
     }
 
     fn override_group(
         &self,
         value: &mut Value,
         group: DependencyGroup,
-        applicable_parent_scoped: &[&ResolvedOverride<'a>],
+        applicable_parent_scoped: &[&ResolvedOverride],
         manifest_dir: Option<&Path>,
     ) {
         let key: &'static str = group.into();
@@ -162,9 +204,7 @@ impl<'a> VersionsOverrider<'a> {
             .collect();
 
         for (name, spec) in entries {
-            let Some(chosen) = Self::pick_most_specific(applicable_parent_scoped, &name, &spec)
-                .or_else(|| self.pick_most_specific_generic(&name, &spec))
-            else {
+            let Some(chosen) = self.choose_override(applicable_parent_scoped, &name, &spec) else {
                 continue;
             };
 
@@ -173,21 +213,33 @@ impl<'a> VersionsOverrider<'a> {
                 continue;
             }
 
-            let new_spec = chosen.local_target.as_ref().map_or_else(
-                || chosen.inner.new_bare_specifier.clone(),
-                |target| resolve_local_override_spec(target, manifest_dir),
-            );
+            let new_spec = chosen
+                .local_target
+                .as_ref()
+                .map(|target| resolve_local_override_spec(target, manifest_dir))
+                .unwrap_or_else(|| chosen.inner.new_bare_specifier.clone());
 
             map.insert(name, Value::String(new_spec));
         }
     }
 
-    fn pick_most_specific<'b>(
-        candidates: &[&'b ResolvedOverride<'a>],
+    fn choose_override<'b>(
+        &'b self,
+        applicable_parent_scoped: &[&'b ResolvedOverride],
         dep_name: &str,
         dep_spec: &str,
-    ) -> Option<&'b ResolvedOverride<'a>> {
-        let mut matching: Vec<&'b ResolvedOverride<'a>> = candidates
+    ) -> Option<&'b ResolvedOverride> {
+        self.pick_most_specific(applicable_parent_scoped, dep_name, dep_spec)
+            .or_else(|| self.pick_most_specific_generic(dep_name, dep_spec))
+    }
+
+    fn pick_most_specific<'b>(
+        &'b self,
+        candidates: &[&'b ResolvedOverride],
+        dep_name: &str,
+        dep_spec: &str,
+    ) -> Option<&'b ResolvedOverride> {
+        let mut matching: Vec<&'b ResolvedOverride> = candidates
             .iter()
             .copied()
             .filter(|entry| matches_target(&entry.inner.target_pkg, dep_name, dep_spec))
@@ -200,8 +252,8 @@ impl<'a> VersionsOverrider<'a> {
         &self,
         dep_name: &str,
         dep_spec: &str,
-    ) -> Option<&ResolvedOverride<'a>> {
-        let mut matching: Vec<&ResolvedOverride<'a>> = self
+    ) -> Option<&ResolvedOverride> {
+        let mut matching: Vec<&ResolvedOverride> = self
             .generic
             .iter()
             .filter(|entry| matches_target(&entry.inner.target_pkg, dep_name, dep_spec))
@@ -223,7 +275,7 @@ fn matches_target(target: &PackageSelector, dep_name: &str, dep_spec: &str) -> b
 /// `sort((a, b) => isIntersectingRange(b.targetPkg.bareSpecifier ?? '', a.targetPkg.bareSpecifier ?? '') ? -1 : 1)[0]`.
 /// The intuition is `b ⊃ a ⇒ a sorts before b`, so a narrower target
 /// like `foo@1.2.3` wins over the broader `foo@^1`.
-fn sort_by_specificity(matching: &mut [&ResolvedOverride<'_>]) {
+fn sort_by_specificity(matching: &mut [&ResolvedOverride]) {
     matching.sort_by(|lhs, rhs| {
         let lhs_spec = lhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
         let rhs_spec = rhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
@@ -312,7 +364,8 @@ fn resolve_local_override_spec(target: &LocalTarget, pkg_dir: Option<&Path>) -> 
     let path_str = match (target.specified_via_relative_path, pkg_dir) {
         (true, Some(dir)) => pathdiff::diff_paths(&target.absolute_path, dir)
             .as_deref()
-            .map_or_else(|| normalize_path(&target.absolute_path), normalize_path),
+            .map(normalize_path)
+            .unwrap_or_else(|| normalize_path(&target.absolute_path)),
         _ => normalize_path(&target.absolute_path),
     };
     format!("{}{path_str}", target.protocol.as_str())

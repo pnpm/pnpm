@@ -11,12 +11,16 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-sha2 = { workspace = true }
+base64 = { workspace = true }
+sha2   = { workspace = true }
 
 # Match pacquet-store-dir's MSVC-aware feature gate so this crate
 # inherits the `asm` backend on every target where it compiles.
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 sha2 = { workspace = true, features = ["asm"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

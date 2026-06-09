@@ -131,6 +131,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
     WorkspaceResolveOptions {
         dedupe_peers: false,
         dedupe_injected_deps: false,
+        dedupe_peer_dependents: false,
         exclude_links_from_lockfile: false,
         lockfile_dir: std::path::PathBuf::from("/lockfile-dir"),
         peers_suffix_max_length: 1000,

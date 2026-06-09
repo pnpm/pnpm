@@ -5,7 +5,7 @@ use crate::{
 use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
-use pacquet_config::{Config, NodeLinker};
+use pacquet_config::{Config, NodeLinker, PackageImportMethod};
 use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgNameVerPeer,
@@ -28,7 +28,7 @@ use std::{
     sync::atomic::AtomicU8,
 };
 
-/// Bundled package manifests recovered from the `SQLite` store index
+/// Bundled package manifests recovered from the SQLite store index
 /// during [`CreateVirtualStore::run`], keyed by the same
 /// `PkgNameVerPeer` (without peer suffix) that
 /// [`pacquet_lockfile::Lockfile::packages`] uses. Consumed by the
@@ -171,6 +171,9 @@ pub struct CreateVirtualStore<'a> {
     /// the fresh-resolve path's [`crate::PrefetchingResolver`] (closing
     /// <https://github.com/pnpm/pnpm/issues/12241>); `None` otherwise.
     pub tarball_mem_cache: Option<&'a std::sync::Arc<MemCache>>,
+    #[cfg(test)]
+    pub(crate) link_concurrency_probe:
+        Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
 }
 
 /// Error type of [`CreateVirtualStore`].
@@ -192,7 +195,7 @@ pub enum CreateVirtualStoreError {
     MissingPackagesSection,
 }
 
-impl CreateVirtualStore<'_> {
+impl<'a> CreateVirtualStore<'a> {
     /// Execute the subroutine. Returns the set of bundled manifests
     /// recovered from `index.db` for the warm-batch slots — the
     /// bin linker uses these to avoid re-reading `package.json` per
@@ -217,6 +220,8 @@ impl CreateVirtualStore<'_> {
             node_linker,
             progress_reported,
             tarball_mem_cache,
+            #[cfg(test)]
+            link_concurrency_probe,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -635,6 +640,16 @@ impl CreateVirtualStore<'_> {
                 None => cold.push((snapshot_key, snapshot)),
             }
         }
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "create_virtual_store_partition",
+            warm = warm.len(),
+            cold = cold.len(),
+            skipped = skipped_entries.len(),
+            total = snapshot_entries.len(),
+            node_linker = ?node_linker,
+            "phase complete",
+        );
 
         // Hoisted-mode CAS index assembly. Collected here, *before*
         // the warm-batch closure consumes `warm` under the
@@ -658,7 +673,36 @@ impl CreateVirtualStore<'_> {
         });
 
         let import_method = config.package_import_method;
-        if is_hoisted {
+        if !is_hoisted {
+            // Hoisted skips this batch entirely: no virtual-store slot
+            // gets written, so there's no per-snapshot link work to
+            // do — the CAS paths captured below are the only output
+            // the link phase consumes. Mirrors upstream's
+            // `nodeLinker === 'hoisted'` guard at
+            // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L425>
+            // which routes all link work into `linkHoistedModules`.
+            let warm_slots: Vec<SlotLink<'_>> = warm
+                .iter()
+                .map(|(snapshot_key, snapshot, cas_paths, cache_key)| SlotLink {
+                    snapshot_key,
+                    snapshot,
+                    cas_paths: cas_paths.as_ref(),
+                    warm_cache_key: Some(cache_key),
+                })
+                .collect();
+            link_slots_parallel::<Reporter>(LinkSlotsParallel {
+                batch: "warm",
+                slots: &warm_slots,
+                layout,
+                import_method,
+                logged_methods,
+                requester,
+                skipped,
+                progress_reported,
+                #[cfg(test)]
+                link_concurrency_probe,
+            })?;
+        } else {
             // Hoisted still wants the progress reporter to fire so
             // `pnpm:progress imported`-style updates render the warm
             // hits — the link work just happens later, in
@@ -670,65 +714,6 @@ impl CreateVirtualStore<'_> {
                     requester,
                     progress_reported.contains(*cache_key),
                 );
-            }
-        } else {
-            use rayon::prelude::*;
-            // Driving the warm batch from inside an `async fn` means
-            // the `par_iter` blocks the calling tokio worker for the
-            // duration. On the production multi-thread runtime that's
-            // fine — `block_in_place` tells the runtime to migrate any
-            // other futures off this worker first, so async progress
-            // continues on the other workers — but `block_in_place`
-            // panics on `current_thread` runtimes, which is what
-            // `#[tokio::test]` defaults to. Detect the flavor and only
-            // call `block_in_place` when it's safe; on
-            // `current_thread` we fall back to a plain inline call,
-            // matching how the rest of the test suite already runs
-            // sync work directly on the test thread (Copilot review on
-            // <https://github.com/pnpm/pacquet/pull/292>).
-            //
-            // Hoisted skips this batch entirely: no virtual-store slot
-            // gets written, so there's no per-snapshot link work to
-            // do — the CAS paths captured below are the only output
-            // the link phase consumes. Mirrors upstream's
-            // `nodeLinker === 'hoisted'` guard at
-            // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L425>
-            // which routes all link work into `linkHoistedModules`.
-            let warm_work = move || {
-                warm.par_iter().try_for_each(|(snapshot_key, snapshot, cas_paths, cache_key)| {
-                    let package_id = snapshot_key.without_peer().to_string();
-                    emit_warm_snapshot_progress::<Reporter>(
-                        &package_id,
-                        requester,
-                        progress_reported.contains(*cache_key),
-                    );
-
-                    crate::CreateVirtualDirBySnapshot {
-                        layout,
-                        cas_paths: cas_paths.as_ref(),
-                        import_method,
-                        logged_methods,
-                        requester,
-                        package_id: &package_id,
-                        package_key: snapshot_key,
-                        snapshot,
-                        skipped,
-                    }
-                    .run::<Reporter>()
-                    .map_err(|error| {
-                        CreateVirtualStoreError::InstallPackageBySnapshot(
-                            InstallPackageBySnapshotError::CreateVirtualDir(error),
-                        )
-                    })
-                })
-            };
-            let on_multi_thread = tokio::runtime::Handle::try_current().is_ok_and(|handle| {
-                handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread
-            });
-            if on_multi_thread {
-                tokio::task::block_in_place(warm_work)?;
-            } else {
-                warm_work()?;
             }
         }
 
@@ -795,6 +780,8 @@ impl CreateVirtualStore<'_> {
                         // below so it doesn't serialize inside this
                         // cooperative `try_join_all` task.
                         defer_link: true,
+                        #[cfg(test)]
+                        link_concurrency_probe,
                     }
                     .run::<Reporter>()
                     .await;
@@ -853,43 +840,27 @@ impl CreateVirtualStore<'_> {
         // concurrently. Hoisted writes no slots, so it skips this and
         // consumes `cold_cas_paths` for the per-pkg CAS index below.
         if !is_hoisted && !cold_cas_paths.is_empty() {
-            use rayon::prelude::*;
-            let import_method = config.package_import_method;
-            let link_work = || {
-                cold_cas_paths.par_iter().try_for_each(|(snapshot_key, snapshot, cas_paths)| {
-                    let package_id = snapshot_key.without_peer().to_string();
-                    crate::CreateVirtualDirBySnapshot {
-                        layout,
-                        cas_paths,
-                        import_method,
-                        logged_methods,
-                        requester,
-                        package_id: &package_id,
-                        package_key: snapshot_key,
-                        snapshot,
-                        skipped,
-                    }
-                    .run::<Reporter>()
-                    .map_err(|error| {
-                        CreateVirtualStoreError::InstallPackageBySnapshot(
-                            InstallPackageBySnapshotError::CreateVirtualDir(error),
-                        )
-                    })
+            let cold_slots: Vec<SlotLink<'_>> = cold_cas_paths
+                .iter()
+                .map(|(snapshot_key, snapshot, cas_paths)| SlotLink {
+                    snapshot_key,
+                    snapshot,
+                    cas_paths,
+                    warm_cache_key: None,
                 })
-            };
-            // `block_in_place` (the same guard the warm batch uses)
-            // migrates other futures off this worker so async progress
-            // continues; it panics on the `current_thread` runtime that
-            // `#[tokio::test]` defaults to, so fall back to a plain call
-            // there.
-            let on_multi_thread = tokio::runtime::Handle::try_current().is_ok_and(|handle| {
-                handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread
-            });
-            if on_multi_thread {
-                tokio::task::block_in_place(link_work)?;
-            } else {
-                link_work()?;
-            }
+                .collect();
+            link_slots_parallel::<Reporter>(LinkSlotsParallel {
+                batch: "cold",
+                slots: &cold_slots,
+                layout,
+                import_method,
+                logged_methods,
+                requester,
+                skipped,
+                progress_reported,
+                #[cfg(test)]
+                link_concurrency_probe,
+            })?;
         }
 
         // Build the per-pkg CAS index when the install is targeting
@@ -948,6 +919,103 @@ impl CreateVirtualStore<'_> {
             cas_paths_by_pkg_id,
         })
     }
+}
+
+struct SlotLink<'a> {
+    snapshot_key: &'a PackageKey,
+    snapshot: &'a SnapshotEntry,
+    cas_paths: &'a HashMap<String, PathBuf>,
+    warm_cache_key: Option<&'a str>,
+}
+
+struct LinkSlotsParallel<'a> {
+    batch: &'static str,
+    slots: &'a [SlotLink<'a>],
+    layout: &'a crate::VirtualStoreLayout,
+    import_method: PackageImportMethod,
+    logged_methods: &'a AtomicU8,
+    requester: &'a str,
+    skipped: &'a SkippedSnapshots,
+    progress_reported: &'a SharedReportedProgressKeys,
+    #[cfg(test)]
+    link_concurrency_probe:
+        Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
+}
+
+fn link_slots_parallel<Reporter: self::Reporter>(
+    opts: LinkSlotsParallel<'_>,
+) -> Result<(), CreateVirtualStoreError> {
+    use rayon::prelude::*;
+
+    let LinkSlotsParallel {
+        batch,
+        slots,
+        layout,
+        import_method,
+        logged_methods,
+        requester,
+        skipped,
+        progress_reported,
+        #[cfg(test)]
+        link_concurrency_probe,
+    } = opts;
+
+    let phase_start = std::time::Instant::now();
+    let link_work = || {
+        slots.par_iter().try_for_each(|slot| {
+            let package_id = slot.snapshot_key.without_peer().to_string();
+            if let Some(cache_key) = slot.warm_cache_key {
+                emit_warm_snapshot_progress::<Reporter>(
+                    &package_id,
+                    requester,
+                    progress_reported.contains(cache_key),
+                );
+            }
+
+            crate::CreateVirtualDirBySnapshot {
+                layout,
+                cas_paths: slot.cas_paths,
+                import_method,
+                logged_methods,
+                requester,
+                package_id: &package_id,
+                package_key: slot.snapshot_key,
+                snapshot: slot.snapshot,
+                skipped,
+                #[cfg(test)]
+                link_concurrency_probe,
+            }
+            .run::<Reporter>()
+            .map_err(|error| {
+                CreateVirtualStoreError::InstallPackageBySnapshot(
+                    InstallPackageBySnapshotError::CreateVirtualDir(error),
+                )
+            })
+        })
+    };
+    // Driving the link pass from inside an `async fn` means the
+    // `par_iter` blocks the calling tokio worker for the duration. On
+    // the production multi-thread runtime, `block_in_place` migrates
+    // other futures off this worker so async progress continues; it
+    // panics on the `current_thread` runtime that `#[tokio::test]`
+    // defaults to, so fall back to a plain call there.
+    let on_multi_thread = tokio::runtime::Handle::try_current()
+        .is_ok_and(|handle| handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread);
+    if on_multi_thread {
+        tokio::task::block_in_place(link_work)?;
+    } else {
+        link_work()?;
+    }
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "link_slots",
+        batch,
+        slots = slots.len(),
+        elapsed_ms = phase_start.elapsed().as_millis() as u64,
+        "phase complete",
+    );
+
+    Ok(())
 }
 
 /// Build the store-index cache key for a snapshot.

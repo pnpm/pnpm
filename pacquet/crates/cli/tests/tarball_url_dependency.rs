@@ -38,7 +38,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use std::{fs, path::Path, process::Command, thread::sleep, time::Duration};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
@@ -127,6 +127,10 @@ fn remote_tarball_integrity_survives_unrelated_install() {
     // Install an unrelated package. This rewrites the lockfile while the
     // tarball dependency is re-resolved — the exact
     // <https://github.com/pnpm/pnpm/issues/12001> trigger.
+    // Ensure the manifest mtime is observably newer than the first
+    // install's workspace-state validation timestamp; otherwise the
+    // optimistic repeat-install shortcut can legitimately skip resolution.
+    sleep(Duration::from_millis(20));
     fs::write(
         &manifest_path,
         serde_json::json!({

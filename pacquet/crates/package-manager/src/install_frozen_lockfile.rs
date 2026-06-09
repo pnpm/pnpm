@@ -590,6 +590,7 @@ where
         // leaves every warm package reported as `found_in_store`.
         let progress_reported = SharedReportedProgressKeys::default();
 
+        let phase_start = std::time::Instant::now();
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot,
@@ -612,10 +613,18 @@ where
             node_linker,
             progress_reported: &progress_reported,
             tarball_mem_cache,
+            #[cfg(test)]
+            link_concurrency_probe: None,
         }
         .run::<Reporter>()
         .await
         .map_err(InstallFrozenLockfileError::CreateVirtualStore)?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "create_virtual_store",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Fold fetch-failure swallows into the live skip set so
         // downstream consumers (`SymlinkDirectDependencies`,

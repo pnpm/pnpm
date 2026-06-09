@@ -22,6 +22,11 @@ unmaintained = "workspace"
 # yanked-crates check: "deny" | "warn" | "allow"
 yanked = "warn"
 ignore = [
+  # `pgp` pulls in `rsa` to verify OpenPGP signatures made by RSA Node.js
+  # release keys. Pacquet only performs public-key signature verification here;
+  # it never handles RSA private keys, so the private-key timing side channel
+  # described by this advisory is not reachable through this use.
+  { id = "RUSTSEC-2023-0071", reason = "Only public-key OpenPGP signature verification is performed for pinned Node.js release keys; no RSA private-key operation is exposed." },
   # hickory-proto 0.25.2 is pulled in transitively through reqwest 0.13.x ->
   # hickory-resolver 0.25.x. The reqwest 0.13 line has not migrated to
   # hickory-proto 0.26, so `cargo update` cannot resolve either advisory; the

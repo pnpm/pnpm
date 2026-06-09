@@ -11,10 +11,11 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-serde_json  = { workspace = true }
-async-trait = "0.1"
-tokio       = { workspace = true, features = ["rt", "process", "time", "io-util", "sync"] }
-derive_more = { workspace = true }
+pacquet-crypto-hash = { workspace = true }
+serde_json          = { workspace = true }
+async-trait         = "0.1"
+tokio               = { workspace = true, features = ["rt", "process", "time", "io-util", "sync"] }
+derive_more         = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

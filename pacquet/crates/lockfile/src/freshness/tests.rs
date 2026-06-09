@@ -599,6 +599,7 @@ fn check_settings_passes_when_both_sides_empty() {
             None,
             None,
             None,
+            None,
             false,
             crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH
         )
@@ -610,6 +611,7 @@ fn check_settings_passes_when_both_sides_empty() {
             None,
             None,
             Some(&[]),
+            None,
             false,
             crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH
         )
@@ -636,6 +638,7 @@ fn check_settings_passes_when_sets_match_regardless_of_order() {
             None,
             None,
             Some(&config_set),
+            None,
             false,
             crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
         )
@@ -658,6 +661,7 @@ fn check_settings_returns_drift_when_sets_differ() {
         None,
         None,
         Some(&config_set),
+        None,
         false,
         crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
     )
@@ -682,6 +686,7 @@ fn check_settings_returns_drift_when_lockfile_has_set_but_config_does_not() {
     .expect("parse lockfile with ignoredOptionalDependencies");
     let err = check_lockfile_settings(
         &lockfile,
+        None,
         None,
         None,
         None,
@@ -716,6 +721,7 @@ fn check_settings_passes_when_overrides_both_empty() {
             None,
             None,
             None,
+            None,
             false,
             crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH
         )
@@ -727,6 +733,7 @@ fn check_settings_passes_when_overrides_both_empty() {
         check_lockfile_settings(
             &lockfile,
             Some(&empty),
+            None,
             None,
             None,
             false,
@@ -757,6 +764,7 @@ fn check_settings_passes_when_overrides_match_regardless_of_order() {
             Some(&config),
             None,
             None,
+            None,
             false,
             crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
         )
@@ -778,6 +786,7 @@ fn check_settings_returns_drift_on_overrides_value_change() {
     let err = check_lockfile_settings(
         &lockfile,
         Some(&config),
+        None,
         None,
         None,
         false,
@@ -802,6 +811,7 @@ fn check_settings_returns_drift_when_lockfile_has_overrides_but_config_does_not(
     .expect("parse lockfile with overrides");
     let err = check_lockfile_settings(
         &lockfile,
+        None,
         None,
         None,
         None,
@@ -830,6 +840,7 @@ fn check_settings_returns_drift_when_config_has_overrides_but_lockfile_does_not(
         Some(&config),
         None,
         None,
+        None,
         false,
         crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
     )
@@ -839,6 +850,99 @@ fn check_settings_returns_drift_when_config_has_overrides_but_lockfile_does_not(
     };
     assert!(l.is_empty());
     assert_eq!(c.get("foo").map(String::as_str), Some("1.0.0"));
+}
+
+// ---------------------------------------------------------------------------
+// `patchedDependencies` drift — pacquet's lockfile-side mirror of
+// upstream's `getOutdatedLockfileSetting` patchedDependencies check
+// ---------------------------------------------------------------------------
+
+/// Matching `patchedDependencies` maps pass; the comparison is
+/// order-insensitive via `BTreeMap`. Mirrors upstream's
+/// `!equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})`.
+#[test]
+fn check_settings_passes_when_patched_dependencies_match() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "patchedDependencies:"
+        "  graceful-fs@4.2.11: abc123"
+    })
+    .expect("parse lockfile with patchedDependencies");
+    let config = std::collections::BTreeMap::from([(
+        "graceful-fs@4.2.11".to_string(),
+        "abc123".to_string(),
+    )]);
+    assert!(
+        check_lockfile_settings(
+            &lockfile,
+            None,
+            None,
+            None,
+            Some(&config),
+            false,
+            crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
+        )
+        .is_ok(),
+    );
+}
+
+/// A changed patch-file hash (e.g. the user edited the patch) surfaces
+/// as `PatchedDependenciesChanged` so the frozen install is rejected
+/// rather than silently materializing against a stale `(patch_hash=...)`.
+#[test]
+fn check_settings_returns_drift_when_patch_hash_changes() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "patchedDependencies:"
+        "  graceful-fs@4.2.11: oldhash"
+    })
+    .expect("parse lockfile with patchedDependencies");
+    let config = std::collections::BTreeMap::from([(
+        "graceful-fs@4.2.11".to_string(),
+        "newhash".to_string(),
+    )]);
+    let err = check_lockfile_settings(
+        &lockfile,
+        None,
+        None,
+        None,
+        Some(&config),
+        false,
+        crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
+    )
+    .expect_err("changed patch hash must surface drift");
+    let StalenessReason::PatchedDependenciesChanged { lockfile: l, config: c } = err else {
+        panic!("expected PatchedDependenciesChanged, got {err:?}");
+    };
+    assert_eq!(l.get("graceful-fs@4.2.11").map(String::as_str), Some("oldhash"));
+    assert_eq!(c.get("graceful-fs@4.2.11").map(String::as_str), Some("newhash"));
+}
+
+/// Config drops a patch the lockfile recorded → drift; absent on the
+/// config side normalizes to the empty map.
+#[test]
+fn check_settings_returns_drift_when_patch_removed_from_config() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "patchedDependencies:"
+        "  graceful-fs@4.2.11: abc123"
+    })
+    .expect("parse lockfile with patchedDependencies");
+    let err = check_lockfile_settings(
+        &lockfile,
+        None,
+        None,
+        None,
+        None,
+        false,
+        crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
+    )
+    .expect_err("dropped patch must surface drift");
+    let StalenessReason::PatchedDependenciesChanged { lockfile: l, config: c } = err else {
+        panic!("expected PatchedDependenciesChanged, got {err:?}");
+    };
+    assert_eq!(l.get("graceful-fs@4.2.11").map(String::as_str), Some("abc123"));
+    assert!(c.is_empty());
 }
 
 /// No `packageExtensionsChecksum` on either side is the steady
@@ -852,6 +956,7 @@ fn check_settings_returns_ok_when_no_package_extensions_checksum_on_either_side(
     assert!(
         check_lockfile_settings(
             &lockfile,
+            None,
             None,
             None,
             None,
@@ -877,6 +982,7 @@ fn check_settings_returns_ok_when_package_extensions_checksum_matches() {
             None,
             Some("sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="),
             None,
+            None,
             false,
             crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
         )
@@ -898,6 +1004,7 @@ fn check_settings_returns_drift_on_package_extensions_checksum_value_change() {
         &lockfile,
         None,
         Some("sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="),
+        None,
         None,
         false,
         crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
@@ -925,6 +1032,7 @@ fn check_settings_returns_drift_when_lockfile_has_checksum_but_config_does_not()
         None,
         None,
         None,
+        None,
         false,
         crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
     )
@@ -948,6 +1056,7 @@ fn check_settings_returns_drift_when_config_has_checksum_but_lockfile_does_not()
         &lockfile,
         None,
         Some("sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+        None,
         None,
         false,
         crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
@@ -982,6 +1091,7 @@ fn check_settings_reports_overrides_before_ignored_optional() {
         Some(&config),
         None,
         Some(&ignored),
+        None,
         false,
         crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
     )
@@ -1014,6 +1124,7 @@ fn check_settings_passes_when_inject_workspace_packages_both_false() {
             None,
             None,
             None,
+            None,
             false,
             crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
         )
@@ -1040,6 +1151,7 @@ fn check_settings_passes_when_inject_workspace_packages_both_true() {
             None,
             None,
             None,
+            None,
             true,
             crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
         )
@@ -1057,6 +1169,7 @@ fn check_settings_returns_drift_when_config_enables_inject_workspace_packages() 
     .expect("parse minimal lockfile");
     let err = check_lockfile_settings(
         &lockfile,
+        None,
         None,
         None,
         None,
@@ -1084,6 +1197,7 @@ fn check_settings_returns_drift_when_config_disables_inject_workspace_packages()
     .expect("parse lockfile with inject on");
     let err = check_lockfile_settings(
         &lockfile,
+        None,
         None,
         None,
         None,
@@ -1117,6 +1231,7 @@ fn check_settings_passes_when_peers_suffix_max_length_unset_and_config_is_defaul
             None,
             None,
             None,
+            None,
             false,
             crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH
         )
@@ -1138,7 +1253,7 @@ fn check_settings_returns_drift_when_lockfile_implicit_default_differs_from_conf
         "lockfileVersion: '9.0'"
     })
     .expect("parse minimal lockfile");
-    let err = check_lockfile_settings(&lockfile, None, None, None, false, 10)
+    let err = check_lockfile_settings(&lockfile, None, None, None, None, false, 10)
         .expect_err("config != default must surface drift when lockfile is unset");
     assert_eq!(
         err,
@@ -1161,7 +1276,7 @@ fn check_settings_passes_when_explicit_peers_suffix_max_length_matches() {
         "  peersSuffixMaxLength: 10"
     })
     .expect("parse lockfile with settings");
-    assert!(check_lockfile_settings(&lockfile, None, None, None, false, 10).is_ok());
+    assert!(check_lockfile_settings(&lockfile, None, None, None, None, false, 10).is_ok());
 }
 
 /// Lockfile explicitly recorded one value, current config picks a
@@ -1178,7 +1293,7 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
         "  peersSuffixMaxLength: 10"
     })
     .expect("parse lockfile with settings");
-    let err = check_lockfile_settings(&lockfile, None, None, None, false, 100)
+    let err = check_lockfile_settings(&lockfile, None, None, None, None, false, 100)
         .expect_err("changed peersSuffixMaxLength must surface drift");
     assert_eq!(err, StalenessReason::PeersSuffixMaxLengthChanged { lockfile: 10, config: 100 });
 }

@@ -72,7 +72,7 @@ where
 /// [`getOptionsFromRootManifest.ts`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts)
 /// is wrapped at that call site, so its `manifestDir` parameter
 /// actually carries the *workspace* dir.
-#[derive(Debug, Default, PartialEq, Deserialize)]
+#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
     pub hoist: Option<bool>,
@@ -646,23 +646,52 @@ impl WorkspaceSettings {
         Ok(None)
     }
 
-    /// Expand `${VAR}` placeholders inside string-valued map fields
-    /// that pnpm runs through `envReplace`. Today only
-    /// `namedRegistries` qualifies — the upstream
-    /// [`replaceEnvInSettings`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L66-L84)
-    /// pass routes `registries` and `namedRegistries` through
-    /// `replaceEnvInStringValues`; pacquet exposes only the latter
-    /// at the yaml layer.
+    /// Expand `${VAR}` in trusted user-controlled settings.
     ///
-    /// Call this before [`Self::apply_to`] so the substituted values
-    /// land in [`Config`].
-    pub fn substitute_env<Sys: EnvVar>(&mut self) {
-        if let Some(named_registries) = self.named_registries.as_mut() {
-            for value in named_registries.values_mut() {
-                let (substituted, _) = env_replace_lossy::<Sys>(value);
-                *value = substituted;
-            }
+    /// Call this before [`Self::apply_to`] so expanded values land in
+    /// [`Config`].
+    pub fn substitute_env_trusted<Sys: EnvVar>(&mut self) {
+        self.substitute_env_scalars::<Sys>();
+        substitute_optional_string::<Sys>(&mut self.pnpr_server);
+        substitute_optional_string::<Sys>(&mut self.registry);
+        substitute_optional_string_map::<Sys>(&mut self.named_registries);
+    }
+
+    /// Expand `${VAR}` in ordinary string settings, but drop
+    /// placeholders inside workspace-controlled request-destination
+    /// fields.
+    /// The upstream
+    /// [`replaceEnvInSettings`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L66-L84)
+    /// pass still runs `envReplace` on scalar strings while filtering
+    /// `registry`, `registries`, `namedRegistries`, and `pnprServer`
+    /// instead of expanding environment variables into request URLs.
+    ///
+    /// Call this before [`Self::apply_to`] so expanded values land in
+    /// [`Config`] and filtered values do not.
+    pub fn substitute_env_untrusted<Sys: EnvVar>(&mut self) {
+        self.substitute_env_scalars::<Sys>();
+
+        if self.registry.as_deref().is_some_and(has_env_placeholder) {
+            self.registry = None;
         }
+        if let Some(named_registries) = self.named_registries.as_mut() {
+            named_registries.retain(|_, value| !has_env_placeholder(value));
+        }
+        if self.pnpr_server.as_deref().is_some_and(has_env_placeholder) {
+            self.pnpr_server = None;
+        }
+    }
+
+    fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
+        substitute_optional_string::<Sys>(&mut self.store_dir);
+        substitute_optional_string::<Sys>(&mut self.modules_dir);
+        substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
+        substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
+        substitute_optional_string::<Sys>(&mut self.user_agent);
+        substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
+        substitute_optional_string::<Sys>(&mut self.cache_dir);
+        substitute_optional_inner_string::<Sys>(&mut self.script_shell);
+        substitute_optional_inner_string::<Sys>(&mut self.node_options);
     }
 
     /// Apply every set field onto `config`, leaving unset ones untouched.
@@ -872,6 +901,35 @@ impl WorkspaceSettings {
         if let Some(v) = self.trust_policy_ignore_after {
             config.trust_policy_ignore_after = Some(v);
         }
+    }
+}
+
+fn has_env_placeholder(value: &str) -> bool {
+    value
+        .match_indices("${")
+        .any(|(start, _)| value[start + 2..].find('}').is_some_and(|end| end > 0))
+}
+
+fn substitute_optional_string<Sys: EnvVar>(value: &mut Option<String>) {
+    if let Some(value) = value {
+        let (substituted, _) = env_replace_lossy::<Sys>(value);
+        *value = substituted;
+    }
+}
+
+fn substitute_optional_string_map<Sys: EnvVar>(value: &mut Option<BTreeMap<String, String>>) {
+    if let Some(value) = value {
+        for map_value in value.values_mut() {
+            let (substituted, _) = env_replace_lossy::<Sys>(map_value);
+            *map_value = substituted;
+        }
+    }
+}
+
+fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<Option<String>>) {
+    if let Some(Some(value)) = value {
+        let (substituted, _) = env_replace_lossy::<Sys>(value);
+        *value = substituted;
     }
 }
 

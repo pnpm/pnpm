@@ -245,9 +245,18 @@ async fn run_fan_out(
     let semaphore = Arc::new(Semaphore::new(limit));
     let mut futures = FuturesUnordered::new();
     for candidate in candidates {
+        let verifiers: Vec<Arc<dyn ResolutionVerifier>> = verifiers
+            .iter()
+            .filter_map(|verifier| {
+                let ctx = VerifyCtx { name: &candidate.name, version: &candidate.version };
+                verifier.might_verify(&candidate.resolution, ctx).then(|| Arc::clone(verifier))
+            })
+            .collect();
+        if verifiers.is_empty() {
+            continue;
+        }
+
         let semaphore = Arc::clone(&semaphore);
-        let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
-            verifiers.iter().map(Arc::clone).collect();
         futures.push(async move {
             // Holding the permit across every verifier .await keeps
             // the effective in-flight count bounded by the semaphore.

@@ -55,6 +55,8 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// `linkAllModules` at
     /// <https://github.com/pnpm/pnpm/blob/f2981a316/installing/deps-installer/src/install/link.ts#L540>.
     pub skipped: &'a SkippedSnapshots,
+    #[cfg(test)]
+    pub(crate) link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
 }
 
 /// Error type of [`CreateVirtualDirBySnapshot`].
@@ -88,7 +90,13 @@ impl CreateVirtualDirBySnapshot<'_> {
             package_key,
             snapshot,
             skipped,
+            #[cfg(test)]
+            link_concurrency_probe,
         } = self;
+
+        #[cfg(test)]
+        let _link_concurrency_guard =
+            link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
         let virtual_node_modules_dir = layout.slot_dir(package_key).join("node_modules");
         fs::create_dir_all(&virtual_node_modules_dir).map_err(|error| {
@@ -174,4 +182,4 @@ pub(crate) fn optimistic_wire_method(method: PackageImportMethod) -> WireImportM
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

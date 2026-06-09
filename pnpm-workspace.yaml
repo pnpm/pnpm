@@ -241,6 +241,8 @@ catalog:
   npm-packlist: 10.0.4
   object-hash: 3.0.0
   open: ^7.4.2
+  openpgp: ^6.3.1
+  '@openpgp/web-stream-tools': 0.3.1
   p-defer: ^4.0.1
   p-every: ^2.0.0
   p-filter: ^4.1.0
@@ -327,7 +329,7 @@ catalogMode: strict
 cleanupUnusedCatalogs: true
 
 configDependencies:
-  '@pnpm/pacquet': 0.2.14
+  '@pnpm/pacquet': 0.11.1
 
 enableGlobalVirtualStore: true
 
@@ -436,6 +438,7 @@ overrides:
   request: npm:postman-request@2.88.1-postman.40
   semver@<7.5.2: 'catalog:'
   send@<0.19.0: ^0.19.0
+  shell-quote@<1.8.4: '>=1.8.4'
   serve-static@<1.16.0: ^1.16.0
   socks@2: ^2.8.1
   tar@<=7.5.9: '>=7.5.10'

@@ -4,6 +4,7 @@ use crate::{
     package_name::PackageName,
     s3::S3Store,
     streaming,
+    upstream::CacheValidators,
 };
 use axum::body::Body;
 use std::{
@@ -18,6 +19,13 @@ use std::{
 use tokio::{fs, io::AsyncWriteExt};
 
 const PACKUMENT_FILE: &str = "package.json";
+
+/// Sidecar holding the cached packument's conditional-GET validators
+/// (see [`CacheValidators`]). Lives next to [`PACKUMENT_FILE`] in the
+/// disposable cache store only; hosted packuments have no upstream to
+/// revalidate against. The leading dot keeps it out of the
+/// package-listing walk and any static-serve view.
+const PACKUMENT_META_FILE: &str = ".package.json.meta";
 
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
 /// writes to the same path don't collide on the same temp filename.
@@ -70,6 +78,21 @@ impl TarballWrite {
         drop(self.file);
         let _ = fs::remove_file(&self.tmp_path).await;
     }
+}
+
+/// A cached upstream packument, read at a granularity that avoids loading
+/// the (potentially multi-MB) body when it isn't needed:
+///
+/// * `Fresh` — within the TTL; the body is read and ready to serve.
+/// * `Stale` — past the TTL; only the small conditional-GET validators
+///   are loaded. The body is left on disk and pulled on demand by the
+///   caller (via [`Storage::read_cached_packument`]) only if the upstream
+///   answers `304` or is unreachable — the common stale→`200` refresh
+///   discards the old body, so it's never read.
+#[derive(Debug)]
+pub enum CachedPackument {
+    Fresh(Vec<u8>),
+    Stale(CacheValidators),
 }
 
 /// Verdaccio-shaped storage split into two stores with different
@@ -260,24 +283,37 @@ impl Storage {
 
     // --- Disposable (proxy) cache store ---------------------------------
 
-    /// Read a cached upstream packument if it exists and is newer than
-    /// `now - ttl`.
-    pub async fn read_fresh_cached_packument(
+    /// Classify the cached upstream packument against `ttl`: a
+    /// [`CachedPackument::Fresh`] entry comes back with its body ready to
+    /// serve; a [`CachedPackument::Stale`] one comes back with only its
+    /// validators, deferring the (possibly large) body read to the caller
+    /// via [`Self::read_cached_packument`]. Returns `Ok(None)` when
+    /// nothing is cached.
+    pub async fn read_cached_packument_entry(
         &self,
         name: &PackageName,
         ttl: Duration,
-    ) -> Result<Option<Vec<u8>>> {
-        self.cached.read_fresh_packument(name, ttl).await
+    ) -> Result<Option<CachedPackument>> {
+        self.cached.read_packument_entry(name, ttl).await
     }
 
     /// Read whatever cached upstream packument is on disk, fresh or
-    /// stale. Used as a fallback when the upstream is unreachable.
+    /// stale. Used when there's no upstream left to revalidate against.
     pub async fn read_cached_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
         self.cached.read_packument_any_age(name).await
     }
 
-    pub async fn write_cached_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
-        self.cached.write_packument(name, bytes).await
+    /// Write a cached upstream packument and its validators, refreshing
+    /// the entry's freshness. Called both on a fresh upstream body and
+    /// on a `304` revalidation (re-written with the unchanged bytes to
+    /// bump the cache mtime).
+    pub async fn write_cached_packument(
+        &self,
+        name: &PackageName,
+        bytes: &[u8],
+        validators: &CacheValidators,
+    ) -> Result<()> {
+        self.cached.write_packument_with_meta(name, bytes, validators).await
     }
 
     /// Create and open a per-request temp file for a proxied tarball.
@@ -331,11 +367,11 @@ impl Store {
         Self { root }
     }
 
-    async fn read_fresh_packument(
+    async fn read_packument_entry(
         &self,
         name: &PackageName,
         ttl: Duration,
-    ) -> Result<Option<Vec<u8>>> {
+    ) -> Result<Option<CachedPackument>> {
         let path = self.packument_path(name);
         let metadata = match fs::metadata(&path).await {
             Ok(m) => m,
@@ -344,10 +380,24 @@ impl Store {
         };
         let mtime = metadata.modified().map_err(RegistryError::Io)?;
         let age = SystemTime::now().duration_since(mtime).unwrap_or(Duration::ZERO);
-        if age > ttl {
-            return Ok(None);
+        if age <= ttl {
+            // Fresh: read the body to serve it; validators aren't needed.
+            Ok(Some(CachedPackument::Fresh(fs::read(&path).await?)))
+        } else {
+            // Stale: load only the validators for the conditional refetch.
+            // The body is read later, on demand, and only if needed.
+            Ok(Some(CachedPackument::Stale(self.read_validators(name).await)))
         }
-        Ok(Some(fs::read(&path).await?))
+    }
+
+    /// Best-effort read of the validator sidecar. A missing, unreadable,
+    /// or malformed sidecar yields empty validators so the next refresh
+    /// falls back to an unconditional GET rather than failing.
+    async fn read_validators(&self, name: &PackageName) -> CacheValidators {
+        match fs::read(self.packument_meta_path(name)).await {
+            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
+            Err(_) => CacheValidators::default(),
+        }
     }
 
     async fn read_packument_any_age(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
@@ -362,6 +412,31 @@ impl Store {
     async fn write_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
         let path = self.packument_path(name);
         write_atomic(&path, bytes).await
+    }
+
+    /// Write the packument and persist (or clear) its validator sidecar.
+    /// The packument is written first so a sidecar never points at bytes
+    /// that aren't on disk yet. When `validators` is empty the sidecar is
+    /// removed, so a later read can't replay a stale `ETag` against fresh
+    /// bytes that no longer carry one.
+    async fn write_packument_with_meta(
+        &self,
+        name: &PackageName,
+        bytes: &[u8],
+        validators: &CacheValidators,
+    ) -> Result<()> {
+        write_atomic(&self.packument_path(name), bytes).await?;
+        let meta_path = self.packument_meta_path(name);
+        if validators.is_empty() {
+            match fs::remove_file(&meta_path).await {
+                Ok(()) => {}
+                Err(err) if err.kind() == ErrorKind::NotFound => {}
+                Err(err) => return Err(err.into()),
+            }
+        } else {
+            write_atomic(&meta_path, &serde_json::to_vec(validators)?).await?;
+        }
+        Ok(())
     }
 
     async fn open_tarball(
@@ -491,6 +566,10 @@ impl Store {
         self.package_dir(name).join(PACKUMENT_FILE)
     }
 
+    fn packument_meta_path(&self, name: &PackageName) -> PathBuf {
+        self.package_dir(name).join(PACKUMENT_META_FILE)
+    }
+
     fn tarball_path(&self, name: &PackageName, filename: &str) -> PathBuf {
         self.package_dir(name).join(filename)
     }
@@ -523,3 +602,6 @@ pub(crate) fn unique_tmp_path(base: &Path) -> PathBuf {
         None => PathBuf::from(name),
     }
 }
+
+#[cfg(test)]
+mod tests;

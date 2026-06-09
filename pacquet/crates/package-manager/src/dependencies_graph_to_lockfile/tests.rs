@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use pacquet_deps_path::DepPath;
 use pacquet_lockfile::{
     DirectoryResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, PkgNameVer,
-    RegistryResolution, SnapshotDepRef,
+    RegistryResolution, SnapshotDepRef, VariationsResolution,
 };
 use pacquet_package_manifest::PackageManifest;
 use pacquet_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode, PeerDep};
@@ -46,7 +46,9 @@ fn single_importer_opts<'a>(
         peers_suffix_max_length: None,
         overrides,
         ignored_optional_dependencies,
+        patched_dependencies: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
@@ -221,7 +223,9 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
@@ -246,7 +250,9 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
@@ -255,6 +261,74 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
     assert_eq!(off_settings.dedupe_peers, None);
     let off_yaml = serde_saphyr::to_string(off_settings).unwrap();
     assert!(!off_yaml.contains("dedupePeers"), "yaml: {off_yaml}");
+}
+
+/// A non-empty `patched_dependencies` map flows verbatim into the
+/// lockfile's top-level `patchedDependencies` block; an empty map is
+/// normalized to `None` so the key is omitted on serialization.
+#[test]
+fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let node = make_node(
+        "react",
+        "17.0.2",
+        json!({ "name": "react", "version": "17.0.2" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let mut graph = DependenciesGraph::new();
+    graph.insert(node.dep_path.clone(), node);
+    let mut direct = BTreeMap::new();
+    direct.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
+
+    let build = |patched: Option<BTreeMap<String, String>>| {
+        let mut importers = BTreeMap::new();
+        importers.insert(
+            ".".to_string(),
+            ImporterLockfileInput {
+                manifest: &manifest,
+                direct_dependencies_by_alias: direct.clone(),
+            },
+        );
+        dependencies_graph_to_lockfile(GraphToLockfileOptions {
+            importers,
+            graph: &graph,
+            auto_install_peers: false,
+            dedupe_peers: false,
+            exclude_links_from_lockfile: false,
+            inject_workspace_packages: false,
+            peers_suffix_max_length: None,
+            overrides: None,
+            ignored_optional_dependencies: None,
+            patched_dependencies: patched,
+            package_extensions_checksum: None,
+            pnpmfile_checksum: None,
+            catalogs: &EMPTY_CATALOGS,
+            registry: "https://registry.npmjs.org",
+            lockfile_include_tarball_url: false,
+        })
+    };
+
+    let with_patch = build(Some(BTreeMap::from([(
+        "graceful-fs@4.2.11".to_string(),
+        "68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1".to_string(),
+    )])));
+    assert_eq!(
+        with_patch
+            .patched_dependencies
+            .as_ref()
+            .and_then(|map| map.get("graceful-fs@4.2.11"))
+            .map(String::as_str),
+        Some("68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1"),
+    );
+
+    assert!(build(Some(BTreeMap::new())).patched_dependencies.is_none());
+    assert!(build(None).patched_dependencies.is_none());
 }
 
 /// `dev` and `optional` direct dependencies land in their own importer
@@ -311,6 +385,146 @@ fn dev_and_optional_direct_deps_split_into_distinct_importer_sections() {
     assert_eq!(packages[&typescript_key].has_bin, Some(true));
     let fsevents_key: PackageKey = "fsevents@2.3.2".parse().unwrap();
     assert_eq!(packages[&fsevents_key].os.as_deref(), Some(["darwin".to_string()].as_slice()));
+}
+
+/// A `catalog:` dependency resolved through an `npm:` alias still records a
+/// `catalogs:` snapshot entry — `{ specifier: npm:@zkochan/js-yaml@0.0.11,
+/// version: 0.0.11 }`. The importer stores the aliased dep as
+/// [`ImporterDepVersion::Alias`], so the version must be read via `ver_peer`
+/// (the alias's suffix), not `as_regular` which returns `None` for aliases
+/// and silently dropped the entry.
+#[test]
+fn aliased_catalog_dependency_records_catalog_snapshot() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "js-yaml": "catalog:" },
+    }));
+
+    let zkochan_js_yaml = make_node(
+        "@zkochan/js-yaml",
+        "0.0.11",
+        json!({ "name": "@zkochan/js-yaml", "version": "0.0.11" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let mut graph = DependenciesGraph::new();
+    graph.insert(zkochan_js_yaml.dep_path.clone(), zkochan_js_yaml);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("js-yaml".to_string(), DepPath::from("@zkochan/js-yaml@0.0.11".to_string()));
+
+    let mut catalogs: pacquet_catalogs_types::Catalogs = BTreeMap::new();
+    catalogs
+        .entry("default".to_string())
+        .or_default()
+        .insert("js-yaml".to_string(), "npm:@zkochan/js-yaml@0.0.11".to_string());
+
+    let mut importers = BTreeMap::new();
+    importers.insert(
+        ".".to_string(),
+        ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
+    );
+    let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
+        importers,
+        graph: &graph,
+        auto_install_peers: false,
+        dedupe_peers: false,
+        exclude_links_from_lockfile: false,
+        inject_workspace_packages: false,
+        peers_suffix_max_length: None,
+        overrides: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        catalogs: &catalogs,
+        registry: "https://registry.npmjs.org",
+        lockfile_include_tarball_url: false,
+    });
+
+    let snapshots = lockfile.catalogs.as_ref().expect("catalogs snapshot present");
+    let entry = snapshots
+        .get("default")
+        .and_then(|catalog| catalog.get("js-yaml"))
+        .expect("aliased catalog entry recorded");
+    assert_eq!(entry.specifier, "npm:@zkochan/js-yaml@0.0.11");
+    assert_eq!(entry.version, "0.0.11");
+}
+
+/// A `runtime:` dependency (`node@runtime:26.3.0`, a `Variations`
+/// resolution whose name lives only in the fetched manifest) records the
+/// prefix-stripped importer version (`runtime:26.3.0`, not
+/// `node@runtime:26.3.0`) and a `version: 26.3.0` field on its `packages:`
+/// entry — matching pnpm's `depPathToRef` and `toLockfileDependency`
+/// (`depPath.includes(':')` ⇒ emit the manifest version for non-directory
+/// resolutions).
+#[test]
+fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "node": "runtime:26.3.0" },
+    }));
+
+    let dep_path = DepPath::from("node@runtime:26.3.0".to_string());
+    let resolve_result = ResolveResult {
+        id: PkgResolutionId::from("node@runtime:26.3.0"),
+        name_ver: None,
+        latest: None,
+        published_at: None,
+        manifest: Some(std::sync::Arc::new(json!({
+            "name": "node",
+            "version": "26.3.0",
+            "bin": { "node": "bin/node" },
+        }))),
+        resolution: LockfileResolution::Variations(VariationsResolution { variants: vec![] }),
+        resolved_via: "node-runtime".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("node".to_string()),
+        policy_violation: None,
+    };
+    let node = DependenciesGraphNode {
+        dep_path: dep_path.clone(),
+        resolved_package_id: "node@runtime:26.3.0".to_string(),
+        resolve_result: std::sync::Arc::new(resolve_result),
+        children: BTreeMap::new(),
+        peer_dependencies: BTreeMap::new(),
+        transitive_peer_dependencies: HashSet::new(),
+        resolved_peer_names: HashSet::new(),
+        depth: 1,
+        installable: true,
+        is_pure: true,
+        optional: false,
+    };
+
+    let mut graph = DependenciesGraph::new();
+    graph.insert(dep_path.clone(), node);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("node".to_string(), dep_path);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    let entry = importer
+        .dependencies
+        .as_ref()
+        .expect("deps")
+        .get(&PkgName::parse("node").unwrap())
+        .unwrap();
+    assert_eq!(entry.specifier, "runtime:26.3.0");
+    match &entry.version {
+        ImporterDepVersion::Regular(ver) => assert_eq!(ver.to_string(), "runtime:26.3.0"),
+        other => panic!("expected Regular(runtime:26.3.0), got {other:?}"),
+    }
+
+    let metadata_key: PackageKey = "node@runtime:26.3.0".parse().unwrap();
+    let metadata = &lockfile.packages.as_ref().expect("packages")[&metadata_key];
+    assert_eq!(metadata.version.as_deref(), Some("26.3.0"));
 }
 
 /// A package with a peer-suffixed depPath produces a peer-keyed snapshot
@@ -896,7 +1110,9 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
@@ -1023,7 +1239,9 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,
@@ -1179,7 +1397,9 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         peers_suffix_max_length: None,
         overrides: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
         registry: "https://registry.npmjs.org",
         lockfile_include_tarball_url: false,

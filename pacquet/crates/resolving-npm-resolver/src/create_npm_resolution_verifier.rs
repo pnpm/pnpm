@@ -227,6 +227,19 @@ pub fn create_npm_resolution_verifier(
 }
 
 impl ResolutionVerifier for NpmResolutionVerifier {
+    fn might_verify(&self, resolution: &LockfileResolution, ctx: VerifyCtx<'_>) -> bool {
+        let Some(tarball_url) = npm_registry_tarball(resolution) else {
+            return false;
+        };
+        if tarball_url.is_some() {
+            return true;
+        }
+        self.age_check_active()
+            && !is_excluded(self.minimum_release_age_exclude.as_ref(), ctx.name, ctx.version)
+            || self.trust_check_active()
+                && !is_excluded(self.trust_policy_exclude.as_ref(), ctx.name, ctx.version)
+    }
+
     fn verify<'a>(
         &'a self,
         resolution: &'a LockfileResolution,
@@ -314,6 +327,14 @@ impl NpmResolutionVerifier {
             return ResolutionVerification::Ok;
         }
 
+        let age_applies = self.age_check_active()
+            && !is_excluded(self.minimum_release_age_exclude.as_ref(), ctx.name, ctx.version);
+        let trust_applies = self.trust_check_active()
+            && !is_excluded(self.trust_policy_exclude.as_ref(), ctx.name, ctx.version);
+        if tarball_url.is_none() && !age_applies && !trust_applies {
+            return ResolutionVerification::Ok;
+        }
+
         let registry = self.pick_registry(ctx.name, tarball_url);
 
         // A registry entry that pins an explicit tarball URL must point at
@@ -330,10 +351,6 @@ impl NpmResolutionVerifier {
             return violation;
         }
 
-        let age_applies = self.age_check_active()
-            && !is_excluded(self.minimum_release_age_exclude.as_ref(), ctx.name, ctx.version);
-        let trust_applies = self.trust_check_active()
-            && !is_excluded(self.trust_policy_exclude.as_ref(), ctx.name, ctx.version);
         if !age_applies && !trust_applies {
             return ResolutionVerification::Ok;
         }

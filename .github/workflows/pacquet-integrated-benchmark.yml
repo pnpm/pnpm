@@ -329,7 +329,7 @@ jobs:
           (
             echo '## Integrated-Benchmark Report (${{ runner.os }})'
             echo
-            echo 'Each scenario has pacquet rows (direct install) and pnpr rows (the same client through the pnpr install accelerator), so pnpr@HEAD vs pacquet@HEAD is the pnpr-vs-direct ratio. Cold-store scenarios wipe the client store between runs (warm server); hot-store scenarios keep it warm. The pacquet@HEAD rows feed the pacquet Bencher testbed; the pnpr@HEAD rows feed the pnpr testbed.'
+            echo 'Each scenario reports direct installs and pnpr installs. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store'
             echo
@@ -381,8 +381,6 @@ jobs:
             echo
             echo '### Scenario: Isolated linker: fresh install, cold cache + hot store'
             echo
-            echo 'Resolution-only: cold packument cache (full re-resolve over the registry link) with a hot store (no tarball download), so this isolates pnpr offloading the client resolution to its warm server.'
-            echo
             cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.md
             echo
             echo '<details><summary>BENCHMARK_REPORT.json</summary>'
@@ -399,9 +397,9 @@ jobs:
         # Bencher's shell_hyperfine adapter accepts, one per testbed. For
         # each, keep only the chosen target's result from each scenario
         # and rename `.command` to the scenario name, so Bencher names the
-        # benchmark after the scenario. Both tools run all four scenarios,
+        # benchmark after the scenario. Both tools run all five scenarios,
         # so the `pacquet` testbed gets `pacquet@HEAD` and the `pnpr`
-        # testbed gets `pnpr@HEAD`, each across the same four scenarios.
+        # testbed gets `pnpr@HEAD`, each across the same scenario set.
         shell: bash
         run: |
           # Build one bencher-results file: $1 = output path, $2 = the

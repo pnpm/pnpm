@@ -31,6 +31,7 @@ async fn main() {
         with_pnpm,
         pnpr_latency_ms,
         registry_latency_ms,
+        pnpr_server_registry_latency_ms,
         registry_bandwidth_mbps,
         reuse_prebuilt_binaries,
         build_only,
@@ -166,8 +167,9 @@ async fn main() {
         fixture_dir,
         pnpr_latency_ms,
         registry_latency_ms,
+        pnpr_server_registry_latency_ms,
         registry_bandwidth_mbps,
-        registry_port,
+        registry_port: spawned_registry_port,
         reuse_prebuilt_binaries,
     };
     if build_only {
