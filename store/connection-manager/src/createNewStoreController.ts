@@ -85,6 +85,7 @@ export async function createNewStoreController (
     cacheDir: opts.cacheDir,
     storeDir: opts.storeDir,
     cert: opts.cert,
+    frozenStore: opts.frozenStore,
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs,
     fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
     fullMetadata,
