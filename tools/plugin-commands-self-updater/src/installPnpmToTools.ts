@@ -9,6 +9,7 @@ import { fastPathTemp as pathTemp } from 'path-temp'
 import semver from 'semver'
 import symlinkDir from 'symlink-dir'
 import { type SelfUpdateCommandOptions } from './selfUpdate.js'
+import { verifyPnpmEngineIdentity } from './verifyPnpmEngineIdentity.js'
 
 export interface InstallPnpmToToolsResult {
   binDir: string
@@ -98,6 +99,11 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
     if (targetPkgName === '@pnpm/exe') {
       linkExePlatformBinary(stage)
     }
+    // Reached only when the wanted version is not yet in the tools directory
+    // (an actual download), so the signature check does not run on every
+    // invocation. Verify before the staged install is linked into place and
+    // spawned — on failure the stage is removed by the catch below.
+    await verifyPnpmEngineIdentity(stage, targetPkgName, pnpmVersion, opts)
     // We need the operation of installing pnpm to be atomic.
     // However, we cannot use a rename as that breaks the command shim created for pnpm.
     // Hence, we use a symlink.

@@ -44,6 +44,11 @@ jobs:
       - name: pnpm install
         # We use --force because we want all artifacts of @reflink/reflink to be installed.
         run: pnpm install --force
+      # Release gate: a stale embedded key set would make pnpm unable to verify
+      # packages signed with npm's rotated key, so block the release until the
+      # embedded keys are refreshed.
+      - name: Check embedded npm signing keys are in sync with the npm registry
+        run: pnpm run check:npm-signing-keys
       - name: Publish Packages
         env:
           # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.

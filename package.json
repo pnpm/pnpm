@@ -4,6 +4,7 @@
   "scripts": {
     "bump": "changeset version && pnpm update-manifests",
     "changeset": "changeset",
+    "check:npm-signing-keys": "node tools/plugin-commands-self-updater/scripts/update-npm-signing-keys.mjs",
     "preinstall": "npx only-allow pnpm",
     "prepare": "husky",
     "pretest": "pnpm run compile-only && pnpm --dir=__fixtures__ run prepareFixtures",
