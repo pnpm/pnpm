@@ -41,6 +41,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
+    batch: Boolean,
     'dry-run': Boolean,
     force: Boolean,
     json: Boolean,
@@ -109,6 +110,10 @@ export function help (): string {
             name: '--recursive',
             shortAlias: '-r',
           },
+          {
+            description: 'Send all packages to the registry in a single request instead of one request per package. Requires --recursive and a registry that implements the "/-/v1/multi-publish" endpoint (for example, pnpr)',
+            name: '--batch',
+          },
         ],
       },
       FILTERING,
@@ -170,6 +175,11 @@ export async function publish (
   & Pick<ConfigContext, 'allProjects'>,
   params: string[]
 ): Promise<PublishResult> {
+  if (opts.batch && !opts.recursive) {
+    throw new PnpmError('BATCH_PUBLISH_REQUIRES_RECURSIVE', '--batch can only be used together with --recursive', {
+      hint: 'Run "pnpm publish -r --batch" to publish all workspace packages in a single request.',
+    })
+  }
   if (opts.gitChecks !== false && await isGitRepo()) {
     if (!(await isWorkingTreeClean())) {
       throw new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {

@@ -1,3 +1,8 @@
+import { createHash } from 'node:crypto'
+import path from 'node:path'
+
+import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
+
 /**
  * Per-package summary describing a successful publish, modeled after `npm publish --json`.
  * Returned to callers and serialized to stdout when `pnpm publish --json` is used.
@@ -25,6 +30,35 @@ export interface PublishSummary {
   bundled: string[]
   /** Staged publish identifier returned by the registry. Only present for staged publishes. */
   stageId?: string
+}
+
+export interface PackedPkgInfo {
+  publishedManifest: ExportedManifest
+  tarballPath: string
+  contents: string[]
+  unpackedSize: number
+}
+
+export function createPublishSummary (
+  { publishedManifest, tarballPath, contents, unpackedSize }: PackedPkgInfo,
+  tarballData: Buffer
+): PublishSummary {
+  const { name, version } = publishedManifest
+  return {
+    id: `${name}@${version}`,
+    name: name as string,
+    version: version as string,
+    size: tarballData.byteLength,
+    unpackedSize,
+    // SHA-1 is what `npm publish --json` reports as `shasum` for back-compat with the registry's
+    // legacy dist.shasum field; `integrity` below is the modern SRI hash.
+    shasum: createHash('sha1').update(tarballData).digest('hex'),
+    integrity: `sha512-${createHash('sha512').update(tarballData).digest('base64')}`,
+    filename: path.basename(tarballPath),
+    files: contents.map((file) => ({ path: file })),
+    entryCount: contents.length,
+    bundled: extractBundledDependencies(publishedManifest),
+  }
 }
 
 /**

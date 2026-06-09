@@ -443,6 +443,9 @@ catalogs:
     '@types/normalize-path':
       specifier: ^3.0.2
       version: 3.0.2
+    '@types/npm-registry-fetch':
+      specifier: ^8.0.9
+      version: 8.0.9
     '@types/object-hash':
       specifier: 3.0.6
       version: 3.0.6
@@ -785,6 +788,9 @@ catalogs:
     npm-packlist:
       specifier: 10.0.4
       version: 10.0.4
+    npm-registry-fetch:
+      specifier: ^19.0.0
+      version: 19.1.1
     object-hash:
       specifier: 3.0.0
       version: 3.0.0
@@ -8364,6 +8370,9 @@ importers:
       normalize-registry-url:
         specifier: 'catalog:'
         version: 2.0.1
+      npm-registry-fetch:
+        specifier: 'catalog:'
+        version: 19.1.1
       p-filter:
         specifier: 'catalog:'
         version: 4.1.0
@@ -8443,6 +8452,9 @@ importers:
       '@types/libnpmpublish':
         specifier: 'catalog:'
         version: 11.2.0
+      '@types/npm-registry-fetch':
+        specifier: 'catalog:'
+        version: 8.0.9
       '@types/proxyquire':
         specifier: 'catalog:'
         version: 1.3.31
@@ -18258,7 +18270,7 @@ snapshots:
   '@jest/console@30.4.1':
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       chalk: 4.1.2
       jest-message-util: 30.4.1
       jest-util: 30.4.1
@@ -18354,7 +18366,7 @@ snapshots:
       '@jest/transform': 30.4.1(@babel/types@7.29.7)
       '@jest/types': 30.4.1
       '@jridgewell/trace-mapping': 0.3.31
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       chalk: 4.1.2
       collect-v8-coverage: 1.0.3
       exit-x: 0.2.2
@@ -22817,7 +22829,7 @@ snapshots:
   jest-haste-map@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22909,7 +22921,7 @@ snapshots:
       '@jest/test-result': 30.4.1
       '@jest/transform': 30.4.1(@babel/types@7.29.7)
       '@jest/types': 30.4.1
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       chalk: 4.1.2
       emittery: 0.13.1
       exit-x: 0.2.2
@@ -22939,7 +22951,7 @@ snapshots:
       '@jest/test-result': 30.4.1
       '@jest/transform': 30.4.1(@babel/types@7.29.7)
       '@jest/types': 30.4.1
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       chalk: 4.1.2
       cjs-module-lexer: 2.2.0
       collect-v8-coverage: 1.0.3
@@ -23024,7 +23036,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
