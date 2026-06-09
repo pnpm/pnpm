@@ -468,13 +468,7 @@ pub(crate) fn propagate_transitive_peer_dependencies(graph: &mut DependenciesGra
         let Some(parents) = parents_of.get(&child_path).cloned() else { continue };
 
         let diffs: Vec<(DepPath, Vec<String>)> = {
-            let child = match graph.get(&child_path) {
-                Some(c) => c,
-                None => continue,
-            };
-            if child.transitive_peer_dependencies.is_empty() {
-                continue;
-            }
+            let child = graph.get(&child_path).expect("worklist seeded from graph");
             parents
                 .iter()
                 .filter_map(|parent_path| {
