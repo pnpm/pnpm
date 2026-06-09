@@ -1,4 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -119,15 +121,18 @@ test('skipManifestObfuscation does not mutate the original manifest', async () =
     },
   }
 
-  expect(await createExportableManifest(process.cwd(), manifest, {
-    ...defaultOpts,
-    skipManifestObfuscation: true,
-    readmeFile: 'readme content',
-  })).toStrictEqual({
-    name: 'foo',
-    version: '1.0.0',
-    main: './dist/index.js',
-    readme: 'readme content',
+  await withTempProjectReadme('readme content', async (projectDir) => {
+    expect(await createExportableManifest(process.cwd(), manifest, {
+      ...defaultOpts,
+      skipManifestObfuscation: true,
+      embedReadme: true,
+      projectDir,
+    })).toStrictEqual({
+      name: 'foo',
+      version: '1.0.0',
+      main: './dist/index.js',
+      readme: 'readme content',
+    })
   })
 
   expect(manifest).toStrictEqual({
@@ -140,15 +145,31 @@ test('skipManifestObfuscation does not mutate the original manifest', async () =
 })
 
 test('readme added to published manifest', async () => {
-  expect(await createExportableManifest(process.cwd(), {
-    name: 'foo',
-    version: '1.0.0',
-  }, { ...defaultOpts, readmeFile: 'readme content' })).toStrictEqual({
-    name: 'foo',
-    version: '1.0.0',
-    readme: 'readme content',
+  await withTempProjectReadme('readme content', async (projectDir) => {
+    expect(await createExportableManifest(process.cwd(), {
+      name: 'foo',
+      version: '1.0.0',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
+      projectDir,
+    })).toStrictEqual({
+      name: 'foo',
+      version: '1.0.0',
+      readme: 'readme content',
+    })
   })
 })
+
+async function withTempProjectReadme<T> (readmeContent: string, fn: (projectDir: string) => Promise<T>): Promise<T> {
+  const projectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
+  try {
+    await fs.promises.writeFile(path.join(projectDir, 'README.md'), readmeContent, 'utf8')
+    return await fn(projectDir)
+  } finally {
+    await fs.promises.rm(projectDir, { recursive: true, force: true })
+  }
+}
 
 test('workspace deps are replaced', async () => {
   const manifest: ProjectManifest = {

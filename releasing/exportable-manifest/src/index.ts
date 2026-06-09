@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
@@ -29,7 +30,16 @@ export interface MakePublishManifestOptions {
   hooks?: Hooks
   modulesDir?: string
   skipManifestObfuscation?: boolean
-  readmeFile?: string
+  embedReadme?: boolean
+  projectDir?: string
+}
+
+async function readReadmeFile (projectDir: string): Promise<string | undefined> {
+  const files = await fs.promises.readdir(projectDir)
+  const readmePath = files.find(name => /readme\.md$/i.test(name))
+  const readmeFile = readmePath ? await fs.promises.readFile(path.join(projectDir, readmePath), 'utf8') : undefined
+
+  return readmeFile
 }
 
 export async function createExportableManifest (
@@ -72,8 +82,8 @@ export async function createExportableManifest (
 
   overridePublishConfig(publishManifest)
 
-  if (opts?.readmeFile) {
-    publishManifest.readme ??= opts.readmeFile
+  if (opts?.embedReadme && opts.projectDir) {
+    publishManifest.readme ??= await readReadmeFile(opts.projectDir)
   }
 
   for (const hook of opts?.hooks?.beforePacking ?? []) {
