@@ -374,9 +374,9 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
 ///
 /// This is the scenario behind the pnpm regression in
 /// [pnpm/pnpm#12079](https://github.com/pnpm/pnpm/issues/12079). pacquet
-/// resolves it consistently — `bump_occurrence_on_shadow` always prefers
-/// the node's own child over an inherited same-version instance, so it
-/// never reuses the root-level `ts@2.0.0` parser for the nested plugin.
+/// resolves it consistently by switching from the inherited same-version
+/// parser to the node's own child when that inherited parser carries a
+/// conflicting peer context.
 /// Mirrors the upstream coverage in
 /// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/762e80be49/installing/deps-installer/test/install/peerDependencies.ts).
 #[test]
@@ -411,6 +411,93 @@ fn peer_shared_through_a_diamond_is_resolved_consistently() {
     );
 
     drop((root, mock_instance)); // cleanup
+}
+
+#[test]
+fn peer_dependencies_resolve_from_aliased_subdependencies() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/abc-parent-with-aliases": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.1)"),
+        "aliased subdependencies should satisfy abc's peers; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_resolves_from_aliased_direct_dependency() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "peer-a": "npm:@pnpm.e2e/peer-a@1.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)"),
+        "aliased direct dependency should satisfy abc's peer-a; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_resolves_from_alias_that_differs_from_real_name() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/peer-b": "npm:@pnpm.e2e/peer-a@1.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)"),
+        "abc's snapshot key should keep both peer-a contributions; lockfile:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("'@pnpm.e2e/peer-a': 1.0.0"),
+        "real peer name should be linked in abc's snapshot dependencies; lockfile:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("'@pnpm.e2e/peer-b': '@pnpm.e2e/peer-a@1.0.0'"),
+        "alias peer name should also be linked to the aliased provider; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_prefers_highest_version_among_aliases_of_same_package() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "peer-c3": "npm:@pnpm.e2e/peer-c@1.0.0",
+        "peer-c2": "npm:@pnpm.e2e/peer-c@1.0.1",
+        "peer-c1": "npm:@pnpm.e2e/peer-c@2.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)"),
+        "highest aliased peer-c version should satisfy abc's peer-c; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_prefers_non_aliased_provider_over_alias() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/peer-c": "1.0.0",
+        "peer-c": "npm:@pnpm.e2e/peer-c@2.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@1.0.0)"),
+        "non-aliased peer-c should win over the aliased provider; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_prefers_highest_aliased_subdependency_version() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/abc-parent-with-aliases-of-same-pkg": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)"),
+        "highest aliased peer-c subdependency should satisfy abc's peer-c; lockfile:\n{lockfile}",
+    );
 }
 
 /// `catalog:` on a direct dep should be dereferenced through
@@ -837,6 +924,36 @@ fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
     );
 
     drop((root, mock_instance)); // cleanup
+}
+
+fn install_with_peer_alias_deps(dependencies: serde_json::Value) -> String {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("autoInstallPeers: false\n");
+    workspace_yaml.push_str("strictPeerDependencies: false\n");
+    workspace_yaml.push_str("peersSuffixMaxLength: 1000\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": dependencies }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+
+    drop((root, mock_instance));
+    lockfile
 }
 
 /// A fresh `pacquet` command rooted at `workspace`, for tests that run the
