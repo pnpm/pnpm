@@ -350,6 +350,8 @@
     "subdeps",
     "subdir",
     "subdirs",
+    "subkey",
+    "subkeys",
     "subpkg",
     "subresource",
     "supercede",
