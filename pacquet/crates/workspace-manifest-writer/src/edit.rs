@@ -34,6 +34,42 @@ pub(crate) fn add_catalogs(
     Ok(changed)
 }
 
+/// Upsert one `name → specifier` entry into the top-level
+/// `configDependencies:` block, creating the block if absent. Returns
+/// whether anything changed. The entry value is a clean specifier; the
+/// resolved integrity lives in the env lockfile, so this only ever
+/// writes the `configDependencies` map in `pnpm-workspace.yaml`.
+pub(crate) fn add_config_dependency(
+    manifest: &mut Manifest,
+    name: &str,
+    specifier: &str,
+) -> Result<bool, Box<yamlpatch::Error>> {
+    const BLOCK: &str = "configDependencies";
+    let text = manifest.text();
+    match locate(text, &[BLOCK]) {
+        Some(mapping) => {
+            let new_text = if mapping.entries.iter().any(|entry| entry.key == name) {
+                replace_value_at(text, &[BLOCK], name, specifier)?
+            } else {
+                insert_entry_at(text, &[BLOCK], name, specifier)
+            };
+            manifest.set_text(new_text);
+        }
+        None => {
+            let block = format!(
+                "{BLOCK}:\n  {}: {}\n",
+                render::render_value(name),
+                render::render_value(specifier),
+            );
+            let new_text = insert_top_level_block(manifest, BLOCK, &block);
+            manifest.set_text(new_text);
+            manifest.top_level_keys =
+                render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+        }
+    }
+    Ok(true)
+}
+
 /// Where a catalog's entries live (or should be created) in the manifest.
 enum Target {
     /// The top-level `catalog:` shorthand for the default catalog.
@@ -186,11 +222,23 @@ fn replace_value(
     dep: &str,
     specifier: &str,
 ) -> Result<String, Box<yamlpatch::Error>> {
+    replace_value_at(text, &target.path(), dep, specifier)
+}
+
+/// [`replace_value`] addressed by an explicit mapping path rather than a
+/// catalog [`Target`], so non-catalog blocks (e.g. `configDependencies`)
+/// can reuse the same comment-preserving splice.
+fn replace_value_at(
+    text: &str,
+    path: &[&str],
+    dep: &str,
+    specifier: &str,
+) -> Result<String, Box<yamlpatch::Error>> {
     let document =
         Document::new(text.to_string()).map_err(yamlpatch::Error::from).map_err(Box::new)?;
-    let components: Vec<Component> = target
-        .path()
-        .into_iter()
+    let components: Vec<Component> = path
+        .iter()
+        .copied()
         .chain(std::iter::once(dep))
         .map(|key| Component::Key(key.into()))
         .collect();
@@ -206,8 +254,13 @@ fn replace_value(
 /// position pnpm's reorder pass would choose (sorted-in when the block is
 /// sorted, appended otherwise).
 fn insert_entry(text: &str, target: &Target, dep: &str, specifier: &str) -> String {
-    let path = target.path();
-    let mapping = locate(text, &path).expect("catalog mapping exists");
+    insert_entry_at(text, &target.path(), dep, specifier)
+}
+
+/// [`insert_entry`] addressed by an explicit mapping path, so non-catalog
+/// blocks (e.g. `configDependencies`) can reuse the reorder-aware splice.
+fn insert_entry_at(text: &str, path: &[&str], dep: &str, specifier: &str) -> String {
+    let mapping = locate(text, path).expect("mapping exists");
     let existing: Vec<String> = mapping.entries.iter().map(|entry| entry.key.clone()).collect();
     let order = render::target_order(&existing, &[dep.to_string()]);
     let position = order.iter().position(|key| key == dep).expect("dep is in the merged order");

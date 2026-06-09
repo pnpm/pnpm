@@ -103,3 +103,38 @@ fn update_config_hook_mutates_config_before_install() {
 
     drop((root, mock_instance));
 }
+
+/// `pacquet add --config <pkg>@<version>` resolves and installs the
+/// package as a configurational dependency, writing the clean specifier
+/// to `pnpm-workspace.yaml` and linking it under `.pnpm-config`.
+#[test]
+fn add_config_writes_workspace_yaml_and_installs() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
+
+    pacquet_at(&workspace)
+        .with_arg("add")
+        .with_arg("--config")
+        .with_arg("@pnpm.e2e/foo@100.0.0")
+        .assert()
+        .success();
+
+    let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
+    eprintln!("pnpm-workspace.yaml:\n{yaml}");
+    assert!(yaml.contains("configDependencies:"), "configDependencies block written");
+    assert!(yaml.contains("@pnpm.e2e/foo"));
+    assert!(yaml.contains("100.0.0"));
+    // The pre-existing storeDir setting must survive the format-preserving edit.
+    assert!(yaml.contains("storeDir:"), "untouched settings are preserved");
+
+    assert!(
+        workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists(),
+        "config dep linked into .pnpm-config",
+    );
+
+    drop((root, mock_instance));
+}

@@ -105,3 +105,31 @@ pub fn update_workspace_manifest(
     fs::write(&path, manifest.into_text())
         .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
 }
+
+/// Write a `name → specifier` entry into `dir`'s `pnpm-workspace.yaml`
+/// `configDependencies:` block (creating the file/block if absent),
+/// preserving the rest of the document's formatting. Used by
+/// `pnpm add --config`; the resolved integrity is recorded separately in
+/// the env lockfile, so only the clean specifier is written here.
+pub fn set_config_dependency(
+    dir: &Path,
+    name: &str,
+    specifier: &str,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    edit::add_config_dependency(&mut manifest, name, specifier)
+        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+
+    fs::write(&path, manifest.into_text())
+        .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
+}

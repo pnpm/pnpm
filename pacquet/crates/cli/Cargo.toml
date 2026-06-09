@@ -37,7 +37,9 @@ pacquet-store-dir                         = { workspace = true }
 pacquet-tarball                           = { workspace = true }
 pacquet-diagnostics                       = { workspace = true }
 pacquet-workspace                         = { workspace = true }
+pacquet-workspace-manifest-writer         = { workspace = true }
 pacquet-workspace-projects-graph          = { workspace = true }
+pacquet-workspace-state                   = { workspace = true }
 
 clap         = { workspace = true }
 derive_more  = { workspace = true }

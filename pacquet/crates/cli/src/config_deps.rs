@@ -21,6 +21,7 @@ use pacquet_resolving_npm_resolver::{
     shared_picked_manifest_cache,
 };
 use pacquet_store_dir::StoreDir;
+use pacquet_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -44,7 +45,39 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     if config_dependencies.is_empty() {
         return Ok(());
     }
+    resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile).await
+}
 
+/// Add a single config dependency: resolve + install it (merged with any
+/// already-declared config deps), then write the clean specifier into
+/// `pnpm-workspace.yaml`'s `configDependencies` block. Backs
+/// `pacquet add --config`. Mirrors pnpm's `resolveConfigDeps`.
+pub async fn add_config_dependency<Reporter: self::Reporter>(
+    config: &Config,
+    root_dir: &Path,
+    name: &str,
+    specifier: &str,
+) -> Result<()> {
+    let mut config_dependencies = config.config_dependencies.clone().unwrap_or_default();
+    config_dependencies
+        .insert(name.to_string(), ConfigDependency::VersionWithIntegrity(specifier.to_string()));
+
+    resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false).await?;
+
+    pacquet_workspace_manifest_writer::set_config_dependency(root_dir, name, specifier)
+        .into_diagnostic()
+        .wrap_err("recording the config dependency in pnpm-workspace.yaml")
+}
+
+/// Build the resolver + install options from `config` and resolve +
+/// install `config_dependencies`. Shared by [`install_config_deps`] and
+/// [`add_config_dependency`].
+async fn resolve_and_install<Reporter: self::Reporter>(
+    config: &Config,
+    config_dependencies: &std::collections::BTreeMap<String, ConfigDependency>,
+    root_dir: &Path,
+    frozen_lockfile: bool,
+) -> Result<()> {
     let http_client = Arc::new(
         ThrottledClient::for_installs(
             &config.proxy,
