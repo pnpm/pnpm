@@ -76,6 +76,7 @@
     "etamponi",
     "exdev",
     "execa",
+    "exfiltrating",
     "exploitability",
     "fellback",
     "fetchings",
@@ -85,6 +86,7 @@
     "fnumber",
     "foobarqar",
     "foofoo",
+    "footgun",
     "forgejo",
     "fsevents",
     "gabor",
@@ -124,6 +126,8 @@
     "kebabcase",
     "kevva",
     "keyfile",
+    "keyid",
+    "keytype",
     "killcb",
     "kochan",
     "koorchik",
@@ -158,6 +162,7 @@
     "mypackage",
     "ndjson",
     "nerfed",
+    "nistp",
     "nodetouch",
     "noent",
     "nonexec",
@@ -173,6 +178,7 @@
     "ofjergrg",
     "onclickoutside",
     "oomol",
+    "openpgp",
     "ossl",
     "outfile",
     "overrider",
@@ -278,6 +284,8 @@
     "subdeps",
     "subdir",
     "subdirs",
+    "subkey",
+    "subkeys",
     "subpkg",
     "supercede",
     "syml",
@@ -319,5 +327,9 @@
     "zkochan",
     "zoli",
     "zoltan"
+  ],
+  "ignorePaths": [
+    "**/nodeReleaseKeys.ts",
+    "**/nodeReleaseKeys.d.ts"
   ]
 }

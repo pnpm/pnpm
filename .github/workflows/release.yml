@@ -49,6 +49,8 @@ jobs:
       # embedded keys are refreshed.
       - name: Check embedded npm signing keys are in sync with the npm registry
         run: pnpm run check:npm-signing-keys
+      - name: Check embedded Node.js release keys are in sync with nodejs/release-keys
+        run: pnpm run check:node-release-keys
       - name: Publish Packages
         env:
           # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.

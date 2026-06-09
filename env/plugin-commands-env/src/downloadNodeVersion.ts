@@ -26,7 +26,7 @@ export interface DownloadNodeVersionResult {
 
 export async function downloadNodeVersion (opts: NvmNodeCommandOptions, envSpecifier: string): Promise<DownloadNodeVersionResult | null> {
   const fetch = createFetchFromRegistry(opts)
-  const { nodeVersion, nodeMirrorBaseUrl } = await getNodeVersion(opts, envSpecifier)
+  const { nodeVersion, nodeMirrorBaseUrl, releaseChannel } = await getNodeVersion(opts, envSpecifier)
   if (!nodeVersion) {
     return null
   }
@@ -34,6 +34,7 @@ export async function downloadNodeVersion (opts: NvmNodeCommandOptions, envSpeci
     ...opts,
     useNodeVersion: nodeVersion,
     nodeMirrorBaseUrl,
+    releaseChannel,
   })
   globalInfo(`Node.js ${nodeVersion as string} was installed
   ${nodeDir}`)

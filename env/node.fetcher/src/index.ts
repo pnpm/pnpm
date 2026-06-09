@@ -1,6 +1,6 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { fetchShasumsFileRaw, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
+import { fetchShasumsFileRaw, fetchVerifiedNodeShasums, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
 import {
   type FetchFromRegistry,
   type RetryTimeoutOptions,
@@ -19,6 +19,7 @@ export interface FetchNodeOptionsToDir {
   storeDir: string
   fetchTimeout?: number
   nodeMirrorBaseUrl?: string
+  releaseChannel?: string
   retry?: RetryTimeoutOptions
 }
 
@@ -55,7 +56,13 @@ export async function fetchNode (
   await validateSystemCompatibility()
 
   const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? DEFAULT_NODE_MIRROR_BASE_URL
-  const artifactInfo = await getNodeArtifactInfo(fetch, version, { nodeMirrorBaseUrl })
+  // The mirror is repository-configurable, so the SHASUMS file's hashes are
+  // only trustworthy once its OpenPGP signature is verified against the
+  // Node.js release keys embedded in pnpm. Only the `release` channel
+  // publishes a signed SHASUMS256.txt; pre-release channels (rc, nightly, …)
+  // are unsigned by Node, so they cannot be verified this way.
+  const verifyShasumsSignature = (opts.releaseChannel ?? 'release') === 'release'
+  const artifactInfo = await getNodeArtifactInfo(fetch, version, { nodeMirrorBaseUrl, verifyShasumsSignature })
 
   if (artifactInfo.isZip) {
     await downloadAndUnpackZip(fetch, artifactInfo, targetDir)
@@ -93,6 +100,7 @@ async function getNodeArtifactInfo (
   version: string,
   opts: {
     nodeMirrorBaseUrl: string
+    verifyShasumsSignature: boolean
     integrities?: Record<string, string>
   }
 ): Promise<NodeArtifactInfo> {
@@ -109,7 +117,7 @@ async function getNodeArtifactInfo (
 
   const integrity = opts.integrities
     ? opts.integrities[`${process.platform}-${process.arch}`]
-    : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl)
+    : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl, opts.verifyShasumsSignature)
 
   return {
     url,
@@ -132,9 +140,12 @@ async function getNodeArtifactInfo (
 async function loadArtifactIntegrity (
   fetch: FetchFromRegistry,
   fileName: string,
-  shasumsUrl: string
+  shasumsUrl: string,
+  verifySignature: boolean
 ): Promise<string> {
-  const body = await fetchShasumsFileRaw(fetch, shasumsUrl)
+  const body = verifySignature
+    ? await fetchVerifiedNodeShasums(fetch, shasumsUrl)
+    : await fetchShasumsFileRaw(fetch, shasumsUrl)
   return pickFileChecksumFromShasumsFile(body, fileName)
 }
 

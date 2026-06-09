@@ -22,10 +22,10 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../env/path"
+      "path": "../../config/pick-registry-for-package"
     },
     {
-      "path": "../../config/pick-registry-for-package"
+      "path": "../../env/path"
     },
     {
       "path": "../../exec/pnpm-cli-runner"
