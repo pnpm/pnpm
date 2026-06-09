@@ -26,7 +26,7 @@ import {
 } from './publishPackedPkg.js'
 import type { PublishRecursiveOpts } from './recursivePublish.js'
 
-export const MULTI_PUBLISH_ENDPOINT = '/-/pnpm/v1/multi-publish'
+export const BATCH_PUBLISH_ENDPOINT = '/-/pnpm/v1/publish'
 
 export type BatchPublishOptions = PublishRecursiveOpts
 & Pick<Config, 'embedReadme' | 'ignoreScripts' | 'nodeLinker' | 'packGzipLevel' | 'skipManifestObfuscation'>
@@ -40,7 +40,7 @@ interface PackedPkg {
 }
 
 /**
- * Publish all {@link pkgs} by sending a single `PUT /-/pnpm/v1/multi-publish` request per target
+ * Publish all {@link pkgs} by sending a single `PUT /-/pnpm/v1/publish` request per target
  * registry, instead of one request per package. The endpoint is not part of the standard npm
  * registry API — the registry has to implement it explicitly (pnpr does), so this whole code
  * path is opt-in via the `--batch` flag.
@@ -159,7 +159,7 @@ async function multiPublishToRegistry (registry: string, group: PackedPkg[], opt
     await withOtpHandling({
       context: createPublishContext(opts),
       fetchOptions,
-      operation: async (otp) => npmFetch(MULTI_PUBLISH_ENDPOINT, {
+      operation: async (otp) => npmFetch(BATCH_PUBLISH_ENDPOINT, {
         ...publishOptions,
         access: publishOptions.access ?? undefined,
         otp,
@@ -172,10 +172,10 @@ async function multiPublishToRegistry (registry: string, group: PackedPkg[], opt
     const statusCode = (err as { statusCode?: number }).statusCode
     if (statusCode === 404 || statusCode === 405) {
       throw new PnpmError(
-        'MULTI_PUBLISH_UNSUPPORTED',
+        'BATCH_PUBLISH_UNSUPPORTED',
         `The registry at ${registry} does not support publishing multiple packages in a single request`,
         {
-          hint: `Retry without the --batch flag, or publish to a registry that implements "PUT ${MULTI_PUBLISH_ENDPOINT}" (for example, pnpr).`,
+          hint: `Retry without the --batch flag, or publish to a registry that implements "PUT ${BATCH_PUBLISH_ENDPOINT}" (for example, pnpr).`,
         }
       )
     }
@@ -199,7 +199,7 @@ interface PublishDocument {
 
 /**
  * Build the npm publish document for one package — the same JSON body `libnpmpublish` would
- * send as the whole `PUT /:pkg` request. The multi-publish request body is an array of these,
+ * send as the whole `PUT /:pkg` request. The batch publish request body is an array of these,
  * which lets the registry reuse its single-package publish pipeline per entry.
  */
 function createPublishDocument (

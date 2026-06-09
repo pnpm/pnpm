@@ -115,7 +115,7 @@ impl PackageLocks {
     /// Lock the stripes owning every name in `names`, held until the
     /// returned guards are dropped. Stripes are locked in ascending
     /// index order (duplicates collapsed), so two overlapping
-    /// multi-publishes — or a multi-publish racing a single-package
+    /// batch publishes — or a batch publish racing a single-package
     /// publish — can't deadlock on lock order.
     async fn lock_many(&self, names: &[&str]) -> Vec<tokio::sync::MutexGuard<'_, ()>> {
         let mut indices: Vec<usize> = names.iter().map(|name| self.stripe_index(name)).collect();
@@ -184,7 +184,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         // Batch publish: one request carrying many packages' publish
         // documents. Not part of the standard npm registry API —
         // `pnpm publish --batch` opts into it explicitly.
-        .route("/-/pnpm/v1/multi-publish", put(serve_multi_publish))
+        .route("/-/pnpm/v1/publish", put(serve_batch_publish))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -963,7 +963,7 @@ async fn publish_package(
     publish_created_response()
 }
 
-/// `PUT /-/pnpm/v1/multi-publish` — publish several packages with one
+/// `PUT /-/pnpm/v1/publish` — publish several packages with one
 /// request. The body is `{"packages": [<publish doc>, ...]}` where
 /// each entry is exactly the JSON body that `PUT /:pkg` takes
 /// (packument with `_attachments`). `pnpm publish --batch` sends
@@ -975,7 +975,7 @@ async fn publish_package(
 /// to a tmp slot before anything becomes visible to readers, so a
 /// batch that fails validation or staging leaves no new versions
 /// behind.
-async fn serve_multi_publish(
+async fn serve_batch_publish(
     State(state): State<AppState>,
     headers: HeaderMap,
     body: axum::body::Bytes,

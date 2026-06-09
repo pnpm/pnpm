@@ -111,7 +111,7 @@ export function help (): string {
             shortAlias: '-r',
           },
           {
-            description: 'Send all packages to the registry in a single request instead of one request per package. Requires --recursive and a registry that implements the "/-/pnpm/v1/multi-publish" endpoint (for example, pnpr)',
+            description: 'Send all packages to the registry in a single request instead of one request per package. Requires --recursive and a registry that implements the "/-/pnpm/v1/publish" endpoint (for example, pnpr)',
             name: '--batch',
           },
         ],

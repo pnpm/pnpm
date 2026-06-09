@@ -25,7 +25,7 @@ interface RegistryStub {
 
 /**
  * A minimal registry that 404s every packument read (so recursive publish considers every package
- * unpublished) and records `PUT /-/pnpm/v1/multi-publish` requests.
+ * unpublished) and records `PUT /-/pnpm/v1/publish` requests.
  */
 async function createRegistryStub (): Promise<RegistryStub> {
   const received: ReceivedRequest[] = []
@@ -43,7 +43,7 @@ async function createRegistryStub (): Promise<RegistryStub> {
         url: req.url!,
         body: rawBody.length > 0 ? JSON.parse(rawBody.toString()) : undefined,
       })
-      if (req.method === 'PUT' && req.url === '/-/pnpm/v1/multi-publish') {
+      if (req.method === 'PUT' && req.url === '/-/pnpm/v1/publish') {
         res.statusCode = stub.multiPublishStatusCode
         res.setHeader('content-type', 'application/json')
         res.end(JSON.stringify({ ok: true, success: true }))
@@ -96,7 +96,7 @@ function batchPublishOpts () {
   }
 }
 
-test('batch publish sends all packages in a single multi-publish request', async () => {
+test('batch publish sends all packages in a single batch publish request', async () => {
   preparePackages([
     {
       name: '@pnpmtest/batch-pkg-1',
@@ -119,7 +119,7 @@ test('batch publish sends all packages in a single multi-publish request', async
     tag: 'next',
   }, [])
 
-  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/multi-publish')
+  const publishRequests = registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')
   expect(publishRequests).toHaveLength(1)
   expect(publishRequests[0].method).toBe('PUT')
 
@@ -169,12 +169,12 @@ test('batch publish with --dry-run sends no request but reports the packages', a
     json: true,
   }, [])
 
-  expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/multi-publish')).toHaveLength(0)
+  expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(0)
   const publishedPackages = JSON.parse(result!.output!) as Array<{ name: string }>
   expect(publishedPackages.map(({ name }) => name).sort()).toStrictEqual(['batch-dry-1', 'batch-dry-2'])
 })
 
-test('batch publish fails with a clear error when the registry does not implement multi-publish', async () => {
+test('batch publish fails with a clear error when the registry does not implement batch publish', async () => {
   preparePackages([
     {
       name: 'batch-unsupported-1',
@@ -186,7 +186,7 @@ test('batch publish fails with a clear error when the registry does not implemen
   await expect(publish.handler({
     ...batchPublishOpts(),
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
-  }, [])).rejects.toMatchObject({ code: 'ERR_PNPM_MULTI_PUBLISH_UNSUPPORTED' })
+  }, [])).rejects.toMatchObject({ code: 'ERR_PNPM_BATCH_PUBLISH_UNSUPPORTED' })
 })
 
 test('batch publish against a real pnpr registry publishes every package', async () => {
@@ -234,5 +234,5 @@ test('--batch without --recursive is rejected', async () => {
     recursive: false,
   }, [])).rejects.toMatchObject({ code: 'ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE' })
 
-  expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/multi-publish')).toHaveLength(0)
+  expect(registry.received.filter(({ url }) => url === '/-/pnpm/v1/publish')).toHaveLength(0)
 })
