@@ -387,12 +387,13 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     )
     .await
     .unwrap();
-    // First install does work: a `started` then a `done`.
+    // First install does work: exactly `started` then `done`, in that
+    // order (the channel is order-sensitive for pnpm compatibility).
     let first = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
-    assert!(
-        first.contains(&InstallingConfigDepsStatus::Started)
-            && first.contains(&InstallingConfigDepsStatus::Done),
-        "first install emits started + done: {first:?}",
+    assert_eq!(
+        first,
+        vec![InstallingConfigDepsStatus::Started, InstallingConfigDepsStatus::Done],
+        "first install emits exactly started then done",
     );
 
     resolve_and_install_config_deps::<RecordingReporter>(

@@ -39,7 +39,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     env_lockfile: &EnvLockfile,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
-    let normalized = normalize_from_lockfile(env_lockfile, opts.default_registry())?;
+    let normalized = normalize_from_lockfile(env_lockfile, opts)?;
     let global_virtual_store_dir = opts.store_dir.links();
     let config_modules_dir = opts.root_dir.join("node_modules").join(".pnpm-config");
 
@@ -51,7 +51,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     for name in &existing {
         if !normalized.contains_key(name) {
             started.report::<Reporter>();
-            let _ = fs::remove_dir_all(config_modules_dir.join(name));
+            prune_link(&config_modules_dir.join(name));
         }
     }
 
@@ -235,7 +235,7 @@ async fn install_optional_subdeps<Reporter: self::Reporter>(
     for sibling in read_dir_names(parent_node_modules_dir)? {
         if !expected.contains(sibling.as_str()) {
             started.report::<Reporter>();
-            let _ = fs::remove_dir_all(parent_node_modules_dir.join(&sibling));
+            prune_link(&parent_node_modules_dir.join(&sibling));
         }
     }
 
@@ -341,7 +341,7 @@ fn is_compatible<Reporter: self::Reporter>(
 /// `packages:` row (or integrity) is missing.
 fn normalize_from_lockfile(
     env_lockfile: &EnvLockfile,
-    default_registry: &str,
+    opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<BTreeMap<String, NormalizedConfigDep>, ConfigDepError> {
     let mut deps = BTreeMap::new();
     let Some(importer) = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY) else {
@@ -362,11 +362,14 @@ fn normalize_from_lockfile(
                 ),
             }
         })?;
+        // Derive the tarball URL (when integrity-only) from the registry
+        // that serves this package, honoring per-scope registry entries —
+        // matching upstream's `pickRegistryForPackage(registries, name)`.
         let (integrity, tarball) = integrity_and_tarball(
             &pkg.resolution,
             name,
             &spec.version,
-            default_registry,
+            opts.pick_registry(name),
         )
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
@@ -378,7 +381,7 @@ fn normalize_from_lockfile(
             .snapshots
             .get(&key)
             .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
-            .map(|optionals| read_optional_subdeps(name, optionals, env_lockfile, default_registry))
+            .map(|optionals| read_optional_subdeps(name, optionals, env_lockfile, opts))
             .transpose()?
             .unwrap_or_default();
 
@@ -402,11 +405,12 @@ fn read_optional_subdeps(
         pacquet_lockfile::SnapshotDepRef,
     >,
     env_lockfile: &EnvLockfile,
-    default_registry: &str,
+    opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<Vec<NormalizedSubdep>, ConfigDepError> {
     let mut subdeps = Vec::new();
     for (subdep_name, dep_ref) in optionals {
         let version = dep_ref.ver_peer().map(|ver_peer| ver_peer.to_string()).unwrap_or_default();
+        let subdep_name = subdep_name.to_string();
         let subdep_key = format!("{subdep_name}@{version}");
         let key = subdep_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
             message: format!("pnpm-lock.yaml has an unparsable subdep key \"{subdep_key}\""),
@@ -422,9 +426,9 @@ fn read_optional_subdeps(
         })?;
         let (integrity, tarball) = integrity_and_tarball(
             &pkg.resolution,
-            &subdep_name.to_string(),
+            &subdep_name,
             &version,
-            default_registry,
+            opts.pick_registry(&subdep_name),
         )
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
@@ -452,17 +456,42 @@ fn integrity_and_tarball(
     resolution: &LockfileResolution,
     name: &str,
     version: &str,
-    default_registry: &str,
+    registry: &str,
 ) -> Option<(Integrity, String)> {
     match resolution {
-        LockfileResolution::Registry(registry) => {
-            Some((registry.integrity.clone(), npm_tarball_url(name, version, default_registry)))
+        LockfileResolution::Registry(registry_resolution) => {
+            Some((registry_resolution.integrity.clone(), npm_tarball_url(name, version, registry)))
         }
         LockfileResolution::Tarball(tarball) => {
             let integrity = tarball.integrity.clone()?;
             Some((integrity, tarball.tarball.clone()))
         }
         _ => None,
+    }
+}
+
+/// Remove a stale `.pnpm-config` entry (or optional-subdep sibling).
+/// These are directory symlinks/junctions created by
+/// [`pacquet_fs::force_symlink_dir`], so they're unlinked via
+/// [`pacquet_fs::remove_symlink_dir`] rather than recursively deleted —
+/// `remove_dir_all` is the wrong primitive for a link and behaves
+/// inconsistently across platforms. A real directory left by an older
+/// layout falls back to a recursive remove. A genuine failure (anything
+/// but "already gone") is logged rather than silently swallowed.
+fn prune_link(path: &Path) {
+    let is_link =
+        fs::symlink_metadata(path).map(|meta| meta.file_type().is_symlink()).unwrap_or(false);
+    let result =
+        if is_link { pacquet_fs::remove_symlink_dir(path) } else { fs::remove_dir_all(path) };
+    if let Err(error) = result
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        tracing::warn!(
+            target: "pacquet::env_installer",
+            ?path,
+            %error,
+            "failed to prune stale config-dependency link",
+        );
     }
 }
 

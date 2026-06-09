@@ -55,8 +55,10 @@ pub enum ConfigDepError {
     #[diagnostic(transparent)]
     WriteLockfile(#[error(source)] SaveLockfileError),
 
-    #[display("Failed to download config dependency tarball: {_0}")]
-    #[diagnostic(code(pacquet_env_installer::download_tarball))]
+    // Transparent so the inner `TarballError`'s pnpm-compatible
+    // diagnostic code/message is preserved rather than overridden by a
+    // crate-local code.
+    #[diagnostic(transparent)]
     DownloadTarball(#[error(source)] TarballError),
 
     #[diagnostic(transparent)]

@@ -55,7 +55,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
                         integrity,
                         tarball,
                         registry,
-                    );
+                    )?;
                     lockfile_changed = true;
                 }
             }
@@ -71,7 +71,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
                         integrity,
                         tarball,
                         registry,
-                    );
+                    )?;
                     lockfile_changed = true;
                 }
             }
@@ -179,8 +179,8 @@ fn migrate_into_lockfile(
     integrity: Integrity,
     tarball: String,
     registry: &str,
-) {
-    let Ok(key) = pkg_key(name, version) else { return };
+) -> Result<(), ConfigDepError> {
+    let key = pkg_key(name, version)?;
     env_lockfile.root_importer_mut().config_dependencies.insert(
         name.to_string(),
         SpecifierAndResolution { specifier: version.to_string(), version: version.to_string() },
@@ -194,6 +194,7 @@ fn migrate_into_lockfile(
     .to_lockfile_form(name, version, registry, false);
     env_lockfile.packages.insert(key.clone(), registry_package_metadata(resolution));
     env_lockfile.snapshots.insert(key, SnapshotEntry::default());
+    Ok(())
 }
 
 /// A `packages:` entry carrying only a resolution — the shape a config
