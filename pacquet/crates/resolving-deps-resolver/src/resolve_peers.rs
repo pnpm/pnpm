@@ -467,34 +467,40 @@ pub(crate) fn propagate_transitive_peer_dependencies(graph: &mut DependenciesGra
         .collect();
 
     while let Some(child_path) = worklist.pop_front() {
-        let child_tpd: Vec<String> = graph
-            .get(&child_path)
-            .map(|c| c.transitive_peer_dependencies.iter().cloned().collect())
-            .unwrap_or_default();
-        if child_tpd.is_empty() {
-            continue;
-        }
         let Some(parents) = parents_of.get(&child_path).cloned() else { continue };
 
-        for parent_path in parents {
-            let mut new_tpd = Vec::new();
-            {
-                let Some(parent) = graph.get(&parent_path) else { continue };
-                for tpd in &child_tpd {
-                    if !parent.transitive_peer_dependencies.contains(tpd)
-                        && !parent.peer_dependencies.contains_key(tpd)
-                    {
-                        new_tpd.push(tpd.clone());
-                    }
-                }
+        let diffs: Vec<(DepPath, Vec<String>)> = {
+            let child = match graph.get(&child_path) {
+                Some(c) => c,
+                None => continue,
+            };
+            if child.transitive_peer_dependencies.is_empty() {
+                continue;
             }
-            if !new_tpd.is_empty() {
-                let parent = graph.get_mut(&parent_path).unwrap();
-                for tpd in new_tpd {
-                    parent.transitive_peer_dependencies.insert(tpd);
-                }
-                worklist.push_back(parent_path);
+            parents
+                .iter()
+                .filter_map(|parent_path| {
+                    let parent = graph.get(parent_path)?;
+                    let diff: Vec<String> = child
+                        .transitive_peer_dependencies
+                        .iter()
+                        .filter(|tpd| {
+                            !parent.transitive_peer_dependencies.contains(*tpd)
+                                && !parent.peer_dependencies.contains_key(*tpd)
+                        })
+                        .cloned()
+                        .collect();
+                    if diff.is_empty() { None } else { Some((parent_path.clone(), diff)) }
+                })
+                .collect()
+        };
+
+        for (parent_path, diff) in diffs {
+            let parent = graph.get_mut(&parent_path).unwrap();
+            for tpd in diff {
+                parent.transitive_peer_dependencies.insert(tpd);
             }
+            worklist.push_back(parent_path);
         }
     }
 }
