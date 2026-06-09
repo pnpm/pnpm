@@ -18,8 +18,8 @@
 //! main lockfile's byte-for-byte serialization parity.
 
 use crate::{
-    ComVer, LoadLockfileError, Lockfile, LockfileVersion, PackageKey, PackageMetadata,
-    SaveLockfileError, SnapshotEntry, extract_env_document, extract_main_document, serialize_yaml,
+    LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,
+    extract_env_document, extract_main_document, serialize_yaml,
     yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START},
 };
 use serde::{Deserialize, Serialize};
@@ -65,7 +65,13 @@ pub struct EnvImporterSnapshot {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnvLockfile {
-    pub lockfile_version: LockfileVersion<9>,
+    /// A plain string (not the numeric [`crate::LockfileVersion`]),
+    /// matching upstream's `EnvLockfile.lockfileVersion: string`. The
+    /// reader accepts any value (pnpm checks only that it's a string),
+    /// so an env document carrying a non-numeric marker such as
+    /// `env-1.0` round-trips instead of hard-failing config-deps
+    /// installation.
+    pub lockfile_version: String,
 
     #[serde(default, serialize_with = "crate::serialize_yaml::sorted_map")]
     pub importers: HashMap<String, EnvImporterSnapshot>,
@@ -88,8 +94,9 @@ impl EnvLockfile {
         let mut importers = HashMap::new();
         importers.insert(Self::ROOT_IMPORTER_KEY.to_string(), EnvImporterSnapshot::default());
         EnvLockfile {
-            lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
-                .expect("9.0 is compatible with lockfile major 9"),
+            // Matches upstream's `createEnvLockfile`, which seeds the
+            // `LOCKFILE_VERSION` ("9.0") string.
+            lockfile_version: "9.0".to_string(),
             importers,
             packages: HashMap::new(),
             snapshots: HashMap::new(),

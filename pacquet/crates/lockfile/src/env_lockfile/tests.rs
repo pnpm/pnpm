@@ -55,6 +55,24 @@ fn write_then_read_round_trips() {
     assert_eq!(read_back, env);
 }
 
+/// `lockfileVersion` is a free-form string (matching upstream's
+/// `EnvLockfile.lockfileVersion: string`), so an env document carrying a
+/// non-numeric marker like `env-1.0` reads successfully rather than
+/// hard-failing — pnpm's reader only requires it to be a string.
+#[test]
+fn reads_non_numeric_lockfile_version() {
+    let dir = TempDir::new().unwrap();
+    let combined = "---\nlockfileVersion: env-1.0\nimporters:\n  .:\n    configDependencies:\n      typescript:\n        specifier: 5.0.0\n        version: 5.0.0\npackages: {}\nsnapshots: {}\n---\n";
+    std::fs::write(dir.path().join(Lockfile::FILE_NAME), combined).unwrap();
+
+    let env = EnvLockfile::read(dir.path()).unwrap().expect("env document parses");
+    assert_eq!(env.lockfile_version, "env-1.0");
+    assert_eq!(
+        env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["typescript"].version,
+        "5.0.0",
+    );
+}
+
 /// Writing the env document preserves whatever main lockfile document
 /// already exists, and the main loader still reads it back.
 #[test]
