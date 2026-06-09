@@ -793,8 +793,12 @@ function getWantedPackageManager (manifest: ProjectManifest): { pm?: WantedPacka
     }
     if (manifest.packageManager) {
       const legacyPm = parsePackageManager(manifest.packageManager)
-      if (legacyPm.name !== pmFromDevEngines.name || legacyPm.version !== pmFromDevEngines.version) {
-        warnings.push('Cannot use both "packageManager" and "devEngines.packageManager" in package.json. "packageManager" will be ignored')
+      const conflictWarning = getPackageManagerConflictWarning(legacyPm, {
+        name: pmFromDevEngines.name,
+        ...splitPackageManagerVersion(pmFromDevEngines.version),
+      })
+      if (conflictWarning) {
+        warnings.push(conflictWarning)
       }
     }
     return { pm: { ...pmFromDevEngines, fromDevEngines: true }, warnings }
@@ -848,17 +852,79 @@ function getIgnoredPnpmFieldKeys (manifest: ProjectManifest): string[] {
   return Object.keys(legacyField as Record<string, unknown>).filter(k => MIGRATED_PNPM_FIELD_KEYS.has(k))
 }
 
-export function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {
-  if (!packageManager.includes('@')) return { name: packageManager, version: undefined }
-  const [name, pmReference] = packageManager.split('@')
+export interface ParsedPackageManager {
+  name: string
+  version: string | undefined
+  hash: string | undefined
+}
+
+export function parsePackageManager (packageManager: string): ParsedPackageManager {
+  // Split on the `@` that separates the name from the reference. A leading `@`
+  // belongs to a scoped name (e.g. `@scope/pm@1.2.3`), so skip it; otherwise
+  // the first `@` is the separator. The first `@` (not the last) is used so a
+  // reference that is a URL containing `@` (e.g. credentials) stays intact.
+  const separatorIndex = packageManager.startsWith('@')
+    ? packageManager.indexOf('@', 1)
+    : packageManager.indexOf('@')
+  if (separatorIndex === -1) return { name: packageManager, version: undefined, hash: undefined }
+  const name = packageManager.slice(0, separatorIndex)
+  const pmReference = packageManager.slice(separatorIndex + 1)
   // pmReference is semantic versioning, not URL
-  if (pmReference.includes(':')) return { name, version: undefined }
-  // Remove the integrity hash. Ex: "pnpm@9.5.0+sha512.140036830124618d624a2187b50d04289d5a087f326c9edfc0ccd733d76c4f52c3a313d4fc148794a2a9d81553016004e6742e8cf850670268a7387fc220c903"
-  const [version] = pmReference.split('+')
-  return {
-    name,
-    version,
+  if (pmReference.includes(':')) return { name, version: undefined, hash: undefined }
+  return { name, ...splitPackageManagerVersion(pmReference) }
+}
+
+/**
+ * Splits a package manager version reference into its semver part and the
+ * integrity hash carried as semver build metadata, e.g.
+ * "9.5.0+sha512.140036830124618d624a2187b50d04289d5a087f326c9edfc0ccd733d76c4f52c3a313d4fc148794a2a9d81553016004e6742e8cf850670268a7387fc220c903"
+ * becomes `{ version: "9.5.0", hash: "sha512.14003…" }`. A reference without a
+ * hash yields an undefined hash; an undefined reference yields both undefined.
+ */
+function splitPackageManagerVersion (reference: string | undefined): { version: string | undefined, hash: string | undefined } {
+  if (reference == null) return { version: undefined, hash: undefined }
+  // Split on the first `+` only. The integrity hash is semver build metadata —
+  // everything after that `+` — and must be preserved whole, so a reference is
+  // never truncated at a later `+`.
+  const hashIndex = reference.indexOf('+')
+  if (hashIndex === -1) return { version: reference, hash: undefined }
+  return { version: reference.slice(0, hashIndex), hash: reference.slice(hashIndex + 1) }
+}
+
+/**
+ * Describes how the legacy `packageManager` field disagrees with
+ * `devEngines.packageManager`, or returns undefined when the two specifiers are
+ * identical (so keeping both fields in sync produces no warning). Any
+ * divergence warns — including an integrity hash (semver build metadata) on
+ * only one side, since dropping the ignored `packageManager` field would lose
+ * it. In every conflict `devEngines.packageManager` wins and `packageManager`
+ * is ignored.
+ */
+function getPackageManagerConflictWarning (legacy: ParsedPackageManager, devEngines: ParsedPackageManager): string | undefined {
+  const ignoredSuffix = '. "packageManager" will be ignored'
+  const genericWarning = `Cannot use both "packageManager" and "devEngines.packageManager" in package.json${ignoredSuffix}`
+  if (legacy.name !== devEngines.name) {
+    return `"packageManager" (${legacy.name}) and "devEngines.packageManager" (${devEngines.name}) specify different package managers in package.json${ignoredSuffix}`
   }
+  if (legacy.version !== devEngines.version) {
+    // "different versions" only makes sense when both sides are concrete
+    // versions. If one side has no semver version — e.g. the legacy field is a
+    // URL or a bare name — fall back to the generic notice rather than claiming
+    // a version mismatch.
+    if (legacy.version == null || devEngines.version == null) return genericWarning
+    return `"packageManager" and "devEngines.packageManager" specify different versions of ${legacy.name} in package.json${ignoredSuffix}`
+  }
+  if (legacy.hash !== devEngines.hash) {
+    // Same name and version, but the integrity hashes differ. Two distinct
+    // hashes for one version is a likely wrong-hash mistake, so call it out
+    // specifically; a hash on only one side is a softer mismatch (the version
+    // still agrees) and gets the generic notice.
+    if (legacy.hash != null && devEngines.hash != null) {
+      return `"packageManager" and "devEngines.packageManager" specify ${legacy.name}@${legacy.version} with different integrity hashes in package.json${ignoredSuffix}`
+    }
+    return genericWarning
+  }
+  return undefined
 }
 
 /**
