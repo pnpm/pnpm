@@ -22,7 +22,7 @@
 
 mod node_release_keys;
 
-use std::{io::Cursor, sync::Arc};
+use std::{io::Cursor, string::FromUtf8Error, sync::Arc};
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use derive_more::{Display, Error};
@@ -104,6 +104,26 @@ pub enum FetchVerifiedNodeShasumsError {
         error: Arc<pgp::errors::Error>,
     },
 
+    #[display("The verified Node.js SHASUMS file at {url} is not valid UTF-8")]
+    #[diagnostic(code(NODE_SHASUMS_SIGNATURE_INVALID))]
+    InvalidUtf8 {
+        #[error(not(source))]
+        url: String,
+        #[error(source)]
+        error: Arc<FromUtf8Error>,
+    },
+
+    #[display(
+        "Embedded Node.js release key fingerprint mismatch: expected {expected}, got {actual}"
+    )]
+    #[diagnostic(code(NODE_SHASUMS_SIGNATURE_INVALID))]
+    EmbeddedKeyFingerprintMismatch {
+        #[error(not(source))]
+        expected: &'static str,
+        #[error(not(source))]
+        actual: String,
+    },
+
     #[display(
         "The OpenPGP signature of {url} does not match any trusted Node.js release key. The downloaded Node.js runtime cannot be verified as a genuine release."
     )]
@@ -168,7 +188,10 @@ pub async fn fetch_verified_node_shasums(
         });
     }
 
-    Ok(String::from_utf8_lossy(&shasums_bytes).into_owned())
+    String::from_utf8(shasums_bytes).map_err(|error| FetchVerifiedNodeShasumsError::InvalidUtf8 {
+        url: shasums_url.to_string(),
+        error: Arc::new(error),
+    })
 }
 
 /// Like [`fetch_shasums_file`], but first verifies the SHASUMS file's
@@ -267,9 +290,14 @@ fn read_node_release_key(
 ) -> Result<SignedPublicKey, FetchVerifiedNodeShasumsError> {
     let (key, _headers) = SignedPublicKey::from_armor_single(trusted_key.armored_key.as_bytes())
         .map_err(signature_unreadable)?;
-    let fingerprint_matches =
-        key.fingerprint().to_string().eq_ignore_ascii_case(trusted_key.fingerprint);
-    debug_assert!(fingerprint_matches);
+    let actual_fingerprint = key.fingerprint().to_string();
+    let fingerprint_matches = actual_fingerprint.eq_ignore_ascii_case(trusted_key.fingerprint);
+    if !fingerprint_matches {
+        return Err(FetchVerifiedNodeShasumsError::EmbeddedKeyFingerprintMismatch {
+            expected: trusted_key.fingerprint,
+            actual: actual_fingerprint,
+        });
+    }
     Ok(key)
 }
 
