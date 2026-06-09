@@ -5,7 +5,7 @@ export { packageIdFromSnapshot } from './packageIdFromSnapshot.js'
 export { packageIsIndependent } from './packageIsIndependent.js'
 export { pkgSnapshotToResolution } from './pkgSnapshotToResolution.js'
 export { refIsLocalDirectory, refIsLocalTarball } from './refIsLocalTarball.js'
-export { isGitHostedTarballUrl, toLockfileResolution } from './toLockfileResolution.js'
+export { isGitHostedTarballUrl, resolutionNeedsIntegrity, toLockfileResolution } from './toLockfileResolution.js'
 export * from '@pnpm/lockfile.types'
 
 // for backward compatibility

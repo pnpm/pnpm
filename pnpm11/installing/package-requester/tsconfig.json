@@ -43,6 +43,9 @@
       "path": "../../hooks/types"
     },
     {
+      "path": "../../lockfile/utils"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {

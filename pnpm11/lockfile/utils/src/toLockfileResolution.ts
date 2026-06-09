@@ -69,3 +69,25 @@ export function isGitHostedTarballUrl (url: string): boolean {
     lowerUrl.startsWith('https://gitlab.com/')
   ) && lowerUrl.includes('tar.gz')
 }
+
+/**
+ * Checks whether a resolution needs to have its integrity computed from the
+ * downloaded tarball. This is important because some registries generate tarballs
+ * on-demand, and are unable to provide integrity metadata in the packument.
+ */
+export function resolutionNeedsIntegrity (
+  resolution: {
+    type?: string
+    tarball?: string
+    integrity?: string
+    gitHosted?: boolean
+  }
+): boolean {
+  return (
+    resolution.type == null &&
+    resolution.integrity == null &&
+    !resolution.tarball?.startsWith('file:') &&
+    resolution.gitHosted !== true &&
+    !(resolution.tarball != null && isGitHostedTarballUrl(resolution.tarball))
+  )
+}

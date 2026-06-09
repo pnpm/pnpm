@@ -14,6 +14,7 @@ import type {
 import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
+import { resolutionNeedsIntegrity } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import {
   type AtomicResolution,
@@ -313,10 +314,21 @@ async function resolveAndFetch (
         manifest = loadedManifest as unknown as DependencyManifest
       }
     }
-    // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
-    if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
+  }
+
+  // A tarball resolution missing its integrity gets the integrity the worker computed
+  // from the tarball bytes.
+  if (!resolution.type && !(resolution as TarballResolution).integrity) {
+    const fetchedResult = await fetchResult.fetching()
+    if (fetchedResult.integrity) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
+  }
+  if (resolutionNeedsIntegrity(resolution)) {
+    throw new PnpmError('MISSING_TARBALL_INTEGRITY',
+      `Cannot compute the integrity of package "${id}": its registry metadata had no integrity and the tarball could not be downloaded to compute one.`,
+      { hint: 'Ensure the tarball is reachable from the registry, then re-run installation.' }
+    )
   }
   // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
   if (isInstallable === undefined && manifest != null) {
@@ -526,8 +538,19 @@ function fetchToStore (
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
       const isLocalPkg = resolution.type === 'directory'
 
+      // A registry tarball whose lockfile entry has no integrity must be
+      // re-downloaded so the worker can compute the integrity from the tarball
+      // bytes; the copy in the local store can't be reused because we have no
+      // checksum to write back to the lockfile.
+      const mustComputeIntegrity = resolutionNeedsIntegrity(resolution)
+
+      // `true` once we know the package can't be served from the local store and
+      // a refetch is required even though the store already held (some of) it.
+      let refetchingStoredPackage = mustComputeIntegrity && !opts.force && !isLocalPkg
+
       if (
         !opts.force &&
+        !mustComputeIntegrity &&
         (
           !isLocalTarballDep ||
           await tarballIsUpToDate(opts.pkg.resolution as any, target, opts.lockfileDir) // eslint-disable-line
@@ -545,12 +568,15 @@ function fetchToStore (
           })
           return
         }
-        if ((files?.filesMap) != null) {
-          packageRequestLogger.warn({
-            message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
-            prefix: opts.lockfileDir,
-          })
-        }
+        // The store held the package but it failed verification (modified content).
+        refetchingStoredPackage = (files?.filesMap) != null
+      }
+
+      if (refetchingStoredPackage) {
+        packageRequestLogger.warn({
+          message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
+          prefix: opts.lockfileDir,
+        })
       }
 
       // We fetch into targetStage directory first and then fs.rename() it to the

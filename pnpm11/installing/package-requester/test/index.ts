@@ -1290,6 +1290,67 @@ test('HTTP tarball without integrity gets integrity computed during fetch', asyn
   expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
 })
 
+test('registry tarball without integrity gets integrity computed even when already in the local store', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  // First, populate the local store with a normal request that has integrity.
+  const seedRequestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+  const seedResponse = await seedRequestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
+  await seedResponse.fetching()
+
+  // Now resolve the same package with a resolver that returns a manifest but no
+  // integrity. The package is already in the store (cache hit), so without the
+  // forced re-download there would be no integrity to compute.
+  const resolveWithoutIntegrity: typeof resolve = async () => ({
+    id: 'is-positive@1.0.0' as PkgResolutionId,
+    latest: '1.0.0',
+    resolution: {
+      tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+    },
+    manifest: {
+      name: 'is-positive',
+      version: '1.0.0',
+    },
+    resolvedVia: 'npm-registry',
+  })
+
+  const requestPackage = createPackageRequester({
+    resolve: resolveWithoutIntegrity,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
+  await pkgResponse.fetching()
+
+  expect(pkgResponse.body.resolution).toHaveProperty('integrity')
+  expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
+})
+
 test('should pass optional flag to resolve function', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)

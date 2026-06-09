@@ -64,6 +64,7 @@ import {
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { resolutionNeedsIntegrity } from '@pnpm/lockfile.utils'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
@@ -689,7 +690,9 @@ export async function mutateModules (
       opts.updateChecksums ||
       !upToDateLockfileMajorVersion ||
       opts.forceFullResolution ||
-      forceResolutionFromHook
+      forceResolutionFromHook ||
+      // A non-frozen install can repair a lockfile entry that is missing its integrity.
+      (!frozenLockfile && lockfileHasMissingTarballIntegrity(ctx.wantedLockfile))
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
@@ -1250,6 +1253,15 @@ function forgetResolutionsOfPrevWantedDeps (
       delete importer.optionalDependencies[alias]
     }
   }
+}
+
+/**
+ * Checks if the lockfile has a resolution with no integrity.
+ */
+function lockfileHasMissingTarballIntegrity (wantedLockfile: LockfileObject): boolean {
+  if (wantedLockfile.packages == null) return false
+  return Object.values(wantedLockfile.packages).some((pkgSnapshot) =>
+    pkgSnapshot.resolution != null && resolutionNeedsIntegrity(pkgSnapshot.resolution))
 }
 
 function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): void {

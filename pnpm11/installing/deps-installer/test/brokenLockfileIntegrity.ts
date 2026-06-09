@@ -65,6 +65,44 @@ test('installation fails by default if the lockfile contains a wrong checksum, b
   }, testDefaults({ force: true }, { retry: { retries: 0 } }))).rejects.toThrow(/Got unexpected checksum for/)
 })
 
+test('a non-frozen install recomputes a missing integrity and writes it back, while a frozen install fails closed', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['is-positive@1.0.0'],
+    testDefaults()
+  )
+
+  const correctLockfile = clone(project.readLockfile())
+  const correctIntegrity = (correctLockfile.packages['is-positive@1.0.0'].resolution as TarballResolution).integrity
+
+  // Simulate a lockfile written by an older pnpm where the registry never
+  // provided an integrity.
+  const lockfileWithoutIntegrity = clone(correctLockfile)
+  delete (lockfileWithoutIntegrity.packages['is-positive@1.0.0'].resolution as TarballResolution).integrity
+
+  // A frozen install cannot edit the lockfile, so it must fail closed.
+  writeYamlFileSync(WANTED_LOCKFILE, lockfileWithoutIntegrity, { lineWidth: 1000 })
+  rimrafSync('node_modules')
+  await expect(mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))).rejects.toThrow(/has no "integrity" field/)
+
+  // A non-frozen install re-resolves, recomputes the integrity from the tarball,
+  // and writes it back to the lockfile.
+  writeYamlFileSync(WANTED_LOCKFILE, lockfileWithoutIntegrity, { lineWidth: 1000 })
+  rimrafSync('node_modules')
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({}, { retry: { retries: 0 } }))
+
+  expect((project.readLockfile().packages['is-positive@1.0.0'].resolution as TarballResolution).integrity).toBe(correctIntegrity)
+})
+
 test('installation fails by default if the lockfile contains the wrong checksum and the store is clean', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
