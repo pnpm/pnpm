@@ -4,8 +4,8 @@ import path from 'node:path'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
-import { temporaryDirectory } from 'tempy'
 import isWindows from 'is-windows'
+import { temporaryDirectory } from 'tempy'
 
 // `linkBins` calls `fixBin` to make a package's bin source executable. Under the
 // global virtual store that source lives inside the (potentially read-only) store,
