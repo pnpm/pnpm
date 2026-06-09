@@ -9,55 +9,71 @@ const { verifyPnpmEngineIdentity } = await import('@pnpm/engine.pm.commands')
 const REGISTRY = 'https://registry.example.test/'
 const PNPM_INTEGRITY = 'sha512-pnpm-integrity'
 const EXE_INTEGRITY = 'sha512-exe-integrity'
+const OPTS = { registries: { default: REGISTRY } }
+
+const originalSigningKeys = process.env.PNPM_NPM_SIGNING_KEYS
 
 beforeEach(async () => {
   await setupMockAgent()
-  process.env.PNPM_ENGINE_IDENTITY_REGISTRY = REGISTRY
 })
 
 afterEach(async () => {
   await teardownMockAgent()
-  delete process.env.PNPM_ENGINE_IDENTITY_REGISTRY
+  if (originalSigningKeys == null) delete process.env.PNPM_NPM_SIGNING_KEYS
+  else process.env.PNPM_NPM_SIGNING_KEYS = originalSigningKeys
 })
 
 describe('verifyPnpmEngineIdentity', () => {
   test('resolves when both pnpm and @pnpm/exe carry a valid registry signature over the installed bytes', async () => {
     const key = createSigningKey()
-    mockRegistryKey(key)
+    trust(key)
     mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }])
     mockPackument('@pnpm/exe', EXE_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('@pnpm/exe@9.1.0', EXE_INTEGRITY) }])
 
-    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', {})).resolves.toBeUndefined()
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', OPTS)).resolves.toBeUndefined()
   })
 
   test('throws when the installed bytes do not match what the registry signed (tamper)', async () => {
     const key = createSigningKey()
-    mockRegistryKey(key)
+    trust(key)
     // The registry signed the genuine integrity, but the lockfile pins a different one.
     mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', 'sha512-genuine-pnpm') }])
     mockPackument('@pnpm/exe', EXE_INTEGRITY, [{ keyid: key.keyid, sig: key.sign('@pnpm/exe@9.1.0', 'sha512-genuine-exe') }])
 
-    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', {})).rejects.toThrow(/Refusing to run pnpm/)
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', OPTS)).rejects.toThrow(/Refusing to run pnpm/)
   })
 
-  test('throws when the engine version is absent from the trust-root registry', async () => {
-    const key = createSigningKey()
-    mockRegistryKey(key)
+  test('throws when the engine is signed by a key pnpm does not trust', async () => {
+    const signingKey = createSigningKey()
+    trust(createSigningKey()) // trust a different key than the one that signed
+    mockPackument('pnpm', PNPM_INTEGRITY, [{ keyid: signingKey.keyid, sig: signingKey.sign('pnpm@9.1.0', PNPM_INTEGRITY) }])
+    mockPackument('@pnpm/exe', EXE_INTEGRITY, [{ keyid: signingKey.keyid, sig: signingKey.sign('@pnpm/exe@9.1.0', EXE_INTEGRITY) }])
+
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', OPTS)).rejects.toThrow(/Refusing to run pnpm/)
+  })
+
+  test('throws when the engine version is absent from the registry', async () => {
+    trust(createSigningKey())
     getMockAgent().get(REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/pnpm', method: 'GET' }).reply(404, {})
     getMockAgent().get(REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/@pnpm%2Fexe', method: 'GET' }).reply(404, {}) // cspell:disable-line
 
-    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', {})).rejects.toThrow(/Refusing to run pnpm/)
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', OPTS)).rejects.toThrow(/Refusing to run pnpm/)
   })
 
-  test('proceeds (no throw) when the trust root advertises no signing keys', async () => {
-    getMockAgent().get(REGISTRY.replace(/\/$/, ''))
-      .intercept({ path: '/-/npm/v1/keys', method: 'GET' }).reply(200, { keys: [] })
+  test('proceeds (no throw) when signature verification is disabled', async () => {
+    process.env.PNPM_NPM_SIGNING_KEYS = '0'
 
-    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', {})).resolves.toBeUndefined()
+    await expect(verifyPnpmEngineIdentity(envLockfile(), '9.1.0', OPTS)).resolves.toBeUndefined()
   })
 })
+
+function trust (key: ReturnType<typeof createSigningKey>): void {
+  process.env.PNPM_NPM_SIGNING_KEYS = JSON.stringify({
+    keys: [{ expires: null, key: key.publicKey, keyid: key.keyid, keytype: 'ecdsa-sha2-nistp256', scheme: 'ecdsa-sha2-nistp256' }],
+  })
+}
 
 function envLockfile (): EnvLockfile {
   return {
@@ -82,14 +98,6 @@ function envLockfile (): EnvLockfile {
   } as unknown as EnvLockfile
 }
 
-function mockRegistryKey (key: ReturnType<typeof createSigningKey>): void {
-  getMockAgent().get(REGISTRY.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/keys', method: 'GET' })
-    .reply(200, {
-      keys: [{ expires: null, key: key.publicKey, keyid: key.keyid, keytype: 'ecdsa-sha2-nistp256', scheme: 'ecdsa-sha2-nistp256' }],
-    }).persist()
-}
-
 function mockPackument (name: string, integrity: string, signatures: unknown): void {
   const encodedPath = name[0] === '@' ? `/${name.replace(/\//g, '%2F')}` : `/${name}`
   getMockAgent().get(REGISTRY.replace(/\/$/, ''))
@@ -107,7 +115,7 @@ function createSigningKey (): { keyid: string, publicKey: string, sign: (id: str
   const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
   const publicKeyPem = publicKey.export({ format: 'pem', type: 'spki' }).toString()
   return {
-    keyid: 'SHA256:test-key',
+    keyid: `SHA256:test-key-${crypto.randomBytes(4).toString('hex')}`,
     publicKey: publicKeyPem.replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g, ''),
     sign: (id, integrity) => {
       const signer = crypto.createSign('SHA256')

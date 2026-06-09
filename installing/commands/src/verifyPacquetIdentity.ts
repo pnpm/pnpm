@@ -1,4 +1,6 @@
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import {
+  getNpmSigningKeys,
   type InstalledPackageToVerify,
   verifyInstalledPackageSignatures,
 } from '@pnpm/deps.security.signatures'
@@ -6,16 +8,13 @@ import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { CreateFetchFromRegistryOptions, RetryTimeoutOptions } from '@pnpm/network.fetch'
-
-// The registry that owns the `pacquet` / `@pnpm/pacquet` / `@pacquet/*` names.
-// Identity is verified against this canonical registry rather than whatever
-// registry the repository's config points at — otherwise a repo could serve
-// (and sign with its own keys) a malicious package under the same name.
-const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/'
+import type { Registries, RegistryConfig } from '@pnpm/types'
 
 export interface VerifyPacquetIdentityOptions extends CreateFetchFromRegistryOptions {
   lockfileDir: string
   rootDir: string
+  registries: Registries
+  configByUri?: Record<string, RegistryConfig>
   retry?: RetryTimeoutOptions
   timeout?: number
   networkConcurrency?: number
@@ -28,12 +27,13 @@ export interface VerifyPacquetIdentityOptions extends CreateFetchFromRegistryOpt
  * A repository declares pacquet in its `pnpm-workspace.yaml`
  * `configDependencies` and controls the lockfile integrity and the registry
  * the bytes came from — so the declaration alone cannot authorize running a
- * native binary. This verifies, against the canonical npm registry, that the
- * exact bytes installed on disk (the `pacquet` shim and the host's
- * `@pacquet/<platform>-<arch>` binary, which is what actually executes) carry
- * a valid npm registry signature for that `name@version`. The signature is
- * checked over the *installed* integrity, so substituted or tampered bytes
- * fail to verify.
+ * native binary. This verifies that the exact bytes installed on disk (the
+ * `pacquet` shim and the host's `@pacquet/<platform>-<arch>` binary, which is
+ * what actually executes) carry a valid npm registry signature for that
+ * `name@version`, checked against npm's embedded public keys. The signature is
+ * verified over the *installed* integrity, so substituted or tampered bytes
+ * fail — and because the keys are embedded rather than fetched, a repository
+ * pointing the registry at a server it controls cannot supply its own keypair.
  *
  * Returns `false` (and logs why) when identity cannot be confirmed; the caller
  * then falls back to pnpm's own install engine instead of spawning pacquet.
@@ -42,17 +42,20 @@ export async function verifyPacquetIdentity (
   packageName: 'pacquet' | '@pnpm/pacquet',
   opts: VerifyPacquetIdentityOptions
 ): Promise<boolean> {
-  const toVerify = await collectPacquetPackagesToVerify(packageName, opts.rootDir)
+  const trustedKeys = getNpmSigningKeys()
+  // Signature verification disabled by the machine's configuration — trust the
+  // declaration and delegate.
+  if (trustedKeys == null) return true
+
+  const toVerify = await collectPacquetPackagesToVerify(packageName, opts.rootDir, opts.registries)
   if (toVerify == null) {
     return skip(packageName, opts.lockfileDir, 'its entry is missing from the lockfile')
   }
 
-  // No credentials are sent to the canonical registry: the packument and the
-  // signing keys are public, and we must not leak the repo's tokens here.
-  const getAuthHeader = createGetAuthHeaderByURI({})
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   let result
   try {
-    result = await verifyInstalledPackageSignatures(toVerify, getAuthHeader, opts)
+    result = await verifyInstalledPackageSignatures(toVerify, trustedKeys, getAuthHeader, opts)
   } catch (err: unknown) {
     return skip(packageName, opts.lockfileDir, `verification could not be completed (${String(err)})`)
   }
@@ -66,7 +69,8 @@ export async function verifyPacquetIdentity (
 
 async function collectPacquetPackagesToVerify (
   packageName: string,
-  rootDir: string
+  rootDir: string,
+  registries: Registries
 ): Promise<InstalledPackageToVerify[] | undefined> {
   const envLockfile = await readEnvLockfile(rootDir)
   if (envLockfile == null) return undefined
@@ -87,8 +91,8 @@ async function collectPacquetPackagesToVerify (
   if (platformIntegrity == null) return undefined
 
   return [
-    { name: packageName, version: shim.version, registry: CANONICAL_NPM_REGISTRY, integrity: shimIntegrity },
-    { name: platformPkgName, version: platformVersion, registry: CANONICAL_NPM_REGISTRY, integrity: platformIntegrity },
+    { name: packageName, version: shim.version, registry: pickRegistryForPackage(registries, packageName), integrity: shimIntegrity },
+    { name: platformPkgName, version: platformVersion, registry: pickRegistryForPackage(registries, platformPkgName), integrity: platformIntegrity },
   ]
 }
 

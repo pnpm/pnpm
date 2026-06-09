@@ -1,4 +1,6 @@
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import {
+  getNpmSigningKeys,
   type InstalledPackageToVerify,
   type SignatureFailureCategory,
   verifyInstalledPackageSignatures,
@@ -8,56 +10,46 @@ import { PnpmError } from '@pnpm/error'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import type { Registries, RegistryConfig } from '@pnpm/types'
 import { familySync } from 'detect-libc'
 
 import { exePlatformPkgDirName, exePlatformPkgDirNameNext } from './installPnpm.js'
 
-// The registry that owns the `pnpm` / `@pnpm/exe` / `@pnpm/<platform>` names and
-// acts as the trust root for engine identity. Identity is verified against this
-// registry, not whatever registry the project's config points at — a project can
-// otherwise redirect the download to a registry it controls and sign the bytes
-// with its own keys.
-//
-// Overridable via the `PNPM_ENGINE_IDENTITY_REGISTRY` environment variable for
-// npm mirrors that proxy the canonical signing keys (and for tests). This is a
-// process-level setting, not project config, so a cloned repository cannot point
-// the trust root at a registry it controls.
-const DEFAULT_TRUST_ROOT_REGISTRY = 'https://registry.npmjs.org/'
-
-function trustRootRegistry (): string {
-  return process.env.PNPM_ENGINE_IDENTITY_REGISTRY || DEFAULT_TRUST_ROOT_REGISTRY
+export type VerifyPnpmEngineIdentityOptions = VerifySignaturesOptions & {
+  registries: Registries
+  configByUri?: Record<string, RegistryConfig>
 }
 
-export type VerifyPnpmEngineIdentityOptions = VerifySignaturesOptions
-
 /**
- * Verifies, against the canonical npm registry, that the pnpm engine about to
- * be installed (and then executed) for an automatic version switch or
- * self-update is genuinely the published `pnpm` — i.e. the bytes recorded in
- * the env lockfile carry a valid npm registry signature for their exact
- * `name@version`.
+ * Verifies that the pnpm engine about to be installed (and then executed) for an
+ * automatic version switch or self-update is genuinely the published `pnpm` —
+ * i.e. the bytes recorded in the env lockfile carry a valid npm registry
+ * signature for their exact `name@version`.
  *
  * The wanted pnpm version comes from a repository's `packageManager` /
  * `devEngines.packageManager` field, and the project controls the lockfile
  * integrity and the registry the bytes are fetched from — so without this
  * check, a cloned repository could make pnpm download and run an arbitrary
- * native binary.
+ * native binary. Signatures are verified against npm's embedded public keys
+ * (see `getNpmSigningKeys`), so a project-controlled registry cannot answer with
+ * its own keypair; the signed packument is fetched from the configured registry,
+ * which an npm mirror proxies transparently.
  *
  * Throws when verification detects tampering (an invalid signature) or that a
- * package/version is absent from the canonical registry. When the canonical
- * registry simply cannot be reached (offline, or a private mirror with no npm
- * access), it warns and returns: that is not evidence of tampering, and the
- * bytes are still pinned by the lockfile integrity. This runs only when the
- * engine is actually being installed (a store cache miss), so it does not add a
- * network round trip to every command.
+ * package/version is absent from the registry. When the registry simply cannot
+ * be reached (offline), it warns and returns: that is not evidence of tampering.
+ * This runs only when the engine is actually being installed (a store cache
+ * miss), so it does not add a network round trip to every command.
  */
 export async function verifyPnpmEngineIdentity (
   envLockfile: EnvLockfile,
   pnpmVersion: string,
   opts: VerifyPnpmEngineIdentityOptions
 ): Promise<void> {
-  const registry = trustRootRegistry()
-  const toVerify = collectEnginePackagesToVerify(envLockfile, registry)
+  const trustedKeys = getNpmSigningKeys()
+  if (trustedKeys == null) return // signature verification disabled by configuration
+
+  const toVerify = collectEnginePackagesToVerify(envLockfile, opts.registries)
   if (toVerify.length === 0) {
     throw new PnpmError(
       'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
@@ -65,16 +57,14 @@ export async function verifyPnpmEngineIdentity (
     )
   }
 
-  // No credentials are sent to the trust-root registry: the packument and the
-  // signing keys are public, and the project's tokens must not leak here.
-  const getAuthHeader = createGetAuthHeaderByURI({})
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   let result
   try {
-    result = await verifyInstalledPackageSignatures(toVerify, getAuthHeader, opts)
+    result = await verifyInstalledPackageSignatures(toVerify, trustedKeys, getAuthHeader, opts)
   } catch (err: unknown) {
-    // A failure to even reach the trust root is not evidence of tampering.
+    // A failure to even reach the registry is not evidence of tampering.
     globalWarn(
-      `Could not verify the registry signature of pnpm@${pnpmVersion} on ${registry} (${String(err)}). ` +
+      `Could not verify the registry signature of pnpm@${pnpmVersion} (${String(err)}). ` +
       'Proceeding based on the lockfile integrity only.'
     )
     return
@@ -85,21 +75,21 @@ export async function verifyPnpmEngineIdentity (
   if (tampered.length > 0) {
     throw new PnpmError(
       'PNPM_ENGINE_IDENTITY_MISMATCH',
-      `Refusing to run pnpm@${pnpmVersion}: its registry signature could not be verified on ${registry} ` +
+      `Refusing to run pnpm@${pnpmVersion}: its npm registry signature could not be verified ` +
       `(${describe(tampered)}). The bytes selected by this project's lockfile/registry do not match the published pnpm release.`,
       { hint: 'This can indicate a tampered lockfile or a malicious registry. Remove the `packageManager` pin or set `pmOnFail` to `ignore` if this is unexpected.' }
     )
   }
 
-  // Only `unreachable` failures remain: don't block legitimate offline/mirror
-  // setups, but make the skipped check visible.
+  // Only `unreachable` failures remain: don't block legitimate offline setups,
+  // but make the skipped check visible.
   globalWarn(
-    `Could not verify the registry signature of pnpm@${pnpmVersion} on ${registry} (${describe(result.failures)}). ` +
+    `Could not verify the registry signature of pnpm@${pnpmVersion} (${describe(result.failures)}). ` +
     'Proceeding based on the lockfile integrity only.'
   )
 }
 
-function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registry: string): InstalledPackageToVerify[] {
+function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registries: Registries): InstalledPackageToVerify[] {
   const pmDeps = envLockfile.importers['.']?.packageManagerDependencies ?? {}
   const toVerify: InstalledPackageToVerify[] = []
 
@@ -108,7 +98,7 @@ function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registry: stri
     if (version == null) continue
     const integrity = registryIntegrity(envLockfile.packages[`${name}@${version}`]?.resolution)
     if (integrity != null) {
-      toVerify.push({ name, version, registry, integrity })
+      toVerify.push({ name, version, registry: pickRegistryForPackage(registries, name), integrity })
     }
   }
 
@@ -127,7 +117,7 @@ function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registry: stri
       if (platformVersion == null) continue
       const integrity = registryIntegrity(envLockfile.packages[`${platformName}@${platformVersion}`]?.resolution)
       if (integrity != null) {
-        toVerify.push({ name: platformName, version: platformVersion, registry, integrity })
+        toVerify.push({ name: platformName, version: platformVersion, registry: pickRegistryForPackage(registries, platformName), integrity })
       }
       break
     }

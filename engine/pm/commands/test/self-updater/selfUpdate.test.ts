@@ -26,18 +26,20 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
 })
 const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext } = await import('@pnpm/engine.pm.commands')
 
+const originalSigningKeys = process.env.PNPM_NPM_SIGNING_KEYS
+
 beforeEach(async () => {
   await setupMockAgent()
   getMockAgent().enableNetConnect()
-  // Every self-update install runs the pnpm-engine identity check, which fetches
-  // the registry's npm signing keys. Advertise none so verification treats the
-  // fixture pnpm as "unreachable" and proceeds on lockfile integrity, instead of
-  // reaching out to the real registry.npmjs.org.
-  mockEmptySigningKeys('https://registry.npmjs.org/')
+  // The fixture pnpm installed here is not signed with npm's real keys, so
+  // disable the engine identity signature check for these tests.
+  process.env.PNPM_NPM_SIGNING_KEYS = '0'
 })
 
 afterEach(async () => {
   await teardownMockAgent()
+  if (originalSigningKeys == null) delete process.env.PNPM_NPM_SIGNING_KEYS
+  else process.env.PNPM_NPM_SIGNING_KEYS = originalSigningKeys
 })
 
 function prepare (manifest: object = {}) {
@@ -117,18 +119,6 @@ function createExeMetadata (version: string, registry: string) {
       },
     },
   }
-}
-
-/**
- * The pnpm-engine identity check fetches the registry's npm signing keys. The
- * mock registry advertises none, so verification treats the engine as
- * "unreachable" and proceeds based on lockfile integrity — which is what these
- * tests want (they install a fixture pnpm that carries no real npm signature).
- */
-function mockEmptySigningKeys (registry: string) {
-  getMockAgent().get(registry.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/keys', method: 'GET' })
-    .reply(200, { keys: [] }).persist()
 }
 
 /**

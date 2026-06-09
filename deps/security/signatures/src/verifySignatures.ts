@@ -7,6 +7,8 @@ import type { GetAuthHeader } from '@pnpm/fetching.types'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type RetryTimeoutOptions } from '@pnpm/network.fetch'
 import pLimit from 'p-limit'
 
+import { NPM_SIGNING_KEYS } from './npmSigningKeys.js'
+
 export interface SignaturePackage {
   name: string
   registry: string
@@ -353,9 +355,36 @@ function sortIssue (a: SignatureIssue, b: SignatureIssue): number {
   return `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`)
 }
 
+export type { RegistryKey }
+
+/**
+ * The trusted npm signing keys used to verify package-manager binaries before
+ * pnpm spawns them. Defaults to the embedded {@link NPM_SIGNING_KEYS}.
+ *
+ * The `PNPM_NPM_SIGNING_KEYS` environment variable overrides this (e.g. to add a
+ * key before a pnpm release ships it, or in tests): set it to a JSON document
+ * of the same shape as the registry keys endpoint (`{"keys":[...]}`) or a bare
+ * array, or to `0` to disable signature verification entirely. It is read from
+ * the process environment, not project config, so a cloned repository cannot
+ * change which keys pnpm trusts.
+ *
+ * Returns `null` when verification is disabled.
+ */
+export function getNpmSigningKeys (): RegistryKey[] | null {
+  const override = process.env.PNPM_NPM_SIGNING_KEYS
+  if (override == null) return NPM_SIGNING_KEYS.map((k) => ({ ...k }))
+  if (override === '0' || override.trim() === '') return null
+  const parsed: unknown = JSON.parse(override)
+  const keys = Array.isArray(parsed) ? parsed : (parsed as { keys?: unknown }).keys
+  if (!Array.isArray(keys)) {
+    throw new PnpmError('INVALID_NPM_SIGNING_KEYS', 'PNPM_NPM_SIGNING_KEYS must be a JSON array of keys or {"keys":[...]}')
+  }
+  return keys as RegistryKey[]
+}
+
 export interface InstalledPackageToVerify {
   name: string
-  /** The registry to verify against — should be the canonical registry that owns the package name. */
+  /** The registry the package was installed from — the packument (and its signatures) is fetched from here. */
   registry: string
   version: string
   /** Integrity of the bytes actually installed on disk (from the lockfile). */
@@ -394,30 +423,28 @@ export interface InstalledSignatureVerificationResult {
  * on disk was tampered with (or fetched from a different registry), the
  * registry's signature will not validate over it.
  *
- * Pass {@link InstalledPackageToVerify.registry} as the canonical registry
- * that owns the package name (e.g. `https://registry.npmjs.org/`) so the
- * signing keys and signatures come from the trust root rather than from a
- * registry the caller cannot vouch for.
+ * Signatures are verified against the caller-supplied `trustedKeys` (npm's
+ * embedded public keys, see {@link getNpmSigningKeys}) rather than keys fetched
+ * from a registry — so a registry the caller cannot vouch for cannot answer with
+ * its own keypair. The packument (which carries the signatures) is fetched from
+ * each package's own registry; an npm mirror works transparently because it
+ * proxies the same signed packument.
  *
- * A package counts as a failure when the registry advertises signing keys but
- * the package is unsigned/unpublished/unverifiable, or when a signature is
- * present but does not validate over the installed bytes. A registry that
- * advertises no signing keys at all yields a failure too: there is no trust
- * root to verify against.
+ * A package counts as a failure when the package is unsigned/unpublished, or
+ * when a signature is present but does not validate over the installed bytes.
  */
 export async function verifyInstalledPackageSignatures (
   packages: InstalledPackageToVerify[],
+  trustedKeys: RegistryKey[],
   getAuthHeader: GetAuthHeader,
   opts: VerifySignaturesOptions
 ): Promise<InstalledSignatureVerificationResult> {
-  const registries = new Set(packages.map(({ registry }) => registry))
-  const keysByRegistry = await getKeysByRegistry(registries, getAuthHeader, opts)
   const packumentCache = new Map<string, Promise<Packument | undefined>>()
   const limit = pLimit(opts.networkConcurrency ?? 16)
 
   const failures: InstalledSignatureFailure[] = []
   await Promise.all(packages.map((pkg) => limit(async () => {
-    const failure = await findSignatureFailure(pkg, keysByRegistry, getAuthHeader, opts, packumentCache)
+    const failure = await findSignatureFailure(pkg, trustedKeys, getAuthHeader, opts, packumentCache)
     if (failure != null) {
       failures.push({ name: pkg.name, version: pkg.version, ...failure })
     }
@@ -429,16 +456,11 @@ export async function verifyInstalledPackageSignatures (
 
 async function findSignatureFailure (
   pkg: InstalledPackageToVerify,
-  keysByRegistry: Map<string, RegistryKey[]>,
+  trustedKeys: RegistryKey[],
   getAuthHeader: GetAuthHeader,
   opts: VerifySignaturesOptions,
   packumentCache: Map<string, Promise<Packument | undefined>>
 ): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
-  const keys = keysByRegistry.get(pkg.registry) ?? []
-  if (keys.length === 0) {
-    return { reason: `${pkg.registry} provides no signing keys to verify against`, category: 'unreachable' }
-  }
-
   let packument: Packument | undefined
   try {
     packument = await getPackument(pkg, getAuthHeader, opts, packumentCache)
@@ -466,7 +488,7 @@ async function findSignatureFailure (
   // validates when the installed bytes match what the registry signed.
   const issue = verifyPackageSignatures(
     { ...pkg, integrity: pkg.integrity, publishedAt: packument.time?.[pkg.version], signatures },
-    keys
+    trustedKeys
   )
   return issue == null ? undefined : { reason: issue.reason ?? 'invalid registry signature', category: 'invalid' }
 }
