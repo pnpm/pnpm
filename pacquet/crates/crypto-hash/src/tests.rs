@@ -16,15 +16,13 @@ fn hash_is_sha256_base64_with_prefix() {
 /// checked out on Windows hashes the same as its LF copy.
 #[test]
 fn hash_from_file_normalizes_crlf() {
-    let dir = std::env::temp_dir().join("pacquet-crypto-hash-crlf-test");
-    std::fs::create_dir_all(&dir).unwrap();
-    let crlf = dir.join("crlf.txt");
-    let lf = dir.join("lf.txt");
+    let dir = tempfile::TempDir::new().unwrap();
+    let crlf = dir.path().join("crlf.txt");
+    let lf = dir.path().join("lf.txt");
     std::fs::write(&crlf, "a\r\nb\r\n").unwrap();
     std::fs::write(&lf, "a\nb\n").unwrap();
     assert_eq!(create_hash_from_file(&crlf).unwrap(), create_hash_from_file(&lf).unwrap());
     assert_eq!(create_hash_from_file(&lf).unwrap(), create_hash("a\nb\n"));
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 /// Pinned vector against the shell oracle:
