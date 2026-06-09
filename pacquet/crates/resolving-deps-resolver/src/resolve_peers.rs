@@ -465,7 +465,7 @@ pub(crate) fn propagate_transitive_peer_dependencies(graph: &mut DependenciesGra
         .collect();
 
     while let Some(child_path) = worklist.pop_front() {
-        let Some(parents) = parents_of.get(&child_path).cloned() else { continue };
+        let Some(parents) = parents_of.get(&child_path) else { continue };
 
         let diffs: Vec<(DepPath, Vec<String>)> = {
             let child = graph.get(&child_path).expect("worklist seeded from graph");
