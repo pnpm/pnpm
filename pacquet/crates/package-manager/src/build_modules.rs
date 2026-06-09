@@ -6,6 +6,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
+use pacquet_deps_path::remove_suffix;
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_postinstall_hooks,
 };
@@ -230,14 +231,13 @@ impl AllowBuildPolicy {
     }
 }
 
+/// Strips the peer suffix (and, matching [`PkgVerPeer::without_peer`]'s
+/// lumped suffix handling, the patch hash) so config keys compare equal
+/// to the `metadata_key.to_string()` form used at the runtime call sites.
+///
+/// [`PkgVerPeer::without_peer`]: pacquet_lockfile::PkgVerPeer::without_peer
 pub(crate) fn normalize_build_dep_path(dep_path: &str) -> String {
-    if let Ok(key) = dep_path.parse::<PackageKey>() {
-        return key.without_peer().to_string();
-    }
-    match dep_path.find('(') {
-        Some(index) => dep_path[..index].to_string(),
-        None => dep_path.to_string(),
-    }
+    remove_suffix(dep_path).to_string()
 }
 
 fn is_dep_path_allow_build_key(spec: &str) -> bool {

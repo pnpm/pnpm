@@ -81,6 +81,18 @@ export function normalizeBuildDepPath (depPath: string): string {
   return dp.getPkgIdWithPatchHash(depPath as DepPath)
 }
 
+/**
+ * The `allowBuilds` key under which an ignored build should be approved:
+ * the package name for registry packages, the peer-suffix-free depPath for
+ * git/tarball artifacts, whose name alone must not approve builds.
+ */
+export function allowBuildKeyFromIgnoredBuild (depPath: string): string {
+  const normalizedDepPath = normalizeBuildDepPath(depPath)
+  const parsed = dp.parse(normalizedDepPath)
+  if (parsed.nonSemverVersion != null || parsed.name == null) return normalizedDepPath
+  return parsed.name
+}
+
 function isPackageIdentityTrustedForBuild (source: BuildPackageIdentitySource): boolean {
   if (source.resolvedVia != null) {
     return TRUSTED_RESOLVED_VIA.has(source.resolvedVia)

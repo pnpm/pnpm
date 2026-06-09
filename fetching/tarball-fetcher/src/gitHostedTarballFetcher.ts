@@ -84,7 +84,6 @@ async function prepareGitHostedPkg (
     ...opts,
     allowBuild: fetcherOpts.allowBuild,
     pkgResolutionId: createGitHostedTarballPkgResolutionId(resolution),
-    trustPackageIdentity: false,
   }, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
   const { storeIndex } = opts

@@ -11,6 +11,7 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/installing.deps-installer'
+import { streamParser } from '@pnpm/logger'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
@@ -23,6 +24,12 @@ import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
 
 import { testDefaults } from '../utils/index.js'
+
+// Until a first `data` listener appears, the paused log stream buffers
+// every event, and the first test to attach a reporter receives the
+// whole backlog from earlier reporterless installs. Keep the stream
+// flowing so each reporter only sees the events of its own installs.
+streamParser.on('data', () => {})
 
 const testOnNonWindows = isWindows() ? test.skip : test
 

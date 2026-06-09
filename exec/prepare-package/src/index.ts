@@ -21,10 +21,8 @@ const PREPUBLISH_SCRIPTS = [
 
 export interface PreparePackageOptions {
   allowBuild?: AllowBuild
-  depPath?: string
   ignoreScripts?: boolean
   pkgResolutionId?: string
-  trustPackageIdentity?: boolean
   unsafePerm?: boolean
   userAgent?: string
 }
@@ -35,11 +33,13 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return { shouldBeBuilt: false, pkgDir }
   if (opts.ignoreScripts) return { shouldBeBuilt: true, pkgDir }
   // Check if the package is allowed to run build scripts
-  // If allowBuild is undefined or returns false, block the build
-  const depPath = opts.depPath ?? (opts.pkgResolutionId == null ? undefined : `${manifest.name}@${opts.pkgResolutionId}`)
+  // If allowBuild is undefined or returns false, block the build.
+  // The manifest comes from the fetched artifact itself, so its name and
+  // version are never a trusted package identity.
+  const depPath = opts.pkgResolutionId == null ? undefined : `${manifest.name}@${opts.pkgResolutionId}`
   if (!opts.allowBuild?.(manifest.name, manifest.version, {
     depPath,
-    trustPackageIdentity: opts.trustPackageIdentity ?? true,
+    trustPackageIdentity: false,
   })) {
     throw new PnpmError(
       'GIT_DEP_PREPARE_NOT_ALLOWED',

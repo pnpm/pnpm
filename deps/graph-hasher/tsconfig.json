@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../building/policy"
+    },
+    {
       "path": "../../core/types"
     },
     {

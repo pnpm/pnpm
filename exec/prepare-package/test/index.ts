@@ -27,7 +27,6 @@ test('prepare package rejects untrusted manifest identity', async () => {
 
   await expect(preparePackage({
     allowBuild: allowTrustedBuildsOnly,
-    trustPackageIdentity: false,
   }, tmp, '')).rejects.toThrow('needs to execute build scripts but is not in the "allowBuilds" allowlist')
 })
 

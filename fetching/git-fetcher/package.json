@@ -36,6 +36,7 @@
     "@pnpm/exec.prepare-package": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
+    "@pnpm/resolving.git-resolver": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:"

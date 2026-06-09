@@ -482,13 +482,20 @@ export async function mutateModules (
     if (oldAllowBuild) {
       for (const depPath of Object.keys(ctx.wantedLockfile.packages) as DepPath[]) {
         if (ignoredBuilds?.has(depPath)) continue
-        const { name, version } = dp.parse(depPath)
+        const pkgSnapshot = ctx.wantedLockfile.packages[depPath]
+        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         if (!name || !version) continue
+        // The old policy is evaluated without identity trust info so that
+        // package-name approvals count as they did when they were granted,
+        // even for git/tarball artifacts that the current policy no longer
+        // approves by name.
+        const wasAllowed = oldAllowBuild(name, version, { depPath }) === true
+        if (!wasAllowed) continue
         const allowBuildContext = createAllowBuildContext({
           depPath,
-          resolution: ctx.wantedLockfile.packages[depPath]?.resolution,
+          resolution: pkgSnapshot.resolution,
         })
-        if (oldAllowBuild(name, version) === true && allowBuild?.(name, version, allowBuildContext) === undefined) {
+        if (allowBuild?.(name, version, allowBuildContext) === undefined) {
           ignoredBuilds ??= new Set()
           ignoredBuilds.add(depPath)
         }

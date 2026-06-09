@@ -562,17 +562,17 @@ function findLinkedGvsDir (
       const target = fs.readlinkSync(pkgLink)
       const pkgRoot = path.resolve(path.dirname(pkgLink), target)
       if (!pkgRoot.startsWith(normalizedGvsRoot)) continue
-      return dirname(pkgRoot, pkgName.split('/').length + 1)
+      return nthAncestorDir(pkgRoot, pkgName.split('/').length + 1)
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'EINVAL') continue
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
+      // EINVAL: pkgLink exists but is not a symlink.
+      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EINVAL' || err.code === 'ENOENT')) continue
       throw err
     }
   }
   return undefined
 }
 
-function dirname (dir: string, levels: number): string {
+function nthAncestorDir (dir: string, levels: number): string {
   let result = dir
   for (let i = 0; i < levels; i++) {
     result = path.dirname(result)

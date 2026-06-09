@@ -1812,6 +1812,9 @@ importers:
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../after-install
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../policy
       '@pnpm/cli.command':
         specifier: workspace:*
         version: link:../../cli/command
@@ -3296,6 +3299,9 @@ importers:
 
   deps/graph-hasher:
     dependencies:
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../../building/policy
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
@@ -4586,6 +4592,9 @@ importers:
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist
+      '@pnpm/resolving.git-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/git-resolver
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -5199,6 +5208,9 @@ importers:
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../../building/after-install
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../../building/policy
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types

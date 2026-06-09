@@ -48,7 +48,6 @@ pub struct PreparePackageOptions<'a> {
     pub allow_build: AllowBuildFn<'a>,
     pub dep_path: Option<&'a str>,
     pub ignore_scripts: bool,
-    pub trust_package_identity: bool,
     pub unsafe_perm: bool,
     pub user_agent: Option<&'a str>,
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
@@ -99,10 +98,12 @@ pub fn prepare_package<Reporter: self::Reporter>(
 
     // `allowBuild` check before any spawn. Upstream throws when
     // `opts.allowBuild?.(name, version, context)` is missing or false, with
-    // GIT_DEP_PREPARE_NOT_ALLOWED.
+    // GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes from the fetched
+    // artifact itself, so its name and version are never a trusted
+    // package identity.
     let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
     let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
-    if !(opts.allow_build)(name, version, opts.trust_package_identity, opts.dep_path) {
+    if !(opts.allow_build)(name, version, false, opts.dep_path) {
         return Err(PreparePackageError::NotAllowed {
             name: name.to_string(),
             version: version.to_string(),

@@ -1,5 +1,6 @@
+import { createAllowBuildContext } from '@pnpm/building.policy'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { getPkgIdWithPatchHash, parse as parseDepPath, refToRelative } from '@pnpm/deps.path'
+import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import type { LockfileObject, LockfileResolution, PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
@@ -339,40 +340,16 @@ function computeBuiltDepPaths (
 ): Set<DepPath> {
   const builtDepPaths = new Set<DepPath>()
   for (const entry of entries) {
-    if (allowBuild(entry.name, entry.version, {
+    const context = createAllowBuildContext({
       depPath: entry.depPath,
-      trustPackageIdentity: isTrustedBuildIdentity(entry),
-    }) === true) {
-      const { depPath } = entry
-      builtDepPaths.add(depPath)
+      resolution: entry.resolution ?? entry.pkgSnapshot?.resolution,
+      resolvedVia: entry.resolvedVia,
+    })
+    if (allowBuild(entry.name, entry.version, context) === true) {
+      builtDepPaths.add(entry.depPath)
     }
   }
   return builtDepPaths
-}
-
-function isTrustedBuildIdentity (entry: PkgMeta): boolean {
-  if (entry.resolvedVia != null) {
-    return ['npm-registry', 'jsr-registry', 'named-registry', 'workspace'].includes(entry.resolvedVia)
-  }
-  const resolution = entry.resolution ?? entry.pkgSnapshot?.resolution
-  if (!hasTrustedPackageVersionDepPath(entry.depPath)) return false
-  if (resolution == null) return true
-  if ('type' in resolution) {
-    if (resolution.type === 'variations') {
-      return resolution.variants.every((variant) => isTrustedBuildIdentity({
-        ...entry,
-        resolution: variant.resolution,
-      }))
-    }
-    if (resolution.type != null) return false
-  }
-  if ('gitHosted' in resolution && resolution.gitHosted === true) return false
-  return true
-}
-
-function hasTrustedPackageVersionDepPath (depPath: DepPath): boolean {
-  const parsed = parseDepPath(depPath)
-  return parsed.name != null && parsed.version != null && parsed.nonSemverVersion == null
 }
 
 function transitivelyRequiresBuild<T extends string> (

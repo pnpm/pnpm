@@ -113,7 +113,6 @@ impl<'a> GitHostedTarballFetcher<'a> {
             }),
             dep_path: Some(self.package_id),
             ignore_scripts: self.ignore_scripts,
-            trust_package_identity: false,
             unsafe_perm: self.unsafe_perm,
             user_agent: self.user_agent,
             scripts_prepend_node_path: self.scripts_prepend_node_path,

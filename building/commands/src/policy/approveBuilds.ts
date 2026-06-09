@@ -1,13 +1,12 @@
 import { checkbox, confirm } from '@inquirer/prompts'
+import { allowBuildKeyFromIgnoredBuild } from '@pnpm/building.policy'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
-import { getPkgIdWithPatchHash, parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
-import type { DepPath } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import chalk from 'chalk'
 import { renderHelp } from 'render-help'
@@ -228,11 +227,4 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
 
 function sortUniqueStrings (array: string[]): string[] {
   return Array.from(new Set(array)).sort(lexCompare)
-}
-
-function allowBuildKeyFromIgnoredBuild (depPath: string): string {
-  const normalizedDepPath = getPkgIdWithPatchHash(depPath as DepPath)
-  const parsed = parse(normalizedDepPath)
-  if (parsed.nonSemverVersion != null || parsed.name == null) return normalizedDepPath
-  return parsed.name
 }

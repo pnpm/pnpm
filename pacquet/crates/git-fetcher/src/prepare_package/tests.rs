@@ -34,7 +34,6 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
         allow_build: Box::new(move |_name, _version, _trust, _dep_path| allow),
         dep_path: None,
         ignore_scripts,
-        trust_package_identity: true,
         unsafe_perm: true,
         user_agent: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
@@ -46,13 +45,12 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
     }
 }
 
-fn opts_allow_trusted_only<'a>(trust_package_identity: bool) -> PreparePackageOptions<'a> {
+fn opts_allow_trusted_only<'a>() -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
         allow_build: Box::new(move |_name, _version, trust, _dep_path| trust),
         dep_path: None,
         ignore_scripts: false,
-        trust_package_identity,
         unsafe_perm: true,
         user_agent: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
@@ -72,7 +70,6 @@ fn opts_allow_dep_path<'a>(dep_path: &'a str) -> PreparePackageOptions<'a> {
         }),
         dep_path: Some(dep_path),
         ignore_scripts: false,
-        trust_package_identity: false,
         unsafe_perm: true,
         user_agent: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
@@ -194,7 +191,7 @@ fn prepare_rejects_untrusted_manifest_identity() {
         }),
     );
 
-    let err = prepare_package::<SilentReporter>(&opts_allow_trusted_only(false), dir.path(), None)
+    let err = prepare_package::<SilentReporter>(&opts_allow_trusted_only(), dir.path(), None)
         .unwrap_err();
     match err {
         PreparePackageError::NotAllowed { name, version } => {

@@ -31,6 +31,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/building.policy": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/engine.runtime.system-version": "workspace:*",
