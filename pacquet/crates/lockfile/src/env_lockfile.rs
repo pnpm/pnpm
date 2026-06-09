@@ -3,8 +3,8 @@
 //! Pnpm v11 records configurational dependencies (and the
 //! `packageManager`/`devEngines` bootstrap deps) in a separate YAML
 //! document written ahead of the regular project lockfile. The
-//! env-installer ([`pacquet_env_installer`]) resolves config deps into
-//! this document; the main install path preserves it verbatim when it
+//! `pacquet-env-installer` crate resolves config deps into this
+//! document; the main install path preserves it verbatim when it
 //! rewrites the wanted lockfile (see [`crate::save_value_to_path`]).
 //!
 //! Mirrors upstream's `EnvLockfile` type and the
