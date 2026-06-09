@@ -20,6 +20,7 @@ import pathAbsolute from 'path-absolute'
 import which from 'which'
 import { inheritAuthConfig } from './auth.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
+import { dropUntrustedEnvExpansions } from './dropUntrustedEnvExpansions.js'
 import { rescopeUnscopedCreds } from './rescopeUnscopedCreds.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
@@ -236,6 +237,19 @@ export async function getConfig (opts: {
   {
     const warn = npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
     if (warn) warnings.push(warn)
+  }
+
+  // The project and workspace .npmrc files are repository-controlled, so
+  // they must not be able to expand environment variables into request
+  // destinations (registry/proxy URLs, URL-scoped keys) or registry
+  // credential values. Settings whose raw form uses a ${...} placeholder in
+  // such a position are dropped from the source before the merged config is
+  // built. Trusted sources (cli, env, user, global, builtin) keep full env
+  // expansion.
+  for (const name of ['project', 'workspace']) {
+    const sourceEntry = npmConfig.sources[name] as { path?: string, data?: Record<string, unknown> } | undefined
+    if (sourceEntry?.path == null || sourceEntry.data == null) continue
+    dropUntrustedEnvExpansions(sourceEntry.data, sourceEntry.path, warnings)
   }
 
   // After every source (cli, env, project, workspace, user, global,

