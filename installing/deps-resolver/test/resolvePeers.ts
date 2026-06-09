@@ -1490,4 +1490,140 @@ describe('dedupePeers', () => {
     expect(depPaths).toContain('plugin/1.0.0(parser/1.0.0(typescript/1.0.0))(typescript/1.0.0)')
     expect(depPaths).not.toContain('plugin/1.0.0(parser/1.0.0(typescript/2.0.0))(typescript/1.0.0)')
   })
+
+  test('transitivePeerDependencies propagate through depGraph after purePkgs early return in cycle', async () => {
+    const aPkg = {
+      name: 'a',
+      pkgIdWithPatchHash: 'a/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const bPkg = {
+      name: 'b',
+      pkgIdWithPatchHash: 'b/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const cPkg = {
+      name: 'c',
+      pkgIdWithPatchHash: 'c/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const dPkg = {
+      name: 'd',
+      pkgIdWithPatchHash: 'd/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {
+        e: { version: '1.0.0', optional: true },
+      },
+      id: '' as PkgResolutionId,
+    }
+    const gPkg = {
+      name: 'g',
+      pkgIdWithPatchHash: 'g/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const hPkg = {
+      name: 'h',
+      pkgIdWithPatchHash: 'h/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph } = await resolvePeers({
+      allPeerDepNames: new Set(['e']),
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['g', '>g/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>g/1.0.0>' as NodeId, {
+          children: {
+            a: '>g/1.0.0>a/1.0.0>' as NodeId,
+            h: '>g/1.0.0>h/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: gPkg,
+          depth: 0,
+        }],
+        ['>g/1.0.0>a/1.0.0>' as NodeId, {
+          children: {
+            b: '>g/1.0.0>a/1.0.0>b/1.0.0>' as NodeId,
+            c: '>g/1.0.0>a/1.0.0>c/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: aPkg,
+          depth: 1,
+        }],
+        ['>g/1.0.0>a/1.0.0>b/1.0.0>' as NodeId, {
+          children: {
+            a: '>g/1.0.0>a/1.0.0>b/1.0.0>a/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: bPkg,
+          depth: 2,
+        }],
+        ['>g/1.0.0>a/1.0.0>b/1.0.0>a/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: aPkg,
+          depth: 3,
+        }],
+        ['>g/1.0.0>a/1.0.0>c/1.0.0>' as NodeId, {
+          children: {
+            d: '>g/1.0.0>a/1.0.0>c/1.0.0>d/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: cPkg,
+          depth: 2,
+        }],
+        ['>g/1.0.0>a/1.0.0>c/1.0.0>d/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: dPkg,
+          depth: 3,
+        }],
+        ['>g/1.0.0>h/1.0.0>' as NodeId, {
+          children: {
+            a: '>g/1.0.0>h/1.0.0>a/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: hPkg,
+          depth: 1,
+        }],
+        ['>g/1.0.0>h/1.0.0>a/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: aPkg,
+          depth: 2,
+        }],
+      ]),
+      virtualStoreDir: '',
+      lockfileDir: '',
+      virtualStoreDirMaxLength: 120,
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+
+    const hEntry = dependenciesGraph['h/1.0.0' as DepPath]
+    expect(hEntry).toBeTruthy()
+    expect(Array.from(hEntry.transitivePeerDependencies)).toContain('e')
+
+    const gEntry = dependenciesGraph['g/1.0.0' as DepPath]
+    expect(gEntry).toBeTruthy()
+    expect(Array.from(gEntry.transitivePeerDependencies)).toContain('e')
+  })
 })

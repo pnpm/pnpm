@@ -182,6 +182,24 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
 
   const depGraphWithResolvedChildren = resolveChildren(depGraph)
 
+  let tpdChanged = true
+  while (tpdChanged) {
+    tpdChanged = false
+    for (const entry of Object.values(depGraphWithResolvedChildren)) {
+      for (const childDepPath of Object.values<DepPath>(entry.children)) {
+        const childEntry = depGraphWithResolvedChildren[childDepPath]
+        if (childEntry?.transitivePeerDependencies.size) {
+          for (const tpd of childEntry.transitivePeerDependencies) {
+            if (!entry.transitivePeerDependencies.has(tpd) && !entry.peerDependencies?.[tpd]) {
+              entry.transitivePeerDependencies.add(tpd)
+              tpdChanged = true
+            }
+          }
+        }
+      }
+    }
+  }
+
   function resolveChildren<T extends PartialResolvedPackage> (depGraph: GenericDependenciesGraph<T>): GenericDependenciesGraphWithResolvedChildren<T> {
     for (const node of Object.values(depGraph)) {
       node.children = {}

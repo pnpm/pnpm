@@ -219,3 +219,103 @@ test('aliased install with a transitive mutual-peer cycle should not hang', asyn
   const lockfile = rootProject.readLockfile()
   expect(lockfile.importers?.['.']?.dependencies?.a?.version).toContain(`${aRealName}@1.0.0`)
 })
+
+test('transitivePeerDependencies propagate through regular dep cycles', async () => {
+  const rootProject = prepareEmpty()
+  const lockfileDir = rootProject.dir()
+
+  const parentName = '@pnpm.e2e/tpd-cycle-parent'
+  const aName = '@pnpm.e2e/tpd-cycle-a'
+  const bName = '@pnpm.e2e/tpd-cycle-b'
+  const cName = '@pnpm.e2e/tpd-cycle-c'
+  const dName = '@pnpm.e2e/tpd-cycle-d'
+  const hName = '@pnpm.e2e/tpd-cycle-h'
+
+  const manifest: ProjectManifest = {
+    name: 'root',
+    dependencies: {
+      [parentName]: '1.0.0',
+    },
+  }
+  const allProjects: ProjectOptions[] = [{
+    buildIndex: 0,
+    manifest,
+    rootDir: lockfileDir as ProjectRootDir,
+  }]
+  const options = {
+    ...testDefaults(
+      { allProjects, forceFullResolution: true },
+      { retry: { retries: 0 } }
+    ),
+    lockfileDir,
+    lockfileOnly: true,
+  } satisfies MutateModulesOptions
+
+  const installProjects: MutatedProject[] = [{
+    mutation: 'install',
+    rootDir: lockfileDir as ProjectRootDir,
+  }]
+
+  const registryUrl = options.registries.default.replace(/\/$/, '')
+
+  function makeMeta (name: string, deps: Record<string, string>, peerDeps?: Record<string, string>, peerMeta?: Record<string, { optional?: boolean }>): PackageMeta {
+    return {
+      name,
+      versions: {
+        '1.0.0': {
+          name,
+          version: '1.0.0',
+          dependencies: deps,
+          ...(peerDeps ? { peerDependencies: peerDeps } : {}),
+          ...(peerMeta ? { peerDependenciesMeta: peerMeta } : {}),
+          dist: {
+            shasum: '0000000000000000000000000000000000000000',
+            tarball: `${options.registries.default}/${encodeURIComponent(name)}-1.0.0.tgz`,
+          },
+        },
+      },
+      'dist-tags': { latest: '1.0.0' },
+    }
+  }
+
+  const metaByName = {
+    [parentName]: makeMeta(parentName, { [aName]: '1.0.0', [hName]: '1.0.0' }),
+    [aName]: makeMeta(aName, { [bName]: '1.0.0', [cName]: '1.0.0' }),
+    [bName]: makeMeta(bName, { [aName]: '1.0.0' }),
+    [cName]: makeMeta(cName, { [dName]: '1.0.0' }),
+    [dName]: makeMeta(dName, {}, { e: '1.0.0' }, { e: { optional: true } }),
+    [hName]: makeMeta(hName, { [aName]: '1.0.0' }),
+  }
+
+  await setupMockAgent()
+  const agent = getMockAgent().get(registryUrl)
+  for (const [name, meta] of Object.entries(metaByName)) {
+    agent.intercept({ path: `/${name.replaceAll('/', '%2F')}`, method: 'GET' }).reply(200, meta).persist()
+  }
+
+  options.storeController.clearResolutionCache()
+  await mutateModules(installProjects, options)
+
+  const lockfile = rootProject.readLockfile()
+
+  const snapshotsWithTpd = Object.entries(lockfile.snapshots ?? {})
+    .filter(([, snapshot]) => snapshot.transitivePeerDependencies?.includes('e'))
+    .map(([key]) => key)
+
+  expect(snapshotsWithTpd).toContain(`${aName}@1.0.0`)
+  expect(snapshotsWithTpd).toContain(`${hName}@1.0.0`)
+  expect(snapshotsWithTpd).toContain(`${parentName}@1.0.0`)
+
+  await teardownMockAgent()
+
+  await setupMockAgent()
+  const agent2 = getMockAgent().get(registryUrl)
+  for (const [name, meta] of Object.entries(metaByName)) {
+    agent2.intercept({ path: `/${name.replaceAll('/', '%2F')}`, method: 'GET' }).reply(200, meta).persist()
+  }
+  options.storeController.clearResolutionCache()
+  await mutateModules(installProjects, options)
+
+  const lockfile2 = rootProject.readLockfile()
+  expect(Object.keys(lockfile2.snapshots ?? {})).toStrictEqual(Object.keys(lockfile.snapshots ?? {}))
+})

@@ -377,21 +377,8 @@ pub fn resolve_peers_workspace(
         }
     }
     walker.patch_pending_peer_edges();
-    // Recompute depPaths with full peer suffixes once, after every
-    // importer is walked, then rebuild the graph and re-key each
-    // importer's direct deps.
-    let final_dep_paths = walker.build_final_dep_paths();
-    for importer in importers {
-        let direct_by_alias: BTreeMap<String, DepPath> = importer
-            .direct
-            .iter()
-            .map(|dep| {
-                (dep.alias.clone(), walker.final_dep_path_of(&dep.node_id, &final_dep_paths))
-            })
-            .collect();
-        direct_dependencies_by_importer.insert(importer.id.clone(), direct_by_alias);
-    }
     let mut graph = walker.build_final_graph(&final_dep_paths);
+    propagate_transitive_peer_dependencies(&mut graph);
 
     if dedupe_injected_deps_enabled {
         dedupe_injected_deps(
@@ -450,6 +437,39 @@ struct ParentRef {
 /// requirement against the alias and `peerDependencies.next` against
 /// the real name.
 type ParentRefs = HashMap<String, ParentRef>;
+
+pub(crate) fn propagate_transitive_peer_dependencies(graph: &mut DependenciesGraph) {
+    let mut changed = true;
+    while changed {
+        changed = false;
+        let additions: Vec<(DepPath, HashSet<String>)> = graph
+            .iter()
+            .filter_map(|(dep_path, entry)| {
+                let mut new_tpd = HashSet::new();
+                for child_dep_path in entry.children.values() {
+                    if let Some(child) = graph.get(child_dep_path) {
+                        for tpd in &child.transitive_peer_dependencies {
+                            if !entry.transitive_peer_dependencies.contains(tpd)
+                                && !entry.peer_dependencies.contains_key(tpd)
+                            {
+                                new_tpd.insert(tpd.clone());
+                            }
+                        }
+                    }
+                }
+                if new_tpd.is_empty() { None } else { Some((dep_path.clone(), new_tpd)) }
+            })
+            .collect();
+        for (dep_path, new_tpd) in additions {
+            if let Some(entry) = graph.get_mut(&dep_path) {
+                for tpd in new_tpd {
+                    entry.transitive_peer_dependencies.insert(tpd);
+                    changed = true;
+                }
+            }
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 struct FinalPeerContext<'a> {
@@ -676,7 +696,8 @@ impl Walker<'_> {
             direct_by_alias
                 .insert(dep.alias.clone(), self.final_dep_path_of(&dep.node_id, &final_dep_paths));
         }
-        let graph = self.build_final_graph(&final_dep_paths);
+        let mut graph = self.build_final_graph(&final_dep_paths);
+        propagate_transitive_peer_dependencies(&mut graph);
         let resolved_peer_providers_by_alias = self.resolved_peer_providers_by_alias;
         let mut missing_names_by_pkg: HashMap<String, std::collections::HashSet<String>> =
             HashMap::new();

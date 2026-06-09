@@ -3131,3 +3131,406 @@ mod cycle_edges {
         );
     }
 }
+
+mod tpd_propagation {
+    use std::{collections::HashMap, sync::Mutex};
+
+    use pacquet_package_manifest::DependencyGroup;
+    use pacquet_resolving_resolver_base::ResolveOptions;
+
+    use super::{StubResolver, fake_manifest, fake_result};
+    use crate::{
+        resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree},
+        resolve_peers::{ResolvePeersOptions, resolve_peers},
+    };
+
+    /// Port of the TypeScript unit test in
+    /// `installing/deps-resolver/test/resolvePeers.ts`
+    /// ("transitivePeerDependencies propagate through depGraph after
+    /// purePkgs early return in cycle").
+    ///
+    /// Topology:
+    /// ```text
+    /// root → g → a, h
+    ///   a → b, c
+    ///   b → a        (cycle)
+    ///   c → d
+    ///   d has optional peer: e (never resolved)
+    ///   h → a        (second reference, hits purePkgs)
+    /// ```
+    ///
+    /// When `a` is resolved deep inside the `a→b→a` cycle, the
+    /// cycle-break node has empty children so `a` is marked pure.
+    /// Later, when `h` resolves `a`, the `purePkgs` fast-path
+    /// returns empty missing peers, so `h` never sees `e` as a
+    /// transitive peer. The post-walk tpd propagation loop must
+    /// fix this by propagating `e` from `a`'s graph entry to `h`.
+    #[tokio::test]
+    async fn tpd_propagates_through_graph_after_pure_pkgs_cycle() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("g".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "g",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "g",
+                    "version": "1.0.0",
+                    "dependencies": { "a": "^1.0.0", "h": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("a".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "a",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "a",
+                    "version": "1.0.0",
+                    "dependencies": { "b": "^1.0.0", "c": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("b".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "b",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "b",
+                    "version": "1.0.0",
+                    "dependencies": { "a": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("c".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "c",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "c",
+                    "version": "1.0.0",
+                    "dependencies": { "d": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("d".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "d",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "d",
+                    "version": "1.0.0",
+                    "peerDependencies": { "e": "^1.0.0" },
+                    "peerDependenciesMeta": { "e": { "optional": true } }
+                }),
+            ),
+        );
+        table.insert(
+            ("h".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "h",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "h",
+                    "version": "1.0.0",
+                    "dependencies": { "a": "^1.0.0" }
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "g": "^1.0.0" }));
+
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+        let h_dep_path = result
+            .graph
+            .iter()
+            .find(|(_, node)| node.resolved_package_id == "h@1.0.0")
+            .map(|(dp, _)| dp.clone())
+            .expect("h in graph");
+        let h_node = result.graph.get(&h_dep_path).expect("h node");
+        assert!(
+            h_node.transitive_peer_dependencies.contains("e"),
+            "h should have 'e' as transitive peer dep via a→c→d, got {:?}",
+            h_node.transitive_peer_dependencies,
+        );
+
+        let g_dep_path = result.direct_dependencies_by_alias.get("g").cloned().expect("g dep path");
+        let g_node = result.graph.get(&g_dep_path).expect("g node");
+        assert!(
+            g_node.transitive_peer_dependencies.contains("e"),
+            "g should have 'e' as transitive peer dep, got {:?}",
+            g_node.transitive_peer_dependencies,
+        );
+    }
+
+    /// Three root-level dependencies each depend on the same non-leaf
+    /// package (`carrier`), which in turn depends on `leaf` with an
+    /// optional peer `e`. Each `pN` creates a separate `Lazy` tree
+    /// node for `carrier` (non-leaf because it has children). The
+    /// first visit populates carrier's tpd with `e`; later Lazy
+    /// visits may return empty tpd via the purePkgs fast-path. The
+    /// post-walk propagation loop must fill in any gaps.
+    ///
+    /// ```text
+    /// root → {p1, p2, p3}
+    ///   pN → carrier → leaf
+    ///   leaf has optional peer: e (never resolved)
+    /// ```
+    #[tokio::test]
+    async fn tpd_propagates_with_multiple_parents_of_same_non_leaf() {
+        let mut table = HashMap::new();
+        for name in ["p1", "p2", "p3"] {
+            table.insert(
+                (name.to_string(), "^1.0.0".to_string()),
+                fake_result(
+                    name,
+                    "1.0.0",
+                    serde_json::json!({
+                        "name": name,
+                        "version": "1.0.0",
+                        "dependencies": { "carrier": "^1.0.0" }
+                    }),
+                ),
+            );
+        }
+        table.insert(
+            ("carrier".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "carrier",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "carrier",
+                    "version": "1.0.0",
+                    "dependencies": { "leaf": "^1.0.0" }
+                }),
+            ),
+        );
+        table.insert(
+            ("leaf".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "leaf",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "leaf",
+                    "version": "1.0.0",
+                    "peerDependencies": { "e": "^1.0.0" },
+                    "peerDependenciesMeta": { "e": { "optional": true } }
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({
+            "p1": "^1.0.0",
+            "p2": "^1.0.0",
+            "p3": "^1.0.0"
+        }));
+
+        let mut tree = resolve_dependency_tree(
+            &resolver,
+            &manifest,
+            [DependencyGroup::Prod],
+            ResolveDependencyTreeOptions {
+                base_opts: ResolveOptions::default(),
+                patched_dependencies: None,
+                manifest_hook: None,
+                pnpmfile_hook: None,
+                read_package_log: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+        for name in ["p1", "p2", "p3"] {
+            let dp = result
+                .graph
+                .iter()
+                .find(|(_, node)| node.resolved_package_id == format!("{name}@1.0.0"))
+                .map(|(dp, _)| dp.clone())
+                .unwrap_or_else(|| panic!("{name} in graph"));
+            let node = result.graph.get(&dp).unwrap_or_else(|| panic!("{name} node"));
+            assert!(
+                node.transitive_peer_dependencies.contains("e"),
+                "{name} should have 'e' as transitive peer dep via carrier→leaf, got {:?}",
+                node.transitive_peer_dependencies,
+            );
+        }
+    }
+}
+
+mod propagate_tpd_unit {
+    use std::{
+        collections::{BTreeMap, HashMap, HashSet},
+        sync::Arc,
+    };
+
+    use crate::{
+        dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
+        resolved_tree::PeerDep,
+    };
+    use pacquet_deps_path::DepPath;
+    use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
+    use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+
+    use crate::resolve_peers::propagate_transitive_peer_dependencies;
+
+    fn make_node(
+        id: &str,
+        children: BTreeMap<String, DepPath>,
+        tpd: HashSet<String>,
+        peer_deps: BTreeMap<String, PeerDep>,
+    ) -> DependenciesGraphNode {
+        DependenciesGraphNode {
+            dep_path: DepPath::from(id.to_string()),
+            resolved_package_id: id.to_string(),
+            resolve_result: Arc::new(ResolveResult {
+                id: PkgResolutionId::from(id.to_string()),
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: None,
+                resolution: LockfileResolution::Directory(DirectoryResolution {
+                    directory: "stub".to_string(),
+                }),
+                resolved_via: "registry".to_string(),
+                normalized_bare_specifier: None,
+                alias: None,
+                policy_violation: None,
+            }),
+            children,
+            peer_dependencies: peer_deps,
+            transitive_peer_dependencies: tpd,
+            resolved_peer_names: HashSet::new(),
+            depth: 0,
+            installable: true,
+            is_pure: true,
+            optional: false,
+        }
+    }
+
+    #[test]
+    fn propagates_tpd_from_child_to_parent() {
+        let child_dp = DepPath::from("child@1.0.0".to_string());
+        let parent_dp = DepPath::from("parent@1.0.0".to_string());
+
+        let child = make_node(
+            "child@1.0.0",
+            BTreeMap::new(),
+            HashSet::from(["react".to_string()]),
+            BTreeMap::new(),
+        );
+        let mut parent_children = BTreeMap::new();
+        parent_children.insert("child".to_string(), child_dp.clone());
+        let parent = make_node("parent@1.0.0", parent_children, HashSet::new(), BTreeMap::new());
+
+        let mut graph: DependenciesGraph = HashMap::new();
+        graph.insert(child_dp, child);
+        graph.insert(parent_dp.clone(), parent);
+
+        propagate_transitive_peer_dependencies(&mut graph);
+
+        let parent_node = graph.get(&parent_dp).expect("parent in graph");
+        assert!(
+            parent_node.transitive_peer_dependencies.contains("react"),
+            "parent should have 'react' propagated from child, got {:?}",
+            parent_node.transitive_peer_dependencies,
+        );
+    }
+
+    #[test]
+    fn does_not_propagate_tpd_that_parent_declares_as_own_peer() {
+        let child_dp = DepPath::from("child@1.0.0".to_string());
+        let parent_dp = DepPath::from("parent@1.0.0".to_string());
+
+        let child = make_node(
+            "child@1.0.0",
+            BTreeMap::new(),
+            HashSet::from(["react".to_string()]),
+            BTreeMap::new(),
+        );
+        let mut parent_children = BTreeMap::new();
+        parent_children.insert("child".to_string(), child_dp.clone());
+        let mut parent_peers = BTreeMap::new();
+        parent_peers.insert(
+            "react".to_string(),
+            PeerDep { version: "^18.0.0".to_string(), optional: false, meta_only: false },
+        );
+        let parent =
+            make_node("parent@1.0.0", parent_children, HashSet::new(), parent_peers);
+
+        let mut graph: DependenciesGraph = HashMap::new();
+        graph.insert(child_dp, child);
+        graph.insert(parent_dp.clone(), parent);
+
+        propagate_transitive_peer_dependencies(&mut graph);
+
+        let parent_node = graph.get(&parent_dp).expect("parent in graph");
+        assert!(
+            !parent_node.transitive_peer_dependencies.contains("react"),
+            "parent declares 'react' as its own peer, should not appear in tpd, got {:?}",
+            parent_node.transitive_peer_dependencies,
+        );
+    }
+
+    #[test]
+    fn propagates_tpd_transitively_through_multiple_levels() {
+        let child_dp = DepPath::from("child@1.0.0".to_string());
+        let parent_dp = DepPath::from("parent@1.0.0".to_string());
+        let grandparent_dp = DepPath::from("grandparent@1.0.0".to_string());
+
+        let child = make_node(
+            "child@1.0.0",
+            BTreeMap::new(),
+            HashSet::from(["react".to_string()]),
+            BTreeMap::new(),
+        );
+        let mut parent_children = BTreeMap::new();
+        parent_children.insert("child".to_string(), child_dp.clone());
+        let parent = make_node("parent@1.0.0", parent_children, HashSet::new(), BTreeMap::new());
+        let mut gp_children = BTreeMap::new();
+        gp_children.insert("parent".to_string(), parent_dp.clone());
+        let grandparent =
+            make_node("grandparent@1.0.0", gp_children, HashSet::new(), BTreeMap::new());
+
+        let mut graph: DependenciesGraph = HashMap::new();
+        graph.insert(child_dp, child);
+        graph.insert(parent_dp.clone(), parent);
+        graph.insert(grandparent_dp.clone(), grandparent);
+
+        propagate_transitive_peer_dependencies(&mut graph);
+
+        let parent_node = graph.get(&parent_dp).expect("parent in graph");
+        assert!(
+            parent_node.transitive_peer_dependencies.contains("react"),
+            "parent should have 'react' from child, got {:?}",
+            parent_node.transitive_peer_dependencies,
+        );
+        let gp_node = graph.get(&grandparent_dp).expect("grandparent in graph");
+        assert!(
+            gp_node.transitive_peer_dependencies.contains("react"),
+            "grandparent should have 'react' propagated through parent, got {:?}",
+            gp_node.transitive_peer_dependencies,
+        );
+    }
+}
