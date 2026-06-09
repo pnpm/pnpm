@@ -129,6 +129,7 @@ export async function lockfileToDepGraph (
     graph,
     locationByDepPath,
     injectionTargetsByDepPath,
+    skippedLocalDepPaths,
   } = await buildGraphFromPackages(lockfile, currentLockfile, opts)
 
   const _getChildrenPaths = getChildrenPaths.bind(null, {
@@ -166,6 +167,10 @@ export async function lockfileToDepGraph (
     directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
   }
 
+  if (skippedLocalDepPaths.size > 0) {
+    promoteChildrenOfSkippedLocalDeps(lockfile, opts, skippedLocalDepPaths, _getChildrenPaths, directDependenciesByImporterId)
+  }
+
   return { graph, directDependenciesByImporterId, injectionTargetsByDepPath }
 }
 
@@ -177,12 +182,14 @@ async function buildGraphFromPackages (
   graph: DependenciesGraph
   locationByDepPath: Record<string, string>
   injectionTargetsByDepPath: Map<string, string[]>
+  skippedLocalDepPaths: Set<DepPath>
 }> {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
   const locationByDepPath: Record<string, string> = {}
   // Only populated for directory deps (injected workspace packages)
   const injectionTargetsByDepPath = new Map<string, string[]>()
+  const skippedLocalDepPaths = new Set<DepPath>()
 
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
@@ -220,6 +227,7 @@ async function buildGraphFromPackages (
           message: `Skipping local dependency ${pkgName}@${pkgVersion} (file: protocol)`,
           prefix: opts.lockfileDir,
         })
+        skippedLocalDepPaths.add(depPath)
         return
       }
 
@@ -319,7 +327,52 @@ async function buildGraphFromPackages (
     })())
   }
   await Promise.all(promises)
-  return { graph, locationByDepPath, injectionTargetsByDepPath }
+  return { graph, locationByDepPath, injectionTargetsByDepPath, skippedLocalDepPaths }
+}
+
+/**
+ * When local (file:) dependencies are skipped (e.g. during `pnpm fetch`),
+ * their transitive registry dependencies become orphaned in the graph —
+ * no importer direct dependency root reaches them. This function promotes
+ * those transitive dependencies into `directDependenciesByImporterId` so
+ * that downstream traversals (like patch application) can still reach them.
+ */
+function promoteChildrenOfSkippedLocalDeps (
+  lockfile: LockfileObject,
+  opts: Pick<LockfileToDepGraphOptions, 'include'>,
+  skippedLocalDepPaths: Set<DepPath>,
+  getChildren: (allDeps: Record<string, string>, peerDeps: Set<string> | null, importerId: string) => Record<string, string>,
+  directDependenciesByImporterId: DirectDependenciesByImporterId
+): void {
+  // Collect all dependency refs from skipped local deps (transitively,
+  // since one local dep may depend on another local dep that was also skipped).
+  const visited = new Set<DepPath>()
+  const promotedDeps: Record<string, string> = {}
+  const queue = [...skippedLocalDepPaths]
+  while (queue.length > 0) {
+    const depPath = queue.pop()!
+    if (visited.has(depPath)) continue
+    visited.add(depPath)
+    const pkgSnapshot = lockfile.packages?.[depPath]
+    if (!pkgSnapshot) continue
+    const childDeps = {
+      ...pkgSnapshot.dependencies,
+      ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+    }
+    for (const [alias, ref] of Object.entries(childDeps)) {
+      const childDepPath = dp.refToRelative(ref, alias)
+      if (childDepPath && skippedLocalDepPaths.has(childDepPath)) {
+        queue.push(childDepPath)
+      } else {
+        promotedDeps[alias] = ref
+      }
+    }
+  }
+  if (Object.keys(promotedDeps).length === 0) return
+  const resolved = getChildren(promotedDeps, null, '.')
+  for (const importerId of Object.keys(directDependenciesByImporterId)) {
+    Object.assign(directDependenciesByImporterId[importerId], resolved)
+  }
 }
 
 interface GetChildrenPathsContext {
