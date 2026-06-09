@@ -27,8 +27,8 @@ import { testDefaults } from '../utils/index.js'
 
 // Until a first `data` listener appears, the paused log stream buffers
 // every event, and the first test to attach a reporter receives the
-// whole backlog from earlier reporterless installs. Keep the stream
-// flowing so each reporter only sees the events of its own installs.
+// whole backlog from earlier installs that ran without a reporter. Keep
+// the stream flowing so each reporter only sees its own installs' events.
 streamParser.on('data', () => {})
 
 const testOnNonWindows = isWindows() ? test.skip : test
