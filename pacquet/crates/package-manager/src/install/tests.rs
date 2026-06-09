@@ -6486,6 +6486,58 @@ async fn after_all_resolved_hook_modifies_written_lockfile() {
     assert!(lockfile_text.contains("@pnpm.e2e/pkg-with-1-dep"));
 }
 
+// Ports pnpm's `adding or changing pnpmfile should change
+// pnpmfileChecksum` (pnpm/test/hooks.ts): a project pnpmfile that
+// exports hooks makes the install record its normalized-content hash as
+// `pnpmfileChecksum` in pnpm-lock.yaml.
+#[tokio::test]
+async fn pnpmfile_with_hooks_records_pnpmfile_checksum() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    let pnpmfile_src = r#"module.exports = { hooks: { readPackage (pkg) { return pkg; } } }"#;
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        pnpmfile_src,
+    )
+    .await
+    .expect("install should succeed");
+
+    let lockfile_text = std::fs::read_to_string(dir.path().join("pnpm-lock.yaml")).unwrap();
+    eprintln!("{lockfile_text}");
+    let expected = pacquet_crypto_hash::create_hash(pnpmfile_src);
+    assert!(
+        lockfile_text.contains(&format!("pnpmfileChecksum: {expected}")),
+        "pnpm-lock.yaml must record the pnpmfile's checksum",
+    );
+}
+
+// A pnpmfile that exports no `hooks` object contributes no checksum,
+// matching pnpm's `entries.some(entry => entry.hooks != null)` gate.
+#[tokio::test]
+async fn pnpmfile_without_hooks_omits_pnpmfile_checksum() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        "module.exports = {}",
+    )
+    .await
+    .expect("install should succeed");
+
+    let lockfile_text = std::fs::read_to_string(dir.path().join("pnpm-lock.yaml")).unwrap();
+    eprintln!("{lockfile_text}");
+    assert!(
+        !lockfile_text.contains("pnpmfileChecksum"),
+        "a pnpmfile without hooks must not record a checksum",
+    );
+}
+
 // A throwing afterAllResolved hook aborts the install, matching pnpm.
 #[tokio::test]
 async fn after_all_resolved_hook_failure_aborts_install() {

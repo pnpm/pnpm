@@ -100,6 +100,12 @@ pub struct GraphToLockfileOptions<'a> {
     /// pnpm's `hashObjectNullableWithPrefix` short-circuit on empty
     /// input).
     pub package_extensions_checksum: Option<String>,
+    /// `pnpmfileChecksum` recorded the same way. Mirrors upstream's
+    /// [`pnpmfileChecksum`](https://github.com/pnpm/pnpm/blob/1819226b51/installing/deps-installer/src/install/index.ts#L546)
+    /// assignment. `None` when the project has no `.pnpmfile.{cjs,mjs}`
+    /// — or one that exports no `hooks` — matching pnpm's
+    /// `calculatePnpmfileChecksum` gate.
+    pub pnpmfile_checksum: Option<String>,
     /// The workspace catalogs (with any `add` / `update` edits already
     /// merged in) used to render the lockfile's `catalogs:` snapshot —
     /// the resolved specifier + version for every `catalog:` direct
@@ -144,6 +150,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         overrides,
         ignored_optional_dependencies,
         package_extensions_checksum,
+        pnpmfile_checksum,
         catalogs,
         registry,
         lockfile_include_tarball_url,
@@ -178,6 +185,7 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         catalogs: catalog_snapshots,
         overrides: overrides.filter(|map| !map.is_empty()),
         package_extensions_checksum,
+        pnpmfile_checksum,
         ignored_optional_dependencies: ignored_optional_dependencies
             .filter(|list| !list.is_empty()),
         importers,

@@ -80,6 +80,21 @@ pub trait PnpmfileHooks: Send + Sync {
     /// `filterLog` hook: determines if a log message should be emitted.
     async fn filter_log(&self, log: Value, ctx: HookContext) -> bool;
 
+    /// Compute the `pnpmfileChecksum` recorded in `pnpm-lock.yaml`, or
+    /// `None` when this hook set defines no `hooks` object.
+    ///
+    /// Mirrors pnpm's
+    /// [`calculatePnpmfileChecksum`](https://github.com/pnpm/pnpm/blob/1819226b51/hooks/pnpmfile/src/requireHooks.ts#L131-L143):
+    /// the checksum is installed (and thus written to the lockfile) only
+    /// when at least one loaded pnpmfile exports a `hooks` object
+    /// (`entries.some(entry => entry.hooks != null)`), and its value is
+    /// the normalized-content hash of the included pnpmfiles. A pnpmfile
+    /// that exists but exports no hooks contributes no checksum, matching
+    /// pnpm.
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        None
+    }
+
     /// Path of the pnpmfile that defines these hooks, used as the `from`
     /// field of `pnpm:hook` log events. `None` for hook sets not backed by
     /// a file (e.g. the no-op).

@@ -32,6 +32,7 @@ fn empty_lockfile() -> Lockfile {
         catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
         importers: HashMap::new(),
         packages: None,
