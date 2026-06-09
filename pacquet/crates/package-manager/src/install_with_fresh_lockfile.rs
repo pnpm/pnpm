@@ -1075,6 +1075,17 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
         drop(fetch_locker);
         drop(picked_manifest_cache);
 
+        // Compute the `pnpmfileChecksum` once for both lockfile-build
+        // paths below. Mirrors pnpm's `calculatePnpmfileChecksum`: the
+        // hash of the project's `.pnpmfile.{cjs,mjs}` when it exports
+        // hooks, `None` otherwise. Resolution has already spawned the
+        // pnpmfile worker (every `readPackage` runs through it), so the
+        // gate query is cheap here.
+        let pnpmfile_checksum: Option<String> = match after_all_resolved_hook.as_ref() {
+            Some(hook) => hook.calculate_pnpmfile_checksum().await,
+            None => None,
+        };
+
         // `--lockfile-only`: the graph is resolved, so build and write
         // `pnpm-lock.yaml` and return before any materialization. No
         // tarball was prefetched (the resolver ran without the
@@ -1088,6 +1099,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 &merged_graph,
                 &direct_by_importer,
                 &catalogs,
+                pnpmfile_checksum.as_deref(),
             );
             let (wanted_lockfile, can_record_lockfile_verification) = if config.lockfile {
                 let can_record_lockfile_verification = save_wanted_lockfile(
@@ -1218,6 +1230,7 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             &merged_graph,
             &direct_by_importer,
             &catalogs,
+            pnpmfile_checksum.as_deref(),
         );
         tracing::info!(
             target: "pacquet::install::phase",
@@ -1737,6 +1750,7 @@ fn build_fresh_lockfile(
         BTreeMap<String, pacquet_resolving_deps_resolver::DepPath>,
     >,
     catalogs: &pacquet_catalogs_types::Catalogs,
+    pnpmfile_checksum: Option<&str>,
 ) -> Lockfile {
     let mut importers = BTreeMap::new();
     for (id, manifest) in importer_manifests {
@@ -1762,6 +1776,7 @@ fn build_fresh_lockfile(
             .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect()),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
         package_extensions_checksum: compute_package_extensions_checksum(config),
+        pnpmfile_checksum: pnpmfile_checksum.map(str::to_string),
         catalogs,
         registry: &config.registry,
         lockfile_include_tarball_url: config.lockfile_include_tarball_url,

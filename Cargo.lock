@@ -2930,6 +2930,7 @@ dependencies = [
 name = "pacquet-crypto-hash"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "sha2",
 ]
 
@@ -3127,6 +3128,7 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "derive_more",
+ "pacquet-crypto-hash",
  "serde_json",
  "tempfile",
  "tokio",

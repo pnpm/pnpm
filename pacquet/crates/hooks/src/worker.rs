@@ -9,6 +9,7 @@
 //!
 //! Protocol — one JSON object per line:
 //! - request:  `{"id": N, "hook": "readPackage", "payload": <value>}`
+//! - query:    `{"id": N, "query": "hasHooks"}`     (does the module export `hooks`?)
 //! - log:      `{"id": N, "log": "message"}`        (a `context.log(...)` call)
 //! - success:  `{"id": N, "ok": <value>}`
 //! - failure:  `{"id": N, "err": "message"}`
@@ -111,13 +112,32 @@ impl NodeWorker {
 
     /// Run `hook` with `payload`, forwarding any `context.log(...)` to `log`.
     pub async fn call(&self, hook: &str, payload: Value, log: LogFn) -> Result<Value, HookError> {
+        self.request(hook, serde_json::json!({ "hook": hook, "payload": payload }), log).await
+    }
+
+    /// Whether the loaded pnpmfile exports a `hooks` object. Mirrors
+    /// pnpm's `entry.hooks != null` gate for `pnpmfileChecksum`.
+    pub async fn has_hooks(&self) -> bool {
+        self.request("hasHooks", serde_json::json!({ "query": "hasHooks" }), Arc::new(|_| {}))
+            .await
+            .ok()
+            .as_ref()
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    }
+
+    /// Send one request `body` (an object the worker dispatches on) and
+    /// await its reply, stamping in the request id and routing any
+    /// `context.log(...)` lines to `log`. `label` names the request in a
+    /// timeout error.
+    async fn request(&self, label: &str, mut body: Value, log: LogFn) -> Result<Value, HookError> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (done, rx) = oneshot::channel();
         self.pending.lock().await.insert(id, Pending { log, done });
 
-        let request = serde_json::json!({ "id": id, "hook": hook, "payload": payload });
+        body["id"] = serde_json::json!(id);
         let mut line =
-            serde_json::to_string(&request).map_err(|err| self.exec_err(err.to_string()))?;
+            serde_json::to_string(&body).map_err(|err| self.exec_err(err.to_string()))?;
         line.push('\n');
         {
             let mut stdin = self.stdin.lock().await;
@@ -131,7 +151,7 @@ impl NodeWorker {
             Ok(Err(_)) => Err(self.exec_err("pnpmfile worker dropped the response")),
             Err(_) => {
                 self.pending.lock().await.remove(&id);
-                Err(HookError::Timeout(hook.to_string(), HOOK_TIMEOUT.as_secs()))
+                Err(HookError::Timeout(label.to_string(), HOOK_TIMEOUT.as_secs()))
             }
         }
     }
@@ -185,6 +205,7 @@ async function handle(line) {{
   const send = (obj) => process.stdout.write(JSON.stringify(Object.assign({{ id }}, obj)) + '\n');
   await ensureLoaded();
   if (loadErr !== null) {{ send({{ err: loadErr }}); return; }}
+  if (req.query === 'hasHooks') {{ send({{ ok: mod != null && mod.hooks != null }}); return; }}
   try {{
     const fn = mod && mod.hooks && mod.hooks[req.hook];
     const context = {{ log: (m) => send({{ log: String(m) }}) }};

@@ -11,7 +11,34 @@
 //! avoids duplicating the sha2 dependency in every consumer (lockfile,
 //! registry, store-dir).
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use sha2::{Digest, Sha256};
+use std::{io, path::Path};
+
+/// Compute the `sha256-<base64>` digest of `input`.
+///
+/// Matches upstream
+/// [`createHash`](https://github.com/pnpm/pnpm/blob/1819226b51/crypto/hash/src/index.ts#L15-L17):
+/// `` `sha256-${crypto.hash('sha256', input, 'base64')}` ``. This is the
+/// shape pnpm writes for `pnpmfileChecksum` and (via the object hasher)
+/// `packageExtensionsChecksum`.
+pub fn create_hash(input: &str) -> String {
+    let digest = Sha256::digest(input.as_bytes());
+    format!("sha256-{}", BASE64.encode(digest))
+}
+
+/// Read `path` as UTF-8, normalize CRLF line endings to LF, and hash the
+/// result with [`create_hash`].
+///
+/// Matches upstream
+/// [`createHashFromFile`](https://github.com/pnpm/pnpm/blob/1819226b51/crypto/hash/src/index.ts#L27-L38):
+/// the `\r\n` → `\n` normalization keeps the checksum stable across
+/// platforms, so a pnpmfile checked out with CRLF on Windows hashes the
+/// same as the LF copy a Linux CI runner sees.
+pub fn create_hash_from_file(path: &Path) -> io::Result<String> {
+    let content = std::fs::read_to_string(path)?;
+    Ok(create_hash(&content.replace("\r\n", "\n")))
+}
 
 /// Compute the sha256 hex digest of `input` and truncate to the first
 /// 32 hex characters (16 bytes of entropy).

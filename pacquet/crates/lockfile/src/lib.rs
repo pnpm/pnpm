@@ -137,6 +137,20 @@ pub struct Lockfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package_extensions_checksum: Option<String>,
 
+    /// `pnpmfileChecksum` recorded by the install that wrote this
+    /// lockfile — the normalized-content hash of the project's
+    /// `.pnpmfile.{cjs,mjs}` when it exports hooks. Top-level in the v9
+    /// wire shape, mirroring upstream's
+    /// [`LockfileBase`](https://github.com/pnpm/pnpm/blob/1819226b51/lockfile/types/src/index.ts#L24),
+    /// and serialized right after `packageExtensionsChecksum` per pnpm's
+    /// [`ROOT_KEYS`](https://github.com/pnpm/pnpm/blob/1819226b51/lockfile/fs/src/sortLockfileKeys.ts#L34-L44)
+    /// order. `None` when the project has no pnpmfile (or one without a
+    /// `hooks` export) — pnpm omits the key in that case, and the
+    /// `skip_serializing_if` below does the same so the lockfile
+    /// round-trips byte-for-byte.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pnpmfile_checksum: Option<String>,
+
     /// `ignoredOptionalDependencies` recorded by the install that
     /// wrote this lockfile. Top-level in the v9 wire shape —
     /// **not** inside `settings` — mirroring upstream's

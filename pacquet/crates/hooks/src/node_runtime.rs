@@ -172,6 +172,18 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         }
     }
 
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        // Gate on the loaded module exporting `hooks`, mirroring pnpm's
+        // `entries.some(entry => entry.hooks != null)`. The checksum
+        // value itself is a pure hash of the pnpmfile's normalized
+        // bytes — only this gate needs to consult the evaluated module.
+        let worker = self.worker().await.ok()?;
+        if !worker.has_hooks().await {
+            return None;
+        }
+        pacquet_crypto_hash::create_hash_from_file(&self.file).ok()
+    }
+
     fn source_path(&self) -> Option<&std::path::Path> {
         Some(&self.file)
     }

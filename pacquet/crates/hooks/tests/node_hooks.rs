@@ -29,6 +29,30 @@ fn test_find_pnpmfile_fallback_to_cjs() {
     assert!(found.unwrap().ends_with(".pnpmfile.cjs"));
 }
 
+#[tokio::test]
+async fn calculate_pnpmfile_checksum_hashes_normalized_contents_when_hooks_exported() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    let src = "module.exports = { hooks: { readPackage: (pkg) => pkg } }\n";
+    std::fs::write(&pnpmfile_path, src).expect("write pnpmfile");
+
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let checksum = hooks.calculate_pnpmfile_checksum().await;
+
+    assert_eq!(checksum, Some(pacquet_crypto_hash::create_hash(src)));
+}
+
+#[tokio::test]
+async fn calculate_pnpmfile_checksum_is_none_when_no_hooks_exported() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(&pnpmfile_path, "module.exports = {}\n").expect("write pnpmfile");
+
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+
+    assert_eq!(hooks.calculate_pnpmfile_checksum().await, None);
+}
+
 #[test]
 fn test_find_pnpmfile_none_when_missing() {
     let tmp = TempDir::new().expect("temp dir");
