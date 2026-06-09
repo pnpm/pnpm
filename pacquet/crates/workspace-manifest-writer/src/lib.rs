@@ -127,8 +127,11 @@ pub fn set_config_dependency(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
-    edit::add_config_dependency(&mut manifest, name, specifier)
+    let changed = edit::add_config_dependency(&mut manifest, name, specifier)
         .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    if !changed {
+        return Ok(());
+    }
 
     fs::write(&path, manifest.into_text())
         .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })

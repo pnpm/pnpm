@@ -49,6 +49,14 @@ pub(crate) fn add_config_dependency(
     match locate(text, &[BLOCK]) {
         Some(mapping) => {
             let new_text = if mapping.entries.iter().any(|entry| entry.key == name) {
+                // Already present with the same clean specifier — a true
+                // no-op, so don't rewrite the file (which would bump its
+                // mtime and look like a change to freshness checks).
+                if manifest.config_dependencies.as_ref().and_then(|deps| deps.get(name))
+                    == Some(&specifier.to_string())
+                {
+                    return Ok(false);
+                }
                 replace_value_at(text, &[BLOCK], name, specifier)?
             } else {
                 insert_entry_at(text, &[BLOCK], name, specifier)

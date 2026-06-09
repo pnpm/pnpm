@@ -16,6 +16,11 @@ pub(crate) struct Manifest {
     pub(crate) catalog: Option<IndexMap<String, String>>,
     /// `catalogs:` map of named catalogs (may include `default`).
     pub(crate) catalogs: Option<IndexMap<String, IndexMap<String, String>>>,
+    /// `configDependencies:` clean-specifier entries. Object-form
+    /// entries (the legacy `{ tarball?, integrity }` shape) are dropped
+    /// here — they're only consulted to detect a no-op write of an
+    /// already-present clean specifier.
+    pub(crate) config_dependencies: Option<IndexMap<String, String>>,
 }
 
 #[derive(Default, Deserialize)]
@@ -24,6 +29,18 @@ struct CatalogData {
     catalog: Option<IndexMap<String, String>>,
     #[serde(default)]
     catalogs: Option<IndexMap<String, IndexMap<String, String>>>,
+    #[serde(default, rename = "configDependencies")]
+    config_dependencies: Option<IndexMap<String, ConfigDepValue>>,
+}
+
+/// A `configDependencies` value, tolerant of the legacy object form so
+/// decoding a manifest that uses it doesn't fail. Only the clean-string
+/// shape is retained.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ConfigDepValue {
+    Clean(String),
+    Other(serde::de::IgnoredAny),
 }
 
 impl Manifest {
@@ -39,6 +56,7 @@ impl Manifest {
                 top_level_keys: Vec::new(),
                 catalog: None,
                 catalogs: None,
+                config_dependencies: None,
             });
         }
 
@@ -47,8 +65,23 @@ impl Manifest {
         let top_level_keys = top.map(|map| map.into_keys().collect()).unwrap_or_default();
 
         let data: CatalogData = serde_saphyr::from_str(&text).map_err(Box::new)?;
+        let config_dependencies = data.config_dependencies.map(|entries| {
+            entries
+                .into_iter()
+                .filter_map(|(name, value)| match value {
+                    ConfigDepValue::Clean(specifier) => Some((name, specifier)),
+                    ConfigDepValue::Other(_) => None,
+                })
+                .collect()
+        });
 
-        Ok(Manifest { text, top_level_keys, catalog: data.catalog, catalogs: data.catalogs })
+        Ok(Manifest {
+            text,
+            top_level_keys,
+            catalog: data.catalog,
+            catalogs: data.catalogs,
+            config_dependencies,
+        })
     }
 
     pub(crate) fn text(&self) -> &str {

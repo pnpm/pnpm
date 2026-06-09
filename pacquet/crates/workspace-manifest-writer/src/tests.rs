@@ -241,3 +241,25 @@ fn config_dependency_preserves_other_keys_and_comments() {
     assert!(out.contains("storeDir: ../store"), "existing key preserved");
     assert!(out.contains("configDependencies:\n  pnpm-plugin-x: 1.2.3"), "block appended");
 }
+
+#[test]
+fn config_dependency_noop_when_unchanged_returns_false() {
+    use crate::{edit, model::Manifest};
+
+    let original = "configDependencies:\n  '@pnpm.e2e/foo': 1.0.0\n";
+
+    // Re-adding the identical specifier is a no-op: the writer reports
+    // "unchanged" so the caller can skip rewriting the file.
+    let mut manifest = Manifest::parse(Some(original)).unwrap();
+    assert!(
+        !edit::add_config_dependency(&mut manifest, "@pnpm.e2e/foo", "1.0.0").unwrap(),
+        "re-adding the same specifier should report no change",
+    );
+
+    // Changing the specifier is a real change.
+    let mut manifest = Manifest::parse(Some(original)).unwrap();
+    assert!(
+        edit::add_config_dependency(&mut manifest, "@pnpm.e2e/foo", "2.0.0").unwrap(),
+        "changing the specifier should report a change",
+    );
+}
