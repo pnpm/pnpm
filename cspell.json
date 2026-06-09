@@ -1,4 +1,8 @@
 {
+  "ignorePaths": [
+    "**/nodeReleaseKeys.ts",
+    "**/nodeReleaseKeys.d.ts"
+  ],
   "words": [
     "adduser",
     "adipiscing",
@@ -217,6 +221,7 @@
     "ofjergrg",
     "onclickoutside",
     "oomol",
+    "openpgp",
     "ossl",
     "outfile",
     "overrider",
