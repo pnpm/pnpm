@@ -21,7 +21,10 @@ const PREPUBLISH_SCRIPTS = [
 
 export interface PreparePackageOptions {
   allowBuild?: AllowBuild
+  depPath?: string
   ignoreScripts?: boolean
+  pkgResolutionId?: string
+  trustPackageIdentity?: boolean
   unsafePerm?: boolean
   userAgent?: string
 }
@@ -33,14 +36,18 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   if (opts.ignoreScripts) return { shouldBeBuilt: true, pkgDir }
   // Check if the package is allowed to run build scripts
   // If allowBuild is undefined or returns false, block the build
-  if (!opts.allowBuild?.(manifest.name, manifest.version)) {
+  const depPath = opts.depPath ?? (opts.pkgResolutionId == null ? undefined : `${manifest.name}@${opts.pkgResolutionId}`)
+  if (!opts.allowBuild?.(manifest.name, manifest.version, {
+    depPath,
+    trustPackageIdentity: opts.trustPackageIdentity ?? true,
+  })) {
     throw new PnpmError(
       'GIT_DEP_PREPARE_NOT_ALLOWED',
       `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "allowBuilds" allowlist.`,
       {
         hint: `Add the package to "allowBuilds" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
 allowBuilds:
-  ${manifest.name}: true`,
+  ${depPath ?? manifest.name}: true`,
       }
     )
   }

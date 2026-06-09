@@ -16,7 +16,7 @@ use crate::{
     cas_io::{ImportedFiles, import_into_cas},
     error::{GitFetcherError, PreparePackageError},
     packlist::packlist,
-    prepare_package::{PreparePackageOptions, PreparedPackage, prepare_package},
+    prepare_package::{AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package},
 };
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_package_manifest::safe_read_package_json_from_dir;
@@ -44,7 +44,7 @@ pub struct GitFetcher<'a> {
     /// `allow_build`. The caller (typically the install dispatcher) is
     /// responsible for plumbing whatever policy structure it has into
     /// this closure shape.
-    pub allow_build: &'a (dyn Fn(&str, &str) -> bool + Send + Sync),
+    pub allow_build: AllowBuildRef<'a>,
     pub ignore_scripts: bool,
     pub unsafe_perm: bool,
     pub user_agent: Option<&'a str>,
@@ -146,8 +146,12 @@ impl<'a> GitFetcher<'a> {
         // brittle to future expression-reshape edits in this block.
         let empty_env: HashMap<String, String> = HashMap::new();
         let prepare_opts = PreparePackageOptions {
-            allow_build: Box::new(|name, version| (self.allow_build)(name, version)),
+            allow_build: Box::new(|name, version, trust, dep_path| {
+                (self.allow_build)(name, version, trust, dep_path)
+            }),
+            dep_path: Some(self.package_id),
             ignore_scripts: self.ignore_scripts,
+            trust_package_identity: false,
             unsafe_perm: self.unsafe_perm,
             user_agent: self.user_agent,
             scripts_prepend_node_path: self.scripts_prepend_node_path,

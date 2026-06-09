@@ -557,12 +557,12 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     .filter(Boolean) as DependencyManifest[]
 }
 
-function * iterateGraphPkgMetaEntries (graph: DependenciesGraph, runtimeOnly?: boolean): IterableIterator<{ depPath: DepPath; name: string; version: string; pkgIdWithPatchHash: PkgIdWithPatchHash }> {
+function * iterateGraphPkgMetaEntries (graph: DependenciesGraph, runtimeOnly?: boolean): IterableIterator<{ depPath: DepPath; name: string; version: string; pkgIdWithPatchHash: PkgIdWithPatchHash; resolution: DependenciesGraphNode['resolution']; resolvedVia?: string }> {
   for (const depPath in graph) {
     if (Object.hasOwn(graph, depPath)) {
       if (runtimeOnly && !isRuntimeDepPath(depPath as DepPath)) continue
-      const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
-      yield { depPath: depPath as DepPath, name, version, pkgIdWithPatchHash }
+      const { name, version, pkgIdWithPatchHash, resolution, resolvedVia } = graph[depPath as DepPath]
+      yield { depPath: depPath as DepPath, name, version, pkgIdWithPatchHash, resolution, resolvedVia }
     }
   }
 }

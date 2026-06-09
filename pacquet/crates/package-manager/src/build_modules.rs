@@ -84,6 +84,8 @@ pub enum BuildModulesError {
 pub struct AllowBuildPolicy {
     expanded_allowed: HashSet<String>,
     expanded_disallowed: HashSet<String>,
+    allowed_dep_paths: HashSet<String>,
+    disallowed_dep_paths: HashSet<String>,
     dangerously_allow_all: bool,
 }
 
@@ -99,7 +101,29 @@ impl AllowBuildPolicy {
         expanded_disallowed: HashSet<String>,
         dangerously_allow_all: bool,
     ) -> Self {
-        Self { expanded_allowed, expanded_disallowed, dangerously_allow_all }
+        Self {
+            expanded_allowed,
+            expanded_disallowed,
+            allowed_dep_paths: HashSet::new(),
+            disallowed_dep_paths: HashSet::new(),
+            dangerously_allow_all,
+        }
+    }
+
+    pub fn new_with_dep_paths(
+        expanded_allowed: HashSet<String>,
+        expanded_disallowed: HashSet<String>,
+        allowed_dep_paths: HashSet<String>,
+        disallowed_dep_paths: HashSet<String>,
+        dangerously_allow_all: bool,
+    ) -> Self {
+        Self {
+            expanded_allowed,
+            expanded_disallowed,
+            allowed_dep_paths,
+            disallowed_dep_paths,
+            dangerously_allow_all,
+        }
     }
 
     /// Build the policy from a resolved [`Config`]. Reads
@@ -120,16 +144,32 @@ impl AllowBuildPolicy {
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
         let mut allowed_specs: Vec<&str> = Vec::new();
         let mut disallowed_specs: Vec<&str> = Vec::new();
+        let mut allowed_dep_paths = HashSet::new();
+        let mut disallowed_dep_paths = HashSet::new();
         for (spec, &value) in &config.allow_builds {
-            if value {
-                allowed_specs.push(spec);
+            if is_dep_path_allow_build_key(spec) {
+                if value {
+                    allowed_dep_paths.insert(normalize_build_dep_path(spec));
+                } else {
+                    disallowed_dep_paths.insert(normalize_build_dep_path(spec));
+                }
             } else {
-                disallowed_specs.push(spec);
+                if value {
+                    allowed_specs.push(spec);
+                } else {
+                    disallowed_specs.push(spec);
+                }
             }
         }
         let expanded_allowed = expand_package_version_specs(allowed_specs)?;
         let expanded_disallowed = expand_package_version_specs(disallowed_specs)?;
-        Ok(Self::new(expanded_allowed, expanded_disallowed, config.dangerously_allow_all_builds))
+        Ok(Self::new_with_dep_paths(
+            expanded_allowed,
+            expanded_disallowed,
+            allowed_dep_paths,
+            disallowed_dep_paths,
+            config.dangerously_allow_all_builds,
+        ))
     }
 
     /// Check whether a package is allowed to run build scripts.
@@ -147,23 +187,75 @@ impl AllowBuildPolicy {
     /// package names — see [`expand_package_version_specs`] for
     /// the rationale.
     pub fn check(&self, name: &str, version: &str) -> Option<bool> {
+        self.check_with_context(name, version, true, None)
+    }
+
+    pub fn check_with_context(
+        &self,
+        name: &str,
+        version: &str,
+        trust_package_identity: bool,
+        dep_path: Option<&str>,
+    ) -> Option<bool> {
         if self.dangerously_allow_all {
             return Some(true);
         }
 
         let name_at_version = format!("{name}@{version}");
+        let normalized_dep_path = dep_path.map(normalize_build_dep_path);
+        if let Some(dep_path) = normalized_dep_path.as_deref()
+            && self.disallowed_dep_paths.contains(dep_path)
+        {
+            return Some(false);
+        }
         if self.expanded_disallowed.contains(name)
             || self.expanded_disallowed.contains(&name_at_version)
         {
             return Some(false);
         }
+        if let Some(dep_path) = normalized_dep_path.as_deref()
+            && self.allowed_dep_paths.contains(dep_path)
+        {
+            return Some(true);
+        }
         if self.expanded_allowed.contains(name) || self.expanded_allowed.contains(&name_at_version)
         {
+            if !trust_package_identity {
+                return None;
+            }
             return Some(true);
         }
 
         None
     }
+}
+
+pub(crate) fn normalize_build_dep_path(dep_path: &str) -> String {
+    if let Ok(key) = dep_path.parse::<PackageKey>() {
+        return key.without_peer().to_string();
+    }
+    match dep_path.find('(') {
+        Some(index) => dep_path[..index].to_string(),
+        None => dep_path.to_string(),
+    }
+}
+
+fn is_dep_path_allow_build_key(spec: &str) -> bool {
+    if normalize_build_dep_path(spec) != spec {
+        return true;
+    }
+    if spec.contains("||") {
+        return false;
+    }
+    let (_, version) = parse_name_version_from_key(spec);
+    if version.is_empty() {
+        return !spec.starts_with('@') && (spec.contains('/') || spec.contains(':'));
+    }
+    node_semver::Version::parse(&version).is_err() && is_source_like_dep_path_version(&version)
+}
+
+fn is_source_like_dep_path_version(version: &str) -> bool {
+    version.contains(':') || version.contains('/') || version.contains('#')
 }
 
 /// Run lifecycle scripts for all packages that require a build.
@@ -547,7 +639,14 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // `ignoreScripts = true; break` pattern.
     let mut should_run_scripts = requires_build;
     if requires_build {
-        match allow_build_policy.check(&name, &version) {
+        let trust_package_identity = package_identity_is_trusted_for_key(packages, &metadata_key);
+        let dep_path = metadata_key.to_string();
+        match allow_build_policy.check_with_context(
+            &name,
+            &version,
+            trust_package_identity,
+            Some(&dep_path),
+        ) {
             Some(false) => {
                 should_run_scripts = false;
             }
@@ -560,10 +659,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                 // the end of `BuildModules::run` for the safety
                 // argument (BTreeSet insertion is atomic from the
                 // data-structure's POV).
-                ignored_builds
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .insert(metadata_key.to_string());
+                ignored_builds.lock().unwrap_or_else(|e| e.into_inner()).insert(dep_path);
                 should_run_scripts = false;
             }
             Some(true) => {}
@@ -781,6 +877,37 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     }
 
     Ok(())
+}
+
+pub(crate) fn package_identity_is_trusted(metadata: &pacquet_lockfile::PackageMetadata) -> bool {
+    resolution_identity_is_trusted(&metadata.resolution)
+}
+
+pub(crate) fn package_identity_is_trusted_for_key(
+    packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
+    metadata_key: &PackageKey,
+) -> bool {
+    packages
+        .and_then(|packages| packages.get(metadata_key))
+        .map_or_else(|| package_key_identity_is_trusted(metadata_key), package_identity_is_trusted)
+}
+
+fn package_key_identity_is_trusted(metadata_key: &PackageKey) -> bool {
+    matches!(metadata_key.suffix.version(), pacquet_lockfile::VersionPart::Semver(_))
+}
+
+fn resolution_identity_is_trusted(resolution: &pacquet_lockfile::LockfileResolution) -> bool {
+    match resolution {
+        pacquet_lockfile::LockfileResolution::Registry(_) => true,
+        pacquet_lockfile::LockfileResolution::Variations(variants) => variants
+            .variants
+            .iter()
+            .all(|variant| resolution_identity_is_trusted(&variant.resolution)),
+        pacquet_lockfile::LockfileResolution::Tarball(_)
+        | pacquet_lockfile::LockfileResolution::Directory(_)
+        | pacquet_lockfile::LockfileResolution::Git(_)
+        | pacquet_lockfile::LockfileResolution::Binary(_) => false,
+    }
 }
 
 /// Compute the package directory inside the virtual store for a snapshot key.

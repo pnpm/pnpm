@@ -33,20 +33,22 @@ use std::{
 const PREPUBLISH_SCRIPTS: &[&str] = &["prepublish", "prepack", "publish"];
 
 /// Closure shape used to ask the install policy whether a package
-/// (`name`, `version`) is allowed to run lifecycle scripts. Mirrors
-/// upstream's `opts.allowBuild?.(name, version)` at
-/// [`index.ts:36`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L36).
+/// (`name`, `version`, trusted identity, dep path) is allowed to run lifecycle
+/// scripts.
 ///
 /// We pass a closure rather than `&AllowBuildPolicy` so the
 /// `pacquet-git-fetcher` crate stays free of a back-edge into
 /// `pacquet-package-manager`. The caller adapts whatever policy
 /// structure it has into this shape.
-pub type AllowBuildFn<'a> = Box<dyn Fn(&str, &str) -> bool + Send + Sync + 'a>;
+pub type AllowBuildFn<'a> = Box<dyn Fn(&str, &str, bool, Option<&str>) -> bool + Send + Sync + 'a>;
+pub type AllowBuildRef<'a> = &'a (dyn Fn(&str, &str, bool, Option<&str>) -> bool + Send + Sync);
 
 /// Caller-supplied context for [`prepare_package`].
 pub struct PreparePackageOptions<'a> {
     pub allow_build: AllowBuildFn<'a>,
+    pub dep_path: Option<&'a str>,
     pub ignore_scripts: bool,
+    pub trust_package_identity: bool,
     pub unsafe_perm: bool,
     pub user_agent: Option<&'a str>,
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
@@ -96,11 +98,11 @@ pub fn prepare_package<Reporter: self::Reporter>(
     }
 
     // `allowBuild` check before any spawn. Upstream throws when
-    // `opts.allowBuild?.(name, version)` is missing or false, with
+    // `opts.allowBuild?.(name, version, context)` is missing or false, with
     // GIT_DEP_PREPARE_NOT_ALLOWED.
     let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
     let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
-    if !(opts.allow_build)(name, version) {
+    if !(opts.allow_build)(name, version, opts.trust_package_identity, opts.dep_path) {
         return Err(PreparePackageError::NotAllowed {
             name: name.to_string(),
             version: version.to_string(),

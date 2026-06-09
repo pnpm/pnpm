@@ -47,6 +47,7 @@ test('rebuilds dependencies', async () => {
     '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
     'test-git-fetch@https://codeload.github.com/pnpm/test-git-fetch/tar.gz/8b333f12d5357f4f25a654c305c826294cb073bf',
   ])
+  const gitDepPath = modules!.pendingBuilds[1]
 
   const modulesManifest = project.readModulesManifest()
   await rebuild.handler({
@@ -56,7 +57,7 @@ test('rebuilds dependencies', async () => {
     pending: false,
     registries: modulesManifest!.registries!,
     storeDir,
-    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, 'test-git-fetch': true },
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, [gitDepPath]: true },
   }, [])
 
   modules = project.readModulesManifest()
@@ -329,6 +330,7 @@ test('rebuilds specific dependencies', async () => {
   ])
 
   const modulesManifest = project.readModulesManifest()
+  const gitDepPath = modulesManifest!.pendingBuilds.find((depPath) => depPath.startsWith('install-scripts-example-for-pnpm@'))!
   await rebuild.handler({
     ...DEFAULT_OPTS,
     cacheDir,
@@ -336,7 +338,7 @@ test('rebuilds specific dependencies', async () => {
     pending: false,
     registries: modulesManifest!.registries!,
     storeDir,
-    allowBuilds: { 'install-scripts-example-for-pnpm': true },
+    allowBuilds: { [gitDepPath]: true },
   }, ['install-scripts-example-for-pnpm'])
 
   project.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -382,6 +384,7 @@ test('rebuild with pending option', async () => {
   // not to
   // install-scripts-example-for-pnpm@https://codeload.github.com/pnpm-e2e/install-scripts-example/tar.gz/b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b
   expect(modules!.pendingBuilds[1]).toMatch(/^install-scripts-example-for-pnpm@.*b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b.*/)
+  const gitDepPath = modules!.pendingBuilds[1]
 
   project.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
   project.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
@@ -396,7 +399,7 @@ test('rebuild with pending option', async () => {
     pending: true,
     registries: modules!.registries!,
     storeDir,
-    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, 'install-scripts-example-for-pnpm': true },
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, [gitDepPath]: true },
   }, [])
 
   modules = project.readModulesManifest()
@@ -537,4 +540,3 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, '@pnpm.e2e/not-compatible-with-any-os': true },
   }, [])
 })
-

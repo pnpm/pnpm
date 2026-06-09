@@ -47,6 +47,8 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       const prepareResult = await preparePackage({
         allowBuild: opts.allowBuild,
         ignoreScripts: createOpts.ignoreScripts,
+        pkgResolutionId: createGitPkgResolutionId(resolution),
+        trustPackageIdentity: false,
         unsafePerm: createOpts.unsafePerm,
         userAgent: createOpts.userAgent,
       }, tempLocation, resolution.path ?? '')
@@ -105,4 +107,19 @@ async function execGit (args: string[], opts?: object): Promise<string> {
   const fullArgs = prefixGitArgs().concat(args || [])
   const { stdout } = await execa('git', fullArgs, opts)
   return stdout as string
+}
+
+function createGitPkgResolutionId (resolution: { commit: string, repo: string, path?: string }): string {
+  const repo = normalizeGitRepoForPkgResolutionId(resolution.repo)
+  let id = `${repo.includes('://') ? '' : 'https://'}${repo}#${resolution.commit}`
+  if (!id.startsWith('git+')) id = `git+${id}`
+  if (resolution.path) {
+    id += `&path:${resolution.path}`
+  }
+  return id
+}
+
+function normalizeGitRepoForPkgResolutionId (repo: string): string {
+  const scp = /^([^@\s]+@[^:\s]+):(.+)$/.exec(repo)
+  return scp == null ? repo : `ssh://${scp[1]}/${scp[2]}`
 }

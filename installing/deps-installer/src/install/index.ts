@@ -3,7 +3,7 @@ import path from 'node:path'
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
-import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
+import { createAllowBuildContext, createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -58,6 +58,7 @@ import {
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
 import { writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
@@ -465,7 +466,7 @@ export async function mutateModules (
 
   let ignoredBuilds = result.ignoredBuilds
   if (!opts.ignoreScripts && ignoredBuilds?.size) {
-    ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, allowBuild)
+    ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, ctx.wantedLockfile, allowBuild)
   }
   // Detect packages whose build approval was revoked between the previous
   // and current install. A package is considered revoked when it was
@@ -483,7 +484,11 @@ export async function mutateModules (
         if (ignoredBuilds?.has(depPath)) continue
         const { name, version } = dp.parse(depPath)
         if (!name || !version) continue
-        if (oldAllowBuild(name, version) === true && allowBuild?.(name, version) === undefined) {
+        const allowBuildContext = createAllowBuildContext({
+          depPath,
+          resolution: ctx.wantedLockfile.packages[depPath]?.resolution,
+        })
+        if (oldAllowBuild(name, version) === true && allowBuild?.(name, version, allowBuildContext) === undefined) {
           ignoredBuilds ??= new Set()
           ignoredBuilds.add(depPath)
         }
@@ -1091,6 +1096,7 @@ Note that in CI environments, this setting is enabled by default.`,
 async function runUnignoredDependencyBuilds (
   opts: StrictInstallOptions,
   previousIgnoredBuilds: IgnoredBuilds,
+  currentLockfile: LockfileObject,
   allowBuild?: AllowBuild
 ): Promise<Set<DepPath>> {
   if (!allowBuild) {
@@ -1098,12 +1104,16 @@ async function runUnignoredDependencyBuilds (
   }
   const pkgsToBuild: string[] = []
   for (const ignoredPkg of previousIgnoredBuilds) {
-    const parsed = dp.parse(ignoredPkg)
-    if (!parsed.name || !parsed.version) continue
-    const allowed = allowBuild(parsed.name, parsed.version)
+    const pkgSnapshot = currentLockfile.packages?.[ignoredPkg]
+    if (!pkgSnapshot) continue
+    const pkgInfo = nameVerFromPkgSnapshot(ignoredPkg, pkgSnapshot)
+    const allowed = allowBuild(pkgInfo.name, pkgInfo.version, createAllowBuildContext({
+      depPath: ignoredPkg,
+      resolution: pkgSnapshot.resolution,
+    }))
     if (allowed === true) {
       // Package is explicitly allowed - rebuild it
-      pkgsToBuild.push(`${parsed.name}@${parsed.version}`)
+      pkgsToBuild.push(dp.getPkgIdWithPatchHash(ignoredPkg))
     }
   }
   if (pkgsToBuild.length) {
@@ -2049,7 +2059,7 @@ export class IgnoredBuildsError extends PnpmError {
 }
 
 function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
-  return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(dp.removeSuffix))).sort(lexCompare)
+  return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(depPath => dp.getPkgIdWithPatchHash(depPath)))).sort(lexCompare)
 }
 
 /**

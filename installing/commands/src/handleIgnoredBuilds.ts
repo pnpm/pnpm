@@ -1,9 +1,9 @@
 import { writeSettings } from '@pnpm/config.writer'
-import { parse } from '@pnpm/deps.path'
+import { getPkgIdWithPatchHash, parse } from '@pnpm/deps.path'
 import {
   IgnoredBuildsError,
 } from '@pnpm/installing.deps-installer'
-import type { IgnoredBuilds } from '@pnpm/types'
+import type { DepPath, IgnoredBuilds } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export interface HandleIgnoredBuildsOpts {
@@ -47,5 +47,12 @@ async function writeIgnoredBuildsToAllowBuilds (
 }
 
 function packageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
-  return Array.from(new Set(Array.from(ignoredBuilds).map((dp) => parse(dp).name ?? dp))).sort(lexCompare)
+  return Array.from(new Set(Array.from(ignoredBuilds).map(allowBuildKeyFromIgnoredBuild))).sort(lexCompare)
+}
+
+function allowBuildKeyFromIgnoredBuild (depPath: string): string {
+  const normalizedDepPath = getPkgIdWithPatchHash(depPath as DepPath)
+  const parsed = parse(normalizedDepPath)
+  if (parsed.nonSemverVersion != null || parsed.name == null) return normalizedDepPath
+  return parsed.name
 }

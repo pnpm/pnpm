@@ -1,5 +1,5 @@
 use super::{GitFetcher, exec_git_with, extract_host, is_valid_commit_hash, should_use_shallow};
-use crate::error::GitFetcherError;
+use crate::{error::GitFetcherError, prepare_package::AllowBuildRef};
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_reporter::SilentReporter;
 use pacquet_store_dir::StoreDir;
@@ -47,8 +47,8 @@ fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (Path
     (bare, commit)
 }
 
-fn allow_all_builds<'a>() -> &'a (dyn Fn(&str, &str) -> bool + Send + Sync) {
-    &|_, _| true
+fn allow_all_builds<'a>() -> AllowBuildRef<'a> {
+    &|_, _, _, _| true
 }
 
 /// Create a tiny bare git repo whose single commit ships a
@@ -77,8 +77,8 @@ fn make_bare_repo(tmp: &Path) -> (PathBuf, String) {
     (bare, commit)
 }
 
-fn deny_all_builds<'a>() -> &'a (dyn Fn(&str, &str) -> bool + Send + Sync) {
-    &|_, _| false
+fn deny_all_builds<'a>() -> AllowBuildRef<'a> {
+    &|_, _, _, _| false
 }
 
 #[test]
@@ -661,8 +661,8 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
     // Targeted allow_build that returns true for *this* package only —
     // catches a regression where the gate ignores the (name, version)
     // pair and falls through to default-allow or default-deny.
-    let allow_x_only: &(dyn Fn(&str, &str) -> bool + Send + Sync) =
-        &|name, version| name == "x" && version == "1.0.0";
+    let allow_x_only: AllowBuildRef<'_> =
+        &|name, version, _trust, _dep_path| name == "x" && version == "1.0.0";
 
     let received = GitFetcher {
         repo: &repo_url,
@@ -697,6 +697,96 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
         "allow_build returning true must let the prepare script run: keys = {:?}",
         received.cas_paths.keys().collect::<Vec<_>>(),
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn fetcher_rejects_untrusted_manifest_identity() {
+    let tmp = tempdir().unwrap();
+    let (bare, commit) = make_bare_repo_with_prepare_script(
+        tmp.path(),
+        r#"node -e "require('fs').writeFileSync('BUILD_RAN.marker', 'ok')""#,
+    );
+    let store_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    let repo_url = format!("file://{}", bare.display());
+    let allow_trusted_only: AllowBuildRef<'_> = &|_, _, trust, _dep_path| trust;
+
+    let err = GitFetcher {
+        repo: &repo_url,
+        commit: &commit,
+        path: None,
+        git_shallow_hosts: &[],
+        allow_build: allow_trusted_only,
+        ignore_scripts: false,
+        unsafe_perm: true,
+        user_agent: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        node_execpath: None,
+        npm_execpath: None,
+        store_dir: &store_dir,
+        package_id: "x@1.0.0",
+        requester: "/test",
+        store_index_writer: None,
+        files_index_file: "x@1.0.0\tbuilt",
+        git_bin: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .unwrap_err();
+
+    match err {
+        GitFetcherError::Prepare(crate::error::PreparePackageError::NotAllowed {
+            name,
+            version,
+        }) => {
+            assert_eq!(name, "x");
+            assert_eq!(version, "1.0.0");
+        }
+        other => panic!("expected NotAllowed, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
+    let tmp = tempdir().unwrap();
+    let (bare, commit) = make_bare_repo_with_prepare_script(
+        tmp.path(),
+        r#"node -e "require('fs').writeFileSync('BUILD_RAN.marker', 'ok')""#,
+    );
+    let store_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    let repo_url = format!("file://{}", bare.display());
+    let package_id = "x@git+file:///tmp/repo.git#abc123";
+    let allow_dep_path: AllowBuildRef<'_> =
+        &|_, _, trust, dep_path| !trust && dep_path == Some(package_id);
+
+    let received = GitFetcher {
+        repo: &repo_url,
+        commit: &commit,
+        path: None,
+        git_shallow_hosts: &[],
+        allow_build: allow_dep_path,
+        ignore_scripts: false,
+        unsafe_perm: true,
+        user_agent: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        node_execpath: None,
+        npm_execpath: None,
+        store_dir: &store_dir,
+        package_id,
+        requester: "/test",
+        store_index_writer: None,
+        files_index_file: "x@git+file:///tmp/repo.git#abc123\tbuilt",
+        git_bin: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .unwrap();
+
+    assert!(received.built);
+    assert!(received.cas_paths.contains_key("BUILD_RAN.marker"));
 }
 
 /// Write a `git` shim shell script to `dir/git` that:

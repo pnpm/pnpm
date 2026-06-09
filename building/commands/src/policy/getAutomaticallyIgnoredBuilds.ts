@@ -1,7 +1,8 @@
 import path from 'node:path'
 
-import { parse } from '@pnpm/deps.path'
+import { getPkgIdWithPatchHash, parse } from '@pnpm/deps.path'
 import { type Modules, readModulesManifest } from '@pnpm/installing.modules-yaml'
+import type { DepPath } from '@pnpm/types'
 
 import type { IgnoredBuildsCommandOpts } from './ignoredBuilds.js'
 
@@ -18,7 +19,7 @@ export async function getAutomaticallyIgnoredBuilds (opts: IgnoredBuildsCommandO
   if (modulesManifest?.ignoredBuilds) {
     const ignoredPkgNames = new Set<string>()
     for (const depPath of modulesManifest.ignoredBuilds) {
-      ignoredPkgNames.add(parse(depPath).name ?? depPath)
+      ignoredPkgNames.add(allowBuildKeyFromIgnoredBuild(depPath))
     }
     automaticallyIgnoredBuilds = Array.from(ignoredPkgNames)
   } else {
@@ -33,4 +34,11 @@ export async function getAutomaticallyIgnoredBuilds (opts: IgnoredBuildsCommandO
 
 function getModulesDir (opts: IgnoredBuildsCommandOpts): string {
   return opts.modulesDir ?? path.join(opts.lockfileDir ?? opts.dir, 'node_modules')
+}
+
+function allowBuildKeyFromIgnoredBuild (depPath: string): string {
+  const normalizedDepPath = getPkgIdWithPatchHash(depPath as DepPath)
+  const parsed = parse(normalizedDepPath)
+  if (parsed.nonSemverVersion != null || parsed.name == null) return normalizedDepPath
+  return parsed.name
 }

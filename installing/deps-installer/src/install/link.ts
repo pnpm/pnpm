@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { createAllowBuildContext } from '@pnpm/building.policy'
 import {
   progressLogger,
   stageLogger,
@@ -486,7 +487,7 @@ async function linkAllPkgs (
       depNode.requiresBuild = files.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && files.sideEffectsMaps && !isEmpty(files.sideEffectsMaps)) {
-        if (opts.allowBuild?.(depNode.name, depNode.version) === true) {
+        if (opts.allowBuild?.(depNode.name, depNode.version, createAllowBuildContext(depNode)) === true) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.hash,

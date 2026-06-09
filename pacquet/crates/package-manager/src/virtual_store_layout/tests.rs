@@ -5,7 +5,10 @@ use pacquet_lockfile::{
     SnapshotEntry,
 };
 use pretty_assertions::{assert_eq, assert_ne};
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 /// Build a `Config` test-double with the GVS-relevant fields
 /// wired explicitly. `gvs_dir` populates `global_virtual_store_dir`
@@ -257,6 +260,38 @@ fn slot_dir_engine_specific_when_snapshot_is_built() {
     )
     .slot_dir(&key);
     assert_ne!(darwin, linux, "builder snapshot must partition GVS slot by engine string");
+}
+
+#[test]
+fn missing_metadata_keeps_source_dep_path_untrusted_for_gvs() {
+    let config = make_config(
+        true,
+        PathBuf::from("/tmp/proj/node_modules/.pnpm"),
+        PathBuf::from("/tmp/store/links"),
+    );
+    let key: PackageKey = "spoofed@git-hosted#abc123".parse().unwrap();
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry::default());
+    let packages = HashMap::new();
+    let allowed: HashSet<String> = ["spoofed".to_string()].into_iter().collect();
+    let policy = crate::AllowBuildPolicy::new(allowed, HashSet::new(), false);
+    let darwin = VirtualStoreLayout::new(
+        &config,
+        Some("darwin-arm64-node20"),
+        Some(&snapshots),
+        Some(&packages),
+        Some(&policy),
+    )
+    .slot_dir(&key);
+    let linux = VirtualStoreLayout::new(
+        &config,
+        Some("linux-x64-node22"),
+        Some(&snapshots),
+        Some(&packages),
+        Some(&policy),
+    )
+    .slot_dir(&key);
+    assert_eq!(darwin, linux, "source depPath with missing metadata must not be name-allowed");
 }
 
 /// Per-snapshot `engines.runtime` resolution: two builder

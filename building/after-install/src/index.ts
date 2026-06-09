@@ -1,10 +1,11 @@
 import assert from 'node:assert'
+import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
-import { createAllowBuildFunction } from '@pnpm/building.policy'
+import { createAllowBuildContext, createAllowBuildFunction } from '@pnpm/building.policy'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -78,18 +79,22 @@ function findPackages (
         })
         return false
       }
-      return matches(searched, pkgInfo)
+      return matches(searched, pkgInfo, relativeDepPath)
     })
 }
 
 // TODO: move this logic to separate package as this is also used in tree-builder
 function matches (
   searched: PackageSelector[],
-  manifest: { name: string, version?: string }
+  manifest: { name: string, version?: string },
+  depPath: DepPath
 ): boolean {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
       return manifest.name === searchedPkg
+    }
+    if ('depPath' in searchedPkg) {
+      return searchedPkg.depPath === depPath || searchedPkg.depPath === dp.removeSuffix(depPath)
     }
     return searchedPkg.name === manifest.name && !!manifest.version &&
       semver.satisfies(manifest.version, searchedPkg.range)
@@ -99,6 +104,8 @@ function matches (
 type PackageSelector = string | {
   name: string
   range: string
+} | {
+  depPath: string
 }
 
 export async function buildSelectedPkgs (
@@ -117,6 +124,9 @@ export async function buildSelectedPkgs (
   const packages = ctx.currentLockfile.packages
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {
+    if (matchesDepPath(packages, arg)) {
+      return { depPath: arg }
+    }
     const { fetchSpec, name, raw, type } = npa(arg)
     if (raw === name) {
       return name
@@ -166,6 +176,10 @@ export async function buildSelectedPkgs (
   return {
     ignoredBuilds: ignoredPkgs,
   }
+}
+
+function matchesDepPath (packages: PackageSnapshots, pkgSpec: string): boolean {
+  return Object.keys(packages).some((depPath) => depPath === pkgSpec || dp.removeSuffix(depPath) === pkgSpec)
 }
 
 export async function buildProjects (
@@ -331,7 +345,10 @@ async function _rebuild (
   const ignoredPkgs = new Set<DepPath>()
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => undefined)
   const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
-    switch (_allowBuild(pkgName, version)) {
+    switch (_allowBuild(pkgName, version, createAllowBuildContext({
+      depPath,
+      resolution: pkgSnapshots[depPath].resolution,
+    }))) {
       case true: return true
       case undefined: {
         ignoredPkgs.add(depPath)
@@ -356,7 +373,10 @@ async function _rebuild (
       opts.supportedArchitectures,
       nodeVersion
     )) {
-      gvsDirByDepPath.set(pkgMeta.depPath, path.join(globalVirtualStoreDir, hash))
+      const preferredGvsDir = path.join(globalVirtualStoreDir, hash)
+      gvsDirByDepPath.set(pkgMeta.depPath, fs.existsSync(preferredGvsDir)
+        ? preferredGvsDir
+        : findLinkedGvsDir(pkgMeta.name, Object.values(ctx.projects), globalVirtualStoreDir) ?? preferredGvsDir)
     }
   }
   const pkgModulesDir = (depPath: DepPath): string =>
@@ -528,6 +548,36 @@ async function _rebuild (
   }
 
   return { pkgsThatWereRebuilt, ignoredPkgs }
+}
+
+function findLinkedGvsDir (
+  pkgName: string,
+  projects: Array<{ rootDir: ProjectRootDir }>,
+  globalVirtualStoreDir: string
+): string | undefined {
+  const normalizedGvsRoot = `${path.resolve(globalVirtualStoreDir)}${path.sep}`
+  for (const { rootDir } of projects) {
+    const pkgLink = path.join(rootDir, 'node_modules', pkgName)
+    try {
+      const target = fs.readlinkSync(pkgLink)
+      const pkgRoot = path.resolve(path.dirname(pkgLink), target)
+      if (!pkgRoot.startsWith(normalizedGvsRoot)) continue
+      return dirname(pkgRoot, pkgName.split('/').length + 1)
+    } catch (err: unknown) {
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'EINVAL') continue
+      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
+      throw err
+    }
+  }
+  return undefined
+}
+
+function dirname (dir: string, levels: number): string {
+  let result = dir
+  for (let i = 0; i < levels; i++) {
+    result = path.dirname(result)
+  }
+  return result
 }
 
 function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[] {

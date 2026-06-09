@@ -83,6 +83,8 @@ async function prepareGitHostedPkg (
   const { shouldBeBuilt, pkgDir } = await preparePackage({
     ...opts,
     allowBuild: fetcherOpts.allowBuild,
+    pkgResolutionId: createGitHostedTarballPkgResolutionId(resolution),
+    trustPackageIdentity: false,
   }, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
   const { storeIndex } = opts
@@ -122,4 +124,12 @@ async function prepareGitHostedPkg (
     }),
     ignoredBuild: Boolean(opts.ignoreScripts),
   }
+}
+
+function createGitHostedTarballPkgResolutionId (resolution: Resolution): string {
+  let pkgResolutionId = resolution.tarball
+  if (resolution.path) {
+    pkgResolutionId += `#path:${resolution.path}`
+  }
+  return pkgResolutionId
 }
