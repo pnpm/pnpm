@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
+import { pathToFileURL } from 'node:url'
 
 import { PnpmError } from '@pnpm/error'
 import { Packr } from 'msgpackr'
@@ -48,20 +49,18 @@ function sleepSync (ms: number): void {
 }
 
 /**
- * Build the `file:…?immutable=1` URI used to open `index.db` read-only (see the
- * frozen-store rationale at the call site). Only three characters are
- * delimiters inside a SQLite URI path — `%` (the escape introducer), `#`
- * (fragment), and `?` (query) — so percent-encode just those and leave the rest
- * of the path literal (notably `/`). Without this, a store path containing `?`
- * or `#` would truncate the path or inject a spurious query parameter.
- * See https://sqlite.org/uri.html.
+ * Build the `file://…?immutable=1` URI used to open `index.db` read-only (see
+ * the frozen-store rationale at the call site). `pathToFileURL` yields a
+ * canonical file URL on every platform: it percent-encodes the URI delimiters
+ * that could otherwise truncate the path or inject a query/fragment (`?`, `#`,
+ * `%`, spaces) and, on Windows, maps the drive letter and backslashes into a
+ * valid `file:///C:/…` form. A raw `file:${path}` concatenation would mis-parse
+ * those. See https://sqlite.org/uri.html.
  */
 function immutableSqliteUri (dbPath: string): string {
-  const encodedPath = dbPath
-    .replace(/%/g, '%25')
-    .replace(/\?/g, '%3f')
-    .replace(/#/g, '%23')
-  return `file:${encodedPath}?immutable=1`
+  const url = pathToFileURL(dbPath)
+  url.searchParams.set('immutable', '1')
+  return url.href
 }
 
 /**
@@ -398,7 +397,7 @@ export class ReadOnlyStoreIndex extends StoreIndex {
     if (!nodeSupportsImmutableSqliteUri()) {
       throw new PnpmError(
         'FROZEN_STORE_UNSUPPORTED_NODE',
-        `frozenStore opens the store index read-only via a SQLite "immutable" URI, which requires Node.js >=22.15.0 (or >=24), but the current version is ${process.versions.node}. Upgrade Node.js, or run without frozenStore.`
+        `frozenStore opens the store index read-only via a SQLite "immutable" URI, which requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0, but the current version is ${process.versions.node}. Upgrade Node.js, or run without frozenStore.`
       )
     }
     this.db = new DatabaseSync(immutableSqliteUri(`${storeDir}/index.db`))
