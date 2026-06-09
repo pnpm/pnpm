@@ -1,7 +1,4 @@
-use super::{
-    AllowBuildPolicy, BuildModules, package_identity_is_trusted_for_key,
-    parse_name_version_from_key,
-};
+use super::{AllowBuildPolicy, BuildModules, parse_name_version_from_key};
 use crate::{SkippedSnapshots, VirtualStoreLayout};
 use pacquet_config::Config;
 use pacquet_executor::ScriptsPrependNodePath;
@@ -60,18 +57,6 @@ fn parse_key_without_leading_slash() {
     assert_eq!(version, "4.18.1");
 }
 
-#[test]
-fn missing_metadata_trusts_only_semver_dep_paths() {
-    let semver_key = key("foo", "1.0.0");
-    let source_key: PackageKey = "foo@git-hosted#abc123".parse().unwrap();
-    let empty_packages = HashMap::new();
-
-    assert!(package_identity_is_trusted_for_key(None, &semver_key));
-    assert!(package_identity_is_trusted_for_key(Some(&empty_packages), &semver_key));
-    assert!(!package_identity_is_trusted_for_key(None, &source_key));
-    assert!(!package_identity_is_trusted_for_key(Some(&empty_packages), &source_key));
-}
-
 // Policy-logic tests below mirror upstream `building/policy/test/index.ts`
 // (`https://github.com/pnpm/pnpm/blob/80037699fb/building/policy/test/index.ts`).
 // They drive `AllowBuildPolicy::new` directly with in-memory rule maps so the
@@ -92,13 +77,13 @@ fn explicit_allow() {
 }
 
 #[test]
-fn explicit_allow_requires_trusted_package_identity() {
+fn explicit_allow_requires_registry_style_dep_path() {
     let policy = policy_from_specs([("@pnpm.e2e/install-script-example", true)], false);
-    assert_eq!(policy.check_with_context("@pnpm.e2e/install-script-example@1.0.0", false), None);
     assert_eq!(
-        policy.check_with_context("@pnpm.e2e/install-script-example@1.0.0", true),
-        Some(true),
+        policy.check("@pnpm.e2e/install-script-example@git+https://example.com/x.git#abc123"),
+        None,
     );
+    assert_eq!(policy.check("@pnpm.e2e/install-script-example@1.0.0"), Some(true));
 }
 
 #[test]
@@ -108,23 +93,17 @@ fn explicit_allow_by_dep_path_allows_untrusted_package_identity() {
         false,
     );
     assert_eq!(
-        policy.check_with_context(
-            "foo@git+https://github.com/org/foo.git#abc123(react@19.0.0)",
-            false
-        ),
+        policy.check("foo@git+https://github.com/org/foo.git#abc123(react@19.0.0)"),
         Some(true),
     );
-    assert_eq!(
-        policy.check_with_context("foo@git+https://github.com/attacker/foo.git#abc123", false),
-        None,
-    );
+    assert_eq!(policy.check("foo@git+https://github.com/attacker/foo.git#abc123"), None);
 }
 
 #[test]
 fn explicit_allow_by_tarball_dep_path_allows_untrusted_package_identity() {
     let policy = policy_from_specs([("foo@https://example.com/foo.tgz", true)], false);
 
-    assert_eq!(policy.check_with_context("foo@https://example.com/foo.tgz", false), Some(true));
+    assert_eq!(policy.check("foo@https://example.com/foo.tgz"), Some(true));
 }
 
 #[test]
@@ -179,9 +158,9 @@ fn dangerously_allow_all_builds() {
 }
 
 #[test]
-fn dangerously_allow_all_allows_untrusted_package_identity() {
+fn dangerously_allow_all_allows_artifact_dep_paths() {
     let policy = policy_from_specs([], true);
-    assert_eq!(policy.check_with_context("anything@1.0.0", false), Some(true));
+    assert_eq!(policy.check("anything@git+https://example.com/x.git#abc123"), Some(true));
 }
 
 #[test]

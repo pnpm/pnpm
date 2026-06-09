@@ -1,5 +1,6 @@
 import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import { hashObject } from '@pnpm/crypto.object-hasher'
+import { parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
@@ -30,6 +31,8 @@ const MAX_VIOLATIONS_TO_PRINT = 20
 // (Math.min(64, Math.max(workers*3, 16))); keep them aligned so the
 // verification pass doesn't push past what the rest of the install respects.
 const DEFAULT_CONCURRENCY = 16
+
+export const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE = 'RESOLUTION_SHAPE_MISMATCH'
 
 export interface VerifyLockfileResolutionsOptions {
   concurrency?: number
@@ -78,8 +81,19 @@ export async function verifyLockfileResolutions (
   verifiers: ResolutionVerifier[],
   options?: VerifyLockfileResolutionsOptions
 ): Promise<void> {
-  if (verifiers.length === 0) return
   if (!lockfile.packages) return
+
+  // The structural pass is offline and runs unconditionally — even with no
+  // policy verifiers active and regardless of the verification cache. The
+  // allowBuilds policy treats a registry-style depPath (name@semver) as a
+  // trusted package identity, which is only sound while this pass rejects
+  // lockfiles where such a key is backed by a non-registry resolution.
+  const shapeViolations = collectResolutionShapeViolations(lockfile)
+  if (shapeViolations.length > 0) {
+    throw buildVerificationError(shapeViolations)
+  }
+
+  if (verifiers.length === 0) return
 
   // Caching kicks in only when the caller surfaced both a writable
   // cache directory and the lockfile's absolute path — that's the
@@ -226,6 +240,37 @@ export async function collectResolutionPolicyViolations (
   if (verifiers.length === 0) return []
   if (!lockfile.packages) return []
   return iterateLockfileViolations(collectCandidates(lockfile), verifiers, options?.concurrency)
+}
+
+function collectResolutionShapeViolations (lockfile: LockfileObject): ResolutionPolicyViolation[] {
+  const violations: ResolutionPolicyViolation[] = []
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
+    const { name, version, nonSemverVersion } = parse(depPath)
+    if (name == null || version == null || nonSemverVersion != null) continue
+    if (isRegistryShapedResolution(snapshot.resolution)) continue
+    violations.push({
+      name,
+      version,
+      resolution: snapshot.resolution as Resolution,
+      code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+      reason: 'a registry-style dependency path is backed by a non-registry resolution',
+    })
+  }
+  return violations
+}
+
+function isRegistryShapedResolution (resolution: unknown): boolean {
+  if (resolution == null) return true
+  if (typeof resolution !== 'object') return false
+  const { type, gitHosted, variants } = resolution as { type?: unknown, gitHosted?: unknown, variants?: unknown }
+  if (type === 'variations') {
+    return Array.isArray(variants) && variants.every(
+      (variant) => isRegistryShapedResolution((variant as { resolution?: unknown })?.resolution)
+    )
+  }
+  if (type != null) return false
+  if (gitHosted === true) return false
+  return true
 }
 
 interface Candidate {

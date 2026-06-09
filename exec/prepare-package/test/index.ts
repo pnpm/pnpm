@@ -9,8 +9,7 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 const f = fixtures(import.meta.dirname)
 const pkgResolutionId = 'https://codeload.example.com/org/repo/tar.gz/0000000000000000000000000000000000000000'
 const allowBuild = () => true
-const allowTrustedBuildsOnly = (_depPath: string, context?: { trustPackageIdentity?: boolean }) =>
-  context?.trustPackageIdentity !== false
+const allowRegistryArtifactsOnly = (depPath: string) => !depPath.includes('://')
 
 test('prepare package runs the prepublish script', async () => {
   const tmp = tempDir()
@@ -22,12 +21,12 @@ test('prepare package runs the prepublish script', async () => {
   ])
 })
 
-test('prepare package rejects untrusted manifest identity', async () => {
+test('prepare package gates the build on the artifact depPath', async () => {
   const tmp = tempDir()
   f.copy('has-prepublish-script', tmp)
 
   await expect(preparePackage({
-    allowBuild: allowTrustedBuildsOnly,
+    allowBuild: allowRegistryArtifactsOnly,
     pkgResolutionId,
   }, tmp, '')).rejects.toThrow('needs to execute build scripts but is not in the "allowBuilds" allowlist')
 })

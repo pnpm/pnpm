@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildModules } from '@pnpm/building.during-install'
-import { createAllowBuildContext, createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
+import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -932,7 +932,7 @@ async function linkAllPkgs (
       depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
-        if (opts.allowBuild?.(depNode.depPath, createAllowBuildContext(depNode)) === true) {
+        if (opts.allowBuild?.(depNode.depPath) === true) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.hash,

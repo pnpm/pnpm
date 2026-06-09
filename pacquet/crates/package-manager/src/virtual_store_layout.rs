@@ -20,10 +20,7 @@
 //! [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
 //! [`pacquet_graph_hasher::format_global_virtual_store_path`]: pacquet_graph_hasher::format_global_virtual_store_path
 
-use crate::{
-    AllowBuildPolicy, build_modules::package_identity_is_trusted_for_key,
-    install_frozen_lockfile::find_own_runtime_node_major,
-};
+use crate::{AllowBuildPolicy, install_frozen_lockfile::find_own_runtime_node_major};
 use pacquet_config::Config;
 use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_graph_hasher::{
@@ -201,13 +198,7 @@ impl VirtualStoreLayout {
         let built_dep_paths: Option<HashSet<PackageKey>> = allow_build_policy.map(|policy| {
             snapshots
                 .keys()
-                .filter(|key| {
-                    let metadata_key = key.without_peer();
-                    let trust_package_identity =
-                        package_identity_is_trusted_for_key(packages, &metadata_key);
-                    let dep_path = metadata_key.to_string();
-                    policy.check_with_context(&dep_path, trust_package_identity) == Some(true)
-                })
+                .filter(|key| policy.check(&key.without_peer().to_string()) == Some(true))
                 .cloned()
                 .collect()
         });

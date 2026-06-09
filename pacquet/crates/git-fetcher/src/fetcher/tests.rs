@@ -48,7 +48,7 @@ fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (Path
 }
 
 fn allow_all_builds<'a>() -> AllowBuildRef<'a> {
-    &|_, _| true
+    &|_| true
 }
 
 /// Create a tiny bare git repo whose single commit ships a
@@ -78,7 +78,7 @@ fn make_bare_repo(tmp: &Path) -> (PathBuf, String) {
 }
 
 fn deny_all_builds<'a>() -> AllowBuildRef<'a> {
-    &|_, _| false
+    &|_| false
 }
 
 #[test]
@@ -661,7 +661,7 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
     // Targeted allow_build that returns true for *this* package only —
     // catches a regression where the gate ignores the dep path and
     // falls through to default-allow or default-deny.
-    let allow_x_only: AllowBuildRef<'_> = &|dep_path, _trust| dep_path == "x@1.0.0";
+    let allow_x_only: AllowBuildRef<'_> = &|dep_path| dep_path == "x@1.0.0";
 
     let received = GitFetcher {
         repo: &repo_url,
@@ -708,14 +708,14 @@ async fn fetcher_rejects_untrusted_manifest_identity() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let repo_url = format!("file://{}", bare.display());
-    let allow_trusted_only: AllowBuildRef<'_> = &|_dep_path, trust| trust;
+    let allow_registry_artifacts_only: AllowBuildRef<'_> = &|dep_path| !dep_path.contains("://");
 
     let err = GitFetcher {
         repo: &repo_url,
         commit: &commit,
         path: None,
         git_shallow_hosts: &[],
-        allow_build: allow_trusted_only,
+        allow_build: allow_registry_artifacts_only,
         ignore_scripts: false,
         unsafe_perm: true,
         user_agent: None,
@@ -724,10 +724,10 @@ async fn fetcher_rejects_untrusted_manifest_identity() {
         node_execpath: None,
         npm_execpath: None,
         store_dir: &store_dir,
-        package_id: "x@1.0.0",
+        package_id: "x@git+file:///tmp/repo.git#abc123",
         requester: "/test",
         store_index_writer: None,
-        files_index_file: "x@1.0.0\tbuilt",
+        files_index_file: "x@git+file:///tmp/repo.git#abc123\tbuilt",
         git_bin: None,
     }
     .run::<SilentReporter>()
@@ -757,7 +757,7 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let repo_url = format!("file://{}", bare.display());
     let package_id = "x@git+file:///tmp/repo.git#abc123";
-    let allow_dep_path: AllowBuildRef<'_> = &|dep_path, trust| !trust && dep_path == package_id;
+    let allow_dep_path: AllowBuildRef<'_> = &|dep_path| dep_path == package_id;
 
     let received = GitFetcher {
         repo: &repo_url,

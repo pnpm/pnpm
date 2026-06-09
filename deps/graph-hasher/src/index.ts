@@ -1,4 +1,3 @@
-import { createAllowBuildContext } from '@pnpm/building.policy'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
 import { engineName } from '@pnpm/engine.runtime.system-version'
@@ -164,9 +163,6 @@ function calcDepGraphHash<T extends string> (
 export interface PkgMeta {
   depPath: DepPath
   name: string
-  pkgSnapshot?: PackageSnapshot
-  resolution?: LockfileResolution
-  resolvedVia?: string
   version: string
 }
 
@@ -340,12 +336,7 @@ function computeBuiltDepPaths (
 ): Set<DepPath> {
   const builtDepPaths = new Set<DepPath>()
   for (const entry of entries) {
-    const context = createAllowBuildContext({
-      depPath: entry.depPath,
-      resolution: entry.resolution ?? entry.pkgSnapshot?.resolution,
-      resolvedVia: entry.resolvedVia,
-    })
-    if (allowBuild(entry.depPath, context) === true) {
+    if (allowBuild(entry.depPath) === true) {
       builtDepPaths.add(entry.depPath)
     }
   }

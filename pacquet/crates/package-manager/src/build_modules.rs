@@ -188,10 +188,6 @@ impl AllowBuildPolicy {
     /// package names — see [`expand_package_version_specs`] for
     /// the rationale.
     pub fn check(&self, dep_path: &str) -> Option<bool> {
-        self.check_with_context(dep_path, true)
-    }
-
-    pub fn check_with_context(&self, dep_path: &str, trust_package_identity: bool) -> Option<bool> {
         if self.dangerously_allow_all {
             return Some(true);
         }
@@ -210,11 +206,16 @@ impl AllowBuildPolicy {
         if self.allowed_dep_paths.contains(&normalized_dep_path) {
             return Some(true);
         }
+        // Package-name rules require a trusted package identity. A
+        // registry-style dep path (`name@semver`) is the trust signal: the
+        // lockfile verification gate rejects lockfiles where such a key is
+        // backed by a non-registry resolution, so by the time scripts can
+        // run, the shape proves the artifact came from a registry.
+        if node_semver::Version::parse(&version).is_err() {
+            return None;
+        }
         if self.expanded_allowed.contains(&name) || self.expanded_allowed.contains(&name_at_version)
         {
-            if !trust_package_identity {
-                return None;
-            }
             return Some(true);
         }
 
@@ -630,9 +631,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // `ignoreScripts = true; break` pattern.
     let mut should_run_scripts = requires_build;
     if requires_build {
-        let trust_package_identity = package_identity_is_trusted_for_key(packages, &metadata_key);
         let dep_path = metadata_key.to_string();
-        match allow_build_policy.check_with_context(&dep_path, trust_package_identity) {
+        match allow_build_policy.check(&dep_path) {
             Some(false) => {
                 should_run_scripts = false;
             }
@@ -863,37 +863,6 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     }
 
     Ok(())
-}
-
-pub(crate) fn package_identity_is_trusted(metadata: &pacquet_lockfile::PackageMetadata) -> bool {
-    resolution_identity_is_trusted(&metadata.resolution)
-}
-
-pub(crate) fn package_identity_is_trusted_for_key(
-    packages: Option<&HashMap<PackageKey, pacquet_lockfile::PackageMetadata>>,
-    metadata_key: &PackageKey,
-) -> bool {
-    packages
-        .and_then(|packages| packages.get(metadata_key))
-        .map_or_else(|| package_key_identity_is_trusted(metadata_key), package_identity_is_trusted)
-}
-
-fn package_key_identity_is_trusted(metadata_key: &PackageKey) -> bool {
-    matches!(metadata_key.suffix.version(), pacquet_lockfile::VersionPart::Semver(_))
-}
-
-fn resolution_identity_is_trusted(resolution: &pacquet_lockfile::LockfileResolution) -> bool {
-    match resolution {
-        pacquet_lockfile::LockfileResolution::Registry(_) => true,
-        pacquet_lockfile::LockfileResolution::Variations(variants) => variants
-            .variants
-            .iter()
-            .all(|variant| resolution_identity_is_trusted(&variant.resolution)),
-        pacquet_lockfile::LockfileResolution::Tarball(_)
-        | pacquet_lockfile::LockfileResolution::Directory(_)
-        | pacquet_lockfile::LockfileResolution::Git(_)
-        | pacquet_lockfile::LockfileResolution::Binary(_) => false,
-    }
 }
 
 /// Compute the package directory inside the virtual store for a snapshot key.

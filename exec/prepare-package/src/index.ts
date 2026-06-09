@@ -35,10 +35,10 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   // Check if the package is allowed to run build scripts
   // If allowBuild is undefined or returns false, block the build.
   // The depPath is synthesized from the resolution id rather than read from
-  // a lockfile; the manifest comes from the fetched artifact itself, so its
-  // name and version are never a trusted package identity.
+  // a lockfile; resolution ids of git and tarball artifacts are never
+  // semver-shaped, so the policy derives an untrusted package identity.
   const depPath = `${manifest.name}@${opts.pkgResolutionId}` as DepPath
-  if (!opts.allowBuild?.(depPath, { trustPackageIdentity: false })) {
+  if (!opts.allowBuild?.(depPath)) {
     throw new PnpmError(
       'GIT_DEP_PREPARE_NOT_ALLOWED',
       `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "allowBuilds" allowlist.`,

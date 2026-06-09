@@ -1,25 +1,14 @@
 import { expect, it } from '@jest/globals'
 import { iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
-import type { LockfileResolution, PackageSnapshot } from '@pnpm/lockfile.types'
-import type { AllowBuild, AllowBuildContext, DepPath } from '@pnpm/types'
+import type { AllowBuild, DepPath } from '@pnpm/types'
 
-it('passes trusted build identity context for registry tarball metadata', () => {
+it('gates built dep paths through the allowBuild policy by depPath', () => {
   const registryDepPath = 'foo@1.0.0' as DepPath
   const directTarballDepPath = 'foo@https://example.com/foo.tgz' as DepPath
-  const registryResolution: LockfileResolution = {
-    integrity: 'sha512-abc',
-    tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
-  }
-  const directTarballResolution: LockfileResolution = {
-    integrity: 'sha512-def',
-    tarball: 'https://example.com/foo.tgz',
-  }
   const checkedDepPaths: DepPath[] = []
-  const contexts: Array<AllowBuildContext | undefined> = []
-  const allowBuild: AllowBuild = (depPath, context) => {
+  const allowBuild: AllowBuild = (depPath) => {
     checkedDepPaths.push(depPath)
-    contexts.push(context)
-    return true
+    return depPath === registryDepPath
   }
 
   Array.from(iterateHashedGraphNodes(
@@ -37,19 +26,16 @@ it('passes trusted build identity context for registry tarball metadata', () => 
       {
         depPath: registryDepPath,
         name: 'foo',
-        pkgSnapshot: { resolution: registryResolution } as PackageSnapshot,
         version: '1.0.0',
       },
       {
         depPath: directTarballDepPath,
         name: 'foo',
-        pkgSnapshot: { resolution: directTarballResolution } as PackageSnapshot,
         version: '1.0.0',
       },
     ].values(),
     allowBuild
   ))
 
-  expect(contexts.map((context) => context?.trustPackageIdentity)).toStrictEqual([true, false])
   expect(checkedDepPaths).toStrictEqual([registryDepPath, directTarballDepPath])
 })

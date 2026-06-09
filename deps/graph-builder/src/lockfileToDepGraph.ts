@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { createAllowBuildContext } from '@pnpm/building.policy'
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -242,10 +241,7 @@ async function buildGraphFromPackages (
       // marker indicating a previous build failed or was interrupted. When the
       // marker is present, skip the fast path to force a re-fetch/re-import/re-build.
       const mightNeedBuild = opts.enableGlobalVirtualStore &&
-        opts.allowBuild?.(depPath, createAllowBuildContext({
-          depPath,
-          resolution: pkgSnapshot.resolution,
-        })) === true
+        opts.allowBuild?.(depPath) === true
 
       let dirExists: boolean | undefined
       if (

@@ -34,7 +34,6 @@
   },
   "dependencies": {
     "@pnpm/bins.linker": "workspace:*",
-    "@pnpm/building.policy": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",

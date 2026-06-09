@@ -82,7 +82,22 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
-    if verifiers.is_empty() || lockfile.packages.is_none() {
+    if lockfile.packages.is_none() {
+        return Ok(());
+    }
+
+    // The structural pass is offline and runs unconditionally — even with
+    // no policy verifiers active and regardless of the verification cache.
+    // The allowBuilds policy treats a registry-style dep path
+    // (`name@semver`) as a trusted package identity, which is only sound
+    // while this pass rejects lockfiles where such a key is backed by a
+    // non-registry resolution.
+    let shape_violations = collect_resolution_shape_violations(lockfile);
+    if !shape_violations.is_empty() {
+        return Err(build_verification_error(shape_violations));
+    }
+
+    if verifiers.is_empty() {
         return Ok(());
     }
 
@@ -186,6 +201,56 @@ pub async fn collect_resolution_policy_violations(
     }
     let candidates = collect_candidates(lockfile);
     run_fan_out(candidates, verifiers, concurrency).await
+}
+
+pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MISMATCH";
+
+fn collect_resolution_shape_violations(lockfile: &Lockfile) -> Vec<ResolutionPolicyViolation> {
+    let Some(packages) = lockfile.packages.as_ref() else {
+        return Vec::new();
+    };
+    let mut violations = Vec::new();
+    for (key, metadata) in packages {
+        // Prefixed keys (`node@runtime:22.0.0`) identify runtime
+        // downloads, not registry packages — upstream parses them as
+        // non-semver dep paths.
+        if key.suffix.prefix() != pacquet_lockfile::Prefix::None {
+            continue;
+        }
+        let pacquet_lockfile::VersionPart::Semver(version) = key.suffix.version() else {
+            continue;
+        };
+        if is_registry_shaped_resolution(&metadata.resolution) {
+            continue;
+        }
+        violations.push(ResolutionPolicyViolation {
+            name: key.name.clone(),
+            version: version.to_string(),
+            resolution: metadata.resolution.clone(),
+            code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+            reason: "a registry-style dependency path is backed by a non-registry resolution"
+                .to_string(),
+        });
+    }
+    violations
+}
+
+/// Mirrors upstream's `isRegistryShapedResolution`: a plain tarball
+/// resolution (no `gitHosted` flag) is registry-shaped because the npm
+/// verifier unconditionally binds explicit tarball URLs of semver-keyed
+/// entries to the registry's own `dist.tarball`.
+fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
+    match resolution {
+        LockfileResolution::Registry(_) => true,
+        LockfileResolution::Tarball(tarball) => tarball.git_hosted != Some(true),
+        LockfileResolution::Variations(variations) => variations
+            .variants
+            .iter()
+            .all(|variant| is_registry_shaped_resolution(&variant.resolution)),
+        LockfileResolution::Directory(_)
+        | LockfileResolution::Git(_)
+        | LockfileResolution::Binary(_) => false,
+    }
 }
 
 /// One `(name, version, resolution)` tuple deduplicated from

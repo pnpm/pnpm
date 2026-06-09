@@ -57,8 +57,5 @@
     {
       "path": "../../worker"
     },
-    {
-      "path": "../policy"
-    }
   ]
 }

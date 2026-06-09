@@ -3,7 +3,7 @@ import path from 'node:path'
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
-import { createAllowBuildContext, createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
+import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -481,16 +481,12 @@ export async function mutateModules (
     if (oldAllowBuild) {
       for (const depPath of Object.keys(ctx.wantedLockfile.packages) as DepPath[]) {
         if (ignoredBuilds?.has(depPath)) continue
-        // The old policy is evaluated without identity trust info so that
+        // The old policy is evaluated with identity trust overridden so that
         // package-name approvals count as they did when they were granted,
         // even for git/tarball artifacts that the current policy no longer
         // approves by name.
-        if (oldAllowBuild(depPath) !== true) continue
-        const allowBuildContext = createAllowBuildContext({
-          depPath,
-          resolution: ctx.wantedLockfile.packages[depPath].resolution,
-        })
-        if (allowBuild?.(depPath, allowBuildContext) === undefined) {
+        if (oldAllowBuild(depPath, { trustPackageIdentity: true }) !== true) continue
+        if (allowBuild?.(depPath) === undefined) {
           ignoredBuilds ??= new Set()
           ignoredBuilds.add(depPath)
         }
@@ -1106,13 +1102,8 @@ async function runUnignoredDependencyBuilds (
   }
   const pkgsToBuild: string[] = []
   for (const ignoredPkg of previousIgnoredBuilds) {
-    const pkgSnapshot = currentLockfile.packages?.[ignoredPkg]
-    if (!pkgSnapshot) continue
-    const allowed = allowBuild(ignoredPkg, createAllowBuildContext({
-      depPath: ignoredPkg,
-      resolution: pkgSnapshot.resolution,
-    }))
-    if (allowed === true) {
+    if (currentLockfile.packages?.[ignoredPkg] == null) continue
+    if (allowBuild(ignoredPkg) === true) {
       // Package is explicitly allowed - rebuild it
       pkgsToBuild.push(dp.getPkgIdWithPatchHash(ignoredPkg))
     }

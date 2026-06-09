@@ -5,7 +5,7 @@ import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
-import { createAllowBuildContext, createAllowBuildFunction } from '@pnpm/building.policy'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -346,10 +346,7 @@ async function _rebuild (
   const ignoredPkgs = new Set<DepPath>()
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => undefined)
   const allowBuild = (depPath: DepPath) => {
-    switch (_allowBuild(depPath, createAllowBuildContext({
-      depPath,
-      resolution: pkgSnapshots[depPath].resolution,
-    }))) {
+    switch (_allowBuild(depPath)) {
       case true: return true
       case undefined: {
         ignoredPkgs.add(depPath)

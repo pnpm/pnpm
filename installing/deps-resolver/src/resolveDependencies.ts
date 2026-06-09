@@ -257,7 +257,6 @@ export interface ResolvedPackage {
   id: PkgResolutionId
   isLeaf: boolean
   resolution: Resolution
-  resolvedVia?: string
   prod: boolean
   dev: boolean
   optional: boolean
@@ -1834,7 +1833,6 @@ function getResolvedPackage (
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     resolution: options.pkgResponse.body.resolution,
-    resolvedVia: options.pkgResponse.body.resolvedVia,
     version: options.pkg.version,
   }
 }

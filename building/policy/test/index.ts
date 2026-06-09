@@ -1,5 +1,5 @@
 import { expect, it } from '@jest/globals'
-import { createAllowBuildContext, createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
+import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import type { DepPath } from '@pnpm/types'
 
 function depPath (value: string): DepPath {
@@ -52,19 +52,37 @@ it('should allow everything when dangerouslyAllowAllBuilds is true', () => {
   })
   expect(typeof allowBuild).toBe('function')
   expect(allowBuild!(depPath('foo@1.0.0'))).toBeTruthy()
-  expect(allowBuild!(depPath('foo@1.0.0'), { trustPackageIdentity: false })).toBeTruthy()
+  expect(allowBuild!(depPath('foo@git+https://github.com/org/foo.git#abc123'))).toBeTruthy()
 })
 
-it('should require trusted package identity for allowBuilds with true value', () => {
+it('should not apply package-name rules to artifact depPaths', () => {
   const allowBuild = createAllowBuildFunction({
     allowBuilds: { foo: true, bar: true },
   })
-  expect(allowBuild!(depPath('foo@1.0.0'), { trustPackageIdentity: false })).toBeUndefined()
-  expect(allowBuild!(depPath('bar@1.0.0'), { trustPackageIdentity: false })).toBeUndefined()
-  expect(allowBuild!(depPath('foo@1.0.0'), { trustPackageIdentity: true })).toBe(true)
+  expect(allowBuild!(depPath('foo@git+https://github.com/org/foo.git#abc123'))).toBeUndefined()
+  expect(allowBuild!(depPath('bar@https://example.com/bar.tgz'))).toBeUndefined()
+  expect(allowBuild!(depPath('foo@1.0.0'))).toBe(true)
 })
 
-it('should allow untrusted package identity by depPath', () => {
+it('should apply package-name rules to artifact depPaths when identity trust is overridden', () => {
+  const allowBuild = createAllowBuildFunction({
+    allowBuilds: { foo: true },
+  })
+  expect(allowBuild!(depPath('foo@git+https://github.com/org/foo.git#abc123'), {
+    trustPackageIdentity: true,
+  })).toBe(true)
+  expect(allowBuild!(depPath('foo@1.0.0'), { trustPackageIdentity: false })).toBeUndefined()
+})
+
+it('should deny by package name regardless of identity trust', () => {
+  const allowBuild = createAllowBuildFunction({
+    allowBuilds: { foo: false },
+  })
+  expect(allowBuild!(depPath('foo@git+https://github.com/org/foo.git#abc123'))).toBe(false)
+  expect(allowBuild!(depPath('foo@1.0.0'))).toBe(false)
+})
+
+it('should allow artifact depPaths by depPath key', () => {
   const allowBuild = createAllowBuildFunction({
     allowBuilds: {
       'foo@git+https://github.com/org/foo.git#abc123': true,
@@ -72,15 +90,9 @@ it('should allow untrusted package identity by depPath', () => {
       foo: true,
     },
   })
-  expect(allowBuild!(depPath('foo@git+https://github.com/org/foo.git#abc123(react@19.0.0)'), {
-    trustPackageIdentity: false,
-  })).toBe(true)
-  expect(allowBuild!(depPath('foo@git+https://github.com/attacker/foo.git#abc123'), {
-    trustPackageIdentity: false,
-  })).toBeUndefined()
-  expect(allowBuild!(depPath('bar@https://codeload.github.com/org/bar/tar.gz/abc123'), {
-    trustPackageIdentity: false,
-  })).toBe(false)
+  expect(allowBuild!(depPath('foo@git+https://github.com/org/foo.git#abc123(react@19.0.0)'))).toBe(true)
+  expect(allowBuild!(depPath('foo@git+https://github.com/attacker/foo.git#abc123'))).toBeUndefined()
+  expect(allowBuild!(depPath('bar@https://codeload.github.com/org/bar/tar.gz/abc123'))).toBe(false)
 })
 
 it('should preserve patch hash in depPath allowBuild keys', () => {
@@ -89,63 +101,15 @@ it('should preserve patch hash in depPath allowBuild keys', () => {
       'foo@https://example.com/foo.tgz(patch_hash=aaaa)': true,
     },
   })
-  expect(allowBuild!(depPath('foo@https://example.com/foo.tgz(patch_hash=aaaa)(react@19.0.0)'), {
-    trustPackageIdentity: false,
-  })).toBe(true)
-  expect(allowBuild!(depPath('foo@https://example.com/foo.tgz(patch_hash=bbbb)(react@19.0.0)'), {
-    trustPackageIdentity: false,
-  })).toBeUndefined()
+  expect(allowBuild!(depPath('foo@https://example.com/foo.tgz(patch_hash=aaaa)(react@19.0.0)'))).toBe(true)
+  expect(allowBuild!(depPath('foo@https://example.com/foo.tgz(patch_hash=bbbb)(react@19.0.0)'))).toBeUndefined()
 })
 
 it('should allow untrusted package identity by source-only depPath', () => {
   const allowBuild = createAllowBuildFunction({
     allowBuilds: { 'github.com/org/foo/abc123': true },
   })
-  expect(allowBuild!(depPath('github.com/org/foo/abc123(react@19.0.0)'), {
-    trustPackageIdentity: false,
-  })).toBe(true)
-})
-
-it('should create untrusted allowBuild context for artifact identities', () => {
-  expect(createAllowBuildContext({
-    depPath: depPath('foo@https://example.com/foo.tgz'),
-  }).trustPackageIdentity).toBe(false)
-  expect(createAllowBuildContext({
-    depPath: depPath('foo@https://example.com/foo.tgz(react@19.0.0)'),
-  }).trustPackageIdentity).toBe(false)
-  expect(createAllowBuildContext({
-    depPath: depPath('foo@1.0.0'),
-    resolution: { type: 'git' },
-  }).trustPackageIdentity).toBe(false)
-  expect(createAllowBuildContext({
-    depPath: depPath('foo@1.0.0'),
-    resolution: { gitHosted: true },
-  }).trustPackageIdentity).toBe(false)
-  expect(createAllowBuildContext({
-    depPath: depPath('foo@1.0.0'),
-    resolvedVia: 'git-repository',
-  }).trustPackageIdentity).toBe(false)
-  expect(createAllowBuildContext({
-    depPath: depPath('foo@1.0.0'),
-  }).trustPackageIdentity).toBe(true)
-})
-
-it('should create trusted allowBuild context for registry, workspace, and registry tarball metadata', () => {
-  expect(createAllowBuildContext({
-    depPath: depPath('foo@1.0.0'),
-    resolvedVia: 'npm-registry',
-  }).trustPackageIdentity).toBe(true)
-  expect(createAllowBuildContext({
-    depPath: depPath('foo@1.0.0'),
-    resolvedVia: 'workspace',
-  }).trustPackageIdentity).toBe(true)
-  expect(createAllowBuildContext({
-    depPath: depPath('foo@1.0.0'),
-    resolution: {
-      integrity: 'sha512-abc',
-      tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
-    },
-  }).trustPackageIdentity).toBe(true)
+  expect(allowBuild!(depPath('github.com/org/foo/abc123(react@19.0.0)'))).toBe(true)
 })
 
 it('isBuildExplicitlyDisallowed() flags only builds the policy explicitly forbids', () => {

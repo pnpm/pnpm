@@ -4,7 +4,6 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
-import { createAllowBuildContext } from '@pnpm/building.policy'
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
@@ -92,7 +91,7 @@ export async function buildModules<T extends string> (
         if (!ignoreScripts) {
           const node = depGraph[depPath]
           if (node.requiresBuild) {
-            const allowed = allowBuild(node.depPath, createAllowBuildContext(node))
+            const allowed = allowBuild(node.depPath)
             switch (allowed) {
               case false:
               // Explicitly disallowed - don't report as ignored

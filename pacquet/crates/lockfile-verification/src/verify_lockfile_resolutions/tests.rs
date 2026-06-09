@@ -527,3 +527,73 @@ async fn ctx_borrows_have_expected_lifetimes() {
     .await;
     assert!(result.is_ok());
 }
+
+#[tokio::test]
+async fn rejects_registry_style_key_backed_by_git_resolution_even_with_no_verifiers() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {type: git, repo: https://example.com/acme.git, commit: 0123456789abcdef0123456789abcdef01234567}
+
+snapshots:
+
+  acme@1.0.0: {}
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("registry-style key with a git resolution must be rejected");
+    let VerifyError::ResolutionShapeMismatch { count, breakdown } = err else {
+        panic!("expected ResolutionShapeMismatch, got {err:?}");
+    };
+    assert_eq!(count, 1);
+    assert!(breakdown.contains("acme@1.0.0"), "breakdown: {breakdown}");
+}
+
+#[tokio::test]
+async fn accepts_artifact_keys_with_non_registry_resolutions() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: github:org/acme
+        version: git+https://example.com/acme.git#0123456789abcdef0123456789abcdef01234567
+
+packages:
+
+  acme@git+https://example.com/acme.git#0123456789abcdef0123456789abcdef01234567:
+    resolution: {type: git, repo: https://example.com/acme.git, commit: 0123456789abcdef0123456789abcdef01234567}
+    version: 1.0.0
+
+snapshots:
+
+  acme@git+https://example.com/acme.git#0123456789abcdef0123456789abcdef01234567: {}
+",
+    );
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect("artifact-keyed git entry passes the structural gate");
+}

@@ -31,7 +31,7 @@ fn write_manifest(dir: &Path, manifest: &serde_json::Value) {
 fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        allow_build: Box::new(move |_dep_path, _trust| allow),
+        allow_build: Box::new(move |_dep_path| allow),
         dep_path: "x@https://example.com/x.tgz",
         ignore_scripts,
         unsafe_perm: true,
@@ -45,10 +45,10 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
     }
 }
 
-fn opts_allow_trusted_only<'a>() -> PreparePackageOptions<'a> {
+fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        allow_build: Box::new(move |_dep_path, trust| trust),
+        allow_build: Box::new(move |dep_path| !dep_path.contains("://")),
         dep_path: "x@https://example.com/x.tgz",
         ignore_scripts: false,
         unsafe_perm: true,
@@ -65,7 +65,7 @@ fn opts_allow_trusted_only<'a>() -> PreparePackageOptions<'a> {
 fn opts_allow_dep_path<'a>(dep_path: &'a str) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        allow_build: Box::new(move |actual_dep_path, trust| !trust && actual_dep_path == dep_path),
+        allow_build: Box::new(move |actual_dep_path| actual_dep_path == dep_path),
         dep_path,
         ignore_scripts: false,
         unsafe_perm: true,
@@ -189,8 +189,9 @@ fn prepare_rejects_untrusted_manifest_identity() {
         }),
     );
 
-    let err = prepare_package::<SilentReporter>(&opts_allow_trusted_only(), dir.path(), None)
-        .unwrap_err();
+    let err =
+        prepare_package::<SilentReporter>(&opts_allow_registry_artifacts_only(), dir.path(), None)
+            .unwrap_err();
     match err {
         PreparePackageError::NotAllowed { name, version } => {
             assert_eq!(name, "naughty");

@@ -1936,9 +1936,6 @@ importers:
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../bins/linker
-      '@pnpm/building.policy':
-        specifier: workspace:*
-        version: link:../policy
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
@@ -3238,9 +3235,6 @@ importers:
 
   deps/graph-builder:
     dependencies:
-      '@pnpm/building.policy':
-        specifier: workspace:*
-        version: link:../../building/policy
       '@pnpm/config.package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -3299,9 +3293,6 @@ importers:
 
   deps/graph-hasher:
     dependencies:
-      '@pnpm/building.policy':
-        specifier: workspace:*
-        version: link:../../building/policy
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher

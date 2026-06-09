@@ -1,7 +1,6 @@
 import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
-import { createAllowBuildContext } from '@pnpm/building.policy'
 import {
   progressLogger,
   removalLogger,
@@ -136,7 +135,7 @@ async function linkAllPkgsInOrder (
         depNode.requiresBuild = filesResponse.requiresBuild
         let sideEffectsCacheKey: string | undefined
         if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
-          if (opts.allowBuild?.(depNode.depPath, createAllowBuildContext(depNode)) === true) {
+          if (opts.allowBuild?.(depNode.depPath) === true) {
             sideEffectsCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
               includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
               patchFileHash: depNode.patch?.hash,

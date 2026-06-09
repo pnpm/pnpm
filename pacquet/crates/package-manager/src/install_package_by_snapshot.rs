@@ -279,9 +279,8 @@ impl<'a> InstallPackageBySnapshot<'a> {
         // is neither allow-listed nor deny-listed. Default-deny
         // (`None → false`) matches pnpm v11's policy: build scripts
         // have to be explicitly opted in to run.
-        let allow_build_closure = |dep_path: &str, trust_package_identity: bool| {
-            allow_build_policy.check_with_context(dep_path, trust_package_identity).unwrap_or(false)
-        };
+        let allow_build_closure =
+            |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
         let scripts_prepend_node_path = match config.scripts_prepend_node_path {
             pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
             pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,

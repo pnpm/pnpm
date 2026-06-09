@@ -2,14 +2,6 @@ import { expandPackageVersionSpecs } from '@pnpm/config.version-policy'
 import * as dp from '@pnpm/deps.path'
 import type { AllowBuild, AllowBuildContext, DepPath } from '@pnpm/types'
 
-const TRUSTED_RESOLVED_VIA = new Set(['npm-registry', 'jsr-registry', 'named-registry', 'workspace'])
-
-export interface BuildPackageIdentitySource {
-  depPath?: DepPath
-  resolution?: unknown
-  resolvedVia?: string
-}
-
 export function isBuildExplicitlyDisallowed (depPath: DepPath, allowBuild?: AllowBuild): boolean {
   return allowBuild?.(depPath) === false
 }
@@ -49,7 +41,7 @@ export function createAllowBuildFunction (
       if (disallowedDepPathBuilds.has(pkgIdWithPatchHash)) {
         return false
       }
-      const { name, version } = dp.parse(depPath)
+      const { name, version, nonSemverVersion } = dp.parse(depPath)
       const nameAtVersion = name != null && version != null ? `${name}@${version}` : undefined
       if (
         (name != null && expandedDisallowed.has(name)) ||
@@ -60,7 +52,17 @@ export function createAllowBuildFunction (
       if (allowedDepPathBuilds.has(pkgIdWithPatchHash)) {
         return true
       }
-      if (context?.trustPackageIdentity === false) return undefined
+      // Package-name rules require a trusted package identity. A
+      // registry-style depPath (name@semver) is the trust signal: the
+      // lockfile verification gate rejects lockfiles where such a key is
+      // backed by a non-registry resolution, so by the time scripts can
+      // run, the shape proves the artifact came from a registry. The
+      // override exists for callers that must evaluate name rules under
+      // legacy semantics (e.g. comparing against a policy recorded before
+      // identity trust existed).
+      const trustPackageIdentity = context?.trustPackageIdentity ??
+        (name != null && version != null && nonSemverVersion == null)
+      if (!trustPackageIdentity) return undefined
       if (
         (name != null && expandedAllowed.has(name)) ||
         (nameAtVersion != null && expandedAllowed.has(nameAtVersion))
@@ -73,12 +75,6 @@ export function createAllowBuildFunction (
   return undefined
 }
 
-export function createAllowBuildContext (source: BuildPackageIdentitySource): AllowBuildContext {
-  return {
-    trustPackageIdentity: isPackageIdentityTrustedForBuild(source),
-  }
-}
-
 /**
  * The `allowBuilds` key under which an ignored build should be approved:
  * the package name for registry packages, the peer-suffix-free depPath for
@@ -89,33 +85,6 @@ export function allowBuildKeyFromIgnoredBuild (depPath: string): string {
   const parsed = dp.parse(normalizedDepPath)
   if (parsed.nonSemverVersion != null || parsed.name == null) return normalizedDepPath
   return parsed.name
-}
-
-function isPackageIdentityTrustedForBuild (source: BuildPackageIdentitySource): boolean {
-  if (source.resolvedVia != null) {
-    return TRUSTED_RESOLVED_VIA.has(source.resolvedVia)
-  }
-  const resolution = source.resolution
-  if (!hasTrustedPackageVersionDepPath(source.depPath)) return false
-  if (resolution == null) return true
-  if (!isObject(resolution)) return false
-  const resolutionType = typeof resolution.type === 'string' ? resolution.type : undefined
-  if (resolutionType === 'variations') {
-    const variants = Array.isArray(resolution.variants) ? resolution.variants : []
-    return variants.every((variant) => isPackageIdentityTrustedForBuild({
-      depPath: source.depPath,
-      resolution: isObject(variant) ? variant.resolution : undefined,
-    }))
-  }
-  if (resolutionType != null) return false
-  if (resolution.gitHosted === true) return false
-  return true
-}
-
-function hasTrustedPackageVersionDepPath (depPath?: DepPath): boolean {
-  if (depPath == null) return false
-  const parsed = dp.parse(depPath)
-  return parsed.name != null && parsed.version != null && parsed.nonSemverVersion == null
 }
 
 function addAllowBuildRule (
@@ -143,8 +112,4 @@ function isDepPathAllowBuildKey (pkg: string): boolean {
 
 function isSourceLikeDepPathVersion (version: string): boolean {
   return version.includes(':') || version.includes('/') || version.includes('#')
-}
-
-function isObject (value: unknown): value is Record<string, unknown> {
-  return value != null && typeof value === 'object'
 }
