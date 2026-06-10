@@ -540,3 +540,48 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true, '@pnpm.e2e/not-compatible-with-any-os': true },
   }, [])
 })
+
+test('rebuilds in the global virtual store when the approval was granted after the install', async () => {
+  const project = prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  // No allowBuilds at install time: the GVS projection is created under the
+  // not-built hash. The approval arrives only at rebuild time, so the rebuild
+  // recomputes a different (built) hash and must locate the existing
+  // projection through the project's node_modules link.
+  fs.writeFileSync('pnpm-workspace.yaml', [
+    'enableGlobalVirtualStore: true',
+    '',
+  ].join('\n'))
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '--save-dev',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    '--ignore-scripts',
+    `--cache-dir=${cacheDir}`,
+  ])
+
+  const pkgVersionDir = path.join(storeDir, STORE_VERSION, 'links/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
+  const hash = fs.readdirSync(pkgVersionDir)[0]
+  const pkgInGvs = path.join(pkgVersionDir, hash, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
+
+  const modulesManifest = project.readModulesManifest()
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    cacheDir,
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    pending: false,
+    registries: modulesManifest!.registries!,
+    storeDir,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }, [])
+
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
+})

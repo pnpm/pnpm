@@ -80,10 +80,10 @@ export function createAllowBuildFunction (
  * the package name for registry packages, the peer-suffix-free depPath for
  * git/tarball artifacts, whose name alone must not approve builds.
  */
-export function allowBuildKeyFromIgnoredBuild (depPath: string): string {
-  const normalizedDepPath = dp.removePeersSuffix(depPath)
-  const parsed = dp.parse(normalizedDepPath)
-  if (parsed.nonSemverVersion != null || parsed.name == null) return normalizedDepPath
+export function allowBuildKeyFromIgnoredBuild (depPath: DepPath): string {
+  const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
+  const parsed = dp.parse(pkgIdWithPatchHash)
+  if (parsed.nonSemverVersion != null || parsed.name == null) return pkgIdWithPatchHash
   return parsed.name
 }
 
