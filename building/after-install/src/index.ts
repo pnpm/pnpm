@@ -550,6 +550,8 @@ async function _rebuild (
   return { pkgsThatWereRebuilt, ignoredPkgs }
 }
 
+// TODO: delete once rebuild relocates GVS projections to the newly computed
+// hash instead of building in place (https://github.com/pnpm/pnpm/issues/12302).
 function findLinkedGvsDir (
   pkgName: string,
   projects: Array<{ rootDir: ProjectRootDir }>,
