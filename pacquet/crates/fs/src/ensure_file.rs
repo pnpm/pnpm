@@ -166,6 +166,10 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 pub fn ensure_file(
     file_path: &Path,
     content: &[u8],
+    #[cfg_attr(
+        windows,
+        expect(unused, reason = "mode carries Unix permission bits and is unused on Windows")
+    )]
     mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
     // See the "Process-local per-path mutex" bullet above and
