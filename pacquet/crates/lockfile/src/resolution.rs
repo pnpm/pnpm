@@ -385,10 +385,14 @@ impl From<ResolutionSerde> for LockfileResolution {
 /// upstream's `isGitHostedTarballUrl` at
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/lockfileFormatConverters.ts#L23-L29>.
 pub fn is_git_hosted_tarball_url(url: &str) -> bool {
-    (url.starts_with("https://codeload.github.com/")
-        || url.starts_with("https://bitbucket.org/")
-        || url.starts_with("https://gitlab.com/"))
-        && url.contains("tar.gz")
+    // Schemes and hostnames are case-insensitive, so match against a lowercased
+    // copy: a tampered `https://CODELOAD.GITHUB.COM/...` must not slip past as a
+    // non-git-hosted (and therefore registry-trusted) tarball.
+    let lower = url.to_ascii_lowercase();
+    (lower.starts_with("https://codeload.github.com/")
+        || lower.starts_with("https://bitbucket.org/")
+        || lower.starts_with("https://gitlab.com/"))
+        && lower.contains("tar.gz")
 }
 
 impl From<LockfileResolution> for ResolutionSerde {

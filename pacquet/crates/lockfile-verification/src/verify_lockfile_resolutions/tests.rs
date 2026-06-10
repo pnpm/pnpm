@@ -670,3 +670,38 @@ snapshots:
     .expect_err("file: tarball under a semver key must be rejected");
     assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
 }
+
+#[tokio::test]
+async fn rejects_git_host_tarball_with_uppercased_host() {
+    // Hostnames are case-insensitive; an uppercased codeload host with
+    // gitHosted: false must still be rejected under a semver key.
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {integrity: sha512-deadbeef, tarball: 'https://CODELOAD.GITHUB.COM/org/acme/tar.gz/abc123', gitHosted: false}
+
+snapshots:
+
+  acme@1.0.0: {}
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("uppercased git-host tarball must be rejected");
+    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
+}
