@@ -232,6 +232,7 @@ allow_attributes                = "warn"
 allow_attributes_without_reason = "warn"
 clone_on_ref_ptr                = "warn"
 if_then_some_else_none          = "warn"
+mod_module_files                = "warn" # forbids mod.rs, enforcing the flat module.rs layout (see CODE_STYLE_GUIDE.md)
 
 [profile.release]
 opt-level     = 3
