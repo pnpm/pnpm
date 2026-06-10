@@ -1,5 +1,59 @@
 # @pnpm/core
 
+## 1101.8.0
+
+### Minor Changes
+
+- 089484a: The pnpr install accelerator is now used only to create the lockfile. Previously `POST /v1/install` returned the resolved lockfile **and** all missing file contents inline over a single connection, which was bandwidth-bound on cold/WAN installs (one TCP stream can't compete with a registry's parallel CDN fetches). The accelerator is now a two-phase flow: the pnpr server resolves and verifies the lockfile server-side (collapsing resolution's round-trip depth), then the client fetches every tarball directly from the registries in parallel, exactly like a normal install. This makes the accelerated path never slower than a plain install, and turns pnpr into a stateless resolver that stores no tarballs and serves no file content [#12230](https://github.com/pnpm/pnpm/issues/12230).
+
+### Patch Changes
+
+- bf1b731: Require trusted package identity before package-name `allowBuilds` entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the `allowBuilds` key. Lockfile verification now rejects lockfiles where a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [de32f83]
+- Updated dependencies [089484a]
+- Updated dependencies [29a496a]
+- Updated dependencies [bf1b731]
+  - @pnpm/pnpr.client@1.2.0
+  - @pnpm/worker@1100.1.10
+  - @pnpm/installing.deps-resolver@1100.2.1
+  - @pnpm/building.after-install@1101.0.20
+  - @pnpm/building.during-install@1101.0.17
+  - @pnpm/building.policy@1100.0.9
+  - @pnpm/deps.graph-hasher@1100.2.4
+  - @pnpm/installing.deps-restorer@1101.1.10
+  - @pnpm/types@1101.3.1
+  - @pnpm/bins.linker@1100.0.12
+  - @pnpm/bins.remover@1100.0.8
+  - @pnpm/config.normalize-registries@1100.0.7
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/exec.lifecycle@1100.0.16
+  - @pnpm/fs.symlink-dependency@1100.0.8
+  - @pnpm/hooks.read-package-hook@1100.0.7
+  - @pnpm/hooks.types@1100.0.11
+  - @pnpm/installing.context@1100.0.16
+  - @pnpm/installing.linking.hoist@1100.0.12
+  - @pnpm/installing.linking.modules-cleaner@1100.1.6
+  - @pnpm/installing.modules-yaml@1100.0.8
+  - @pnpm/installing.package-requester@1101.0.12
+  - @pnpm/lockfile.filtering@1100.1.5
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.preferred-versions@1100.0.14
+  - @pnpm/lockfile.pruner@1100.0.10
+  - @pnpm/lockfile.to-pnp@1100.0.13
+  - @pnpm/lockfile.utils@1100.0.12
+  - @pnpm/lockfile.verification@1100.0.16
+  - @pnpm/lockfile.walker@1100.0.10
+  - @pnpm/network.auth-header@1101.1.1
+  - @pnpm/pkg-manifest.utils@1100.2.3
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/store.controller-types@1100.1.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.11
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/lockfile.settings-checker@1100.0.16
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.8
+  - @pnpm/patching.config@1100.0.7
+
 ## 1101.7.0
 
 ### Minor Changes

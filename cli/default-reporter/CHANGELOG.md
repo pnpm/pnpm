@@ -1,5 +1,22 @@
 # @pnpm/default-reporter
 
+## 1100.2.6
+
+### Patch Changes
+
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [1017c36]
+- Updated dependencies [bf1b731]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/types@1101.3.1
+  - @pnpm/cli.meta@1100.0.7
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.5
+
 ## 1100.2.5
 
 ### Patch Changes

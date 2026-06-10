@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/testing.registry-mock",
-  "version": "1100.0.3",
+  "version": "1100.0.4",
   "private": true,
   "description": "Thin test helpers that talk to the mock npm registry — wraps registry-access.commands with REGISTRY_MOCK_PORT and REGISTRY_MOCK_CREDENTIALS baked in.",
   "keywords": [

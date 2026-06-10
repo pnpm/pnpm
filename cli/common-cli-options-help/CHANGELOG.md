@@ -1,5 +1,11 @@
 # @pnpm/common-cli-options-help
 
+## 1100.0.2
+
+### Patch Changes
+
+- e4d2fe0: Clarified in CLI help that the pnpm store is trusted shared state and store integrity checks are corruption detection, not a tamper boundary for untrusted store writers.
+
 ## 1100.0.1
 
 ### Patch Changes

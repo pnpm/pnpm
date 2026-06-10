@@ -1,5 +1,17 @@
 # @pnpm/agent.client
 
+## 1.2.0
+
+### Minor Changes
+
+- 089484a: The pnpr install accelerator is now used only to create the lockfile. Previously `POST /v1/install` returned the resolved lockfile **and** all missing file contents inline over a single connection, which was bandwidth-bound on cold/WAN installs (one TCP stream can't compete with a registry's parallel CDN fetches). The accelerator is now a two-phase flow: the pnpr server resolves and verifies the lockfile server-side (collapsing resolution's round-trip depth), then the client fetches every tarball directly from the registries in parallel, exactly like a normal install. This makes the accelerated path never slower than a plain install, and turns pnpr into a stateless resolver that stores no tarballs and serves no file content [#12230](https://github.com/pnpm/pnpm/issues/12230).
+
+### Patch Changes
+
+- de32f83: The pnpr client now reads the `POST /v1/resolve` response as an `application/x-ndjson` stream, matching the server's streaming protocol [#12234](https://github.com/pnpm/pnpm/issues/12234). It parses the terminal `done` / `error` / `violations` frame instead of expecting a single buffered JSON object.
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.types@1100.0.10
+
 ## 1.1.0
 
 ### Minor Changes

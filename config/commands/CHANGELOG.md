@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-config
 
+## 1100.0.20
+
+### Patch Changes
+
+- 6b5d91a: Fixed `pnpm config get globalconfig` to return the global `config.yaml` path again [pnpm/pnpm#11962](https://github.com/pnpm/pnpm/issues/11962).
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [1017c36]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/cli.utils@1101.0.10
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.12
+
 ## 1100.0.19
 
 ### Patch Changes

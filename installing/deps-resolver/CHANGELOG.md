@@ -1,5 +1,30 @@
 # @pnpm/resolve-dependencies
 
+## 1100.2.1
+
+### Patch Changes
+
+- 29a496a: Made peer-dependent deduplication deterministic. When a peer-suffixed package variant was a subset of two or more mutually incompatible larger variants, the variant it collapsed into depended on the order importers were resolved in, which varies between machines. This could resolve the same workspace to different lockfiles on different platforms and make `pnpm dedupe --check` alternate between passing and failing.
+- bf1b731: Require trusted package identity before package-name `allowBuilds` entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the `allowBuilds` key. Lockfile verification now rejects lockfiles where a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [bf1b731]
+  - @pnpm/deps.graph-hasher@1100.2.4
+  - @pnpm/types@1101.3.1
+  - @pnpm/fetching.pick-fetcher@1100.0.11
+  - @pnpm/config.version-policy@1100.1.4
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/hooks.types@1100.0.11
+  - @pnpm/lockfile.preferred-versions@1100.0.14
+  - @pnpm/lockfile.pruner@1100.0.10
+  - @pnpm/lockfile.types@1100.0.10
+  - @pnpm/lockfile.utils@1100.0.12
+  - @pnpm/pkg-manifest.reader@1100.0.7
+  - @pnpm/pkg-manifest.utils@1100.2.3
+  - @pnpm/resolving.npm-resolver@1101.5.1
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/store.controller-types@1100.1.4
+  - @pnpm/patching.config@1100.0.7
+
 ## 1100.2.0
 
 ### Minor Changes
