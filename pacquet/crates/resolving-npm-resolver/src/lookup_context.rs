@@ -45,14 +45,15 @@ pub(crate) struct AbbreviatedMetaProjection {
     pub modified: Option<String>,
     /// version → `dist.tarball`; key presence means the version is published.
     pub version_tarballs: Option<HashMap<String, String>>,
-    /// version → `dist.unpackedSize`, for the versions whose registry
-    /// published one. Not part of upstream's projection — carried so
-    /// the verifier can surface tarball sizes to fetch scheduling
-    /// (the verifier's [`ObservedUnpackedSizes`] sink) without a
-    /// second metadata round-trip.
+    /// version → `dist` work statistics (`unpackedSize`, `fileCount`),
+    /// for the versions whose registry published either. Not part of
+    /// upstream's projection — carried so the verifier can surface
+    /// tarball work estimates to fetch scheduling (the verifier's
+    /// [`ObservedDistStats`] sink) without a second metadata
+    /// round-trip.
     ///
-    /// [`ObservedUnpackedSizes`]: crate::ObservedUnpackedSizes
-    pub version_unpacked_sizes: Option<HashMap<String, usize>>,
+    /// [`ObservedDistStats`]: crate::ObservedDistStats
+    pub version_dist_stats: Option<HashMap<String, crate::DistStats>>,
 }
 
 /// Slot map of singleflight cells. Outer mutex guards lookup/insert;

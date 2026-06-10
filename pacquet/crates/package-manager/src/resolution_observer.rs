@@ -9,7 +9,9 @@
 //! while the server is still resolving
 //! ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)).
 
-use crate::install_package_from_registry::{extract_tarball, manifest_unpacked_size};
+use crate::install_package_from_registry::{
+    extract_tarball, manifest_file_count, manifest_unpacked_size,
+};
 use dashmap::DashSet;
 use pacquet_resolving_resolver_base::{
     LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
@@ -37,6 +39,10 @@ pub struct ResolvedPackageHint<'a> {
     /// decompression buffer exactly and start the largest archives
     /// first when the connection pool is saturated.
     pub unpacked_size: Option<usize>,
+    /// `dist.fileCount` from the resolver-fetched manifest, when the
+    /// registry published one. The per-file term of the download
+    /// priority's pipeline-work estimate.
+    pub file_count: Option<usize>,
 }
 
 /// Sink notified once per resolved tarball package during a resolve.
@@ -90,6 +96,7 @@ impl ObservingResolver {
             integrity: &integrity,
             tarball_url,
             unpacked_size: manifest_unpacked_size(result.manifest.as_deref()),
+            file_count: manifest_file_count(result.manifest.as_deref()),
         });
     }
 }

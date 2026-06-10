@@ -48,17 +48,27 @@ use crate::{
     },
 };
 
-/// `(package name, version) → dist.unpackedSize` map filled by the
+/// Per-version `dist` statistics that estimate a tarball's pipeline
+/// work: `unpackedSize` (transfer + decompress + hash bytes) and
+/// `fileCount` (per-file CAS-write overhead). Either may be absent —
+/// registries only publish them for packages uploaded since npm 6.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DistStats {
+    pub unpacked_size: Option<usize>,
+    pub file_count: Option<usize>,
+}
+
+/// `(package name, version) → dist` work statistics filled by the
 /// verifier as a side product of the tarball-URL binding check. The
 /// metadata is already in hand per entry, so collecting costs no extra
-/// fetch; consumers (the pnpr server's frozen fast path) use the sizes
-/// to schedule the largest tarball downloads first. Shared as an `Arc`
-/// so the caller keeps a handle while the verifier fan-out writes.
-pub type ObservedUnpackedSizes = Arc<DashMap<(String, String), usize>>;
+/// fetch; consumers (the pnpr server's frozen fast path) use the stats
+/// to schedule the most expensive tarball downloads first. Shared as an
+/// `Arc` so the caller keeps a handle while the verifier fan-out writes.
+pub type ObservedDistStats = Arc<DashMap<(String, String), DistStats>>;
 
 /// Construct a fresh sink for
-/// [`CreateNpmResolutionVerifierOptions::observed_unpacked_sizes`].
-pub fn observed_unpacked_sizes_sink() -> ObservedUnpackedSizes {
+/// [`CreateNpmResolutionVerifierOptions::observed_dist_stats`].
+pub fn observed_dist_stats_sink() -> ObservedDistStats {
     Arc::new(DashMap::new())
 }
 
@@ -130,9 +140,9 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// wall-clock at construction time.
     pub now: Option<DateTime<Utc>>,
     /// Optional sink the verifier fills with each verified entry's
-    /// `dist.unpackedSize` (see [`ObservedUnpackedSizes`]). `None`
+    /// `dist` work statistics (see [`ObservedDistStats`]). `None`
     /// skips collection.
-    pub observed_unpacked_sizes: Option<ObservedUnpackedSizes>,
+    pub observed_dist_stats: Option<ObservedDistStats>,
 }
 
 /// Verifier returned by [`create_npm_resolution_verifier`]. Stores
@@ -162,7 +172,7 @@ pub struct NpmResolutionVerifier {
     now: Option<DateTime<Utc>>,
     policy_snapshot: serde_json::Map<String, JsonValue>,
     lookup_context: PublishedAtLookupContext,
-    observed_unpacked_sizes: Option<ObservedUnpackedSizes>,
+    observed_dist_stats: Option<ObservedDistStats>,
 }
 
 impl std::fmt::Debug for NpmResolutionVerifier {
@@ -243,7 +253,7 @@ pub fn create_npm_resolution_verifier(
         now: opts.now,
         policy_snapshot,
         lookup_context: PublishedAtLookupContext::new(),
-        observed_unpacked_sizes: opts.observed_unpacked_sizes,
+        observed_dist_stats: opts.observed_dist_stats,
     }
 }
 
@@ -441,11 +451,11 @@ impl NpmResolutionVerifier {
     ) -> Option<ResolutionVerification> {
         let registry_tarball = match self.fetch_abbreviated_meta(registry, name).await {
             Ok(Some(meta)) => {
-                if let Some(sink) = self.observed_unpacked_sizes.as_ref()
-                    && let Some(size) =
-                        meta.version_unpacked_sizes.as_ref().and_then(|sizes| sizes.get(version))
+                if let Some(sink) = self.observed_dist_stats.as_ref()
+                    && let Some(stats) =
+                        meta.version_dist_stats.as_ref().and_then(|stats| stats.get(version))
                 {
-                    sink.insert((name.to_string(), version.to_string()), *size);
+                    sink.insert((name.to_string(), version.to_string()), *stats);
                 }
                 meta.version_tarballs.and_then(|tarballs| tarballs.get(version).cloned())
             }
@@ -1055,17 +1065,22 @@ fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::Abbreviate
         .iter()
         .map(|(version, manifest)| (version.clone(), manifest.dist.tarball.clone()))
         .collect();
-    let version_unpacked_sizes = meta
+    let version_dist_stats = meta
         .versions
         .iter()
         .filter_map(|(version, manifest)| {
-            manifest.dist.unpacked_size.map(|size| (version.clone(), size))
+            let stats = DistStats {
+                unpacked_size: manifest.dist.unpacked_size,
+                file_count: manifest.dist.file_count,
+            };
+            (stats.unpacked_size.is_some() || stats.file_count.is_some())
+                .then(|| (version.clone(), stats))
         })
         .collect();
     crate::lookup_context::AbbreviatedMetaProjection {
         modified: meta.modified.clone(),
         version_tarballs: Some(version_tarballs),
-        version_unpacked_sizes: Some(version_unpacked_sizes),
+        version_dist_stats: Some(version_dist_stats),
     }
 }
 

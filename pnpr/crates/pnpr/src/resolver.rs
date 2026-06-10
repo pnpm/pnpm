@@ -62,7 +62,7 @@ use pacquet_package_manager::{
     ResolvedPackageHint, build_resolution_verifiers, tarball_url_and_integrity,
 };
 use pacquet_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, ObservedUnpackedSizes, PackageMetaCache, observed_unpacked_sizes_sink,
+    InMemoryPackageMetaCache, ObservedDistStats, PackageMetaCache, observed_dist_stats_sink,
 };
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::StoreDir;
@@ -228,12 +228,12 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     // opt-out (mirrors the local path's `--trust-lockfile`). Freshly-
     // resolved entries are held to the same policy by the resolver's
     // pick-time gate (the policy is wired into `config`).
-    let mut verified_unpacked_sizes = None;
+    let mut verified_dist_stats = None;
     if !request.trust_lockfile
         && let Some(input_lockfile) = request.lockfile.as_ref()
     {
         match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
-            Ok(sizes) => verified_unpacked_sizes = sizes,
+            Ok(stats) => verified_dist_stats = stats,
             Err(VerifyFailure::Internal(response)) => return response,
             Err(VerifyFailure::Violations(violations)) => {
                 return ndjson_single_frame(&violations_frame(&violations));
@@ -249,7 +249,7 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     // fetched, so there's nothing to add and the response is the bare
     // `done` frame.
     if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
-        let mut frames = verified_unpacked_sizes
+        let mut frames = verified_dist_stats
             .map(|sizes| frozen_package_frames(config, &lockfile, &sizes))
             .unwrap_or_default();
         frames.push(done_frame(&lockfile));
@@ -410,6 +410,9 @@ fn package_frame(hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
     if let Some(size) = hint.unpacked_size {
         frame["unpackedSize"] = serde_json::Value::from(size);
     }
+    if let Some(count) = hint.file_count {
+        frame["fileCount"] = serde_json::Value::from(count);
+    }
     frame
 }
 
@@ -429,7 +432,7 @@ fn package_frame(hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
 fn frozen_package_frames(
     config: &PacquetConfig,
     lockfile: &Lockfile,
-    unpacked_sizes: &ObservedUnpackedSizes,
+    dist_stats: &ObservedDistStats,
 ) -> Vec<Vec<u8>> {
     let Some(packages) = lockfile.packages.as_ref() else {
         return Vec::new();
@@ -455,15 +458,15 @@ fn frozen_package_frames(
         let version = package_key.suffix.version().to_string();
         let id = format!("{name}@{version}");
         let integrity = integrity.to_string();
-        let unpacked_size =
-            unpacked_sizes.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
+        let stats = dist_stats.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
         let frame = package_frame(&ResolvedPackageHint {
             id: &id,
             name: &name,
             version: &version,
             integrity: &integrity,
             tarball_url: &tarball_url,
-            unpacked_size,
+            unpacked_size: stats.and_then(|stats| stats.unpacked_size),
+            file_count: stats.and_then(|stats| stats.file_count),
         });
         if let Ok(line) = ndjson_line(&frame) {
             frames.push(line);
@@ -558,7 +561,7 @@ enum VerifyFailure {
 }
 
 /// Verify the client's input lockfile under the client's policy. On a
-/// clean pass returns the [`ObservedUnpackedSizes`] the verifier
+/// clean pass returns the [`ObservedDistStats`] the verifier
 /// collected — `None` when the whole-lockfile verdict cache satisfied
 /// the check without a fan-out (no metadata was fetched, so no sizes
 /// exist). On a policy violation returns the rendered violations so
@@ -569,18 +572,18 @@ async fn verify_input_lockfile(
     config: &'static PacquetConfig,
     auth_headers: &Arc<AuthHeaders>,
     lockfile: &Lockfile,
-) -> Result<Option<ObservedUnpackedSizes>, VerifyFailure> {
+) -> Result<Option<ObservedDistStats>, VerifyFailure> {
     // A fresh per-request packument cache shared with the verifier; the
     // on-disk metadata mirror under `<cache_dir>/v11/metadata-full` is
     // warm across requests and is the real verification cache.
     let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
-    let unpacked_sizes = observed_unpacked_sizes_sink();
+    let dist_stats = observed_dist_stats_sink();
     let verifiers = build_resolution_verifiers(
         config,
         Arc::clone(&runtime.client),
         Some(meta_cache as Arc<dyn PackageMetaCache>),
         Some(Arc::clone(auth_headers)),
-        Some(Arc::clone(&unpacked_sizes)),
+        Some(Arc::clone(&dist_stats)),
     )
     .map_err(|err| {
         VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
@@ -604,7 +607,7 @@ async fn verify_input_lockfile(
         if let Some(cache) = runtime.verdict_cache.as_ref() {
             cache.record(&hash, &merge_policies(&verifiers));
         }
-        return Ok(Some(unpacked_sizes));
+        return Ok(Some(dist_stats));
     }
 
     let rendered: Vec<serde_json::Value> = violations

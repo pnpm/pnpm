@@ -47,6 +47,7 @@ pub(crate) struct TarballDownload {
     pub package_url: String,
     pub integrity: Integrity,
     pub package_unpacked_size: Option<usize>,
+    pub package_file_count: Option<usize>,
 }
 
 /// [`tokio::spawn`] a single tarball download into the shared mem cache
@@ -74,6 +75,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
         package_url,
         integrity,
         package_unpacked_size,
+        package_file_count,
     } = download;
 
     tokio::spawn(async move {
@@ -86,6 +88,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
             verified_files_cache,
             package_integrity: &integrity,
             package_unpacked_size,
+            package_file_count,
             package_url: &package_url,
             package_id: &package_id,
             requester: &requester,
@@ -200,6 +203,7 @@ impl TarballPrefetcher {
         package_url: String,
         integrity: &str,
         unpacked_size: Option<usize>,
+        file_count: Option<usize>,
     ) {
         let integrity = match integrity.parse::<Integrity>() {
             Ok(integrity) => integrity,
@@ -232,6 +236,7 @@ impl TarballPrefetcher {
             package_url,
             integrity,
             package_unpacked_size: unpacked_size,
+            package_file_count: file_count,
         });
     }
 

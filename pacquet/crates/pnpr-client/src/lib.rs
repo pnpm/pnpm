@@ -116,6 +116,10 @@ pub struct ResolvedPackage {
     /// and prioritizes the largest pending downloads when the
     /// connection pool is saturated.
     pub unpacked_size: Option<usize>,
+    /// `dist.fileCount` from the server-side resolve, when the registry
+    /// published one. The per-file term of the download priority's
+    /// pipeline-work estimate.
+    pub file_count: Option<usize>,
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -259,7 +263,15 @@ impl PnprClient {
                     continue;
                 }
                 match parse_frame(line)? {
-                    Frame::Package { id, name, version, integrity, tarball, unpacked_size } => {
+                    Frame::Package {
+                        id,
+                        name,
+                        version,
+                        integrity,
+                        tarball,
+                        unpacked_size,
+                        file_count,
+                    } => {
                         on_package(ResolvedPackage {
                             id,
                             name,
@@ -267,6 +279,7 @@ impl PnprClient {
                             integrity,
                             tarball,
                             unpacked_size,
+                            file_count,
                         });
                     }
                     Frame::Done { lockfile, stats } => {
@@ -306,6 +319,8 @@ enum Frame {
         /// `dist.unpackedSize`.
         #[serde(rename = "unpackedSize", default)]
         unpacked_size: Option<usize>,
+        #[serde(rename = "fileCount", default)]
+        file_count: Option<usize>,
     },
     /// Boxed: the lockfile dwarfs the other variants, so keeping it
     /// behind a pointer keeps the enum small.

@@ -38,8 +38,8 @@ mod violation_codes;
 mod workspace_pref_to_npm;
 
 pub use create_npm_resolution_verifier::{
-    CreateNpmResolutionVerifierOptions, NpmResolutionVerifier, ObservedUnpackedSizes,
-    create_npm_resolution_verifier, observed_unpacked_sizes_sink,
+    CreateNpmResolutionVerifierOptions, DistStats, NpmResolutionVerifier, ObservedDistStats,
+    create_npm_resolution_verifier, observed_dist_stats_sink,
 };
 pub use errors::FetchMetadataError;
 pub use fetch_attestation_published_at::{FetchAttestationOptions, fetch_attestation_published_at};

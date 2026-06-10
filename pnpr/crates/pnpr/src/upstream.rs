@@ -331,11 +331,6 @@ pub fn abbreviate_packument(packument: &Value, now: DateTime<Utc>) -> Value {
 /// * `npm-signature` — the legacy PGP detached signature. npm stopped
 ///   populating it years ago in favour of the ECDSA `signatures`, and
 ///   nothing in pnpm or pacquet reads it.
-/// * `fileCount` — read nowhere in pnpm or pacquet.
-/// * `unpackedSize` — only `pnpm view` reads it, and that command
-///   fetches the *full* metadata document (`fullMetadata: true`) which
-///   pnpr serves unstripped, so dropping it from the abbreviated form
-///   is safe.
 /// * `shasum` — the legacy sha1 hash, redundant once `integrity` (SRI)
 ///   is present. "Present" mirrors pnpm's `getIntegrity` truthiness
 ///   check (`if (dist.integrity)`): a non-empty string. An absent,
@@ -346,13 +341,17 @@ pub fn abbreviate_packument(packument: &Value, now: DateTime<Utc>) -> Value {
 /// preserved: it binds `name@version:integrity` to the upstream
 /// registry's key and is the input to a potential client-side
 /// install-time verification on the pnpr path.
+///
+/// `unpackedSize` and `fileCount` are preserved: pacquet reads both
+/// off the resolver-fetched manifest — `unpackedSize` sizes the
+/// decompression buffer, and together they form the download's
+/// queueing priority (the estimated pipeline work that starts the
+/// most expensive tarballs first).
 fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
     let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
     dist.remove("npm-signature");
-    dist.remove("fileCount");
-    dist.remove("unpackedSize");
     if dist.get("integrity").and_then(Value::as_str).is_some_and(|integrity| !integrity.is_empty())
     {
         dist.remove("shasum");

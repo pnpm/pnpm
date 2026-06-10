@@ -9,8 +9,7 @@ use pretty_assertions::assert_eq;
 use ssri::Integrity;
 
 use super::{
-    CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier,
-    observed_unpacked_sizes_sink,
+    CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
 };
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
@@ -56,7 +55,7 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         // backoff (10 s + 60 s) on every run.
         retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
         now: None,
-        observed_unpacked_sizes: None,
+        observed_dist_stats: None,
     }
 }
 
@@ -1058,9 +1057,10 @@ async fn concurrent_verifications_share_one_fetch() {
 }
 
 /// The binding check records each verified entry's `dist.unpackedSize`
-/// into the `observed_unpacked_sizes` sink when one is provided.
+/// and `dist.fileCount` into the `observed_dist_stats` sink when one is
+/// provided.
 #[tokio::test]
-async fn binding_check_records_unpacked_size_into_the_sink() {
+async fn binding_check_records_dist_stats_into_the_sink() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     let server_url = server.url();
@@ -1076,6 +1076,7 @@ async fn binding_check_records_unpacked_size_into_the_sink() {
                     "integrity": FAKE_INTEGRITY,
                     "tarball": tarball_url,
                     "unpackedSize": 123_456,
+                    "fileCount": 42,
                 }
             }
         }
@@ -1087,9 +1088,9 @@ async fn binding_check_records_unpacked_size_into_the_sink() {
         .create_async()
         .await;
 
-    let sink = observed_unpacked_sizes_sink();
+    let sink = observed_dist_stats_sink();
     let mut opts = default_opts(&registry);
-    opts.observed_unpacked_sizes = Some(Arc::clone(&sink));
+    opts.observed_dist_stats = Some(Arc::clone(&sink));
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: tarball_url.clone(),
@@ -1101,6 +1102,10 @@ async fn binding_check_records_unpacked_size_into_the_sink() {
     let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
 
     assert_eq!(result, ResolutionVerification::Ok);
-    let recorded = sink.get(&("acme".to_string(), "1.0.0".to_string())).map(|entry| *entry.value());
-    assert_eq!(recorded, Some(123_456));
+    let recorded = sink
+        .get(&("acme".to_string(), "1.0.0".to_string()))
+        .map(|entry| *entry.value())
+        .expect("stats recorded");
+    assert_eq!(recorded.unpacked_size, Some(123_456));
+    assert_eq!(recorded.file_count, Some(42));
 }
