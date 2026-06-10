@@ -68,12 +68,30 @@ export type CheckDepsStatusOptions = Pick<Config,
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
   pnpmfile: string[]
+  /**
+   * When git-branch lockfiles are enabled, the wanted lockfile lives at
+   * `pnpm-lock.<branch>.yaml`, so a missing `pnpm-lock.yaml` is the steady
+   * state — the current-lockfile stand-in must not kick in.
+   */
+  useGitBranchLockfile?: boolean
 } & WorkspaceStateSettings
 
 export interface CheckDepsStatusResult {
   upToDate: boolean | undefined
   issue?: string
   workspaceState: WorkspaceState | undefined
+  /**
+   * Set when `pnpm-lock.yaml` was missing and the current lockfile
+   * (`<lockfileDir>/node_modules/.pnpm/lock.yaml`) stood in as the wanted
+   * lockfile for the up-to-date checks. The current lockfile records
+   * exactly what the previous install materialized, so the caller can
+   * restore `pnpm-lock.yaml` from it without resolving — `installDeps`
+   * does that before reporting "Already up to date".
+   */
+  wantedLockfileToRestore?: {
+    lockfile: LockfileObject
+    lockfileDir: string
+  }
 }
 
 export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<CheckDepsStatusResult> {
@@ -258,37 +276,59 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
     if (modifiedProjects.length === 0) {
       logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
-      return { upToDate: true, workspaceState }
+      const wantedLockfileToRestore = sharedWorkspaceLockfile && !opts.useGitBranchLockfile
+        ? await missingWantedLockfileStandIn(workspaceDir)
+        : undefined
+      return { upToDate: true, workspaceState, wantedLockfileToRestore }
     }
 
     logger.debug({ msg: 'Some manifest files were modified since the last validation. Continuing check.' })
 
+    let wantedLockfileToRestore: CheckDepsStatusResult['wantedLockfileToRestore']
     let readWantedLockfileAndDir: (projectDir: string) => Promise<{
       wantedLockfile: LockfileObject
       wantedLockfileDir: string
     }>
     if (sharedWorkspaceLockfile) {
-      let wantedLockfileStats: fs.Stats
+      let wantedLockfileStats: fs.Stats | undefined
       try {
         wantedLockfileStats = fs.statSync(path.join(workspaceDir, WANTED_LOCKFILE))
       } catch (error) {
         if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
-          return throwLockfileNotFound(workspaceDir)
+          wantedLockfileStats = undefined
         } else {
           throw error
         }
       }
 
-      const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
-      if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
+      if (wantedLockfileStats == null) {
+        // `pnpm-lock.yaml` is gone, but the current lockfile records
+        // exactly what the previous install materialized — let it stand
+        // in as the wanted lockfile for the checks below, and report it
+        // back so `installDeps` can restore `pnpm-lock.yaml` from it
+        // without resolving. There is no second lockfile to compare
+        // against, so the wanted-vs-current equality assertion doesn't
+        // apply on this path.
+        if (opts.useGitBranchLockfile) return throwLockfileNotFound(workspaceDir)
         const currentLockfile = await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
-        const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
-        assertLockfilesEqual(currentLockfile, wantedLockfile, workspaceDir)
+        if (currentLockfile == null) return throwLockfileNotFound(workspaceDir)
+        wantedLockfileToRestore = { lockfile: currentLockfile, lockfileDir: workspaceDir }
+        readWantedLockfileAndDir = async () => ({
+          wantedLockfile: currentLockfile,
+          wantedLockfileDir: workspaceDir,
+        })
+      } else {
+        const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
+        if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
+          const currentLockfile = await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
+          const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
+          assertLockfilesEqual(currentLockfile, wantedLockfile, workspaceDir)
+        }
+        readWantedLockfileAndDir = async () => ({
+          wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir),
+          wantedLockfileDir: workspaceDir,
+        })
       }
-      readWantedLockfileAndDir = async () => ({
-        wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir),
-        wantedLockfileDir: workspaceDir,
-      })
     } else {
       readWantedLockfileAndDir = async wantedLockfileDir => {
         const wantedLockfilePromise = readWantedLockfile(wantedLockfileDir, { ignoreIncompatible: false })
@@ -355,7 +395,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       filteredInstall: workspaceState.filteredInstall,
     })
 
-    return { upToDate: true, workspaceState }
+    return { upToDate: true, workspaceState, wantedLockfileToRestore }
   }
 
   if (!allProjects) {
@@ -389,12 +429,26 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       statManifestFile(rootProjectManifestDir),
     ])
 
-    if (!wantedLockfileStats) return throwLockfileNotFound(rootProjectManifestDir)
+    if (!wantedLockfileStats && (!currentLockfileStats || opts.useGitBranchLockfile)) return throwLockfileNotFound(rootProjectManifestDir)
+
+    // When `pnpm-lock.yaml` is gone but the current lockfile
+    // (`node_modules/.pnpm/lock.yaml`) survives, the current one stands
+    // in as the wanted lockfile: it records exactly what the previous
+    // install materialized, so the checks below run against it and the
+    // caller can restore `pnpm-lock.yaml` from it without resolving.
+    // The wanted-vs-current equality assertion doesn't apply on this
+    // path — the two are the same object.
+    const wantedLockfileIsMissing = !wantedLockfileStats
+    const effectiveWantedLockfileStats = (wantedLockfileStats ?? currentLockfileStats)!
+    const readEffectiveWantedLockfile = async (): Promise<LockfileObject> => {
+      const lockfile = wantedLockfileIsMissing ? await currentLockfilePromise : await wantedLockfilePromise
+      return lockfile ?? throwLockfileNotFound(rootProjectManifestDir)
+    }
 
     const issue = await patchesOrHooksAreModified({
       patchedDependencies,
       rootDir: rootProjectManifestDir,
-      lastValidatedTimestamp: wantedLockfileStats.mtime.valueOf(),
+      lastValidatedTimestamp: effectiveWantedLockfileStats.mtime.valueOf(),
       currentPnpmfiles: opts.pnpmfile,
       previousPnpmfiles: workspaceState.pnpmfiles,
     })
@@ -402,7 +456,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       return { upToDate: false, issue, workspaceState }
     }
 
-    if (currentLockfileStats && wantedLockfileStats.mtime.valueOf() > currentLockfileStats.mtime.valueOf()) {
+    if (!wantedLockfileIsMissing && currentLockfileStats && wantedLockfileStats.mtime.valueOf() > currentLockfileStats.mtime.valueOf()) {
       const currentLockfile = await currentLockfilePromise
       const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir)
       assertLockfilesEqual(currentLockfile, wantedLockfile, rootProjectManifestDir)
@@ -413,7 +467,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${rootProjectManifestDir}`)
     }
 
-    if (manifestStats.mtime.valueOf() > wantedLockfileStats.mtime.valueOf()) {
+    if (manifestStats.mtime.valueOf() > effectiveWantedLockfileStats.mtime.valueOf()) {
       logger.debug({ msg: 'The manifest is newer than the lockfile. Continuing check.' })
       try {
         await assertWantedLockfileUpToDate({
@@ -429,7 +483,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
           projectDir: rootProjectManifestDir,
           projectId: '.' as ProjectId,
           projectManifest: rootProjectManifest,
-          wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir),
+          wantedLockfile: await readEffectiveWantedLockfile(),
           wantedLockfileDir: rootProjectManifestDir,
         })
       } catch (err) {
@@ -450,6 +504,16 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
     }
 
+    if (wantedLockfileIsMissing) {
+      const currentLockfile = await currentLockfilePromise
+      if (currentLockfile != null) {
+        return {
+          upToDate: true,
+          workspaceState,
+          wantedLockfileToRestore: { lockfile: currentLockfile, lockfileDir: rootProjectManifestDir },
+        }
+      }
+    }
     return { upToDate: true, workspaceState }
   }
 
@@ -562,6 +626,19 @@ function throwLockfileNotFound (wantedLockfileDir: string): never {
   throw new PnpmError('RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND', `Cannot find a lockfile in ${wantedLockfileDir}`, {
     hint: 'Run `pnpm install` to create the lockfile',
   })
+}
+
+/**
+ * When `<lockfileDir>/pnpm-lock.yaml` is missing but the current lockfile
+ * exists, returns the current lockfile so the caller can restore
+ * `pnpm-lock.yaml` from it. `undefined` when the wanted lockfile is present
+ * (nothing to restore) or when there is no current lockfile to restore from.
+ */
+async function missingWantedLockfileStandIn (lockfileDir: string): Promise<CheckDepsStatusResult['wantedLockfileToRestore']> {
+  if (safeStatSync(path.join(lockfileDir, WANTED_LOCKFILE)) != null) return undefined
+  const currentLockfile = await readCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
+  if (currentLockfile == null) return undefined
+  return { lockfile: currentLockfile, lockfileDir }
 }
 
 function getWantedLockfileDirs (opts: {
