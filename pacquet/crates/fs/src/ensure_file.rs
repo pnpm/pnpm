@@ -166,7 +166,11 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 pub fn ensure_file(
     file_path: &Path,
     content: &[u8],
-    #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
+    #[cfg_attr(
+        windows,
+        expect(unused, reason = "mode carries Unix permission bits and is unused on Windows")
+    )]
+    mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
     // See the "Process-local per-path mutex" bullet above and
     // [`cas_write_lock`] for the rationale.
@@ -375,7 +379,11 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 fn write_atomic(
     file_path: &Path,
     content: &[u8],
-    #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
+    #[cfg_attr(
+        windows,
+        expect(unused, reason = "mode carries Unix permission bits and is unused on Windows")
+    )]
+    mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
     /// Retries after `AlreadyExists` on the temp path. Sixteen fresh
     /// counter values is plenty — under benign conditions we never
