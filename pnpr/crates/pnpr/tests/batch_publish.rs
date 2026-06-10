@@ -147,7 +147,9 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
 
     let bytes = b"scoped-batch-bytes";
     // `pnpm publish --batch` names attachments by the full scoped name
-    // + version, same as libnpmpublish: `@scope/name-version.tgz`.
+    // + version, same as libnpmpublish: `@scope/name-version.tgz`. The
+    // submitted `dist.tarball` uses that scoped filename too — the
+    // 5-segment form every libnpmpublish-based client sends.
     let body = json!({
         "packages": [{
             "_id": "@scope/wire-form",
@@ -158,7 +160,7 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
                     "name": "@scope/wire-form",
                     "version": "1.0.0",
                     "dist": {
-                        "tarball": "http://localhost:4873/@scope/wire-form/-/wire-form-1.0.0.tgz",
+                        "tarball": "http://localhost:4873/@scope/wire-form/-/@scope/wire-form-1.0.0.tgz",
                         "shasum": sha1_hex(bytes),
                         "integrity": sri_sha512(bytes),
                     },
@@ -180,6 +182,21 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
     // On disk: canonical `<basename>-<version>.tgz` under the scope dir.
     let on_disk = storage.join("@scope/wire-form/wire-form-1.0.0.tgz");
     assert_eq!(std::fs::read(&on_disk).unwrap(), bytes);
+
+    // The served packument canonicalizes `dist.tarball` to the
+    // routable 4-segment form, regardless of the scoped filename the
+    // client submitted.
+    let packument_response = app
+        .clone()
+        .oneshot(Request::get("/@scope/wire-form").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(packument_response.status(), StatusCode::OK);
+    let served_packument = body_json(packument_response.into_body()).await;
+    assert_eq!(
+        served_packument["versions"]["1.0.0"]["dist"]["tarball"],
+        "http://example.test/@scope/wire-form/-/wire-form-1.0.0.tgz",
+    );
 
     let served = app
         .oneshot(
