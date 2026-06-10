@@ -1,5 +1,7 @@
 import * as path from 'path'
 import fs from 'fs'
+import http from 'http'
+import { type AddressInfo } from 'net'
 import { assertProject } from '@pnpm/assert-project'
 import { type LifecycleLog } from '@pnpm/core-loggers'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -12,6 +14,7 @@ import {
 } from '@pnpm/core'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { type ProjectRootDir } from '@pnpm/types'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { restartWorkerPool } from '@pnpm/worker'
 import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
@@ -310,7 +313,9 @@ test('run prepare script for git-hosted dependencies', async () => {
 
   await addDependenciesToPackage({}, ['pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf'], testDefaults({
     fastUnpack: false,
-    onlyBuiltDependencies: ['test-git-fetch'],
+    // A git-hosted artifact has an untrusted package identity, so it has to
+    // be approved by its depPath, not by package name.
+    onlyBuiltDependencies: ['test-git-fetch@https://codeload.github.com/pnpm/test-git-fetch/tar.gz/8b333f12d5357f4f25a654c305c826294cb073bf'],
     neverBuiltDependencies: undefined,
   }))
 
@@ -324,6 +329,48 @@ test('run prepare script for git-hosted dependencies', async () => {
     'install',
     'postinstall',
   ])
+})
+
+test('onlyBuiltDependencies does not run lifecycle scripts for direct tarball identities', async () => {
+  prepareEmpty()
+  // A tarball URL on the configured registry host resolves as a registry
+  // package, so serve the artifact from a separate origin to keep it a
+  // direct-tarball identity. The server redirects to the registry mock.
+  const server = http.createServer((req, res) => {
+    res.statusCode = 302
+    res.setHeader('location', `http://localhost:${REGISTRY_MOCK_PORT}${req.url ?? ''}`)
+    res.end()
+  })
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  try {
+    const { port } = server.address() as AddressInfo
+    const tarball = `http://127.0.0.1:${port}/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
+    const depPath = `@pnpm.e2e/pre-and-postinstall-scripts-example@${tarball}`
+
+    const { updatedManifest: manifest } = await addDependenciesToPackage({}, [tarball], testDefaults({
+      fastUnpack: false,
+      onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+      neverBuiltDependencies: undefined,
+    }))
+
+    expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBe(false)
+    expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(false)
+
+    rimraf('node_modules')
+
+    await install(manifest, testDefaults({
+      fastUnpack: false,
+      onlyBuiltDependencies: [depPath],
+      neverBuiltDependencies: undefined,
+    }))
+
+    expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBe(true)
+    expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
+  } finally {
+    server.close()
+  }
 })
 
 test('lifecycle scripts run before linking bins', async () => {

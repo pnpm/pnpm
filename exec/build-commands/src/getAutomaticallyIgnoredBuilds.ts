@@ -1,5 +1,5 @@
 import path from 'path'
-import { parse } from '@pnpm/dependency-path'
+import { allowBuildKeyFromIgnoredBuild } from '@pnpm/builder.policy'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { type IgnoredBuildsCommandOpts } from './ignoredBuilds.js'
 
@@ -16,7 +16,7 @@ export async function getAutomaticallyIgnoredBuilds (opts: IgnoredBuildsCommandO
   if (modulesManifest?.ignoredBuilds) {
     const ignoredPkgNames = new Set<string>()
     for (const depPath of modulesManifest?.ignoredBuilds) {
-      ignoredPkgNames.add(parse(depPath).name ?? depPath)
+      ignoredPkgNames.add(allowBuildKeyFromIgnoredBuild(depPath))
     }
     automaticallyIgnoredBuilds = Array.from(ignoredPkgNames)
   } else {

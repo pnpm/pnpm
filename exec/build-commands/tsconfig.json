@@ -16,13 +16,13 @@
       "path": "../../__utils__/prepare-temp-dir"
     },
     {
+      "path": "../../builder/policy"
+    },
+    {
       "path": "../../config/config"
     },
     {
       "path": "../../config/config-writer"
-    },
-    {
-      "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/types"

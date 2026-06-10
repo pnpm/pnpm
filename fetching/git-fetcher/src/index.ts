@@ -2,6 +2,7 @@ import assert from 'assert'
 import path from 'path'
 import util from 'util'
 import type { GitFetcher } from '@pnpm/fetcher-base'
+import { createGitHostedPkgId } from '@pnpm/git-resolver'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
@@ -44,6 +45,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       const prepareResult = await preparePackage({
         allowBuild: opts.allowBuild,
         ignoreScripts: createOpts.ignoreScripts,
+        pkgResolutionId: createGitHostedPkgId(resolution),
         rawConfig: createOpts.rawConfig,
         unsafePerm: createOpts.unsafePerm,
       }, tempLocation, resolution.path ?? '')

@@ -82,7 +82,7 @@ export async function buildModules<T extends string> (
       () => {
         let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
         if (!ignoreScripts) {
-          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name, depGraph[depPath].version)) {
+          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].depPath)) {
             ignoredBuilds.add(depGraph[depPath].depPath)
             ignoreScripts = true
           }

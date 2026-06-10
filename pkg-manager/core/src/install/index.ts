@@ -4,7 +4,6 @@ import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
-import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -871,18 +870,16 @@ async function runUnignoredDependencyBuilds (opts: StrictInstallOptions, previou
   if (!opts.onlyBuiltDependencies?.length) {
     return previousIgnoredBuilds
   }
-  const onlyBuiltDeps = createPackageVersionPolicy(opts.onlyBuiltDependencies)
-  const pkgsToBuild = Array.from(previousIgnoredBuilds).flatMap((ignoredPkg) => {
-    const ignoredPkgName = dp.parse(ignoredPkg).name
-    if (!ignoredPkgName) return []
-    const matchResult = onlyBuiltDeps(ignoredPkgName)
-    if (matchResult === true) {
-      return [ignoredPkgName]
-    } else if (Array.isArray(matchResult)) {
-      return matchResult.map(version => `${ignoredPkgName}@${version}`)
+  const allowBuild = createAllowBuildFunction(opts)
+  if (!allowBuild) {
+    return previousIgnoredBuilds
+  }
+  const pkgsToBuild: string[] = []
+  for (const ignoredPkg of previousIgnoredBuilds) {
+    if (allowBuild(ignoredPkg)) {
+      pkgsToBuild.push(dp.getPkgIdWithPatchHash(ignoredPkg))
     }
-    return []
-  })
+  }
   if (pkgsToBuild.length) {
     return (await rebuildSelectedPkgs(opts.allProjects, pkgsToBuild, {
       ...opts,
@@ -1724,7 +1721,7 @@ export class IgnoredBuildsError extends PnpmError {
 }
 
 function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
-  return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(dp.removeSuffix))).sort(lexCompare)
+  return Array.from(new Set(Array.from(ignoredBuilds ?? []).map((depPath) => dp.getPkgIdWithPatchHash(depPath)))).sort(lexCompare)
 }
 
 /**

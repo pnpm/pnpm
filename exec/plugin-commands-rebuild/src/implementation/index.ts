@@ -17,6 +17,7 @@ import {
 import { linkBins } from '@pnpm/link-bins'
 import { type TarballResolution } from '@pnpm/lockfile.types'
 import {
+  assertRegistryShapedResolution,
   type LockfileObject,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
@@ -29,6 +30,7 @@ import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import {
   type DepPath,
   type IgnoredBuilds,
+  type PkgIdWithPatchHash,
   type ProjectManifest,
   type ProjectId,
   type ProjectRootDir,
@@ -71,18 +73,22 @@ function findPackages (
         })
         return false
       }
-      return matches(searched, pkgInfo)
+      return matches(searched, pkgInfo, dp.getPkgIdWithPatchHash(relativeDepPath))
     })
 }
 
 // TODO: move this logic to separate package as this is also used in dependencies-hierarchy
 function matches (
   searched: PackageSelector[],
-  manifest: { name: string, version?: string }
+  manifest: { name: string, version?: string },
+  pkgIdWithPatchHash: PkgIdWithPatchHash
 ): boolean {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
       return manifest.name === searchedPkg
+    }
+    if ('pkgIdWithPatchHash' in searchedPkg) {
+      return searchedPkg.pkgIdWithPatchHash === pkgIdWithPatchHash
     }
     return searchedPkg.name === manifest.name && !!manifest.version &&
       semver.satisfies(manifest.version, searchedPkg.range)
@@ -92,6 +98,9 @@ function matches (
 type PackageSelector = string | {
   name: string
   range: string
+} | {
+  /** A user-written depPath spec, normalized with the peer suffix stripped. */
+  pkgIdWithPatchHash: string
 }
 
 export async function rebuildSelectedPkgs (
@@ -110,6 +119,9 @@ export async function rebuildSelectedPkgs (
   const packages = ctx.currentLockfile.packages
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {
+    if (matchesDepPath(packages, arg)) {
+      return { pkgIdWithPatchHash: dp.removePeersSuffix(arg) }
+    }
     const { fetchSpec, name, raw, type } = npa(arg)
     if (raw === name) {
       return name
@@ -158,6 +170,11 @@ export async function rebuildSelectedPkgs (
   return {
     ignoredBuilds: ignoredPkgs,
   }
+}
+
+function matchesDepPath (packages: PackageSnapshots, pkgSpec: string): boolean {
+  const normalizedPkgSpec = dp.removePeersSuffix(pkgSpec)
+  return Object.keys(packages).some((depPath) => dp.removePeersSuffix(depPath) === normalizedPkgSpec)
 }
 
 export async function rebuildProjects (
@@ -317,8 +334,8 @@ async function _rebuild (
 
   const ignoredPkgs = new Set<DepPath>()
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
-  const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
-    if (_allowBuild(pkgName, version)) return true
+  const allowBuild = (depPath: DepPath, pkgName: string) => {
+    if (_allowBuild(depPath)) return true
     if (!opts.ignoredBuiltDependencies?.includes(pkgName)) {
       ignoredPkgs.add(depPath)
     }
@@ -379,7 +396,8 @@ async function _rebuild (
           requiresBuild = pkgRequiresBuild(pgkManifest, {})
         }
 
-        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version, depPath) && await runPostinstallHooks({
+        assertRegistryShapedResolution(depPath, pkgSnapshot)
+        const hasSideEffects = requiresBuild && allowBuild(depPath, pkgInfo.name) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,

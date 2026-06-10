@@ -310,7 +310,9 @@ test('pnpm licenses should work with git protocol dep that have peerDependencies
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
-    onlyBuiltDependencies: ['ajv-keywords'],
+    onlyBuiltDependencies: [
+      'ajv-keywords@https://codeload.github.com/ajv-validator/ajv-keywords/tar.gz/a11389b4d1934d360fb2a24dd920ec597295c8fc',
+    ],
     pnpmHomeDir: '',
     storeDir,
   })
