@@ -481,6 +481,14 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
   }
   if (node.lockedPeerContext != null && ctx.resolvedPeerProviderPaths != null) {
+    // Pinning writes into parentPkgs, and a childless node shares the object
+    // with its parent, so siblings processed later would see the pinned
+    // provider too. Copy first to keep the pin scoped to this node — sibling
+    // order follows resolution order, so a leak makes the lockfile depend on
+    // network timing.
+    if (parentPkgs === parentParentPkgs) {
+      parentPkgs = { ...parentParentPkgs }
+    }
     for (const [peerName, previousPeerDepPath] of Object.entries(node.lockedPeerContext)) {
       const peerNodeId = ctx.nodeIdsByPreviousDepPath.get(previousPeerDepPath)
       const peerDependency = resolvedPackage.peerDependencies[peerName]
