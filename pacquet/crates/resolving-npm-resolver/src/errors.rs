@@ -52,4 +52,14 @@ pub enum FetchMetadataError {
         #[error(not(source))]
         pkg_name: String,
     },
+
+    /// The blocking task that deserializes a packument body panicked
+    /// or was cancelled by runtime shutdown.
+    #[display("Failed to parse metadata from {url}: {error}")]
+    #[diagnostic(code(pacquet_resolving_npm_resolver::parse_task))]
+    ParseTask {
+        url: String,
+        #[error(source)]
+        error: tokio::task::JoinError,
+    },
 }

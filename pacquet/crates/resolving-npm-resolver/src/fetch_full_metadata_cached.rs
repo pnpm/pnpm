@@ -121,7 +121,7 @@ pub async fn fetch_full_metadata_cached(
 
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    let (_client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
+    let (client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
         let mut request = client.get(&url).header(header::ACCEPT, accept);
         if let Some(value) = opts.auth_headers.for_url(&url) {
             request = request.header(header::AUTHORIZATION, value);
@@ -140,6 +140,9 @@ pub async fn fetch_full_metadata_cached(
     .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
 
     if response.status() == StatusCode::NOT_MODIFIED {
+        // No body to stream — release the connection and its
+        // network-concurrency permit before the mirror disk read.
+        drop(client);
         let Some(path) = mirror_path else {
             // 304 without an existing cache to fall back on — the
             // registry over-reached on `If-None-Match: <stale>`.
@@ -166,35 +169,56 @@ pub async fn fetch_full_metadata_cached(
         .text()
         .await
         .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-    let meta: Package = serde_json::from_str(&raw_body)
-        .map_err(|error| FetchMetadataError::Decode { url: url.clone(), error })?;
 
-    if let Some(path) = mirror_path.as_deref() {
-        match prepare_json_for_disk(&meta, etag.as_deref(), Some(&raw_body)) {
-            Ok(json) => {
-                if let Err(error) = save_meta(path, &json) {
-                    // Fire-and-forget — a read-only cache dir or a
-                    // shared-store contention shouldn't fail the
-                    // install. The user just won't see the warm-cache
-                    // speedup next time.
+    // Body fully buffered — release the connection and its
+    // network-concurrency permit before the CPU-bound parse so the
+    // semaphore keeps bounding *sockets*, not parses. Same
+    // buffer-then-release shape as the tarball pipeline in
+    // `pacquet-tarball`.
+    drop(client);
+
+    // Deserialize and persist the mirror off the reactor. Packuments
+    // run to several megabytes for high-release-cadence packages
+    // (`@fluentui/*`, `@types/node`, ...); parsing one inline pins a
+    // tokio worker for hundreds of milliseconds and stalls every
+    // socket that worker pumps — on a cold babylon install the
+    // inline parses held the metadata phase to a third of pnpm's
+    // throughput.
+    let task_url = url.clone();
+    let meta = tokio::task::spawn_blocking(move || -> Result<Package, FetchMetadataError> {
+        let meta: Package = serde_json::from_str(&raw_body)
+            .map_err(|error| FetchMetadataError::Decode { url: task_url, error })?;
+
+        if let Some(path) = mirror_path.as_deref() {
+            match prepare_json_for_disk(&meta, etag.as_deref(), Some(&raw_body)) {
+                Ok(json) => {
+                    if let Err(error) = save_meta(path, &json) {
+                        // Fire-and-forget — a read-only cache dir or a
+                        // shared-store contention shouldn't fail the
+                        // install. The user just won't see the warm-cache
+                        // speedup next time.
+                        tracing::debug!(
+                            target: "pacquet_resolving_npm_resolver::cache",
+                            ?error,
+                            path = %path.display(),
+                            "could not persist mirror; bypassing cache write",
+                        );
+                    }
+                }
+                Err(error) => {
                     tracing::debug!(
                         target: "pacquet_resolving_npm_resolver::cache",
                         ?error,
                         path = %path.display(),
-                        "could not persist mirror; bypassing cache write",
+                        "could not serialize mirror entry; bypassing cache write",
                     );
                 }
             }
-            Err(error) => {
-                tracing::debug!(
-                    target: "pacquet_resolving_npm_resolver::cache",
-                    ?error,
-                    path = %path.display(),
-                    "could not serialize mirror entry; bypassing cache write",
-                );
-            }
         }
-    }
+        Ok(meta)
+    })
+    .await
+    .map_err(|error| FetchMetadataError::ParseTask { url, error })??;
 
     meta.pipe(Ok)
 }
