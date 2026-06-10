@@ -1,5 +1,13 @@
 # @pnpm/package-bins
 
+## 1000.0.18
+
+### Patch Changes
+
+- c452019: Reject reserved manifest `bin` names (`""`, `"."`, `".."`, and scoped forms such as `@scope/..`) when resolving a package's bins. These names previously passed the bin-name guard and, when joined to the global bin directory during global remove/update/add operations, could resolve to the global bin directory itself or its parent and have it recursively deleted.
+- Updated dependencies [14bceb1]
+  - @pnpm/types@1001.3.1
+
 ## 1000.0.17
 
 ### Patch Changes

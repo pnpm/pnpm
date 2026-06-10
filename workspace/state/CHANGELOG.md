@@ -1,5 +1,15 @@
 # @pnpm/workspace.state
 
+## 1002.1.9
+
+### Patch Changes
+
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [14bceb1]
+  - @pnpm/config@1004.11.3
+  - @pnpm/types@1001.3.1
+
 ## 1002.1.8
 
 ### Patch Changes

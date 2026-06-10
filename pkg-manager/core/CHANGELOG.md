@@ -1,5 +1,51 @@
 # @pnpm/core
 
+## 1016.4.2
+
+### Patch Changes
+
+- 14bceb1: Require trusted package identity before package-name `onlyBuiltDependencies` (and `allowBuilds`) entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the key. Lockfile entries are now rejected when a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [14bceb1]
+  - @pnpm/types@1001.3.1
+  - @pnpm/dependency-path@1001.1.11
+  - @pnpm/builder.policy@1000.1.3
+  - @pnpm/lockfile.utils@1004.0.6
+  - @pnpm/lockfile.fs@1001.1.35
+  - @pnpm/build-modules@1007.0.15
+  - @pnpm/plugin-commands-rebuild@1008.0.17
+  - @pnpm/headless@1010.1.14
+  - @pnpm/link-bins@1000.3.9
+  - @pnpm/remove-bins@1000.0.23
+  - @pnpm/normalize-registries@1000.1.10
+  - @pnpm/config.version-policy@1000.0.7
+  - @pnpm/lifecycle@1001.0.39
+  - @pnpm/symlink-dependency@1000.0.19
+  - @pnpm/hooks.read-package-hook@1000.0.22
+  - @pnpm/hooks.types@1001.0.22
+  - @pnpm/lockfile.filtering@1001.0.34
+  - @pnpm/lockfile-to-pnp@1001.0.37
+  - @pnpm/lockfile.preferred-versions@1000.0.35
+  - @pnpm/lockfile.pruner@1001.0.29
+  - @pnpm/lockfile.verification@1001.2.27
+  - @pnpm/lockfile.walker@1001.0.28
+  - @pnpm/calc-dep-state@1003.0.6
+  - @pnpm/core-loggers@1001.0.10
+  - @pnpm/get-context@1001.2.11
+  - @pnpm/hoist@1002.0.18
+  - @pnpm/modules-cleaner@1001.0.38
+  - @pnpm/modules-yaml@1002.0.2
+  - @pnpm/package-requester@1011.2.6
+  - @pnpm/resolve-dependencies@1008.8.4
+  - @pnpm/manifest-utils@1002.0.6
+  - @pnpm/read-project-manifest@1001.2.7
+  - @pnpm/resolver-base@1005.4.3
+  - @pnpm/store-controller-types@1004.5.3
+  - @pnpm/worker@1000.6.10
+  - @pnpm/patching.config@1001.0.20
+  - @pnpm/crypto.hash@1000.2.2
+  - @pnpm/lockfile.settings-checker@1001.1.3
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.19
+
 ## 1016.4.1
 
 ### Patch Changes

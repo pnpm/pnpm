@@ -1,5 +1,21 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.16
+
+### Patch Changes
+
+- Updated dependencies [14bceb1]
+  - @pnpm/types@1001.3.1
+  - @pnpm/dependency-path@1001.1.11
+  - @pnpm/lockfile.utils@1004.0.6
+  - @pnpm/lockfile.fs@1001.1.35
+  - @pnpm/package-is-installable@1000.0.22
+  - @pnpm/calc-dep-state@1003.0.6
+  - @pnpm/core-loggers@1001.0.10
+  - @pnpm/modules-yaml@1002.0.2
+  - @pnpm/store-controller-types@1004.5.3
+  - @pnpm/patching.config@1001.0.20
+
 ## 1002.3.15
 
 ### Patch Changes

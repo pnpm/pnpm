@@ -1,5 +1,19 @@
 # @pnpm/default-resolver
 
+## 1002.3.11
+
+### Patch Changes
+
+- Updated dependencies [14bceb1]
+  - @pnpm/git-resolver@1001.2.4
+  - @pnpm/node.resolver@1001.0.26
+  - @pnpm/resolving.bun-resolver@1005.0.14
+  - @pnpm/resolving.deno-resolver@1005.0.14
+  - @pnpm/local-resolver@1002.1.15
+  - @pnpm/npm-resolver@1005.2.6
+  - @pnpm/resolver-base@1005.4.3
+  - @pnpm/tarball-resolver@1002.2.3
+
 ## 1002.3.10
 
 ### Patch Changes

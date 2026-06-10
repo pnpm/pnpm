@@ -1,5 +1,11 @@
 # @pnpm/registry.pkg-metadata-filter
 
+## 1000.1.7
+
+### Patch Changes
+
+- @pnpm/registry.types@1000.1.5
+
 ## 1000.1.6
 
 ### Patch Changes

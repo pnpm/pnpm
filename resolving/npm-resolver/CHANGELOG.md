@@ -1,5 +1,18 @@
 # @pnpm/npm-resolver
 
+## 1005.2.6
+
+### Patch Changes
+
+- Updated dependencies [14bceb1]
+  - @pnpm/types@1001.3.1
+  - @pnpm/pick-registry-for-package@1000.0.17
+  - @pnpm/core-loggers@1001.0.10
+  - @pnpm/registry.types@1000.1.5
+  - @pnpm/resolver-base@1005.4.3
+  - @pnpm/crypto.hash@1000.2.2
+  - @pnpm/registry.pkg-metadata-filter@1000.1.7
+
 ## 1005.2.5
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/dedupe.check
 
+## 1001.0.23
+
+### Patch Changes
+
+- Updated dependencies [14bceb1]
+  - @pnpm/types@1001.3.1
+  - @pnpm/lockfile.types@1002.1.2
+
 ## 1001.0.22
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-deploy
 
+## 1002.0.43
+
+### Patch Changes
+
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [14bceb1]
+  - @pnpm/config@1004.11.3
+  - @pnpm/types@1001.3.1
+  - @pnpm/dependency-path@1001.1.11
+  - @pnpm/lockfile.fs@1001.1.35
+  - @pnpm/cli-utils@1001.3.13
+  - @pnpm/plugin-commands-installation@1004.10.2
+  - @pnpm/directory-fetcher@1000.1.26
+  - @pnpm/lockfile.types@1002.1.2
+  - @pnpm/fs.indexed-pkg-importer@1000.1.28
+
 ## 1002.0.42
 
 ### Patch Changes

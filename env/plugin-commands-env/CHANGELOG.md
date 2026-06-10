@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-env
 
+## 1000.0.69
+
+### Patch Changes
+
+- c452019: pnpm now verifies the detached OpenPGP signature of a Node.js release's `SHASUMS256.txt` against the Node.js release team's public keys (embedded in the pnpm CLI) before trusting its hashes. The Node.js download mirror is repository-configurable (`node-mirror:<channel>` in `.npmrc`), and the integrity check previously trusted a `SHASUMS256.txt` fetched from that same mirror — a circular check that a malicious mirror could satisfy with a tampered binary and matching hashes. A mirror that proxies the real signed SHASUMS keeps working unchanged. Only the `release` channel publishes signed SHASUMS files, so pre-release channels (rc, nightly, …) remain unverified.
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [14bceb1]
+- Updated dependencies [c452019]
+  - @pnpm/config@1004.11.3
+  - @pnpm/types@1001.3.1
+  - @pnpm/node.fetcher@1001.0.30
+  - @pnpm/cli-utils@1001.3.13
+  - @pnpm/node.resolver@1001.0.26
+  - @pnpm/remove-bins@1000.0.23
+  - @pnpm/fetch@1001.0.1
+  - @pnpm/env.system-node-version@1000.0.17
+
 ## 1000.0.68
 
 ### Patch Changes

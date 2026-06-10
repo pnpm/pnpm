@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.2.15
+
+### Patch Changes
+
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [14bceb1]
+- Updated dependencies [c452019]
+  - @pnpm/config@1004.11.3
+  - @pnpm/package-bins@1000.0.18
+  - @pnpm/types@1001.3.1
+  - @pnpm/plugin-commands-env@1000.0.69
+  - @pnpm/cli-utils@1001.3.13
+  - @pnpm/deps.status@1003.0.41
+  - @pnpm/plugin-commands-installation@1004.10.2
+  - @pnpm/config.version-policy@1000.0.7
+  - @pnpm/lifecycle@1001.0.39
+  - @pnpm/core-loggers@1001.0.10
+  - @pnpm/client@1001.1.27
+  - @pnpm/read-package-json@1000.1.9
+  - @pnpm/read-project-manifest@1001.2.7
+  - @pnpm/workspace.injected-deps-syncer@1000.0.42
+  - @pnpm/sort-packages@1000.0.17
+  - @pnpm/crypto.hash@1000.2.2
+
 ## 1001.2.14
 
 ### Patch Changes

@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.3.19
+
+### Patch Changes
+
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [14bceb1]
+- Updated dependencies [c452019]
+  - @pnpm/config@1004.11.3
+  - @pnpm/package-bins@1000.0.18
+  - @pnpm/types@1001.3.1
+  - @pnpm/plugin-commands-env@1000.0.69
+  - @pnpm/cli-utils@1001.3.13
+  - @pnpm/pick-registry-for-package@1000.0.17
+  - @pnpm/lifecycle@1001.0.39
+  - @pnpm/client@1001.1.27
+  - @pnpm/exportable-manifest@1000.4.3
+  - @pnpm/resolver-base@1005.4.3
+  - @pnpm/sort-packages@1000.0.17
+
 ## 1000.3.18
 
 ### Patch Changes
