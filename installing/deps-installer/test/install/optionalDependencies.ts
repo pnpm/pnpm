@@ -163,7 +163,16 @@ test('skip optional dependencies whose names declare unsupported platforms when 
       supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
     }))
   } finally {
-    server.close()
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err == null) {
+          resolve()
+        } else {
+          reject(err)
+        }
+      })
+    })
   }
 
   expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-arm64', './package.json']).version).toBe('1.0.0')
@@ -186,6 +195,7 @@ function createMetadataStrippingRegistryProxy (): http.Server {
   return http.createServer((req, res) => {
     (async () => {
       const upstream = await fetch(`http://localhost:${REGISTRY_MOCK_PORT}${req.url}`, {
+        method: req.method,
         headers: { accept: req.headers.accept ?? '*/*' },
       })
       const contentType = upstream.headers.get('content-type') ?? ''
