@@ -1396,7 +1396,7 @@ peerDependencyRules:
     assert_eq!(
         config.peer_dependency_rules,
         crate::PeerDependencyRules::default(),
-        "default is empty"
+        "default is empty",
     );
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     let rules = &config.peer_dependency_rules;
