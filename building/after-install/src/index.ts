@@ -38,6 +38,7 @@ import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
 import type {
   DepPath,
   IgnoredBuilds,
+  PkgIdWithPatchHash,
   ProjectId,
   ProjectManifest,
   ProjectRootDir,
@@ -79,7 +80,7 @@ function findPackages (
         })
         return false
       }
-      return matches(searched, pkgInfo, relativeDepPath)
+      return matches(searched, pkgInfo, dp.getPkgIdWithPatchHash(relativeDepPath))
     })
 }
 
@@ -87,14 +88,14 @@ function findPackages (
 function matches (
   searched: PackageSelector[],
   manifest: { name: string, version?: string },
-  depPath: DepPath
+  pkgIdWithPatchHash: PkgIdWithPatchHash
 ): boolean {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
       return manifest.name === searchedPkg
     }
-    if ('depPath' in searchedPkg) {
-      return dp.removePeersSuffix(searchedPkg.depPath) === dp.removePeersSuffix(depPath)
+    if ('pkgIdWithPatchHash' in searchedPkg) {
+      return searchedPkg.pkgIdWithPatchHash === pkgIdWithPatchHash
     }
     return searchedPkg.name === manifest.name && !!manifest.version &&
       semver.satisfies(manifest.version, searchedPkg.range)
@@ -105,7 +106,8 @@ type PackageSelector = string | {
   name: string
   range: string
 } | {
-  depPath: string
+  /** A user-written depPath spec, normalized with the peer suffix stripped. */
+  pkgIdWithPatchHash: string
 }
 
 export async function buildSelectedPkgs (
@@ -125,7 +127,7 @@ export async function buildSelectedPkgs (
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {
     if (matchesDepPath(packages, arg)) {
-      return { depPath: arg }
+      return { pkgIdWithPatchHash: dp.removePeersSuffix(arg) }
     }
     const { fetchSpec, name, raw, type } = npa(arg)
     if (raw === name) {
