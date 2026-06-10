@@ -22,13 +22,31 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../env/path"
     },
     {
       "path": "../../exec/pnpm-cli-runner"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../network/auth-header"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
     },
     {
       "path": "../../pkg-manager/client"

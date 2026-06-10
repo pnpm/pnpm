@@ -20,6 +20,27 @@ export interface WantedPackageManager {
 
 export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
 
+/**
+ * Registry/network settings for package-manager bootstrap traffic
+ * (downloading the pnpm version requested by a repository's packageManager
+ * field). Built exclusively from trusted config sources — CLI options, env
+ * config, user and global .npmrc — never from the repository's project or
+ * workspace .npmrc, so a cloned repository cannot steer where the
+ * package-manager binary is fetched from or how that traffic is routed.
+ */
+export interface PackageManagerNetworkConfig {
+  ca?: string | string[]
+  cert?: string | string[]
+  httpProxy?: string
+  httpsProxy?: string
+  key?: string
+  localAddress?: string
+  noProxy?: string | boolean
+  rawConfig: Record<string, string>
+  sslConfigs: Record<string, SslConfig>
+  strictSsl?: boolean
+}
+
 export interface Config extends OptionsFromRootManifest {
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
@@ -195,6 +216,8 @@ export interface Config extends OptionsFromRootManifest {
   blockExoticSubdeps?: boolean
 
   registries: Registries
+  packageManagerRegistries?: Registries
+  packageManagerNetworkConfig?: PackageManagerNetworkConfig
   sslConfigs: Record<string, SslConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean

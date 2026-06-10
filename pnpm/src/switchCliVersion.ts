@@ -8,6 +8,8 @@ import { installPnpmToTools } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
 import semver from 'semver'
 
+import { getPackageManagerBootstrapConfig } from './packageManagerRegistries.js'
+
 export async function switchCliVersion (config: Config): Promise<void> {
   const pm = config.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null || pm.version === packageManager.version) return
@@ -20,7 +22,12 @@ export async function switchCliVersion (config: Config): Promise<void> {
     globalWarn(`Cannot switch to pnpm@${pm.version}: you need to specify the version as "${pmVersion}"`)
     return
   }
-  const { binDir: wantedPnpmBinDir } = await installPnpmToTools(pmVersion, config)
+  // Bootstrap traffic for the wanted pnpm version must not be steered by
+  // repository-controlled registry/proxy/TLS settings.
+  const { binDir: wantedPnpmBinDir } = await installPnpmToTools(pmVersion, {
+    ...config,
+    ...getPackageManagerBootstrapConfig(config),
+  })
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {
     // We throw this error to prevent an infinite recursive call of the same pnpm version.

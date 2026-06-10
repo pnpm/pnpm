@@ -116,11 +116,18 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
   return settings
 }
 
+// Settings that name a request destination. pnpm-workspace.yaml and the
+// root manifest are repository-controlled, so expanding ${...} placeholders
+// in these values would let a repository exfiltrate environment variables
+// through the URLs pnpm sends requests to.
+const REQUEST_DESTINATION_SCALAR_KEYS = new Set(['registry'])
+
 function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
   const newSettings: PnpmSettings = {}
   for (const [key, value] of Object.entries(settings)) {
     const newKey = envReplace(key, process.env)
     if (typeof value === 'string') {
+      if (REQUEST_DESTINATION_SCALAR_KEYS.has(newKey) && hasEnvPlaceholder(value)) continue
       // @ts-expect-error
       newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env)
     } else {
@@ -128,6 +135,10 @@ function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
     }
   }
   return newSettings
+}
+
+function hasEnvPlaceholder (value: string): boolean {
+  return /\$\{[^}]+\}/.test(value)
 }
 
 function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: string) => string {

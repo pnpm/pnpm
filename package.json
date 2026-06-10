@@ -4,6 +4,9 @@
   "scripts": {
     "bump": "changeset version && pnpm update-manifests",
     "changeset": "changeset",
+    "check:node-release-keys": "node crypto/shasums-file/scripts/update-node-release-keys.mjs",
+    "check:npm-signing-keys": "node tools/plugin-commands-self-updater/scripts/update-npm-signing-keys.mjs",
+    "update:node-release-keys": "node crypto/shasums-file/scripts/update-node-release-keys.mjs --update",
     "preinstall": "npx only-allow pnpm",
     "prepare": "husky",
     "pretest": "pnpm run compile-only && pnpm --dir=__fixtures__ run prepareFixtures",

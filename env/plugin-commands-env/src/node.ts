@@ -5,7 +5,7 @@ import { type Config } from '@pnpm/config'
 import { getSystemNodeVersion } from '@pnpm/env.system-node-version'
 import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import { fetchNode } from '@pnpm/node.fetcher'
+import { fetchNode, type FetchNodeOptionsToDir } from '@pnpm/node.fetcher'
 import { getNodeMirror } from '@pnpm/node.resolver'
 import { getStorePath } from '@pnpm/store-path'
 import { type PrepareExecutionEnvOptions, type PrepareExecutionEnvResult } from '@pnpm/types'
@@ -36,6 +36,8 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'pnpmHomeDir'
 > & Partial<Pick<Config, 'configDir' | 'cliOptions' | 'sslConfigs'>> & {
   remote?: boolean
+  /** See FetchNodeOptionsToDir.trustedNodeReleaseKeys — a test seam. */
+  trustedNodeReleaseKeys?: FetchNodeOptionsToDir['trustedNodeReleaseKeys']
 }
 
 const nodeFetchPromises: Record<string, Promise<string>> = {}
@@ -88,6 +90,7 @@ export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<strin
     ...opts,
     useNodeVersion,
     nodeMirrorBaseUrl,
+    releaseChannel,
   })
   return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')
 }
@@ -96,7 +99,7 @@ export function getNodeVersionsBaseDir (pnpmHomeDir: string): string {
   return path.join(pnpmHomeDir, 'nodejs')
 }
 
-export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions & { useNodeVersion: string, nodeMirrorBaseUrl: string }): Promise<string> {
+export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions & { useNodeVersion: string, nodeMirrorBaseUrl: string, releaseChannel: string }): Promise<string> {
   const nodesDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
   await fs.promises.mkdir(nodesDir, { recursive: true })
   const versionDir = path.join(nodesDir, opts.useNodeVersion)

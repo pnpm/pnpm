@@ -175,6 +175,21 @@ test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
   expect(options.foo).toEqual('bar')
 })
 
+test('getOptionsFromPnpmSettings() ignores env variables inside registry setting', () => {
+  process.env.PNPM_TEST_HOST = 'registry.example.com'
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registry: 'https://${PNPM_TEST_HOST}/npm/', // eslint-disable-line
+  } as any) as any // eslint-disable-line
+  expect(options.registry).toBeUndefined()
+})
+
+test('getOptionsFromPnpmSettings() keeps a registry setting without env placeholders', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registry: 'https://registry.example.com/npm/',
+  } as any) as any // eslint-disable-line
+  expect(options.registry).toBe('https://registry.example.com/npm/')
+})
+
 test('getOptionsFromRootManifest() converts allowBuilds', () => {
   const options = getOptionsFromRootManifest(process.cwd(), {
     pnpm: {

@@ -11,6 +11,7 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import semver from 'semver'
 import { installPnpmToTools } from './installPnpmToTools.js'
+import { type VerifyPnpmEngineIdentityOptions } from './verifyPnpmEngineIdentity.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -58,7 +59,10 @@ export type SelfUpdateCommandOptions = Pick<Config,
 | 'registries'
 | 'rootProjectManifestDir'
 | 'wantedPackageManager'
->
+> & {
+  /** See {@link VerifyPnpmEngineIdentityOptions.trustedKeys} — a test seam. */
+  trustedKeys?: VerifyPnpmEngineIdentityOptions['trustedKeys']
+}
 
 export async function handler (
   opts: SelfUpdateCommandOptions,

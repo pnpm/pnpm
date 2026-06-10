@@ -14,10 +14,9 @@ import {
   prepareExecutionEnv,
 } from '../lib/node.js'
 import { tempDir } from '@pnpm/prepare'
+import * as openpgp from 'openpgp'
 
-const fetchMock = jest.fn(async (url: string) => {
-  if (url.endsWith('SHASUMS256.txt')) {
-    return new Response(`
+const SHASUMS_CONTENT = `
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-darwin-arm64.tar.gz
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-linux-arm64.tar.gz
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-linux-x64.tar.gz
@@ -26,7 +25,35 @@ a08f3386090e6511772b949d41970b75a6b71d28abb551dff9854ceb1929dae1  node-v16.4.0-w
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v18.0.0-rc.3-linux-arm64.tar.gz
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v18.0.0-rc.3-linux-x64.tar.gz
 07e6121cba611b57f310a489f76c413b6246e79cffe1e9538b2478ffee11c99e  node-v18.0.0-rc.3-win-x64.zip
-`)
+`
+
+// The SHASUMS fixture is signed with a test key generated in beforeAll, and the
+// tests that hit the signed `release` channel trust that key via the
+// trustedNodeReleaseKeys test seam.
+let shasumsSignature!: Uint8Array
+let trustedNodeReleaseKeys!: Array<{ armoredKey: string }>
+
+beforeAll(async () => {
+  const { privateKey, publicKey } = await openpgp.generateKey({
+    userIDs: [{ name: 'Test Node Releaser', email: 'test@nodejs.example' }],
+    format: 'armored',
+  })
+  const message = await openpgp.createMessage({ binary: new TextEncoder().encode(SHASUMS_CONTENT) })
+  shasumsSignature = await openpgp.sign({
+    message,
+    signingKeys: await openpgp.readPrivateKey({ armoredKey: privateKey }),
+    detached: true,
+    format: 'binary',
+  }) as Uint8Array
+  trustedNodeReleaseKeys = [{ armoredKey: publicKey }]
+})
+
+const fetchMock = jest.fn(async (url: string) => {
+  if (url.endsWith('SHASUMS256.txt.sig')) {
+    return new Response(Buffer.from(shasumsSignature))
+  }
+  if (url.endsWith('SHASUMS256.txt')) {
+    return new Response(SHASUMS_CONTENT)
   }
   if (url.endsWith('.tar.gz')) {
     const pack = tar.pack()
@@ -84,6 +111,7 @@ test('install Node uses node-mirror:release option', async () => {
     rawConfig: {
       'node-mirror:release': nodeMirrorRelease,
     },
+    trustedNodeReleaseKeys,
     useNodeVersion: '16.4.0',
   }
 
@@ -133,6 +161,7 @@ test('specified an invalid Node.js via use-node-version should not cause pnpm it
     global: true,
     pnpmHomeDir: process.cwd(),
     rawConfig: {},
+    trustedNodeReleaseKeys,
     useNodeVersion: '22.14',
   }
 

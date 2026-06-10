@@ -61,6 +61,9 @@ function prepareOptions (dir: string) {
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     dir,
     managePackageManagerVersions: false,
+    // The fixture pnpm installed here is not signed with npm's real keys, so
+    // skip the engine identity signature check (empty trusted-keys = skip).
+    trustedKeys: [],
   }
 }
 
