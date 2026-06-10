@@ -7,16 +7,21 @@ use pretty_assertions::assert_eq;
 use std::{collections::HashMap, path::Path};
 use tempfile::tempdir;
 
+// `Url::from_file_path` only accepts a platform-absolute path: a POSIX
+// `/store/...` path is not a valid Windows file path, so these construct
+// Unix paths and are gated to Unix.
+#[cfg(unix)]
 #[test]
 fn immutable_uri_percent_encodes_sqlite_path_delimiters() {
-    // `/` stays literal; `?`, `#`, and `%` (the escape introducer) are encoded.
+    // `/` stays literal; `?`, `#`, and `%` (the escape introducer) are
+    // percent-encoded so they cannot truncate the path or inject a query.
     assert_eq!(
         immutable_sqlite_uri(Path::new("/store/index.db")),
-        "file:/store/index.db?immutable=1",
+        "file:///store/index.db?immutable=1",
     );
     assert_eq!(
         immutable_sqlite_uri(Path::new("/a?b/c#d/100%/index.db")),
-        "file:/a%3fb/c%23d/100%25/index.db?immutable=1",
+        "file:///a%3Fb/c%23d/100%25/index.db?immutable=1",
     );
 }
 

@@ -11,6 +11,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
+use url::Url;
 
 /// SQLite-backed per-package index that pnpm v11 stores alongside the CAFS
 /// blobs. In the pacquet layout the file lives at
@@ -883,17 +884,20 @@ pub struct SideEffectsDiff {
     pub deleted: Option<Vec<String>>,
 }
 
-/// Build the `file:…?immutable=1` URI used to open `index.db` read-only (see
-/// [`StoreIndex::open_readonly`] for why immutable). Only three characters are
-/// delimiters inside a SQLite URI path — `%` (the escape introducer), `#`
-/// (fragment), and `?` (query) — so percent-encode just those and leave the
-/// rest of the path literal (notably `/`). Without this, a store path
-/// containing `?` or `#` would truncate the path or inject a spurious query
-/// parameter. See <https://sqlite.org/uri.html>.
+/// Build the `file://…?immutable=1` URI used to open `index.db` read-only (see
+/// [`StoreIndex::open_readonly`] for why immutable). [`Url::from_file_path`]
+/// yields a canonical file URL on every platform: it percent-encodes the URI
+/// delimiters that would otherwise truncate the path or inject a query/fragment
+/// (`?`, `#`, `%`, spaces) and, on Windows, maps the drive letter and
+/// backslashes into a valid `file:///C:/…` form. See <https://sqlite.org/uri.html>.
+///
+/// The store index path is always absolute (it is derived from the store
+/// root), which is [`Url::from_file_path`]'s only precondition.
 fn immutable_sqlite_uri(db_path: &Path) -> String {
-    let encoded =
-        db_path.to_string_lossy().replace('%', "%25").replace('?', "%3f").replace('#', "%23");
-    format!("file:{encoded}?immutable=1")
+    let mut url = Url::from_file_path(db_path)
+        .expect("store index path must be absolute to build a file: URI");
+    url.query_pairs_mut().append_pair("immutable", "1");
+    url.into()
 }
 
 #[cfg(test)]

@@ -152,6 +152,7 @@ tower-http         = { version = "0.6.11", features = ["compression-gzip", "trac
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
+url                = { version = "2.5.8" }
 walkdir            = { version = "2.5.0" }
 yaml_serde         = { version = "0.10.4" }
 yamlpatch          = { version = "1.25.2" }
