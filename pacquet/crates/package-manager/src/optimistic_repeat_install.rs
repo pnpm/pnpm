@@ -334,7 +334,7 @@ fn is_local_file_spec(spec: &str) -> bool {
     }
     if spec.starts_with(['.', '/', '\\'])
         || spec.starts_with("~/")
-        || spec.starts_with("~\\")
+        || spec.starts_with(r"~\")
         || is_windows_drive_path(spec)
     {
         return true;
