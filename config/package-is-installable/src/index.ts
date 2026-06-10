@@ -7,9 +7,11 @@ import type { SupportedArchitectures } from '@pnpm/types'
 
 import { checkEngine, UnsupportedEngineError, type WantedEngine } from './checkEngine.js'
 import { checkPlatform, UnsupportedPlatformError } from './checkPlatform.js'
+import { inferPlatformFromPackageName } from './inferPlatformFromPackageName.js'
 
 export type { Engine } from './checkEngine.js'
 export type { Platform, WantedPlatform } from './checkPlatform.js'
+export { inferPlatformFromPackageName } from './inferPlatformFromPackageName.js'
 
 export {
   UnsupportedEngineError,
@@ -36,7 +38,7 @@ export function packageIsInstallable (
     supportedArchitectures?: SupportedArchitectures
   }
 ): boolean | null {
-  const warn = checkPackage(pkgId, pkg, options)
+  const warn = checkPackage(pkgId, { engines: pkg.engines, ...effectivePlatform(pkg, options.optional) }, options)
 
   if (warn == null) return true
 
@@ -63,6 +65,36 @@ export function packageIsInstallable (
   if (options.engineStrict) throw warn
 
   return null
+}
+
+interface PlatformFields {
+  cpu?: string[]
+  os?: string[]
+  libc?: string[]
+}
+
+/**
+ * The platform fields of an optional dependency may be incomplete: some
+ * registries strip os/cpu/libc (or just libc) from the metadata they serve,
+ * and lockfile entries written from such metadata lack them too. For a
+ * platform-specific binary the package name carries the same information, so
+ * each missing field is filled from the name's tokens. A package that
+ * declares no platform fields at all is treated as platform-specific only
+ * when an operating system is recognized in its name — a generic name
+ * segment (e.g. `arm` on its own) never marks it as such.
+ * https://github.com/pnpm/pnpm/issues/11702
+ */
+function effectivePlatform (pkg: PlatformFields & { name: string }, optional: boolean): PlatformFields {
+  if (!optional || (pkg.os != null && pkg.cpu != null && pkg.libc != null)) return pkg
+  const inferred = inferPlatformFromPackageName(pkg.name)
+  if (inferred == null) return pkg
+  const pkgDeclaresPlatform = pkg.os != null || pkg.cpu != null || pkg.libc != null
+  if (!pkgDeclaresPlatform && inferred.os == null) return pkg
+  return {
+    os: pkg.os ?? inferred.os,
+    cpu: pkg.cpu ?? inferred.cpu,
+    libc: pkg.libc ?? inferred.libc,
+  }
 }
 
 export function checkPackage (
