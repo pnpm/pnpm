@@ -56,7 +56,7 @@ impl AuthHeaders {
         Iter: IntoIterator<Item = (String, String)>,
     {
         let registry_default_key =
-            default_registry_url.map(nerf_dart).unwrap_or_else(|| "//registry.npmjs.org/".into());
+            default_registry_url.map_or_else(|| "//registry.npmjs.org/".into(), nerf_dart);
         let mut by_uri = HashMap::new();
         let mut default_header: Option<String> = None;
         // Two-phase build, mirroring upstream's
@@ -82,6 +82,7 @@ impl AuthHeaders {
     /// Build an [`AuthHeaders`] directly from an already-keyed map.
     /// Each key must already be in nerf-darted form
     /// (`//host[:port]/path/`).
+    #[must_use]
     pub fn from_map(by_uri: HashMap<String, String>) -> Self {
         let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
         AuthHeaders { by_uri, max_parts }
@@ -171,11 +172,9 @@ impl AuthHeaders {
 /// * `https://reg.com/foo/-/foo-1.tgz` → `//reg.com/foo/-/`
 /// * `https://user:pw@reg.com/scoped/pkg` → `//reg.com/scoped/`
 /// * `https://npm.pkg.github.com/pnpm` (no trailing slash) → `//npm.pkg.github.com/`
+#[must_use]
 pub fn nerf_dart(url: &str) -> String {
-    let parsed = match ParsedUrl::parse(url) {
-        Some(parsed) => parsed,
-        None => return String::new(),
-    };
+    let Some(parsed) = ParsedUrl::parse(url) else { return String::new() };
     parsed.nerf_dart()
 }
 
@@ -273,6 +272,7 @@ fn is_default_port(scheme: &str, port: &str) -> bool {
 /// Local base64 encode so this crate doesn't pull in `base64` just for
 /// 4 lines. Standard alphabet, with padding, matching `btoa` /
 /// `Buffer.from(...).toString('base64')` from the JS port.
+#[must_use]
 pub fn base64_encode(input: &str) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let bytes = input.as_bytes();

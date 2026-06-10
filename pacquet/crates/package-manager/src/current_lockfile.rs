@@ -40,6 +40,7 @@ use crate::SkippedSnapshots;
 /// snapshot got skipped; the snapshot + package maps are pruned to
 /// the transitive closure reachable from the surviving importer
 /// roots.
+#[must_use]
 pub fn filter_lockfile_for_current(
     lockfile: &Lockfile,
     included: IncludedDependencies,

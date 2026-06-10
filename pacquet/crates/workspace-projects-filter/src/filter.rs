@@ -104,9 +104,9 @@ where
             unmatched_filters: Vec::new(),
         }
     } else {
-        filter_graph(projects_graph, opts, &include_selectors)?
+        filter_graph(projects_graph, *opts, &include_selectors)?
     };
-    let exclude = filter_graph(projects_graph, opts, &exclude_selectors)?;
+    let exclude = filter_graph(projects_graph, *opts, &exclude_selectors)?;
 
     let excluded: IndexSet<&PathBuf> = exclude.selected.iter().collect();
     let selected_projects: Vec<PathBuf> =
@@ -126,7 +126,7 @@ struct FilterGraphResult {
 /// [`_filterGraph`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts#L212-L298).
 fn filter_graph<Pkg>(
     projects_graph: &ProjectGraph<Pkg>,
-    opts: &FilterWorkspaceProjectsOptions,
+    opts: FilterWorkspaceProjectsOptions,
     selectors: &[&ProjectSelector],
 ) -> Result<FilterGraphResult, FilterError>
 where

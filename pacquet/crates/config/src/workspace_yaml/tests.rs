@@ -11,7 +11,7 @@ use std::{fs, path::Path};
 
 #[test]
 fn parses_common_settings_from_yaml() {
-    let yaml = r#"
+    let yaml = r"
 storeDir: ../my-store
 registry: https://reg.example
 lockfile: false
@@ -21,7 +21,7 @@ preferWorkspacePackages: true
 nodeLinker: hoisted
 packages:
   - packages/*
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.store_dir.as_deref(), Some("../my-store"));
     assert_eq!(settings.registry.as_deref(), Some("https://reg.example"));
@@ -52,11 +52,11 @@ packages:
 
 #[test]
 fn apply_overrides_npmrc_defaults() {
-    let yaml = r#"
+    let yaml = r"
 storeDir: /absolute/store
 lockfile: false
 registry: https://reg.example
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::new();
     config.lockfile = true;
@@ -94,12 +94,12 @@ fn apply_resolves_relative_paths_against_base_dir() {
 /// crates/tarball.
 #[test]
 fn parses_fetch_retry_settings_from_yaml_and_applies() {
-    let yaml = r#"
+    let yaml = r"
 fetchRetries: 5
 fetchRetryFactor: 3
 fetchRetryMintimeout: 1000
 fetchRetryMaxtimeout: 4000
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.fetch_retries, Some(5));
     assert_eq!(settings.fetch_retry_factor, Some(3));
@@ -119,11 +119,11 @@ fetchRetryMaxtimeout: 4000
 /// onto the `Config`, matching pnpm.
 #[test]
 fn parses_network_settings_from_yaml_and_applies() {
-    let yaml = r#"
+    let yaml = r"
 networkConcurrency: 8
 fetchTimeout: 120000
 userAgent: my-agent/2.0
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.network_concurrency, Some(8));
     assert_eq!(settings.fetch_timeout, Some(120_000));
@@ -144,11 +144,11 @@ userAgent: my-agent/2.0
 /// schema.
 #[test]
 fn parses_named_registries_from_yaml_and_applies() {
-    let yaml = r#"
+    let yaml = r"
 namedRegistries:
   gh: https://npm.pkg.ghes.example.com/
   work: https://npm.work.example.com/
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let named = settings.named_registries.as_ref().expect("named_registries present");
     assert_eq!(named.get("gh").map(String::as_str), Some("https://npm.pkg.ghes.example.com/"));
@@ -178,14 +178,14 @@ fn ignores_env_vars_inside_workspace_request_destination_values() {
         }
     }
 
-    let yaml = r#"
+    let yaml = r"
 pnprServer: https://${WORK_HOST}/pnpr/
 registry: https://${WORK_HOST}/npm/
 namedRegistries:
   literal: 'https://registry.example.com/${/npm/'
   stable: https://registry.example.com/npm/
   work: https://${WORK_HOST}/npm/
-"#;
+";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.substitute_env_untrusted::<EnvWithHost>();
     let mut config = Config::new();
@@ -219,13 +219,13 @@ fn expands_env_vars_inside_non_registry_workspace_values() {
         }
     }
 
-    let yaml = r#"
+    let yaml = r"
 storeDir: ${STORE_DIR}
 cacheDir: ${CACHE_DIR}
 scriptShell: ${SHELL}
 nodeOptions: --require=${HOOK}
 userAgent: ${USER_AGENT}
-"#;
+";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.substitute_env_untrusted::<EnvWithPaths>();
 
@@ -249,13 +249,13 @@ fn trusted_settings_expand_env_vars_inside_request_destination_values() {
         }
     }
 
-    let yaml = r#"
+    let yaml = r"
 pnprServer: https://${WORK_HOST}/pnpr/
 registry: https://${WORK_HOST}/npm/
 namedRegistries:
   stable: https://registry.example.com/npm/
   work: https://${WORK_HOST}/work/
-"#;
+";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.substitute_env_trusted::<EnvWithHost>();
     let mut config = Config::new();
@@ -503,7 +503,7 @@ fn parses_dangerously_allow_all_builds_from_yaml_and_applies() {
 
 /// `scriptsPrependNodePath` is the tri-state from upstream
 /// [`Config.scriptsPrependNodePath: boolean | 'warn-only'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts#L108).
-/// `true` → Always, `false` → Never, `"warn-only"` → WarnOnly.
+/// `true` → Always, `false` → Never, `"warn-only"` → `WarnOnly`.
 /// Pacquet's default is Never (matches upstream's
 /// [`StrictBuildOptions.scriptsPrependNodePath: false`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/after-install/src/extendBuildOptions.ts#L78)).
 #[test]
@@ -804,10 +804,10 @@ fn find_returns_none_when_no_manifest() {
 fn apply_replaces_git_shallow_hosts_defaults() {
     // pnpm replaces the built-in default array wholesale rather than
     // merging it, so we mirror that. See `default_git_shallow_hosts`.
-    let yaml = r#"
+    let yaml = r"
 gitShallowHosts:
   - corp-git.example.com
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::new();
 
@@ -827,12 +827,12 @@ gitShallowHosts:
 /// [`Config::supported_architectures`] at install time.
 #[test]
 fn parses_supported_architectures_from_yaml_and_applies() {
-    let yaml = r#"
+    let yaml = r"
 supportedArchitectures:
   os: [darwin, linux]
   cpu: [arm64, x64]
   libc: [glibc]
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let raw = settings.supported_architectures.clone().expect("field present");
     assert_eq!(raw.os.as_deref(), Some(&["darwin".to_string(), "linux".to_string()][..]));
@@ -868,10 +868,10 @@ fn omitting_supported_architectures_keeps_default() {
 /// is independently overridable.
 #[test]
 fn partial_supported_architectures_only_sets_listed_axes() {
-    let yaml = r#"
+    let yaml = r"
 supportedArchitectures:
   os: [darwin]
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let raw = settings.supported_architectures.expect("field present");
     assert_eq!(raw.os.as_deref(), Some(&["darwin".to_string()][..]));
@@ -961,11 +961,11 @@ fn hoist_false_disables_private_hoist_pattern() {
 /// [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts).
 #[test]
 fn parses_ignored_optional_dependencies_from_yaml_and_applies() {
-    let yaml = r#"
+    let yaml = r"
 ignoredOptionalDependencies:
   - 'foo'
   - '@scope/bar'
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(
         settings.ignored_optional_dependencies.as_deref(),
@@ -1001,12 +1001,12 @@ fn omitting_ignored_optional_dependencies_keeps_default() {
 /// downstream diagnostics reference the keys in user-supplied order.
 #[test]
 fn parses_overrides_from_yaml_and_applies() {
-    let yaml = r#"
+    let yaml = r"
 overrides:
   foo: '1.2.3'
   '@scope/bar': '^2.0.0'
   'baz>qux': '-'
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let overrides = settings.overrides.as_ref().expect("overrides parsed");
     let entries: Vec<_> =
@@ -1156,11 +1156,11 @@ fn parses_hoisting_limits_from_yaml_and_applies() {
 /// `BTreeSet::default()` empty value.
 #[test]
 fn parses_external_dependencies_from_yaml_and_applies() {
-    let yaml = r#"
+    let yaml = r"
 externalDependencies:
   - bit-bin
   - some-other-external
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let raw = settings.external_dependencies.clone().expect("field present");
     assert!(raw.contains("bit-bin") && raw.contains("some-other-external"));
@@ -1393,7 +1393,11 @@ peerDependencyRules:
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
 
     let mut config = Config::new();
-    assert_eq!(config.peer_dependency_rules, Default::default(), "default is empty");
+    assert_eq!(
+        config.peer_dependency_rules,
+        crate::PeerDependencyRules::default(),
+        "default is empty",
+    );
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     let rules = &config.peer_dependency_rules;
     assert_eq!(rules.ignore_missing.as_deref(), Some(&["ajv".to_string()][..]));
@@ -1408,10 +1412,10 @@ peerDependencyRules:
 /// `Config` fields. A present string deserializes to `Some(Some(_))`.
 #[test]
 fn parses_script_shell_and_node_options_from_yaml_and_applies() {
-    let yaml = r#"
+    let yaml = r"
 scriptShell: /usr/bin/bash
 nodeOptions: --max-old-space-size=4096
-"#;
+";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.script_shell, Some(Some("/usr/bin/bash".to_string())));
     assert_eq!(settings.node_options, Some(Some("--max-old-space-size=4096".to_string())));

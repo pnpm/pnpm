@@ -94,7 +94,9 @@ be127be1d98cad94c56f46245d0f2de89934d300028694456861a6d5ac558bf3  foo.msi";
             assert_eq!(file_name, "foo.tar.gz");
             assert_eq!(sha256, "ed52239294ad517fbe91");
         }
-        other => panic!("expected Malformed, got {other:?}"),
+        other @ PickFileChecksumError::NotFound { .. } => {
+            panic!("expected Malformed, got {other:?}")
+        }
     }
 }
 

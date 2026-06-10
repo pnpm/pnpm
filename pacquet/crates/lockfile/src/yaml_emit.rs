@@ -519,7 +519,7 @@ fn encode_hex(code: u32) -> String {
     } else {
         ('U', 8)
     };
-    format!("\\{handle}{:0>width$}", hex, width = width)
+    format!("\\{handle}{hex:0>width$}")
 }
 
 fn block_header(string: &str) -> String {
@@ -565,15 +565,12 @@ fn split_keep_newlines(string: &str) -> Vec<&str> {
     let mut start = 0;
     let bytes = string.as_bytes();
     while start < bytes.len() {
-        match string[start..].find('\n') {
-            Some(offset) => {
-                lines.push(&string[start..start + offset + 1]);
-                start += offset + 1;
-            }
-            None => {
-                lines.push(&string[start..]);
-                start = bytes.len();
-            }
+        if let Some(offset) = string[start..].find('\n') {
+            lines.push(&string[start..=(start + offset)]);
+            start += offset + 1;
+        } else {
+            lines.push(&string[start..]);
+            start = bytes.len();
         }
     }
     lines

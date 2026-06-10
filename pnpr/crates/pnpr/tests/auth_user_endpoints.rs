@@ -13,6 +13,7 @@ use pnpr::{
 };
 use serde_json::{Value, json};
 use std::{
+    fmt::Write as _,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::PathBuf,
 };
@@ -46,6 +47,10 @@ async fn body_json(body: Body) -> Value {
     serde_json::from_slice(&body_bytes(body).await).expect("body parses as JSON")
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn put_json(path: &str, body: Value) -> Request<Body> {
     Request::put(path)
         .header("content-type", "application/json")
@@ -232,8 +237,8 @@ async fn uses_token(app: &axum::Router, raw_token: &str, candidate_key: &str) ->
     hasher.update(raw_token.as_bytes());
     let digest = hasher.finalize();
     let mut hex = String::with_capacity(64);
-    for byte in digest.iter() {
-        hex.push_str(&format!("{byte:02x}"));
+    for byte in &digest {
+        write!(hex, "{byte:02x}").unwrap();
     }
     let _ = app; // app is unused but kept for symmetry with the other helpers
     hex == candidate_key
@@ -399,7 +404,7 @@ async fn auth_endpoints_set_private_no_cache_headers() {
 }
 
 /// Revocation must persist across a restart — once a token is
-/// revoked, reopening the SQLite store must not reload it.
+/// revoked, reopening the `SQLite` store must not reload it.
 #[tokio::test]
 async fn revocation_survives_restart() {
     let auth_dir = TempDir::new().unwrap();

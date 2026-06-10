@@ -35,6 +35,7 @@ pub fn workspace_root() -> &'static Path {
 /// (`pnpr/.fixtures/packages`) — the same storage pacquet's tests serve.
 /// We don't serve directly from here — see [`runtime_storage`] for why — but
 /// we seed [`runtime_storage`] from it on every launch.
+#[must_use]
 pub fn registry_mock_storage() -> &'static Path {
     pnpr_fixtures::ensure_storage()
 }

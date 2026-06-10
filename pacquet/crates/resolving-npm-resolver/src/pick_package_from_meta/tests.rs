@@ -29,7 +29,7 @@ fn make_pkg_version(name: &str, version: &str, deprecated: Option<&str>) -> Pack
         peer_dependencies: None,
         optional_dependencies: None,
         peer_dependencies_meta: None,
-        other: Default::default(),
+        other: HashMap::default(),
         npm_user: None,
         deprecated: deprecated.map(str::to_string),
     }
@@ -56,7 +56,7 @@ fn make_package(
         modified: None,
         etag: None,
         homepage: None,
-        mutex: Default::default(),
+        mutex: std::sync::Arc::default(),
     }
 }
 
@@ -185,7 +185,7 @@ fn lowest_version_picker_picks_min_in_range() {
     assert_eq!(pick_lowest_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
 }
 
-/// `*` lowest pick uses the smallest version (HashMap iteration is
+/// `*` lowest pick uses the smallest version (`HashMap` iteration is
 /// unordered, so the picker has to sort).
 #[test]
 fn lowest_version_star_picks_smallest() {

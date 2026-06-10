@@ -1,7 +1,7 @@
 use crate::Implementation;
 
 /// Detect libc implementation from the ELF interpreter
-/// (`/proc/self/exe` PT_INTERP).
+/// (`/proc/self/exe` `PT_INTERP`).
 ///
 /// Returns `Some(Implementation::Musl)` when the interpreter path
 /// contains `"/ld-musl-"`, `Some(Implementation::Glibc)` when it

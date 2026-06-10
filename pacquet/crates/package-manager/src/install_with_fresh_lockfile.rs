@@ -51,7 +51,7 @@ use tokio::sync::watch;
 ///
 /// The value is a [`watch::Sender<bool>`] whose state transitions from
 /// `false` (slot reserved, first writer running) to `true` (the first
-/// writer's materialization is complete, save_path is on disk).
+/// writer's materialization is complete, `save_path` is on disk).
 /// Second visitors subscribe to the sender before issuing their
 /// per-parent symlink so they don't race ahead of the first writer's
 /// `import_indexed_dir` — critical on Windows where `symlink_package`
@@ -405,7 +405,7 @@ pub struct InstallWithFreshLockfileResult {
     pub can_record_lockfile_verification: bool,
 }
 
-impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> {
+impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
     /// Execute the subroutine.
     ///
     /// Under the isolated linker the [`HoistedDependencies`] result
@@ -954,26 +954,27 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
 
         // Call preResolution hook before resolution starts (mirrors pnpm's behavior in install/index.ts)
         if let Some(ref hook) = pnpmfile_hook {
-            let wanted_lockfile_json = wanted_lockfile
-                .map(|lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})))
-                .unwrap_or_else(|| serde_json::json!({}));
+            let wanted_lockfile_json = wanted_lockfile.map_or_else(
+                || serde_json::json!({}),
+                |lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})),
+            );
             let current_lockfile =
                 Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
                     .ok()
                     .flatten();
             let exists_current_lockfile = current_lockfile.is_some();
-            let current_lockfile_json = current_lockfile
-                .map(|lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})))
-                .unwrap_or_else(|| serde_json::json!({}));
+            let current_lockfile_json = current_lockfile.map_or_else(
+                || serde_json::json!({}),
+                |lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})),
+            );
             let registries = serde_json::json!({ "default": config.registry });
             let ctx = pacquet_hooks::PreResolutionHookContext {
                 wanted_lockfile: wanted_lockfile_json,
                 current_lockfile: current_lockfile_json,
                 exists_current_lockfile,
-                exists_non_empty_wanted_lockfile: wanted_lockfile
-                    .as_ref()
-                    .map(|lf| !lf.snapshots.as_ref().map(|s| s.is_empty()).unwrap_or(true))
-                    .unwrap_or(false),
+                exists_non_empty_wanted_lockfile: wanted_lockfile.as_ref().is_some_and(|lf| {
+                    !lf.snapshots.as_ref().is_none_or(std::collections::HashMap::is_empty)
+                }),
                 lockfile_dir: lockfile_dir.to_string_lossy().to_string(),
                 store_dir: config.store_dir.display().to_string(),
                 registries,
@@ -1027,11 +1028,10 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
                 }
             },
         };
-        let modules_basename = config
-            .modules_dir
-            .file_name()
-            .map(std::ffi::OsStr::to_os_string)
-            .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
+        let modules_basename = config.modules_dir.file_name().map_or_else(
+            || std::ffi::OsString::from("node_modules"),
+            std::ffi::OsStr::to_os_string,
+        );
         let workspace_result = pacquet_resolving_deps_resolver::resolve_workspace(
             &*resolver,
             &workspace_importers,
@@ -1583,11 +1583,10 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             // workspace projects get their own `.bin/` populated,
             // mirroring upstream's per-importer `linkBinsOfImporter` at
             // <https://github.com/pnpm/pnpm/blob/3422cecfd3/installing/deps-installer/src/install/link.ts>.
-            let modules_basename = config
-                .modules_dir
-                .file_name()
-                .map(std::ffi::OsStr::to_os_string)
-                .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
+            let modules_basename = config.modules_dir.file_name().map_or_else(
+                || std::ffi::OsString::from("node_modules"),
+                std::ffi::OsStr::to_os_string,
+            );
             for importer_id in importer_manifests.keys() {
                 let project_dir = crate::symlink_direct_dependencies::importer_root_dir(
                     symlink_root,
@@ -1720,14 +1719,13 @@ fn collect_prefetch_cache_keys_from_graph(
             // otherwise the manifest's `name@version` — remote-tarball
             // direct deps learn both from `package.json`, and the
             // resolve-time fetch keyed the store-index row the same way.
-            let pkg_id = match node.resolve_result.name_ver.as_ref() {
-                Some(name_ver) => format!("{}@{}", name_ver.name, name_ver.suffix),
-                None => {
-                    let manifest = node.resolve_result.manifest.as_deref()?;
-                    let name = manifest.get("name")?.as_str()?;
-                    let version = manifest.get("version")?.as_str()?;
-                    format!("{name}@{version}")
-                }
+            let pkg_id = if let Some(name_ver) = node.resolve_result.name_ver.as_ref() {
+                format!("{}@{}", name_ver.name, name_ver.suffix)
+            } else {
+                let manifest = node.resolve_result.manifest.as_deref()?;
+                let name = manifest.get("name")?.as_str()?;
+                let version = manifest.get("version")?.as_str()?;
+                format!("{name}@{version}")
             };
             Some(pacquet_store_dir::store_index_key(&integrity, &pkg_id))
         })

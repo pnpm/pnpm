@@ -41,6 +41,7 @@ pub struct ProjectSnapshot {
 
 impl ProjectSnapshot {
     /// Lookup dependency map according to group.
+    #[must_use]
     pub fn get_map_by_group(&self, group: DependencyGroup) -> Option<&'_ ResolvedDependencyMap> {
         match group {
             DependencyGroup::Prod => self.dependencies.as_ref(),
@@ -55,7 +56,7 @@ impl ProjectSnapshot {
         &self,
         groups: impl IntoIterator<Item = DependencyGroup>,
     ) -> impl Iterator<Item = (&'_ PkgName, &'_ ResolvedDependencySpec)> {
-        groups.into_iter().flat_map(|group| self.get_map_by_group(group)).flatten()
+        groups.into_iter().filter_map(|group| self.get_map_by_group(group)).flatten()
     }
 }
 

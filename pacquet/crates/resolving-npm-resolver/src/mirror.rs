@@ -26,6 +26,7 @@
 //!   produces).
 
 use std::{
+    fmt::Write as _,
     fs::{self, File, OpenOptions},
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -313,7 +314,7 @@ fn temp_sibling_path(target: &Path) -> PathBuf {
         Some(name) => name.to_string(),
         None => "tmp".to_string(),
     };
-    name.push_str(&format!(".{pid}.{counter}.tmp"));
+    write!(name, ".{pid}.{counter}.tmp").unwrap();
     target.with_file_name(name)
 }
 

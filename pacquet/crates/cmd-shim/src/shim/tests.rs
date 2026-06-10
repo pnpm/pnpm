@@ -221,10 +221,10 @@ fn lexical_normalize_keeps_leading_parent_segments() {
     assert_eq!(result, "../../../shared/cli", "leading `..` must propagate");
 }
 
-/// [`lexical_normalize`] drops `.` (CurDir) components. This is a direct
+/// [`lexical_normalize`] drops `.` (`CurDir`) components. This is a direct
 /// test on the helper itself. The indirect test below pins the same
 /// behavior at the `relative_target` level, but a direct assertion makes
-/// the CurDir arm visible to coverage tooling that can't see through
+/// the `CurDir` arm visible to coverage tooling that can't see through
 /// inlined call chains.
 #[test]
 fn lexical_normalize_drops_curdir_segments_directly() {
@@ -234,7 +234,7 @@ fn lexical_normalize_drops_curdir_segments_directly() {
     assert_eq!(lexical_normalize(Path::new("./.")), PathBuf::new());
 }
 
-/// [`lexical_normalize`] discards `.` (CurDir) components silently.
+/// [`lexical_normalize`] discards `.` (`CurDir`) components silently.
 /// Verify via [`relative_target`]. A target with embedded `./`
 /// resolves the same as without.
 #[test]

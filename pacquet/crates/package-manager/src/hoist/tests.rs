@@ -56,7 +56,7 @@ fn metadata(has_bin: bool) -> PackageMetadata {
 }
 
 fn pats<const LEN: usize>(patterns: [&str; LEN]) -> Vec<String> {
-    patterns.iter().map(|text| text.to_string()).collect()
+    patterns.iter().map(std::string::ToString::to_string).collect()
 }
 
 /// `(alias, dep_name, dep_version)` triple describing one entry in
@@ -508,7 +508,7 @@ fn build_direct_deps_by_importer_collects_from_importers() {
     assert_eq!(dot.get("a"), Some(&key("a", "1.0.0")));
 }
 
-/// Round-trip: build_hoist_graph on a tiny snapshot set produces the
+/// Round-trip: `build_hoist_graph` on a tiny snapshot set produces the
 /// expected children map.
 #[test]
 fn build_hoist_graph_walks_dependencies() {

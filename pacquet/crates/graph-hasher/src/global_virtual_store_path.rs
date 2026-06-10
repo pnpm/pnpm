@@ -102,6 +102,7 @@ where
 /// uses it for the platform-specific optional subdeps of a config
 /// dependency, which are installed one level deep with no further
 /// children of their own.
+#[must_use]
 pub fn calc_leaf_global_virtual_store_path(full_pkg_id: &str, name: &str, version: &str) -> String {
     let deps_hash = hash_object(&json!({ "id": full_pkg_id, "deps": {} }));
     let payload = json!({ "engine": Value::Null, "deps": deps_hash });
@@ -120,6 +121,7 @@ pub fn calc_leaf_global_virtual_store_path(full_pkg_id: &str, name: &str, versio
 /// underneath it — without this, changing a subdep while keeping the
 /// parent pinned would silently overwrite the previous sibling
 /// symlinks.
+#[must_use]
 pub fn calc_global_virtual_store_path_with_subdeps(
     full_pkg_id: &str,
     name: &str,
@@ -144,6 +146,7 @@ pub fn calc_global_virtual_store_path_with_subdeps(
 /// shared store at the same `<scope>/<name>/<version>/<hash>` depth,
 /// so a single `readdir` pass per level can enumerate the store
 /// without special-casing the unscoped path layout.
+#[must_use]
 pub fn format_global_virtual_store_path(name: &str, version: &str, hex_digest: &str) -> String {
     let prefix = if name.starts_with('@') { "" } else { "@/" };
     format!("{prefix}{name}/{version}/{hex_digest}")

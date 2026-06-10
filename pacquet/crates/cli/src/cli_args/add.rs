@@ -27,7 +27,6 @@ impl AddDependencyOptions {
     /// Whether to add entry to `"dependencies"`.
     ///
     /// **NOTE:** no `--save-*` flags implies save as prod.
-    #[inline(always)]
     fn save_prod(&self) -> bool {
         let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
         save_prod || (!save_dev && !save_optional && !save_peer)
@@ -36,20 +35,17 @@ impl AddDependencyOptions {
     /// Whether to add entry to `"devDependencies"`.
     ///
     /// **NOTE:** `--save-peer` without any other `--save-*` flags implies save as dev.
-    #[inline(always)]
     fn save_dev(&self) -> bool {
         let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
         save_dev || (!save_prod && !save_optional && save_peer)
     }
 
     /// Whether to add entry to `"optionalDependencies"`.
-    #[inline(always)]
     fn save_optional(&self) -> bool {
         self.save_optional
     }
 
     /// Whether to add entry to `"peerDependencies"`.
-    #[inline(always)]
     fn save_peer(&self) -> bool {
         self.save_peer
     }
@@ -104,7 +100,7 @@ pub struct AddArgs {
     /// is created. Mirrors pnpm's `--lockfile-only`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
-    /// The directory with links to the store (default is node_modules/.pacquet).
+    /// The directory with links to the store (default is `node_modules/.pacquet`).
     /// All direct and indirect dependencies of the project are linked into this directory
     #[clap(long = "virtual-store-dir", default_value = "node_modules/.pacquet")]
     pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this

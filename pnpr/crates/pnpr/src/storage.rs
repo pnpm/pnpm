@@ -103,7 +103,7 @@ pub enum CachedPackument {
 ///   served in static mode. Served as-is and never overwritten by an
 ///   upstream refresh, so a hosted version can't be masked or lost.
 ///   Backed by a local directory by default, or an S3-compatible
-///   object store (S3, Cloudflare R2, MinIO, ...) when the YAML `s3:`
+///   object store (S3, Cloudflare R2, `MinIO`, ...) when the YAML `s3:`
 ///   block is set — see [`crate::s3`].
 /// * `cached` — the disposable mirror of upstream registries. Safe to
 ///   wipe at any time; it self-heals on the next request. Always local,
@@ -595,7 +595,7 @@ async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
 pub(crate) fn unique_tmp_path(base: &Path) -> PathBuf {
     let counter = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
-    let mut name = base.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    let mut name = base.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
     name.push(format!(".tmp.{pid}.{counter}"));
     match base.parent() {
         Some(parent) => parent.join(name),

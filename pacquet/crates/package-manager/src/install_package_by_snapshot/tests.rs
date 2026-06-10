@@ -372,8 +372,11 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
-    let allow_build_policy =
-        crate::AllowBuildPolicy::new(Default::default(), Default::default(), false);
+    let allow_build_policy = crate::AllowBuildPolicy::new(
+        std::collections::HashSet::default(),
+        std::collections::HashSet::default(),
+        false,
+    );
     let skipped = crate::SkippedSnapshots::new();
     let logged_methods = AtomicU8::new(0);
     let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
@@ -381,7 +384,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     let snapshot = pacquet_lockfile::SnapshotEntry::default();
 
     let cas_paths = super::InstallPackageBySnapshot {
-        http_client: &Default::default(),
+        http_client: &pacquet_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: None,
@@ -445,8 +448,11 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
-    let allow_build_policy =
-        crate::AllowBuildPolicy::new(Default::default(), Default::default(), false);
+    let allow_build_policy = crate::AllowBuildPolicy::new(
+        std::collections::HashSet::default(),
+        std::collections::HashSet::default(),
+        false,
+    );
     let skipped = crate::SkippedSnapshots::new();
     let logged_methods = AtomicU8::new(0);
     let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
@@ -454,7 +460,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
     let snapshot = pacquet_lockfile::SnapshotEntry::default();
 
     let err = super::InstallPackageBySnapshot {
-        http_client: &Default::default(),
+        http_client: &pacquet_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: None,
@@ -515,8 +521,11 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
-    let allow_build_policy =
-        crate::AllowBuildPolicy::new(Default::default(), Default::default(), false);
+    let allow_build_policy = crate::AllowBuildPolicy::new(
+        std::collections::HashSet::default(),
+        std::collections::HashSet::default(),
+        false,
+    );
     let skipped = crate::SkippedSnapshots::new();
     let logged_methods = AtomicU8::new(0);
     let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
@@ -524,7 +533,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
     let snapshot = pacquet_lockfile::SnapshotEntry::default();
 
     let err = super::InstallPackageBySnapshot {
-        http_client: &Default::default(),
+        http_client: &pacquet_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: None,

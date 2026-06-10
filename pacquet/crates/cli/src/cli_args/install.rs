@@ -37,13 +37,13 @@ impl NodeLinkerArg {
 #[derive(Debug, Args)]
 pub struct InstallDependencyOptions {
     /// pacquet will not install any package listed in devDependencies and will remove those insofar
-    /// they were already installed, if the NODE_ENV environment variable is set to production.
-    /// Use this flag to instruct pacquet to ignore NODE_ENV and take its production status from this
+    /// they were already installed, if the `NODE_ENV` environment variable is set to production.
+    /// Use this flag to instruct pacquet to ignore `NODE_ENV` and take its production status from this
     /// flag instead.
     #[arg(short = 'P', long)]
     prod: bool,
     /// Only devDependencies are installed and dependencies are removed insofar they were
-    /// already installed, regardless of the NODE_ENV.
+    /// already installed, regardless of the `NODE_ENV`.
     #[arg(short = 'D', long)]
     dev: bool,
     /// optionalDependencies are not installed.
@@ -302,7 +302,7 @@ impl InstallArgs {
         // `--node-linker` flag (if passed) overrides the
         // yaml/npmrc value for this invocation. Mirrors pnpm's
         // override-on-explicit-flag semantics.
-        let node_linker = node_linker.map(NodeLinkerArg::into_config).unwrap_or(config.node_linker);
+        let node_linker = node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
         // The lockfile-verification gate keys its on-disk cache off
         // `<manifest_dir>/pnpm-lock.yaml`. Once workspace support
         // lands (pacquet#431), this becomes `workspace_root` to
@@ -466,9 +466,10 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         .map_err(|err| miette::miette!("failed to serialize overrides: {err}"))?;
     let benchmark_registry_override =
         PnprBenchmarkRegistryOverride::from_env(&state.config.registry);
-    let resolve_registry = benchmark_registry_override
-        .as_ref()
-        .map_or_else(|| state.config.registry.clone(), |registry| registry.resolve_registry());
+    let resolve_registry = benchmark_registry_override.as_ref().map_or_else(
+        || state.config.registry.clone(),
+        PnprBenchmarkRegistryOverride::resolve_registry,
+    );
 
     // Send the on-disk lockfile + the full client policy so the server
     // verifies the input lockfile under *our* policy before resolving;

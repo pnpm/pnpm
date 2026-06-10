@@ -45,7 +45,7 @@ fn build_packages() -> WorkspacePackages {
     packages
 }
 
-fn opts<'a>(packages: &'a WorkspacePackages) -> ResolveFromWorkspaceOptions<'a> {
+fn opts(packages: &WorkspacePackages) -> ResolveFromWorkspaceOptions<'_> {
     ResolveFromWorkspaceOptions {
         project_dir: Path::new("/repo/packages/consumer"),
         lockfile_dir: Path::new("/repo"),
@@ -96,7 +96,7 @@ fn workspace_star_resolves_to_link_against_highest_version() {
     assert_eq!(result.alias.as_deref(), Some("foo"));
 }
 
-/// A workspace package depending on itself (`project_dir == the resolved
+/// A workspace package depending on itself (`project_dir` == the resolved
 /// package's `root_dir`) renders as a bare `link:` — the relative path is
 /// empty, matching pnpm's `link:${path.relative(projectDir, projectDir)}`
 /// (`''`), not `link:.`.

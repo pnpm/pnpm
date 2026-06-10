@@ -36,6 +36,7 @@ use std::sync::Arc;
 /// Mirrors upstream's [`createMatcherWithIndex`](https://github.com/pnpm/pnpm/blob/94240bc046/config/matcher/src/index.ts#L16-L40).
 /// The numeric index is `Option<usize>` here rather than `i32` /
 /// `-1`-sentinel — the same information, idiomatic for Rust.
+#[must_use]
 pub fn create_matcher_with_index(patterns: &[String]) -> MatcherWithIndex {
     match patterns.len() {
         0 => MatcherWithIndex(MatcherImpl::Never),
@@ -47,6 +48,7 @@ pub fn create_matcher_with_index(patterns: &[String]) -> MatcherWithIndex {
 /// Compile a list of patterns into a matcher returning `true` whenever
 /// any include matches and no ignore overrides it. Mirrors upstream's
 /// [`createMatcher`](https://github.com/pnpm/pnpm/blob/94240bc046/config/matcher/src/index.ts#L7-L10).
+#[must_use]
 pub fn create_matcher(patterns: &[String]) -> Matcher {
     Matcher(create_matcher_with_index(patterns))
 }
@@ -58,6 +60,7 @@ pub struct Matcher(MatcherWithIndex);
 impl Matcher {
     /// Returns `true` when `input` matches at least one include and no
     /// ignore rule overrides it. Empty pattern lists never match.
+    #[must_use]
     pub fn matches(&self, input: &str) -> bool {
         self.0.matches(input).is_some()
     }
@@ -72,6 +75,7 @@ impl Matcher {
     /// even when no realistic input would match (e.g. `["nonexistent-prefix-*"]`)
     /// — the fast path is a static check on the pattern list, not a
     /// runtime analysis of the compiled regex shape.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         matches!(self.0.0, MatcherImpl::Never)
     }
@@ -85,6 +89,7 @@ impl Matcher {
 pub struct MatcherWithIndex(MatcherImpl);
 
 impl MatcherWithIndex {
+    #[must_use]
     pub fn matches(&self, input: &str) -> Option<usize> {
         self.0.matches(input)
     }

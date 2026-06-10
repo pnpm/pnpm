@@ -521,7 +521,7 @@ async fn jsr_specifier_with_invalid_scope_propagates_parser_error() {
     assert_eq!(msg, "Package names from JSR must have a scope", "unexpected error message: {msg}");
 }
 
-/// Two NpmResolvers pointing at different registries, sharing the
+/// Two `NpmResolvers` pointing at different registries, sharing the
 /// same `picked_manifest_cache`, must not hand each other the
 /// other's manifest when both happen to pick `acme@1.0.0`. Two
 /// registries can serve different artifacts under the same
@@ -1055,7 +1055,7 @@ async fn registry_error_propagates_when_workspace_has_no_matching_version() {
         .resolve(&wanted, &opts)
         .await
         .expect_err("workspace can't satisfy 2.0.0; original 404 error must surface");
-    assert!(err.to_string().contains("404"), "expected the 404 to propagate, got: {}", err);
+    assert!(err.to_string().contains("404"), "expected the 404 to propagate, got: {err}");
 }
 
 /// Ports pnpm's [`index.ts#L2154-L2183`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L2154-L2183).

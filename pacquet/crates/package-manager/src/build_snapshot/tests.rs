@@ -29,7 +29,7 @@ fn make_package(name: &str, version: &str) -> PackageVersion {
         peer_dependencies: None,
         optional_dependencies: None,
         peer_dependencies_meta: None,
-        other: Default::default(),
+        other: HashMap::default(),
         npm_user: None,
         deprecated: None,
     }

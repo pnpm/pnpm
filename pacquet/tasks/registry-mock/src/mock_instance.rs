@@ -41,7 +41,7 @@ pub struct MockInstanceOptions<'a> {
     pub retry_delay: Duration,
 }
 
-impl<'a> MockInstanceOptions<'a> {
+impl MockInstanceOptions<'_> {
     async fn is_registry_ready(self) -> bool {
         let MockInstanceOptions { client, port, .. } = self;
         let url = port_to_url(port);
@@ -149,6 +149,7 @@ impl AutoMockInstance {
         }
     }
 
+    #[must_use]
     pub fn url(&self) -> String {
         self.info().url()
     }

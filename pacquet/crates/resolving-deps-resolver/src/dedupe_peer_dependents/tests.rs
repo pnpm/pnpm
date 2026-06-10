@@ -38,7 +38,7 @@ fn make_node(
         children: children.iter().map(|(alias, child)| (alias.to_string(), dp(child))).collect(),
         peer_dependencies: BTreeMap::new(),
         transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: resolved_peers.iter().map(|peer| peer.to_string()).collect(),
+        resolved_peer_names: resolved_peers.iter().map(std::string::ToString::to_string).collect(),
         depth: 0,
         installable: true,
         is_pure: resolved_peers.is_empty(),

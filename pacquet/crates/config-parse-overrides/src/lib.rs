@@ -149,6 +149,7 @@ where
 /// The resulting map's values are post-catalog-resolution, so it
 /// compares apples-to-apples against `lockfile.overrides`, which pnpm
 /// writes out with `catalog:` already expanded.
+#[must_use]
 pub fn create_overrides_map_from_parsed(
     parsed_overrides: &[VersionOverride],
 ) -> HashMap<String, String> {

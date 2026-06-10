@@ -438,7 +438,7 @@ fn change_priority(change: Change) -> u8 {
 fn sort_outdated(outdated: &mut [OutdatedPackage], sort_by: Option<SortBy>) {
     match sort_by {
         Some(SortBy::Name) => {
-            outdated.sort_by(|left, right| left.package_name.cmp(&right.package_name))
+            outdated.sort_by(|left, right| left.package_name.cmp(&right.package_name));
         }
         None => outdated.sort_by(|left, right| {
             let by_change = change_priority(classify(&left.current, &left.target))

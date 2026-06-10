@@ -75,6 +75,7 @@ impl Package {
     /// registry didn't report one for that pin. Filters out the
     /// reserved `unpublished` key (which is an object, not a string)
     /// and any version slot whose value isn't a string.
+    #[must_use]
     pub fn published_at(&self, version: &str) -> Option<&str> {
         self.time.as_ref()?.get(version)?.as_str()
     }
@@ -89,7 +90,7 @@ impl Package {
 
     /// Iterator over all `dist-tags` entries. Used by the picker's
     /// publishedBy filter which rewrites tags after dropping versions
-    /// past the cutoff. Iteration order is undefined (HashMap), as it
+    /// past the cutoff. Iteration order is undefined (`HashMap`), as it
     /// is in upstream's JS where `Object.entries(distTags)` walks
     /// insertion order — neither stack guarantees a particular order
     /// to callers, so callers that need a stable rewrite are expected
@@ -139,6 +140,7 @@ impl Package {
             .pipe(Ok)
     }
 
+    #[must_use]
     pub fn pinned_version(&self, version_range: &str) -> Option<&PackageVersion> {
         let range: node_semver::Range = version_range.parse().unwrap(); // TODO: this step should have happened in PackageManifest
         let mut satisfied_versions = self
@@ -154,6 +156,7 @@ impl Package {
         satisfied_versions.last().copied()
     }
 
+    #[must_use]
     pub fn latest(&self) -> &PackageVersion {
         let version =
             self.dist_tags.get("latest").expect("latest tag is expected but not found for package");

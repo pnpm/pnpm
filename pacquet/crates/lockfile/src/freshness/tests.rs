@@ -1387,7 +1387,7 @@ fn ignored_optional_dependencies_round_trips_through_yaml() {
 /// [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts)
 /// iterates `optionalDependencies` keys and deletes from
 /// `optionalDependencies` + `dependencies` only, never touching
-/// `devDependencies`. Regression for CodeRabbit review on PR [#507].
+/// `devDependencies`. Regression for `CodeRabbit` review on PR [#507].
 ///
 /// Fixture: same name `foo` in both `optionalDependencies` and
 /// `devDependencies` on the manifest; lockfile has `foo` only in

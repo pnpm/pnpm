@@ -25,6 +25,7 @@ pub struct NodeJsHooks {
 const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl NodeJsHooks {
+    #[must_use]
     pub fn new(file: PathBuf) -> Self {
         NodeJsHooks { file, worker: OnceCell::new() }
     }
@@ -46,14 +47,8 @@ impl NodeJsHooks {
         logger: &crate::PreResolutionHookLogger,
     ) {
         let file_path = self.file.to_string_lossy();
-        let file_path_escaped = match serde_json::to_string(&file_path) {
-            Ok(s) => s,
-            Err(_) => return,
-        };
-        let ctx_payload = match serde_json::to_string(&args) {
-            Ok(s) => s,
-            Err(_) => return,
-        };
+        let Ok(file_path_escaped) = serde_json::to_string(&file_path) else { return };
+        let Ok(ctx_payload) = serde_json::to_string(&args) else { return };
 
         let (input_type, wrapper) = if file_path.ends_with(".mjs") {
             (
@@ -68,7 +63,6 @@ const logger = {{
 }};
 await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 "#,
-                    file_path_escaped = file_path_escaped,
                 ),
             )
         } else {
@@ -85,12 +79,11 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
   await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 }})();
 "#,
-                    file_path_escaped = file_path_escaped,
                 ),
             )
         };
 
-        let mut child = match Command::new("node")
+        let Ok(mut child) = Command::new("node")
             .arg("--input-type")
             .arg(input_type)
             .arg("-e")
@@ -98,12 +91,9 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             .kill_on_drop(true)
             .stdin(std::process::Stdio::piped())
             .spawn()
-        {
-            Ok(child) => child,
-            Err(_) => {
-                (logger.warn)("pnpmfile hook failed to start".to_string());
-                return;
-            }
+        else {
+            (logger.warn)("pnpmfile hook failed to start".to_string());
+            return;
         };
 
         if let Some(mut stdin) = child.stdin.take()
@@ -113,17 +103,14 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             return;
         }
 
-        let output = match timeout(HOOK_TIMEOUT, child.wait_with_output()).await {
-            Ok(Ok(output)) => output,
-            Ok(Err(_)) | Err(_) => {
-                (logger.warn)("pnpmfile hook timed out or failed to execute".to_string());
-                return;
-            }
+        let Ok(Ok(output)) = timeout(HOOK_TIMEOUT, child.wait_with_output()).await else {
+            (logger.warn)("pnpmfile hook timed out or failed to execute".to_string());
+            return;
         };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            (logger.warn)(format!("pnpmfile hook failed: {}", stderr));
+            (logger.warn)(format!("pnpmfile hook failed: {stderr}"));
         }
     }
 }

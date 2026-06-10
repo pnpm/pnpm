@@ -40,7 +40,7 @@ async fn fresh_entry_returns_its_body() {
 
     storage.write_cached_packument(&name, body, &validators(Some(r#""abc""#), None)).await.unwrap();
 
-    match storage.read_cached_packument_entry(&name, Duration::from_secs(60)).await.unwrap() {
+    match storage.read_cached_packument_entry(&name, Duration::from_mins(1)).await.unwrap() {
         Some(CachedPackument::Fresh(bytes)) => assert_eq!(bytes, body),
         other => panic!("expected a fresh entry, got {other:?}"),
     }
@@ -71,7 +71,7 @@ async fn missing_cached_packument_reads_as_none() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let entry =
-        storage.read_cached_packument_entry(&pkg("absent"), Duration::from_secs(60)).await.unwrap();
+        storage.read_cached_packument_entry(&pkg("absent"), Duration::from_mins(1)).await.unwrap();
     assert!(entry.is_none());
 }
 

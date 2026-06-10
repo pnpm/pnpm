@@ -124,6 +124,10 @@ fn make_node_with_optional(
 }
 
 /// Write a `package.json` to a temp dir and return the loaded manifest.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn write_manifest(deps_value: serde_json::Value) -> (TempDir, PackageManifest) {
     let tmp = TempDir::new().expect("create tempdir");
     let manifest_path = tmp.path().join("package.json");
@@ -568,7 +572,7 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
         children: react_dom_children,
         peer_dependencies: react_dom_peers,
         transitive_peer_dependencies: HashSet::new(),
-        resolved_peer_names: ["react".to_string()].into_iter().collect(),
+        resolved_peer_names: std::iter::once("react".to_string()).collect(),
         depth: 1,
         installable: true,
         is_pure: false,

@@ -513,8 +513,7 @@ impl NpmrcAuth {
             .registry
             .as_deref()
             .filter(|registry| !registry.is_empty())
-            .map(normalize_registry_url)
-            .unwrap_or_else(|| DEFAULT_REGISTRY.to_string());
+            .map_or_else(|| DEFAULT_REGISTRY.to_string(), normalize_registry_url);
         let key = pacquet_network::nerf_dart(&registry);
         if key.is_empty() {
             // Unparsable registry (e.g. an unresolved `${VAR}`). Drop

@@ -247,7 +247,7 @@ fn auto_call_errors_propagate_without_downgrading() {
 
 /// Same propagation rule at the hardlink tier. `fs::hard_link`
 /// doesn't get the same error-rewriting treatment that reflink
-/// does, so we can use the simpler "missing source → NotFound"
+/// does, so we can use the simpler "missing source → `NotFound`"
 /// trigger here.
 #[test]
 fn auto_hardlink_tier_call_errors_propagate() {

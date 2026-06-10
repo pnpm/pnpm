@@ -33,6 +33,7 @@ use std::collections::HashMap;
 /// skipped (the lockfile is malformed; surface that as a build
 /// error elsewhere — `BuildModules`'s `is_built` gate will simply
 /// miss the cache lookup for those).
+#[must_use]
 pub fn build_deps_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,

@@ -470,7 +470,7 @@ fn seeded_snapshot_short_circuits_recheck() {
     // re-emitting.
     packages.insert(key.clone(), synthetic_metadata(Some(&[("node", "0.10")]), None, None, None));
 
-    let seed = SkippedSnapshots::from_set([key.clone()].into_iter().collect());
+    let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
         &snapshots,
         &packages,
@@ -505,7 +505,7 @@ fn fast_path_preserves_seed() {
     // the seed becomes the final set.
     packages.insert(key.clone(), synthetic_metadata(None, None, None, None));
 
-    let seed = SkippedSnapshots::from_set([key.clone()].into_iter().collect());
+    let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
         &snapshots,
         &packages,

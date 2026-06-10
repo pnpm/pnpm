@@ -107,16 +107,12 @@ pub async fn resolve_node_versions(
             .unwrap_or_default());
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
-    let parsed_range = match Range::parse(&range) {
-        Ok(parsed) => parsed,
-        Err(_) => return Ok(Vec::new()),
-    };
+    let Ok(parsed_range) = Range::parse(&range) else { return Ok(Vec::new()) };
     Ok(versions
         .into_iter()
         .filter(|version| {
             Version::parse(version)
-                .map(|parsed| satisfies_with_prereleases(&parsed, &parsed_range))
-                .unwrap_or(false)
+                .is_ok_and(|parsed| satisfies_with_prereleases(&parsed, &parsed_range))
         })
         .collect())
 }

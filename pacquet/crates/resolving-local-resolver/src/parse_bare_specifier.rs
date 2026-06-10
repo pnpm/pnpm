@@ -162,11 +162,11 @@ fn from_local(
         if is_absolute_specifier(&spec) {
             (fetched, format!("{protocol}{spec}"))
         } else {
-            let relative = forward_slashes(
-                pathdiff::diff_paths(&fetched, project_dir)
-                    .map(|path| path.display().to_string())
-                    .unwrap_or_else(|| fetched.display().to_string()),
-            );
+            let relative =
+                forward_slashes(pathdiff::diff_paths(&fetched, project_dir).map_or_else(
+                    || fetched.display().to_string(),
+                    |path| path.display().to_string(),
+                ));
             let fetch_spec = fetched;
             (fetch_spec, format!("{protocol}{relative}"))
         }
@@ -293,8 +293,7 @@ fn normalize_relative_or_absolute(
         return forward_slashes(from_path.display().to_string());
     }
     let relative = pathdiff::diff_paths(from_path, relative_to)
-        .map(|path| path.display().to_string())
-        .unwrap_or_else(|| from_path.display().to_string());
+        .map_or_else(|| from_path.display().to_string(), |path| path.display().to_string());
     forward_slashes(relative)
 }
 
@@ -325,7 +324,7 @@ fn is_absolute_specifier(spec: &str) -> bool {
 fn is_filespec(spec: &str) -> bool {
     let mut chars = spec.chars();
     match chars.next() {
-        Some('.') | Some('/') | Some('\\') => true,
+        Some('.' | '/' | '\\') => true,
         Some('~') => chars.next() == Some('/'),
         Some(c) if c.is_ascii_alphabetic() => chars.next() == Some(':'),
         _ => false,

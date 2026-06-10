@@ -313,8 +313,7 @@ impl CliArgs {
                 let manifest = PackageManifest::from_path(manifest_path())
                     .wrap_err("getting the package.json in current directory")?;
                 if let Some(script) = manifest.script("test", false)? {
-                    execute_shell(script)
-                        .wrap_err(format!("executing command: \"{0}\"", script))?;
+                    execute_shell(script).wrap_err(format!("executing command: \"{script}\""))?;
                 }
             }
             CliCommand::Run(args) => {
@@ -343,7 +342,7 @@ impl CliArgs {
                 let manifest = PackageManifest::from_path(manifest_path())
                     .wrap_err("getting the package.json in current directory")?;
                 let command = manifest.script("start", true)?.unwrap_or("node server.js");
-                execute_shell(command).wrap_err(format!("executing command: \"{0}\"", command))?;
+                execute_shell(command).wrap_err(format!("executing command: \"{command}\""))?;
             }
             CliCommand::Store(command) => command.run(|| config().map(|m| &*m))?,
         }

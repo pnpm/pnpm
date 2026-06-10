@@ -347,7 +347,7 @@ where
             let missing_as_pairs: Vec<(String, MissingPeerInfo)> =
                 missing_required.iter().map(|(n, info)| (n.clone(), info.clone())).collect();
             let hoisted = hoist_peers(
-                HoistPeersOptions {
+                &HoistPeersOptions {
                     auto_install_peers,
                     all_preferred_versions: &all_preferred_versions,
                     workspace_root_deps: &workspace_root_deps,

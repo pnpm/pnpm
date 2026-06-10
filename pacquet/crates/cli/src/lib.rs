@@ -70,8 +70,7 @@ fn configure_rayon_pool() {
         return;
     }
     let n = std::thread::available_parallelism()
-        .map(std::num::NonZeroUsize::get)
-        .unwrap_or(1)
+        .map_or(1, std::num::NonZeroUsize::get)
         .saturating_mul(2)
         // `.max(4)` is an intentional minimum: even on quota-limited
         // 1-2-CPU runners, dropping below 4 puts us back into the

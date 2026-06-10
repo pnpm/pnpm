@@ -714,7 +714,7 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
     let verifier = create_npm_resolution_verifier(opts);
 
     let policy = verifier.policy();
-    assert_eq!(policy.get("minimumReleaseAge").and_then(|value| value.as_u64()), Some(60 * 24));
+    assert_eq!(policy.get("minimumReleaseAge").and_then(serde_json::Value::as_u64), Some(60 * 24));
     let min_age_excludes =
         policy.get("minimumReleaseAgeExclude").and_then(|value| value.as_array()).expect("array");
     assert_eq!(
@@ -727,7 +727,7 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
     );
     assert_eq!(policy.get("trustPolicy").and_then(|value| value.as_str()), Some("no-downgrade"));
     assert_eq!(
-        policy.get("trustPolicyIgnoreAfter").and_then(|value| value.as_u64()),
+        policy.get("trustPolicyIgnoreAfter").and_then(serde_json::Value::as_u64),
         Some(60 * 24 * 30),
     );
 }

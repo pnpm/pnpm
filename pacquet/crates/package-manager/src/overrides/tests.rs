@@ -16,6 +16,10 @@ fn parsed(map: &[(&str, &str)]) -> Vec<pacquet_config_parse_overrides::VersionOv
 
 /// Build an in-memory `PackageManifest` from a JSON value. The path
 /// is a stub (the overrider reads `value()` / `value_mut()` only).
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn manifest_from_value(value: Value) -> PackageManifest {
     let dir = tempfile::tempdir().expect("tempdir for manifest");
     let path = dir.path().join("package.json");

@@ -12,6 +12,7 @@ use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 
 /// `true` when `alias` is a valid npm package name that pnpm can safely
 /// use as a `node_modules/<alias>` directory.
+#[must_use]
 pub fn is_valid_dependency_alias(alias: &str) -> bool {
     is_valid_old_npm_package_name(alias)
 }

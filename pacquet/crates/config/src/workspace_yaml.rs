@@ -954,6 +954,7 @@ fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {
 /// directory containing the nearest ancestor `pnpm-workspace.yaml`.
 /// Returns `start` itself if no manifest is found, so callers can always
 /// use the result as a resolution base.
+#[must_use]
 pub fn workspace_root_or(start: &Path) -> PathBuf {
     find_workspace_manifest(start)
         .and_then(|path| path.parent().map(Path::to_path_buf))

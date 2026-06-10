@@ -5,7 +5,7 @@ use std::str::FromStr;
 /// Version or tag that is attachable to a registry URL.
 #[derive(Debug, Display, From, TryInto)]
 pub enum PackageTag {
-    /// Literally `latest``.
+    /// Literally `latest`.
     #[display("latest")]
     Latest,
     /// Pinned version.

@@ -190,7 +190,7 @@ diff --git a/blob.txt b/blob.txt
 
 /// `..` in a patch path is rejected — a malicious or
 /// misconfigured patch must not be able to read/write/delete
-/// outside `patched_dir`. CodeRabbit flagged this as Critical
+/// outside `patched_dir`. `CodeRabbit` flagged this as Critical
 /// during review of pacquet#427.
 #[test]
 fn parent_dir_segment_in_modify_errors() {
@@ -594,7 +594,7 @@ fn modify_preserves_executable_mode() {
 /// with its original content. Mirrors the crash-safety guarantee of
 /// the atomic-replace pattern in
 /// [`pacquet_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs).
-/// CodeRabbit flagged the prior `unlink → write` ordering as a
+/// `CodeRabbit` flagged the prior `unlink → write` ordering as a
 /// data-loss risk during review of pnpm/pnpm#11782.
 #[cfg(unix)]
 #[test]

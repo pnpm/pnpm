@@ -160,7 +160,7 @@ pub enum LogEvent {
     /// phases that haven't landed in pacquet yet.
     ///
     /// Upstream: <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/core/core-loggers/src/skippedOptionalDependencyLogger.ts>.
-    /// Emit site (build_failure): <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L218-L240>.
+    /// Emit site (`build_failure)`: <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L218-L240>.
     #[serde(rename = "pnpm:skipped-optional-dependency")]
     SkippedOptionalDependency(SkippedOptionalDependencyLog),
 
@@ -886,7 +886,7 @@ struct Envelope<'a> {
 }
 
 fn now_millis() -> u128 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis())
 }
 
 /// Capability for obtaining the host name written into the [bunyan]-shaped

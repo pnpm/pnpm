@@ -433,7 +433,7 @@ fn build_verification_error(mut violations: Vec<ResolutionPolicyViolation>) -> V
             reason: violation.reason,
         })
         .collect();
-    VerifyError::from_rendered(rendered)
+    VerifyError::from_rendered(&rendered)
 }
 
 fn emit<Reporter: self::Reporter>(level: LogLevel, message: LockfileVerificationMessage) {

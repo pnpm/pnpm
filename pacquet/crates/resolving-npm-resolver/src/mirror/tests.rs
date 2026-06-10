@@ -118,7 +118,7 @@ fn prepare_json_for_disk_two_line_shape() {
     assert_eq!(body_line, raw, "raw body line wins over re-serialization");
 }
 
-/// Save → load_meta_headers reads back only the first line (etag,
+/// Save → `load_meta_headers` reads back only the first line (etag,
 /// modified) without parsing the multi-megabyte body — fast path
 /// for the conditional GET decision.
 #[test]
@@ -134,7 +134,7 @@ fn load_meta_headers_round_trip() {
     assert_eq!(headers.modified.as_deref(), Some("2025-01-15T12:00:00.000Z"));
 }
 
-/// Save → load_meta reconstructs the full Package with the etag
+/// Save → `load_meta` reconstructs the full Package with the etag
 /// back-filled. The cached fetcher uses this on a 304 response.
 #[test]
 fn load_meta_round_trip_backfills_etag() {

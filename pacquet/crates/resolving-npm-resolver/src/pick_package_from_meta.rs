@@ -161,8 +161,7 @@ where
         Some(cutoff) => {
             let exclude_result = opts
                 .published_by_exclude
-                .map(|policy| policy.matches(&meta.name))
-                .unwrap_or(PolicyMatch::No);
+                .map_or(PolicyMatch::No, |policy| policy.matches(&meta.name));
             if matches!(exclude_result, PolicyMatch::AnyVersion) {
                 // Bare-name match — every version of this package is
                 // covered by the exclude, so the maturity filter is
@@ -235,7 +234,7 @@ where
         // `@owner/foo` while the per-version `name` is just `foo`.
         // Match upstream's shim that pins the manifest name to the
         // packument-level name.
-        manifest.name = meta_ref.name.clone();
+        manifest.name.clone_from(&meta_ref.name);
     }
     Ok(Some(manifest))
 }
@@ -381,11 +380,9 @@ pub fn filter_pkg_metadata_by_publish_date(
             .get(version)
             .and_then(serde_json::Value::as_str)
             .and_then(parse_packument_timestamp)
-            .map(|date| date <= cutoff)
-            .unwrap_or(false);
-        let trusted = trusted_versions
-            .map(|allow| allow.iter().any(|allowed| allowed == version))
-            .unwrap_or(false);
+            .is_some_and(|date| date <= cutoff);
+        let trusted =
+            trusted_versions.is_some_and(|allow| allow.iter().any(|allowed| allowed == version));
         if mature || trusted {
             versions_within_date.insert(version.clone(), manifest.clone());
         }
@@ -612,8 +609,7 @@ fn has_unpublished_versions(meta: &Package) -> bool {
     unpublished
         .get("versions")
         .and_then(serde_json::Value::as_array)
-        .map(|versions| !versions.is_empty())
-        .unwrap_or(false)
+        .is_some_and(|versions| !versions.is_empty())
 }
 
 #[cfg(test)]

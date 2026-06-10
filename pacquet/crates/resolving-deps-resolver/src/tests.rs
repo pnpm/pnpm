@@ -67,6 +67,10 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
     }
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn fake_manifest(root_deps: serde_json::Value) -> (tempfile::TempDir, PackageManifest) {
     let tmp = tempfile::tempdir().expect("tempdir");
     let path = tmp.path().join("package.json");
@@ -2257,6 +2261,10 @@ mod optional_propagation {
     /// `optionalDependencies` blocks — the bundled `fake_manifest`
     /// helper only writes to `dependencies` so it can't exercise the
     /// importer-level optional flag.
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "test helpers take owned literal fixtures by value to keep call sites clean"
+    )]
     fn manifest_with_groups(
         prod: serde_json::Value,
         optional: serde_json::Value,

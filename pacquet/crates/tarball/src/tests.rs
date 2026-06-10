@@ -107,7 +107,7 @@ async fn network_error_display_includes_reqwest_inner_chain() {
     // `walk_reqwest_chain`, this is exactly what got dropped.
     let leaf_section = rendered
         .split_once("error sending request for url (")
-        .and_then(|(_, rest)| rest.split_once(")"))
+        .and_then(|(_, rest)| rest.split_once(')'))
         .map(|(_, after_paren)| after_paren)
         .expect("rendered output should include reqwest's wrapper");
     assert!(
@@ -162,7 +162,7 @@ fn tempdir_with_leaked_path() -> (TempDir, &'static StoreDir) {
 async fn packages_under_orgs_should_work() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     let cas_files = DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,
@@ -225,7 +225,7 @@ async fn network_fetch_records_progress_key() {
     let progress_reported = SharedReportedProgressKeys::default();
 
     DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,
@@ -260,7 +260,7 @@ async fn network_fetch_records_progress_key() {
 async fn should_throw_error_on_checksum_mismatch() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,
@@ -285,7 +285,7 @@ async fn should_throw_error_on_checksum_mismatch() {
     drop(store_dir);
 }
 
-/// When the SQLite index already has an entry for this
+/// When the `SQLite` index already has an entry for this
 /// `(integrity, pkg_id)` pair and every referenced CAFS file is on
 /// disk, `run_without_mem_cache` must return the cached layout
 /// without issuing an HTTP request. We prove the "no network"
@@ -377,9 +377,9 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
 
 /// When `prefetched_cas_paths` already covers the requested
 /// `(integrity, pkg_id)`, `run_without_mem_cache` must short-circuit
-/// to the prefetched map and never touch the SQLite index or the
+/// to the prefetched map and never touch the `SQLite` index or the
 /// network. `store_index: None` proves it doesn't fall through to
-/// the per-snapshot SQLite lookup, and the unreachable
+/// the per-snapshot `SQLite` lookup, and the unreachable
 /// `package_url` proves the network path is also bypassed.
 #[tokio::test]
 async fn reuses_prefetched_cas_paths_when_provided() {
@@ -1021,10 +1021,10 @@ fn extract_tarball_applies_ignore_filter_dropping_entries_from_both_maps() {
 #[test]
 fn retry_opts_delay_matches_pnpm_formula() {
     let opts = RetryOpts::default();
-    assert_eq!(opts.delay_for(0), Duration::from_millis(10_000));
+    assert_eq!(opts.delay_for(0), Duration::from_secs(10));
     // 10s * 10 = 100s, capped at 60s
-    assert_eq!(opts.delay_for(1), Duration::from_millis(60_000));
-    assert_eq!(opts.delay_for(5), Duration::from_millis(60_000));
+    assert_eq!(opts.delay_for(1), Duration::from_mins(1));
+    assert_eq!(opts.delay_for(5), Duration::from_mins(1));
 }
 
 /// Pathological `attempt` values must not panic / overflow. The
@@ -1034,7 +1034,7 @@ fn retry_opts_delay_matches_pnpm_formula() {
 #[test]
 fn retry_opts_delay_does_not_overflow() {
     let opts = RetryOpts::default();
-    assert_eq!(opts.delay_for(u32::MAX), Duration::from_millis(60_000));
+    assert_eq!(opts.delay_for(u32::MAX), Duration::from_mins(1));
 }
 
 /// pnpm's
@@ -1227,7 +1227,7 @@ async fn fails_fast_on_404() {
 }
 
 /// pnpm retries arbitrary 4xx codes that aren't 401/403/404 (any
-/// FetchError throws to the outer catch, which only short-circuits
+/// `FetchError` throws to the outer catch, which only short-circuits
 /// on the explicit no-retry set). 410 Gone is the canonical example
 /// — semantically permanent but pnpm still hits it `retries+1` times.
 #[tokio::test]
@@ -1310,19 +1310,19 @@ async fn retry_exhaustion_returns_last_error() {
 /// shard read guard) across two `.await` points; under enough
 /// concurrency another task on the same worker would call
 /// `mem_cache.insert` for a key hashing to the same shard, block
-/// on the parking_lot write, and starve every worker.
+/// on the `parking_lot` write, and starve every worker.
 ///
 /// To reproduce end-to-end:
 /// * Mockito serves the real fastify-error tarball with a
-///   per-request sleep so the InProgress window is wide enough to
+///   per-request sleep so the `InProgress` window is wide enough to
 ///   schedule the contending task.
 /// * Two concurrent calls for the same URL: one wins the else
 ///   branch, the other parks in the if-let branch.
 /// * A third call for a different URL whose key hashes to the same
-///   DashMap shard. Its else branch calls `mem_cache.insert`, which
+///   `DashMap` shard. Its else branch calls `mem_cache.insert`, which
 ///   needs a write guard on the same shard.
 /// * Single-worker tokio runtime: with the bug, the only worker
-///   blocks on parking_lot's exclusive wait and nothing else can be
+///   blocks on `parking_lot`'s exclusive wait and nothing else can be
 ///   polled. The runtime is parked in a side OS thread so the test
 ///   asserts the deadlock as a wall-clock timeout instead of
 ///   hanging the test process forever.
@@ -1963,7 +1963,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
 ///   (mockito sends one for `with_body`).
 /// * `pnpm:fetching-progress in_progress` is throttled to ~200ms; the
 ///   tiny FASTIFY tarball used here downloads in well under that, so
-///   we don't assert any in_progress events fire.
+///   we don't assert any `in_progress` events fire.
 /// * `pnpm:progress fetched` fires once after the retry loop returns
 ///   `Ok` — never when an attempt fails — with the `package_id` and
 ///   `requester` threaded down from the install layer.
@@ -2492,7 +2492,7 @@ fn extract_zip_rejects_parent_dir_component() {
 /// directory either way (the CAS write path is gated on file
 /// entries), but rejecting outright keeps the "no unsafe entry
 /// accepted" contract intact for tooling that inspects the error
-/// code (Caught by CodeRabbit on [#472](https://github.com/pnpm/pacquet/pull/472)).
+/// code (Caught by `CodeRabbit` on [#472](https://github.com/pnpm/pacquet/pull/472)).
 #[test]
 fn extract_zip_rejects_directory_entry_with_parent_component() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
@@ -2610,7 +2610,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
     let pkg_id = "@fastify/error@3.3.0";
 
     let err = DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,
@@ -2681,7 +2681,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
     prefetched.insert(cache_key, Arc::new(HashMap::new()));
 
     let cas_paths = DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,

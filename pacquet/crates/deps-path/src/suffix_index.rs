@@ -18,6 +18,7 @@ pub struct DepPathSuffixIndex {
 /// the scan from — the depPath has neither a peer suffix nor a patch
 /// hash, and the whole string is the `pkgIdWithPatchHash` (without a
 /// patch hash, that's just the bare `name@version` id).
+#[must_use]
 pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
     let bytes = dep_path.as_bytes();
     let absent = DepPathSuffixIndex { peers_index: None, patch_hash_index: None };
@@ -58,6 +59,7 @@ pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
 /// Strip the peer-suffix and `(patch_hash=…)` segments from `dep_path`,
 /// returning just the `pkgId` (no patch hash) prefix. Mirrors pnpm's
 /// [`removeSuffix`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L52-L61).
+#[must_use]
 pub fn remove_suffix(dep_path: &str) -> &str {
     let DepPathSuffixIndex { peers_index, patch_hash_index } = index_of_dep_path_suffix(dep_path);
     if let Some(idx) = patch_hash_index {
@@ -72,6 +74,7 @@ pub fn remove_suffix(dep_path: &str) -> &str {
 /// Strip just the peer-suffix from `dep_path`, keeping the
 /// `(patch_hash=…)` segment if present. Mirrors pnpm's
 /// [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L63-L70).
+#[must_use]
 pub fn get_pkg_id_with_patch_hash(dep_path: &str) -> &str {
     let DepPathSuffixIndex { peers_index, .. } = index_of_dep_path_suffix(dep_path);
     match peers_index {

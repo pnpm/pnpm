@@ -224,7 +224,7 @@ pub enum InstallPackageBySnapshotError {
     },
 }
 
-impl<'a> InstallPackageBySnapshot<'a> {
+impl InstallPackageBySnapshot<'_> {
     /// Execute the subroutine. Returns the CAS file index for the
     /// fetched package — the map relative-archive-path →
     /// absolute-store-path that downstream consumers use to either

@@ -14,7 +14,7 @@
 //!   The node-resolver and bun-resolver fan the parsed rows out across
 //!   every artifact a release ships.
 //! - [`fetch_verified_node_shasums_file`] — download a Node.js release
-//!   SHASUMS file, verify its detached OpenPGP signature against the
+//!   SHASUMS file, verify its detached `OpenPGP` signature against the
 //!   embedded Node.js release keys, then parse the trusted body.
 //! - [`pick_file_checksum_from_shasums_file`] — re-parse a previously
 //!   downloaded body to extract the integrity of a single file. The
@@ -170,7 +170,7 @@ pub async fn fetch_shasums_file(
 }
 
 /// Fetch a Node.js release's `SHASUMS256.txt` and verify its
-/// detached OpenPGP signature (`SHASUMS256.txt.sig`) against the
+/// detached `OpenPGP` signature (`SHASUMS256.txt.sig`) against the
 /// embedded Node.js release keys before returning the body.
 pub async fn fetch_verified_node_shasums(
     http_client: &ThrottledClient,
@@ -195,7 +195,7 @@ pub async fn fetch_verified_node_shasums(
 }
 
 /// Like [`fetch_shasums_file`], but first verifies the SHASUMS file's
-/// detached OpenPGP signature against the Node.js release keys.
+/// detached `OpenPGP` signature against the Node.js release keys.
 pub async fn fetch_verified_node_shasums_file(
     http_client: &ThrottledClient,
     shasums_url: &str,
@@ -310,6 +310,7 @@ fn signature_unreadable(error: pgp::errors::Error) -> FetchVerifiedNodeShasumsEr
 /// Split out from [`fetch_shasums_file`] so verifier-side code that
 /// already has the body in hand can decode it without re-issuing the
 /// network request.
+#[must_use]
 pub fn parse_shasums_file(body: &str) -> Vec<ShasumsFileItem> {
     body.lines()
         .filter_map(|line| {

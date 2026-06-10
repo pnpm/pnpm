@@ -43,7 +43,7 @@ pub fn dedupe_peer_dependents(
     if duplicates.is_empty() {
         return;
     }
-    let dep_paths_map = deduplicate_all(graph, duplicates);
+    let dep_paths_map = deduplicate_all(graph, &duplicates);
     if dep_paths_map.is_empty() {
         return;
     }
@@ -88,10 +88,10 @@ fn collect_duplicates(graph: &DependenciesGraph) -> Vec<Vec<DepPath>> {
 /// [`deduplicateAll`](https://github.com/pnpm/pnpm/blob/7f91ba4045/installing/deps-resolver/src/resolvePeers.ts#L235-L257).
 fn deduplicate_all(
     graph: &mut DependenciesGraph,
-    duplicates: Vec<Vec<DepPath>>,
+    duplicates: &[Vec<DepPath>],
 ) -> HashMap<DepPath, DepPath> {
     let duplicates_count = duplicates.len();
-    let (dep_paths_map, remaining_duplicates) = deduplicate_dep_paths(&duplicates, graph);
+    let (dep_paths_map, remaining_duplicates) = deduplicate_dep_paths(duplicates, graph);
     if remaining_duplicates.len() == duplicates_count {
         return dep_paths_map;
     }
@@ -106,7 +106,7 @@ fn deduplicate_all(
         return dep_paths_map;
     }
     let mut merged = dep_paths_map;
-    for (collapsed, target) in deduplicate_all(graph, remaining_duplicates) {
+    for (collapsed, target) in deduplicate_all(graph, &remaining_duplicates) {
         merged.insert(collapsed, target);
     }
     merged

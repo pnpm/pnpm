@@ -116,7 +116,7 @@ fn engine_agnostic_when_subtree_has_no_builders() {
         },
     );
     // builtDepPaths exists but doesn't contain pure-js. Gating fires.
-    let built: HashSet<String> = ["someone-else@1.0.0".to_string()].into_iter().collect();
+    let built: HashSet<String> = std::iter::once("someone-else@1.0.0".to_string()).collect();
     let mut cache_a = HashMap::new();
     let mut br_a = HashMap::new();
     let darwin = calc_graph_node_hash(
@@ -156,7 +156,7 @@ fn engine_included_when_self_in_built_set() {
             children: HashMap::new(),
         },
     );
-    let built: HashSet<String> = ["native@1.0.0".to_string()].into_iter().collect();
+    let built: HashSet<String> = std::iter::once("native@1.0.0".to_string()).collect();
     let mut cache_a = HashMap::new();
     let mut br_a = HashMap::new();
     let darwin = calc_graph_node_hash(
@@ -199,7 +199,7 @@ fn engine_included_for_ancestor_of_builder() {
             children: HashMap::new(),
         },
     );
-    let built: HashSet<String> = ["native@1.0.0".to_string()].into_iter().collect();
+    let built: HashSet<String> = std::iter::once("native@1.0.0".to_string()).collect();
     let mut cache_a = HashMap::new();
     let mut br_a = HashMap::new();
     let darwin = calc_graph_node_hash(

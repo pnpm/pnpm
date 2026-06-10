@@ -1,5 +1,6 @@
 use crate::{capabilities::FsReadHead, path_util::lexical_normalize};
 use std::{
+    fmt::Write as _,
     io,
     path::{Path, PathBuf},
 };
@@ -107,6 +108,7 @@ pub fn read_head_filled<Sys: FsReadHead>(path: &Path, buf: &mut [u8]) -> io::Res
 /// wrong runtime for files that just happen to mention `#!` after some
 /// whitespace. The first line is taken exactly as-is (`#!` is matched
 /// at column 0 of that line via `strip_prefix` in `parse_shebang`).
+#[must_use]
 pub fn parse_shebang_from_bytes(bytes: &[u8]) -> Option<ScriptRuntime> {
     let head = String::from_utf8_lossy(bytes);
     let first_line = head.split('\n').next().unwrap_or("").trim_end_matches('\r');
@@ -173,6 +175,7 @@ fn strip_env_prefix(input: &str) -> (&str, bool) {
 /// When [`search_script_runtime`] returned `None` (no shebang, unknown
 /// extension), the shim execs the target directly via the second branch
 /// upstream uses for that case.
+#[must_use]
 pub fn generate_sh_shim(
     target_path: &Path,
     shim_path: &Path,
@@ -193,20 +196,22 @@ pub fn generate_sh_shim(
             // It always carries the leading `$basedir/` and quotes; never
             // just the program name on its own.
             let sh_long_prog = format!("\"$basedir/{prog}\"");
-            sh.push_str(&format!(
-                "if [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi\n",
-            ));
+            writeln!(
+                sh,
+                "if [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi",
+            )
+            .unwrap();
         }
         // No runtime detected, so exec the target directly. Upstream still
         // emits `exit $?` on this branch for parity with non-execve POSIX
         // shells.
         runtime_opt => {
-            let args = runtime_opt.map(|runtime| runtime.args.as_str()).unwrap_or("");
-            sh.push_str(&format!("{quoted_target} {args} \"$@\"\nexit $?\n"));
+            let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
+            writeln!(sh, "{quoted_target} {args} \"$@\"\nexit $?").unwrap();
         }
     }
 
-    sh.push_str(&format!("# {}\n", shim_target_marker(target_path)));
+    writeln!(sh, "# {}", shim_target_marker(target_path)).unwrap();
     sh
 }
 
@@ -217,6 +222,7 @@ pub fn generate_sh_shim(
 ///
 /// CRLF line endings are part of the on-disk contract for `.cmd` files
 /// on Windows, so the template uses literal `\r\n`.
+#[must_use]
 pub fn generate_cmd_shim(
     target_path: &Path,
     shim_path: &Path,
@@ -234,14 +240,16 @@ pub fn generate_cmd_shim(
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
             let long_prog = format!("\"%~dp0\\{prog}.exe\"");
-            cmd.push_str(&format!(
-                "@IF EXIST {long_prog} (\r\n  {long_prog} {args} {quoted_target} %*\r\n) ELSE (\r\n  @SET PATHEXT=%PATHEXT:;.JS;=;%\r\n  {prog} {args} {quoted_target} %*\r\n)\r\n",
-            ));
+            writeln!(
+                cmd,
+                "@IF EXIST {long_prog} (\r\n  {long_prog} {args} {quoted_target} %*\r\n) ELSE (\r\n  @SET PATHEXT=%PATHEXT:;.JS;=;%\r\n  {prog} {args} {quoted_target} %*\r\n)\r",
+            )
+            .unwrap();
         }
         runtime_opt => {
-            let args = runtime_opt.map(|runtime| runtime.args.as_str()).unwrap_or("");
+            let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
             // No runtime detected, so exec the target directly.
-            cmd.push_str(&format!("@{quoted_target} {args} %*\r\n"));
+            writeln!(cmd, "@{quoted_target} {args} %*\r").unwrap();
         }
     }
 
@@ -253,6 +261,7 @@ pub fn generate_cmd_shim(
 /// minus the `nodePath`/`prependToPath`/`nodeExecPath`/`progArgs`
 /// branches we don't use. The shim self-detects Windows vs. POSIX-ish
 /// pwsh and adjusts the executable suffix accordingly.
+#[must_use]
 pub fn generate_pwsh_shim(
     target_path: &Path,
     shim_path: &Path,
@@ -294,7 +303,7 @@ pub fn generate_pwsh_shim(
             writeln!(pwsh, "exit $ret").unwrap();
         }
         runtime_opt => {
-            let args = runtime_opt.map(|runtime| runtime.args.as_str()).unwrap_or("");
+            let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
             writeln!(pwsh).unwrap();
             writeln!(pwsh, "# Support pipeline input").unwrap();
             writeln!(pwsh, "if ($MyInvocation.ExpectingInput) {{").unwrap();
@@ -356,6 +365,7 @@ fn shim_target_marker(target_path: &Path) -> String {
 /// Whether an already-on-disk shim targets `target_path`. Mirrors
 /// `isShimPointingAt`. The check looks for the trailing marker line so the
 /// header text never has to be byte-identical between cmd-shim versions.
+#[must_use]
 pub fn is_shim_pointing_at(shim_content: &str, target_path: &Path) -> bool {
     let marker = format!("# {}", shim_target_marker(target_path));
     shim_content.lines().any(|line| line == marker)

@@ -70,12 +70,11 @@ pub fn replace_workspace_protocol(
 
     if let Some(parsed) = parse_version_alias_spec(rest) {
         let modules_dir_owned: PathBuf;
-        let modules_dir = match modules_dir {
-            Some(path) => path,
-            None => {
-                modules_dir_owned = dir.join("node_modules");
-                &modules_dir_owned
-            }
+        let modules_dir = if let Some(path) = modules_dir {
+            path
+        } else {
+            modules_dir_owned = dir.join("node_modules");
+            &modules_dir_owned
         };
         let manifest = read_and_check_manifest(dep_name, &modules_dir.join(dep_name))?;
         let semver_range_token = match parsed.sentinel {
@@ -146,12 +145,11 @@ pub fn replace_workspace_protocol_peer_dependency(
     }
 
     let modules_dir_owned: PathBuf;
-    let modules_dir = match modules_dir {
-        Some(path) => path,
-        None => {
-            modules_dir_owned = dir.join("node_modules");
-            &modules_dir_owned
-        }
+    let modules_dir = if let Some(path) = modules_dir {
+        path
+    } else {
+        modules_dir_owned = dir.join("node_modules");
+        &modules_dir_owned
     };
     let manifest = read_and_check_manifest(dep_name, &modules_dir.join(dep_name))?;
     let token = if matched.range_group == "*" { "" } else { matched.range_group };
@@ -289,7 +287,7 @@ fn find_workspace_peer_segment(spec: &str) -> Option<WorkspacePeerSegment<'_>> {
 /// zero when no comparator is present.
 fn parse_peer_range_comparator(bytes: &[u8], pos: usize) -> usize {
     match (bytes.get(pos), bytes.get(pos + 1)) {
-        (Some(b'>'), Some(b'=')) | (Some(b'<'), Some(b'=')) => 2,
+        (Some(b'>' | b'<'), Some(b'=')) => 2,
         (Some(b'>' | b'<' | b'^' | b'~' | b'*'), _) => 1,
         _ => 0,
     }

@@ -75,6 +75,7 @@ impl EnvVar for SystemEnv {
 /// dropped to `""`.
 ///
 /// [`Sys::var`]: EnvVar::var
+#[must_use]
 pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
     let bytes = text.as_bytes();
     let mut output = String::with_capacity(text.len());

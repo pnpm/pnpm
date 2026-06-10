@@ -356,8 +356,10 @@ fn every_pnpm_default_is_classified() {
 
     let mapped: BTreeSet<String> =
         mapped_rows(&cfg).into_iter().map(|(key, _)| key.to_string()).collect();
-    let non_literal: BTreeSet<String> = NON_LITERAL.iter().map(|key| key.to_string()).collect();
-    let not_ported: BTreeSet<String> = NOT_PORTED.iter().map(|key| key.to_string()).collect();
+    let non_literal: BTreeSet<String> =
+        NON_LITERAL.iter().map(std::string::ToString::to_string).collect();
+    let not_ported: BTreeSet<String> =
+        NOT_PORTED.iter().map(std::string::ToString::to_string).collect();
 
     // The three buckets must be disjoint — a key can't be both mapped
     // and skipped.

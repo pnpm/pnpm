@@ -86,7 +86,7 @@ pub struct RunScript<'a> {
 /// Returns the script's [`ExitStatus`] so the caller can propagate its
 /// exit code, matching pnpm's behavior where a failing script sets the
 /// process exit code.
-pub fn run_script(opts: RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
+pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
     let command = build_command(opts.script, opts.args);
 
     let shell =

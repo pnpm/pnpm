@@ -14,7 +14,7 @@ fn rendered(name: &str, version: &str, code: &'static str, reason: &str) -> Rend
 /// docs that match on the code still route correctly.
 #[test]
 fn single_min_age_violation_picks_min_age_variant() {
-    let err = VerifyError::from_rendered(vec![rendered(
+    let err = VerifyError::from_rendered(&[rendered(
         "acme",
         "1.0.0",
         "MINIMUM_RELEASE_AGE_VIOLATION",
@@ -26,7 +26,7 @@ fn single_min_age_violation_picks_min_age_variant() {
 /// A trust-only batch picks the trust variant.
 #[test]
 fn single_trust_violation_picks_trust_variant() {
-    let err = VerifyError::from_rendered(vec![rendered(
+    let err = VerifyError::from_rendered(&[rendered(
         "acme",
         "1.0.0",
         "TRUST_DOWNGRADE",
@@ -40,7 +40,7 @@ fn single_trust_violation_picks_trust_variant() {
 /// shows up in the breakdown line.
 #[test]
 fn mixed_codes_escalate_and_render_code_per_entry() {
-    let err = VerifyError::from_rendered(vec![
+    let err = VerifyError::from_rendered(&[
         rendered("acme", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "young"),
         rendered("bravo", "2.0.0", "TRUST_DOWNGRADE", "downgrade"),
     ]);
@@ -58,7 +58,7 @@ fn mixed_codes_escalate_and_render_code_per_entry() {
 /// envelope's `code` carries that information.
 #[test]
 fn single_code_breakdown_omits_per_line_code() {
-    let err = VerifyError::from_rendered(vec![
+    let err = VerifyError::from_rendered(&[
         rendered("acme", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "young"),
         rendered("bravo", "2.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "also young"),
     ]);
@@ -84,7 +84,7 @@ fn over_cap_adds_and_n_more_summary() {
         ));
     }
     let VerifyError::MinimumReleaseAgeViolation { count, breakdown } =
-        VerifyError::from_rendered(violations)
+        VerifyError::from_rendered(&violations)
     else {
         panic!("expected MinimumReleaseAgeViolation");
     };
@@ -99,7 +99,7 @@ fn over_cap_adds_and_n_more_summary() {
 /// breakdown — matters for clean log lines.
 #[test]
 fn single_entry_breakdown_has_no_trailing_newline() {
-    let err = VerifyError::from_rendered(vec![rendered(
+    let err = VerifyError::from_rendered(&[rendered(
         "acme",
         "1.0.0",
         "MINIMUM_RELEASE_AGE_VIOLATION",
@@ -119,7 +119,7 @@ fn single_entry_breakdown_has_no_trailing_newline() {
 /// is single-column.
 #[test]
 fn renders_single_entry_single_code() {
-    let err = VerifyError::from_rendered(vec![rendered(
+    let err = VerifyError::from_rendered(&[rendered(
         "acme",
         "1.0.0",
         "MINIMUM_RELEASE_AGE_VIOLATION",
@@ -133,7 +133,7 @@ fn renders_single_entry_single_code() {
 /// lists `<name>@<version> <reason>` without per-line code prefixes.
 #[test]
 fn renders_three_entries_single_code() {
-    let err = VerifyError::from_rendered(vec![
+    let err = VerifyError::from_rendered(&[
         rendered(
             "acme",
             "1.0.0",
@@ -163,7 +163,7 @@ fn renders_three_entries_single_code() {
 /// tripped.
 #[test]
 fn renders_three_entries_mixed_codes() {
-    let err = VerifyError::from_rendered(vec![
+    let err = VerifyError::from_rendered(&[
         rendered(
             "acme",
             "1.0.0",

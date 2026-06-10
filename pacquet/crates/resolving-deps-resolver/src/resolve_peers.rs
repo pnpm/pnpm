@@ -78,10 +78,10 @@ use std::{
 /// panicking on `name_ver = None`.
 /// Reinterpret a `link:<rel>` [`NodeId`] as a [`DepPath`].
 ///
-/// Linked top-parent NodeIds (whether the workspace-link arm or the
+/// Linked top-parent `NodeIds` (whether the workspace-link arm or the
 /// `excludeLinksFromLockfile` remap) never enter the dependency tree,
 /// so [`Walker::node_dep_paths`] never maps them. The `link:<rel>`
-/// NodeId is itself a well-formed pnpm DepPath, so the snapshot
+/// `NodeId` is itself a well-formed pnpm `DepPath`, so the snapshot
 /// child edge can use it verbatim. Mirrors upstream's
 /// [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L164)
 /// fallback in `resolveChildren`.
@@ -256,7 +256,7 @@ pub fn resolve_peers_workspace(
         // Swap the per-importer `modules_dir` in before the walk so
         // the `excludeLinksFromLockfile` link-remap inside
         // `resolve_node` uses the correct importer-scoped target.
-        walker.opts.modules_dir = importer.modules_dir.clone();
+        walker.opts.modules_dir.clone_from(&importer.modules_dir);
         let importer_parents = walker.build_importer_parents_from(&importer.direct);
         let parent_chain_names: Vec<String> = Vec::new();
         let parent_node_ids: Vec<NodeId> = Vec::new();
@@ -483,7 +483,7 @@ struct PendingPeerEdge {
 struct NodeRecord {
     /// `alias → child/peer NodeId` edges, in the same shape the inline
     /// `graph_children` map carries (children overlaid with resolved-peer
-    /// edges) but holding NodeIds, so the rebuild can map each edge to
+    /// edges) but holding `NodeIds`, so the rebuild can map each edge to
     /// its final depPath.
     edges: BTreeMap<String, NodeId>,
     transitive_peer_dependencies: HashSet<String>,
@@ -517,7 +517,7 @@ struct NodeOutput {
     missing_peers: HashMap<String, MissingPeerInfo>,
 }
 
-impl<'tree> Walker<'tree> {
+impl Walker<'_> {
     fn walk(mut self) -> ResolvePeersResult {
         let importer_parents = self.build_importer_parents();
         let parent_chain_names: Vec<String> = Vec::new();
@@ -626,6 +626,10 @@ impl<'tree> Walker<'tree> {
         refs
     }
 
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "resolve_node is the recursive walk's core; threading &NodeId would ripple a borrow through every recursive call site for negligible gain on this small enum"
+    )]
     fn resolve_node(
         &mut self,
         node_id: NodeId,
@@ -1096,7 +1100,7 @@ impl<'tree> Walker<'tree> {
     /// Precedence (mirrors upstream's
     /// [`peerNodeIdToPeerId`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L976-L998)):
     ///
-    /// 1. **`link:<rel>` NodeIds** — emit
+    /// 1. **`link:<rel>` `NodeIds`** — emit
     ///    `PeerId::Pair { name: peer_alias, version: link_path_to_peer_version(rel) }`
     ///    so the peer-suffix segment reads as `name@encoded_path`
     ///    instead of carrying the raw link target. This branch fires
@@ -1710,13 +1714,12 @@ impl<'tree> Walker<'tree> {
                 // packages with the same `pkgIdWithPatchHash`, and the
                 // deep `parent_packages_match` check (or the
                 // `purePkgs` shortcut) has to agree.
-                let cached_tree_node = match self.tree.dependencies_tree.get(cached_node_id) {
-                    Some(node) => node,
-                    None => return false,
+                let Some(cached_tree_node) = self.tree.dependencies_tree.get(cached_node_id) else {
+                    return false;
                 };
-                let current_tree_node = match self.tree.dependencies_tree.get(current_node_id) {
-                    Some(node) => node,
-                    None => return false,
+                let Some(current_tree_node) = self.tree.dependencies_tree.get(current_node_id)
+                else {
+                    return false;
                 };
                 let parent_pkg_id = &current_tree_node.resolved_package_id;
                 if parent_pkg_id != &cached_tree_node.resolved_package_id {

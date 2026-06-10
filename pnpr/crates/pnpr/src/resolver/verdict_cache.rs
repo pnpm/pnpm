@@ -10,7 +10,7 @@
 //! snapshot (a looser current policy can trust a stricter cached run).
 //! One row per hash — a later pass overwrites the snapshot, matching the
 //! local cache's last-write-wins-by-hash rather than keeping a row per
-//! policy. Backed by SQLite so many client connections can read/write
+//! policy. Backed by `SQLite` so many client connections can read/write
 //! concurrently and the server can evict without the JSONL
 //! append/compaction races.
 //!
@@ -131,10 +131,7 @@ fn evict_overflow(conn: &Connection) {
 }
 
 fn now_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_millis() as i64)
-        .unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis() as i64)
 }
 
 #[cfg(test)]

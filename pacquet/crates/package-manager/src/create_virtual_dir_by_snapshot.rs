@@ -77,7 +77,7 @@ pub enum CreateVirtualDirError {
     SymlinkPackage(#[error(source)] SymlinkPackageError),
 }
 
-impl<'a> CreateVirtualDirBySnapshot<'a> {
+impl CreateVirtualDirBySnapshot<'_> {
     /// Execute the subroutine.
     pub fn run<Reporter: self::Reporter>(self) -> Result<(), CreateVirtualDirError> {
         let CreateVirtualDirBySnapshot {

@@ -12,6 +12,7 @@ pub const EXEC_MODE: u32 = 0b111_101_101;
 /// `-exec` suffix or has its on-disk mode flipped executable. Tarballs
 /// from npm frequently ship scripts as `0o744` (user exec only) or
 /// `0o755` (all); both must be treated as executable for pnpm-interop.
+#[must_use]
 pub fn is_executable(mode: u32) -> bool {
     mode & EXEC_MASK != 0
 }

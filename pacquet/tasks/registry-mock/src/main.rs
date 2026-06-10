@@ -21,7 +21,7 @@ async fn main() {
     match Cli::parse() {
         Cli::Launch => launch().await,
         Cli::End => end(),
-    };
+    }
 }
 
 async fn launch() {

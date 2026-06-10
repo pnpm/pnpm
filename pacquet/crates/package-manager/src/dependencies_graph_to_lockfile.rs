@@ -144,6 +144,7 @@ pub struct GraphToLockfileOptions<'a> {
 /// - `snapshots` carries one [`SnapshotEntry`] per *peer-suffixed*
 ///   depPath — peer variants of the same package each get their own
 ///   snapshot row.
+#[must_use]
 pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockfile {
     let GraphToLockfileOptions {
         importers: importer_inputs,

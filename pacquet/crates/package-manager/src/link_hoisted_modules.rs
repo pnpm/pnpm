@@ -109,7 +109,7 @@ pub enum LinkHoistedModulesError {
     /// surfacing the inconsistency fails the install fast rather
     /// than producing a partial layout. Upstream effectively
     /// does the same (a missing `graph[dir]` triggers a
-    /// `Cannot read properties of undefined` TypeError on the
+    /// `Cannot read properties of undefined` `TypeError` on the
     /// next line), pacquet just spells the error out.
     #[display("Hierarchy references {dir:?} but no matching graph node exists")]
     #[diagnostic(code(ERR_PACQUET_LINK_HOISTED_MISSING_GRAPH_NODE))]

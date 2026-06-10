@@ -137,7 +137,7 @@ where
     ///
     /// Pacquet's [`NodeLinker::Pnp`] is a config / serde
     /// placeholder today; an install request with `Pnp` reaches
-    /// the isolated linker in this branch (no PnP code path
+    /// the isolated linker in this branch (no `PnP` code path
     /// exists yet). Upstream's `nodeLinker: 'pnp'` is also
     /// out-of-scope for [#438](https://github.com/pnpm/pacquet/issues/438); tracked separately.
     pub node_linker: NodeLinker,
@@ -251,7 +251,7 @@ pub enum InstallFrozenLockfileError {
     LinkHoistedModules(#[error(source)] LinkHoistedModulesError),
 }
 
-impl<'a, DependencyGroupList> InstallFrozenLockfile<'a, DependencyGroupList>
+impl<DependencyGroupList> InstallFrozenLockfile<'_, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
@@ -1239,7 +1239,8 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
     // pass. When `host_node` is `None` no per-snapshot constraint
     // exists, so the host triple values pass through as defaults the
     // walker won't actually consult.
-    let walker_skipped: BTreeSet<String> = skipped.iter().map(|key| key.to_string()).collect();
+    let walker_skipped: BTreeSet<String> =
+        skipped.iter().map(std::string::ToString::to_string).collect();
     let walker_opts = LockfileToHoistedDepGraphOptions {
         lockfile_dir: walker_lockfile_dir.to_path_buf(),
         auto_install_peers: config.auto_install_peers,
@@ -1370,10 +1371,7 @@ pub(crate) fn compute_hoist_plan(
     if config.hoist_pattern.is_none() && config.public_hoist_pattern.is_none() {
         return None;
     }
-    let (snaps, pkgs) = match (snapshots, packages) {
-        (Some(snaps), Some(pkgs)) => (snaps, pkgs),
-        _ => return None,
-    };
+    let (Some(snaps), Some(pkgs)) = (snapshots, packages) else { return None };
     let private_pattern = create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
     let public_pattern = create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
     // Static fast-path: when both compiled matchers come from empty

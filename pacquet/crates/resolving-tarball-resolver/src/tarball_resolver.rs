@@ -40,7 +40,7 @@ pub struct TarballFetchContext {
     pub store_index: Option<SharedReadonlyStoreIndex>,
     pub verify_store_integrity: bool,
     pub verified_files_cache: SharedVerifiedFilesCache,
-    /// Tarball URL → `(integrity, <integrity>\t<pkg_id>` store-index key)`
+    /// Tarball URL → `(integrity, "<integrity>\t<pkg_id>" store-index key)`
     /// for every remote-tarball entry the prior lockfile recorded. Lets a
     /// re-resolve reuse the already-extracted store content instead of
     /// re-downloading. Empty on a first install.
@@ -151,7 +151,7 @@ impl TarballResolver {
         // a store to extract into there's nothing to fetch, so leave
         // them unset.
         let Some(ctx) = self.fetch_context.as_ref() else {
-            return Ok(Some(self.head_only_result(
+            return Ok(Some(Self::head_only_result(
                 wanted_dependency,
                 normalized_bare_specifier,
                 resolved_url,
@@ -178,7 +178,7 @@ impl TarballResolver {
         .await
         .map_err(|err| Box::new(err) as ResolveError)?;
 
-        Ok(Some(self.head_only_result(
+        Ok(Some(Self::head_only_result(
             wanted_dependency,
             normalized_bare_specifier,
             resolved_url,
@@ -216,7 +216,7 @@ impl TarballResolver {
             return None;
         }
         let manifest = manifests.get(cache_key)?;
-        Some(self.head_only_result(
+        Some(Self::head_only_result(
             wanted_dependency,
             tarball_url.to_string(),
             tarball_url.to_string(),
@@ -231,7 +231,6 @@ impl TarballResolver {
     /// `integrity` and `manifest` are filled once the tarball is
     /// fetched.
     fn head_only_result(
-        &self,
         wanted_dependency: &WantedDependency,
         normalized_bare_specifier: String,
         resolved_url: String,

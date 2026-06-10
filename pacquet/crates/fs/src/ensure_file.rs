@@ -52,7 +52,7 @@ where
         for _ in 0..32 {
             match op() {
                 Ok(value) => return Ok(value),
-                Err(error) if matches!(error.raw_os_error(), Some(EMFILE) | Some(ENFILE)) => {
+                Err(error) if matches!(error.raw_os_error(), Some(EMFILE | ENFILE)) => {
                     std::thread::sleep(backoff);
                     backoff = (backoff * 2).min(Duration::from_millis(200));
                 }
@@ -171,7 +171,7 @@ pub fn ensure_file(
     // See the "Process-local per-path mutex" bullet above and
     // [`cas_write_lock`] for the rationale.
     let lock = cas_write_lock(file_path);
-    let _guard = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
@@ -452,7 +452,7 @@ fn write_atomic(
 
 /// Total budget for retrying a rename that keeps hitting transient
 /// errors. Matches pnpm's `rename-overwrite` retry window.
-const RENAME_RETRY_BUDGET: Duration = Duration::from_secs(60);
+const RENAME_RETRY_BUDGET: Duration = Duration::from_mins(1);
 
 /// Cap on per-iteration sleep — pnpm grows the backoff by 10 ms each
 /// loop and stops growing at 100 ms.
@@ -509,7 +509,7 @@ fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
 ///
 /// On Unix, `rename` returning `EACCES`/`EPERM` is essentially
 /// always a permanent permission issue (non-writable directory,
-/// sticky-bit conflict, AppArmor deny) — retrying for 60 s just
+/// sticky-bit conflict, `AppArmor` deny) — retrying for 60 s just
 /// stretches out the failure. `EBUSY` on Unix also tends to be
 /// permanent (mount-point conflicts). So on non-Windows the
 /// classifier is disabled and any `rename` error propagates

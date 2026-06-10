@@ -96,7 +96,7 @@ pub struct GitFetchOutput {
     pub built: bool,
 }
 
-impl<'a> GitFetcher<'a> {
+impl GitFetcher<'_> {
     /// Run the fetcher. Blocks under
     /// [`tokio::task::block_in_place`] for the git CLI invocations and
     /// the lifecycle-script-running prepare step. Returns the CAS file
@@ -223,7 +223,7 @@ impl<'a> GitFetcher<'a> {
 /// We do this via the source chain instead of mutating the message
 /// (no JS-style `err.message = ...` available), so the wrapped error
 /// shows up in `miette`'s rendered chain as "Failed to prepare git-
-/// hosted package ... → Failed to prepare package → ERR_PNPM_PREPARE_PACKAGE".
+/// hosted package ... → Failed to prepare package → `ERR_PNPM_PREPARE_PACKAGE`".
 fn wrap_prepare_error(_repo: &str, err: PreparePackageError) -> GitFetcherError {
     // For the MVP we preserve `err` as the source; the install log
     // line at the dispatcher level already includes the repo URL via

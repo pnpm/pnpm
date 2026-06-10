@@ -100,8 +100,8 @@ fn mixed_entries_resolve_in_one_call() {
     assert!(bar.all.is_some(), "missing wildcard in bar group: {bar:?}");
 }
 
-/// IndexMap input preserves the user's listed order end-to-end into
-/// `PatchGroup.range`. Switching back to BTreeMap (alphabetical)
+/// `IndexMap` input preserves the user's listed order end-to-end into
+/// `PatchGroup.range`. Switching back to `BTreeMap` (alphabetical)
 /// would silently break parity with upstream's JS-object iteration
 /// order and surface as different `PATCH_KEY_CONFLICT` diagnostics
 /// when multiple ranges match a version.

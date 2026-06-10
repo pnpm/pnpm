@@ -159,7 +159,7 @@ fn dep_path_serializes_transparently() {
         Some(&DepPath::from("/accepts/1.3.7".to_string())),
     );
     let expected_ignored: IndexSet<DepPath> =
-        [DepPath::from("/sharp/0.32.0".to_string())].into_iter().collect();
+        std::iter::once(DepPath::from("/sharp/0.32.0".to_string())).collect();
     assert_eq!(manifest.ignored_builds.as_ref(), Some(&expected_ignored));
 
     write_modules_manifest::<Host>(modules_dir, manifest).expect("write manifest");

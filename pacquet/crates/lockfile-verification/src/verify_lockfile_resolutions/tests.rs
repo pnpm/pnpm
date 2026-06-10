@@ -235,7 +235,7 @@ async fn all_ok_emits_started_then_done() {
     }
 }
 
-/// Single MIN_AGE violation → resolves to the per-policy variant
+/// Single `MIN_AGE` violation → resolves to the per-policy variant
 /// with that one entry in the breakdown.
 #[tokio::test]
 async fn single_violation_picks_per_policy_variant() {
@@ -256,7 +256,7 @@ async fn single_violation_picks_per_policy_variant() {
 }
 
 /// Two verifiers with different codes both rejecting → mixed batch
-/// escalates to LockfileResolutionVerification.
+/// escalates to `LockfileResolutionVerification`.
 #[tokio::test]
 async fn mixed_code_batch_escalates() {
     let lockfile = parse(TWO_PKG_LOCKFILE);

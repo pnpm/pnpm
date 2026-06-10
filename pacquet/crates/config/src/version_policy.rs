@@ -157,6 +157,7 @@ impl PackageVersionPolicy {
     /// matching rule's payload (`AnyVersion` for a bare-name rule,
     /// `ExactVersions` for `name@versions...`), or `PolicyMatch::No`
     /// when no rule matched.
+    #[must_use]
     pub fn matches(&self, pkg_name: &str) -> PolicyMatch {
         for rule in &self.rules {
             if !rule.name_matcher.matches(pkg_name) {

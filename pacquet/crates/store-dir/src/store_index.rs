@@ -28,7 +28,7 @@ pub struct StoreIndex {
 }
 
 /// Shared handle to a read-only [`StoreIndex`] that can be cheaply cloned and
-/// sent across blocking tasks. SQLite's `Connection` is `Send` but not
+/// sent across blocking tasks. `SQLite`'s `Connection` is `Send` but not
 /// `Sync`, so the `Mutex` gates concurrent reads to a single query at a time
 /// — fine for our workload where every caller serializes one short query and
 /// then hands off to per-file work without holding the lock.
@@ -38,7 +38,7 @@ pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
 /// cheaply via [`Arc`] to share across tokio tasks.
 ///
 /// The design mirrors pnpm's `queueWrites` / `flush` / `setRawMany` pattern
-/// (see `store/index/src/index.ts`): producers don't touch SQLite, they
+/// (see `store/index/src/index.ts`): producers don't touch `SQLite`, they
 /// just push `(key, value)` onto an unbounded channel. A single
 /// [`spawn_blocking`][tokio::task::spawn_blocking] task drains the channel,
 /// collects each non-blocking burst into a batch (capped at 256 entries —
@@ -70,7 +70,7 @@ enum WriteMsg {
     Replace { key: String, value: PackageFilesIndex },
     /// Read-modify-write the row at `key`: load the existing row
     /// (from the same writer task's pending state or, on a miss,
-    /// from SQLite), compute the diff between `current_files` and
+    /// from `SQLite`), compute the diff between `current_files` and
     /// the row's `files`, insert `(cache_key → diff)` into
     /// `side_effects`, and re-queue the row. Used by
     /// [`crate::upload()`] to seed the side-effects cache after a
@@ -98,9 +98,9 @@ enum WriteMsg {
 /// scheduled) but in practice its batches stay in the low hundreds.
 const MAX_BATCH_SIZE: usize = 256;
 
-/// Per-query placeholder cap for [`StoreIndex::get_many`]. SQLite's
+/// Per-query placeholder cap for [`StoreIndex::get_many`]. `SQLite`'s
 /// `SQLITE_MAX_VARIABLE_NUMBER` defaulted to 999 before 3.32.0 and is
-/// 32766 in newer builds (rusqlite ships a recent SQLite, so the
+/// 32766 in newer builds (rusqlite ships a recent `SQLite`, so the
 /// effective cap is well above any realistic lockfile size). Capping
 /// at 999 here keeps us safe against hand-rolled custom builds with
 /// the legacy default — no realistic install hits this boundary, but
@@ -154,7 +154,7 @@ impl StoreIndexWriter {
                 let mut pending: HashMap<String, PackageFilesIndex> =
                     HashMap::with_capacity(batch.len());
                 for msg in batch.drain(..) {
-                    apply_write_msg(&mut index, &mut pending, msg);
+                    apply_write_msg(&index, &mut pending, msg);
                 }
                 if let Err(error) = index.set_many(pending.drain()) {
                     // Drop the batch and keep going. One failed flush
@@ -184,13 +184,13 @@ impl StoreIndexWriter {
 /// `Replace` is a straight overwrite. `SideEffectsUpload` does
 /// the read-modify-write: it loads the row from `pending` (if a
 /// prior message in this batch already touched it) or from
-/// SQLite, then layers the diff on top. Three short-circuit
+/// `SQLite`, then layers the diff on top. Three short-circuit
 /// branches log and skip without removing the row from
 /// `pending`, so a same-batch `Replace` for the same key still
 /// flushes — see the docs on
 /// [`WriteMsg::SideEffectsUpload`].
 fn apply_write_msg(
-    index: &mut StoreIndex,
+    index: &StoreIndex,
     pending: &mut HashMap<String, PackageFilesIndex>,
     msg: WriteMsg,
 ) {
@@ -218,13 +218,13 @@ fn apply_write_msg(
 }
 
 /// Return a mutable reference to the `PackageFilesIndex` row for
-/// `key`, loading from SQLite when this is the row's first
+/// `key`, loading from `SQLite` when this is the row's first
 /// sighting in the batch. Returns `None` (and logs at `debug!` /
-/// `warn!` as appropriate) when no base row exists or the SQLite
+/// `warn!` as appropriate) when no base row exists or the `SQLite`
 /// read fails — both cases mean the caller should skip the
 /// side-effects mutation without disturbing `pending`.
 fn load_pending_row<'a>(
-    index: &mut StoreIndex,
+    index: &StoreIndex,
     pending: &'a mut HashMap<String, PackageFilesIndex>,
     key: &str,
 ) -> Option<&'a mut PackageFilesIndex> {
@@ -436,7 +436,7 @@ impl StoreIndex {
     /// against an empty store — since there is nothing to read back and every
     /// lookup would be a miss anyway.
     ///
-    /// Reusing one connection avoids reopening the SQLite database (and
+    /// Reusing one connection avoids reopening the `SQLite` database (and
     /// redoing its PRAGMAs) on every package, which otherwise scales
     /// linearly with the snapshot count.
     pub fn shared_readonly_in(store_dir: &StoreDir) -> Option<SharedReadonlyStoreIndex> {
@@ -457,7 +457,7 @@ impl StoreIndex {
     ///    [`encode_package_files_index`][crate::msgpackr_records::encode_package_files_index]
     ///    — pacquet matches pnpm's on-wire shape so the two tools can
     ///    share `index.db`.
-    /// 3. **Legacy pacquet-written**: plain MessagePack maps from the
+    /// 3. **Legacy pacquet-written**: plain `MessagePack` maps from the
     ///    `rmp_serde::to_vec_named` path used before this PR. These
     ///    may still live in caches that predate the cutover.
     ///
@@ -470,7 +470,7 @@ impl StoreIndex {
     /// result feeds `rmp_serde` to produce a [`PackageFilesIndex`].
     ///
     /// Cost is one `Vec<u8>` allocation + memcpy per read, dwarfed by
-    /// the SQLite query and disk I/O.
+    /// the `SQLite` query and disk I/O.
     pub fn get(&self, key: &str) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
         let row: Option<Vec<u8>> = self
             .conn
@@ -487,7 +487,7 @@ impl StoreIndex {
         decode_index_value(&bytes).map(Some)
     }
 
-    /// Look up many keys in one trip across the SQLite mutex.
+    /// Look up many keys in one trip across the `SQLite` mutex.
     ///
     /// Returns a `key → PackageFilesIndex` map for every row that exists
     /// and decodes cleanly. Missing keys are simply absent from the map;
@@ -496,7 +496,7 @@ impl StoreIndex {
     /// the per-key path — a malformed row is treated as a cache miss so
     /// the install falls through to a fresh download.
     ///
-    /// SQLite walks the `package_index` PK B-tree once per chunk, so the
+    /// `SQLite` walks the `package_index` PK B-tree once per chunk, so the
     /// per-key query overhead (≈40 µs even for misses) collapses into
     /// one round-trip. With 1352 cache keys against an empty store this
     /// drops the prefetch cost from ~50 ms of N selects to a single
@@ -597,17 +597,17 @@ impl StoreIndex {
     /// Matches pnpm's `setRawMany` (see `store/index/src/index.ts`): one
     /// `BEGIN IMMEDIATE` ... `COMMIT` around the inserts, which amortizes the
     /// WAL commit fsync across the whole batch. At 1352 snapshots that
-    /// turns 1352 per-row fsyncs into ⌈1352/batch_size⌉ — on APFS this is
+    /// turns 1352 per-row fsyncs into ⌈`1352/batch_size`⌉ — on APFS this is
     /// the single biggest lever for `pacquet install` wall time ([#263]).
     ///
-    /// SQLite errors during the transaction roll it back before returning,
+    /// `SQLite` errors during the transaction roll it back before returning,
     /// so a partial apply never leaves the index in a half-written state.
     /// A per-row msgpack encoding error is logged at `warn!` and skipped
     /// — one malformed `PackageFilesIndex` shouldn't cost every other row
     /// in the batch the chance to commit, matching the "best-effort
     /// index" stance the writer task and the read path already take.
     /// Encoding is done up front into a `Vec<(String, Vec<u8>)>` so the
-    /// transaction body is pure SQLite — the caller's producer thread pays
+    /// transaction body is pure `SQLite` — the caller's producer thread pays
     /// the msgpack cost, not the single writer thread.
     ///
     /// [#263]: https://github.com/pnpm/pacquet/issues/263
@@ -656,7 +656,7 @@ impl StoreIndex {
         let exists = self
             .conn
             .query_row("SELECT 1 FROM package_index WHERE key = ?", [key], |_| Ok(()))
-            .map(|_| true)
+            .map(|()| true)
             .or_else(|err| match err {
                 rusqlite::Error::QueryReturnedNoRows => Ok(false),
                 other => Err(StoreIndexError::Read { source: other }),
@@ -705,8 +705,9 @@ fn decode_index_value(bytes: &[u8]) -> Result<PackageFilesIndex, StoreIndexError
     rmp_serde::from_slice(&plain).map_err(|source| StoreIndexError::Decode { source })
 }
 
-/// Build the SQLite key pnpm uses: `"{integrity}\t{pkg_id}"`. Integrity strings
+/// Build the `SQLite` key pnpm uses: `"{integrity}\t{pkg_id}"`. Integrity strings
 /// never contain tabs so the separator is unambiguous.
+#[must_use]
 pub fn store_index_key(integrity: &str, pkg_id: &str) -> String {
     format!("{integrity}\t{pkg_id}")
 }
@@ -719,6 +720,7 @@ pub fn store_index_key(integrity: &str, pkg_id: &str) -> String {
 /// ran during fetch (`preparePackage`), so `built` is part of the key. The
 /// integrity-only key would collapse the built/not-built variants into one
 /// slot.
+#[must_use]
 pub fn git_hosted_store_index_key(pkg_id: &str, built: bool) -> String {
     store_index_key(pkg_id, if built { "built" } else { "not-built" })
 }
@@ -735,6 +737,7 @@ pub fn git_hosted_store_index_key(pkg_id: &str, built: bool) -> String {
 ///
 /// The `built` flag must match the build decision the caller will make at
 /// fetch time (upstream sets it to `!opts.ignoreScripts`).
+#[must_use]
 pub fn pick_store_index_key(
     integrity: Option<&str>,
     git_hosted: bool,
@@ -799,13 +802,13 @@ pub struct CafsFileInfo {
     /// Millisecond Unix timestamp of the last integrity check, or `None`
     /// if never verified.
     ///
-    /// Wire note: serialized as MessagePack `float 64` so the byte
+    /// Wire note: serialized as `MessagePack` `float 64` so the byte
     /// encoding matches what pnpm itself emits (JS `Number` is a double,
     /// so msgpackr writes timestamps past int32 range as `cb` + 8
-    /// bytes). Writing as `uint 64` instead would be "correct" MessagePack
+    /// bytes). Writing as `uint 64` instead would be "correct" `MessagePack`
     /// but msgpackr would decode it as a `BigInt`, and pnpm's integrity
     /// check does `mtimeMs - (checkedAt ?? 0)` — mixing Number and
-    /// BigInt throws `TypeError` at runtime. On the read side, the
+    /// `BigInt` throws `TypeError` at runtime. On the read side, the
     /// [`transcode_to_plain_msgpack`][crate::msgpackr_records::transcode_to_plain_msgpack]
     /// step narrows integer-valued floats back to `uint 64` so
     /// `rmp_serde` can deserialize into `Option<u64>` without complaint.
@@ -818,6 +821,7 @@ pub struct CafsFileInfo {
 /// interop reasoning — short version, msgpackr reads `uint 64` as a
 /// `BigInt` and pnpm's integrity check then crashes on Number/BigInt
 /// mixing.
+#[expect(clippy::ref_option, reason = "serde serialize_with is invoked as f(&field, serializer)")]
 fn serialize_checked_at<Serializer: serde::Serializer>(
     value: &Option<u64>,
     serializer: Serializer,

@@ -1,3 +1,8 @@
+#![expect(
+    clippy::default_trait_access,
+    reason = "struct-literal test fixtures; field types are evident from the literal and naming each would force ~20 imports"
+)]
+
 use super::{Install, InstallError};
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
@@ -46,8 +51,8 @@ async fn should_install_dependencies() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
-    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -121,7 +126,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
     let mut config = Config::new();
     config.lockfile = true;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
 
@@ -170,7 +175,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
     let mut config = Config::new();
     config.lockfile = true;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
 
@@ -234,7 +239,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
     // CLI flag must still take over.
     config.lockfile = false;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
 
@@ -318,8 +323,8 @@ async fn npm_alias_dependency_installs_under_alias_key() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
-    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -408,8 +413,8 @@ async fn unversioned_npm_alias_defaults_to_latest() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
-    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -482,7 +487,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
     let mut config = Config::new();
     config.lockfile = false;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
 
@@ -530,7 +535,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
 /// `pnpm:package-import-method` is emitted lazily by `link_file`
 /// the first time each method actually resolves (after `auto`'s
 /// fallback chain finishes), so an empty-lockfile install like this
-/// one has no link_file calls and no such event in the captured
+/// one has no `link_file` calls and no such event in the captured
 /// sequence. See `link_file::tests` for that channel's coverage.
 ///
 /// `pnpm:context` carries `currentLockfileExists`, `storeDir`,
@@ -563,7 +568,7 @@ async fn install_emits_pnpm_event_sequence() {
     let mut config = Config::new();
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 
@@ -962,7 +967,7 @@ mod build_workspace_state_tests {
     }
 
     /// Ports `createWorkspaceState() on non-empty list`: every project
-    /// in the list lands in `state.projects` keyed by its root_dir.
+    /// in the list lands in `state.projects` keyed by its `root_dir`.
     /// Regression catch for the bug where a workspace fresh install
     /// (no `pnpm-lock.yaml` on disk) recorded only the root importer.
     #[test]
@@ -1059,8 +1064,8 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
-    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -1137,7 +1142,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -1238,7 +1243,7 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -1416,7 +1421,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
     let written = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("read written current lockfile")
         .expect("current lockfile should be written");
-    assert_eq!(written.snapshots.as_ref().map(|s| s.len()), Some(1));
+    assert_eq!(written.snapshots.as_ref().map(std::collections::HashMap::len), Some(1));
 
     drop(dir);
 }
@@ -3676,7 +3681,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 
@@ -3779,7 +3784,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 
@@ -4105,7 +4110,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4194,7 +4199,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4269,7 +4274,7 @@ async fn fresh_install_records_user_written_specifier() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4340,7 +4345,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4410,7 +4415,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
     let mut config = Config::new();
     config.lockfile = false;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4483,7 +4488,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4572,7 +4577,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
     let mut config = Config::new();
     config.lockfile = false;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4639,7 +4644,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4804,7 +4809,7 @@ async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 
@@ -6786,12 +6791,12 @@ async fn read_package_hook_pins_transitive_dependency_version() {
         registry.url(),
         dir.path(),
         &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
-        r#"module.exports = { hooks: { readPackage (pkg) {
+        r"module.exports = { hooks: { readPackage (pkg) {
   if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
     pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0';
   }
   return pkg;
-} } }"#,
+} } }",
     )
     .await
     .expect("install should succeed");
@@ -6862,10 +6867,10 @@ async fn after_all_resolved_hook_modifies_written_lockfile() {
         registry.url(),
         dir.path(),
         &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
-        r#"module.exports = { hooks: { afterAllResolved (lockfile) {
+        r"module.exports = { hooks: { afterAllResolved (lockfile) {
   lockfile.foo = 'foo';
   return lockfile;
-} } }"#,
+} } }",
     )
     .await
     .expect("install should succeed");
@@ -6889,7 +6894,7 @@ async fn pnpmfile_with_hooks_records_pnpmfile_checksum() {
     let registry = TestRegistry::start();
     let dir = tempdir().unwrap();
 
-    let pnpmfile_src = r#"module.exports = { hooks: { readPackage (pkg) { return pkg; } } }"#;
+    let pnpmfile_src = r"module.exports = { hooks: { readPackage (pkg) { return pkg; } } }";
     install_with_pnpmfile(
         registry.url(),
         dir.path(),
@@ -6983,13 +6988,13 @@ async fn read_package_hook_log_is_forwarded_to_pnpm_hook_channel() {
         registry.url(),
         dir.path(),
         &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
-        r#"module.exports = { hooks: { readPackage (pkg, context) {
+        r"module.exports = { hooks: { readPackage (pkg, context) {
   if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
     pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0';
     context.log('@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0');
   }
   return pkg;
-} } }"#,
+} } }",
     )
     .await
     .expect("install should succeed");
@@ -7025,10 +7030,10 @@ async fn after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
         registry.url(),
         dir.path(),
         &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
-        r#"module.exports = { hooks: { afterAllResolved (lockfile, context) {
+        r"module.exports = { hooks: { afterAllResolved (lockfile, context) {
   context.log('All resolved');
   return lockfile;
-} } }"#,
+} } }",
     )
     .await
     .expect("install should succeed");
@@ -7064,10 +7069,10 @@ async fn async_after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
         registry.url(),
         dir.path(),
         &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
-        r#"module.exports = { hooks: { async afterAllResolved (lockfile, context) {
+        r"module.exports = { hooks: { async afterAllResolved (lockfile, context) {
   context.log('All resolved');
   return lockfile;
-} } }"#,
+} } }",
     )
     .await
     .expect("install should succeed");

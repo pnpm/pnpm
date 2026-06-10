@@ -220,6 +220,7 @@ impl Lockfile {
     pub const ROOT_IMPORTER_KEY: &str = ".";
 
     /// Convenience accessor for the root project's snapshot.
+    #[must_use]
     pub fn root_project(&self) -> Option<&'_ ProjectSnapshot> {
         self.importers.get(Lockfile::ROOT_IMPORTER_KEY)
     }
@@ -232,6 +233,7 @@ impl Lockfile {
     /// zero packages. Only `specifiers` and `dependencies` participate
     /// in the check — `devDependencies` and `optionalDependencies`
     /// are ignored to match upstream exactly.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.importers.values().all(|importer| {
             importer.specifiers.as_ref().is_none_or(HashMap::is_empty)

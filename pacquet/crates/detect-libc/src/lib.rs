@@ -14,6 +14,7 @@ pub enum Implementation {
 impl Implementation {
     /// Return the string used in pnpm's platform selector: `"glibc"` or
     /// `"musl"`.
+    #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
             Implementation::Glibc => "glibc",
@@ -30,7 +31,7 @@ impl Implementation {
 /// detection methods fail.
 ///
 /// Detection order:
-/// 1. **ELF interpreter** — read PT_INTERP from `/proc/self/exe`.
+/// 1. **ELF interpreter** — read `PT_INTERP` from `/proc/self/exe`.
 ///    If the dynamic linker path contains `"/ld-musl-"` → musl;
 ///    if it contains `"/ld-linux-"` → glibc.
 /// 2. **Filesystem** — read first 2048 bytes of `/usr/bin/ldd`.
@@ -44,6 +45,7 @@ impl Implementation {
 /// and the command fallback is only reached when cheaper methods
 /// fail. This makes detection work in slim containers where
 /// `getconf` or `ldd` may not be on PATH or installed at all.
+#[must_use]
 pub fn detect() -> Option<Implementation> {
     if !is_linux() {
         return None;
@@ -65,6 +67,7 @@ fn detect_implementation() -> Option<Implementation> {
 /// `sunos` / `aix` / `android`. Rust uses `macos` / `linux` /
 /// `windows` / `freebsd` / `openbsd` / `solaris` / `aix` /
 /// `android`. Only `macos`, `windows`, and `solaris` differ.
+#[must_use]
 pub fn host_platform() -> &'static str {
     match std::env::consts::OS {
         "macos" => "darwin",
@@ -82,6 +85,7 @@ pub fn host_platform() -> &'static str {
 /// what Node itself emits on each target — anything left as
 /// passthrough (e.g. `arm`, `s390x`, `riscv64`) already matches
 /// between the two naming schemes.
+#[must_use]
 pub fn host_arch() -> &'static str {
     match std::env::consts::ARCH {
         "x86_64" => "x64",

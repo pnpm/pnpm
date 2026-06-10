@@ -78,6 +78,7 @@ impl WorkspaceSettings {
     /// settings via [`Self::apply_to`] *after* `pnpm-workspace.yaml` so
     /// env vars win over yaml, mirroring upstream's order at
     /// [`config/reader/src/index.ts:471-488`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L471-L488).
+    #[must_use]
     pub fn from_pnpm_config_env<Sys: EnvVar>() -> Self {
         let mut settings = WorkspaceSettings::default();
 

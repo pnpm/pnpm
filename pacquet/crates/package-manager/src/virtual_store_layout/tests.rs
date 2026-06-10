@@ -241,7 +241,7 @@ fn slot_dir_engine_specific_when_snapshot_is_built() {
     let mut snapshots = HashMap::new();
     snapshots.insert(key.clone(), SnapshotEntry::default());
     let allowed: std::collections::HashSet<String> =
-        ["native-pkg".to_string()].into_iter().collect();
+        std::iter::once("native-pkg".to_string()).collect();
     let policy = crate::AllowBuildPolicy::new(allowed, std::collections::HashSet::new(), false);
     let darwin = VirtualStoreLayout::new(
         &config,
@@ -273,7 +273,7 @@ fn missing_metadata_keeps_source_dep_path_untrusted_for_gvs() {
     let mut snapshots = HashMap::new();
     snapshots.insert(key.clone(), SnapshotEntry::default());
     let packages = HashMap::new();
-    let allowed: HashSet<String> = ["spoofed".to_string()].into_iter().collect();
+    let allowed: HashSet<String> = std::iter::once("spoofed".to_string()).collect();
     let policy = crate::AllowBuildPolicy::new(allowed, HashSet::new(), false);
     let darwin = VirtualStoreLayout::new(
         &config,

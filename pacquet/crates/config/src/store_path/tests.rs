@@ -65,8 +65,8 @@ fn filesystem_root_windows_keeps_drive_prefix() {
 /// Real-fixture happy path: project and home are on the same volume
 /// (both inside the same `tempdir`), so the Host impl observes a
 /// successful hardlink and `resolve_store_dir` returns the
-/// home_default unchanged. This is the dominant branch on a single-
-/// volume developer setup and the one the SmartDefault used to
+/// `home_default` unchanged. This is the dominant branch on a single-
+/// volume developer setup and the one the `SmartDefault` used to
 /// short-circuit to without checking.
 #[test]
 fn resolve_store_dir_same_volume_uses_home_default() {
@@ -95,7 +95,7 @@ fn resolve_store_dir_same_volume_uses_home_default() {
 /// call (nextest runs tests in parallel by default), every scenario
 /// goes through [`PrefixProbe::with_allow`], which holds
 /// [`PREFIX_PROBE_SCENARIO_LOCK`] across the entire set-and-probe.
-/// Per CodeRabbit review on pnpm/pnpm#11804.
+/// Per `CodeRabbit` review on pnpm/pnpm#11804.
 #[cfg(unix)]
 static ALLOW_PREFIXES: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
@@ -266,7 +266,7 @@ fn host_can_link_between_dirs_same_volume_is_true() {
 /// (so the temp source file can't be created). Mirrors pnpm's
 /// `canLink` returning `false` on `EACCES` / `EPERM` / `EXDEV` /
 /// anything else — pacquet's probe widens that to "any error means
-/// not linkable" so the algorithm degrades to home_default rather
+/// not linkable" so the algorithm degrades to `home_default` rather
 /// than aborting the install.
 #[test]
 fn host_can_link_between_dirs_missing_from_dir_is_false() {

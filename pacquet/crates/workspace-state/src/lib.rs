@@ -32,6 +32,7 @@ pub const WORKSPACE_STATE_FILENAME: &str = ".pnpm-workspace-state-v1.json";
 
 /// `<workspace_dir>/node_modules/.pnpm-workspace-state-v1.json`. Same
 /// resolution as upstream's [`getFilePath`](https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/filePath.ts).
+#[must_use]
 pub fn get_file_path(workspace_dir: &Path) -> PathBuf {
     workspace_dir.join("node_modules").join(WORKSPACE_STATE_FILENAME)
 }
@@ -274,11 +275,9 @@ pub enum LoadWorkspaceStateError {
 ///
 /// Truncates to `i64` because the JSON field is signed and the year
 /// 2038-pre-292277026596 range is the only one that matters.
+#[must_use]
 pub fn now_millis() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as i64)
-        .unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_millis() as i64)
 }
 
 #[cfg(test)]

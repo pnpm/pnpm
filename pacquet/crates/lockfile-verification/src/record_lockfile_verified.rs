@@ -51,6 +51,6 @@ pub fn record_lockfile_verified(
         lockfile_path,
         &with_resolution_shape_cache_identity(verifiers),
         || hash_lockfile(lockfile),
-        Default::default(),
+        crate::cache::CachePrecomputed::default(),
     );
 }

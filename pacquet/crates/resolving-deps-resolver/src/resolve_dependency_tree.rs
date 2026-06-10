@@ -23,13 +23,13 @@ use std::{
 
 /// Acquire a [`Mutex`] guard, recovering from poisoning the same way
 /// the rest of pacquet does (`build_modules.rs`, `pick_package.rs`,
-/// ...). The mutexes guarded by this helper hold short HashMap /
-/// HashSet inserts with no invariants that survive a panic, so the
+/// ...). The mutexes guarded by this helper hold short `HashMap` /
+/// `HashSet` inserts with no invariants that survive a panic, so the
 /// install can keep going after the unrelated panic that poisoned
 /// the lock — better than escalating into a hard install-wide
 /// failure.
 fn lock_recoverable<Inner>(mutex: &Mutex<Inner>) -> MutexGuard<'_, Inner> {
-    mutex.lock().unwrap_or_else(|err| err.into_inner())
+    mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 use crate::{
@@ -436,7 +436,7 @@ type ChildSpec = (String, String, bool);
 /// hands to every importer's hoist loop.
 ///
 /// `dependencies_tree` (`NodeId → DependenciesTreeNode`) is keyed by
-/// per-occurrence NodeIds, which are unique even across importers, so
+/// per-occurrence `NodeIds`, which are unique even across importers, so
 /// every importer's walk contributes entries to one combined tree
 /// without colliding.
 pub struct WorkspaceTreeCtx {
@@ -517,6 +517,7 @@ impl WorkspaceTreeCtx {
     /// Attach a `readPackageHook` applied to every resolved manifest
     /// before it enters the wanted-dep cache. See [`ManifestHook`] for
     /// the signature.
+    #[must_use]
     pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
         self.manifest_hook = manifest_hook;
         self
@@ -525,6 +526,7 @@ impl WorkspaceTreeCtx {
     /// Attach the prior `pnpm-lock.yaml` so `resolve_node` can reuse
     /// already-resolved dependencies instead of re-resolving them. See
     /// the `wanted_lockfile` field.
+    #[must_use]
     pub fn with_wanted_lockfile(
         mut self,
         wanted_lockfile: Option<Arc<pacquet_lockfile::Lockfile>>,
@@ -540,11 +542,13 @@ impl WorkspaceTreeCtx {
 
     /// Set which dependencies `pacquet update` excludes from reuse. See
     /// [`UpdateReuseScope`].
+    #[must_use]
     pub fn with_update_reuse_scope(mut self, scope: UpdateReuseScope) -> Self {
         self.update_reuse_scope = scope;
         self
     }
 
+    #[must_use]
     pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
         self.pnpmfile_hook = pnpmfile_hook;
         self
@@ -554,6 +558,7 @@ impl WorkspaceTreeCtx {
     /// `readPackage` calls forward to. The install layer pre-binds the
     /// reporter, project prefix, and pnpmfile path into the closure so the
     /// resolver stays reporter-agnostic.
+    #[must_use]
     pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
         self.read_package_log = read_package_log;
         self
@@ -567,24 +572,27 @@ impl WorkspaceTreeCtx {
     pub fn into_resolved_tree(self, direct: Vec<DirectDep>) -> ResolvedTree {
         ResolvedTree {
             direct,
-            packages: self.packages.into_inner().unwrap_or_else(|err| err.into_inner()),
+            packages: self.packages.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner),
             dependencies_tree: self
                 .dependencies_tree
                 .into_inner()
-                .unwrap_or_else(|err| err.into_inner()),
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
             all_peer_dep_names: self
                 .all_peer_dep_names
                 .into_inner()
-                .unwrap_or_else(|err| err.into_inner()),
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
             policy_violations: self
                 .policy_violations
                 .into_inner()
-                .unwrap_or_else(|err| err.into_inner()),
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
             applied_patches: self
                 .applied_patches
                 .into_inner()
-                .unwrap_or_else(|err| err.into_inner()),
-            children_by_id: self.children_by_id.into_inner().unwrap_or_else(|err| err.into_inner()),
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            children_by_id: self
+                .children_by_id
+                .into_inner()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
         }
     }
 }
@@ -626,6 +634,7 @@ impl TreeCtx {
     /// [`WorkspaceTreeCtx`]. The multi-importer orchestrator uses
     /// [`Self::with_workspace`] instead so per-importer contexts share
     /// the same workspace ctx.
+    #[must_use]
     pub fn new(base_opts: ResolveOptions) -> Self {
         TreeCtx {
             direct_opts: base_opts.clone(),
@@ -665,6 +674,7 @@ impl TreeCtx {
     /// ([`resolveDependenciesOfImporters`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L470))
     /// and the subdep pick (always highest, constrained by the computed
     /// `publishedBy`).
+    #[must_use]
     pub fn with_resolution_mode(
         mut self,
         pick_lowest_direct: bool,
@@ -686,6 +696,7 @@ impl TreeCtx {
 
     /// Borrow the shared workspace ctx so callers can hand the same
     /// `Arc::clone` to the next per-importer [`TreeCtx`].
+    #[must_use]
     pub fn workspace(&self) -> &Arc<WorkspaceTreeCtx> {
         &self.workspace
     }
@@ -694,6 +705,7 @@ impl TreeCtx {
     /// the per-node walker looks every resolved `name@version` up via
     /// [`get_patch_info`] and appends `(patch_hash=<hash>)` to the
     /// `pkgIdWithPatchHash` on a match.
+    #[must_use]
     pub fn with_patched_dependencies(
         mut self,
         patched_dependencies: Option<Arc<PatchGroupRecord>>,
@@ -710,6 +722,7 @@ impl TreeCtx {
     /// [`WorkspaceTreeCtx::with_manifest_hook`] before sharing the
     /// `Arc`. Panics if the workspace ctx has already been cloned —
     /// callers must set the hook before sharing the context.
+    #[must_use]
     pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
         Arc::get_mut(&mut self.workspace)
             .expect("with_manifest_hook called after the workspace ctx was shared via Arc::clone")
@@ -717,6 +730,7 @@ impl TreeCtx {
         self
     }
 
+    #[must_use]
     pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
         Arc::get_mut(&mut self.workspace)
             .expect("with_pnpmfile_hook called after the workspace ctx was shared via Arc::clone")
@@ -728,6 +742,7 @@ impl TreeCtx {
     /// `readPackage` calls forward to. Like [`Self::with_pnpmfile_hook`],
     /// this targets the underlying [`WorkspaceTreeCtx`] and panics if it
     /// has already been shared via `Arc::clone`.
+    #[must_use]
     pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
         Arc::get_mut(&mut self.workspace)
             .expect(
@@ -746,6 +761,7 @@ impl TreeCtx {
     /// (single-importer install) the inner mutex contents move
     /// directly into the [`ResolvedTree`]; otherwise the maps are
     /// cloned out via [`WorkspaceTreeCtx::snapshot`].
+    #[must_use]
     pub fn into_resolved_tree(self, direct: Vec<DirectDep>) -> ResolvedTree {
         match Arc::try_unwrap(self.workspace) {
             Ok(ws) => ws.into_resolved_tree(direct),
@@ -757,6 +773,7 @@ impl TreeCtx {
     /// `self`. The orchestrator's hoist loop snapshots after each
     /// [`extend_tree`] call to run [`fn@crate::resolve_peers`] over the
     /// growing tree and find missing peers to hoist next.
+    #[must_use]
     pub fn snapshot(&self, direct: Vec<DirectDep>) -> ResolvedTree {
         self.workspace.snapshot(direct)
     }
@@ -765,6 +782,7 @@ impl TreeCtx {
     /// so far. Used by the orchestrator to keep `allPreferredVersions`
     /// in sync — mirrors upstream's resolveDependency-time push at
     /// [`resolveDependencies.ts:1440`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1440).
+    #[must_use]
     pub fn resolved_versions(&self) -> Vec<(String, String)> {
         lock_recoverable(&self.workspace.packages)
             .values()
@@ -918,56 +936,54 @@ where
     );
     let cached =
         lock_recoverable(&ctx.workspace.resolved_by_wanted).get(&cache_key).map(Arc::clone);
-    let result = match cached {
-        Some(result) => result,
-        None => {
-            let mut result =
-                resolver.resolve(&wanted, opts).await.map_err(|err: ResolveError| {
-                    ResolveDependencyTreeError::Resolve(err.to_string())
-                })?;
-            let Some(result_inner) = result.as_mut() else {
-                return Err(ResolveDependencyTreeError::SpecNotSupported {
-                    specifier: render_specifier(&wanted),
-                });
-            };
-            // Apply the configured `readPackageHook` (today:
-            // `packageExtensions`) to the manifest fragment before
-            // anything downstream sees it. Mirrors upstream's
-            // [`ctx.readPackageHook(pkg)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencies.ts#L1481-L1483)
-            // call at the resolveDependency seam. The hook clones the
-            // inner `Value` only when it modifies it, so unrelated
-            // manifests keep sharing the resolver's cached `Arc`.
-            if let Some(hook) = ctx.workspace.manifest_hook.as_ref()
-                && let Some(manifest) = result_inner.manifest.take()
-            {
-                result_inner.manifest = Some(hook(manifest));
-            }
-
-            if let Some(pnpmfile_hook) = ctx.workspace.pnpmfile_hook.as_ref()
-                && let Some(manifest) = result_inner.manifest.take()
-            {
-                let log =
-                    ctx.workspace.read_package_log.clone().unwrap_or_else(|| Arc::new(|_| {}));
-                let hook_ctx = pacquet_hooks::HookContext { log };
-
-                let updated = pnpmfile_hook
-                    .read_package((*manifest).clone(), hook_ctx)
-                    .await
-                    .map_err(ResolveDependencyTreeError::PnpmfileHook)?;
-                result_inner.manifest = Some(updated);
-            }
-
-            let result = result.expect("Some-guarded above");
-            // Wrap in `Arc` once so the cache, the per-id
-            // `ResolvedPackage` envelope, and the later peer-resolved
-            // graph node share one heap-allocated `ResolveResult`
-            // instead of cloning every `String` field per occurrence.
-            let result = Arc::new(result);
-            lock_recoverable(&ctx.workspace.resolved_by_wanted)
-                .entry(cache_key)
-                .or_insert_with(|| Arc::clone(&result));
-            result
+    let result = if let Some(result) = cached {
+        result
+    } else {
+        let mut result = resolver
+            .resolve(&wanted, opts)
+            .await
+            .map_err(|err: ResolveError| ResolveDependencyTreeError::Resolve(err.to_string()))?;
+        let Some(result_inner) = result.as_mut() else {
+            return Err(ResolveDependencyTreeError::SpecNotSupported {
+                specifier: render_specifier(&wanted),
+            });
+        };
+        // Apply the configured `readPackageHook` (today:
+        // `packageExtensions`) to the manifest fragment before
+        // anything downstream sees it. Mirrors upstream's
+        // [`ctx.readPackageHook(pkg)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencies.ts#L1481-L1483)
+        // call at the resolveDependency seam. The hook clones the
+        // inner `Value` only when it modifies it, so unrelated
+        // manifests keep sharing the resolver's cached `Arc`.
+        if let Some(hook) = ctx.workspace.manifest_hook.as_ref()
+            && let Some(manifest) = result_inner.manifest.take()
+        {
+            result_inner.manifest = Some(hook(manifest));
         }
+
+        if let Some(pnpmfile_hook) = ctx.workspace.pnpmfile_hook.as_ref()
+            && let Some(manifest) = result_inner.manifest.take()
+        {
+            let log = ctx.workspace.read_package_log.clone().unwrap_or_else(|| Arc::new(|_| {}));
+            let hook_ctx = pacquet_hooks::HookContext { log };
+
+            let updated = pnpmfile_hook
+                .read_package((*manifest).clone(), hook_ctx)
+                .await
+                .map_err(ResolveDependencyTreeError::PnpmfileHook)?;
+            result_inner.manifest = Some(updated);
+        }
+
+        let result = result.expect("Some-guarded above");
+        // Wrap in `Arc` once so the cache, the per-id
+        // `ResolvedPackage` envelope, and the later peer-resolved
+        // graph node share one heap-allocated `ResolveResult`
+        // instead of cloning every `String` field per occurrence.
+        let result = Arc::new(result);
+        lock_recoverable(&ctx.workspace.resolved_by_wanted)
+            .entry(cache_key)
+            .or_insert_with(|| Arc::clone(&result));
+        result
     };
 
     if let Some(violation) = result.policy_violation.clone() {
@@ -1041,34 +1057,31 @@ where
     let is_revisit;
     {
         let mut packages = lock_recoverable(&ctx.workspace.packages);
-        match packages.get_mut(&id) {
-            Some(existing) => {
-                existing.optional = existing.optional && current_is_optional;
-                is_revisit = true;
-            }
-            None => {
-                let peer_dependencies =
-                    if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
-                // Collect peer names for the peer-resolution stage's
-                // `parentPkgs` filter (only peers count as parents).
-                {
-                    let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
-                    for name in peer_dependencies.keys() {
-                        all_peers.insert(name.clone());
-                    }
+        if let Some(existing) = packages.get_mut(&id) {
+            existing.optional = existing.optional && current_is_optional;
+            is_revisit = true;
+        } else {
+            let peer_dependencies =
+                if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
+            // Collect peer names for the peer-resolution stage's
+            // `parentPkgs` filter (only peers count as parents).
+            {
+                let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
+                for name in peer_dependencies.keys() {
+                    all_peers.insert(name.clone());
                 }
-                packages.insert(
-                    id.clone(),
-                    ResolvedPackage {
-                        id: id.clone(),
-                        result: Arc::clone(&result),
-                        peer_dependencies,
-                        optional: current_is_optional,
-                        is_leaf,
-                    },
-                );
-                is_revisit = false;
             }
+            packages.insert(
+                id.clone(),
+                ResolvedPackage {
+                    id: id.clone(),
+                    result: Arc::clone(&result),
+                    peer_dependencies,
+                    optional: current_is_optional,
+                    is_leaf,
+                },
+            );
+            is_revisit = false;
         }
     }
 
@@ -1106,15 +1119,14 @@ where
             let cache = lock_recoverable(&ctx.workspace.children_specs_by_id);
             cache.get(&id).map(Arc::clone)
         };
-        let child_specs = match child_specs {
-            Some(specs) => specs,
-            None => {
-                let specs = Arc::new(extract_children(&result)?);
-                lock_recoverable(&ctx.workspace.children_specs_by_id)
-                    .entry(id.clone())
-                    .or_insert_with(|| Arc::clone(&specs));
-                specs
-            }
+        let child_specs = if let Some(specs) = child_specs {
+            specs
+        } else {
+            let specs = Arc::new(extract_children(&result)?);
+            lock_recoverable(&ctx.workspace.children_specs_by_id)
+                .entry(id.clone())
+                .or_insert_with(|| Arc::clone(&specs));
+            specs
         };
         let child_results = child_specs
             .iter()
@@ -1395,30 +1407,27 @@ where
     let is_revisit;
     {
         let mut packages = lock_recoverable(&ctx.workspace.packages);
-        match packages.get_mut(&id) {
-            Some(existing) => {
-                existing.optional = existing.optional && current_is_optional;
-                is_revisit = true;
-            }
-            None => {
-                {
-                    let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
-                    for name in peer_dependencies.keys() {
-                        all_peers.insert(name.clone());
-                    }
+        if let Some(existing) = packages.get_mut(&id) {
+            existing.optional = existing.optional && current_is_optional;
+            is_revisit = true;
+        } else {
+            {
+                let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
+                for name in peer_dependencies.keys() {
+                    all_peers.insert(name.clone());
                 }
-                packages.insert(
-                    id.clone(),
-                    ResolvedPackage {
-                        id: id.clone(),
-                        result: Arc::clone(&result),
-                        peer_dependencies,
-                        optional: current_is_optional,
-                        is_leaf,
-                    },
-                );
-                is_revisit = false;
             }
+            packages.insert(
+                id.clone(),
+                ResolvedPackage {
+                    id: id.clone(),
+                    result: Arc::clone(&result),
+                    peer_dependencies,
+                    optional: current_is_optional,
+                    is_leaf,
+                },
+            );
+            is_revisit = false;
         }
     }
 

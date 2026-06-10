@@ -138,6 +138,7 @@ pub type PackumentFetchLocker = Arc<DashMap<String, Arc<Semaphore>>>;
 /// Construct a fresh [`PackumentFetchLocker`] for a new install.
 /// Equivalent to `Default::default()`; named for symmetry with
 /// [`shared_in_memory_cache`].
+#[must_use]
 pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
     Arc::new(DashMap::new())
 }
@@ -166,6 +167,7 @@ pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
 pub type PickedManifestCache = Arc<DashMap<String, Arc<serde_json::Value>>>;
 
 /// Construct a fresh [`PickedManifestCache`] for a new install.
+#[must_use]
 pub fn shared_picked_manifest_cache() -> PickedManifestCache {
     Arc::new(DashMap::new())
 }
@@ -186,11 +188,15 @@ impl PackageMetaCache for InMemoryPackageMetaCache {
         // panic into a hard install-wide failure. The cache is a
         // plain HashMap of `Arc<Package>` — no broken invariants
         // can survive across a poisoned lock.
-        self.inner.lock().unwrap_or_else(|err| err.into_inner()).get(key).map(Arc::clone)
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(key)
+            .map(Arc::clone)
     }
 
     fn set(&self, key: String, meta: Arc<Package>) {
-        self.inner.lock().unwrap_or_else(|err| err.into_inner()).insert(key, meta);
+        self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(key, meta);
     }
 }
 
@@ -715,7 +721,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
 /// Internal mirror of upstream's
 /// [`PickerOptions`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L75-L79).
 /// Same fields as [`PickPackageOptions`] minus the dispatcher-only
-/// ones (registry, dry_run); plus the `ignore_missing_time_field`
+/// ones (registry, `dry_run`); plus the `ignore_missing_time_field`
 /// pull-up from the context.
 struct PickerOpts<'a> {
     preferred_version_selectors: Option<&'a VersionSelectors>,
@@ -925,7 +931,7 @@ static WARNED_MISSING_TIME: std::sync::OnceLock<Mutex<indexmap::IndexSet<String>
 
 fn warn_missing_time_once(pkg_name: &str) {
     let lock = WARNED_MISSING_TIME.get_or_init(|| Mutex::new(indexmap::IndexSet::new()));
-    let mut warned = lock.lock().unwrap_or_else(|err| err.into_inner());
+    let mut warned = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if warned.contains(pkg_name) {
         return;
     }
@@ -995,6 +1001,7 @@ pub enum MirrorPersistError {
 /// Shared-state helper that lets a long-running install build one
 /// [`PackageMetaCache`] and pass it (by [`Arc`]) to every
 /// `pick_package` call.
+#[must_use]
 pub fn shared_in_memory_cache() -> Arc<InMemoryPackageMetaCache> {
     Arc::new(InMemoryPackageMetaCache::default())
 }

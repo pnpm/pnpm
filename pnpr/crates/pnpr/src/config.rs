@@ -102,11 +102,11 @@ pub struct Config {
     /// Where the authoritative (hosted) store lives. Defaults to
     /// [`HostedStoreConfig::Fs`] — the local [`Self::storage`]
     /// directory. The YAML `s3:` block switches it to an S3-compatible
-    /// object store (S3, Cloudflare R2, MinIO, ...).
+    /// object store (S3, Cloudflare R2, `MinIO`, ...).
     pub hosted_store: HostedStoreConfig,
     /// Which record store backs the auth state (users + tokens).
     /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
-    /// plus SQLite token database. The YAML `backend.libsql:` block
+    /// plus `SQLite` token database. The YAML `backend.libsql:` block
     /// switches both to a shared networked-SQLite database so several
     /// stateless pnpr replicas see a consistent set of accounts.
     pub backend: BackendConfig,
@@ -131,11 +131,11 @@ pub enum HostedStoreConfig {
 /// config-parse time.
 #[derive(Debug, Default, Clone)]
 pub enum BackendConfig {
-    /// Local htpasswd users + SQLite tokens (or in-memory when no file
+    /// Local htpasswd users + `SQLite` tokens (or in-memory when no file
     /// is configured). Today's behaviour.
     #[default]
     Local,
-    /// Networked SQLite (libsql / Turso): both records live in one
+    /// Networked `SQLite` (libsql / Turso): both records live in one
     /// shared database reachable over the network.
     Libsql(LibsqlSettings),
 }
@@ -250,6 +250,7 @@ impl LogConfig {
     pub const STDOUT_SINK: &'static str = "stdout";
 
     /// Whether the configured sink is one the server implements.
+    #[must_use]
     pub fn sink_is_supported(&self) -> bool {
         self.sink == Self::STDOUT_SINK
     }
@@ -298,6 +299,7 @@ impl LogLevel {
     /// plus a `pnpr::access=info` target so the per-request
     /// access log surfaces even when the rest of the crate is
     /// quieter.
+    #[must_use]
     pub fn as_filter_directive(self) -> &'static str {
         match self {
             LogLevel::Trace => "trace",
@@ -528,7 +530,7 @@ struct ConfigFile {
     #[serde(default)]
     s3: Option<S3Settings>,
     /// pnpr-only block: back the auth record stores (users + tokens)
-    /// with a networked SQLite database. Absent on a stock verdaccio
+    /// with a networked `SQLite` database. Absent on a stock verdaccio
     /// config (silently ignored there).
     #[serde(default)]
     backend: Option<BackendFile>,
@@ -595,11 +597,12 @@ impl Config {
     pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:4873";
     /// Default packument TTL — five minutes, matching the historical
     /// proxy-mode default.
-    pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_secs(5 * 60);
+    pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_mins(5);
 
     /// Build a proxy-mode config with the default npm upstream: a single
     /// `npmjs` uplink plus a `**` package rule that routes everything
     /// through it. Kept for callers that don't use YAML config.
+    #[must_use]
     pub fn proxy(listen: SocketAddr, storage: PathBuf) -> Self {
         let mut uplinks = IndexMap::new();
         uplinks.insert(
@@ -632,6 +635,7 @@ impl Config {
 
     /// Build a static-mode config that serves `storage` verbatim:
     /// no uplinks declared, so no package rule resolves to one.
+    #[must_use]
     pub fn static_serve(listen: SocketAddr, storage: PathBuf) -> Self {
         Self {
             listen,
@@ -683,6 +687,7 @@ impl Config {
     ///
     /// Panics if the bundled YAML fails to parse — that would be a
     /// build-time bug since the file is compiled in.
+    #[must_use]
     pub fn from_default_yaml(
         base_dir: &Path,
         listen: SocketAddr,
@@ -754,8 +759,7 @@ impl Config {
         let cache_storage = file
             .cache
             .as_deref()
-            .map(|raw| resolve_relative(raw, base_dir))
-            .unwrap_or_else(|| default_cache_dir(&storage));
+            .map_or_else(|| default_cache_dir(&storage), |raw| resolve_relative(raw, base_dir));
         let hosted_store = match &file.s3 {
             Some(s3) => {
                 HostedStoreConfig::S3 { store: build_s3_store(s3)?, prefix: s3.normalized_prefix() }
@@ -811,6 +815,7 @@ impl Config {
     /// first-match-wins semantics. The returned tuple's first element
     /// is the uplink *name* (the key in [`Self::uplinks`]); callers
     /// that have pre-built per-uplink state can use it as an index.
+    #[must_use]
     pub fn resolve_uplink(&self, package_name: &str) -> Option<(&str, &UplinkConfig)> {
         let access = self.packages.iter().find_map(|(pattern, access)| {
             pattern_matches(pattern, package_name).then_some(access)
@@ -921,6 +926,7 @@ fn default_storage_string() -> String {
 /// from treating it as a package. Operators who want the cache on a
 /// separate, wipe-able volume point the `cache:` key at an absolute
 /// path instead.
+#[must_use]
 pub fn default_cache_dir(storage: &Path) -> PathBuf {
     storage.join(".pnpr-cache")
 }

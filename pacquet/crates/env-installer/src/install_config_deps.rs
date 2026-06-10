@@ -410,7 +410,7 @@ fn read_optional_subdeps(
 ) -> Result<Vec<NormalizedSubdep>, ConfigDepError> {
     let mut subdeps = Vec::new();
     for (subdep_name, dep_ref) in optionals {
-        let version = dep_ref.ver_peer().map(|ver_peer| ver_peer.to_string()).unwrap_or_default();
+        let version = dep_ref.ver_peer().map(std::string::ToString::to_string).unwrap_or_default();
         let subdep_name = subdep_name.to_string();
         let subdep_key = format!("{subdep_name}@{version}");
         let key = subdep_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
@@ -438,7 +438,7 @@ fn read_optional_subdeps(
             ),
         })?;
         subdeps.push(NormalizedSubdep {
-            name: subdep_name.to_string(),
+            name: subdep_name.clone(),
             version,
             integrity,
             tarball,
@@ -480,8 +480,7 @@ fn integrity_and_tarball(
 /// layout falls back to a recursive remove. A genuine failure (anything
 /// but "already gone") is logged rather than silently swallowed.
 fn prune_link(path: &Path) {
-    let is_link =
-        fs::symlink_metadata(path).map(|meta| meta.file_type().is_symlink()).unwrap_or(false);
+    let is_link = fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink());
     let result =
         if is_link { pacquet_fs::remove_symlink_dir(path) } else { fs::remove_dir_all(path) };
     if let Err(error) = result

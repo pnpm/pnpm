@@ -934,7 +934,7 @@ fn parses_scoped_inline_ca() {
     );
     let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
     let ca = entry.ca.as_deref().expect("ca set");
-    assert!(ca.contains("\n"), "expected `\\n` → newline expansion: {ca:?}");
+    assert!(ca.contains('\n'), "expected `\\n` → newline expansion: {ca:?}");
     assert!(ca.contains("BEGIN CERTIFICATE"), "expected PEM header: {ca:?}");
 }
 

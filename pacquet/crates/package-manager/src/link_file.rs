@@ -222,7 +222,7 @@ fn try_import<Reporter: self::Reporter>(
             Err(error) => Err(error),
         },
         PackageImportMethod::Clone => {
-            reflink_copy::reflink(source_file, target_link).inspect(|_| {
+            reflink_copy::reflink(source_file, target_link).inspect(|()| {
                 log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
             })
         }

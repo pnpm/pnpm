@@ -313,7 +313,7 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
     // here — the lock cost only applies to files actually being
     // re-verified, which is rare.
     let lock = pacquet_fs::cas_write_lock(path);
-    let _guard = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
     // Re-stat under the lock. The writer (if any) has finished by
     // now, so the size + mtime reflect the committed state. A file
@@ -413,9 +413,13 @@ fn remove_stale_cafs_entry(path: &Path) {
 /// first time an old-format row is read (same as pnpm's `?? 0`).
 fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
     let meta = fs::metadata(path).ok()?;
-    let mtime_ms =
-        meta.modified().ok()?.duration_since(UNIX_EPOCH).ok()?.as_millis().min(u64::MAX as u128)
-            as u64;
+    let mtime_ms = meta
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_millis()
+        .min(u128::from(u64::MAX)) as u64;
     let baseline = checked_at.unwrap_or(0);
     let is_modified = mtime_ms.saturating_sub(baseline) > 100;
     Some((is_modified, meta.len()))
@@ -448,7 +452,7 @@ fn verify_file_integrity(path: &Path, digest: &str, algo: &str) -> bool {
     };
     let mut reader = BufReader::with_capacity(64 * 1024, file);
     let mut hasher = Sha512::new();
-    let mut buf = [0u8; 64 * 1024];
+    let mut buf = vec![0u8; 64 * 1024];
     loop {
         match reader.read(&mut buf) {
             Ok(0) => break,

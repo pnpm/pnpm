@@ -862,7 +862,7 @@ fn create_failing_postinstall_fixture(virtual_store_dir: &Path, key: &PackageKey
 /// for the package list. The frozen-install path emits this once after
 /// `BuildModules::run` returns; this test exercises the equivalent
 /// emit shape directly so `LogEvent::IgnoredScripts` stays connected
-/// to the BuildModules return value.
+/// to the `BuildModules` return value.
 #[test]
 fn ignored_scripts_event_carries_returned_names() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -902,7 +902,7 @@ fn ignored_scripts_event_carries_returned_names() {
 /// Returns the package directory path and the actual file mode of
 /// `index.js`. The mode is read from disk because `fs::write()`
 /// assigns permissions according to the process umask (typically
-/// 0022 → 0o644, but 0002 → 0o664 when pam_umask's `usergroups`
+/// 0022 → 0o644, but 0002 → 0o664 when `pam_umask`'s `usergroups`
 /// logic matches UID to group name, the default on Debian for
 /// non-root users). Callers that pre-seed store rows should use
 /// this returned mode so `calculate_diff()` doesn't flag a
@@ -1209,7 +1209,7 @@ async fn write_path_disabled_skips_upload() {
 ///
 /// Upstream stubs `opts.storeController.upload` to throw and
 /// asserts the install completes (the postinstall ran, the
-/// generated file is on disk) but the SQLite row's `side_effects`
+/// generated file is on disk) but the `SQLite` row's `side_effects`
 /// stays empty.
 ///
 /// Pacquet has no DI seam for the upload, but the WRITE path's

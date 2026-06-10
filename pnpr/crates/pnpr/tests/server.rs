@@ -22,7 +22,7 @@ fn config_for(upstream: &str, storage: std::path::PathBuf) -> Config {
     let mut config = Config::proxy(listen, storage);
     config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.to_string();
     config.public_url = "http://example.test".to_string();
-    config.packument_ttl = Duration::from_secs(60);
+    config.packument_ttl = Duration::from_mins(1);
     config
 }
 
@@ -674,15 +674,12 @@ async fn client_disconnect_mid_stream_clears_cache() {
 async fn await_no_tgz(dir: &std::path::Path, budget: Duration) -> bool {
     let deadline = std::time::Instant::now() + budget;
     loop {
-        let still_present = dir
-            .read_dir()
-            .map(|iter| {
-                iter.filter_map(Result::ok).any(|entry| {
-                    let name = entry.file_name().to_string_lossy().into_owned();
-                    name.ends_with(".tgz") || name.contains(".tmp.")
-                })
+        let still_present = dir.read_dir().is_ok_and(|iter| {
+            iter.filter_map(Result::ok).any(|entry| {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                name.ends_with(".tgz") || name.contains(".tmp.")
             })
-            .unwrap_or(false);
+        });
         if !still_present {
             return true;
         }

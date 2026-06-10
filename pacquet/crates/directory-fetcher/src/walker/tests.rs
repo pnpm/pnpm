@@ -26,10 +26,10 @@ fn collect_rels(
             // Use `dunce::canonicalize` semantics indirectly: strip
             // the tmp root prefix off the absolute path and report
             // the remainder. That keeps assertions deterministic.
-            let stripped = abs
-                .strip_prefix(root)
-                .map(|path| path.display().to_string().replace('\\', "/"))
-                .unwrap_or_else(|_| abs.display().to_string());
+            let stripped = abs.strip_prefix(root).map_or_else(
+                |_| abs.display().to_string(),
+                |path| path.display().to_string().replace('\\', "/"),
+            );
             (rel, stripped)
         })
         .collect()

@@ -71,6 +71,7 @@ impl InstallabilityError {
     /// `pnpm:skipped-optional-dependency` event for an invalid node
     /// version is therefore `unsupported_engine`, even though the
     /// underlying error code is `ERR_PNPM_INVALID_NODE_VERSION`.
+    #[must_use]
     pub fn skip_reason(&self) -> SkipReason {
         match self {
             Self::Engine(_) | Self::InvalidNodeVersion(_) => SkipReason::UnsupportedEngine,

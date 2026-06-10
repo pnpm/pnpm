@@ -26,6 +26,7 @@ pub enum PreferredPm {
 impl PreferredPm {
     /// Binary name to invoke (also the prefix of the synthesized
     /// script name written into the manifest).
+    #[must_use]
     pub fn name(self) -> &'static str {
         match self {
             PreferredPm::Pnpm => "pnpm",
@@ -45,6 +46,7 @@ impl PreferredPm {
 /// the most specific shape and the most likely to be set by the dep's
 /// author), then yarn, npm, bun. Each check is a single `path.exists`,
 /// so even worst-case the sniff is four `stat()` calls.
+#[must_use]
 pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
     if dir.join("pnpm-lock.yaml").exists() {
         return PreferredPm::Pnpm;

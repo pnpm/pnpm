@@ -214,55 +214,52 @@ fn force_symlink_inner(
     }
 
     // Path exists. Is it already a symlink pointing where we want?
-    match read_symlink_dir(link) {
-        Ok(existing) => {
-            if existing_symlink_up_to_date(target, link, &existing) {
-                return Ok(ForceSymlinkOutcome { reused: true, warning: None });
-            }
-            // Stale link — unlink and retry. Ignore `NotFound` in
-            // case a parallel installer beat us to the unlink.
-            match remove_symlink_dir(link) {
-                Ok(()) => {}
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error),
-            }
-            force_symlink_inner(target, link, rename_tried)
+    if let Ok(existing) = read_symlink_dir(link) {
+        if existing_symlink_up_to_date(target, link, &existing) {
+            return Ok(ForceSymlinkOutcome { reused: true, warning: None });
         }
-        Err(_) => {
-            // `link` is occupied by a regular file or directory.
-            // Move it out of the way, then retry. On the second
-            // attempt (`rename_tried`) drop down to a plain unlink
-            // — pnpm carries the same fallback for an intermittent
-            // macOS bug, see
-            // <https://github.com/pnpm/pnpm/issues/5909#issuecomment-1400066890>.
-            let parent = link.parent().unwrap_or_else(|| Path::new(""));
-            let basename = link.file_name().unwrap_or_default().to_string_lossy().into_owned();
-            let warning = if rename_tried {
-                remove_occupant(link)?;
-                format!(
-                    "Symlink wanted name was occupied by directory or file. \
-                     Old entity removed: {parent:?}{sep}{basename}",
-                    sep = std::path::MAIN_SEPARATOR,
-                )
-            } else {
-                let ignore_name = format!(".ignored_{basename}");
-                let ignore_path = parent.join(&ignore_name);
-                if let Err(rename_err) = rename_overwrite(link, &ignore_path) {
-                    if rename_err.kind() == io::ErrorKind::NotFound {
-                        return Err(initial_err);
-                    }
-                    return Err(rename_err);
+        // Stale link — unlink and retry. Ignore `NotFound` in
+        // case a parallel installer beat us to the unlink.
+        match remove_symlink_dir(link) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        force_symlink_inner(target, link, rename_tried)
+    } else {
+        // `link` is occupied by a regular file or directory.
+        // Move it out of the way, then retry. On the second
+        // attempt (`rename_tried`) drop down to a plain unlink
+        // — pnpm carries the same fallback for an intermittent
+        // macOS bug, see
+        // <https://github.com/pnpm/pnpm/issues/5909#issuecomment-1400066890>.
+        let parent = link.parent().unwrap_or_else(|| Path::new(""));
+        let basename = link.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let warning = if rename_tried {
+            remove_occupant(link)?;
+            format!(
+                "Symlink wanted name was occupied by directory or file. \
+                 Old entity removed: {parent:?}{sep}{basename}",
+                sep = std::path::MAIN_SEPARATOR,
+            )
+        } else {
+            let ignore_name = format!(".ignored_{basename}");
+            let ignore_path = parent.join(&ignore_name);
+            if let Err(rename_err) = rename_overwrite(link, &ignore_path) {
+                if rename_err.kind() == io::ErrorKind::NotFound {
+                    return Err(initial_err);
                 }
-                format!(
-                    "Symlink wanted name was occupied by directory or file. \
-                     Old entity moved: {parent:?}{sep}{basename} => {ignore_name}",
-                    sep = std::path::MAIN_SEPARATOR,
-                )
-            };
-            let mut outcome = force_symlink_inner(target, link, true)?;
-            outcome.warning = Some(warning);
-            Ok(outcome)
-        }
+                return Err(rename_err);
+            }
+            format!(
+                "Symlink wanted name was occupied by directory or file. \
+                 Old entity moved: {parent:?}{sep}{basename} => {ignore_name}",
+                sep = std::path::MAIN_SEPARATOR,
+            )
+        };
+        let mut outcome = force_symlink_inner(target, link, true)?;
+        outcome.warning = Some(warning);
+        Ok(outcome)
     }
 }
 

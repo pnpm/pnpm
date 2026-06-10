@@ -49,7 +49,7 @@ fn make_node(alias: &str, dep_path: &str, pkg_id: &str, dir: PathBuf) -> Depende
 }
 
 /// Write a synthetic CAS entry under `cas_root/<pkg_id>/file`
-/// containing `contents`, and return the per-pkg cas_paths map
+/// containing `contents`, and return the per-pkg `cas_paths` map
 /// keyed on the package's relative archive path.
 fn plant_cas_file(
     cas_root: &Path,
@@ -67,7 +67,7 @@ fn plant_cas_file(
     paths
 }
 
-/// Combine two cas_paths maps into one for tests that emit
+/// Combine two `cas_paths` maps into one for tests that emit
 /// multiple files per package.
 fn plant_package(
     cas_root: &Path,

@@ -21,6 +21,7 @@ use std::path::{Component, Path, PathBuf};
 ///
 /// Filesystem-free: callers run this against paths whose targets may
 /// not exist yet, where [`std::fs::canonicalize`] cannot help.
+#[must_use]
 pub fn lexical_normalize(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for component in path.components() {

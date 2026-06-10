@@ -79,6 +79,10 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
     }
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn fake_manifest(root_deps: serde_json::Value) -> (tempfile::TempDir, PackageManifest) {
     fake_manifest_json(serde_json::json!({
         "name": "root",
@@ -87,6 +91,10 @@ fn fake_manifest(root_deps: serde_json::Value) -> (tempfile::TempDir, PackageMan
     }))
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn fake_manifest_json(json: serde_json::Value) -> (tempfile::TempDir, PackageManifest) {
     let tmp = tempfile::tempdir().expect("tempdir");
     let path = tmp.path().join("package.json");
@@ -962,7 +970,7 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
     let mut catalogs = pacquet_catalogs_types::Catalogs::new();
     catalogs.insert(
         "default".to_string(),
-        [("foo".to_string(), "^1.0.0".to_string())].into_iter().collect(),
+        std::iter::once(("foo".to_string(), "^1.0.0".to_string())).collect(),
     );
 
     let opts = ResolveImporterOptions { catalogs, ..default_opts() };
@@ -995,7 +1003,9 @@ async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
                 "No catalog entry 'foo' was found for catalog 'default'.",
             );
         }
-        other => panic!("expected CatalogMisconfiguration, got {other:?}"),
+        other @ ResolveImporterError::Resolve(_) => {
+            panic!("expected CatalogMisconfiguration, got {other:?}")
+        }
     }
 }
 

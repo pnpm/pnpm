@@ -280,6 +280,7 @@ impl PackageVersion {
             .pipe(Ok)
     }
 
+    #[must_use]
     pub fn as_tarball_url(&self) -> &str {
         self.dist.tarball.as_str()
     }
@@ -301,6 +302,7 @@ impl PackageVersion {
             .map(|(name, version)| (name.as_str(), version.as_str()))
     }
 
+    #[must_use]
     pub fn serialize(&self, save_exact: bool) -> String {
         let prefix = if save_exact { "" } else { "^" };
         format!("{0}{1}", prefix, self.version)

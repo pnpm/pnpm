@@ -46,34 +46,31 @@ pub(crate) fn add_config_dependency(
 ) -> Result<bool, Box<yamlpatch::Error>> {
     const BLOCK: &str = "configDependencies";
     let text = manifest.text();
-    match locate(text, &[BLOCK]) {
-        Some(mapping) => {
-            let new_text = if mapping.entries.iter().any(|entry| entry.key == name) {
-                // Already present with the same clean specifier — a true
-                // no-op, so don't rewrite the file (which would bump its
-                // mtime and look like a change to freshness checks).
-                if manifest.config_dependencies.as_ref().and_then(|deps| deps.get(name))
-                    == Some(&specifier.to_string())
-                {
-                    return Ok(false);
-                }
-                replace_value_at(text, &[BLOCK], name, specifier)?
-            } else {
-                insert_entry_at(text, &[BLOCK], name, specifier)
-            };
-            manifest.set_text(new_text);
-        }
-        None => {
-            let block = format!(
-                "{BLOCK}:\n  {}: {}\n",
-                render::render_value(name),
-                render::render_value(specifier),
-            );
-            let new_text = insert_top_level_block(manifest, BLOCK, &block);
-            manifest.set_text(new_text);
-            manifest.top_level_keys =
-                render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
-        }
+    if let Some(mapping) = locate(text, &[BLOCK]) {
+        let new_text = if mapping.entries.iter().any(|entry| entry.key == name) {
+            // Already present with the same clean specifier — a true
+            // no-op, so don't rewrite the file (which would bump its
+            // mtime and look like a change to freshness checks).
+            if manifest.config_dependencies.as_ref().and_then(|deps| deps.get(name))
+                == Some(&specifier.to_string())
+            {
+                return Ok(false);
+            }
+            replace_value_at(text, &[BLOCK], name, specifier)?
+        } else {
+            insert_entry_at(text, &[BLOCK], name, specifier)
+        };
+        manifest.set_text(new_text);
+    } else {
+        let block = format!(
+            "{BLOCK}:\n  {}: {}\n",
+            render::render_value(name),
+            render::render_value(specifier),
+        );
+        let new_text = insert_top_level_block(manifest, BLOCK, &block);
+        manifest.set_text(new_text);
+        manifest.top_level_keys =
+            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
     }
     Ok(true)
 }
@@ -339,28 +336,25 @@ fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) 
     }
 
     let successor = order.get(position + 1);
-    match successor {
-        Some(successor_key) => {
-            let span = top_level_span(text, successor_key).expect("successor block exists");
-            // Insert before the successor's key line; its existing preceding
-            // blank line (if any) becomes the blank before the new block, and
-            // a trailing blank line is added when the document uses that style.
-            let trailing = if blank_style { "\n" } else { "" };
-            splice(text, span.key_line_start, &format!("{block_text}{trailing}"))
+    if let Some(successor_key) = successor {
+        let span = top_level_span(text, successor_key).expect("successor block exists");
+        // Insert before the successor's key line; its existing preceding
+        // blank line (if any) becomes the blank before the new block, and
+        // a trailing blank line is added when the document uses that style.
+        let trailing = if blank_style { "\n" } else { "" };
+        splice(text, span.key_line_start, &format!("{block_text}{trailing}"))
+    } else {
+        // Append at the end of the document.
+        let mut out = String::with_capacity(text.len() + block_text.len() + 1);
+        out.push_str(text);
+        if !out.is_empty() && !out.ends_with('\n') {
+            out.push('\n');
         }
-        None => {
-            // Append at the end of the document.
-            let mut out = String::with_capacity(text.len() + block_text.len() + 1);
-            out.push_str(text);
-            if !out.is_empty() && !out.ends_with('\n') {
-                out.push('\n');
-            }
-            if blank_style && !out.is_empty() {
-                out.push('\n');
-            }
-            out.push_str(block_text);
-            out
+        if blank_style && !out.is_empty() {
+            out.push('\n');
         }
+        out.push_str(block_text);
+        out
     }
 }
 

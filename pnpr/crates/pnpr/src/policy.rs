@@ -52,6 +52,7 @@ pub struct AccessList(Vec<AccessToken>);
 impl AccessList {
     /// Build from a verdaccio space-separated permission string
     /// (e.g. `"$authenticated admin"`).
+    #[must_use]
     pub fn parse(spec: &str) -> Self {
         Self::from_tokens(spec.split_whitespace())
     }
@@ -66,10 +67,12 @@ impl AccessList {
     }
 
     /// Whether `identity` satisfies any token in the list.
+    #[must_use]
     pub fn allows(&self, identity: &Identity) -> bool {
         self.0.iter().any(|token| identity.satisfies(token))
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -87,6 +90,7 @@ pub enum Identity {
 }
 
 impl Identity {
+    #[must_use]
     pub fn is_authenticated(&self) -> bool {
         matches!(self, Identity::User { .. })
     }
@@ -162,6 +166,7 @@ pub struct Effective<'a> {
 }
 
 impl PackagePolicies {
+    #[must_use]
     pub fn new(rules: Vec<PackagePolicy>) -> Self {
         Self {
             rules,
@@ -177,6 +182,7 @@ impl PackagePolicies {
     /// * `@private/*` — authenticated access + publish
     /// * `@pnpm.e2e/needs-auth` — authenticated access + publish
     /// * everything else — $all access, $authenticated publish
+    #[must_use]
     pub fn registry_mock_defaults() -> Self {
         let rules = [
             ("@private/*", "$authenticated", "$authenticated"),
@@ -193,6 +199,7 @@ impl PackagePolicies {
         Self::new(rules)
     }
 
+    #[must_use]
     pub fn for_package(&self, package: &str) -> Effective<'_> {
         for rule in &self.rules {
             if rule.matches(package) {

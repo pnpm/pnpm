@@ -327,28 +327,23 @@ fn modified_manifests_match_lockfile(
     } = check;
     let mut loaded_current: Option<Lockfile> = None;
     let mut wanted_is_current = false;
-    let (wanted, wanted_mtime_ms): (&Lockfile, i64) = match lockfile {
-        Some(wanted) => {
-            let Some(mtime) = mtime_ms(&workspace_root.join(Lockfile::FILE_NAME)) else {
-                return Err(
-                    "a manifest is newer than the last validation and pnpm-lock.yaml cannot be stat'd",
-                );
-            };
-            (wanted, mtime)
-        }
-        None => {
-            let current_path = config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
-            let Some(mtime) = mtime_ms(&current_path) else {
-                return Err(
-                    "a manifest is newer than the last validation and no lockfile is loaded",
-                );
-            };
-            let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
-                .map_err(|_| "the current lockfile cannot be loaded")?
-                .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
-            wanted_is_current = true;
-            (&*loaded_current.insert(current), mtime)
-        }
+    let (wanted, wanted_mtime_ms): (&Lockfile, i64) = if let Some(wanted) = lockfile {
+        let Some(mtime) = mtime_ms(&workspace_root.join(Lockfile::FILE_NAME)) else {
+            return Err(
+                "a manifest is newer than the last validation and pnpm-lock.yaml cannot be stat'd",
+            );
+        };
+        (wanted, mtime)
+    } else {
+        let current_path = config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+        let Some(mtime) = mtime_ms(&current_path) else {
+            return Err("a manifest is newer than the last validation and no lockfile is loaded");
+        };
+        let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
+            .map_err(|_| "the current lockfile cannot be loaded")?
+            .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
+        wanted_is_current = true;
+        (&*loaded_current.insert(current), mtime)
     };
 
     // Decide which modified projects need the full content check, and
@@ -588,7 +583,7 @@ fn linked_packages_are_up_to_date(
                 None => dep
                     .version
                     .as_regular()
-                    .map(|ver| ver.to_string())
+                    .map(std::string::ToString::to_string)
                     .and_then(|version| ctx.workspace_packages.get(&dep_name)?.get(&version))
                     .map(|dir| std::borrow::Cow::Borrowed(*dir)),
             };
@@ -931,7 +926,7 @@ fn modules_dirs_present(
 /// shape but it matches how the install path itself derives
 /// `config.modules_dir`.
 fn workspace_dir_of(config: &Config, fallback: &Path) -> PathBuf {
-    config.modules_dir.parent().map(Path::to_path_buf).unwrap_or_else(|| fallback.to_path_buf())
+    config.modules_dir.parent().map_or_else(|| fallback.to_path_buf(), Path::to_path_buf)
 }
 
 fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
