@@ -1,0 +1,22 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@pnpm.e2e/bravo-dep':
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  '@pnpm.e2e/bravo-dep@1.0.0':
+    resolution: {integrity: sha512-XA8bN2HiHVbGzk+6G5lrLLtpt2A9CqmViNkgtLIOLTqsIbcGDFA4F/2LQ7Nak5Q7Ki1llODitpfEjsvVXf+n1g==}
+
+snapshots:
+
+  '@pnpm.e2e/bravo-dep@1.0.0': {}
