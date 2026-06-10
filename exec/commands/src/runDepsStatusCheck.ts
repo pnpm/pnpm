@@ -18,7 +18,8 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   opts.ignoredWorkspaceStateSettings = ignoredWorkspaceStateSettings
 
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
-  if (upToDate) return
+  if (upToDate === true) return
+  if (upToDate === undefined && opts.allProjects == null && opts.rootProjectManifest == null) return
 
   const command = ['install', ...createInstallArgs(workspaceState?.settings)]
   const install = runPnpmCli.bind(null, command, { cwd: opts.dir, reporter: opts.reporter })
