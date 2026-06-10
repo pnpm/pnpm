@@ -13,3 +13,5 @@ pnpm add -g pacquet
 ```
 
 This package is a thin Node.js wrapper that dispatches to a platform-specific native binary for your operating system and architecture.
+
+Prebuilt binaries are available for `linux-x64`, `linux-arm64`, `linux-x64-musl`, `linux-arm64-musl`, `darwin-x64`, `darwin-arm64`, `win32-x64`, and `win32-arm64`.
