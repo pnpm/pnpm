@@ -226,7 +226,9 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   for (const [parentPath, entry] of Object.entries(depGraphWithResolvedChildren)) {
     const names = new Set<string>()
     for (const [alias, childPath] of Object.entries<DepPath>(entry.children)) {
-      parentsOf[childPath] ??= new Set()
+      if (!parentsOf[childPath]) {
+        parentsOf[childPath] = new Set()
+      }
       parentsOf[childPath].add(parentPath as DepPath)
       names.add(alias)
       const childEntry = depGraphWithResolvedChildren[childPath]
@@ -502,10 +504,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     parentPkgs = { ...parentParentPkgs }
     const parentPkgNodes: Array<ParentPkgNode<T>> = []
     for (const [alias, nodeId] of Object.entries(children)) {
-      if (ctx.allPeerDepNames.has(alias)) {
+      const childNode = ctx.dependenciesTree.get(nodeId)!
+      if (ctx.allPeerDepNames.has(alias) || (alias !== childNode.resolvedPackage.name && ctx.allPeerDepNames.has(childNode.resolvedPackage.name))) {
         parentPkgNodes.push({
           alias,
-          node: ctx.dependenciesTree.get(nodeId)!,
+          node: childNode,
           nodeId,
           parentNodeIds,
         })

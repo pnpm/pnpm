@@ -1626,4 +1626,89 @@ describe('dedupePeers', () => {
     expect(gEntry).toBeTruthy()
     expect(Array.from(gEntry.transitivePeerDependencies)).toContain('e')
   })
+
+  test('aliased dependency provides peer under real package name', async () => {
+    const rootPkg = {
+      name: 'root',
+      pkgIdWithPatchHash: 'root/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const realPkg = {
+      name: 'real-pkg',
+      pkgIdWithPatchHash: 'real-pkg/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const childPkg = {
+      name: 'child',
+      pkgIdWithPatchHash: 'child/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const leafPkg = {
+      name: 'leaf',
+      pkgIdWithPatchHash: 'leaf/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {
+        'real-pkg': { version: '1.0.0' },
+      },
+      id: '' as PkgResolutionId,
+    }
+    const { peerDependencyIssuesByProjects } = await resolvePeers({
+      allPeerDepNames: new Set(['real-pkg']),
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['root', '>root/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>root/1.0.0>' as NodeId, {
+          children: {
+            'my-alias': '>root/1.0.0>real-pkg/1.0.0>' as NodeId,
+            child: '>root/1.0.0>child/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: rootPkg,
+          depth: 0,
+        }],
+        ['>root/1.0.0>real-pkg/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: realPkg,
+          depth: 1,
+        }],
+        ['>root/1.0.0>child/1.0.0>' as NodeId, {
+          children: {
+            leaf: '>root/1.0.0>child/1.0.0>leaf/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: childPkg,
+          depth: 1,
+        }],
+        ['>root/1.0.0>child/1.0.0>leaf/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: leafPkg,
+          depth: 2,
+        }],
+      ]),
+      virtualStoreDir: '',
+      lockfileDir: '',
+      virtualStoreDirMaxLength: 120,
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+
+    expect(peerDependencyIssuesByProjects['']?.missing?.['real-pkg']).toBeUndefined()
+  })
 })

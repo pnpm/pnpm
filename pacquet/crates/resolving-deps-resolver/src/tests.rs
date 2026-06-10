@@ -3333,12 +3333,8 @@ mod propagate_tpd_unit {
         );
         let mut aliased_children = BTreeMap::new();
         aliased_children.insert("child".to_string(), child_dp.clone());
-        let mut aliased = make_node(
-            "real-pkg@1.0.0",
-            aliased_children,
-            HashSet::new(),
-            BTreeMap::new(),
-        );
+        let mut aliased =
+            make_node("real-pkg@1.0.0", aliased_children, HashSet::new(), BTreeMap::new());
         aliased.resolve_result = Arc::new(ResolveResult {
             id: PkgResolutionId::from("real-pkg@1.0.0".to_string()),
             name_ver: Some(PkgNameVer::new(
