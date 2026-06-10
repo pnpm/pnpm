@@ -167,7 +167,7 @@ fn slow_start_ramps_per_connection_throughput() {
     let ramped = timed_transfer(true);
     dbg!(flat, ramped);
     // Flat: ~2×20ms latency + 256KiB/10MB/s ≈ 66 ms. Ramped: the first
-    // windows (14.6 KB → …) each serialize at cwnd/RTT, adding ~3-4
+    // windows (14.6 KB and doubling) each serialize at cwnd/RTT, adding ~3-4
     // window-times before the rate approaches the cap. Require a solid
     // margin rather than exact math to stay robust under CI jitter.
     assert!(
