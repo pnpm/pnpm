@@ -500,7 +500,9 @@ struct NodeRecord {
 /// directly, so neither field is read after construction yet.
 #[derive(Debug, Clone)]
 struct MissingPeerInfo {
+    #[allow(dead_code, reason = "future peersCache validation")]
     range: String,
+    #[allow(dead_code, reason = "future peersCache validation")]
     optional: bool,
 }
 
@@ -1044,7 +1046,7 @@ impl Walker<'_> {
         }
     }
 
-    #[expect(
+    #[allow(
         clippy::too_many_arguments,
         reason = "splitting these into a struct would only obscure the call site"
     )]

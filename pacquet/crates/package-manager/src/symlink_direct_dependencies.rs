@@ -373,7 +373,7 @@ pub(crate) fn importer_root_dir(workspace_root: &Path, importer_id: &str) -> Pat
     }
 }
 
-#[expect(
+#[allow(
     clippy::too_many_arguments,
     reason = "the parameters are independent inputs; bundling them into a struct would not improve clarity"
 )]
