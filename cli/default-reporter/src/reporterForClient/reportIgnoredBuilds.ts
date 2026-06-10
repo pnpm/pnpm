@@ -18,9 +18,16 @@ export function reportIgnoredBuilds (
   return log$.ignoredScripts.pipe(
     map((ignoredScripts) => {
       if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0 && !opts.pnpmConfig?.strictDepBuilds) {
-        const msg = boxen(`Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort(lexCompare).join(', ')}.
-${opts.approveBuildsInstructionText ?? `Run "pnpm approve-builds${opts.pnpmConfig?.cliOptions?.global ? ' -g' : ''}" to pick which dependencies should be allowed to run scripts.`}`, {
-          title: 'Warning',
+        const msg = boxen(`Ignored build scripts for: ${Array.from(ignoredScripts.packageNames).sort(lexCompare).join(', ')}.
+
+Starting with pnpm v10, lifecycle scripts (like postinstall) are blocked by default for security to prevent supply chain attacks.
+However, many packages (like sharp, esbuild, bcrypt, etc.) REQUIRE these scripts to build native binaries or download engines.
+If you do not allow them, your application may fail at runtime with "Module not found" or similar errors.
+
+${opts.approveBuildsInstructionText ?? `Run "pnpm approve-builds${opts.pnpmConfig?.cliOptions?.global ? ' -g' : ''}" to allow scripts for trusted packages.`}
+
+For more information, see: https://pnpm.io/npm-scripts#onlybuiltdependencies`, {
+          title: 'Security Warning',
           padding: 1,
           margin: 0,
           borderStyle: 'round',
