@@ -1441,3 +1441,115 @@ fn returns_skipped_when_linked_sibling_no_longer_satisfies_range() {
         "expected Skipped(linked package out of date), got {decision:?}",
     );
 }
+
+/// `pnpm-lock.yaml` deleted while `node_modules` (and its current
+/// lockfile) is intact: the current lockfile stands in as the wanted
+/// one, and the fast path regenerates `pnpm-lock.yaml` from it instead
+/// of falling into the full install pipeline.
+#[test]
+fn regenerates_missing_wanted_lockfile_from_current_when_manifests_unchanged() {
+    let (dir, config) = setup_content_check_project();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+
+    let regenerated = Lockfile::load_wanted_from_dir(dir.path())
+        .expect("parse regenerated pnpm-lock.yaml")
+        .expect("pnpm-lock.yaml must be regenerated from the current lockfile");
+    let current =
+        Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir).unwrap().unwrap();
+    assert_eq!(regenerated, current);
+}
+
+/// Same as above with a touched (content-identical) manifest — the
+/// content re-check runs against the current lockfile.
+#[test]
+fn regenerates_missing_wanted_lockfile_when_touched_manifest_satisfies_current() {
+    let (dir, config) = setup_content_check_project();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+    assert!(dir.path().join(Lockfile::FILE_NAME).exists(), "pnpm-lock.yaml must be regenerated");
+}
+
+/// A manifest that no longer matches the current lockfile cannot ride
+/// the current-as-wanted fallback — the full install must resolve.
+#[test]
+fn returns_skipped_when_missing_wanted_lockfile_and_manifest_adds_a_dependency() {
+    let (dir, config) = setup_content_check_project();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0","bar":"^2.0.0"}}"#,
+    )
+    .unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("satisfied")),
+        "expected Skipped(no longer satisfied), got {decision:?}",
+    );
+    assert!(
+        !dir.path().join(Lockfile::FILE_NAME).exists(),
+        "must not regenerate on a failed check"
+    );
+}
+
+/// Workspace mode: deleted `pnpm-lock.yaml` + touched manifest takes
+/// the current-as-wanted fallback, regenerates the lockfile, and
+/// refreshes the state timestamp.
+#[test]
+fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
+    let (dir, config) = setup_content_check_project();
+    let before = pacquet_workspace_state::load_workspace_state(dir.path())
+        .unwrap()
+        .unwrap()
+        .last_validated_timestamp;
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+    assert!(dir.path().join(Lockfile::FILE_NAME).exists(), "pnpm-lock.yaml must be regenerated");
+    let after = pacquet_workspace_state::load_workspace_state(dir.path())
+        .unwrap()
+        .unwrap()
+        .last_validated_timestamp;
+    assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
+}
+
+/// `lockfile: false` (pnpm's `useLockfile: false`) disables the
+/// regeneration but keeps the fast path.
+#[test]
+fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
+    let (dir, config) = setup_content_check_project();
+    // `Config` is leaked per test; build a second one with `lockfile`
+    // off instead of mutating the shared reference.
+    let mut no_lockfile_config = Config::new();
+    no_lockfile_config.modules_dir = config.modules_dir.clone();
+    no_lockfile_config.virtual_store_dir = config.virtual_store_dir.clone();
+    no_lockfile_config.lockfile = false;
+    let no_lockfile_config = no_lockfile_config.leak();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision = content_check_decision(
+        &dir,
+        no_lockfile_config,
+        false,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
+    assert!(!dir.path().join(Lockfile::FILE_NAME).exists(), "lockfile: false must skip the write");
+}

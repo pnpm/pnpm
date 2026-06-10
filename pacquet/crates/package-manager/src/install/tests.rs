@@ -5671,15 +5671,18 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     // absent so the polarity of the gate is clear.
 }
 
-/// Regression: a single-project install where `node_modules` is
-/// still on disk (so the workspace-state file survives) but
-/// `pnpm-lock.yaml` is gone must NOT short-circuit. This is the
-/// `cache+node_modules` and `node_modules`-only benchmark scenario
-/// pnpm finishes in ~5 s and pacquet was silently completing in
-/// ~35 ms before the single-project lockfile gate landed. Mirrors
-/// pnpm's [`throwLockfileNotFound`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401)
-/// converting into `upToDate: false`. Companion to the workspace-
-/// mode tolerance proved by
+/// Regression: a single-project install with NO lockfile anywhere —
+/// `pnpm-lock.yaml` is gone and the virtual store has no current
+/// `lock.yaml` to stand in for it — must NOT short-circuit, even when
+/// `node_modules` and the workspace-state file survive. There is
+/// nothing to content-check the manifests against and nothing to
+/// regenerate `pnpm-lock.yaml` from, so the full install must run.
+/// Mirrors pnpm's [`throwLockfileNotFound`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401)
+/// converting into `upToDate: false`. When the current lockfile IS
+/// present, the fast path instead treats it as the wanted lockfile —
+/// see `regenerates_missing_wanted_lockfile_from_current_when_manifests_unchanged`
+/// in the `optimistic_repeat_install` tests. Companion to the
+/// workspace-mode tolerance proved by
 /// [`returns_up_to_date_in_workspace_mode_without_lockfile`](crate::optimistic_repeat_install::tests::returns_up_to_date_in_workspace_mode_without_lockfile).
 #[tokio::test]
 async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing() {
@@ -5706,8 +5709,9 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    // Deliberately do NOT write `pnpm-lock.yaml` — that's the
-    // scenario under test.
+    // Deliberately do NOT write `pnpm-lock.yaml` and do NOT seed a
+    // current `lock.yaml` in the virtual store — that's the scenario
+    // under test.
 
     let mut config = Config::new();
     config.lockfile = false;
@@ -5715,19 +5719,6 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
-
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
-        "lockfileVersion: '9.0'"
-        "importers:"
-        "  .:"
-        "    dependencies:"
-        "      sibling:"
-        "        specifier: link:../sibling"
-        "        version: link:../sibling"
-        "packages: {}"
-        "snapshots: {}"
-    })
-    .expect("parse lockfile");
 
     let included = pacquet_modules_yaml::IncludedDependencies {
         dependencies: true,
@@ -5788,7 +5779,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: None,
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -5816,7 +5807,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
             LogEvent::Pnpm(log) if log.message == "Already up to date"
         )),
         "the optimistic 'Already up to date' log MUST NOT fire when \
-         `pnpm-lock.yaml` is missing in a single-project install; got events: {captured:#?}",
+         no lockfile exists in a single-project install; got events: {captured:#?}",
     );
 }
 

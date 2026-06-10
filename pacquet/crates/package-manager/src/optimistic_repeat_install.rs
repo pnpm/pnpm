@@ -107,7 +107,11 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// The wanted lockfile as loaded by the CLI (`None` when
     /// `pnpm-lock.yaml` is absent or empty). Consulted only by the
     /// modified-manifests content re-check; the pure-mtime fast path
-    /// never reads it.
+    /// never reads it. When `None` and `<virtual_store_dir>/lock.yaml`
+    /// exists, the current lockfile stands in as the wanted one — it
+    /// records exactly what the previous install materialized — and
+    /// `pnpm-lock.yaml` is regenerated from it before the check
+    /// reports up-to-date.
     pub lockfile: Option<&'a Lockfile>,
     /// Workspace catalogs, for resolving `catalog:` values inside
     /// `pnpm.overrides` before the lockfile settings comparison.
@@ -165,17 +169,27 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         };
     }
 
-    // Single-project installs require `pnpm-lock.yaml` on disk to
-    // even attempt the fast path. Upstream's single-project branch
-    // at <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401>
+    // Single-project installs require a lockfile to even attempt the
+    // fast path. Upstream's single-project branch at
+    // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401>
     // throws `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when
     // `wantedLockfileStats` is absent, which the outer `try`
-    // converts into `upToDate: false`. Workspace installs skip this
-    // gate — pnpm's workspace branch returns `upToDate: true` purely
-    // off the manifest-mtime check (its only lockfile probe,
-    // `findConflictedLockfileDir`, silently `continue`s on ENOENT at
+    // converts into `upToDate: false`. Pacquet additionally accepts
+    // the *current* lockfile (`<virtual_store_dir>/lock.yaml`) as a
+    // stand-in when `pnpm-lock.yaml` is missing: it records exactly
+    // what the previous install materialized, so the content checks
+    // can run against it and `pnpm-lock.yaml` is regenerated from it
+    // on success — the same substitution the full install path makes
+    // when it synthesizes the wanted lockfile from the current one.
+    // Workspace installs skip this gate — pnpm's workspace branch
+    // returns `upToDate: true` purely off the manifest-mtime check
+    // (its only lockfile probe, `findConflictedLockfileDir`, silently
+    // `continue`s on ENOENT at
     // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L593-L596>).
-    if !is_workspace_install && !workspace_root.join(Lockfile::FILE_NAME).exists() {
+    if !is_workspace_install
+        && !workspace_root.join(Lockfile::FILE_NAME).exists()
+        && !config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists()
+    {
         return Decision::Skipped { reason: "wanted lockfile missing" };
     }
 
@@ -202,7 +216,10 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         .filter(|stat| stat.mtime_ms > state.last_validated_timestamp)
         .collect();
     if modified.is_empty() {
-        return Decision::UpToDate;
+        return match regenerate_wanted_lockfile_if_missing(check, None) {
+            Ok(()) => Decision::UpToDate,
+            Err(reason) => Decision::Skipped { reason },
+        };
     }
 
     // A newer mtime alone doesn't invalidate: upstream's
@@ -211,7 +228,10 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     // that left the dependency fields intact — `touch`, a `scripts`
     // edit, `npm pkg set/delete` — still reports up to date.
     match modified_manifests_match_lockfile(check, &state, &modified) {
-        Ok(()) => {
+        Ok(loaded_current) => {
+            if let Err(reason) = regenerate_wanted_lockfile_if_missing(check, loaded_current) {
+                return Decision::Skipped { reason };
+            }
             // "update lastValidatedTimestamp to prevent pointless
             // repeat" — upstream's workspace branch rewrites the
             // state after the content checks pass at
@@ -241,6 +261,35 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     }
 }
 
+/// Restore a missing `pnpm-lock.yaml` from the current lockfile before
+/// the fast path reports "Already up to date", so the short-circuit
+/// leaves the same on-disk contract a full install would (the full
+/// path synthesizes the wanted lockfile from the current one and
+/// rewrites it). No-op when `pnpm-lock.yaml` was loaded, when lockfile
+/// writing is disabled (`lockfile: false`), or when there is no
+/// current lockfile to restore from (a dependency-less project).
+/// A write failure falls through to the full install path rather than
+/// reporting up-to-date while leaving the lockfile missing.
+fn regenerate_wanted_lockfile_if_missing(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    loaded_current: Option<Lockfile>,
+) -> Result<(), &'static str> {
+    if check.lockfile.is_some() || !check.config.lockfile {
+        return Ok(());
+    }
+    let current = match loaded_current {
+        Some(current) => Some(current),
+        None => Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
+            .map_err(|_| "the current lockfile cannot be loaded")?,
+    };
+    let Some(current) = current else {
+        return Ok(());
+    };
+    current
+        .save_to_path(&check.workspace_root.join(Lockfile::FILE_NAME))
+        .map_err(|_| "failed to regenerate pnpm-lock.yaml from the current lockfile")
+}
+
 /// One project manifest's stat outcome, paired with the inputs the
 /// content re-check needs.
 struct ManifestStat<'a> {
@@ -256,11 +305,17 @@ struct ManifestStat<'a> {
 /// freshness) for every project whose manifest is newer than the last
 /// validation. `Err` carries the `Decision::Skipped` reason; upstream
 /// converts the equivalent throws into `upToDate: false`.
+///
+/// When `pnpm-lock.yaml` is absent, the current lockfile stands in as
+/// the wanted one (see the lockfile gate in
+/// [`check_optimistic_repeat_install`]); `Ok(Some(_))` then carries the
+/// loaded current lockfile so the caller can regenerate
+/// `pnpm-lock.yaml` from it without a second read.
 fn modified_manifests_match_lockfile(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     modified: &[&ManifestStat<'_>],
-) -> Result<(), &'static str> {
+) -> Result<Option<Lockfile>, &'static str> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
@@ -270,19 +325,42 @@ fn modified_manifests_match_lockfile(
         catalogs,
         ..
     } = check;
-    let Some(wanted) = lockfile else {
-        return Err("a manifest is newer than the last validation and no lockfile is loaded");
-    };
-    let Some(wanted_mtime_ms) = mtime_ms(&workspace_root.join(Lockfile::FILE_NAME)) else {
-        return Err(
-            "a manifest is newer than the last validation and pnpm-lock.yaml cannot be stat'd",
-        );
+    let mut loaded_current: Option<Lockfile> = None;
+    let mut wanted_is_current = false;
+    let (wanted, wanted_mtime_ms): (&Lockfile, i64) = match lockfile {
+        Some(wanted) => {
+            let Some(mtime) = mtime_ms(&workspace_root.join(Lockfile::FILE_NAME)) else {
+                return Err(
+                    "a manifest is newer than the last validation and pnpm-lock.yaml cannot be stat'd",
+                );
+            };
+            (wanted, mtime)
+        }
+        None => {
+            let current_path = config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+            let Some(mtime) = mtime_ms(&current_path) else {
+                return Err(
+                    "a manifest is newer than the last validation and no lockfile is loaded",
+                );
+            };
+            let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
+                .map_err(|_| "the current lockfile cannot be loaded")?
+                .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
+            wanted_is_current = true;
+            (&*loaded_current.insert(current), mtime)
+        }
     };
 
     // Decide which modified projects need the full content check, and
     // whether the wanted lockfile must be compared against the current
     // one (`<virtual_store_dir>/lock.yaml`).
-    let to_check: &[&ManifestStat<'_>] = if is_workspace_install {
+    let to_check: &[&ManifestStat<'_>] = if wanted_is_current {
+        // The wanted lockfile IS the current one — there's no second
+        // lockfile to assert equality against, and the mtime
+        // short-circuits below compare the two lockfile files, so they
+        // don't apply. Every modified project gets the content check.
+        modified
+    } else if is_workspace_install {
         // Workspace branch: a wanted lockfile newer than the last
         // validation must equal what the previous install materialized.
         // Mirrors <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L283-L289>.
@@ -318,7 +396,7 @@ fn modified_manifests_match_lockfile(
     };
 
     if to_check.is_empty() {
-        return Ok(());
+        return Ok(loaded_current);
     }
 
     let parsed_overrides = crate::install::parse_config_overrides(config, catalogs)
@@ -356,7 +434,7 @@ fn modified_manifests_match_lockfile(
             return Err("a linked package is out of date");
         }
     }
-    Ok(())
+    Ok(loaded_current)
 }
 
 /// Port of upstream's
