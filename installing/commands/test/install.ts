@@ -175,3 +175,27 @@ test('do not install Node.js when devEngines runtime is not set to onFail=downlo
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].devDependencies).toBeUndefined()
 })
+
+test('install restores a deleted pnpm-lock.yaml from the current lockfile without resolution', async () => {
+  prepareEmpty()
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['is-positive@1.0.0'])
+
+  const originalLockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  rimrafSync('pnpm-lock.yaml')
+
+  // The dead registry proves the repeat install neither resolves nor
+  // verifies: the current lockfile (node_modules/.pnpm/lock.yaml) stands in
+  // as the wanted lockfile and pnpm-lock.yaml is restored from it.
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    optimisticRepeatInstall: true,
+    registries: { default: 'http://127.0.0.1:9/' },
+  })
+
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(originalLockfile)
+})

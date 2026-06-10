@@ -1,4 +1,6 @@
-use super::{Decision, check_optimistic_repeat_install, current_settings};
+use super::{
+    Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install, current_settings,
+};
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
 use pacquet_modules_yaml::IncludedDependencies;
@@ -11,6 +13,27 @@ use tempfile::tempdir;
 
 fn isolated_included() -> IncludedDependencies {
     IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
+}
+
+/// Run the fast-path check in single-project mode with no loaded
+/// lockfile and no catalogs — the shape every pre-content-check test
+/// exercises.
+fn check(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pacquet_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) -> Decision {
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        node_linker,
+        included: isolated_included(),
+        project_manifests,
+        is_workspace_install: false,
+        lockfile: None,
+        catalogs: &Default::default(),
+    })
 }
 
 /// Write an empty `pnpm-lock.yaml` to satisfy the single-project
@@ -101,13 +124,11 @@ fn returns_up_to_date_when_state_and_manifests_agree() {
     let (dir, config, manifest) =
         setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         dir.path(),
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(dir.path().to_path_buf(), &manifest)],
-        false,
     );
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -129,13 +150,11 @@ fn returns_skipped_when_config_disabled() {
     // Even though the state file is missing (would also skip), the
     // disabled-config branch is checked first — that's the reason
     // string we assert on.
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("disabled")));
 }
@@ -154,13 +173,11 @@ fn returns_skipped_when_no_state_file() {
     config.modules_dir = workspace_root.join("node_modules");
     let config = config.leak();
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("no workspace state")),
@@ -180,13 +197,11 @@ fn returns_skipped_when_manifest_is_newer_than_validation() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let refreshed_manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         dir.path(),
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(dir.path().to_path_buf(), &refreshed_manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("newer")));
 }
@@ -199,13 +214,11 @@ fn returns_skipped_when_node_linker_drifts() {
     let (dir, config, manifest) =
         setup_fresh_install(pacquet_config::NodeLinker::Hoisted, "root", "1.0.0", "");
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         dir.path(),
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(dir.path().to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -234,13 +247,11 @@ fn returns_skipped_when_workspace_project_set_changes() {
     // fire — we want to prove the project-list branch fires.
     write_state(dir.path(), now_millis() + 60_000, settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         dir.path(),
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(dir.path().to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("project list")));
 }
@@ -284,13 +295,11 @@ fn returns_skipped_when_overrides_drift() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -327,13 +336,11 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -370,13 +377,11 @@ fn returns_skipped_when_enable_global_virtual_store_drifts() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -402,13 +407,11 @@ fn returns_up_to_date_when_recorded_global_virtual_store_is_explicit_off() {
     );
     write_state(dir.path(), now_millis(), settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         dir.path(),
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(dir.path().to_path_buf(), &manifest)],
-        false,
     );
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -444,13 +447,11 @@ fn returns_skipped_when_exclude_links_from_lockfile_drifts() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -485,13 +486,11 @@ fn returns_skipped_when_minimum_release_age_drifts() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -525,13 +524,11 @@ fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -568,13 +565,11 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -614,13 +609,11 @@ fn returns_skipped_when_patched_dependencies_drift() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -662,13 +655,11 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
     sleep(Duration::from_millis(20));
     fs::write(&patch_path, "--- a\n+++ b\n+edited\n").unwrap();
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("patch")));
 }
@@ -708,13 +699,11 @@ fn returns_up_to_date_when_patch_file_unchanged() {
     sleep(Duration::from_millis(20));
     write_state(workspace_root, now_millis(), settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -749,13 +738,11 @@ fn returns_skipped_when_dedupe_peers_drift() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -791,13 +778,11 @@ fn returns_skipped_when_prefer_workspace_packages_drift() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -833,13 +818,11 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -889,13 +872,11 @@ fn returns_skipped_when_package_extensions_drift() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -931,13 +912,11 @@ fn returns_skipped_when_allow_builds_drift() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -972,13 +951,11 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
     );
     write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
@@ -1030,13 +1007,11 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     );
     write_state(workspace_root, now_millis() + 60_000, settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -1076,13 +1051,11 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
     );
     write_state(workspace_root, now_millis() + 60_000, settings, projects);
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         workspace_root,
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(workspace_root.to_path_buf(), &manifest)],
-        false,
     );
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -1129,14 +1102,19 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
     );
     write_state(dir.path(), now_millis() + 60_000, settings, projects);
 
-    let decision = check_optimistic_repeat_install(
-        dir.path(),
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
-        &[(dir.path().to_path_buf(), &root_manifest), (sibling_dir, &sibling_manifest)],
-        true,
-    );
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[
+            (dir.path().to_path_buf(), &root_manifest),
+            (sibling_dir, &sibling_manifest),
+        ],
+        is_workspace_install: true,
+        lockfile: None,
+        catalogs: &Default::default(),
+    });
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
 }
 
@@ -1159,13 +1137,11 @@ fn returns_skipped_when_lockfile_missing_in_single_project_mode() {
     // lockfile branch.
     fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).expect("remove seeded lockfile");
 
-    let decision = check_optimistic_repeat_install(
+    let decision = check(
         dir.path(),
         config,
         pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
         &[(dir.path().to_path_buf(), &manifest)],
-        false,
     );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("wanted lockfile")),
@@ -1191,13 +1167,389 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
     // wiped first — the workspace branch shouldn't care.
     fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).expect("remove seeded lockfile");
 
-    let decision = check_optimistic_repeat_install(
-        dir.path(),
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
         config,
-        pacquet_config::NodeLinker::Isolated,
-        isolated_included(),
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: true,
+        lockfile: None,
+        catalogs: &Default::default(),
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// Minimal valid lockfile matching a manifest with
+/// `"dependencies": {"foo": "^1.0.0"}`.
+const FOO_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-aaa}
+
+snapshots:
+
+  foo@1.0.0: {}
+";
+
+const FOO_MANIFEST: &str = r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0"}}"#;
+
+/// Build a single project whose manifest, wanted lockfile, and current
+/// lockfile all agree, with the workspace state stamped after every
+/// file write. Content-check tests then touch or rewrite individual
+/// files and assert the decision.
+fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("package.json"), FOO_MANIFEST).unwrap();
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), FOO_LOCKFILE).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
+    fs::create_dir_all(&config.virtual_store_dir).unwrap();
+    fs::write(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), FOO_LOCKFILE).unwrap();
+    let config = config.leak();
+
+    sleep(Duration::from_millis(20));
+    let settings =
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis(), settings, projects);
+    sleep(Duration::from_millis(20));
+
+    (dir, config)
+}
+
+fn content_check_decision(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    is_workspace_install: bool,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) -> Decision {
+    let lockfile = Lockfile::load_wanted_from_dir(dir.path()).expect("parse pnpm-lock.yaml");
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests,
+        is_workspace_install,
+        lockfile: lockfile.as_ref(),
+        catalogs: &Default::default(),
+    })
+}
+
+/// A manifest rewrite that leaves the dependency fields intact — the
+/// shape `touch package.json` / `npm pkg set/delete` produce — must
+/// still short-circuit. Ports the contract behind upstream's
+/// `assertWantedLockfileUpToDate` pass at
+/// <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L420-L447>.
+#[test]
+fn returns_up_to_date_when_touched_manifest_still_satisfies_lockfile() {
+    let (dir, config) = setup_content_check_project();
+
+    fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// A manifest rewrite that *changes* the dependency fields falls
+/// through to the full install.
+#[test]
+fn returns_skipped_when_touched_manifest_adds_a_dependency() {
+    let (dir, config) = setup_content_check_project();
+
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0","bar":"^2.0.0"}}"#,
+    )
+    .unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("satisfied")),
+        "expected Skipped(no longer satisfied), got {decision:?}",
+    );
+}
+
+/// A wanted lockfile rewritten after the last install (newer than the
+/// current lockfile, different content) cannot short-circuit: the
+/// modules directory no longer reflects it. Ports upstream's
+/// [`assertLockfilesEqual`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/assertLockfilesEqual.ts)
+/// `RUN_CHECK_DEPS_OUTDATED_DEPS` outcome.
+#[test]
+fn returns_skipped_when_wanted_lockfile_diverged_from_current() {
+    let (dir, config) = setup_content_check_project();
+
+    fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+    fs::write(dir.path().join(Lockfile::FILE_NAME), FOO_LOCKFILE.replace("1.0.0", "1.0.1"))
+        .unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("not up to date")),
+        "expected Skipped(outdated deps), got {decision:?}",
+    );
+}
+
+/// Workspace branch: a passing content check refreshes
+/// `lastValidatedTimestamp` so the next run exits on the pure-mtime
+/// path. Mirrors upstream's `updateWorkspaceState` call at
+/// <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L349-L357>.
+#[test]
+fn workspace_content_check_refreshes_last_validated_timestamp() {
+    let (dir, config) = setup_content_check_project();
+    let before = pacquet_workspace_state::load_workspace_state(dir.path())
+        .unwrap()
+        .unwrap()
+        .last_validated_timestamp;
+
+    fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+
+    let after = pacquet_workspace_state::load_workspace_state(dir.path())
+        .unwrap()
+        .unwrap()
+        .last_validated_timestamp;
+    assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
+}
+
+/// Workspace lockfile whose root importer links a sibling: the link
+/// stays valid while the sibling's version satisfies the manifest
+/// range, and a bump outside the range falls through to the full
+/// install. Ports upstream's
+/// [`linkedPackagesAreUpToDate`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/lockfile/verification/src/linkedPackagesAreUpToDate.ts).
+fn linked_sibling_decision(sibling_version: &str) -> Decision {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(
+        workspace_root.join("package.json"),
+        r#"{"name":"root","version":"1.0.0","devDependencies":{"pkg-a":"^1.0.0"}}"#,
+    )
+    .unwrap();
+    let sibling_dir = workspace_root.join("pkg-a");
+    fs::create_dir_all(&sibling_dir).unwrap();
+    fs::write(
+        sibling_dir.join("package.json"),
+        format!(r#"{{"name":"pkg-a","version":"{sibling_version}"}}"#),
+    )
+    .unwrap();
+    fs::write(
+        workspace_root.join(Lockfile::FILE_NAME),
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    devDependencies:
+      pkg-a:
+        specifier: ^1.0.0
+        version: link:pkg-a
+
+  pkg-a: {}
+",
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
+    config.link_workspace_packages = pacquet_config::LinkWorkspacePackages::DirectOnly;
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    let config = config.leak();
+
+    let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+    let sibling_manifest = PackageManifest::from_path(sibling_dir.join("package.json")).unwrap();
+
+    sleep(Duration::from_millis(20));
+    let settings =
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    projects.insert(
+        sibling_dir.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("pkg-a".into()), version: Some(sibling_version.into()) },
+    );
+    write_state(workspace_root, now_millis(), settings, projects);
+    sleep(Duration::from_millis(20));
+
+    // Touch the root manifest so the content re-check runs.
+    fs::write(
+        workspace_root.join("package.json"),
+        r#"{"name":"root","version":"1.0.0","devDependencies":{"pkg-a":"^1.0.0"}}"#,
+    )
+    .unwrap();
+    let root_manifest_touched =
+        PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+    let _ = root_manifest;
+
+    let lockfile = Lockfile::load_wanted_from_dir(workspace_root).expect("parse pnpm-lock.yaml");
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[
+            (workspace_root.to_path_buf(), &root_manifest_touched),
+            (sibling_dir, &sibling_manifest),
+        ],
+        is_workspace_install: true,
+        lockfile: lockfile.as_ref(),
+        catalogs: &Default::default(),
+    })
+}
+
+#[test]
+fn returns_up_to_date_when_linked_sibling_still_satisfies_range() {
+    assert_eq!(linked_sibling_decision("1.5.0"), Decision::UpToDate);
+}
+
+#[test]
+fn returns_skipped_when_linked_sibling_no_longer_satisfies_range() {
+    let decision = linked_sibling_decision("2.0.0");
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("linked")),
+        "expected Skipped(linked package out of date), got {decision:?}",
+    );
+}
+
+/// `pnpm-lock.yaml` deleted while `node_modules` (and its current
+/// lockfile) is intact: the current lockfile stands in as the wanted
+/// one, and the fast path regenerates `pnpm-lock.yaml` from it instead
+/// of falling into the full install pipeline.
+#[test]
+fn regenerates_missing_wanted_lockfile_from_current_when_manifests_unchanged() {
+    let (dir, config) = setup_content_check_project();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+
+    let regenerated = Lockfile::load_wanted_from_dir(dir.path())
+        .expect("parse regenerated pnpm-lock.yaml")
+        .expect("pnpm-lock.yaml must be regenerated from the current lockfile");
+    let current =
+        Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir).unwrap().unwrap();
+    assert_eq!(regenerated, current);
+}
+
+/// Same as above with a touched (content-identical) manifest — the
+/// content re-check runs against the current lockfile.
+#[test]
+fn regenerates_missing_wanted_lockfile_when_touched_manifest_satisfies_current() {
+    let (dir, config) = setup_content_check_project();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+    assert!(dir.path().join(Lockfile::FILE_NAME).exists(), "pnpm-lock.yaml must be regenerated");
+}
+
+/// A manifest that no longer matches the current lockfile cannot ride
+/// the current-as-wanted fallback — the full install must resolve.
+#[test]
+fn returns_skipped_when_missing_wanted_lockfile_and_manifest_adds_a_dependency() {
+    let (dir, config) = setup_content_check_project();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0","bar":"^2.0.0"}}"#,
+    )
+    .unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("satisfied")),
+        "expected Skipped(no longer satisfied), got {decision:?}",
+    );
+    assert!(
+        !dir.path().join(Lockfile::FILE_NAME).exists(),
+        "must not regenerate on a failed check",
+    );
+}
+
+/// Workspace mode: deleted `pnpm-lock.yaml` + touched manifest takes
+/// the current-as-wanted fallback, regenerates the lockfile, and
+/// refreshes the state timestamp.
+#[test]
+fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
+    let (dir, config) = setup_content_check_project();
+    let before = pacquet_workspace_state::load_workspace_state(dir.path())
+        .unwrap()
+        .unwrap()
+        .last_validated_timestamp;
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
+    assert_eq!(decision, Decision::UpToDate);
+    assert!(dir.path().join(Lockfile::FILE_NAME).exists(), "pnpm-lock.yaml must be regenerated");
+    let after = pacquet_workspace_state::load_workspace_state(dir.path())
+        .unwrap()
+        .unwrap()
+        .last_validated_timestamp;
+    assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
+}
+
+/// `lockfile: false` (pnpm's `useLockfile: false`) disables the
+/// regeneration but keeps the fast path.
+#[test]
+fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
+    let (dir, config) = setup_content_check_project();
+    // `Config` is leaked per test; build a second one with `lockfile`
+    // off instead of mutating the shared reference.
+    let mut no_lockfile_config = Config::new();
+    no_lockfile_config.modules_dir = config.modules_dir.clone();
+    no_lockfile_config.virtual_store_dir = config.virtual_store_dir.clone();
+    no_lockfile_config.lockfile = false;
+    let no_lockfile_config = no_lockfile_config.leak();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision = content_check_decision(
+        &dir,
+        no_lockfile_config,
+        false,
         &[(dir.path().to_path_buf(), &manifest)],
-        true,
     );
     assert_eq!(decision, Decision::UpToDate);
+    assert!(!dir.path().join(Lockfile::FILE_NAME).exists(), "lockfile: false must skip the write");
 }

@@ -314,6 +314,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'linkWorkspacePackages'
 | 'lockfileDir'
 | 'lockfileOnly'
+| 'optimisticRepeatInstall'
 | 'modulesDir'
 | 'nodeLinker'
 | 'patchedDependencies'
