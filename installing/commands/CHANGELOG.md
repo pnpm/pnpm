@@ -1,5 +1,67 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.7.3
+
+### Patch Changes
+
+- 5f2bb9f: Security: pnpm now verifies the npm registry signature of a package-manager binary before spawning it, so a cloned repository cannot make pnpm download and execute an arbitrary native binary.
+
+  This covers two paths that select an executable from repository-controlled input:
+
+  - **pacquet install engine** — declaring `pacquet` (or `@pnpm/pacquet`) in `configDependencies` opts in to pnpm's Rust install engine. pnpm now verifies that the installed `pacquet` shim and the host's `@pacquet/<platform>-<arch>` binary carry a valid npm registry signature for their exact `name@version`, and refuses to run pacquet (failing the command) if the signature does not verify or cannot be checked. The only graceful fallback to pnpm's own engine is when pacquet has no binary for the current platform.
+  - **automatic version switch / `self-update`** — the `packageManager` / `devEngines.packageManager` field makes pnpm download and run a specific pnpm version. pnpm now verifies the registry signature of `pnpm`, `@pnpm/exe`, and the host platform binary before installing/spawning them, and refuses to run an engine whose signature does not match a published, signed release. The check runs only on an actual download (store cache miss), so it does not add a network round trip to every command.
+
+  In both cases the signature is verified over the _installed_ integrity, against npm's public signing keys that ship embedded in the pnpm CLI (like corepack), so bytes substituted via a tampered lockfile or a repository-controlled registry fail verification — and a registry the user did not vouch for cannot supply its own signing keys. The signed packument is fetched from the configured registry, so an npm mirror works transparently. Verification fails closed: if it cannot be completed (for example, the registry is unreachable), the command fails rather than running an unverified binary. The embedded keys are kept current by a release-time check against npm's signing-keys endpoint.
+
+- e4d2fe0: Clarified in CLI help that the pnpm store is trusted shared state and store integrity checks are corruption detection, not a tamper boundary for untrusted store writers.
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [97e1982]
+- Updated dependencies [5f2bb9f]
+- Updated dependencies [089484a]
+- Updated dependencies [1017c36]
+- Updated dependencies [e4d2fe0]
+- Updated dependencies [bf1b731]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/workspace.state@1100.0.20
+  - @pnpm/deps.status@1100.0.23
+  - @pnpm/deps.security.signatures@1101.2.0
+  - @pnpm/installing.deps-installer@1101.8.0
+  - @pnpm/cli.common-cli-options-help@1100.0.2
+  - @pnpm/building.after-install@1101.0.20
+  - @pnpm/building.policy@1100.0.9
+  - @pnpm/types@1101.3.1
+  - @pnpm/global.commands@1100.0.26
+  - @pnpm/store.connection-manager@1100.2.7
+  - @pnpm/installing.env-installer@1101.1.7
+  - @pnpm/cli.utils@1101.0.10
+  - @pnpm/config.pick-registry-for-package@1100.0.8
+  - @pnpm/config.writer@1100.0.12
+  - @pnpm/deps.inspection.outdated@1100.1.6
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/hooks.pnpmfile@1100.0.13
+  - @pnpm/installing.context@1100.0.16
+  - @pnpm/installing.dedupe.check@1100.0.10
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.types@1100.0.10
+  - @pnpm/network.auth-header@1101.1.1
+  - @pnpm/network.fetch@1100.1.1
+  - @pnpm/pkg-manifest.reader@1100.0.7
+  - @pnpm/pkg-manifest.utils@1100.2.3
+  - @pnpm/resolving.npm-resolver@1101.5.1
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/store.controller@1101.0.12
+  - @pnpm/workspace.project-manifest-reader@1100.0.11
+  - @pnpm/workspace.project-manifest-writer@1100.0.7
+  - @pnpm/workspace.projects-filter@1100.0.19
+  - @pnpm/workspace.projects-graph@1100.0.16
+  - @pnpm/workspace.projects-reader@1101.0.10
+  - @pnpm/workspace.projects-sorter@1100.0.6
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.12
+
 ## 1100.7.2
 
 ### Patch Changes

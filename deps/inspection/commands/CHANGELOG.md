@@ -1,5 +1,37 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.3.5
+
+### Patch Changes
+
+- 46fd26a: Update `view` command to show deprecation warning and available bins.
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [1017c36]
+- Updated dependencies [e4d2fe0]
+- Updated dependencies [bf1b731]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/cli.common-cli-options-help@1100.0.2
+  - @pnpm/types@1101.3.1
+  - @pnpm/global.commands@1100.0.26
+  - @pnpm/global.packages@1100.0.7
+  - @pnpm/resolving.default-resolver@1100.3.6
+  - @pnpm/cli.utils@1101.0.10
+  - @pnpm/config.pick-registry-for-package@1100.0.8
+  - @pnpm/deps.inspection.list@1100.0.16
+  - @pnpm/deps.inspection.outdated@1100.1.6
+  - @pnpm/deps.inspection.peers-checker@1100.0.13
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.5
+  - @pnpm/installing.modules-yaml@1100.0.8
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/network.auth-header@1101.1.1
+  - @pnpm/network.fetch@1100.1.1
+  - @pnpm/resolving.npm-resolver@1101.5.1
+  - @pnpm/resolving.registry.types@1100.1.2
+
 ## 1100.3.4
 
 ### Patch Changes
