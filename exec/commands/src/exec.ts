@@ -151,6 +151,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 | 'dir'
 | 'extraBinPaths'
 | 'extraEnv'
+| 'filter'
 | 'lockfileDir'
 | 'modulesDir'
 | 'nodeOptions'

@@ -345,3 +345,70 @@ test('multi-project workspace', async () => {
   // should set env.pnpm_config_verify_deps_before_run to false for all the scripts (to skip check for nested script)
   await execPnpm([...CONFIG, 'exec', 'node', '--eval', 'assert.strictEqual(process.env.pnpm_config_verify_deps_before_run, "false")'])
 })
+
+test('filtered exec with verifyDepsBeforeRun=install auto-installs only filtered packages', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+  }
+
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  const INSTALL_CONFIG = ['--config.verify-deps-before-run=install'] as const
+  const EXEC = ['exec', 'node', '--print', '"hello from exec: " + process.cwd()'] as const
+
+  await execPnpm([...INSTALL_CONFIG, 'install'])
+
+  {
+    const workspaceState = loadWorkspaceState(process.cwd())
+    expect(workspaceState?.filteredInstall).toBe(false)
+  }
+
+  // update foo's dependencies to make it out of sync
+  projects.foo.writePackageJson({
+    ...manifests.foo,
+    dependencies: {
+      '@pnpm.e2e/foo': '=100.1.0',
+    },
+  })
+
+  // exec with --filter=foo and verifyDepsBeforeRun=install should auto-install only foo and succeed
+  {
+    const { stdout } = execPnpmSync([...INSTALL_CONFIG, '--filter=foo', ...EXEC], { expectSuccess: true })
+    expect(stdout.toString()).toContain(`hello from exec: ${path.resolve('foo')}`)
+  }
+
+  // the auto-triggered install should have been a filtered install, not a full workspace install
+  {
+    const workspaceState = loadWorkspaceState(process.cwd())
+    expect(workspaceState?.filteredInstall).toBe(true)
+  }
+})

@@ -167,6 +167,7 @@ export type RunOpts =
   | 'engineStrict'
   | 'extraBinPaths'
   | 'extraEnv'
+  | 'filter'
   | 'nodeOptions'
   | 'pnpmHomeDir'
   | 'reporter'
