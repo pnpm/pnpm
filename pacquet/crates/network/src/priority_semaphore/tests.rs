@@ -1,7 +1,10 @@
-use super::PrioritySemaphore;
 use pretty_assertions::assert_eq;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+
+use super::PrioritySemaphore;
 
 /// Spawn a task that acquires with `priority`, records `label` on
 /// grant, and releases immediately. Returns once the waiter is queued,

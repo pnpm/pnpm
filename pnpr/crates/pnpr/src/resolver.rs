@@ -439,7 +439,7 @@ fn frozen_package_frames(
     for (package_key, snapshot) in packages {
         if !matches!(
             snapshot.resolution,
-            LockfileResolution::Registry(_) | LockfileResolution::Tarball(_)
+            LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
         ) {
             continue;
         }
