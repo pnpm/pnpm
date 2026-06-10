@@ -3315,4 +3315,63 @@ mod propagate_tpd_unit {
             parent_node.transitive_peer_dependencies,
         );
     }
+
+    #[test]
+    fn does_not_propagate_tpd_when_parent_provides_peer_via_alias() {
+        use node_semver::Version;
+        use pacquet_lockfile::{PkgName, PkgNameVer};
+
+        let child_dp = DepPath::from("child@1.0.0".to_string());
+        let parent_dp = DepPath::from("parent@1.0.0".to_string());
+        let aliased_dp = DepPath::from("real-pkg@1.0.0".to_string());
+
+        let child = make_node(
+            "child@1.0.0",
+            BTreeMap::new(),
+            HashSet::from(["real-pkg".to_string()]),
+            BTreeMap::new(),
+        );
+        let mut aliased_children = BTreeMap::new();
+        aliased_children.insert("child".to_string(), child_dp.clone());
+        let mut aliased = make_node(
+            "real-pkg@1.0.0",
+            aliased_children,
+            HashSet::new(),
+            BTreeMap::new(),
+        );
+        aliased.resolve_result = Arc::new(ResolveResult {
+            id: PkgResolutionId::from("real-pkg@1.0.0".to_string()),
+            name_ver: Some(PkgNameVer::new(
+                PkgName::parse("real-pkg").unwrap(),
+                Version::parse("1.0.0").unwrap(),
+            )),
+            latest: None,
+            published_at: None,
+            manifest: None,
+            resolution: LockfileResolution::Directory(DirectoryResolution {
+                directory: "stub".to_string(),
+            }),
+            resolved_via: "registry".to_string(),
+            normalized_bare_specifier: None,
+            alias: None,
+            policy_violation: None,
+        });
+        let mut parent_children = BTreeMap::new();
+        parent_children.insert("my-alias".to_string(), aliased_dp.clone());
+        let parent = make_node("parent@1.0.0", parent_children, HashSet::new(), BTreeMap::new());
+
+        let mut graph: DependenciesGraph = HashMap::new();
+        graph.insert(child_dp, child);
+        graph.insert(aliased_dp, aliased);
+        graph.insert(parent_dp.clone(), parent);
+
+        propagate_transitive_peer_dependencies(&mut graph);
+
+        let parent_node = graph.get(&parent_dp).expect("parent in graph");
+        assert!(
+            !parent_node.transitive_peer_dependencies.contains("real-pkg"),
+            "parent provides 'real-pkg' via alias 'my-alias', should not appear in tpd, got {:?}",
+            parent_node.transitive_peer_dependencies,
+        );
+    }
 }

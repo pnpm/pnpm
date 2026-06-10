@@ -222,13 +222,17 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   }
 
   const parentsOf: Record<string, Set<DepPath>> = {}
+  const providedNames = new Map<DepPath, Set<string>>()
   for (const [parentPath, entry] of Object.entries(depGraphWithResolvedChildren)) {
-    for (const childPath of Object.values<DepPath>(entry.children)) {
-      if (!parentsOf[childPath]) {
-        parentsOf[childPath] = new Set()
-      }
+    const names = new Set<string>()
+    for (const [alias, childPath] of Object.entries<DepPath>(entry.children)) {
+      parentsOf[childPath] ??= new Set()
       parentsOf[childPath].add(parentPath as DepPath)
+      names.add(alias)
+      const childEntry = depGraphWithResolvedChildren[childPath]
+      if (childEntry?.name) names.add(childEntry.name)
     }
+    providedNames.set(parentPath as DepPath, names)
   }
 
   const worklist = new Set<DepPath>()
@@ -250,9 +254,10 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     for (const parentPath of parents) {
       const parentEntry = depGraphWithResolvedChildren[parentPath]
       if (!parentEntry) continue
+      const parentProvidedNames = providedNames.get(parentPath)
       let gained = false
       for (const tpd of childEntry.transitivePeerDependencies) {
-        if (!parentEntry.transitivePeerDependencies.has(tpd) && !parentEntry.peerDependencies?.[tpd] && !parentEntry.children?.[tpd]) {
+        if (!parentEntry.transitivePeerDependencies.has(tpd) && !parentEntry.peerDependencies?.[tpd] && !parentProvidedNames?.has(tpd)) {
           parentEntry.transitivePeerDependencies.add(tpd)
           gained = true
         }

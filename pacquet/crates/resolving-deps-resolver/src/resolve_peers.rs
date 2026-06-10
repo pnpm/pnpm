@@ -452,10 +452,19 @@ type ParentRefs = HashMap<String, ParentRef>;
 
 pub(crate) fn propagate_transitive_peer_dependencies(graph: &mut DependenciesGraph) {
     let mut parents_of: HashMap<DepPath, Vec<DepPath>> = HashMap::new();
+    let mut provided_names: HashMap<DepPath, HashSet<String>> = HashMap::new();
     for (parent_path, entry) in graph.iter() {
-        for child_path in entry.children.values() {
+        let mut names = HashSet::new();
+        for (alias, child_path) in &entry.children {
             parents_of.entry(child_path.clone()).or_default().push(parent_path.clone());
+            names.insert(alias.clone());
+            if let Some(child) = graph.get(child_path)
+                && let Some(ref name_ver) = child.resolve_result.name_ver
+            {
+                names.insert(name_ver.name.to_string());
+            }
         }
+        provided_names.insert(parent_path.clone(), names);
     }
 
     let mut worklist: VecDeque<DepPath> = graph
@@ -473,13 +482,14 @@ pub(crate) fn propagate_transitive_peer_dependencies(graph: &mut DependenciesGra
                 .iter()
                 .filter_map(|parent_path| {
                     let parent = graph.get(parent_path)?;
+                    let parent_provided = provided_names.get(parent_path);
                     let diff: Vec<String> = child
                         .transitive_peer_dependencies
                         .iter()
                         .filter(|tpd| {
                             !parent.transitive_peer_dependencies.contains(*tpd)
                                 && !parent.peer_dependencies.contains_key(*tpd)
-                                && !parent.children.contains_key(*tpd)
+                                && !parent_provided.is_some_and(|names| names.contains(*tpd))
                         })
                         .cloned()
                         .collect();
