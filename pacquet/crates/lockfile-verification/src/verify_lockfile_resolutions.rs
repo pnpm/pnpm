@@ -93,14 +93,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     // logic via the same code path).
     let cache_inputs = opts.cache_dir.zip(opts.lockfile_path);
 
-    // The resolution-shape pass participates in the cache key so a
-    // record written before the rule existed cannot stat-fast-path
-    // around it.
-    let cache_verifiers: Vec<Arc<dyn ResolutionVerifier>> = verifiers
-        .iter()
-        .cloned()
-        .chain(std::iter::once(resolution_shape_cache_identity()))
-        .collect();
+    let cache_verifiers = with_resolution_shape_cache_identity(verifiers);
 
     // Memoised content hash. Used by both the lookup (when the
     // stat-shortcut doesn't apply) and the recorder (after the
@@ -225,6 +218,19 @@ fn resolution_shape_cache_identity() -> Arc<dyn ResolutionVerifier> {
     let mut policy = serde_json::Map::new();
     policy.insert("resolutionShapeCheck".to_string(), serde_json::Value::Bool(true));
     Arc::new(ResolutionShapeCacheIdentity { policy })
+}
+
+/// Every verifier list that flows into the verification cache must
+/// carry the resolution-shape identity, so records written before the
+/// shape rule existed cannot stat-fast-path around it. Used by the
+/// gate itself and by [`crate::record_lockfile_verified()`], whose
+/// freshly-resolved lockfile satisfies the shape invariant by
+/// construction (the writer derives every key from the resolution it
+/// just produced).
+pub(crate) fn with_resolution_shape_cache_identity(
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> Vec<Arc<dyn ResolutionVerifier>> {
+    verifiers.iter().cloned().chain(std::iter::once(resolution_shape_cache_identity())).collect()
 }
 
 impl ResolutionVerifier for ResolutionShapeCacheIdentity {

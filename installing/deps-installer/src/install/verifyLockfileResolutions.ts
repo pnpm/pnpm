@@ -39,6 +39,18 @@ const RESOLUTION_SHAPE_CACHE_IDENTITY: VerifierCacheIdentity = {
   canTrustPastCheck: (cached) => cached.resolutionShapeCheck === true,
 }
 
+/**
+ * Every verifier list that flows into the verification cache must carry
+ * the resolution-shape identity, so records written before the shape rule
+ * existed cannot stat-fast-path around it. Used by the gate itself and by
+ * {@link recordLockfileVerified}, whose freshly-resolved lockfile satisfies
+ * the shape invariant by construction (the writer derives every key from
+ * the resolution it just produced).
+ */
+export function withResolutionShapeCacheIdentity (verifiers: readonly VerifierCacheIdentity[]): VerifierCacheIdentity[] {
+  return [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY]
+}
+
 export interface VerifyLockfileResolutionsOptions {
   concurrency?: number
   /**
@@ -96,9 +108,7 @@ export async function verifyLockfileResolutions (
     ? { cacheDir: options.cacheDir, lockfilePath: options.lockfilePath }
     : undefined
 
-  // The resolution-shape pass participates in the cache key so a record
-  // written before the rule existed cannot stat-fast-path around it.
-  const cacheVerifiers = [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY]
+  const cacheVerifiers = withResolutionShapeCacheIdentity(verifiers)
 
   // Cache lookup runs before any registry I/O — the fast path is a
   // single stat() of the lockfile when the previous install already
