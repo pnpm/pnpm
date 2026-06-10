@@ -137,6 +137,13 @@ fn accept_loop(
 /// client→server pump on a spawned one, so the connection's threads end
 /// together when either side closes.
 fn handle_connection(inbound: TcpStream, upstream: SocketAddr, profile: LinkProfile) {
+    // The accept listener is non-blocking, and BSD-derived platforms
+    // (macOS) hand accepted sockets the listener's O_NONBLOCK — the
+    // pump's blocking reads would then surface spurious `WouldBlock`
+    // errors and drop the connection before the first byte.
+    if inbound.set_nonblocking(false).is_err() {
+        return;
+    }
     let Ok(outbound) = TcpStream::connect(upstream) else { return };
     let _ = inbound.set_nodelay(true);
     let _ = outbound.set_nodelay(true);
