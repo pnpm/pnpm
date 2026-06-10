@@ -19,10 +19,7 @@ pub fn is_executable(mode: u32) -> bool {
 
 /// Set file mode to 777 on POSIX platforms such as Linux or macOS,
 /// or do nothing on Windows.
-#[cfg_attr(
-    windows,
-    expect(unused, reason = "the body is a no-op on Windows, leaving the file argument unused")
-)]
+#[cfg_attr(windows, allow(unused))]
 pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
     #[cfg(unix)]
     return {

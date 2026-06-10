@@ -73,7 +73,7 @@ fn missing_parent_dir_errors() {
 }
 
 /// Unix mode is honoured on the new-file path. Skipped on Windows
-/// where the `mode` argument is `#[cfg_attr(windows, expect(unused, ...))]`.
+/// where the `mode` argument is `#[cfg_attr(windows, allow(unused))]`.
 ///
 /// Asserts the **owner** bits specifically rather than the full
 /// `0o777` triplet because `OpenOptionsExt::mode` runs through the
