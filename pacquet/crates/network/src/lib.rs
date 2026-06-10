@@ -41,10 +41,11 @@ pub const DEFAULT_USER_AGENT: &str = "pnpm";
 
 /// Permit priority used by [`ThrottledClient::acquire`] /
 /// [`ThrottledClient::acquire_for_url`] for callers that don't pass an
-/// explicit one. Maximal, so unprioritized requests — packument and
-/// other metadata fetches that gate resolution progress — always claim
-/// a freed slot before any size-prioritized tarball download, and keep
-/// FIFO order among themselves.
+/// explicit one. Marks the request as latency class — packument and
+/// other metadata fetches that gate resolution progress — served FIFO
+/// and preferred over size-prioritized downloads beyond the downloads'
+/// reserved share of the pool (see the `priority_semaphore` module
+/// docs for the two-class grant policy).
 pub const UNPRIORITIZED: u64 = u64::MAX;
 
 /// Default per-request timeout in milliseconds, matching pnpm v11's
@@ -98,13 +99,16 @@ impl Default for NetworkSettings {
 /// concurrent socket count regardless of which registry a request
 /// targets.
 ///
-/// When the pool saturates, freed slots go to the highest-priority
-/// waiter rather than FIFO: requests acquired without an explicit
-/// priority ([`Self::acquire`], [`Self::acquire_for_url`]) outrank
-/// everything (they're typically metadata fetches gating resolution
-/// progress), while tarball downloads pass their unpacked size through
-/// [`Self::acquire_for_url_with_priority`] so the largest pending
-/// archives start before small ones.
+/// When the pool saturates, freed slots are granted by a two-class
+/// policy (see the `priority_semaphore` module docs): requests
+/// acquired without an explicit priority ([`Self::acquire`],
+/// [`Self::acquire_for_url`]) form the FIFO latency class (typically
+/// metadata fetches gating resolution progress), while downloads pass
+/// their estimated pipeline work through
+/// [`Self::acquire_for_url_with_priority`] and are guaranteed a
+/// reserved share of the pool, granted most-expensive-first — so the
+/// longest download jobs start early and neither class starves the
+/// other.
 #[derive(Debug)]
 pub struct ThrottledClient {
     semaphore: PrioritySemaphore,
@@ -354,11 +358,12 @@ impl ThrottledClient {
     }
 
     /// [`Self::acquire_for_url`], but queueing behind the saturated
-    /// pool at an explicit `priority` instead of [`UNPRIORITIZED`].
-    /// Tarball downloads pass their `unpackedSize` (0 when unknown) so
-    /// that freed slots go to the largest pending archive first — the
-    /// longest transfers start earliest and never end up running alone
-    /// at single-connection throughput after the small ones drained.
+    /// pool at an explicit `priority` instead of [`UNPRIORITIZED`] —
+    /// the throughput class of the two-class grant policy. Tarball
+    /// downloads pass their estimated pipeline work (0 when unknown)
+    /// so that freed slots go to the most expensive pending archive
+    /// first — the longest download+extract jobs start earliest and
+    /// never end up running alone after the small ones drained.
     pub async fn acquire_for_url_with_priority(
         &self,
         url: &str,
