@@ -412,8 +412,8 @@ test('accepts a registry-style depPath whose tarball is an http(s) registry URL'
   await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
 })
 
-test('rejects a registry-style depPath whose git-host tarball uppercases the host', async () => {
-  // Hostnames are case-insensitive; an uppercased codeload host paired with
+test('rejects a registry-style depPath whose git-host tarball varies the host casing', async () => {
+  // Hostnames are case-insensitive; an upper-case codeload host paired with
   // gitHosted: false must not pass as registry-shaped.
   const lockfile = makeLockfile({
     'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://CODELOAD.GITHUB.COM/org/foo/tar.gz/abc123', gitHosted: false } as never },
