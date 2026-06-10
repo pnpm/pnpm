@@ -5,6 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import tar from 'tar-stream'
 
 import { extractBundledDependencies, type PublishSummary } from './publishSummary.js'
+import { createTarballFilename } from './safeTarballFilename.js'
 
 interface TarballManifest {
   _id?: string
@@ -80,7 +81,7 @@ export async function summarizeTarball (tarballData: Buffer): Promise<PublishSum
     unpackedSize,
     shasum: createHash('sha1').update(tarballData).digest('hex'),
     integrity: `sha512-${createHash('sha512').update(tarballData).digest('base64')}`,
-    filename: `${normalizePackageName(manifest.name)}-${manifest.version}.tgz`,
+    filename: createTarballFilename({ name: manifest.name, version: manifest.version }),
     files,
     entryCount,
     bundled: bundled.size > 0 ? Array.from(bundled).sort() : extractBundledDependencies(manifest),
@@ -93,8 +94,4 @@ function maybeGunzip (tarballData: Buffer): Buffer {
   } catch {
     return tarballData
   }
-}
-
-function normalizePackageName (name: string): string {
-  return name.replace('@', '').replace('/', '-')
 }
