@@ -52,7 +52,7 @@ use crate::{
 /// work: `unpackedSize` (transfer + decompress + hash bytes) and
 /// `fileCount` (per-file CAS-write overhead). Either may be absent —
 /// registries only publish them for packages uploaded since npm 6.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct DistStats {
     pub unpacked_size: Option<usize>,
     pub file_count: Option<usize>,
