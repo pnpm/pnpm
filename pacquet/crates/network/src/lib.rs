@@ -1,4 +1,5 @@
 mod auth;
+mod priority_semaphore;
 mod proxy;
 mod retry;
 #[cfg(test)]
@@ -10,13 +11,13 @@ pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
 pub use retry::{RetryOpts, send_with_retry, should_retry_status};
 pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
+use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
 use reqwest::{
     Certificate, Client, Identity, Proxy,
     header::{HeaderMap, HeaderValue, USER_AGENT},
 };
 use std::{collections::HashMap, num::NonZeroUsize, ops::Deref, sync::Arc, time::Duration};
-use tokio::sync::{Semaphore, SemaphorePermit};
 
 /// Fallback `User-Agent` for the install client's no-config
 /// constructors ([`ThrottledClient::new_for_installs`],
@@ -37,6 +38,14 @@ use tokio::sync::{Semaphore, SemaphorePermit};
 /// generic "error sending request for url" with no body to look at).
 /// The install client therefore always sends one.
 pub const DEFAULT_USER_AGENT: &str = "pnpm";
+
+/// Permit priority used by [`ThrottledClient::acquire`] /
+/// [`ThrottledClient::acquire_for_url`] for callers that don't pass an
+/// explicit one. Maximal, so unprioritized requests — packument and
+/// other metadata fetches that gate resolution progress — always claim
+/// a freed slot before any size-prioritized tarball download, and keep
+/// FIFO order among themselves.
+pub const UNPRIORITIZED: u64 = u64::MAX;
 
 /// Default per-request timeout in milliseconds, matching pnpm v11's
 /// `fetchTimeout` default of `60000`
@@ -77,7 +86,8 @@ impl Default for NetworkSettings {
     }
 }
 
-/// Wrapper around [`Client`] with concurrent request limit enforced by the [`Semaphore`] mechanism.
+/// Wrapper around [`Client`] with a concurrent request limit enforced
+/// by a priority-ordered semaphore (`priority_semaphore` module).
 ///
 /// Holds a default [`Client`] for the top-level proxy / TLS config
 /// plus an optional map of per-registry clients keyed by nerf-darted
@@ -87,9 +97,17 @@ impl Default for NetworkSettings {
 /// client. The semaphore is shared across both — bounding the total
 /// concurrent socket count regardless of which registry a request
 /// targets.
+///
+/// When the pool saturates, freed slots go to the highest-priority
+/// waiter rather than FIFO: requests acquired without an explicit
+/// priority ([`Self::acquire`], [`Self::acquire_for_url`]) outrank
+/// everything (they're typically metadata fetches gating resolution
+/// progress), while tarball downloads pass their unpacked size through
+/// [`Self::acquire_for_url_with_priority`] so the largest pending
+/// archives start before small ones.
 #[derive(Debug)]
 pub struct ThrottledClient {
-    semaphore: Semaphore,
+    semaphore: PrioritySemaphore,
     client: Client,
     /// Per-registry clients keyed by nerf-darted URI. Empty when no
     /// `//host/:cert=…` / `:key=…` / `:ca=…` / `:cafile=…` /
@@ -120,7 +138,7 @@ pub struct ThrottledClient {
 /// still draining, and the per-process FD count overruns the
 /// platform limit — surfacing as `EMFILE` "too many open files".
 pub struct ThrottledClientGuard<'a> {
-    _permit: SemaphorePermit<'a>,
+    _permit: Permit,
     client: &'a Client,
 }
 
@@ -139,8 +157,7 @@ impl ThrottledClient {
     /// against [`default_network_concurrency`] — typically the full
     /// `send + body-consume` lifetime, not just `.send()`.
     pub async fn acquire(&self) -> ThrottledClientGuard<'_> {
-        let permit =
-            self.semaphore.acquire().await.expect("semaphore shouldn't have been closed this soon");
+        let permit = self.semaphore.acquire(UNPRIORITIZED).await;
         ThrottledClientGuard { _permit: permit, client: &self.client }
     }
 
@@ -290,7 +307,7 @@ impl ThrottledClient {
         }
 
         Ok(ThrottledClient {
-            semaphore: Semaphore::new(settings.network_concurrency),
+            semaphore: PrioritySemaphore::new(settings.network_concurrency),
             client: default_client,
             per_registry: per_registry_clients,
             routing: per_registry.clone(),
@@ -304,7 +321,7 @@ impl ThrottledClient {
     /// test-suite budget instead of waiting on TCP retry.
     #[must_use]
     pub fn from_client(client: Client) -> Self {
-        let semaphore = Semaphore::new(default_network_concurrency());
+        let semaphore = PrioritySemaphore::new(default_network_concurrency());
         ThrottledClient {
             semaphore,
             client,
@@ -333,8 +350,21 @@ impl ThrottledClient {
     /// just to satisfy the type signature — the lookup itself works
     /// on the raw string form.
     pub async fn acquire_for_url(&self, url: &str) -> ThrottledClientGuard<'_> {
-        let permit =
-            self.semaphore.acquire().await.expect("semaphore shouldn't have been closed this soon");
+        self.acquire_for_url_with_priority(url, UNPRIORITIZED).await
+    }
+
+    /// [`Self::acquire_for_url`], but queueing behind the saturated
+    /// pool at an explicit `priority` instead of [`UNPRIORITIZED`].
+    /// Tarball downloads pass their `unpackedSize` (0 when unknown) so
+    /// that freed slots go to the largest pending archive first — the
+    /// longest transfers start earliest and never end up running alone
+    /// at single-connection throughput after the small ones drained.
+    pub async fn acquire_for_url_with_priority(
+        &self,
+        url: &str,
+        priority: u64,
+    ) -> ThrottledClientGuard<'_> {
+        let permit = self.semaphore.acquire(priority).await;
         let client = self
             .routing
             .pick_for_url(url)
@@ -502,9 +532,9 @@ pub enum ForInstallsError {
     #[diagnostic(transparent)]
     Tls(#[error(source)] TlsError),
 
-    /// `network_concurrency` resolved to `0`. A zero-permit
-    /// [`Semaphore`] would make every `acquire` block forever, hanging
-    /// the install. pnpm rejects the same value — its `p-queue` throws
+    /// `network_concurrency` resolved to `0`. A zero-permit semaphore
+    /// would make every `acquire` block forever, hanging the install.
+    /// pnpm rejects the same value — its `p-queue` throws
     /// `Expected concurrency to be a number from 1 and up` — so pacquet
     /// fails fast rather than deadlock.
     #[display("networkConcurrency must be at least 1")]

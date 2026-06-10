@@ -190,8 +190,17 @@ impl TarballPrefetcher {
     /// Fire a background download of one resolved tarball. Deduplicated
     /// by URL; a no-op when the same URL was already prefetched or when
     /// `integrity` doesn't parse (the materialization install fetches
-    /// that package the normal way).
-    pub fn prefetch(&self, package_id: String, package_url: String, integrity: &str) {
+    /// that package the normal way). `unpacked_size` (the frame's
+    /// `unpackedSize`, when the registry published one) sizes the
+    /// decompression buffer and acts as the download's queueing
+    /// priority — largest pending archives start first.
+    pub fn prefetch(
+        &self,
+        package_id: String,
+        package_url: String,
+        integrity: &str,
+        unpacked_size: Option<usize>,
+    ) {
         let integrity = match integrity.parse::<Integrity>() {
             Ok(integrity) => integrity,
             Err(error) => {
@@ -222,7 +231,7 @@ impl TarballPrefetcher {
             package_id,
             package_url,
             integrity,
-            package_unpacked_size: None,
+            package_unpacked_size: unpacked_size,
         });
     }
 

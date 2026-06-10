@@ -111,6 +111,11 @@ pub struct ResolvedPackage {
     pub integrity: String,
     /// The resolver's `dist.tarball` URL.
     pub tarball: String,
+    /// `dist.unpackedSize` from the server-side resolve, when the
+    /// registry published one. Sizes the decompression buffer exactly
+    /// and prioritizes the largest pending downloads when the
+    /// connection pool is saturated.
+    pub unpacked_size: Option<usize>,
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -254,8 +259,15 @@ impl PnprClient {
                     continue;
                 }
                 match parse_frame(line)? {
-                    Frame::Package { id, name, version, integrity, tarball } => {
-                        on_package(ResolvedPackage { id, name, version, integrity, tarball });
+                    Frame::Package { id, name, version, integrity, tarball, unpacked_size } => {
+                        on_package(ResolvedPackage {
+                            id,
+                            name,
+                            version,
+                            integrity,
+                            tarball,
+                            unpacked_size,
+                        });
                     }
                     Frame::Done { lockfile, stats } => {
                         return Ok(ResolveOutcome { lockfile: *lockfile, stats });
@@ -289,6 +301,11 @@ enum Frame {
         version: String,
         integrity: String,
         tarball: String,
+        /// Absent from frames sent by servers that predate the field
+        /// and for packages whose registry never published a
+        /// `dist.unpackedSize`.
+        #[serde(rename = "unpackedSize", default)]
+        unpacked_size: Option<usize>,
     },
     /// Boxed: the lockfile dwarfs the other variants, so keeping it
     /// behind a pointer keeps the enum small.

@@ -649,6 +649,7 @@ where
             Some(Arc::clone(&meta_cache)
                 as Arc<dyn pacquet_resolving_npm_resolver::PackageMetaCache>),
             auth_override.clone(),
+            None,
         )
         .map_err(InstallError::BuildVerifiers)?;
 

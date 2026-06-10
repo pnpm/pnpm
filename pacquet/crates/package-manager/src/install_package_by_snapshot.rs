@@ -578,8 +578,16 @@ impl InstallPackageBySnapshot<'_> {
 /// Resolve the tarball URL + integrity for tarball- and registry-shaped
 /// resolutions. Factored out so the per-resolution-type dispatch in
 /// [`InstallPackageBySnapshot::run`] reads top-down: each variant builds
-/// its own `cas_paths`.
-fn tarball_url_and_integrity<'a>(
+/// its own `cas_paths`. Public because the pnpr server derives the same
+/// URLs when it announces a verified frozen lockfile's tarballs to the
+/// client — both sides must derive byte-identical URLs so the client's
+/// prefetch mem-cache keys line up.
+///
+/// # Panics
+///
+/// On directory / git / binary / variations resolutions — callers gate
+/// on the tarball/registry shapes first.
+pub fn tarball_url_and_integrity<'a>(
     resolution: &'a LockfileResolution,
     package_key: &PackageKey,
     config: &'a Config,

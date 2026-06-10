@@ -1518,14 +1518,17 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // batch of futures `connect()` while previous bodies are still
     // draining, breaking the bound on concurrent open sockets.
     //
-    // `acquire_for_url` routes the request through the per-registry
-    // TLS-configured client when one is set for `package_url`'s
-    // nerf-darted prefix, falling back to the default client
-    // otherwise. Tarball hosts that differ from the metadata host
-    // still pick up the right per-registry client because the
+    // `acquire_for_url_with_priority` routes the request through the
+    // per-registry TLS-configured client when one is set for
+    // `package_url`'s nerf-darted prefix, falling back to the default
+    // client otherwise. Tarball hosts that differ from the metadata
+    // host still pick up the right per-registry client because the
     // 5-step `pickSettingByUrl` lookup also matches on the tarball
-    // URL.
-    let client = http_client.acquire_for_url(package_url).await;
+    // URL. The unpacked size is the queueing priority: when the pool
+    // is saturated, the largest pending archive claims the next freed
+    // slot, so the longest transfers never start last.
+    let priority = package_unpacked_size.map_or(0, |size| size as u64);
+    let client = http_client.acquire_for_url_with_priority(package_url, priority).await;
     let mut request = client.get(package_url);
     // Match pnpm's tarball download path
     // ([`remoteTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L66-L70)):

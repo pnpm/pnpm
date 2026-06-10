@@ -23,6 +23,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
@@ -46,6 +47,20 @@ use crate::{
         TRUST_DOWNGRADE_VIOLATION_CODE,
     },
 };
+
+/// `(package name, version) → dist.unpackedSize` map filled by the
+/// verifier as a side product of the tarball-URL binding check. The
+/// metadata is already in hand per entry, so collecting costs no extra
+/// fetch; consumers (the pnpr server's frozen fast path) use the sizes
+/// to schedule the largest tarball downloads first. Shared as an `Arc`
+/// so the caller keeps a handle while the verifier fan-out writes.
+pub type ObservedUnpackedSizes = Arc<DashMap<(String, String), usize>>;
+
+/// Construct a fresh sink for
+/// [`CreateNpmResolutionVerifierOptions::observed_unpacked_sizes`].
+pub fn observed_unpacked_sizes_sink() -> ObservedUnpackedSizes {
+    Arc::new(DashMap::new())
+}
 
 /// Options bundle for [`create_npm_resolution_verifier`]. Mirrors
 /// upstream's
@@ -114,6 +129,10 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// the `trustPolicyIgnoreAfter` window. `None` falls back to
     /// wall-clock at construction time.
     pub now: Option<DateTime<Utc>>,
+    /// Optional sink the verifier fills with each verified entry's
+    /// `dist.unpackedSize` (see [`ObservedUnpackedSizes`]). `None`
+    /// skips collection.
+    pub observed_unpacked_sizes: Option<ObservedUnpackedSizes>,
 }
 
 /// Verifier returned by [`create_npm_resolution_verifier`]. Stores
@@ -143,6 +162,7 @@ pub struct NpmResolutionVerifier {
     now: Option<DateTime<Utc>>,
     policy_snapshot: serde_json::Map<String, JsonValue>,
     lookup_context: PublishedAtLookupContext,
+    observed_unpacked_sizes: Option<ObservedUnpackedSizes>,
 }
 
 impl std::fmt::Debug for NpmResolutionVerifier {
@@ -223,6 +243,7 @@ pub fn create_npm_resolution_verifier(
         now: opts.now,
         policy_snapshot,
         lookup_context: PublishedAtLookupContext::new(),
+        observed_unpacked_sizes: opts.observed_unpacked_sizes,
     }
 }
 
@@ -420,6 +441,12 @@ impl NpmResolutionVerifier {
     ) -> Option<ResolutionVerification> {
         let registry_tarball = match self.fetch_abbreviated_meta(registry, name).await {
             Ok(Some(meta)) => {
+                if let Some(sink) = self.observed_unpacked_sizes.as_ref()
+                    && let Some(size) =
+                        meta.version_unpacked_sizes.as_ref().and_then(|sizes| sizes.get(version))
+                {
+                    sink.insert((name.to_string(), version.to_string()), *size);
+                }
                 meta.version_tarballs.and_then(|tarballs| tarballs.get(version).cloned())
             }
             Ok(None) | Err(_) => None,
@@ -1028,9 +1055,17 @@ fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::Abbreviate
         .iter()
         .map(|(version, manifest)| (version.clone(), manifest.dist.tarball.clone()))
         .collect();
+    let version_unpacked_sizes = meta
+        .versions
+        .iter()
+        .filter_map(|(version, manifest)| {
+            manifest.dist.unpacked_size.map(|size| (version.clone(), size))
+        })
+        .collect();
     crate::lookup_context::AbbreviatedMetaProjection {
         modified: meta.modified.clone(),
         version_tarballs: Some(version_tarballs),
+        version_unpacked_sizes: Some(version_unpacked_sizes),
     }
 }
 
