@@ -664,7 +664,7 @@ fn walk_deps(
         // an unsupported platform is silently added to `skipped`;
         // a required dep takes the error path.
         if !state.opts.force {
-            let manifest = manifest_for_installability(metadata);
+            let manifest = manifest_for_installability(&pkg_key, metadata);
             let optional = snapshot.map(|s| s.optional).unwrap_or(false);
             let install_opts = InstallabilityOptions {
                 engine_strict: state.opts.engine_strict,
@@ -771,6 +771,7 @@ fn lookup_package_metadata<'a>(
 /// [lockfileToHoistedDepGraph.ts:192-199](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/lockfileToHoistedDepGraph.ts#L192-L199);
 /// extracted here so the walker body stays small.
 fn manifest_for_installability(
+    pkg_key: &PackageKey,
     metadata: &pacquet_lockfile::PackageMetadata,
 ) -> PackageInstallabilityManifest {
     let engines = metadata.engines.as_ref().map(|engines| WantedEngine {
@@ -778,6 +779,7 @@ fn manifest_for_installability(
         pnpm: engines.get("pnpm").cloned(),
     });
     PackageInstallabilityManifest {
+        name: pkg_key.name.to_string(),
         engines,
         cpu: metadata.cpu.clone(),
         os: metadata.os.clone(),
