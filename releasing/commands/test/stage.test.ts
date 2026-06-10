@@ -5,6 +5,7 @@ import path from 'node:path'
 import { describe, expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { pack, stage } from '@pnpm/releasing.commands'
+import tar from 'tar-stream'
 import { temporaryDirectory } from 'tempy'
 
 import { DEFAULT_OPTS } from './publish/utils/index.js'
@@ -279,6 +280,76 @@ describe('stage command', () => {
     }
   })
 
+  test('stage download rejects traversal through tarball manifest version', async () => {
+    const outsideBase = `stage-download-outside-version-${process.pid}-${Date.now()}`
+    const tarballData = await createPackageTarball({
+      name: '@scope/stage-download-version',
+      version: `1.0.0/../../${outsideBase}`,
+    })
+    const registry = await createRegistry((request) => {
+      if (request.method === 'GET' && request.url.pathname === `/-/stage/${STAGE_ID}/tarball`) {
+        return {
+          body: tarballData,
+          headers: { 'content-type': 'application/octet-stream' },
+        }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    const downloadDir = temporaryDirectory()
+    const outsidePath = path.resolve(downloadDir, '..', `${outsideBase}-${STAGE_ID}.tgz`)
+    await fs.promises.rm(outsidePath, { force: true })
+    try {
+      await expect(stage.handler({
+        ...stageOpts(registry.url),
+        argv: { original: ['stage', 'download'] },
+        dir: downloadDir,
+      }, ['download', STAGE_ID])).rejects.toMatchObject({
+        code: 'ERR_PNPM_INVALID_PACKAGE_VERSION',
+      })
+
+      expect(fs.existsSync(outsidePath)).toBe(false)
+      expect(fs.readdirSync(downloadDir)).toStrictEqual([])
+    } finally {
+      await fs.promises.rm(outsidePath, { force: true })
+      await registry.close()
+    }
+  })
+
+  test('stage download rejects traversal through tarball manifest package name', async () => {
+    const outsideBase = `stage-download-outside-name-${process.pid}-${Date.now()}`
+    const tarballData = await createPackageTarball({
+      name: `@scope/../../${outsideBase}`,
+      version: '1.0.0',
+    })
+    const registry = await createRegistry((request) => {
+      if (request.method === 'GET' && request.url.pathname === `/-/stage/${STAGE_ID}/tarball`) {
+        return {
+          body: tarballData,
+          headers: { 'content-type': 'application/octet-stream' },
+        }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    const downloadDir = temporaryDirectory()
+    const outsidePath = path.resolve(downloadDir, '..', `${outsideBase}-1.0.0-${STAGE_ID}.tgz`)
+    await fs.promises.rm(outsidePath, { force: true })
+    try {
+      await expect(stage.handler({
+        ...stageOpts(registry.url),
+        argv: { original: ['stage', 'download'] },
+        dir: downloadDir,
+      }, ['download', STAGE_ID])).rejects.toMatchObject({
+        code: 'ERR_PNPM_INVALID_PACKAGE_NAME',
+      })
+
+      expect(fs.existsSync(outsidePath)).toBe(false)
+      expect(fs.readdirSync(downloadDir)).toStrictEqual([])
+    } finally {
+      await fs.promises.rm(outsidePath, { force: true })
+      await registry.close()
+    }
+  })
+
   test('stage publish --dry-run reports that packages would be staged', async () => {
     const pkgName = '@scope/stage-publish-dry-run'
     prepare({ name: pkgName, version: '1.0.0' })
@@ -341,6 +412,23 @@ async function createRegistry (handler: RegistryHandler): Promise<{ close: () =>
     requests,
     url: `http://127.0.0.1:${address.port}/`,
   }
+}
+
+function createPackageTarball (manifest: { name: string, version: string }): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const pack = tar.pack()
+    const chunks: Buffer[] = []
+    pack.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+    pack.on('error', reject)
+    pack.on('end', () => resolve(Buffer.concat(chunks)))
+    pack.entry({ name: 'package/package.json' }, JSON.stringify(manifest), (err?: Error | null) => {
+      if (err) {
+        reject(err)
+        return
+      }
+      pack.finalize()
+    })
+  })
 }
 
 function headerValue (value: http.IncomingHttpHeaders[string]): string | undefined {
