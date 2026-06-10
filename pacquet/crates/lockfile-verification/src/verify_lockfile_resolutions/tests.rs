@@ -597,3 +597,41 @@ snapshots:
     .await
     .expect("artifact-keyed git entry passes the structural gate");
 }
+
+#[tokio::test]
+async fn rejects_git_host_tarball_when_git_hosted_flag_is_cleared() {
+    // A tampered lockfile sets gitHosted: false on a codeload URL under a
+    // semver key to dodge the flag-only check; the URL must still flag it.
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {integrity: sha512-deadbeef, tarball: 'https://codeload.github.com/org/acme/tar.gz/abc123', gitHosted: false}
+
+snapshots:
+
+  acme@1.0.0: {}
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("git-host tarball under a semver key must be rejected regardless of the flag");
+    let VerifyError::ResolutionShapeMismatch { count, .. } = err else {
+        panic!("expected ResolutionShapeMismatch, got {err:?}");
+    };
+    assert_eq!(count, 1);
+}

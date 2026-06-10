@@ -19,7 +19,7 @@
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName};
+use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
 use pacquet_reporter::{
     LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
 };
@@ -252,13 +252,18 @@ impl ResolutionVerifier for ResolutionShapeCacheIdentity {
 }
 
 /// Mirrors upstream's `isRegistryShapedResolution`: a plain tarball
-/// resolution (no `gitHosted` flag) is registry-shaped because the npm
-/// verifier unconditionally binds explicit tarball URLs of semver-keyed
-/// entries to the registry's own `dist.tarball`.
+/// resolution is registry-shaped because the npm verifier unconditionally
+/// binds explicit tarball URLs of semver-keyed entries to the registry's
+/// own `dist.tarball`. A git-hosted tarball is not — and trust is gated on
+/// the tarball URL rather than the `gitHosted` flag alone, so a tampered
+/// entry that clears the flag (`gitHosted: false`) on a git-host URL is
+/// still rejected.
 fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
     match resolution {
         LockfileResolution::Registry(_) => true,
-        LockfileResolution::Tarball(tarball) => tarball.git_hosted != Some(true),
+        LockfileResolution::Tarball(tarball) => {
+            tarball.git_hosted != Some(true) && !is_git_hosted_tarball_url(&tarball.tarball)
+        }
         LockfileResolution::Variations(variations) => variations
             .variants
             .iter()

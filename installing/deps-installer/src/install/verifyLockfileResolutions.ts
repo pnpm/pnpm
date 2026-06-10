@@ -2,7 +2,7 @@ import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { isGitHostedTarballUrl, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type {
   Resolution,
   ResolutionPolicyViolation,
@@ -258,14 +258,32 @@ export async function collectResolutionPolicyViolations (
 function isRegistryShapedResolution (resolution: unknown): boolean {
   if (resolution == null) return true
   if (typeof resolution !== 'object') return false
-  const { type, gitHosted, variants } = resolution as { type?: unknown, gitHosted?: unknown, variants?: unknown }
+  const { type, gitHosted, tarball, variants } = resolution as {
+    type?: unknown
+    gitHosted?: unknown
+    tarball?: unknown
+    variants?: unknown
+  }
   if (type === 'variations') {
     return Array.isArray(variants) && variants.every(
       (variant) => isRegistryShapedResolution((variant as { resolution?: unknown })?.resolution)
     )
   }
+  // Custom resolver protocols (`type: 'custom:*'`) are a legitimate
+  // non-registry source the user opted into. They can only be materialized by
+  // a project-configured custom fetcher — an unrecognized custom type throws at
+  // fetch time (see @pnpm/fetching.pick-fetcher) — so a forged custom type
+  // cannot launder an artifact past this gate into a build.
+  if (typeof type === 'string' && type.startsWith('custom:')) return true
   if (type != null) return false
-  if (gitHosted === true) return false
+  // Plain tarball / registry resolution. The lockfile is parsed from YAML
+  // without schema validation, so the `gitHosted` flag is not trustworthy on
+  // its own: a tampered entry could set a non-boolean (dodging a strict
+  // `=== true`) or an explicit `false` on a git-host URL (the loader only
+  // backfills the flag when absent). Treat any non-boolean flag as git-hosted
+  // and fall back to the URL so the verdict never depends on the flag alone.
+  if (gitHosted != null && (typeof gitHosted !== 'boolean' || gitHosted)) return false
+  if (typeof tarball === 'string' && isGitHostedTarballUrl(tarball)) return false
   return true
 }
 

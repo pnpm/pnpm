@@ -360,3 +360,33 @@ test('does not flag artifact depPaths with non-registry resolutions', async () =
   })
   await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
 })
+
+test('rejects a registry-style depPath whose git-host tarball clears the gitHosted flag', async () => {
+  // A tampered lockfile sets a non-truthy gitHosted on a codeload URL to
+  // dodge a flag-only check. The URL itself must still flag it.
+  for (const gitHosted of [false, 'true', 'false', 0, 1]) {
+    const lockfile = makeLockfile({
+      'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://codeload.github.com/org/foo/tar.gz/abc123', gitHosted } as never },
+    })
+    // eslint-disable-next-line no-await-in-loop
+    await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+      code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+    })
+  }
+})
+
+test('rejects a registry-style depPath with a non-boolean gitHosted flag', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz', gitHosted: 'true' } as never },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  })
+})
+
+test('accepts a registry-style depPath backed by a custom resolver resolution', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { type: 'custom:cdn', source: 'foo' } as never },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
+})
