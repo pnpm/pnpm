@@ -1465,11 +1465,11 @@ impl<'a, DependencyGroupList> InstallWithFreshLockfile<'a, DependencyGroupList> 
             // constraint, so the engine check resolves against a real version
             // instead of erroring on an empty one. Skip the `node --version`
             // probe entirely when nothing constrains it.
-            let host_node = if built_lockfile
-                .packages
-                .as_ref()
-                .is_some_and(crate::any_installability_constraint)
-            {
+            let host_node = if built_lockfile.packages.as_ref().is_some_and(|packages| {
+                built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
+                    crate::any_installability_constraint(snapshots, packages)
+                })
+            }) {
                 tokio::task::spawn_blocking(crate::InstallabilityHost::detect)
                     .await
                     .ok()

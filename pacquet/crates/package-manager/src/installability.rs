@@ -25,7 +25,7 @@ use std::collections::{HashMap, HashSet};
 use pacquet_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pacquet_package_is_installable::{
     InstallabilityError, InstallabilityOptions, PackageInstallabilityManifest, SkipReason,
-    SupportedArchitectures, WantedEngine, check_package,
+    SupportedArchitectures, WantedEngine, WantedPlatformRef, check_package, inferred_platform,
 };
 use pacquet_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
@@ -316,7 +316,7 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     // shape as the loop it short-circuits — but does at most four
     // `Option::is_some` checks per row and short-circuits on the
     // first declared constraint.
-    if !any_installability_constraint(packages) {
+    if !any_installability_constraint(snapshots, packages) {
         return Ok(seed);
     }
 
@@ -355,7 +355,12 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     // `SkipOptional` details payload and the `ProceedWithWarning`
     // message body, matching upstream's `warn.toString()` / `warn.message`
     // at `index.ts:50` / `:44`).
-    let mut check_cache: HashMap<PackageKey, Option<InstallabilityError>> = HashMap::new();
+    //
+    // The key carries the snapshot's `optional` flag because the
+    // platform-from-name inference only runs for optional snapshots,
+    // so the verdict of an optional and a non-optional snapshot of
+    // the same metadata row can differ.
+    let mut check_cache: HashMap<(PackageKey, bool), Option<InstallabilityError>> = HashMap::new();
 
     for (snapshot_key, snapshot) in snapshots {
         // Seeded entries short-circuit the per-snapshot re-check.
@@ -378,14 +383,33 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
         // (small) and only happens on the first peer-variant of each
         // package. Subsequent peer-variants land in the `else` arm
         // and read back the cached verdict.
-        let warn = if let Some(cached) = check_cache.get(&metadata_key) {
+        let cache_key = (metadata_key.clone(), snapshot.optional);
+        let warn = if let Some(cached) = check_cache.get(&cache_key) {
             cached.clone()
         } else {
-            let manifest = manifest_from_metadata(metadata);
+            let mut manifest = manifest_from_metadata(&metadata_key, metadata);
+            // Mirrors upstream's `effectivePlatform(pkg, options.optional)` at
+            // <https://github.com/pnpm/pnpm/blob/34875b2d7c/config/package-is-installable/src/index.ts#L41>:
+            // an optional snapshot with incomplete platform fields gets
+            // the missing ones filled from the package name.
+            if snapshot.optional
+                && let Some(platform) = inferred_platform(
+                    &manifest.name,
+                    WantedPlatformRef {
+                        os: manifest.os.as_deref(),
+                        cpu: manifest.cpu.as_deref(),
+                        libc: manifest.libc.as_deref(),
+                    },
+                )
+            {
+                manifest.os = platform.os;
+                manifest.cpu = platform.cpu;
+                manifest.libc = platform.libc;
+            }
             let pkg_id = metadata_key.to_string();
             let result = check_package(&pkg_id, &manifest, &base_options)
                 .map_err(|invalid| Box::new(InstallabilityError::InvalidNodeVersion(invalid)))?;
-            check_cache.insert(metadata_key.clone(), result.clone());
+            check_cache.insert(cache_key, result.clone());
             result
         };
 
@@ -427,18 +451,38 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
 
 /// True if any package metadata row in the lockfile declares an
 /// `engines` / `cpu` / `os` / `libc` constraint pacquet would need
-/// to evaluate. Short-circuits on the first hit. When this returns
-/// false, both [`compute_skipped_snapshots`] and the caller can
-/// short-circuit: no need to spawn `node --version` or build the
-/// host context, because the verdict is unconditionally an empty
-/// skip set.
+/// to evaluate, or any optional snapshot's package name infers a
+/// platform constraint its metadata row doesn't declare.
+/// Short-circuits on the first hit. When this returns false, both
+/// [`compute_skipped_snapshots`] and the caller can short-circuit:
+/// no need to spawn `node --version` or build the host context,
+/// because the verdict is unconditionally an empty skip set.
 ///
 /// `pub` so `install_frozen_lockfile` can gate the host detection
 /// on it — the spawn is otherwise on the critical path of
 /// `CreateVirtualStore::run` and serializes ~100ms of node-binary
 /// startup with extraction it used to overlap with.
-pub fn any_installability_constraint(packages: &HashMap<PackageKey, PackageMetadata>) -> bool {
+pub fn any_installability_constraint(
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+) -> bool {
     packages.values().any(metadata_has_meaningful_constraint)
+        || snapshots.iter().any(|(snapshot_key, snapshot)| {
+            snapshot.optional && {
+                let metadata_key = snapshot_key.without_peer();
+                packages.get(&metadata_key).is_some_and(|metadata| {
+                    inferred_platform(
+                        &metadata_key.name.to_string(),
+                        WantedPlatformRef {
+                            os: metadata.os.as_deref(),
+                            cpu: metadata.cpu.as_deref(),
+                            libc: metadata.libc.as_deref(),
+                        },
+                    )
+                    .is_some()
+                })
+            }
+        })
 }
 
 /// True if a single metadata row carries a constraint pacquet would
@@ -473,8 +517,12 @@ fn platform_axis_meaningful(axis: Option<&[String]>) -> bool {
     }
 }
 
-fn manifest_from_metadata(metadata: &PackageMetadata) -> PackageInstallabilityManifest {
+fn manifest_from_metadata(
+    metadata_key: &PackageKey,
+    metadata: &PackageMetadata,
+) -> PackageInstallabilityManifest {
     PackageInstallabilityManifest {
+        name: metadata_key.name.to_string(),
         engines: metadata.engines.as_ref().map(|map| WantedEngine {
             node: map.get("node").cloned(),
             pnpm: map.get("pnpm").cloned(),
