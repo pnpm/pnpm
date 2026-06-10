@@ -1500,7 +1500,7 @@ fn returns_skipped_when_missing_wanted_lockfile_and_manifest_adds_a_dependency()
     );
     assert!(
         !dir.path().join(Lockfile::FILE_NAME).exists(),
-        "must not regenerate on a failed check"
+        "must not regenerate on a failed check",
     );
 }
 
