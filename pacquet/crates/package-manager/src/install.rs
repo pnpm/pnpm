@@ -1,7 +1,8 @@
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
-    InstallWithFreshLockfile, InstallWithFreshLockfileError, ResolvedPackages, UpdateSeedPolicy,
-    build_resolution_verifiers, check_optimistic_repeat_install,
+    InstallWithFreshLockfile, InstallWithFreshLockfileError, OptimisticRepeatInstallCheck,
+    ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
+    check_optimistic_repeat_install,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
 };
 use derive_more::{Display, Error};
@@ -493,14 +494,17 @@ where
         // `KeepAll` keeps `install` / `add` on the fast path.
         if matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !frozen_lockfile
-            && let OptimisticRepeatInstallDecision::UpToDate = check_optimistic_repeat_install(
-                &workspace_root,
-                config,
-                node_linker,
-                included,
-                &project_manifests,
-                workspace_manifest.is_some(),
-            )
+            && let OptimisticRepeatInstallDecision::UpToDate =
+                check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+                    workspace_root: &workspace_root,
+                    config,
+                    node_linker,
+                    included,
+                    project_manifests: &project_manifests,
+                    is_workspace_install: workspace_manifest.is_some(),
+                    lockfile,
+                    catalogs: &catalogs,
+                })
         {
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,
@@ -1199,39 +1203,60 @@ fn check_lockfile_freshness(
     catalogs: &Catalogs,
     ignore_manifest_check: bool,
 ) -> Result<(), FreshnessCheckError> {
+    let parsed_overrides_opt = parse_config_overrides(config, catalogs)?;
+    check_lockfile_settings_drift(lockfile, config, parsed_overrides_opt.as_deref())?;
+
+    if ignore_manifest_check {
+        return Ok(());
+    }
+
     // Pacquet has only one importer today (<https://github.com/pnpm/pacquet/issues/431> tracks workspaces),
     // so the root project is the only thing to verify; once
     // workspaces land this becomes a per-project loop over
     // `lockfile.importers`.
-    let importer = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY).ok_or_else(|| {
-        FreshnessCheckError::NoImporter { importer_id: Lockfile::ROOT_IMPORTER_KEY.to_string() }
-    })?;
+    check_importer_satisfies(
+        lockfile,
+        manifest,
+        Lockfile::ROOT_IMPORTER_KEY,
+        config,
+        parsed_overrides_opt.as_deref(),
+    )
+}
 
-    // `pnpm.overrides` values can use the `catalog:` protocol, which
-    // pnpm resolves against the workspace's catalogs *before* writing
-    // them to `pnpm-lock.yaml#overrides`. Mirror that here so an
-    // override declared as `"foo": "catalog:"` compares equal to the
-    // lockfile's already-resolved `"foo": "<concrete>"`. Mirrors
-    // upstream's
-    // <https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L20-L44>
-    // → `createOverridesMapFromParsed` pipeline.
-    let parsed_overrides_opt = match config.overrides.as_ref() {
-        Some(map) if !map.is_empty() => Some(
+/// Parse `pnpm.overrides` from the config. Values can use the
+/// `catalog:` protocol, which pnpm resolves against the workspace's
+/// catalogs *before* writing them to `pnpm-lock.yaml#overrides` —
+/// resolving here keeps an override declared as `"foo": "catalog:"`
+/// comparable to the lockfile's already-resolved `"foo": "<concrete>"`.
+/// Mirrors upstream's
+/// <https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L20-L44>
+/// → `createOverridesMapFromParsed` pipeline.
+pub(crate) fn parse_config_overrides(
+    config: &Config,
+    catalogs: &Catalogs,
+) -> Result<Option<Vec<pacquet_config_parse_overrides::VersionOverride>>, FreshnessCheckError> {
+    match config.overrides.as_ref() {
+        Some(map) if !map.is_empty() => Ok(Some(
             pacquet_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)
                 .map_err(FreshnessCheckError::InvalidOverrides)?,
-        ),
-        _ => None,
-    };
-    let overrides_map: Option<std::collections::HashMap<String, String>> = parsed_overrides_opt
-        .as_deref()
-        .map(pacquet_config_parse_overrides::create_overrides_map_from_parsed);
+        )),
+        _ => Ok(None),
+    }
+}
 
-    // Outdated-settings gate (umbrella <https://github.com/pnpm/pacquet/issues/434> slice 7): check
-    // `ignoredOptionalDependencies` + `overrides` +
-    // `packageExtensionsChecksum` drift between the lockfile-recorded
-    // values and the current config before the per-importer specifier
-    // check. Mirrors upstream's
-    // [`getOutdatedLockfileSetting`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts).
+/// Outdated-settings gate (umbrella <https://github.com/pnpm/pacquet/issues/434> slice 7): check
+/// `ignoredOptionalDependencies` + `overrides` +
+/// `packageExtensionsChecksum` drift between the lockfile-recorded
+/// values and the current config before the per-importer specifier
+/// check. Mirrors upstream's
+/// [`getOutdatedLockfileSetting`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts).
+pub(crate) fn check_lockfile_settings_drift(
+    lockfile: &Lockfile,
+    config: &Config,
+    parsed_overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
+) -> Result<(), FreshnessCheckError> {
+    let overrides_map: Option<std::collections::HashMap<String, String>> =
+        parsed_overrides.map(pacquet_config_parse_overrides::create_overrides_map_from_parsed);
     let package_extensions_checksum = config
         .package_extensions
         .as_ref()
@@ -1254,11 +1279,26 @@ fn check_lockfile_freshness(
         config.inject_workspace_packages,
         config.peers_suffix_max_length,
     )
-    .map_err(FreshnessCheckError::Stale)?;
+    .map_err(FreshnessCheckError::Stale)
+}
 
-    if ignore_manifest_check {
-        return Ok(());
-    }
+/// Per-importer slice of the freshness gate: the manifest of the
+/// project at `importer_id` must still be satisfied by the lockfile's
+/// importer snapshot. Mirrors upstream's `satisfiesPackageManifest`
+/// call inside
+/// [`allProjectsAreUpToDate`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/allProjectsAreUpToDate.ts)
+/// / `assertWantedLockfileUpToDate`.
+pub(crate) fn check_importer_satisfies(
+    lockfile: &Lockfile,
+    manifest: &PackageManifest,
+    importer_id: &str,
+    config: &Config,
+    parsed_overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
+) -> Result<(), FreshnessCheckError> {
+    let importer = lockfile
+        .importers
+        .get(importer_id)
+        .ok_or_else(|| FreshnessCheckError::NoImporter { importer_id: importer_id.to_string() })?;
 
     // Apply `pnpm.overrides` to a *cloned* manifest before the
     // per-importer specifier check so the lockfile's specifiers —
@@ -1268,19 +1308,18 @@ fn check_lockfile_freshness(
     // from the perspective of every consumer downstream of the
     // resolver.
     let overrider_manifest_holder;
-    let manifest_for_freshness: &PackageManifest =
-        if let Some(parsed) = parsed_overrides_opt.as_deref() {
-            let root_dir = manifest.path().parent().unwrap_or_else(|| Path::new("."));
-            let overrider = crate::VersionsOverrider::new(parsed, root_dir);
-            overrider_manifest_holder = {
-                let mut cloned: PackageManifest = manifest.clone();
-                overrider.apply(&mut cloned, Some(root_dir));
-                cloned
-            };
-            &overrider_manifest_holder
-        } else {
-            manifest
+    let manifest_for_freshness: &PackageManifest = if let Some(parsed) = parsed_overrides {
+        let root_dir = manifest.path().parent().unwrap_or_else(|| Path::new("."));
+        let overrider = crate::VersionsOverrider::new(parsed, root_dir);
+        overrider_manifest_holder = {
+            let mut cloned: PackageManifest = manifest.clone();
+            overrider.apply(&mut cloned, Some(root_dir));
+            cloned
         };
+        &overrider_manifest_holder
+    } else {
+        manifest
+    };
 
     // Build the `ignoredOptionalDependencies` filter set. Mirrors
     // upstream's
@@ -1307,13 +1346,8 @@ fn check_lockfile_freshness(
         .unwrap_or_default();
     let is_ignored_optional: &dyn Fn(&str) -> bool = &|name: &str| ignored_set.contains(name);
 
-    satisfies_package_manifest(
-        importer,
-        manifest_for_freshness,
-        Lockfile::ROOT_IMPORTER_KEY,
-        is_ignored_optional,
-    )
-    .map_err(FreshnessCheckError::Stale)
+    satisfies_package_manifest(importer, manifest_for_freshness, importer_id, is_ignored_optional)
+        .map_err(FreshnessCheckError::Stale)
 }
 
 /// Outcome of [`check_lockfile_freshness`]. Splits "user
@@ -1321,7 +1355,7 @@ fn check_lockfile_freshness(
 /// (fatal for `--frozen-lockfile`, fall-through to the fresh-resolve
 /// path under `preferFrozenLockfile: true`).
 #[derive(Debug, Display, Error, Diagnostic)]
-enum FreshnessCheckError {
+pub(crate) enum FreshnessCheckError {
     /// The lockfile has no entry for the root importer.
     #[display(
         r#"Cannot install with "frozen-lockfile" because pnpm-lock.yaml has no `importers["{importer_id}"]` entry. Regenerate the lockfile with `pnpm install --lockfile-only`."#
@@ -1662,7 +1696,7 @@ fn build_projects_map(
 /// are omitted; pnpm's `checkDepsStatus`
 /// only iterates fields present in the serialized object, so an
 /// absent key is silently skipped rather than treated as a drift.
-fn build_workspace_state(
+pub(crate) fn build_workspace_state(
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,

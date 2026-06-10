@@ -5977,6 +5977,11 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     drop((dir, mock_instance));
 }
 
+/// A fresh install records its lockfile-verification verdict, so a
+/// repeat install that reaches the full path (the optimistic fast
+/// path is disabled here — it would otherwise absorb the touched
+/// manifest via the content re-check) hits the cache and never fans
+/// out to the registry.
 #[tokio::test]
 async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     let mock_instance = TestRegistry::start();
@@ -6065,6 +6070,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     second_config.modules_dir = modules_dir;
     second_config.virtual_store_dir = virtual_store_dir;
     second_config.registry = "http://127.0.0.1:9/".to_string();
+    second_config.optimistic_repeat_install = false;
     let second_config = second_config.leak();
 
     Install {
