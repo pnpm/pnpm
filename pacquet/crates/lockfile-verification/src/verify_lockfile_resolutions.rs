@@ -262,7 +262,13 @@ fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
     match resolution {
         LockfileResolution::Registry(_) => true,
         LockfileResolution::Tarball(tarball) => {
-            tarball.git_hosted != Some(true) && !is_git_hosted_tarball_url(&tarball.tarball)
+            // The tarball URL must be an http(s) registry artifact and not
+            // git-hosted. The npm verifier's tarball-URL binding skips
+            // non-http(s) schemes (file:, etc.), so a `file:` tarball under a
+            // name@semver key would otherwise be trusted with no safety net.
+            is_http_tarball_url(&tarball.tarball)
+                && tarball.git_hosted != Some(true)
+                && !is_git_hosted_tarball_url(&tarball.tarball)
         }
         LockfileResolution::Variations(variations) => variations
             .variants
@@ -272,6 +278,14 @@ fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
         | LockfileResolution::Git(_)
         | LockfileResolution::Binary(_) => false,
     }
+}
+
+/// Whether a tarball URL uses an http(s) scheme — the only schemes a
+/// registry artifact is served over. Case-insensitive to reject a
+/// tampered uppercase scheme.
+fn is_http_tarball_url(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    lower.starts_with("https://") || lower.starts_with("http://")
 }
 
 /// One `(name, version, resolution)` tuple deduplicated from

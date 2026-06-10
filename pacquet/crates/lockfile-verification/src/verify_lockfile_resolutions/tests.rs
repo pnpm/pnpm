@@ -635,3 +635,38 @@ snapshots:
     };
     assert_eq!(count, 1);
 }
+
+#[tokio::test]
+async fn rejects_semver_key_backed_by_non_http_tarball() {
+    // A file: tarball under a semver key is not registry-backed and the npm
+    // verifier skips non-http(s) tarballs, so the shape pass must reject it.
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {integrity: sha512-deadbeef, tarball: 'file:///tmp/evil.tgz'}
+
+snapshots:
+
+  acme@1.0.0: {}
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("file: tarball under a semver key must be rejected");
+    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
+}

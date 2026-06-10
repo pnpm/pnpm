@@ -390,3 +390,24 @@ test('accepts a registry-style depPath backed by a custom resolver resolution', 
   })
   await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
 })
+
+test('rejects a registry-style depPath backed by a non-http(s) tarball URL', async () => {
+  // The npm verifier skips non-http(s) tarballs, so a file: artifact under a
+  // semver key would be trusted with no tarball-URL binding to catch it.
+  for (const tarball of ['file:///tmp/evil.tgz', 'ftp://example.com/evil.tgz']) {
+    const lockfile = makeLockfile({
+      'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball } as never },
+    })
+    // eslint-disable-next-line no-await-in-loop
+    await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+      code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+    })
+  }
+})
+
+test('accepts a registry-style depPath whose tarball is an http(s) registry URL', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz' } as never },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
+})

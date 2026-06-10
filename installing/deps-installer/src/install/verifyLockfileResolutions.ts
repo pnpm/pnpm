@@ -281,9 +281,17 @@ function isRegistryShapedResolution (resolution: unknown): boolean {
   // its own: a tampered entry could set a non-boolean (dodging a strict
   // `=== true`) or an explicit `false` on a git-host URL (the loader only
   // backfills the flag when absent). Treat any non-boolean flag as git-hosted
-  // and fall back to the URL so the verdict never depends on the flag alone.
+  // and gate on the URL so the verdict never depends on the flag alone.
   if (gitHosted != null && (typeof gitHosted !== 'boolean' || gitHosted)) return false
-  if (typeof tarball === 'string' && isGitHostedTarballUrl(tarball)) return false
+  // A registry resolution reconstructs its tarball URL from name+version, so
+  // an absent/empty `tarball` is registry-shaped. When a URL is present it
+  // must be an http(s) registry artifact: the npm verifier's tarball-URL
+  // binding skips non-http(s) schemes (file:, etc.), so a `file:` tarball
+  // under a name@semver key would otherwise be trusted with no safety net.
+  if (typeof tarball === 'string' && tarball !== '') {
+    if (!/^https?:\/\//i.test(tarball)) return false
+    if (isGitHostedTarballUrl(tarball)) return false
+  }
   return true
 }
 

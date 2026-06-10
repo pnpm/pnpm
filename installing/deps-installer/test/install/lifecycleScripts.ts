@@ -414,6 +414,37 @@ test('allowBuilds does not run lifecycle scripts for direct tarball identities',
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
 })
 
+test('surfaces a tarball artifact as an ignored build when its depPath approval is revoked', async () => {
+  prepareEmpty()
+  const registries = {
+    default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/`,
+  }
+  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
+  const depPath = `@pnpm.e2e/pre-and-postinstall-scripts-example@${tarball}`
+
+  // First install approves the artifact by its depPath, so the build runs and
+  // the approval is recorded in .modules.yaml.
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [tarball], testDefaults({
+    fastUnpack: false,
+    allowBuilds: { [depPath]: true },
+    registries,
+  }, { registries }))
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
+
+  // Reinstalling with the approval removed must surface the artifact as an
+  // ignored build. This is the revocation path that iterates the lockfile by
+  // snapshot name/version, so it reaches non-semver artifact depPaths.
+  const { ignoredBuilds } = await install(manifest, testDefaults({
+    fastUnpack: false,
+    frozenLockfile: true,
+    allowBuilds: {},
+    registries,
+  }, { registries }))
+
+  expect(Array.from(ignoredBuilds ?? [])).toContain(depPath)
+})
+
 test('lifecycle scripts run before linking bins', async () => {
   const project = prepareEmpty()
 
