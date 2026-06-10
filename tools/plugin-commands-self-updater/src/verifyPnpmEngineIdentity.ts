@@ -208,12 +208,13 @@ async function findSignatureFailure (
   try {
     packument = await fetchPackument(pkg, ctx)
   } catch (err: unknown) {
-    return { reason: util.types.isNativeError(err) ? err.message : String(err), category: 'unreachable' }
+    // Fetch-layer errors embed the request URL, which may carry credentials.
+    return { reason: redactTextCredentials(util.types.isNativeError(err) ? err.message : String(err)), category: 'unreachable' }
   }
-  if (!packument) return { reason: `${pkg.name} is not published on ${pkg.registry}`, category: 'absent' }
+  if (!packument) return { reason: `${pkg.name} is not published on ${redactUrlCredentials(pkg.registry)}`, category: 'absent' }
 
   const version = packument.versions?.[pkg.version]
-  if (!version) return { reason: `${pkg.name}@${pkg.version} was not found on ${pkg.registry}`, category: 'absent' }
+  if (!version) return { reason: `${pkg.name}@${pkg.version} was not found on ${redactUrlCredentials(pkg.registry)}`, category: 'absent' }
 
   const rawSignatures = version.dist?.signatures
   if (rawSignatures != null && !Array.isArray(rawSignatures)) {
@@ -252,7 +253,7 @@ async function fetchPackument (
   if (response.status !== 200) {
     throw new PnpmError(
       'ENGINE_IDENTITY_PACKUMENT_FETCH_FAIL',
-      `The packument endpoint (at ${packumentUrl}) responded with ${response.status}: ${await response.text()}`
+      `The packument endpoint (at ${redactUrlCredentials(packumentUrl)}) responded with ${response.status}: ${(await response.text()).slice(0, 500)}`
     )
   }
 
@@ -260,10 +261,28 @@ async function fetchPackument (
   if (!isPackument(body)) {
     throw new PnpmError(
       'ENGINE_IDENTITY_PACKUMENT_FETCH_FAIL',
-      `The packument endpoint (at ${packumentUrl}) returned an unexpected body. Expected an object with versions; got: ${JSON.stringify(body)?.slice(0, 500) ?? String(body)}`
+      `The packument endpoint (at ${redactUrlCredentials(packumentUrl)}) returned an unexpected body. Expected an object with versions; got: ${JSON.stringify(body)?.slice(0, 500) ?? String(body)}`
     )
   }
   return body
+}
+
+// Registry URLs may legally embed basic-auth credentials
+// (https://user:pass@host/); never print those in error messages, which land
+// in terminal output and CI logs.
+function redactUrlCredentials (rawUrl: string): string {
+  try {
+    const parsed = new url.URL(rawUrl)
+    parsed.username = ''
+    parsed.password = ''
+    return parsed.toString()
+  } catch {
+    return rawUrl
+  }
+}
+
+function redactTextCredentials (text: string): string {
+  return text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^@/\s]+@/gi, '$1')
 }
 
 function verifyPackageSignatures (

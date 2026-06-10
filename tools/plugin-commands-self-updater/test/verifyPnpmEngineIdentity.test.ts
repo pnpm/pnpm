@@ -62,6 +62,25 @@ test('throws (fails closed) when the registry is unreachable', async () => {
   await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', optsTrusting(createSigningKey()))).rejects.toThrow(/Refusing to run pnpm/)
 })
 
+test('does not leak registry credentials embedded in the registry URL into error messages', async () => {
+  const stage = stageWithPnpmLockfile()
+  const opts = {
+    ...optsTrusting(createSigningKey()),
+    registries: { default: 'https://user:hunter2@registry.example.test/' },
+  }
+
+  // A non-200 response embeds the packument URL in the error.
+  nock('https://registry.example.test/').get('/pnpm').reply(500, 'server error').persist()
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', opts)).rejects.not.toThrow(/hunter2/)
+
+  // An unreachable registry surfaces the fetch-layer error, which embeds the
+  // request URL.
+  nock.cleanAll()
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', opts)).rejects.toThrow(/Refusing to run pnpm/)
+  await expect(verifyPnpmEngineIdentity(stage, 'pnpm', '9.1.0', opts)).rejects.not.toThrow(/hunter2/)
+})
+
 test('skips (no throw) when no trusted keys are provided', async () => {
   const stage = tempDir(false)
 
