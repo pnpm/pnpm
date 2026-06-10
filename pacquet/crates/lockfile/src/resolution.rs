@@ -388,6 +388,7 @@ impl From<ResolutionSerde> for LockfileResolution {
 /// tarball URL rather than the (tamper-prone) `gitHosted` flag. Mirrors
 /// upstream's `isGitHostedTarballUrl` at
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/lockfileFormatConverters.ts#L23-L29>.
+#[must_use]
 pub fn is_git_hosted_tarball_url(url: &str) -> bool {
     // Schemes and hostnames are case-insensitive, so match against a lowercased
     // copy: a tampered `https://CODELOAD.GITHUB.COM/...` must not slip past as a

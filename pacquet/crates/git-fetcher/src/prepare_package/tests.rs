@@ -62,7 +62,7 @@ fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
     }
 }
 
-fn opts_allow_dep_path<'a>(dep_path: &'a str) -> PreparePackageOptions<'a> {
+fn opts_allow_dep_path(dep_path: &str) -> PreparePackageOptions<'_> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
         allow_build: Box::new(move |actual_dep_path| actual_dep_path == dep_path),
