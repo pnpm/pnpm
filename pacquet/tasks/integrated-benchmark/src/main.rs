@@ -33,6 +33,7 @@ async fn main() {
         registry_latency_ms,
         pnpr_server_registry_latency_ms,
         registry_bandwidth_mbps,
+        registry_slow_start,
         reuse_prebuilt_binaries,
         build_only,
         targets,
@@ -102,6 +103,7 @@ async fn main() {
         let profile = LinkProfile {
             one_way: Duration::from_millis(registry_latency_ms) / 2,
             rate_limit: registry_rate_limit,
+            slow_start: registry_slow_start,
         };
         let proxy =
             LatencyProxy::spawn_on(listen, upstream, profile).expect("spawn registry proxy");
@@ -169,6 +171,7 @@ async fn main() {
         registry_latency_ms,
         pnpr_server_registry_latency_ms,
         registry_bandwidth_mbps,
+        registry_slow_start,
         registry_port: spawned_registry_port,
         reuse_prebuilt_binaries,
     };

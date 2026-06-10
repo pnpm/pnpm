@@ -68,6 +68,7 @@ pub struct WorkEnv {
     /// of being free on loopback. `0` leaves the registry at loopback
     /// speed. Ignored in `--registry=npm` mode (already remote).
     pub registry_bandwidth_mbps: f64,
+    pub registry_slow_start: bool,
     /// Port the local registry listens on, used as the proxy's upstream
     /// when latency or a bandwidth cap is requested.
     pub registry_port: u16,
@@ -549,6 +550,7 @@ impl WorkEnv {
             let profile = LinkProfile {
                 one_way: Duration::from_millis(self.pnpr_latency_ms) / 2,
                 rate_limit: None,
+                slow_start: false,
             };
             let proxy = LatencyProxy::spawn(upstream, profile).expect("spawn pnpr latency proxy");
             let proxy_url = format!("http://{}", proxy.addr);
@@ -648,6 +650,7 @@ impl WorkEnv {
         let profile = LinkProfile {
             one_way: Duration::from_millis(self.registry_latency_ms) / 2,
             rate_limit,
+            slow_start: self.registry_slow_start,
         };
         let proxy = LatencyProxy::spawn(upstream, profile).expect("spawn registry proxy");
         eprintln!(
@@ -675,6 +678,7 @@ impl WorkEnv {
         let profile = LinkProfile {
             one_way: Duration::from_millis(self.pnpr_server_registry_latency_ms) / 2,
             rate_limit: None,
+            slow_start: false,
         };
         let proxy =
             LatencyProxy::spawn(upstream, profile).expect("spawn pnpr server registry proxy");

@@ -83,6 +83,16 @@ pub struct CliArgs {
     #[clap(long, default_value_t = 0.0)]
     pub registry_bandwidth_mbps: f64,
 
+    /// Model TCP slow start on the client↔registry link: each
+    /// connection ramps from a ~14.6 KB initial window toward
+    /// `--registry-bandwidth-mbps`, doubling per round trip, instead
+    /// of transmitting at the full cap from its first byte. Small and
+    /// mid-size tarballs then take the several round trips they cost
+    /// over a real link. Requires both `--registry-latency-ms` and
+    /// `--registry-bandwidth-mbps` to be set; no effect otherwise.
+    #[clap(long)]
+    pub registry_slow_start: bool,
+
     /// Build each target without running the benchmark.
     #[clap(long)]
     pub build_only: bool,
