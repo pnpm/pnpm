@@ -59,6 +59,18 @@ pub struct TarballSlot {
     filename: String,
 }
 
+impl TarballSlot {
+    /// Rebuild a slot from its journaled parts so startup recovery can
+    /// re-run [`Storage::finalize_tarball_slot`] on it.
+    pub(crate) fn from_parts(tmp_path: PathBuf, name: PackageName, filename: String) -> Self {
+        Self { tmp_path, name, filename }
+    }
+
+    pub(crate) fn filename(&self) -> &str {
+        &self.filename
+    }
+}
+
 impl TarballWrite {
     /// Sync the file to disk and rename it to its final cache path.
     pub async fn finalize(self) -> Result<()> {
@@ -353,6 +365,18 @@ impl Storage {
     /// home: a rename on the fs backend, an upload on the S3 backend.
     pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<()> {
         self.hosted.finalize_tarball(&slot.tmp_path, &slot.name, &slot.filename).await
+    }
+
+    /// The commit journal for this storage's publish flow. It lives in
+    /// the same local root as the staged tmp files: the hosted store
+    /// root on the fs backend, the cache scratch on the S3 backend
+    /// (whose staging paths live there too).
+    pub fn publish_journal(&self) -> crate::journal::PublishJournal {
+        let root = match &self.hosted {
+            HostedStore::Fs(store) => &store.root,
+            HostedStore::S3(_) => &self.cached.root,
+        };
+        crate::journal::PublishJournal::new(root.join(crate::journal::JOURNAL_DIR))
     }
 }
 

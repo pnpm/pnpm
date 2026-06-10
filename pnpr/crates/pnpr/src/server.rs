@@ -2,6 +2,7 @@ use crate::{
     auth::{AuthState, UpsertOutcome, identify},
     config::Config,
     error::RegistryError,
+    journal::JournaledPublish,
     package_name::PackageName,
     policy::Identity,
     publish::{
@@ -259,6 +260,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
 /// a startup-time auth error surfaces before we accept any client
 /// connections.
 pub async fn serve(config: Config) -> crate::error::Result<()> {
+    crate::journal::recover_publish_journal(&config).await?;
     let auth = AuthState::load(&config.auth, &config.backend).await?;
     let listen = config.listen;
     let app = router_with_auth(config, auth);
@@ -278,6 +280,7 @@ pub async fn serve_listener(
     listener: tokio::net::TcpListener,
 ) -> crate::error::Result<()> {
     let listen = listener.local_addr()?;
+    crate::journal::recover_publish_journal(&config).await?;
     // Load the configured auth backends here too — going through
     // `router` would silently fall back to in-memory auth and ignore a
     // persisted htpasswd / SQLite store or a configured `backend:`.
@@ -957,7 +960,7 @@ async fn publish_package(
         Ok(staged) => staged,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = commit_publish(state, staged).await {
+    if let Err(err) = commit_publishes(state, vec![staged]).await {
         return error_response(&err);
     }
     publish_created_response()
@@ -1047,10 +1050,8 @@ async fn serve_batch_publish(
             }
         }
     }
-    for stage in staged {
-        if let Err(err) = commit_publish(&state, stage).await {
-            return error_response(&err);
-        }
+    if let Err(err) = commit_publishes(&state, staged).await {
+        return error_response(&err);
     }
     publish_created_response()
 }
@@ -1103,7 +1104,7 @@ async fn validate_publish_doc(
 
 /// A publish whose packument is merged and whose tarballs are fully
 /// written to tmp slots — everything verified, nothing visible to
-/// readers yet. [`commit_publish`] makes it visible.
+/// readers yet. [`commit_publishes`] makes it visible.
 struct StagedPublish {
     name: PackageName,
     merged_bytes: Vec<u8>,
@@ -1113,7 +1114,7 @@ struct StagedPublish {
 /// Merge the incoming packument with the on-disk / upstream state
 /// and stream every tarball to a tmp slot. The caller must hold the
 /// package lock for `doc.name` from before this call until after
-/// [`commit_publish`]. On error, every tmp file this call wrote is
+/// [`commit_publishes`]. On error, every tmp file this call wrote is
 /// removed.
 async fn stage_publish(
     state: &AppState,
@@ -1186,14 +1187,51 @@ async fn stage_publish(
     Ok(StagedPublish { name, merged_bytes, slots: written_slots })
 }
 
-/// Promote the staged tarballs to their final paths and write the
-/// packument. Tarballs go first so a successful packument write
-/// never advertises a tarball that's missing from disk.
-async fn commit_publish(state: &AppState, staged: StagedPublish) -> Result<(), RegistryError> {
-    for slot in staged.slots {
-        state.inner.storage.finalize_tarball_slot(slot).await?;
+/// Make every staged publish visible. The full intent — merged
+/// packument bytes plus the staged tmp-file locations — is sealed into
+/// the commit journal first, so a crash or I/O failure mid-apply can
+/// never leave the batch partially published: startup recovery rolls
+/// a sealed transaction forward. If sealing itself fails, nothing was
+/// promoted and the staged tmp files are cleaned up here.
+///
+/// Within each package, tarballs are promoted before the packument so
+/// a successful packument write never advertises a tarball that's
+/// missing from disk.
+async fn commit_publishes(
+    state: &AppState,
+    staged: Vec<StagedPublish>,
+) -> Result<(), RegistryError> {
+    let journal = state.inner.storage.publish_journal();
+    let entries: Vec<JournaledPublish<'_>> = staged
+        .iter()
+        .map(|stage| JournaledPublish {
+            name: &stage.name,
+            packument: &stage.merged_bytes,
+            slots: &stage.slots,
+        })
+        .collect();
+    let sealed = journal.seal(&entries).await;
+    drop(entries);
+    let txn = match sealed {
+        Ok(txn) => txn,
+        Err(err) => {
+            for stage in staged {
+                cleanup_tmp_slots(stage.slots).await;
+            }
+            return Err(err);
+        }
+    };
+    // Past the seal, failures must NOT clean up the staged files: the
+    // transaction is committed, and startup recovery finishes the
+    // apply from exactly this on-disk state.
+    for stage in staged {
+        for slot in stage.slots {
+            state.inner.storage.finalize_tarball_slot(slot).await?;
+        }
+        state.inner.storage.write_hosted_packument(&stage.name, &stage.merged_bytes).await?;
     }
-    state.inner.storage.write_hosted_packument(&staged.name, &staged.merged_bytes).await
+    txn.finish().await;
+    Ok(())
 }
 
 fn publish_created_response() -> Response {
