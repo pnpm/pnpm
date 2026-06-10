@@ -2,7 +2,7 @@ import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { isGitHostedTarballUrl, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type {
   Resolution,
   ResolutionPolicyViolation,
@@ -14,6 +14,7 @@ import pLimit from 'p-limit'
 import {
   recordVerification,
   tryLockfileVerificationCache,
+  type VerifierCacheIdentity,
 } from './verifyLockfileResolutionsCache.js'
 
 // Re-exported for back-compat with the existing import surface.
@@ -30,6 +31,25 @@ const MAX_VIOLATIONS_TO_PRINT = 20
 // (Math.min(64, Math.max(workers*3, 16))); keep them aligned so the
 // verification pass doesn't push past what the rest of the install respects.
 const DEFAULT_CONCURRENCY = 16
+
+export const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE = 'RESOLUTION_SHAPE_MISMATCH'
+
+const RESOLUTION_SHAPE_CACHE_IDENTITY: VerifierCacheIdentity = {
+  policy: { resolutionShapeCheck: true },
+  canTrustPastCheck: (cached) => cached.resolutionShapeCheck === true,
+}
+
+/**
+ * Every verifier list that flows into the verification cache must carry
+ * the resolution-shape identity, so records written before the shape rule
+ * existed cannot stat-fast-path around it. Used by the gate itself and by
+ * {@link recordLockfileVerified}, whose freshly-resolved lockfile satisfies
+ * the shape invariant by construction (the writer derives every key from
+ * the resolution it just produced).
+ */
+export function withResolutionShapeCacheIdentity (verifiers: readonly VerifierCacheIdentity[]): VerifierCacheIdentity[] {
+  return [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY]
+}
 
 export interface VerifyLockfileResolutionsOptions {
   concurrency?: number
@@ -78,7 +98,6 @@ export async function verifyLockfileResolutions (
   verifiers: ResolutionVerifier[],
   options?: VerifyLockfileResolutionsOptions
 ): Promise<void> {
-  if (verifiers.length === 0) return
   if (!lockfile.packages) return
 
   // Caching kicks in only when the caller surfaced both a writable
@@ -88,6 +107,8 @@ export async function verifyLockfileResolutions (
   const cache = options?.cacheDir && options?.lockfilePath
     ? { cacheDir: options.cacheDir, lockfilePath: options.lockfilePath }
     : undefined
+
+  const cacheVerifiers = withResolutionShapeCacheIdentity(verifiers)
 
   // Cache lookup runs before any registry I/O — the fast path is a
   // single stat() of the lockfile when the previous install already
@@ -106,7 +127,7 @@ export async function verifyLockfileResolutions (
   if (cache) {
     const result = tryLockfileVerificationCache(cache.cacheDir, {
       lockfilePath: cache.lockfilePath,
-      verifiers,
+      verifiers: cacheVerifiers,
       hashLockfile,
     })
     if (result.hit) return
@@ -120,12 +141,16 @@ export async function verifyLockfileResolutions (
   // A degenerate lockfile where every snapshot fails the
   // name/version extraction (so candidates is empty) skips emission
   // entirely — no work, no noise.
-  const candidates = collectCandidates(lockfile)
+  const { candidates, shapeViolations } = collectCandidates(lockfile)
+  if (shapeViolations.length > 0) {
+    throw buildVerificationError(shapeViolations)
+  }
+  if (verifiers.length === 0) return
   if (candidates.size === 0) {
     if (cache) {
       recordVerification(cache.cacheDir, {
         lockfilePath: cache.lockfilePath,
-        verifiers,
+        verifiers: cacheVerifiers,
         hashLockfile,
       }, cachePrecomputed)
     }
@@ -152,7 +177,7 @@ export async function verifyLockfileResolutions (
       if (cache) {
         recordVerification(cache.cacheDir, {
           lockfilePath: cache.lockfilePath,
-          verifiers,
+          verifiers: cacheVerifiers,
           hashLockfile,
         }, cachePrecomputed)
       }
@@ -225,7 +250,49 @@ export async function collectResolutionPolicyViolations (
 ): Promise<ResolutionPolicyViolation[]> {
   if (verifiers.length === 0) return []
   if (!lockfile.packages) return []
-  return iterateLockfileViolations(collectCandidates(lockfile), verifiers, options?.concurrency)
+  // Shape violations are deliberately not collected here: they are hard
+  // tampering failures, not policy picks a caller may auto-exclude.
+  return iterateLockfileViolations(collectCandidates(lockfile).candidates, verifiers, options?.concurrency)
+}
+
+function isRegistryShapedResolution (resolution: unknown): boolean {
+  if (resolution == null) return true
+  if (typeof resolution !== 'object') return false
+  const { type, gitHosted, tarball, variants } = resolution as {
+    type?: unknown
+    gitHosted?: unknown
+    tarball?: unknown
+    variants?: unknown
+  }
+  if (type === 'variations') {
+    return Array.isArray(variants) && variants.every(
+      (variant) => isRegistryShapedResolution((variant as { resolution?: unknown })?.resolution)
+    )
+  }
+  // Custom resolver protocols (`type: 'custom:*'`) are a legitimate
+  // non-registry source the user opted into. They can only be materialized by
+  // a project-configured custom fetcher — an unrecognized custom type throws at
+  // fetch time (see @pnpm/fetching.pick-fetcher) — so a forged custom type
+  // cannot launder an artifact past this gate into a build.
+  if (typeof type === 'string' && type.startsWith('custom:')) return true
+  if (type != null) return false
+  // Plain tarball / registry resolution. The lockfile is parsed from YAML
+  // without schema validation, so the `gitHosted` flag is not trustworthy on
+  // its own: a tampered entry could set a non-boolean (dodging a strict
+  // `=== true`) or an explicit `false` on a git-host URL (the loader only
+  // backfills the flag when absent). Treat any non-boolean flag as git-hosted
+  // and gate on the URL so the verdict never depends on the flag alone.
+  if (gitHosted != null && (typeof gitHosted !== 'boolean' || gitHosted)) return false
+  // A registry resolution reconstructs its tarball URL from name+version, so
+  // an absent/empty `tarball` is registry-shaped. When a URL is present it
+  // must be an http(s) registry artifact: the npm verifier's tarball-URL
+  // binding skips non-http(s) schemes (file:, etc.), so a `file:` tarball
+  // under a name@semver key would otherwise be trusted with no safety net.
+  if (typeof tarball === 'string' && tarball !== '') {
+    if (!/^https?:\/\//i.test(tarball)) return false
+    if (isGitHostedTarballUrl(tarball)) return false
+  }
+  return true
 }
 
 interface Candidate {
@@ -248,11 +315,26 @@ interface Candidate {
 // skips the tarball/policy checks, so if the wrong shape wins the dedup the
 // surviving entry is verified under the wrong rules and the real one is
 // never checked.
-function collectCandidates (lockfile: LockfileObject): Map<string, Candidate> {
+function collectCandidates (lockfile: LockfileObject): { candidates: Map<string, Candidate>, shapeViolations: ResolutionPolicyViolation[] } {
   const candidates = new Map<string, Candidate>()
+  const shapeViolations: ResolutionPolicyViolation[] = []
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
     const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
     if (!name || !version) continue
+    // A registry-style depPath (name@semver) must be backed by a
+    // registry-shaped resolution: the allowBuilds policy derives a
+    // trusted package identity from that key shape, which is only sound
+    // while this invariant holds. The check is offline, so it applies
+    // even when no policy verifiers are active.
+    if (nonSemverVersion == null && !isRegistryShapedResolution(snapshot.resolution)) {
+      shapeViolations.push({
+        name,
+        version,
+        resolution: snapshot.resolution as Resolution,
+        code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+        reason: 'a registry-style dependency path is backed by a non-registry resolution',
+      })
+    }
     const key = `${name}@${version}@${nonSemverVersion ?? ''}@${JSON.stringify(snapshot.resolution)}`
     candidates.set(key, {
       name,
@@ -261,7 +343,7 @@ function collectCandidates (lockfile: LockfileObject): Map<string, Candidate> {
       resolution: snapshot.resolution as Resolution,
     })
   }
-  return candidates
+  return { candidates, shapeViolations }
 }
 
 async function iterateLockfileViolations (

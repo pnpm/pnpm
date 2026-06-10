@@ -329,7 +329,7 @@ catalogMode: strict
 cleanupUnusedCatalogs: true
 
 configDependencies:
-  '@pnpm/pacquet': 0.11.1
+  '@pnpm/pacquet': 0.11.2
 
 enableGlobalVirtualStore: true
 
@@ -440,6 +440,8 @@ overrides:
   send@<0.19.0: ^0.19.0
   shell-quote@<1.8.4: '>=1.8.4'
   serve-static@<1.16.0: ^1.16.0
+  # GHSA-w7jw-789q-3m8p / CVE-2026-9277: 1.8.4 patches critical shell-quote vulnerabilities in <=1.8.3.
+  shell-quote: 1.8.4
   socks@2: ^2.8.1
   tar@<=7.5.9: '>=7.5.10'
   tmp@<=0.2.3: '>=0.2.4'

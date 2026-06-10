@@ -1,5 +1,15 @@
 # @pnpm/exportable-manifest
 
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [230df57]
+- Updated dependencies [bf1b731]
+  - @pnpm/bins.resolver@1100.0.7
+  - @pnpm/types@1101.3.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.11
+
 ## 1100.1.3
 
 ### Patch Changes

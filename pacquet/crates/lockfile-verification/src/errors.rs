@@ -69,6 +69,17 @@ pub enum VerifyError {
         breakdown: String,
     },
 
+    /// Every violation tripped `RESOLUTION_SHAPE_MISMATCH` — a
+    /// registry-style dependency path backed by a non-registry
+    /// resolution.
+    #[display("{count} lockfile entries failed verification:\n{breakdown}")]
+    #[diagnostic(code(ERR_PNPM_RESOLUTION_SHAPE_MISMATCH), help("{HINT}"))]
+    ResolutionShapeMismatch {
+        #[error(not(source))]
+        count: usize,
+        breakdown: String,
+    },
+
     /// Mixed batch — at least two distinct violation codes — so the
     /// throw code escalates to the generic
     /// `LOCKFILE_RESOLUTION_VERIFICATION` and each entry's code goes
@@ -139,6 +150,9 @@ impl VerifyError {
                 }
                 pacquet_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
                     VerifyError::TrustDowngrade { count, breakdown }
+                }
+                crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
+                    VerifyError::ResolutionShapeMismatch { count, breakdown }
                 }
                 // Unknown verifier code (future-proofing): fall back
                 // to the generic envelope rather than fabricating a

@@ -198,12 +198,7 @@ impl VirtualStoreLayout {
         let built_dep_paths: Option<HashSet<PackageKey>> = allow_build_policy.map(|policy| {
             snapshots
                 .keys()
-                .filter(|key| {
-                    let metadata_key = key.without_peer();
-                    let name = metadata_key.name.to_string();
-                    let version = metadata_key.suffix.version().to_string();
-                    policy.check(&name, &version) == Some(true)
-                })
+                .filter(|key| policy.check(&key.without_peer().to_string()) == Some(true))
                 .cloned()
                 .collect()
         });

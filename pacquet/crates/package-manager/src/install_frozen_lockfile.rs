@@ -329,7 +329,9 @@ where
         // extraction (so `CreateVirtualStore` can suppress slots for
         // skipped snapshots), and the spawn cost is unavoidable.
         let needs_installability_check = match (snapshots, packages) {
-            (Some(snaps), Some(pkgs)) if !snaps.is_empty() => any_installability_constraint(pkgs),
+            (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
+                any_installability_constraint(snaps, pkgs)
+            }
             _ => false,
         };
 

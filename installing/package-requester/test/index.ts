@@ -931,6 +931,43 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(pkgResponse.fetching).toBeFalsy()
 })
 
+// Test case for https://github.com/pnpm/pnpm/issues/11702
+test('do not fetch an optional package whose name declares an unsupported platform when the registry metadata has no platform fields', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const resolveWithoutPlatformFields: typeof resolve = async (wantedDependency, opts) => {
+    const result = await resolve(wantedDependency, opts)
+    if (result.manifest != null) {
+      delete result.manifest.os
+      delete result.manifest.cpu
+      delete result.manifest.libc
+    }
+    return result
+  }
+  const requestPackage = createPackageRequester({
+    resolve: resolveWithoutPlatformFields,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/linux-x64', optional: true, bareSpecifier: '*' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
+  })
+
+  expect(pkgResponse.body.isInstallable).toBe(false)
+  expect(pkgResponse.body.id).toBe('@pnpm.e2e/linux-x64@1.0.0')
+  expect(pkgResponse.fetching).toBeFalsy()
+})
+
 // Test case for https://github.com/pnpm/pnpm/issues/1866
 test('fetch a git package without a package.json', async () => {
   // a small Deno library with a 'denolib.json' instead of a 'package.json'

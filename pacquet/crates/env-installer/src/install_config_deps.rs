@@ -290,6 +290,7 @@ fn is_compatible<Reporter: self::Reporter>(
         return true;
     }
     let manifest = PackageInstallabilityManifest {
+        name: subdep.name.clone(),
         engines: None,
         cpu: subdep.cpu.clone(),
         os: subdep.os.clone(),

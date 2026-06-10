@@ -465,7 +465,7 @@ export async function mutateModules (
 
   let ignoredBuilds = result.ignoredBuilds
   if (!opts.ignoreScripts && ignoredBuilds?.size) {
-    ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, allowBuild)
+    ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, ctx.wantedLockfile, allowBuild)
   }
   // Detect packages whose build approval was revoked between the previous
   // and current install. A package is considered revoked when it was
@@ -481,9 +481,12 @@ export async function mutateModules (
     if (oldAllowBuild) {
       for (const depPath of Object.keys(ctx.wantedLockfile.packages) as DepPath[]) {
         if (ignoredBuilds?.has(depPath)) continue
-        const { name, version } = dp.parse(depPath)
-        if (!name || !version) continue
-        if (oldAllowBuild(name, version) === true && allowBuild?.(name, version) === undefined) {
+        // The old policy is evaluated with identity trust overridden so that
+        // package-name approvals count as they did when they were granted,
+        // even for git/tarball artifacts that the current policy no longer
+        // approves by name.
+        if (oldAllowBuild(depPath, { trustPackageIdentity: true }) !== true) continue
+        if (allowBuild?.(depPath) === undefined) {
           ignoredBuilds ??= new Set()
           ignoredBuilds.add(depPath)
         }
@@ -1091,6 +1094,7 @@ Note that in CI environments, this setting is enabled by default.`,
 async function runUnignoredDependencyBuilds (
   opts: StrictInstallOptions,
   previousIgnoredBuilds: IgnoredBuilds,
+  currentLockfile: LockfileObject,
   allowBuild?: AllowBuild
 ): Promise<Set<DepPath>> {
   if (!allowBuild) {
@@ -1098,12 +1102,10 @@ async function runUnignoredDependencyBuilds (
   }
   const pkgsToBuild: string[] = []
   for (const ignoredPkg of previousIgnoredBuilds) {
-    const parsed = dp.parse(ignoredPkg)
-    if (!parsed.name || !parsed.version) continue
-    const allowed = allowBuild(parsed.name, parsed.version)
-    if (allowed === true) {
+    if (currentLockfile.packages?.[ignoredPkg] == null) continue
+    if (allowBuild(ignoredPkg) === true) {
       // Package is explicitly allowed - rebuild it
-      pkgsToBuild.push(`${parsed.name}@${parsed.version}`)
+      pkgsToBuild.push(dp.getPkgIdWithPatchHash(ignoredPkg))
     }
   }
   if (pkgsToBuild.length) {
@@ -2049,7 +2051,7 @@ export class IgnoredBuildsError extends PnpmError {
 }
 
 function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
-  return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(dp.removeSuffix))).sort(lexCompare)
+  return Array.from(new Set(Array.from(ignoredBuilds ?? []).map(depPath => dp.getPkgIdWithPatchHash(depPath)))).sort(lexCompare)
 }
 
 /**

@@ -16,8 +16,9 @@ pnpm add -g @pnpm/pnpr
 
 The wrapper resolves to the native binary published under
 `@pnpm/pnpr.<platform>-<arch>` (e.g. `@pnpm/pnpr.linux-x64`). Prebuilt
-binaries are available for `linux-x64`, `linux-arm64`, `darwin-x64`,
-`darwin-arm64`, `win32-x64`, and `win32-arm64`.
+binaries are available for `linux-x64`, `linux-arm64`, `linux-x64-musl`,
+`linux-arm64-musl`, `darwin-x64`, `darwin-arm64`, `win32-x64`, and
+`win32-arm64`.
 
 ## Usage
 

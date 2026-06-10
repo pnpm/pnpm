@@ -38,6 +38,6 @@ pub use errors::{RenderedViolation, VerifyError};
 pub use hash_lockfile::hash_lockfile;
 pub use record_lockfile_verified::record_lockfile_verified;
 pub use verify_lockfile_resolutions::{
-    VerifyLockfileResolutionsOptions, collect_resolution_policy_violations,
-    verify_lockfile_resolutions,
+    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, VerifyLockfileResolutionsOptions,
+    collect_resolution_policy_violations, verify_lockfile_resolutions,
 };

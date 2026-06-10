@@ -331,7 +331,13 @@ test('dlx creates cache and store prune cleans cache', async () => {
     '--config.dlx-cache-max-age=50', // big number to avoid false negative should test unexpectedly takes too long to run
   ]
 
-  await Promise.all(Object.entries(commands).map(([cmd, args]) => execPnpm([...settings, '--allow-build=shx', 'dlx', cmd, ...args])))
+  // The git-hosted artifact has an untrusted package identity, so it has to
+  // be approved by its depPath; the registry shx is approved by name.
+  const allowBuilds = [
+    '--allow-build=shx',
+    '--allow-build=shx@https://codeload.github.com/shelljs/shx/tar.gz/61aca968cd7afc712ca61a4fc4ec3201e3770dc7',
+  ]
+  await Promise.all(Object.entries(commands).map(([cmd, args]) => execPnpm([...settings, ...allowBuilds, 'dlx', cmd, ...args])))
 
   // ensure that the dlx cache has certain structure
   const dlxBaseDir = path.resolve('cache', 'dlx')

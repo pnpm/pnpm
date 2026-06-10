@@ -564,3 +564,229 @@ async function writeConflictedLockfile (lockfileDir: string): Promise<void> {
     '',
   ].join('\n'))
 }
+
+describe('checkDepsStatus - missing wanted lockfile fallback', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  const currentLockfile = {
+    lockfileVersion: '9.0',
+    importers: { '.': { specifiers: {} } },
+  } as unknown as LockfileObject
+
+  function mockSingleProjectStats (opts: {
+    wantedLockfileExists: boolean
+    currentLockfileMtime: number
+    manifestMtime: number
+  }): void {
+    jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
+      if (filePath === path.join('/project', 'node_modules', '.pnpm', 'lock.yaml')) {
+        return {
+          mtime: new Date(opts.currentLockfileMtime),
+          mtimeMs: opts.currentLockfileMtime,
+        } as Stats
+      }
+      if (filePath === path.join('/project', 'pnpm-lock.yaml') && opts.wantedLockfileExists) {
+        return {
+          mtime: new Date(opts.currentLockfileMtime),
+          mtimeMs: opts.currentLockfileMtime,
+        } as Stats
+      }
+      return undefined
+    })
+    jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+      mtime: new Date(opts.manifestMtime),
+      mtimeMs: opts.manifestMtime,
+    } as Stats))
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async () => currentLockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(async () => null)
+  }
+
+  it('returns the current lockfile to restore when pnpm-lock.yaml is missing in a single project', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    mockSingleProjectStats({
+      wantedLockfileExists: false,
+      currentLockfileMtime: lastValidatedTimestamp - 10_000,
+      manifestMtime: lastValidatedTimestamp - 20_000,
+    })
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(true)
+    expect(result.wantedLockfileToRestore).toEqual({
+      lockfile: currentLockfile,
+      lockfileDir: '/project',
+    })
+  })
+
+  it('does not set a lockfile to restore when pnpm-lock.yaml exists', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    mockSingleProjectStats({
+      wantedLockfileExists: true,
+      currentLockfileMtime: lastValidatedTimestamp - 10_000,
+      manifestMtime: lastValidatedTimestamp - 20_000,
+    })
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(true)
+    expect(result.wantedLockfileToRestore).toBeUndefined()
+  })
+
+  it('still reports the lockfile as not found when the current lockfile is missing too', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    jest.mocked(fsUtils.safeStat).mockResolvedValue(undefined)
+    jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+    jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue(undefined)
+    jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(null)
+    jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(null)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toMatch(/Cannot find a lockfile/)
+    expect(result.wantedLockfileToRestore).toBeUndefined()
+  })
+
+  it('does not stand in for the wanted lockfile when git-branch lockfiles are enabled', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    mockSingleProjectStats({
+      wantedLockfileExists: false,
+      currentLockfileMtime: lastValidatedTimestamp - 10_000,
+      manifestMtime: lastValidatedTimestamp - 20_000,
+    })
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      useGitBranchLockfile: true,
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toMatch(/Cannot find a lockfile/)
+    expect(result.wantedLockfileToRestore).toBeUndefined()
+  })
+
+  it('returns the current lockfile to restore for a workspace with unmodified manifests', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const projectRootDir = '/workspace' as ProjectRootDir
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {
+        [projectRootDir]: { name: 'root', version: '1.0.0' },
+      },
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    jest.mocked(fsUtils.safeStat).mockResolvedValue(undefined)
+    jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+      mtime: new Date(lastValidatedTimestamp - 20_000),
+      mtimeMs: lastValidatedTimestamp - 20_000,
+    } as Stats))
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async () => currentLockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(null)
+
+    const opts: CheckDepsStatusOptions = {
+      allProjects: [
+        {
+          rootDir: projectRootDir,
+          rootDirRealPath: '/workspace' as ProjectRootDirRealPath,
+          manifest: { name: 'root', version: '1.0.0' },
+          writeProjectManifest: async () => {},
+        },
+      ],
+      workspaceDir: '/workspace',
+      sharedWorkspaceLockfile: true,
+      rootProjectManifest: { name: 'root', version: '1.0.0' },
+      rootProjectManifestDir: '/workspace',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(true)
+    expect(result.wantedLockfileToRestore).toEqual({
+      lockfile: currentLockfile,
+      lockfileDir: '/workspace',
+    })
+  })
+})

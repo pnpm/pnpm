@@ -8,6 +8,7 @@ use crate::{
     check_platform::{
         SupportedArchitectures, UnsupportedPlatformError, WantedPlatformRef, check_platform,
     },
+    infer_platform_from_package_name::inferred_platform,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -15,8 +16,13 @@ use serde::Serialize;
 
 /// Inputs from a package manifest (or lockfile metadata row) that
 /// drive the installability check.
+///
+/// `name` feeds the platform-from-name inference for optional
+/// dependencies (see [`inferred_platform`]); an empty name disables
+/// the inference and leaves only the declared fields.
 #[derive(Debug, Default, Clone)]
 pub struct PackageInstallabilityManifest {
+    pub name: String,
     pub engines: Option<WantedEngine>,
     pub cpu: Option<Vec<String>>,
     pub os: Option<Vec<String>>,
@@ -203,6 +209,31 @@ pub fn package_is_installable(
     manifest: &PackageInstallabilityManifest,
     options: &InstallabilityOptions<'_>,
 ) -> Result<InstallabilityVerdict, Box<InstallabilityError>> {
+    // Mirrors upstream's `effectivePlatform(pkg, options.optional)` at
+    // <https://github.com/pnpm/pnpm/blob/34875b2d7c/config/package-is-installable/src/index.ts#L41>:
+    // an optional dependency with incomplete platform fields gets the
+    // missing ones filled from its name before the check runs.
+    let effective: PackageInstallabilityManifest;
+    let manifest = if options.optional
+        && let Some(platform) = inferred_platform(
+            &manifest.name,
+            WantedPlatformRef {
+                os: manifest.os.as_deref(),
+                cpu: manifest.cpu.as_deref(),
+                libc: manifest.libc.as_deref(),
+            },
+        ) {
+        effective = PackageInstallabilityManifest {
+            name: manifest.name.clone(),
+            engines: manifest.engines.clone(),
+            os: platform.os,
+            cpu: platform.cpu,
+            libc: platform.libc,
+        };
+        &effective
+    } else {
+        manifest
+    };
     let warn = match check_package(package_id, manifest, options) {
         Ok(maybe) => maybe,
         Err(invalid_node) => {

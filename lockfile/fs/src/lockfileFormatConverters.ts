@@ -12,21 +12,9 @@ import type {
   ResolvedDependencies,
   TarballResolution,
 } from '@pnpm/lockfile.types'
+import { isGitHostedTarballUrl } from '@pnpm/lockfile.utils'
 import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
 import { isEmpty, map as _mapValues, omit, pick, pickBy } from 'ramda'
-
-// Minimal duplicate of `isGitHostedPkgUrl` from `@pnpm/fetching.pick-fetcher`,
-// inlined to avoid pulling the fetcher dep into the lockfile I/O layer. Used
-// to enrich entries written by older pnpm versions (which didn't record the
-// `gitHosted` field on TarballResolution) so every downstream reader can rely
-// on the field directly.
-function isGitHostedTarballUrl (url: string): boolean {
-  return (
-    url.startsWith('https://codeload.github.com/') ||
-    url.startsWith('https://bitbucket.org/') ||
-    url.startsWith('https://gitlab.com/')
-  ) && url.includes('tar.gz')
-}
 
 export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
   const packages: Record<string, LockfilePackageInfo> = {}

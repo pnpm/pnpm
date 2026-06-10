@@ -21,8 +21,8 @@ use pacquet_lockfile::Lockfile;
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 
 use crate::{
-    cache::{CachePrecomputed, record_verification},
-    hash_lockfile,
+    cache::record_verification, hash_lockfile,
+    verify_lockfile_resolutions::with_resolution_shape_cache_identity,
 };
 
 /// Persist the post-resolution lockfile as already-verified.
@@ -49,8 +49,8 @@ pub fn record_lockfile_verified(
     record_verification(
         cache_dir,
         lockfile_path,
-        verifiers,
+        &with_resolution_shape_cache_identity(verifiers),
         || hash_lockfile(lockfile),
-        CachePrecomputed::default(),
+        Default::default(),
     );
 }

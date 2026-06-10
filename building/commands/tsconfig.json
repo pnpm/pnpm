@@ -86,6 +86,9 @@
     },
     {
       "path": "../after-install"
+    },
+    {
+      "path": "../policy"
     }
   ]
 }

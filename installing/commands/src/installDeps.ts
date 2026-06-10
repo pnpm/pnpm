@@ -17,6 +17,7 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
+import { writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
@@ -171,18 +172,18 @@ export type InstallDepsOptions = Pick<Config,
    * subcommand — see `runPacquet.ts`'s `noRuntime` opt.
    */
   isInstallCommand?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
+} & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<void> {
   if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
-    const { upToDate } = await checkDepsStatus({
+    const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,
     })
-    if (upToDate) {
+    if (upToDate && await restoreWantedLockfileIfMissing(wantedLockfileToRestore, opts)) {
       if (opts.hooks?.customResolvers?.some(r => r.shouldRefreshResolution)) {
         logger.warn({
           message: 'shouldRefreshResolution hooks were skipped because optimisticRepeatInstall is enabled.',
@@ -591,4 +592,28 @@ function preferNonvulnerablePackageVersions (packageVulnerabilityAudit: PackageV
     preferredVersions[packageName] = preferredVersionSelectors
   }
   return preferredVersions
+}
+
+/**
+ * Restore a missing `pnpm-lock.yaml` from the current lockfile before the
+ * optimistic repeat-install short-circuit reports "Already up to date", so
+ * the fast path leaves the same on-disk contract a full install would.
+ * Returns `true` when the short-circuit may proceed: nothing to restore,
+ * lockfile writing is disabled (`useLockfile: false`), or the restore
+ * succeeded. A failed write returns `false` so the caller falls through to
+ * the full install instead of reporting up to date while `pnpm-lock.yaml`
+ * stays missing.
+ */
+async function restoreWantedLockfileIfMissing (
+  wantedLockfileToRestore: { lockfile: LockfileObject, lockfileDir: string } | undefined,
+  opts: Pick<InstallDepsOptions, 'useLockfile'>
+): Promise<boolean> {
+  if (wantedLockfileToRestore == null || opts.useLockfile === false) return true
+  try {
+    await writeWantedLockfile(wantedLockfileToRestore.lockfileDir, wantedLockfileToRestore.lockfile)
+    return true
+  } catch (error) {
+    logger.debug({ msg: 'Failed to restore pnpm-lock.yaml from the current lockfile', error })
+    return false
+  }
 }

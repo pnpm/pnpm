@@ -1,5 +1,12 @@
 # @pnpm/network.auth-header
 
+## 1101.1.1
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+
 ## 1101.1.0
 
 ### Minor Changes

@@ -1,5 +1,20 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/config.normalize-registries@1100.0.7
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/installing.modules-yaml@1100.0.8
+  - @pnpm/lockfile.detect-dep-types@1100.0.10
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.utils@1100.0.12
+  - @pnpm/pkg-manifest.reader@1100.0.7
+  - @pnpm/store.cafs@1100.1.9
+
 ## 1100.0.13
 
 ### Patch Changes

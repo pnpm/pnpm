@@ -1,5 +1,14 @@
 # @pnpm/pick-fetcher
 
+## 1100.0.11
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.8
+- @pnpm/hooks.types@1100.0.11
+- @pnpm/resolving.resolver-base@1100.4.1
+- @pnpm/store.cafs-types@1100.0.1
+
 ## 1100.0.10
 
 ### Patch Changes

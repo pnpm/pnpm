@@ -331,13 +331,13 @@ export function lockfileToDepGraph (
 }
 
 function computeBuiltDepPaths (
-  entries: Iterable<{ depPath: DepPath; name: string; version: string }>,
+  entries: Iterable<PkgMeta>,
   allowBuild: AllowBuild
 ): Set<DepPath> {
   const builtDepPaths = new Set<DepPath>()
-  for (const { depPath, name, version } of entries) {
-    if (allowBuild(name, version) === true) {
-      builtDepPaths.add(depPath)
+  for (const entry of entries) {
+    if (allowBuild(entry.depPath) === true) {
+      builtDepPaths.add(entry.depPath)
     }
   }
   return builtDepPaths
