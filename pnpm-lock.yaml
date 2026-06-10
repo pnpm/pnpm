@@ -820,6 +820,7 @@ overrides:
   send@<0.19.0: ^0.19.0
   serve-static@<1.16.0: ^1.16.0
   shell-quote@<1.8.4: '>=1.8.4'
+  shell-quote: 1.8.4
   socks@2: ^2.8.1
   tar@<=7.5.10: '>=7.5.11'
   tmp@<0.2.6: '>=0.2.6'
@@ -1257,6 +1258,9 @@ importers:
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2499,15 +2503,15 @@ importers:
 
   exec/build-commands:
     dependencies:
+      '@pnpm/builder.policy':
+        specifier: workspace:*
+        version: link:../../builder/policy
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
       '@pnpm/config.config-writer':
         specifier: workspace:*
         version: link:../../config/config-writer
-      '@pnpm/dependency-path':
-        specifier: workspace:*
-        version: link:../../packages/dependency-path
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 1001.0.1
@@ -3204,6 +3208,9 @@ importers:
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist
+      '@pnpm/git-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/git-resolver
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package

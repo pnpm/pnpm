@@ -4,6 +4,7 @@ import { type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.typ
 import { type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
+import { assertRegistryShapedResolution } from './assertRegistryShapedResolution.js'
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 
 export function pkgSnapshotToResolution (
@@ -11,6 +12,7 @@ export function pkgSnapshotToResolution (
   pkgSnapshot: PackageSnapshot,
   registries: Registries
 ): Resolution {
+  assertRegistryShapedResolution(depPath, pkgSnapshot)
   const resolution = pkgSnapshot.resolution as TarballResolution
   // Tarball-shaped resolutions (no `type` field) must carry `integrity`,
   // except where the URL itself anchors the bytes:

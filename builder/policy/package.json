@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@pnpm/config.version-policy": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {

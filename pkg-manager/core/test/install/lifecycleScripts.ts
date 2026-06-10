@@ -12,6 +12,7 @@ import {
 } from '@pnpm/core'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { type ProjectRootDir } from '@pnpm/types'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { restartWorkerPool } from '@pnpm/worker'
 import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
@@ -310,7 +311,9 @@ test('run prepare script for git-hosted dependencies', async () => {
 
   await addDependenciesToPackage({}, ['pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf'], testDefaults({
     fastUnpack: false,
-    onlyBuiltDependencies: ['test-git-fetch'],
+    // A git-hosted artifact has an untrusted package identity, so it has to
+    // be approved by its depPath, not by package name.
+    onlyBuiltDependencies: ['test-git-fetch@https://codeload.github.com/pnpm/test-git-fetch/tar.gz/8b333f12d5357f4f25a654c305c826294cb073bf'],
     neverBuiltDependencies: undefined,
   }))
 
@@ -324,6 +327,38 @@ test('run prepare script for git-hosted dependencies', async () => {
     'install',
     'postinstall',
   ])
+})
+
+test('onlyBuiltDependencies does not run lifecycle scripts for direct tarball identities', async () => {
+  prepareEmpty()
+  const registries = {
+    default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/`,
+  }
+  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
+  const depPath = `@pnpm.e2e/pre-and-postinstall-scripts-example@${tarball}`
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [tarball], testDefaults({
+    fastUnpack: false,
+    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+    neverBuiltDependencies: undefined,
+    registries,
+  }))
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBe(false)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(false)
+
+  rimraf('node_modules')
+
+  await install(manifest, testDefaults({
+    fastUnpack: false,
+    onlyBuiltDependencies: [depPath],
+    neverBuiltDependencies: undefined,
+    registries,
+  }))
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBe(true)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
 })
 
 test('lifecycle scripts run before linking bins', async () => {
