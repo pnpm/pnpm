@@ -52,6 +52,24 @@ afterEach(() => {
 test('console a warning when the .npmrc has an env variable in a project-level registry', async () => {
   prepare()
 
+  fs.writeFileSync('.npmrc', 'cafile=${ENV_VAR_123}', 'utf8')
+
+  await getConfig({
+    json: false,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+  })
+
+  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Ignored project-level request destination "registry"'))
+})
+
+test('console a warning when a project-level .npmrc uses an env variable in a request destination', async () => {
+  prepare()
+
+  // Env placeholders in repository-controlled registry/proxy URLs are not
+  // expanded at all — the setting is dropped with a dedicated warning
+  // instead of the generic env-replace one.
   fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8')
 
   await getConfig({
