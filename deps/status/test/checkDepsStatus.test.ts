@@ -771,6 +771,7 @@ describe('checkDepsStatus - missing wanted lockfile fallback', () => {
           rootDir: projectRootDir,
           rootDirRealPath: '/workspace' as ProjectRootDirRealPath,
           manifest: { name: 'root', version: '1.0.0' },
+          writeProjectManifest: async () => {},
         },
       ],
       workspaceDir: '/workspace',
