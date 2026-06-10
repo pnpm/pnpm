@@ -32,9 +32,10 @@
 //! or edited workspace pnpmfile invalidates the fast path; plugin
 //! pnpmfiles from config dependencies are covered by the
 //! `config_dependencies` comparison instead of the mtime check), and the
-//! `file:`-dependency bail (upstream's `treatLocalFileDepsAsOutdated`
+//! local-file-dependency bail (upstream's `treatLocalFileDepsAsOutdated`
 //! option, set by `installDeps`): no tracked mtime covers the *contents*
-//! of a `file:` dependency, so projects declaring one always take the
+//! of a local file dependency (a `file:` specifier or a bare local
+//! path/tarball spec), so projects declaring one always take the
 //! full install path, which refetches those dependencies
 //! (pnpm/pnpm#11795). The `isLocalFileDepUpdated` branch of
 //! `linkedPackagesAreUpToDate` is NOT
@@ -162,7 +163,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     // install command — the one consumer that sets the flag upstream.
     if has_local_file_dep(project_manifests) {
         return Decision::Skipped {
-            reason: "a dependency uses the file: protocol and its contents may have changed",
+            reason: "a dependency is a local file dependency and its contents may have changed",
         };
     }
 
@@ -296,9 +297,9 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     }
 }
 
-/// Whether any project declares a dependency with a `file:` specifier
-/// in `dependencies`, `devDependencies`, or `optionalDependencies`.
-/// Port of upstream's `findLocalFileDep` in
+/// Whether any project declares a dependency with a local file
+/// specifier in `dependencies`, `devDependencies`, or
+/// `optionalDependencies`. Port of upstream's `findLocalFileDep` in
 /// `deps/status/src/checkDepsStatus.ts`
 /// (<https://github.com/pnpm/pnpm/issues/11795>). `link:` specifiers
 /// don't count: they are symlinked, so changes inside them flow
@@ -308,11 +309,50 @@ fn has_local_file_dep(project_manifests: &[(PathBuf, &PackageManifest)]) -> bool
     project_manifests.iter().any(|(_, manifest)| {
         FIELDS.iter().any(|field| {
             manifest.value().get(*field).and_then(|value| value.as_object()).is_some_and(|deps| {
-                deps.values()
-                    .any(|spec| spec.as_str().is_some_and(|spec| spec.starts_with("file:")))
+                deps.values().any(|spec| spec.as_str().is_some_and(is_local_file_spec))
             })
         })
     })
+}
+
+/// Whether the specifier resolves to a local directory or tarball whose
+/// contents can change without any manifest or lockfile mtime moving:
+/// the `file:` protocol, path-prefixed specs (`./`, `../`, `~/`,
+/// absolute POSIX and Windows drive paths), and bare tarball file
+/// names. Port of upstream's `isLocalFileSpec` in
+/// `deps/status/src/checkDepsStatus.ts`.
+///
+/// Deliberately narrower than the local resolver's bare-path matching:
+/// a bare path like `user/repo` is statically indistinguishable from a
+/// git shorthand at this layer, and matching it would disable the
+/// repeat-install fast path for every project with git dependencies.
+/// Such specs (and anything else carrying a protocol or URL) stay on
+/// the fast path.
+fn is_local_file_spec(spec: &str) -> bool {
+    if spec.starts_with("file:") {
+        return true;
+    }
+    if spec.starts_with(['.', '/', '\\'])
+        || spec.starts_with("~/")
+        || spec.starts_with("~\\")
+        || is_windows_drive_path(spec)
+    {
+        return true;
+    }
+    if spec.contains(':') {
+        return false;
+    }
+    let spec = spec.to_ascii_lowercase();
+    spec.ends_with(".tgz") || spec.ends_with(".tar.gz") || spec.ends_with(".tar")
+}
+
+/// `c:/...` or `c:\...` — an absolute Windows drive path.
+fn is_windows_drive_path(spec: &str) -> bool {
+    let bytes = spec.as_bytes();
+    bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && (bytes[2] == b'/' || bytes[2] == b'\\')
 }
 
 /// Restore a missing `pnpm-lock.yaml` from the current lockfile before

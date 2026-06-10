@@ -71,10 +71,11 @@ export type CheckDepsStatusOptions = Pick<Config,
   pnpmfile: string[]
   /**
    * The checks below only track manifest and lockfile mtimes, so edits inside
-   * a `file:` dependency's directory (or a repacked `file:` tarball) go
+   * a local file dependency's directory (or a repacked local tarball) go
    * unnoticed. Callers that skip the install entirely when this check reports
-   * up-to-date must set this so that projects with `file:` dependencies
-   * always run a real install, which refetches those dependencies
+   * up-to-date must set this so that projects with local file dependencies
+   * (`file:` and bare local path/tarball specifiers) always run a real
+   * install, which refetches those dependencies
    * (https://github.com/pnpm/pnpm/issues/11795).
    */
   treatLocalFileDepsAsOutdated?: boolean
@@ -167,7 +168,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (localFileDep != null) {
       return {
         upToDate: false,
-        issue: `The dependency "${localFileDep}" uses the file: protocol and its contents may have changed`,
+        issue: `The dependency "${localFileDep}" is a local file dependency and its contents may have changed`,
         workspaceState,
       }
     }
@@ -646,10 +647,10 @@ async function assertWantedLockfileUpToDate (
 }
 
 /**
- * Returns the name of the first dependency declared with a `file:` specifier
- * in any of the given manifests, or `undefined` when there is none. `link:`
- * dependencies are excluded: they are symlinked, so changes inside them flow
- * through without a reinstall.
+ * Returns the name of the first dependency declared with a local file
+ * specifier in any of the given manifests, or `undefined` when there is none.
+ * `link:` dependencies are excluded: they are symlinked, so changes inside
+ * them flow through without a reinstall.
  */
 function findLocalFileDep (manifests: ProjectManifest[]): string | undefined {
   for (const manifest of manifests) {
@@ -657,11 +658,33 @@ function findLocalFileDep (manifests: ProjectManifest[]): string | undefined {
       const deps = manifest[depField]
       if (deps == null) continue
       for (const [depName, spec] of Object.entries(deps)) {
-        if (spec.startsWith('file:')) return depName
+        if (isLocalFileSpec(spec)) return depName
       }
     }
   }
   return undefined
+}
+
+const LOCAL_PATH_PREFIX = /^(?:[./\\]|~[/\\]|[a-z]:[/\\])/i
+const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar)$/i
+
+/**
+ * Whether the specifier resolves to a local directory or tarball whose
+ * contents can change without any manifest or lockfile mtime moving: the
+ * `file:` protocol, path-prefixed specs (`./`, `../`, `~/`, absolute POSIX
+ * and Windows drive paths), and bare tarball file names.
+ *
+ * Deliberately narrower than the local resolver's bare-path matching: a bare
+ * `dir/file.tgz`-less path like `user/repo` is statically indistinguishable
+ * from a git shorthand at this layer, and matching it would disable the
+ * repeat-install fast path for every project with git dependencies. Such
+ * specs (and anything else carrying a protocol or URL) stay on the fast path.
+ */
+function isLocalFileSpec (spec: string): boolean {
+  if (spec.startsWith('file:')) return true
+  if (LOCAL_PATH_PREFIX.test(spec)) return true
+  if (spec.includes(':')) return false
+  return LOCAL_TARBALL_EXTENSION.test(spec)
 }
 
 function throwLockfileNotFound (wantedLockfileDir: string): never {

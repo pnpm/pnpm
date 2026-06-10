@@ -182,7 +182,9 @@ fn returns_skipped_when_a_project_has_a_file_dependency() {
         pacquet_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
-    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("file: protocol")));
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency"))
+    );
 }
 
 /// Same bail for a `file:` *tarball* in any dependency group — a
@@ -202,7 +204,58 @@ fn returns_skipped_when_a_project_has_a_file_tarball_dev_dependency() {
         pacquet_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
     );
-    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("file: protocol")));
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency"))
+    );
+}
+
+/// Bare local path and tarball specs resolve to local file dependencies
+/// too — same bail as `file:`, for the same reason.
+#[test]
+fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
+    for spec in ["vendor/pkg.tgz", "../sibling-dir", "~/pkgs/foo", "/abs/path/foo"] {
+        let (dir, config, manifest) = setup_fresh_install(
+            pacquet_config::NodeLinker::Isolated,
+            "root",
+            "1.0.0",
+            &format!(r#""dependencies":{{"foo":"{spec}"}}"#),
+        );
+
+        let decision = check(
+            dir.path(),
+            config,
+            pacquet_config::NodeLinker::Isolated,
+            &[(dir.path().to_path_buf(), &manifest)],
+        );
+        assert!(
+            matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+            "spec {spec:?} must bail",
+        );
+    }
+}
+
+/// Specs the git, remote-tarball, and registry resolvers claim must not
+/// bail — matching them would disable the fast path for every project
+/// with git dependencies.
+#[test]
+fn returns_up_to_date_when_specs_are_not_local_paths() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        concat!(
+            r#""dependencies":{"foo":"user/repo","bar":"github:user/repo","#,
+            r#""baz":"https://example.com/pkg.tgz","qux":"~1.2.3"}"#,
+        ),
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
 }
 
 /// `link:` dependencies are symlinked — changes inside them flow
