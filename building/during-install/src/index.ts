@@ -91,7 +91,7 @@ export async function buildModules<T extends string> (
         if (!ignoreScripts) {
           const node = depGraph[depPath]
           if (node.requiresBuild) {
-            const allowed = allowBuild(node.name, node.version)
+            const allowed = allowBuild(node.depPath)
             switch (allowed) {
               case false:
               // Explicitly disallowed - don't report as ignored

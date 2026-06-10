@@ -6,7 +6,7 @@ import util from 'node:util'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import type { AllowBuild, PackageManifest } from '@pnpm/types'
+import type { AllowBuild, DepPath, PackageManifest } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import { preferredPM } from 'preferred-pm'
 
@@ -22,6 +22,7 @@ const PREPUBLISH_SCRIPTS = [
 export interface PreparePackageOptions {
   allowBuild?: AllowBuild
   ignoreScripts?: boolean
+  pkgResolutionId: string
   unsafePerm?: boolean
   userAgent?: string
 }
@@ -32,15 +33,19 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return { shouldBeBuilt: false, pkgDir }
   if (opts.ignoreScripts) return { shouldBeBuilt: true, pkgDir }
   // Check if the package is allowed to run build scripts
-  // If allowBuild is undefined or returns false, block the build
-  if (!opts.allowBuild?.(manifest.name, manifest.version)) {
+  // If allowBuild is undefined or returns false, block the build.
+  // The depPath is synthesized from the resolution id rather than read from
+  // a lockfile; resolution ids of git and tarball artifacts are never
+  // semver-shaped, so the policy derives an untrusted package identity.
+  const depPath = `${manifest.name}@${opts.pkgResolutionId}` as DepPath
+  if (!opts.allowBuild?.(depPath)) {
     throw new PnpmError(
       'GIT_DEP_PREPARE_NOT_ALLOWED',
       `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "allowBuilds" allowlist.`,
       {
         hint: `Add the package to "allowBuilds" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
 allowBuilds:
-  ${manifest.name}: true`,
+  ${depPath}: true`,
       }
     )
   }

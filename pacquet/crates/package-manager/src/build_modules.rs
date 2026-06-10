@@ -6,6 +6,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
+use pacquet_deps_path::remove_suffix;
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_postinstall_hooks,
 };
@@ -84,6 +85,8 @@ pub enum BuildModulesError {
 pub struct AllowBuildPolicy {
     expanded_allowed: HashSet<String>,
     expanded_disallowed: HashSet<String>,
+    allowed_dep_paths: HashSet<String>,
+    disallowed_dep_paths: HashSet<String>,
     dangerously_allow_all: bool,
 }
 
@@ -99,7 +102,29 @@ impl AllowBuildPolicy {
         expanded_disallowed: HashSet<String>,
         dangerously_allow_all: bool,
     ) -> Self {
-        Self { expanded_allowed, expanded_disallowed, dangerously_allow_all }
+        Self {
+            expanded_allowed,
+            expanded_disallowed,
+            allowed_dep_paths: HashSet::new(),
+            disallowed_dep_paths: HashSet::new(),
+            dangerously_allow_all,
+        }
+    }
+
+    pub fn new_with_dep_paths(
+        expanded_allowed: HashSet<String>,
+        expanded_disallowed: HashSet<String>,
+        allowed_dep_paths: HashSet<String>,
+        disallowed_dep_paths: HashSet<String>,
+        dangerously_allow_all: bool,
+    ) -> Self {
+        Self {
+            expanded_allowed,
+            expanded_disallowed,
+            allowed_dep_paths,
+            disallowed_dep_paths,
+            dangerously_allow_all,
+        }
     }
 
     /// Build the policy from a resolved [`Config`]. Reads
@@ -120,16 +145,32 @@ impl AllowBuildPolicy {
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
         let mut allowed_specs: Vec<&str> = Vec::new();
         let mut disallowed_specs: Vec<&str> = Vec::new();
+        let mut allowed_dep_paths = HashSet::new();
+        let mut disallowed_dep_paths = HashSet::new();
         for (spec, &value) in &config.allow_builds {
-            if value {
-                allowed_specs.push(spec);
+            if is_dep_path_allow_build_key(spec) {
+                if value {
+                    allowed_dep_paths.insert(normalize_build_dep_path(spec));
+                } else {
+                    disallowed_dep_paths.insert(normalize_build_dep_path(spec));
+                }
             } else {
-                disallowed_specs.push(spec);
+                if value {
+                    allowed_specs.push(spec);
+                } else {
+                    disallowed_specs.push(spec);
+                }
             }
         }
         let expanded_allowed = expand_package_version_specs(allowed_specs)?;
         let expanded_disallowed = expand_package_version_specs(disallowed_specs)?;
-        Ok(Self::new(expanded_allowed, expanded_disallowed, config.dangerously_allow_all_builds))
+        Ok(Self::new_with_dep_paths(
+            expanded_allowed,
+            expanded_disallowed,
+            allowed_dep_paths,
+            disallowed_dep_paths,
+            config.dangerously_allow_all_builds,
+        ))
     }
 
     /// Check whether a package is allowed to run build scripts.
@@ -146,24 +187,67 @@ impl AllowBuildPolicy {
     /// lookup means `*` wildcards in specs do NOT match real
     /// package names — see [`expand_package_version_specs`] for
     /// the rationale.
-    pub fn check(&self, name: &str, version: &str) -> Option<bool> {
+    pub fn check(&self, dep_path: &str) -> Option<bool> {
         if self.dangerously_allow_all {
             return Some(true);
         }
 
+        let normalized_dep_path = normalize_build_dep_path(dep_path);
+        if self.disallowed_dep_paths.contains(&normalized_dep_path) {
+            return Some(false);
+        }
+        let (name, version) = parse_name_version_from_key(&normalized_dep_path);
         let name_at_version = format!("{name}@{version}");
-        if self.expanded_disallowed.contains(name)
+        if self.expanded_disallowed.contains(&name)
             || self.expanded_disallowed.contains(&name_at_version)
         {
             return Some(false);
         }
-        if self.expanded_allowed.contains(name) || self.expanded_allowed.contains(&name_at_version)
+        if self.allowed_dep_paths.contains(&normalized_dep_path) {
+            return Some(true);
+        }
+        // Package-name rules require a trusted package identity. A
+        // registry-style dep path (`name@semver`) is the trust signal: the
+        // lockfile verification gate rejects lockfiles where such a key is
+        // backed by a non-registry resolution, so by the time scripts can
+        // run, the shape proves the artifact came from a registry.
+        if node_semver::Version::parse(&version).is_err() {
+            return None;
+        }
+        if self.expanded_allowed.contains(&name) || self.expanded_allowed.contains(&name_at_version)
         {
             return Some(true);
         }
 
         None
     }
+}
+
+/// Strips the peer suffix (and, matching [`PkgVerPeer::without_peer`]'s
+/// lumped suffix handling, the patch hash) so config keys compare equal
+/// to the `metadata_key.to_string()` form used at the runtime call sites.
+///
+/// [`PkgVerPeer::without_peer`]: pacquet_lockfile::PkgVerPeer::without_peer
+pub(crate) fn normalize_build_dep_path(dep_path: &str) -> String {
+    remove_suffix(dep_path).to_string()
+}
+
+fn is_dep_path_allow_build_key(spec: &str) -> bool {
+    if normalize_build_dep_path(spec) != spec {
+        return true;
+    }
+    if spec.contains("||") {
+        return false;
+    }
+    let (_, version) = parse_name_version_from_key(spec);
+    if version.is_empty() {
+        return !spec.starts_with('@') && (spec.contains('/') || spec.contains(':'));
+    }
+    node_semver::Version::parse(&version).is_err() && is_source_like_dep_path_version(&version)
+}
+
+fn is_source_like_dep_path_version(version: &str) -> bool {
+    version.contains(':') || version.contains('/') || version.contains('#')
 }
 
 /// Run lifecycle scripts for all packages that require a build.
@@ -547,7 +631,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // `ignoreScripts = true; break` pattern.
     let mut should_run_scripts = requires_build;
     if requires_build {
-        match allow_build_policy.check(&name, &version) {
+        let dep_path = metadata_key.to_string();
+        match allow_build_policy.check(&dep_path) {
             Some(false) => {
                 should_run_scripts = false;
             }
@@ -560,10 +645,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                 // the end of `BuildModules::run` for the safety
                 // argument (BTreeSet insertion is atomic from the
                 // data-structure's POV).
-                ignored_builds
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .insert(metadata_key.to_string());
+                ignored_builds.lock().unwrap_or_else(|e| e.into_inner()).insert(dep_path);
                 should_run_scripts = false;
             }
             Some(true) => {}

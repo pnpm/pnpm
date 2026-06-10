@@ -142,15 +142,16 @@ test('dedupes peer/patch-suffix variants and invokes the verifier once per (name
 
 test('does not collapse same (name, version) with different resolutions', async () => {
   // Two entries sharing a name@version but pinned via different protocols
-  // (npm registry vs. git). If the dedup key were just `name@version` one
-  // would silently overwrite the other and a protocol-scoped verifier
-  // would short-circuit on the survivor — letting the real entry skip
-  // the gate.
+  // (npm registry vs. a URL-keyed tarball whose snapshot copied the same
+  // semver `version` from its manifest). If the dedup key were just
+  // `name@version` one would silently overwrite the other and a
+  // protocol-scoped verifier would short-circuit on the survivor —
+  // letting the real entry skip the gate.
   const npmResolution = tarballResolution('sha512-a')
-  const gitResolution = { type: 'git', repo: 'x', commit: 'abc' }
+  const directTarballResolution = { integrity: 'sha512-b', tarball: 'https://example.com/foo.tgz' }
   const lockfile = makeLockfile({
     'foo@1.0.0': { resolution: npmResolution },
-    'foo@1.0.0(peer-x)': { resolution: gitResolution },
+    'foo@https://example.com/foo.tgz': { resolution: directTarballResolution, version: '1.0.0' },
   })
   const seenResolutions: unknown[] = []
   const verifier = wrap(async (resolution) => {
@@ -159,7 +160,7 @@ test('does not collapse same (name, version) with different resolutions', async 
   })
 
   await verifyLockfileResolutions(lockfile, [verifier])
-  expect(seenResolutions).toEqual(expect.arrayContaining([npmResolution, gitResolution]))
+  expect(seenResolutions).toEqual(expect.arrayContaining([npmResolution, directTarballResolution]))
   expect(seenResolutions).toHaveLength(2)
 })
 
@@ -168,7 +169,7 @@ test('the verifier sees the resolution shape verbatim', async () => {
   const gitResolution = { type: 'git', repo: 'x', commit: 'abc' }
   const lockfile = makeLockfile({
     'npm-pkg@1.0.0': { resolution: npmResolution },
-    'git-pkg@1.0.0': { resolution: gitResolution },
+    'git-pkg@git+https://example.com/git-pkg.git#abc': { resolution: gitResolution, version: '1.0.0' },
   })
   const received: unknown[] = []
   const verifier = wrap(async (resolution) => {
@@ -289,4 +290,135 @@ test('does not write a cache record when verification rejects', async () => {
   } finally {
     await fs.promises.rm(tmpDir, { recursive: true, force: true })
   }
+})
+
+test('rejects a registry-style depPath backed by a git resolution, even with no verifiers', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { type: 'git', repo: 'https://example.com/foo.git', commit: 'abc123' } },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+    message: expect.stringMatching(/foo@1\.0\.0/),
+  })
+})
+
+test('rejects a registry-style depPath backed by a git-hosted tarball resolution', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://codeload.github.com/org/foo/tar.gz/abc123', gitHosted: true } },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  })
+})
+
+test('rejects a registry-style depPath backed by a directory resolution', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { type: 'directory', directory: '../foo' } },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  })
+})
+
+test('accepts registry-style depPaths with registry and all-registry variations resolutions', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: tarballResolution() },
+    'bar@1.0.0': {
+      resolution: {
+        type: 'variations',
+        variants: [
+          { targets: [{ os: 'darwin' }], resolution: tarballResolution('sha512-a') },
+          { targets: [{ os: 'linux' }], resolution: tarballResolution('sha512-b') },
+        ],
+      },
+    },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
+})
+
+test('rejects a registry-style depPath whose variations resolution hides a git variant', async () => {
+  const lockfile = makeLockfile({
+    'bar@1.0.0': {
+      resolution: {
+        type: 'variations',
+        variants: [
+          { targets: [{ os: 'darwin' }], resolution: tarballResolution('sha512-a') },
+          { targets: [{ os: 'linux' }], resolution: { type: 'git', repo: 'https://example.com/bar.git', commit: 'abc123' } },
+        ],
+      },
+    },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  })
+})
+
+test('does not flag artifact depPaths with non-registry resolutions', async () => {
+  const lockfile = makeLockfile({
+    'foo@git+https://example.com/foo.git#abc123': { resolution: { type: 'git', repo: 'https://example.com/foo.git', commit: 'abc123' }, version: '1.0.0' },
+    'bar@https://example.com/bar.tgz': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://example.com/bar.tgz' }, version: '1.0.0' },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
+})
+
+test('rejects a registry-style depPath whose git-host tarball clears the gitHosted flag', async () => {
+  // A tampered lockfile sets a non-truthy gitHosted on a codeload URL to
+  // dodge a flag-only check. The URL itself must still flag it.
+  for (const gitHosted of [false, 'true', 'false', 0, 1]) {
+    const lockfile = makeLockfile({
+      'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://codeload.github.com/org/foo/tar.gz/abc123', gitHosted } as never },
+    })
+    // eslint-disable-next-line no-await-in-loop
+    await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+      code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+    })
+  }
+})
+
+test('rejects a registry-style depPath with a non-boolean gitHosted flag', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz', gitHosted: 'true' } as never },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  })
+})
+
+test('accepts a registry-style depPath backed by a custom resolver resolution', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { type: 'custom:cdn', source: 'foo' } as never },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
+})
+
+test('rejects a registry-style depPath backed by a non-http(s) tarball URL', async () => {
+  // The npm verifier skips non-http(s) tarballs, so a file: artifact under a
+  // semver key would be trusted with no tarball-URL binding to catch it.
+  for (const tarball of ['file:///tmp/evil.tgz', 'ftp://example.com/evil.tgz']) {
+    const lockfile = makeLockfile({
+      'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball } as never },
+    })
+    // eslint-disable-next-line no-await-in-loop
+    await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+      code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+    })
+  }
+})
+
+test('accepts a registry-style depPath whose tarball is an http(s) registry URL', async () => {
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz' } as never },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
+})
+
+test('rejects a registry-style depPath whose git-host tarball varies the host casing', async () => {
+  // Hostnames are case-insensitive; an upper-case codeload host paired with
+  // gitHosted: false must not pass as registry-shaped.
+  const lockfile = makeLockfile({
+    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://CODELOAD.GITHUB.COM/org/foo/tar.gz/abc123', gitHosted: false } as never },
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  })
 })

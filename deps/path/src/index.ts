@@ -60,13 +60,16 @@ export function removeSuffix (relDepPath: string): string {
   return relDepPath
 }
 
-export function getPkgIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
-  let pkgId: string = depPath
-  const { peersIndex: sepIndex } = indexOfDepPathSuffix(pkgId)
-  if (sepIndex !== -1) {
-    pkgId = pkgId.substring(0, sepIndex)
+export function removePeersSuffix (relDepPath: string): string {
+  const { peersIndex } = indexOfDepPathSuffix(relDepPath)
+  if (peersIndex !== -1) {
+    return relDepPath.substring(0, peersIndex)
   }
-  return pkgId as PkgIdWithPatchHash
+  return relDepPath
+}
+
+export function getPkgIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
+  return removePeersSuffix(depPath) as PkgIdWithPatchHash
 }
 
 export function tryGetPackageId (relDepPath: DepPath): PkgId {

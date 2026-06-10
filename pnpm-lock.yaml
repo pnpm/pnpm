@@ -1051,6 +1051,7 @@ overrides:
   send@<0.19.0: ^0.19.0
   shell-quote@<1.8.4: '>=1.8.4'
   serve-static@<1.16.0: ^1.16.0
+  shell-quote: 1.8.4
   socks@2: ^2.8.1
   tar@<=7.5.9: '>=7.5.10'
   tmp@<=0.2.3: '>=0.2.4'
@@ -1818,6 +1819,9 @@ importers:
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../after-install
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../policy
       '@pnpm/cli.command':
         specifier: workspace:*
         version: link:../../cli/command
@@ -4601,6 +4605,9 @@ importers:
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist
+      '@pnpm/resolving.git-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/git-resolver
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -5214,6 +5221,9 @@ importers:
       '@pnpm/building.after-install':
         specifier: workspace:*
         version: link:../../building/after-install
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../../building/policy
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types

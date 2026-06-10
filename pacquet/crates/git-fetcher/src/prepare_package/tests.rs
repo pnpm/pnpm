@@ -31,8 +31,43 @@ fn write_manifest(dir: &Path, manifest: &serde_json::Value) {
 fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        allow_build: Box::new(move |_name, _version| allow),
+        allow_build: Box::new(move |_dep_path| allow),
+        dep_path: "x@https://example.com/x.tgz",
         ignore_scripts,
+        unsafe_perm: true,
+        user_agent: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        node_execpath: None,
+        npm_execpath: None,
+        extra_bin_paths: EMPTY_BIN_PATHS,
+        extra_env: empty_env(),
+    }
+}
+
+fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
+    static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
+    PreparePackageOptions {
+        allow_build: Box::new(move |dep_path| !dep_path.contains("://")),
+        dep_path: "x@https://example.com/x.tgz",
+        ignore_scripts: false,
+        unsafe_perm: true,
+        user_agent: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        node_execpath: None,
+        npm_execpath: None,
+        extra_bin_paths: EMPTY_BIN_PATHS,
+        extra_env: empty_env(),
+    }
+}
+
+fn opts_allow_dep_path<'a>(dep_path: &'a str) -> PreparePackageOptions<'a> {
+    static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
+    PreparePackageOptions {
+        allow_build: Box::new(move |actual_dep_path| actual_dep_path == dep_path),
+        dep_path,
+        ignore_scripts: false,
         unsafe_perm: true,
         user_agent: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
@@ -141,6 +176,50 @@ fn prepare_rejects_when_allow_build_returns_false() {
         }
         other => panic!("expected NotAllowed, got {other:?}"),
     }
+}
+
+#[test]
+fn prepare_rejects_untrusted_manifest_identity() {
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "naughty", "version": "1.0.0",
+            "scripts": { "prepare": "tsc" },
+        }),
+    );
+
+    let err =
+        prepare_package::<SilentReporter>(&opts_allow_registry_artifacts_only(), dir.path(), None)
+            .unwrap_err();
+    match err {
+        PreparePackageError::NotAllowed { name, version } => {
+            assert_eq!(name, "naughty");
+            assert_eq!(version, "1.0.0");
+        }
+        other => panic!("expected NotAllowed, got {other:?}"),
+    }
+}
+
+#[test]
+fn prepare_allows_untrusted_manifest_identity_by_dep_path() {
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "trusted-name",
+            "version": "1.0.0",
+            "scripts": { "prepack": r#"node -e "require('fs').writeFileSync('built.txt', 'ok')""# },
+        }),
+    );
+
+    let dep_path = "trusted-name@git+https://example.com/org/repo.git#abc123";
+    let result =
+        prepare_package::<SilentReporter>(&opts_allow_dep_path(dep_path), dir.path(), None)
+            .expect("depPath-specific allow should permit prepare");
+
+    assert!(result.should_be_built);
+    assert!(dir.path().join("built.txt").exists());
 }
 
 #[test]

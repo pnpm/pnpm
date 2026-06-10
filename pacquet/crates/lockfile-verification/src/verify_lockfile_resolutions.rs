@@ -19,12 +19,12 @@
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
-use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName};
+use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
 use pacquet_reporter::{
     LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
 };
 use pacquet_resolving_resolver_base::{
-    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx,
+    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
 use tokio::sync::Semaphore;
 
@@ -82,7 +82,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
-    if verifiers.is_empty() || lockfile.packages.is_none() {
+    if lockfile.packages.is_none() {
         return Ok(());
     }
 
@@ -92,6 +92,8 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     // memoization (and still cover the runner's emit + violation
     // logic via the same code path).
     let cache_inputs = opts.cache_dir.zip(opts.lockfile_path);
+
+    let cache_verifiers = with_resolution_shape_cache_identity(verifiers);
 
     // Memoised content hash. Used by both the lookup (when the
     // stat-shortcut doesn't apply) and the recorder (after the
@@ -109,15 +111,25 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
 
     let mut cache_precomputed: CachePrecomputed = CachePrecomputed::default();
     if let Some((cache_dir, lockfile_path)) = cache_inputs {
-        let result =
-            try_lockfile_verification_cache(cache_dir, lockfile_path, verifiers, &mut hash_once);
+        let result = try_lockfile_verification_cache(
+            cache_dir,
+            lockfile_path,
+            &cache_verifiers,
+            &mut hash_once,
+        );
         if result.hit {
             return Ok(());
         }
         cache_precomputed = result.precomputed;
     }
 
-    let candidates = collect_candidates(lockfile);
+    let (candidates, shape_violations) = collect_candidates(lockfile);
+    if !shape_violations.is_empty() {
+        return Err(build_verification_error(shape_violations));
+    }
+    if verifiers.is_empty() {
+        return Ok(());
+    }
     let lockfile_path_str = opts.lockfile_path.map(|path| path.to_string_lossy().into_owned());
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
@@ -128,7 +140,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
             record_verification(
                 cache_dir,
                 lockfile_path,
-                verifiers,
+                &cache_verifiers,
                 &mut hash_once,
                 cache_precomputed,
             );
@@ -161,7 +173,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
             record_verification(
                 cache_dir,
                 lockfile_path,
-                verifiers,
+                &cache_verifiers,
                 &mut hash_once,
                 cache_precomputed,
             );
@@ -184,8 +196,96 @@ pub async fn collect_resolution_policy_violations(
     if verifiers.is_empty() || lockfile.packages.is_none() {
         return Vec::new();
     }
-    let candidates = collect_candidates(lockfile);
+    // Shape violations are deliberately not collected here: they are
+    // hard tampering failures, not policy picks a caller may
+    // auto-exclude.
+    let (candidates, _shape_violations) = collect_candidates(lockfile);
     run_fan_out(candidates, verifiers, concurrency).await
+}
+
+pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MISMATCH";
+
+/// Cache-key participant for the offline resolution-shape pass: a
+/// record written before the rule existed lacks the flag, so
+/// `can_trust_past_check` rejects it and forces a re-verification.
+/// `verify` is never invoked — the identity is appended only to the
+/// verifier lists handed to the cache lookup and recorder.
+struct ResolutionShapeCacheIdentity {
+    policy: serde_json::Map<String, serde_json::Value>,
+}
+
+fn resolution_shape_cache_identity() -> Arc<dyn ResolutionVerifier> {
+    let mut policy = serde_json::Map::new();
+    policy.insert("resolutionShapeCheck".to_string(), serde_json::Value::Bool(true));
+    Arc::new(ResolutionShapeCacheIdentity { policy })
+}
+
+/// Every verifier list that flows into the verification cache must
+/// carry the resolution-shape identity, so records written before the
+/// shape rule existed cannot stat-fast-path around it. Used by the
+/// gate itself and by [`crate::record_lockfile_verified()`], whose
+/// freshly-resolved lockfile satisfies the shape invariant by
+/// construction (the writer derives every key from the resolution it
+/// just produced).
+pub(crate) fn with_resolution_shape_cache_identity(
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> Vec<Arc<dyn ResolutionVerifier>> {
+    verifiers.iter().cloned().chain(std::iter::once(resolution_shape_cache_identity())).collect()
+}
+
+impl ResolutionVerifier for ResolutionShapeCacheIdentity {
+    fn verify<'a>(
+        &'a self,
+        _resolution: &'a LockfileResolution,
+        _ctx: VerifyCtx<'a>,
+    ) -> VerifyFuture<'a> {
+        Box::pin(async { ResolutionVerification::Ok })
+    }
+
+    fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.policy
+    }
+
+    fn can_trust_past_check(&self, cached: &serde_json::Map<String, serde_json::Value>) -> bool {
+        cached.get("resolutionShapeCheck") == Some(&serde_json::Value::Bool(true))
+    }
+}
+
+/// Mirrors upstream's `isRegistryShapedResolution`: a plain tarball
+/// resolution is registry-shaped because the npm verifier unconditionally
+/// binds explicit tarball URLs of semver-keyed entries to the registry's
+/// own `dist.tarball`. A git-hosted tarball is not — and trust is gated on
+/// the tarball URL rather than the `gitHosted` flag alone, so a tampered
+/// entry that clears the flag (`gitHosted: false`) on a git-host URL is
+/// still rejected.
+fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
+    match resolution {
+        LockfileResolution::Registry(_) => true,
+        LockfileResolution::Tarball(tarball) => {
+            // The tarball URL must be an http(s) registry artifact and not
+            // git-hosted. The npm verifier's tarball-URL binding skips
+            // non-http(s) schemes (file:, etc.), so a `file:` tarball under a
+            // name@semver key would otherwise be trusted with no safety net.
+            is_http_tarball_url(&tarball.tarball)
+                && tarball.git_hosted != Some(true)
+                && !is_git_hosted_tarball_url(&tarball.tarball)
+        }
+        LockfileResolution::Variations(variations) => variations
+            .variants
+            .iter()
+            .all(|variant| is_registry_shaped_resolution(&variant.resolution)),
+        LockfileResolution::Directory(_)
+        | LockfileResolution::Git(_)
+        | LockfileResolution::Binary(_) => false,
+    }
+}
+
+/// Whether a tarball URL uses an http(s) scheme — the only schemes a
+/// registry artifact is served over. Case-insensitive to reject a
+/// tampered uppercase scheme.
+fn is_http_tarball_url(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    lower.starts_with("https://") || lower.starts_with("http://")
 }
 
 /// One `(name, version, resolution)` tuple deduplicated from
@@ -207,14 +307,34 @@ struct Candidate {
 /// `BTreeMap` over a serialized key gives deterministic iteration
 /// order for tests; the fan-out runs across the value iter so order
 /// doesn't affect correctness, only the reproducibility of failures.
-fn collect_candidates(lockfile: &Lockfile) -> Vec<Candidate> {
+fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPolicyViolation>) {
     let Some(packages) = lockfile.packages.as_ref() else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
     let mut deduped: BTreeMap<String, Candidate> = BTreeMap::new();
+    let mut shape_violations = Vec::new();
     for (key, metadata) in packages {
         let name = key.name.clone();
         let version = key.suffix.version().to_string();
+        // A registry-style dep path (`name@semver`, no `runtime:`-style
+        // prefix) must be backed by a registry-shaped resolution: the
+        // allowBuilds policy derives a trusted package identity from
+        // that key shape, which is only sound while this invariant
+        // holds. The check is offline, so it applies even when no
+        // policy verifiers are active.
+        if key.suffix.prefix() == pacquet_lockfile::Prefix::None
+            && matches!(key.suffix.version(), pacquet_lockfile::VersionPart::Semver(_))
+            && !is_registry_shaped_resolution(&metadata.resolution)
+        {
+            shape_violations.push(ResolutionPolicyViolation {
+                name: name.clone(),
+                version: version.clone(),
+                resolution: metadata.resolution.clone(),
+                code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+                reason: "a registry-style dependency path is backed by a non-registry resolution"
+                    .to_string(),
+            });
+        }
         // Every `LockfileResolution` variant derives `Serialize`, and
         // the wire shape never contains non-string keys or non-finite
         // numbers — the only way this `expect` could fire is a future
@@ -230,7 +350,7 @@ fn collect_candidates(lockfile: &Lockfile) -> Vec<Candidate> {
             resolution: metadata.resolution.clone(),
         });
     }
-    deduped.into_values().collect()
+    (deduped.into_values().collect(), shape_violations)
 }
 
 /// Run every active verifier against every candidate with a
