@@ -146,3 +146,21 @@ async fn metadata_outranks_downloads_beyond_the_reserve() {
     download.await.unwrap();
     assert_eq!(*order.lock().unwrap(), vec!["meta", "download"]);
 }
+
+/// With a single permit the reserve must be zero — a reserve covering
+/// the whole pool would invert the starvation guarantee and let queued
+/// downloads block metadata outright.
+#[tokio::test]
+async fn single_permit_pool_still_serves_metadata_first() {
+    let sem = Arc::new(PrioritySemaphore::new(1));
+    let holder = sem.acquire(5).await;
+
+    let order = Arc::new(Mutex::new(Vec::new()));
+    let download = spawn_waiter(&sem, &order, "download", 9).await;
+    let meta = spawn_waiter(&sem, &order, "meta", UNPRIORITIZED).await;
+
+    drop(holder);
+    meta.await.unwrap();
+    download.await.unwrap();
+    assert_eq!(*order.lock().unwrap(), vec!["meta", "download"]);
+}

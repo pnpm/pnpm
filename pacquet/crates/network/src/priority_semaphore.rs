@@ -17,7 +17,8 @@
 //! resolution burst no tarball ever got a slot, so the download
 //! pipeline started only after resolution finished, costing the whole
 //! resolve/fetch overlap. Instead the throughput class is guaranteed a
-//! reserved share of the pool (half, rounded up): when downloads hold
+//! reserved share of the pool (half, rounded up — but never all of
+//! it): when downloads hold
 //! fewer than the reserve, a freed slot goes to the largest pending
 //! download even while metadata is queued; beyond the reserve, queued
 //! metadata wins. Both directions are work-conserving — either class
@@ -123,7 +124,11 @@ impl PrioritySemaphore {
                 free: permits,
                 latency_in_flight: 0,
                 throughput_in_flight: 0,
-                throughput_reserve: permits.div_ceil(2),
+                // Half the pool, but never all of it: a reserve that
+                // covers every permit (the `permits == 1` case) would
+                // invert the starvation guarantee — queued downloads
+                // would block metadata outright instead of sharing.
+                throughput_reserve: permits.div_ceil(2).min(permits.saturating_sub(1)),
                 next_seq: 0,
                 latency_waiters: VecDeque::new(),
                 throughput_waiters: BinaryHeap::new(),

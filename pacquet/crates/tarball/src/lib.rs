@@ -1815,7 +1815,10 @@ pub fn download_priority(unpacked_size: Option<usize>, file_count: Option<usize>
     let size = unpacked_size.map_or(0, |size| size as u64);
     let per_file =
         file_count.map_or(0, |count| (count as u64).saturating_mul(PRIORITY_BYTES_PER_FILE));
-    size.saturating_add(per_file)
+    // `UNPRIORITIZED` (`u64::MAX`) is the latency-class sentinel; a
+    // hostile registry publishing absurd `dist` stats must not be able
+    // to saturate a download's priority into that class.
+    size.saturating_add(per_file).min(UNPRIORITIZED - 1)
 }
 
 // 9 arguments — over the default clippy threshold but each is
