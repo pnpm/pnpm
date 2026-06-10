@@ -238,11 +238,8 @@ impl SlowStart {
     /// cap the model needs; `None` keeps the flat-rate behavior.
     fn for_profile(profile: &LinkProfile) -> Option<SlowStart> {
         let rtt_secs = profile.one_way.as_secs_f64() * 2.0;
-        (profile.slow_start && rtt_secs > 0.0 && profile.rate_limit.is_some()).then(|| SlowStart {
-            cwnd: INITIAL_CWND_BYTES,
-            rtt_secs,
-            bytes_in_round: 0.0,
-        })
+        (profile.slow_start && rtt_secs > 0.0 && profile.rate_limit.is_some())
+            .then_some(SlowStart { cwnd: INITIAL_CWND_BYTES, rtt_secs, bytes_in_round: 0.0 })
     }
 
     /// The rate (bytes/sec) at which the next `len`-byte chunk
