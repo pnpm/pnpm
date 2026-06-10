@@ -194,7 +194,6 @@ test('install restores a deleted pnpm-lock.yaml from the current lockfile withou
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     optimisticRepeatInstall: true,
-    registry: 'http://127.0.0.1:9/',
     registries: { default: 'http://127.0.0.1:9/' },
   })
 
