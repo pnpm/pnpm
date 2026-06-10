@@ -338,12 +338,13 @@ fn abbreviation_drops_fields_the_resolver_ignores() {
     // `shasum` dropped because `integrity` is present.
     assert_eq!(version["dist"]["integrity"], "sha512-abc");
     assert!(version["dist"].get("shasum").is_none());
-    // Legacy PGP signature and unused size fields dropped; ECDSA
-    // registry signatures kept.
+    // Legacy PGP signature dropped; ECDSA registry signatures kept.
     assert!(version["dist"].get("npm-signature").is_none());
-    assert!(version["dist"].get("fileCount").is_none());
-    assert!(version["dist"].get("unpackedSize").is_none());
     assert_eq!(version["dist"]["signatures"][0]["keyid"], "SHA256:xyz");
+    // Size hints kept: pacquet reads both for decompression
+    // preallocation and download scheduling.
+    assert_eq!(version["dist"]["fileCount"], 12);
+    assert_eq!(version["dist"]["unpackedSize"], 34567);
 }
 
 #[test]
