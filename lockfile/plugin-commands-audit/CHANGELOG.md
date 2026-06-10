@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.2.13
+
+### Patch Changes
+
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [14bceb1]
+  - @pnpm/config@1004.11.3
+  - @pnpm/types@1001.3.1
+  - @pnpm/lockfile.fs@1001.1.35
+  - @pnpm/cli-utils@1001.3.13
+  - @pnpm/config.config-writer@1000.1.5
+  - @pnpm/audit@1002.0.29
+  - @pnpm/read-project-manifest@1001.2.7
+
 ## 1002.2.12
 
 ### Patch Changes

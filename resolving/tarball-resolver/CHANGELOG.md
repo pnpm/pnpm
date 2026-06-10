@@ -1,5 +1,11 @@
 # @pnpm/tarball-resolver
 
+## 1002.2.3
+
+### Patch Changes
+
+- @pnpm/resolver-base@1005.4.3
+
 ## 1002.2.2
 
 ### Patch Changes

@@ -1,5 +1,38 @@
 # @pnpm/headless
 
+## 1010.1.14
+
+### Patch Changes
+
+- 14bceb1: Require trusted package identity before package-name `onlyBuiltDependencies` (and `allowBuilds`) entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the key. Lockfile entries are now rejected when a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [14bceb1]
+  - @pnpm/types@1001.3.1
+  - @pnpm/dependency-path@1001.1.11
+  - @pnpm/builder.policy@1000.1.3
+  - @pnpm/lockfile.utils@1004.0.6
+  - @pnpm/lockfile.fs@1001.1.35
+  - @pnpm/build-modules@1007.0.15
+  - @pnpm/link-bins@1000.3.9
+  - @pnpm/package-is-installable@1000.0.22
+  - @pnpm/deps.graph-builder@1002.3.16
+  - @pnpm/lifecycle@1001.0.39
+  - @pnpm/symlink-dependency@1000.0.19
+  - @pnpm/lockfile.filtering@1001.0.34
+  - @pnpm/lockfile-to-pnp@1001.0.37
+  - @pnpm/calc-dep-state@1003.0.6
+  - @pnpm/core-loggers@1001.0.10
+  - @pnpm/hoist@1002.0.18
+  - @pnpm/modules-cleaner@1001.0.38
+  - @pnpm/modules-yaml@1002.0.2
+  - @pnpm/package-requester@1011.2.6
+  - @pnpm/real-hoist@1001.0.33
+  - @pnpm/read-package-json@1000.1.9
+  - @pnpm/read-project-manifest@1001.2.7
+  - @pnpm/store-controller-types@1004.5.3
+  - @pnpm/worker@1000.6.10
+  - @pnpm/patching.config@1001.0.20
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.19
+
 ## 1010.1.13
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/modules-yaml
 
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [14bceb1]
+  - @pnpm/types@1001.3.1
+
 ## 1002.0.1
 
 ### Patch Changes

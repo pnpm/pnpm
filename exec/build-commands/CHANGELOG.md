@@ -1,5 +1,19 @@
 # @pnpm/exec.build-commands
 
+## 1002.1.6
+
+### Patch Changes
+
+- 14bceb1: Require trusted package identity before package-name `onlyBuiltDependencies` (and `allowBuilds`) entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the key. Lockfile entries are now rejected when a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [14bceb1]
+  - @pnpm/config@1004.11.3
+  - @pnpm/builder.policy@1000.1.3
+  - @pnpm/plugin-commands-rebuild@1008.0.17
+  - @pnpm/config.config-writer@1000.1.5
+  - @pnpm/modules-yaml@1002.0.2
+
 ## 1002.1.5
 
 ### Patch Changes

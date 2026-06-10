@@ -1,5 +1,22 @@
 # @pnpm/package-requester
 
+## 1011.2.6
+
+### Patch Changes
+
+- Updated dependencies [14bceb1]
+  - @pnpm/types@1001.3.1
+  - @pnpm/dependency-path@1001.1.11
+  - @pnpm/package-is-installable@1000.0.22
+  - @pnpm/fetcher-base@1001.2.4
+  - @pnpm/core-loggers@1001.0.10
+  - @pnpm/read-package-json@1000.1.9
+  - @pnpm/resolver-base@1005.4.3
+  - @pnpm/store.cafs@1000.1.6
+  - @pnpm/store-controller-types@1004.5.3
+  - @pnpm/worker@1000.6.10
+  - @pnpm/pick-fetcher@1001.0.1
+
 ## 1011.2.5
 
 ### Patch Changes

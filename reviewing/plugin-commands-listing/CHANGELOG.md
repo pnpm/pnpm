@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-listing
 
+## 1000.3.9
+
+### Patch Changes
+
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [14bceb1]
+  - @pnpm/config@1004.11.3
+  - @pnpm/types@1001.3.1
+  - @pnpm/cli-utils@1001.3.13
+  - @pnpm/list@1000.3.7
+
 ## 1000.3.8
 
 ### Patch Changes

@@ -1,5 +1,25 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.59
+
+### Patch Changes
+
+- c452019: pnpm now verifies the npm registry signature of a package-manager binary before spawning it. When the `packageManager` field (or `pnpm self-update`) makes pnpm download another pnpm version, the staged install is verified corepack-style: the integrity recorded in the staged lockfile must carry a valid npm registry signature for the exact `name@version`, validated against npm's public signing keys that ship embedded in the pnpm CLI. Verification fails closed — a tampered download, an unsigned package, or an unreachable registry refuses the version switch rather than running an unverified binary. It runs only when the wanted version is actually downloaded (a tools-directory cache miss), so repeated commands pay no extra network round trip.
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [14bceb1]
+  - @pnpm/config@1004.11.3
+  - @pnpm/types@1001.3.1
+  - @pnpm/lockfile.fs@1001.1.35
+  - @pnpm/cli-utils@1001.3.13
+  - @pnpm/link-bins@1000.3.9
+  - @pnpm/cli-meta@1000.0.17
+  - @pnpm/pick-registry-for-package@1000.0.17
+  - @pnpm/lockfile.types@1002.1.2
+  - @pnpm/fetch@1001.0.1
+  - @pnpm/client@1001.1.27
+  - @pnpm/read-project-manifest@1001.2.7
+
 ## 1000.1.58
 
 ### Patch Changes

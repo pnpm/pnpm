@@ -1,5 +1,23 @@
 # @pnpm/cli-utils
 
+## 1001.3.13
+
+### Patch Changes
+
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [14bceb1]
+  - @pnpm/config@1004.11.3
+  - @pnpm/types@1001.3.1
+  - @pnpm/default-reporter@1002.1.17
+  - @pnpm/store-connection-manager@1002.3.22
+  - @pnpm/cli-meta@1000.0.17
+  - @pnpm/config.deps-installer@1000.1.8
+  - @pnpm/package-is-installable@1000.0.22
+  - @pnpm/pnpmfile@1002.1.15
+  - @pnpm/manifest-utils@1002.0.6
+  - @pnpm/read-project-manifest@1001.2.7
+
 ## 1001.3.12
 
 ### Patch Changes

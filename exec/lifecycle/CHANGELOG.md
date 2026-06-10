@@ -1,5 +1,17 @@
 # @pnpm/lifecycle
 
+## 1001.0.39
+
+### Patch Changes
+
+- Updated dependencies [14bceb1]
+  - @pnpm/types@1001.3.1
+  - @pnpm/link-bins@1000.3.9
+  - @pnpm/directory-fetcher@1000.1.26
+  - @pnpm/core-loggers@1001.0.10
+  - @pnpm/read-package-json@1000.1.9
+  - @pnpm/store-controller-types@1004.5.3
+
 ## 1001.0.38
 
 ### Patch Changes

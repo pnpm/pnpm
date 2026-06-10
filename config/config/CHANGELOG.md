@@ -1,5 +1,18 @@
 # @pnpm/config
 
+## 1004.11.3
+
+### Patch Changes
+
+- c452019: Package-manager bootstrap traffic is now resolved through trusted registries and trusted network config. When pnpm downloads the pnpm version requested by a repository's `packageManager` field, the registry it fetches from (and the proxy/TLS settings used for that traffic) now come exclusively from trusted config sources — CLI options, env config, user and global `.npmrc` — defaulting to the public npm registry, instead of the repository's project/workspace settings.
+- c452019: Environment variable expansion is now trust-aware for registry/auth config and request destinations. Repository-controlled config files (the project and workspace `.npmrc` and `pnpm-workspace.yaml`) can no longer expand `${...}` placeholders in registry/proxy request destinations, URL-scoped keys, or registry credential values, preventing repository-controlled configuration from exfiltrating environment secrets through request URLs. Trusted user/global/CLI/env config keeps full env expansion, so existing token and registry setup flows continue to work.
+- Updated dependencies [14bceb1]
+  - @pnpm/types@1001.3.1
+  - @pnpm/pnpmfile@1002.1.15
+  - @pnpm/read-project-manifest@1001.2.7
+  - @pnpm/workspace.read-manifest@1000.3.2
+  - @pnpm/catalogs.config@1000.0.6
+
 ## 1004.11.2
 
 ### Patch Changes

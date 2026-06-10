@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/sort-packages",
-  "version": "1000.0.16",
+  "version": "1000.0.17",
   "description": "Sort packages",
   "keywords": [
     "pnpm",

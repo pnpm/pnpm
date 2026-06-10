@@ -1,5 +1,17 @@
 # @pnpm/store-connection-manager
 
+## 1002.3.22
+
+### Patch Changes
+
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+  - @pnpm/config@1004.11.3
+  - @pnpm/cli-meta@1000.0.17
+  - @pnpm/client@1001.1.27
+  - @pnpm/package-store@1007.1.8
+  - @pnpm/server@1001.0.22
+
 ## 1002.3.21
 
 ### Patch Changes

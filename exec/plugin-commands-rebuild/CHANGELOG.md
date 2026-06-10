@@ -1,5 +1,37 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1008.0.17
+
+### Patch Changes
+
+- 14bceb1: Require trusted package identity before package-name `onlyBuiltDependencies` (and `allowBuilds`) entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the key. Lockfile entries are now rejected when a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [c452019]
+- Updated dependencies [c452019]
+- Updated dependencies [14bceb1]
+  - @pnpm/config@1004.11.3
+  - @pnpm/types@1001.3.1
+  - @pnpm/dependency-path@1001.1.11
+  - @pnpm/builder.policy@1000.1.3
+  - @pnpm/lockfile.utils@1004.0.6
+  - @pnpm/cli-utils@1001.3.13
+  - @pnpm/store-connection-manager@1002.3.22
+  - @pnpm/link-bins@1000.3.9
+  - @pnpm/normalize-registries@1000.1.10
+  - @pnpm/lifecycle@1001.0.39
+  - @pnpm/exec.pkg-requires-build@1000.0.17
+  - @pnpm/lockfile.types@1002.1.2
+  - @pnpm/lockfile.walker@1001.0.28
+  - @pnpm/calc-dep-state@1003.0.6
+  - @pnpm/core-loggers@1001.0.10
+  - @pnpm/get-context@1001.2.11
+  - @pnpm/modules-yaml@1002.0.2
+  - @pnpm/read-package-json@1000.1.9
+  - @pnpm/store.cafs@1000.1.6
+  - @pnpm/store-controller-types@1004.5.3
+  - @pnpm/worker@1000.6.10
+  - @pnpm/workspace.find-packages@1000.0.68
+  - @pnpm/sort-packages@1000.0.17
+
 ## 1008.0.16
 
 ### Patch Changes

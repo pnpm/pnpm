@@ -1,5 +1,13 @@
 # @pnpm/git-resolver
 
+## 1001.2.4
+
+### Patch Changes
+
+- 14bceb1: Require trusted package identity before package-name `onlyBuiltDependencies` (and `allowBuilds`) entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the key. Lockfile entries are now rejected when a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+  - @pnpm/fetch@1001.0.1
+  - @pnpm/resolver-base@1005.4.3
+
 ## 1001.2.3
 
 ### Patch Changes
