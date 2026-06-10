@@ -1139,7 +1139,7 @@ importers:
         specifier: 'catalog:'
         version: 5.0.1
       node:
-        specifier: runtime:26.3.0
+        specifier: runtime:^26.3.0
         version: runtime:26.3.0
       rimraf:
         specifier: 'catalog:'
@@ -15397,7 +15397,6 @@ packages:
             - cpu: x64
               os: linux
               libc: musl
-    version: 26.3.0
     hasBin: true
 
   nopt@1.0.10:
