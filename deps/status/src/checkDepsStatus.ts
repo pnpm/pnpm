@@ -27,11 +27,12 @@ import {
 } from '@pnpm/lockfile.verification'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import type {
-  DependencyManifest,
-  Project,
-  ProjectId,
-  ProjectManifest,
+import {
+  DEPENDENCIES_FIELDS,
+  type DependencyManifest,
+  type Project,
+  type ProjectId,
+  type ProjectManifest,
 } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { loadWorkspaceState, updateWorkspaceState, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
@@ -68,6 +69,15 @@ export type CheckDepsStatusOptions = Pick<Config,
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
   pnpmfile: string[]
+  /**
+   * The checks below only track manifest and lockfile mtimes, so edits inside
+   * a `file:` dependency's directory (or a repacked `file:` tarball) go
+   * unnoticed. Callers that skip the install entirely when this check reports
+   * up-to-date must set this so that projects with `file:` dependencies
+   * always run a real install, which refetches those dependencies
+   * (https://github.com/pnpm/pnpm/issues/11795).
+   */
+  treatLocalFileDepsAsOutdated?: boolean
   /**
    * When git-branch lockfiles are enabled, the wanted lockfile lives at
    * `pnpm-lock.<branch>.yaml`, so a missing `pnpm-lock.yaml` is the steady
@@ -148,6 +158,19 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
   if (opts.ignoreFilteredInstallCache && workspaceState.filteredInstall) {
     return { upToDate: undefined, workspaceState }
+  }
+
+  if (opts.treatLocalFileDepsAsOutdated) {
+    const manifests = allProjects?.map(({ manifest }) => manifest) ??
+      (rootProjectManifest ? [rootProjectManifest] : [])
+    const localFileDep = findLocalFileDep(manifests)
+    if (localFileDep != null) {
+      return {
+        upToDate: false,
+        issue: `The dependency "${localFileDep}" uses the file: protocol and its contents may have changed`,
+        workspaceState,
+      }
+    }
   }
 
   if (workspaceState.settings) {
@@ -620,6 +643,25 @@ async function assertWantedLockfileUpToDate (
       hint: 'Run `pnpm install` to update the packages',
     })
   }
+}
+
+/**
+ * Returns the name of the first dependency declared with a `file:` specifier
+ * in any of the given manifests, or `undefined` when there is none. `link:`
+ * dependencies are excluded: they are symlinked, so changes inside them flow
+ * through without a reinstall.
+ */
+function findLocalFileDep (manifests: ProjectManifest[]): string | undefined {
+  for (const manifest of manifests) {
+    for (const depField of DEPENDENCIES_FIELDS) {
+      const deps = manifest[depField]
+      if (deps == null) continue
+      for (const [depName, spec] of Object.entries(deps)) {
+        if (spec.startsWith('file:')) return depName
+      }
+    }
+  }
+  return undefined
 }
 
 function throwLockfileNotFound (wantedLockfileDir: string): never {

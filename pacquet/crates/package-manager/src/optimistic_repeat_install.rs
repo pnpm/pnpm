@@ -31,8 +31,13 @@
 //! the pnpmfile branch of `patchesOrHooksAreModified` (an added, removed,
 //! or edited workspace pnpmfile invalidates the fast path; plugin
 //! pnpmfiles from config dependencies are covered by the
-//! `config_dependencies` comparison instead of the mtime check). The
-//! `isLocalFileDepUpdated` branch of `linkedPackagesAreUpToDate` is NOT
+//! `config_dependencies` comparison instead of the mtime check), and the
+//! `file:`-dependency bail (upstream's `treatLocalFileDepsAsOutdated`
+//! option, set by `installDeps`): no tracked mtime covers the *contents*
+//! of a `file:` dependency, so projects declaring one always take the
+//! full install path, which refetches those dependencies
+//! (pnpm/pnpm#11795). The `isLocalFileDepUpdated` branch of
+//! `linkedPackagesAreUpToDate` is NOT
 //! ported here. When this function returns `Decision::Skipped` the caller
 //! proceeds with the full install path, which still has its own freshness
 //! guards (`check_lockfile_freshness`, the no-op short-circuit). Remaining
@@ -151,6 +156,15 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     let Ok(Some(state)) = load_workspace_state(workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
+
+    // Unconditional where upstream gates it behind
+    // `treatLocalFileDepsAsOutdated`: the only caller here is the
+    // install command — the one consumer that sets the flag upstream.
+    if has_local_file_dep(project_manifests) {
+        return Decision::Skipped {
+            reason: "a dependency uses the file: protocol and its contents may have changed",
+        };
+    }
 
     if !settings_match(&state, config, node_linker, included) {
         return Decision::Skipped { reason: "settings drift" };
@@ -280,6 +294,25 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         }
         Err(reason) => Decision::Skipped { reason },
     }
+}
+
+/// Whether any project declares a dependency with a `file:` specifier
+/// in `dependencies`, `devDependencies`, or `optionalDependencies`.
+/// Port of upstream's `findLocalFileDep` in
+/// `deps/status/src/checkDepsStatus.ts`
+/// (<https://github.com/pnpm/pnpm/issues/11795>). `link:` specifiers
+/// don't count: they are symlinked, so changes inside them flow
+/// through without a reinstall.
+fn has_local_file_dep(project_manifests: &[(PathBuf, &PackageManifest)]) -> bool {
+    const FIELDS: [&str; 3] = ["dependencies", "devDependencies", "optionalDependencies"];
+    project_manifests.iter().any(|(_, manifest)| {
+        FIELDS.iter().any(|field| {
+            manifest.value().get(*field).and_then(|value| value.as_object()).is_some_and(|deps| {
+                deps.values()
+                    .any(|spec| spec.as_str().is_some_and(|spec| spec.starts_with("file:")))
+            })
+        })
+    })
 }
 
 /// Restore a missing `pnpm-lock.yaml` from the current lockfile before

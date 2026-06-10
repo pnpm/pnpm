@@ -163,6 +163,68 @@ fn returns_up_to_date_when_state_and_manifests_agree() {
     assert_eq!(decision, Decision::UpToDate);
 }
 
+/// A `file:` dependency must never short-circuit: nothing the fast
+/// path stats covers the dependency's *contents*, so the full install
+/// path has to run and refetch it
+/// (<https://github.com/pnpm/pnpm/issues/11795>).
+#[test]
+fn returns_skipped_when_a_project_has_a_file_dependency() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"file:../foo"}"#,
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("file: protocol")));
+}
+
+/// Same bail for a `file:` *tarball* in any dependency group — a
+/// repacked `.tgz` bumps no manifest mtime either.
+#[test]
+fn returns_skipped_when_a_project_has_a_file_tarball_dev_dependency() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""devDependencies":{"tar":"file:./vendor/tar.tgz"}"#,
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("file: protocol")));
+}
+
+/// `link:` dependencies are symlinked — changes inside them flow
+/// through without a reinstall, so they don't invalidate the fast path.
+#[test]
+fn returns_up_to_date_when_a_project_has_only_link_dependencies() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"link:../foo"}"#,
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
+}
+
 /// `optimistic_repeat_install: false` opts the user out entirely.
 #[test]
 fn returns_skipped_when_config_disabled() {

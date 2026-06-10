@@ -790,3 +790,137 @@ describe('checkDepsStatus - missing wanted lockfile fallback', () => {
     })
   })
 })
+
+describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  const currentLockfile = {
+    lockfileVersion: '9.0',
+    importers: { '.': { specifiers: {} } },
+  } as unknown as LockfileObject
+
+  const mockWorkspaceState = (lastValidatedTimestamp: number): WorkspaceState => ({
+    lastValidatedTimestamp,
+    pnpmfiles: [],
+    settings: {
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: true,
+      preferWorkspacePackages: true,
+    },
+    projects: {},
+    filteredInstall: false,
+  })
+
+  function mockUpToDateSingleProjectStats (lastValidatedTimestamp: number): void {
+    jest.mocked(fsUtils.safeStat).mockImplementation(async () => ({
+      mtime: new Date(lastValidatedTimestamp - 10_000),
+      mtimeMs: lastValidatedTimestamp - 10_000,
+    } as Stats))
+    jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+      mtime: new Date(lastValidatedTimestamp - 20_000),
+      mtimeMs: lastValidatedTimestamp - 20_000,
+    } as Stats))
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async () => currentLockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(null)
+  }
+
+  it('returns upToDate: false when the root manifest has a file: dependency', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: { foo: 'file:../foo' },
+      },
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      ...mockWorkspaceState(lastValidatedTimestamp).settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The dependency "foo" uses the file: protocol and its contents may have changed')
+  })
+
+  it('returns upToDate: false when a workspace project has a file: dependency', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+    const opts: CheckDepsStatusOptions = {
+      allProjects: [
+        {
+          rootDir: '/workspace' as ProjectRootDir,
+          rootDirRealPath: '/workspace' as ProjectRootDirRealPath,
+          manifest: { name: 'root', version: '1.0.0' },
+          writeProjectManifest: async () => {},
+        },
+        {
+          rootDir: '/workspace/packages/bar' as ProjectRootDir,
+          rootDirRealPath: '/workspace/packages/bar' as ProjectRootDirRealPath,
+          manifest: {
+            name: 'bar',
+            version: '1.0.0',
+            devDependencies: { tar: 'file:./vendor/tar.tgz' },
+          },
+          writeProjectManifest: async () => {},
+        },
+      ],
+      workspaceDir: '/workspace',
+      sharedWorkspaceLockfile: true,
+      rootProjectManifest: { name: 'root', version: '1.0.0' },
+      rootProjectManifestDir: '/workspace',
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      ...mockWorkspaceState(lastValidatedTimestamp).settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The dependency "tar" uses the file: protocol and its contents may have changed')
+  })
+
+  it('reports up-to-date when there is a file: dependency but the option is not set', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+    mockUpToDateSingleProjectStats(lastValidatedTimestamp)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: { foo: 'file:../foo' },
+      },
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState(lastValidatedTimestamp).settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(true)
+  })
+
+  it('does not report link: and registry dependencies as outdated', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+    mockUpToDateSingleProjectStats(lastValidatedTimestamp)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: {
+          foo: 'link:../foo',
+          bar: '^1.0.0',
+        },
+      },
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      ...mockWorkspaceState(lastValidatedTimestamp).settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(true)
+  })
+})
