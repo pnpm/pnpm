@@ -213,31 +213,73 @@ where
         return Err(PickPackageFromMetaError::NoVersions { pkg_name: spec.name.clone() });
     }
 
-    let picked_version: Option<String> = match spec.spec_type {
-        RegistryPackageSpecType::Version => Some(spec.fetch_spec.clone()),
-        RegistryPackageSpecType::Tag => meta_ref.dist_tag(&spec.fetch_spec).map(str::to_string),
-        RegistryPackageSpecType::Range => {
-            pick_version_by_range(&PickVersionByVersionRangeOptions {
-                meta: meta_ref,
-                version_range: &spec.fetch_spec,
-                preferred_version_selectors: opts.preferred_version_selectors,
-                published_by: opts.published_by,
-            })
-        }
-    };
+    // An undecodable fragment behaves as if the version were absent
+    // (the `PackageVersions` contract), so a pick whose winner fails
+    // to hydrate retries against the remaining versions instead of
+    // reporting "no match" while satisfying candidates exist. The
+    // owned filtered clone only materializes on that (rare) path.
+    let mut undecodable_excluded: Option<Package> = None;
+    loop {
+        let meta_now: &Package = undecodable_excluded.as_ref().unwrap_or(meta_ref);
+        let picked_version: Option<String> = match spec.spec_type {
+            RegistryPackageSpecType::Version => Some(spec.fetch_spec.clone()),
+            RegistryPackageSpecType::Tag => meta_now.dist_tag(&spec.fetch_spec).map(str::to_string),
+            RegistryPackageSpecType::Range => {
+                pick_version_by_range(&PickVersionByVersionRangeOptions {
+                    meta: meta_now,
+                    version_range: &spec.fetch_spec,
+                    preferred_version_selectors: opts.preferred_version_selectors,
+                    published_by: opts.published_by,
+                })
+            }
+        };
 
-    let Some(version) = picked_version else { return Ok(None) };
-    let Some(manifest) = meta_ref.versions.get(&version) else { return Ok(None) };
-    if !meta_ref.name.is_empty() && manifest.name != meta_ref.name {
-        // GitHub registry quirk: a scoped package can be published as
-        // `@owner/foo` while the per-version `name` is just `foo`.
-        // Match upstream's shim that pins the manifest name to the
-        // packument-level name.
-        let mut pinned = (*manifest).clone();
-        pinned.name.clone_from(&meta_ref.name);
-        return Ok(Some(Arc::new(pinned)));
+        let Some(version) = picked_version else { return Ok(None) };
+        let Some(manifest) = meta_now.versions.get(&version) else {
+            if !meta_now.versions.contains_key(&version) {
+                // The picked string names a version the packument
+                // doesn't carry (a dangling dist-tag, an exact spec
+                // for an unpublished version) — nothing to retry.
+                return Ok(None);
+            }
+            undecodable_excluded = Some(without_version(meta_now, &version));
+            continue;
+        };
+        if !meta_now.name.is_empty() && manifest.name != meta_now.name {
+            // GitHub registry quirk: a scoped package can be published as
+            // `@owner/foo` while the per-version `name` is just `foo`.
+            // Match upstream's shim that pins the manifest name to the
+            // packument-level name.
+            let mut pinned = (*manifest).clone();
+            pinned.name.clone_from(&meta_now.name);
+            return Ok(Some(Arc::new(pinned)));
+        }
+        return Ok(Some(manifest));
     }
-    Ok(Some(manifest))
+}
+
+/// Clone `meta` minus one version — the retry step when a picked
+/// version's fragment turns out to be undecodable. Slots move without
+/// hydrating.
+fn without_version(meta: &Package, version: &str) -> Package {
+    Package {
+        name: meta.name.clone(),
+        // Tags pointing at the removed version go with it — the
+        // latest-tag fast path would otherwise re-pick the version
+        // this clone exists to exclude.
+        dist_tags: meta
+            .dist_tags
+            .iter()
+            .filter(|(_, target)| *target != version)
+            .map(|(tag, target)| (tag.clone(), target.clone()))
+            .collect(),
+        versions: meta.versions.filtered(|candidate| candidate != version),
+        time: meta.time.clone(),
+        modified: meta.modified.clone(),
+        etag: meta.etag.clone(),
+        homepage: meta.homepage.clone(),
+        mutex: Arc::default(),
+    }
 }
 
 /// Per-call inputs to the range-picker pluggable. Mirrors upstream's

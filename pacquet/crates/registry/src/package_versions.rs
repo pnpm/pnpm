@@ -58,8 +58,8 @@ enum FragmentSource {
 
 impl FragmentSource {
     /// The fragment's JSON text: borrowed for [`FragmentSource::Raw`],
-    /// read from disk for [`FragmentSource::FileSpan`], absent for
-    /// [`FragmentSource::None`] or on a read failure.
+    /// read from the shared buffer for [`FragmentSource::BufferSpan`],
+    /// absent for [`FragmentSource::None`] or invalid spans.
     fn json(&self) -> Option<Cow<'_, str>> {
         match self {
             FragmentSource::Raw(raw) => Some(Cow::Borrowed(raw.get())),
@@ -292,7 +292,15 @@ impl Serialize for PackageVersions {
             if let Some(json) = slot.source.json() {
                 match serde_json::from_str::<&RawValue>(&json) {
                     Ok(raw) => map.serialize_entry(version, raw)?,
-                    Err(_) => continue,
+                    Err(error) => {
+                        tracing::warn!(
+                            target: "pacquet_registry",
+                            %error,
+                            version,
+                            "skipping registry version with a corrupt fragment during serialization",
+                        );
+                        continue;
+                    }
                 }
                 continue;
             }

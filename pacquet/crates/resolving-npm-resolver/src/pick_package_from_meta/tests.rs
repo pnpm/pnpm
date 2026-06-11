@@ -551,3 +551,54 @@ fn lowest_picker_with_published_by_drops_immature_min() {
     .expect("ok");
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.1.0"));
 }
+
+/// A range pick whose winning version carries an undecodable manifest
+/// fragment retries against the remaining versions — the undecodable
+/// entry behaves as if it were absent from the packument.
+#[test]
+fn pick_from_meta_skips_undecodable_winner_and_retries() {
+    let pkg: Package = serde_json::from_str(
+        r#"{
+            "name": "acme",
+            "dist-tags": {"latest": "1.2.0"},
+            "versions": {
+                "1.0.0": {"name": "acme", "version": "1.0.0", "dist": {"integrity": "sha512-a", "tarball": "https://r/acme-1.0.0.tgz"}},
+                "1.2.0": {"corrupt": "fragment"}
+            }
+        }"#,
+    )
+    .expect("parse package");
+    let picked = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions::default(),
+        &pkg,
+        &spec("acme", "^1.0.0", RegistryPackageSpecType::Range),
+    )
+    .expect("ok");
+    assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.0.0"));
+}
+
+/// An exact-version spec naming an undecodable manifest yields no
+/// match (there is no other candidate to retry) rather than looping
+/// or erroring.
+#[test]
+fn pick_from_meta_returns_none_for_undecodable_exact_version() {
+    let pkg: Package = serde_json::from_str(
+        r#"{
+            "name": "acme",
+            "dist-tags": {},
+            "versions": {
+                "1.2.0": {"corrupt": "fragment"}
+            }
+        }"#,
+    )
+    .expect("parse package");
+    let picked = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions::default(),
+        &pkg,
+        &spec("acme", "1.2.0", RegistryPackageSpecType::Version),
+    )
+    .expect("ok");
+    assert!(picked.is_none());
+}

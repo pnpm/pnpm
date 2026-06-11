@@ -93,3 +93,36 @@ fn filtered_keeps_slots_without_hydration() {
     assert_eq!(filtered.len(), 1);
     assert!(filtered.get("1.0.0").is_some());
 }
+
+/// `pinned_version` walks satisfying candidates from highest to
+/// lowest, so an undecodable winner falls back to the next match
+/// instead of reporting no match for the whole range.
+#[test]
+fn pinned_version_falls_back_past_undecodable_highest() {
+    let package = parse_package(
+        r#"{
+            "name": "foo",
+            "dist-tags": {},
+            "versions": {
+                "1.0.0": {"name": "foo", "version": "1.0.0", "dist": {"integrity": "sha512-a", "tarball": "https://r/foo-1.0.0.tgz"}},
+                "1.9.0": {"corrupt": "fragment"}
+            }
+        }"#,
+    );
+    let pinned = package.pinned_version("^1.0.0").expect("fall back to 1.0.0");
+    assert_eq!(pinned.version.to_string(), "1.0.0");
+}
+
+/// `latest` degrades to `None` on registry data it can't use — a
+/// dangling dist-tag or an undecodable manifest — instead of
+/// panicking.
+#[test]
+fn latest_returns_none_for_dangling_or_undecodable_tag() {
+    let undecodable = parse_package(
+        r#"{"name": "foo", "dist-tags": {"latest": "2.0.0"}, "versions": {"2.0.0": {"corrupt": true}}}"#,
+    );
+    assert!(undecodable.latest().is_none());
+    let dangling =
+        parse_package(r#"{"name": "foo", "dist-tags": {"latest": "9.9.9"}, "versions": {}}"#);
+    assert!(dangling.latest().is_none());
+}

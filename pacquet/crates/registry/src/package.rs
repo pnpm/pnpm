@@ -145,9 +145,12 @@ impl Package {
     #[must_use]
     pub fn pinned_version(&self, version_range: &str) -> Option<Arc<PackageVersion>> {
         let range: node_semver::Range = version_range.parse().unwrap(); // TODO: this step should have happened in PackageManifest
-        // Match on the version *strings* so only the winning manifest
-        // hydrates from its raw fragment.
-        let highest = self
+        // Match on the version *strings* so only winning manifests
+        // hydrate from their raw fragments. Walk the candidates from
+        // highest to lowest: an undecodable fragment behaves as if
+        // the version were absent, so the next-best match wins
+        // instead of the lookup reporting no match at all.
+        let mut satisfying = self
             .versions
             .keys()
             .filter_map(|key| {
@@ -156,15 +159,18 @@ impl Package {
                     .filter(|version| version.satisfies(&range))
                     .map(|version| (version, key))
             })
-            .max_by(|(left, _), (right, _)| left.partial_cmp(right).unwrap())?;
-        self.versions.get(highest.1)
+            .collect::<Vec<_>>();
+        satisfying.sort_by(|(left, _), (right, _)| right.partial_cmp(left).unwrap());
+        satisfying.into_iter().find_map(|(_, key)| self.versions.get(key))
     }
 
+    /// Manifest under `dist-tags.latest`. `None` when the tag is
+    /// absent, names a version the packument doesn't carry, or the
+    /// version's fragment fails to decode — registry-served data must
+    /// not be able to panic the process.
     #[must_use]
-    pub fn latest(&self) -> Arc<PackageVersion> {
-        let version =
-            self.dist_tags.get("latest").expect("latest tag is expected but not found for package");
-        self.versions.get(version).expect("manifest of the latest version should decode")
+    pub fn latest(&self) -> Option<Arc<PackageVersion>> {
+        self.versions.get(self.dist_tags.get("latest")?)
     }
 }
 

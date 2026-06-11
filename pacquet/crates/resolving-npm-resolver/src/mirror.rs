@@ -297,6 +297,13 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
     let newline = chunk.iter().position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&chunk[..newline]).ok()?;
     let (headers_len, _) = parse_mirror_magic(line)?;
+    // The headers record is ~100 bytes of etag + timestamp. Bound the
+    // declared length before allocating from it so a corrupted or
+    // hostile mirror can't trigger an arbitrarily large allocation.
+    const MAX_HEADERS_LEN: usize = 64 * 1024;
+    if headers_len > MAX_HEADERS_LEN {
+        return None;
+    }
     let headers_start = newline + 1;
     let headers_end = headers_start.checked_add(headers_len)?;
     let headers_json: std::borrow::Cow<'_, [u8]> = if headers_end <= chunk.len() {
