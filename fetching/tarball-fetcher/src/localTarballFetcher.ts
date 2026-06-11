@@ -15,10 +15,10 @@ interface Resolution {
 }
 
 export function createLocalTarballFetcher (storeIndex: StoreIndex): FetchFunction {
-  const fetch = (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
+  const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
     const buffer = gfs.readFileSync(tarball)
-    return addFilesFromTarball({
+    const result = await addFilesFromTarball({
       storeDir: cafs.storeDir,
       storeIndex,
       buffer,
@@ -30,6 +30,7 @@ export function createLocalTarballFetcher (storeIndex: StoreIndex): FetchFunctio
       appendManifest: opts.appendManifest,
       ignoreFilePattern: opts.ignoreFilePattern,
     })
+    return { ...result, local: true }
   }
 
   return fetch as FetchFunction
