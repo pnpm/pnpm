@@ -253,7 +253,7 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
             .map(|sizes| frozen_package_frames(config, &lockfile, &sizes))
             .unwrap_or_default();
         frames.push(done_frame(&lockfile));
-        return ndjson_frames(frames);
+        return ndjson_frames(&frames);
     }
     let resolution_cache_key = if request.auth_headers.is_empty() && request.lockfile.is_none() {
         resolution_cache_key(config, &request)
@@ -529,7 +529,7 @@ fn ndjson_single_frame(frame: &[u8]) -> Response {
 /// A 200 NDJSON response carrying several already-serialized frames in
 /// one fixed body. Used by the frozen fast path, where every frame is
 /// known up front — no channel to stream from.
-fn ndjson_frames(frames: Vec<Vec<u8>>) -> Response {
+fn ndjson_frames(frames: &[Vec<u8>]) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)

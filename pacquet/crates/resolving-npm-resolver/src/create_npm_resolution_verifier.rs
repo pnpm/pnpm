@@ -68,6 +68,7 @@ pub type ObservedDistStats = Arc<DashMap<(String, String), DistStats>>;
 
 /// Construct a fresh sink for
 /// [`CreateNpmResolutionVerifierOptions::observed_dist_stats`].
+#[must_use]
 pub fn observed_dist_stats_sink() -> ObservedDistStats {
     Arc::new(DashMap::new())
 }

@@ -1811,6 +1811,7 @@ const PRIORITY_BYTES_PER_FILE: u64 = 3_000;
 /// total pipeline work (transfer + decompress + hash + CAS writes) in
 /// byte-equivalents. Missing hints contribute zero, so a package with
 /// no published `dist` stats queues behind every estimated one.
+#[must_use]
 pub fn download_priority(unpacked_size: Option<usize>, file_count: Option<usize>) -> u64 {
     let size = unpacked_size.map_or(0, |size| size as u64);
     let per_file =
