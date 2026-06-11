@@ -234,7 +234,9 @@ fn returns_skipped_when_a_project_has_a_file_tarball_dev_dependency() {
 /// too — same bail as `file:`, for the same reason.
 #[test]
 fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
-    for spec in ["vendor/pkg.tgz", "../sibling-dir", "~/pkgs/foo", "/abs/path/foo"] {
+    for spec in
+        ["vendor/pkg.tgz", "../sibling-dir", "~/pkgs/foo", "/abs/path/foo", "c:/pkgs/foo", "c:pkgs"]
+    {
         let (dir, config, manifest) = setup_fresh_install(
             pacquet_config::NodeLinker::Isolated,
             "root",

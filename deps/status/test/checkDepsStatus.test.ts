@@ -929,6 +929,8 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     ['a relative directory path', '../sibling-dir'],
     ['a home-relative path', '~/pkgs/foo'],
     ['an absolute path', '/abs/path/foo'],
+    ['an absolute Windows drive path', 'C:\\pkgs\\foo'],
+    ['a drive-relative Windows path', 'C:pkgs'],
   ])('returns upToDate: false when the root manifest has %s dependency', async (_desc, spec) => {
     const lastValidatedTimestamp = Date.now() - 10_000
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))

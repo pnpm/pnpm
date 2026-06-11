@@ -337,8 +337,9 @@ fn has_local_file_override(config: &Config) -> bool {
 /// Whether the specifier resolves to a local directory or tarball whose
 /// contents can change without any manifest or lockfile mtime moving:
 /// the `file:` protocol, path-prefixed specs (`./`, `../`, `~/`,
-/// absolute POSIX and Windows drive paths), and bare tarball file
-/// names. Port of upstream's `isLocalFileSpec` in
+/// absolute POSIX paths, and Windows drive paths including
+/// drive-relative ones like `c:dir`), and bare tarball file names.
+/// Port of upstream's `isLocalFileSpec` in
 /// `deps/status/src/checkDepsStatus.ts`.
 ///
 /// Deliberately narrower than the local resolver's bare-path matching:
@@ -365,13 +366,13 @@ fn is_local_file_spec(spec: &str) -> bool {
     spec.ends_with(".tgz") || spec.ends_with(".tar.gz") || spec.ends_with(".tar")
 }
 
-/// `c:/...` or `c:\...` — an absolute Windows drive path.
+/// `c:/...`, `c:\...`, or drive-relative `c:foo` — a Windows drive
+/// path. No separator is required after the colon, matching the local
+/// resolver's `isFilespec` (`resolving/local-resolver/src/parseBareSpecifier.ts`);
+/// no registry protocol is a single letter, so `[a-z]:` is unambiguous.
 fn is_windows_drive_path(spec: &str) -> bool {
     let bytes = spec.as_bytes();
-    bytes.len() >= 3
-        && bytes[0].is_ascii_alphabetic()
-        && bytes[1] == b':'
-        && (bytes[2] == b'/' || bytes[2] == b'\\')
+    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
 }
 
 /// Restore a missing `pnpm-lock.yaml` from the current lockfile before

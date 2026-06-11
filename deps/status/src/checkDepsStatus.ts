@@ -687,14 +687,16 @@ function findLocalFileOverride (overrides: Record<string, string> | undefined): 
   return undefined
 }
 
-const LOCAL_PATH_PREFIX = /^(?:[./\\]|~[/\\]|[a-z]:[/\\])/i
+const LOCAL_PATH_PREFIX = /^(?:[./\\]|~[/\\]|[a-z]:)/i
 const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar)$/i
 
 /**
  * Whether the specifier resolves to a local directory or tarball whose
  * contents can change without any manifest or lockfile mtime moving: the
  * `file:` protocol, path-prefixed specs (`./`, `../`, `~/`, absolute POSIX
- * and Windows drive paths), and bare tarball file names.
+ * paths, and Windows drive paths — including drive-relative ones like
+ * `C:dir`, matching the local resolver's `isFilespec`), and bare tarball
+ * file names.
  *
  * Deliberately narrower than the local resolver's bare-path matching: a bare
  * `dir/file.tgz`-less path like `user/repo` is statically indistinguishable
