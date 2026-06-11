@@ -168,6 +168,9 @@ const URL_SCOPED_ENV_RE = /^p?npm_config_(\/\/.+)$/i
 // the value applies to is part of the variable name — so they are safe to honor
 // from the trusted environment without a config file. When the same key is set
 // through both prefixes, `pnpm_config_` wins.
+//
+// An empty value is treated as unset, matching how pnpm reads its other env
+// config (`readEnvVar`'s `!== ''` filter) and npm's own `npm_config_*` handling.
 function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Record<string, unknown> {
   const npmScoped: Record<string, string> = {}
   const pnpmScoped: Record<string, string> = {}
@@ -176,8 +179,15 @@ function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Recor
     if (value == null || value === '') continue
     const match = URL_SCOPED_ENV_RE.exec(envKey)
     if (match == null) continue
+    const key = match[1]
+    // `tokenHelper` names an executable pnpm runs. It is only allowed from a
+    // user-level config file (enforced by the TOKEN_HELPER_IN_PROJECT_CONFIG
+    // check in index.ts, which validates against the user `.npmrc`). The env
+    // layer isn't that file, so honoring `//host/:tokenHelper` here would
+    // trip that guard — never admit it.
+    if (key.endsWith(':tokenHelper')) continue
     const target = envKey.slice(0, 5).toLowerCase() === 'pnpm_' ? pnpmScoped : npmScoped
-    target[match[1]] = value
+    target[key] = value
   }
   return { ...npmScoped, ...pnpmScoped }
 }

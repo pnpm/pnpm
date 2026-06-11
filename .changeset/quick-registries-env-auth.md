@@ -5,7 +5,7 @@
 
 Added support for configuring URL-scoped registry settings through `npm_config_//…` and `pnpm_config_//…` environment variables, for example:
 
-```
+```text
 npm_config_//registry.npmjs.org/:_authToken=<token>
 pnpm_config_//registry.npmjs.org/:_authToken=<token>
 ```

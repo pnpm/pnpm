@@ -1026,6 +1026,40 @@ test('pnpm_config_// takes precedence over npm_config_// for the same key', asyn
   expect(config.authConfig['//env-test.example/:_authToken']).toBe('pnpm-env-token')
 })
 
+test('the npm_config_// / pnpm_config_// prefix is matched case-insensitively', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      // Upper-case npm prefix and mixed-case pnpm prefix; the latter (pnpm) wins.
+      'NPM_CONFIG_//env-test.example/:_authToken': 'npm-upper-token',
+      'PnPm_Config_//env-test.example/:_authToken': 'pnpm-mixed-token',
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//env-test.example/:_authToken']).toBe('pnpm-mixed-token')
+})
+
+test('a tokenHelper set via a URL-scoped env var is not honored (no project-config error)', async () => {
+  prepareEmpty()
+
+  // tokenHelper executes a binary and is only valid from a user-level config
+  // file; the env layer must drop it rather than trip the project-config guard.
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      'npm_config_//env-test.example/:tokenHelper': '/bin/echo',
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//env-test.example/:tokenHelper']).toBeUndefined()
+})
+
 test('URL-scoped auth from the environment overrides a project .npmrc for the same host', async () => {
   prepareEmpty()
 
