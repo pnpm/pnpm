@@ -126,3 +126,60 @@ fn latest_returns_none_for_dangling_or_undecodable_tag() {
         parse_package(r#"{"name": "foo", "dist-tags": {"latest": "9.9.9"}, "versions": {}}"#);
     assert!(dangling.latest().is_none());
 }
+
+#[test]
+fn is_deprecated_probes_without_hydrating() {
+    let package = parse_package(
+        r#"{
+            "name": "foo",
+            "dist-tags": {},
+            "versions": {
+                "1.0.0": {"name": "foo", "version": "1.0.0", "dist": {"integrity": "sha512-a", "tarball": "https://r/foo-1.0.0.tgz"}},
+                "1.1.0": {"name": "foo", "version": "1.1.0", "deprecated": "use 2.x", "dist": {"integrity": "sha512-b", "tarball": "https://r/foo-1.1.0.tgz"}},
+                "1.2.0": {"name": "foo", "version": "1.2.0", "deprecated": false, "dist": {"integrity": "sha512-c", "tarball": "https://r/foo-1.2.0.tgz"}},
+                "1.3.0": {"name": "foo", "version": "1.3.0", "deprecated": true, "dist": {"integrity": "sha512-d", "tarball": "https://r/foo-1.3.0.tgz"}},
+                "1.4.0": {"name": "foo", "version": "1.4.0", "deprecated": "", "dist": {"integrity": "sha512-e", "tarball": "https://r/foo-1.4.0.tgz"}},
+                "1.9.0": {"corrupt": "fragment", "deprecated": 1}
+            }
+        }"#,
+    );
+
+    assert!(!package.versions.is_deprecated("1.0.0"));
+    assert!(package.versions.is_deprecated("1.1.0"));
+    assert!(!package.versions.is_deprecated("1.2.0"));
+    assert!(package.versions.is_deprecated("1.3.0"));
+    assert!(package.versions.is_deprecated("1.4.0"));
+    // Absent version and undecodable-probe fragments read as not
+    // deprecated, matching the absent-version contract of `get`.
+    assert!(!package.versions.is_deprecated("9.9.9"));
+    assert!(!package.versions.is_deprecated("1.9.0"));
+
+    // The probe must agree with the hydrated field on every slot it
+    // can hydrate, and must not have hydrated anything itself: `get`
+    // still parses fresh (no cached Arc identity from the probe).
+    for version in ["1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0"] {
+        let manifest = package.versions.get(version).expect("hydrate");
+        assert_eq!(
+            package.versions.is_deprecated(version),
+            manifest.deprecated.is_some(),
+            "probe vs hydrated disagree for {version}",
+        );
+    }
+}
+
+/// A fragment that mentions `"deprecated"` only in an unrelated nested
+/// position (a dependency literally named `deprecated`) must fall
+/// through to the real parse and report not-deprecated.
+#[test]
+fn is_deprecated_ignores_unrelated_key_text() {
+    let package = parse_package(
+        r#"{
+            "name": "foo",
+            "dist-tags": {},
+            "versions": {
+                "1.0.0": {"name": "foo", "version": "1.0.0", "dependencies": {"deprecated": "^0.0.2"}, "dist": {"integrity": "sha512-a", "tarball": "https://r/foo-1.0.0.tgz"}}
+            }
+        }"#,
+    );
+    assert!(!package.versions.is_deprecated("1.0.0"));
+}
