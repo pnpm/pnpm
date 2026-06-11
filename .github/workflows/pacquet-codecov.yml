@@ -34,6 +34,15 @@ jobs:
           submodules: true # Pull submodules for `cargo coverage`
           persist-credentials: false
 
+      # The instrumented llvm-cov build is even larger than a plain
+      # debug build and can exhaust the hosted runner's free disk —
+      # the linker dies with SIGBUS on its memory-mapped output. Drop
+      # the preinstalled toolchains this job never uses (~25 GB) first.
+      - name: Free up runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Install Rust Toolchain
         uses: ./.github/actions/rustup
 
