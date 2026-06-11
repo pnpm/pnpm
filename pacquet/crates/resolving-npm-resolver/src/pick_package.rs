@@ -70,7 +70,7 @@ use crate::{
     FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
         ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta_async,
-        prepare_json_for_disk, save_meta,
+        save_meta_indexed,
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
@@ -964,9 +964,8 @@ pub fn persist_meta_to_mirror(
 ) -> Result<(), MirrorPersistError> {
     let path = get_pkg_mirror_path(cache_dir, meta_dir, registry, &meta.name)
         .map_err(|error| MirrorPersistError::EncodePath { error: error.to_string() })?;
-    let json = prepare_json_for_disk(meta, meta.etag.as_deref(), None)
-        .map_err(|error| MirrorPersistError::Serialize { error: error.to_string() })?;
-    save_meta(&path, &json).map_err(|error| MirrorPersistError::Write { error: error.to_string() })
+    save_meta_indexed(&path, meta, meta.etag.as_deref())
+        .map_err(|error| MirrorPersistError::Write { error: error.to_string() })
 }
 
 /// Failure modes for [`persist_meta_to_mirror`]. Each variant
@@ -1116,19 +1115,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
 /// the upgrade fetch. Mirrors upstream's
 /// [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
 fn persist_upgraded_to_mirror(pkg_mirror: &Path, meta: &Package) {
-    let json = match prepare_json_for_disk(meta, meta.etag.as_deref(), None) {
-        Ok(json) => json,
-        Err(error) => {
-            tracing::debug!(
-                target: "pacquet_resolving_npm_resolver::pick_package",
-                ?error,
-                path = %pkg_mirror.display(),
-                "could not serialize upgraded meta; skipping persist",
-            );
-            return;
-        }
-    };
-    if let Err(error) = save_meta(pkg_mirror, &json) {
+    if let Err(error) = save_meta_indexed(pkg_mirror, meta, meta.etag.as_deref()) {
         tracing::debug!(
             target: "pacquet_resolving_npm_resolver::pick_package",
             ?error,
