@@ -30,6 +30,7 @@ import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
+  type IncludedDependencies,
   type Project,
   type ProjectId,
   type ProjectManifest,
@@ -79,6 +80,16 @@ export type CheckDepsStatusOptions = Pick<Config,
    * (https://github.com/pnpm/pnpm/issues/11795).
    */
   treatLocalFileDepsAsOutdated?: boolean
+  /**
+   * Which dependency groups the current install materializes. Local file
+   * dependencies in an excluded group (for example `devDependencies` under
+   * `--prod`) are not installed, so they don't force the
+   * `treatLocalFileDepsAsOutdated` bail-out. A change to these flags between
+   * installs is caught separately by the workspace state settings comparison
+   * (`dev`/`optional`/`production` are part of
+   * `WORKSPACE_STATE_SETTING_KEYS`).
+   */
+  include?: IncludedDependencies
   /**
    * When git-branch lockfiles are enabled, the wanted lockfile lives at
    * `pnpm-lock.<branch>.yaml`, so a missing `pnpm-lock.yaml` is the steady
@@ -160,7 +171,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   if (opts.treatLocalFileDepsAsOutdated) {
     const manifests = allProjects?.map(({ manifest }) => manifest) ??
       (rootProjectManifest ? [rootProjectManifest] : [])
-    const localFileDep = findLocalFileDep(manifests)
+    const localFileDep = findLocalFileDep(manifests, opts.include)
     if (localFileDep != null) {
       return {
         upToDate: false,
@@ -663,11 +674,14 @@ async function assertWantedLockfileUpToDate (
  * Returns the name of the first dependency declared with a local file
  * specifier in any of the given manifests, or `undefined` when there is none.
  * `link:` dependencies are excluded: they are symlinked, so changes inside
- * them flow through without a reinstall.
+ * them flow through without a reinstall. Dependency groups excluded from the
+ * current install (per `include`) are skipped: their local file dependencies
+ * are not installed, so their contents cannot be stale.
  */
-function findLocalFileDep (manifests: ProjectManifest[]): string | undefined {
+function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDependencies): string | undefined {
   for (const manifest of manifests) {
     for (const depField of DEPENDENCIES_FIELDS) {
+      if (include?.[depField] === false) continue
       const deps = manifest[depField]
       if (deps == null) continue
       for (const [depName, spec] of Object.entries(deps)) {

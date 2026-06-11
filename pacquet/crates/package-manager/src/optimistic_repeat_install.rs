@@ -162,7 +162,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     // Unconditional where upstream gates it behind
     // `treatLocalFileDepsAsOutdated`: the only caller here is the
     // install command — the one consumer that sets the flag upstream.
-    if has_local_file_dep(project_manifests) {
+    if has_local_file_dep(project_manifests, included) {
         return Decision::Skipped {
             reason: "a dependency is a local file dependency and its contents may have changed",
         };
@@ -309,14 +309,26 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
 /// `deps/status/src/checkDepsStatus.ts`
 /// (<https://github.com/pnpm/pnpm/issues/11795>). `link:` specifiers
 /// don't count: they are symlinked, so changes inside them flow
-/// through without a reinstall.
-fn has_local_file_dep(project_manifests: &[(PathBuf, &PackageManifest)]) -> bool {
-    const FIELDS: [&str; 3] = ["dependencies", "devDependencies", "optionalDependencies"];
+/// through without a reinstall. Groups excluded from the current
+/// install (per `included`) are skipped: their local file dependencies
+/// are not installed, so their contents cannot be stale. A change to
+/// the include flags between installs is caught separately by
+/// `settings_match`.
+fn has_local_file_dep(
+    project_manifests: &[(PathBuf, &PackageManifest)],
+    included: IncludedDependencies,
+) -> bool {
+    let fields: [(&str, bool); 3] = [
+        ("dependencies", included.dependencies),
+        ("devDependencies", included.dev_dependencies),
+        ("optionalDependencies", included.optional_dependencies),
+    ];
     project_manifests.iter().any(|(_, manifest)| {
-        FIELDS.iter().any(|field| {
-            manifest.value().get(*field).and_then(|value| value.as_object()).is_some_and(|deps| {
-                deps.values().any(|spec| spec.as_str().is_some_and(is_local_file_spec))
-            })
+        fields.iter().any(|(field, group_included)| {
+            *group_included
+                && manifest.value().get(*field).and_then(|value| value.as_object()).is_some_and(
+                    |deps| deps.values().any(|spec| spec.as_str().is_some_and(is_local_file_spec)),
+                )
         })
     })
 }

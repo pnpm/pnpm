@@ -257,6 +257,87 @@ fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
     }
 }
 
+/// A local file dependency in a group excluded from the install must
+/// not bail: the group isn't materialized, so its contents can't be
+/// stale. A change to the include flags themselves is caught by the
+/// settings comparison instead.
+#[test]
+fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""optionalDependencies":{"foo":"file:../foo"}"#,
+    );
+
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: false,
+    };
+    // Re-stamp the state with the same include flags the check runs
+    // under, so the settings comparison passes and the include gate is
+    // what gets exercised.
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included,
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: None,
+        catalogs: &BTreeMap::default(),
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// The include gate is per-group: a local file dependency in a group
+/// that *is* installed still bails even when other groups are excluded.
+#[test]
+fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"file:../foo"}"#,
+    );
+
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included,
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: None,
+        catalogs: &BTreeMap::default(),
+    });
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+    );
+}
+
 /// A `pnpm.overrides` entry mapping to a local file spec must bail the
 /// same way a direct local file dependency does: the override redirects
 /// every matching dependency in the graph to that directory, and
