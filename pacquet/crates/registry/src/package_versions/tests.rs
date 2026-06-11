@@ -74,7 +74,7 @@ fn eager_construction_from_typed_manifests_round_trips() {
     let versions: crate::PackageVersions = HashMap::from([("1.0.0".to_string(), manifest)]).into();
     assert_eq!(versions.get("1.0.0").unwrap().version.to_string(), "1.0.0");
     let json = serde_json::to_string(&versions).unwrap();
-    assert!(json.contains("\"1.0.0\""));
+    assert!(json.contains(r#""1.0.0""#));
 }
 
 #[test]

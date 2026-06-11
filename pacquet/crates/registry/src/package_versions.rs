@@ -83,11 +83,13 @@ impl PackageVersions {
     /// Typed manifest for `version`, hydrating the raw fragment on
     /// first access. `None` when the version is absent *or* its
     /// fragment fails to decode.
+    #[must_use]
     pub fn get(&self, version: &str) -> Option<Arc<PackageVersion>> {
         self.slots.get(version)?.hydrate(version)
     }
 
     /// Whether the packument lists `version`. Never hydrates.
+    #[must_use]
     pub fn contains_key(&self, version: &str) -> bool {
         self.slots.contains_key(version)
     }
@@ -97,10 +99,12 @@ impl PackageVersions {
         self.slots.keys()
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.slots.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.slots.is_empty()
     }
@@ -117,6 +121,7 @@ impl PackageVersions {
     /// move as fragments — nothing hydrates. Used by the
     /// publish-date filter, which decides on the packument's `time`
     /// map rather than the manifests.
+    #[must_use]
     pub fn filtered(&self, mut keep: impl FnMut(&str) -> bool) -> PackageVersions {
         PackageVersions {
             slots: self

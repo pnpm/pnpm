@@ -364,6 +364,7 @@ pub fn pick_lowest_version_by_version_range(
 /// branch in [`pick_package_from_meta`]) only invokes this with full
 /// metadata. The abbreviated-metadata path takes the `meta.modified`
 /// shortcut above and never reaches this function.
+#[must_use]
 pub fn filter_pkg_metadata_by_publish_date(
     meta: &Package,
     cutoff: chrono::DateTime<chrono::Utc>,
