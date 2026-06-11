@@ -30,6 +30,15 @@ jobs:
     runs-on: ${{ inputs.platform }}
 
     steps:
+    # A near-full "affected packages" sweep plus the pnpr Rust build
+    # can exhaust the hosted runner's free disk mid-test (the runner
+    # worker itself dies with "No space left on device"). Drop the
+    # preinstalled toolchains this job never uses (~25 GB) first.
+    - name: Free up runner disk space
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        df -h /
     - name: Configure Git
       run: |
         git config --global core.autocrlf false
