@@ -51,7 +51,6 @@
 //! 3-5× behind pnpm on the `alotta-files` benchmark.
 
 use std::{
-    collections::HashMap,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -172,31 +171,26 @@ pub fn shared_picked_manifest_cache() -> PickedManifestCache {
     Arc::new(DashMap::new())
 }
 
-/// Default thread-safe [`PackageMetaCache`] backed by a [`Mutex`]
-/// guarding a [`HashMap`]. A consumer that already has its own
-/// shared map can implement the trait directly instead of using
-/// this.
+/// Default thread-safe [`PackageMetaCache`] backed by a sharded
+/// [`DashMap`]. A consumer that already has its own shared map can
+/// implement the trait directly instead of using this.
+///
+/// Every resolve edge consults the cache before anything else, so on
+/// a large graph the map takes tens of thousands of lookups from all
+/// runtime workers at once — a single `Mutex<HashMap>` here was the
+/// top contention point of a warm-resolve time profile.
 #[derive(Debug, Default)]
 pub struct InMemoryPackageMetaCache {
-    inner: Mutex<HashMap<String, Arc<Package>>>,
+    inner: DashMap<String, Arc<Package>>,
 }
 
 impl PackageMetaCache for InMemoryPackageMetaCache {
     fn get(&self, key: &str) -> Option<Arc<Package>> {
-        // Mirror the rest of the codebase (e.g. `build_modules.rs`):
-        // recover from poisoning instead of escalating an unrelated
-        // panic into a hard install-wide failure. The cache is a
-        // plain HashMap of `Arc<Package>` — no broken invariants
-        // can survive across a poisoned lock.
-        self.inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(key)
-            .map(Arc::clone)
+        self.inner.get(key).map(|entry| Arc::clone(entry.value()))
     }
 
     fn set(&self, key: String, meta: Arc<Package>) {
-        self.inner.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(key, meta);
+        self.inner.insert(key, meta);
     }
 }
 
