@@ -29,6 +29,27 @@ use std::sync::Mutex;
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
+const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
+
+fn scoped_package_body(registry_url: &str) -> String {
+    format!(
+        r#"{{
+  "name": "@private/foo",
+  "dist-tags": {{ "latest": "1.0.0" }},
+  "versions": {{
+    "1.0.0": {{
+      "name": "@private/foo",
+      "version": "1.0.0",
+      "dist": {{
+        "integrity": "{SCOPED_TEST_INTEGRITY}",
+        "tarball": "{registry_url}@private/foo/-/foo-1.0.0.tgz"
+      }}
+    }}
+  }}
+}}"#,
+    )
+}
+
 #[tokio::test]
 async fn should_install_dependencies() {
     let mock_instance = TestRegistry::start();
@@ -110,6 +131,80 @@ async fn should_install_dependencies() {
     insta::assert_debug_snapshot!(get_all_folders(&project_root));
 
     drop((dir, mock_instance)); // cleanup
+}
+
+#[tokio::test]
+async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    std::fs::create_dir_all(&project_root).unwrap();
+
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("@private/foo", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut default_registry = mockito::Server::new_async().await;
+    let default_packument = default_registry
+        .mock("GET", "/@private%2Ffoo")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let mut scoped_registry = mockito::Server::new_async().await;
+    let scoped_registry_url = format!("{}/", scoped_registry.url());
+    let scoped_packument = scoped_registry
+        .mock("GET", "/@private%2Ffoo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(scoped_package_body(&scoped_registry_url))
+        .expect_at_least(1)
+        .create_async()
+        .await;
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = format!("{}/", default_registry.url());
+    config.registries.insert("@private".to_string(), scoped_registry_url);
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: true,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("lockfile-only install should resolve scoped package through scoped registry");
+
+    default_packument.assert_async().await;
+    scoped_packument.assert_async().await;
+
+    drop(dir);
 }
 
 #[tokio::test]
@@ -570,6 +665,9 @@ async fn install_emits_pnpm_event_sequence() {
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
+    config
+        .registries
+        .insert("@private".to_string(), "https://private.example.com/npm/".to_string());
     let config = config.leak();
 
     // Empty v9 lockfile: `--frozen-lockfile` walks an empty snapshot
@@ -791,6 +889,10 @@ async fn install_writes_modules_yaml() {
     assert_eq!(
         registries.as_ref().and_then(|r| r.get("default")).map(String::as_str),
         Some(config.registry.as_str()),
+    );
+    assert_eq!(
+        registries.as_ref().and_then(|r| r.get("@private")).map(String::as_str),
+        Some("https://private.example.com/npm/"),
     );
     assert!(
         package_manager.starts_with("pacquet@"),

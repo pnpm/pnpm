@@ -623,6 +623,11 @@ pub struct Config {
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)
 
+    /// Scoped registry routes keyed by `@scope`, populated from
+    /// `.npmrc` `@scope:registry=...` and
+    /// `pnpm-workspace.yaml#registries`.
+    pub registries: BTreeMap<String, String>,
+
     /// User-defined named-registry aliases from
     /// `pnpm-workspace.yaml#namedRegistries`. Maps each alias name
     /// (`gh`, `work`, ...) to the registry URL its `<alias>:` specifiers
@@ -1426,6 +1431,15 @@ impl Config {
         self.minimum_release_age.filter(|&minutes| minutes > 0)
     }
 
+    /// Registry map in pnpm's `Registries` shape: `default` plus the
+    /// configured scoped routes keyed by `@scope`.
+    #[must_use]
+    pub fn resolved_registries(&self) -> BTreeMap<String, String> {
+        let mut registries = self.registries.clone();
+        registries.insert("default".to_string(), self.registry.clone());
+        registries
+    }
+
     /// Whether the install should consult the side-effects cache.
     /// Mirrors upstream's
     /// [`sideEffectsCacheRead = sideEffectsCache ?? sideEffectsCacheReadonly`](https://github.com/pnpm/pnpm/blob/7e3145f9fc/config/reader/src/index.ts#L614).
@@ -1604,17 +1618,15 @@ impl Config {
     ///    (cwd, falling back to home), then
     /// 3. the nearest `pnpm-workspace.yaml` walking up from cwd.
     ///
-    /// Pacquet currently applies `registry`, npm-auth credentials, the
+    /// Pacquet currently applies `registry`, scoped registry routes,
+    /// npm-auth credentials, the
     /// proxy keys (`https-proxy`, `http-proxy`, `proxy`, `no-proxy` /
     /// `noproxy`), and the TLS + local-address keys (`ca`, `cafile`,
     /// `cert`, `key`, `strict-ssl`, `local-address`) from `.npmrc`.
-    /// Other `.npmrc` entries — pnpm's scoped-registry keys and
-    /// per-registry TLS overrides (`//host:cafile=`, `//host:ca=`,
-    /// `//host:cert=`, `//host:key=`), plus project-structural
-    /// settings like `storeDir`, `lockfile` and `hoist-pattern` — are
-    /// silently ignored here. The first group is tracked for future
-    /// per-registry-TLS work; the second must come from
-    /// `pnpm-workspace.yaml` or CLI flags, matching pnpm 11.
+    /// Other `.npmrc` entries — project-structural settings like
+    /// `storeDir`, `lockfile` and `hoist-pattern` — are silently
+    /// ignored here. Those must come from `pnpm-workspace.yaml` or CLI
+    /// flags, matching pnpm 11.
     ///
     /// The yaml wins over `.npmrc` on any key it sets.
     ///

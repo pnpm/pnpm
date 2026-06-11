@@ -1504,7 +1504,7 @@ fn build_modules_manifest(
         // RFC 1123 / `toUTCString()` format, matching upstream's
         // `new Date().toUTCString()` at line 1622.
         pruned_at: httpdate::fmt_http_date(SystemTime::now()),
-        registries: Some(BTreeMap::from([("default".to_string(), config.registry.clone())])),
+        registries: Some(config.resolved_registries()),
         // `iter_installability` excludes fetch-failure entries so they
         // don't get persisted across installs — matches upstream's
         // silent swallow of optional fetch failures at

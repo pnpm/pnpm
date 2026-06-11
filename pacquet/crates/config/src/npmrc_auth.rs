@@ -2,7 +2,7 @@ use crate::{Config, api::EnvVar};
 use pacquet_env_replace::env_replace_lossy;
 use pacquet_network::{AuthHeaders, NoProxySetting, PerRegistryTls, RegistryTls, base64_encode};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -11,6 +11,7 @@ use std::{
 ///
 /// The parser pulls out:
 /// * the top-level `registry=` URL (already supported pre-[#336]),
+/// * scoped registry routes (`@scope:registry=...`),
 /// * default-registry credentials (`_auth`, `_authToken`,
 ///   `username` + `_password`),
 /// * per-registry credentials keyed on a nerf-darted URI prefix
@@ -32,9 +33,8 @@ use std::{
 /// never reaches downstream auth code (critical for OIDC trusted publishing
 /// — see <https://github.com/pnpm/pnpm/issues/11513>), again matching pnpm.
 ///
-/// Other `.npmrc` knobs (scoped `@scope:registry`, per-registry TLS
-/// like `//host:cafile=`, etc.) remain unparsed for now. See the
-/// upstream
+/// Other project-structural `.npmrc` knobs remain unparsed for now.
+/// See the upstream
 /// [`isIniConfigKey`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/localConfig.ts#L160-L161)
 /// list. They will land here as the matching feature work picks them
 /// up.
@@ -43,6 +43,7 @@ use std::{
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
     pub registry: Option<String>,
+    pub scoped_registries: BTreeMap<String, String>,
     /// Default-registry creds (i.e. `_auth=…`, `_authToken=…`,
     /// `username=…` / `_password=…` without a leading `//host/`).
     /// Applied to whichever URI the resolved `registry` points at.
@@ -305,6 +306,10 @@ impl NpmrcAuth {
                 auth.registry = Some(value);
                 continue;
             }
+            if let Some(scope) = scoped_registry_key(&key) {
+                auth.scoped_registries.insert(scope.to_string(), normalize_registry_url(&value));
+                continue;
+            }
 
             match key.as_str() {
                 "https-proxy" => {
@@ -495,6 +500,7 @@ impl NpmrcAuth {
             config.registry =
                 if registry.ends_with('/') { registry } else { format!("{registry}/") };
         }
+        config.registries.append(&mut self.scoped_registries);
         for message in std::mem::take(&mut self.warnings) {
             tracing::warn!(target: "pacquet::npmrc", "{message}");
         }
@@ -622,6 +628,9 @@ impl NpmrcAuth {
     /// pinned to the right registry before they are combined.
     pub fn merge_under(&mut self, lower: NpmrcAuth) {
         self.registry = self.registry.take().or(lower.registry);
+        for (scope, registry) in lower.scoped_registries {
+            self.scoped_registries.entry(scope).or_insert(registry);
+        }
         self.https_proxy = self.https_proxy.take().or(lower.https_proxy);
         self.http_proxy = self.http_proxy.take().or(lower.http_proxy);
         self.legacy_proxy = self.legacy_proxy.take().or(lower.legacy_proxy);
@@ -711,6 +720,11 @@ fn is_request_destination_value_key(key: &str) -> bool {
 
 fn is_registry_key(key: &str) -> bool {
     key == "registry" || (key.starts_with('@') && key.ends_with(":registry"))
+}
+
+fn scoped_registry_key(key: &str) -> Option<&str> {
+    key.strip_suffix(":registry")
+        .filter(|scope| scope.starts_with('@') && scope.len() > 1 && !scope.contains('/'))
 }
 
 fn has_env_placeholder(value: &str) -> bool {

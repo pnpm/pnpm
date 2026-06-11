@@ -483,8 +483,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // this call so every per-package resolve reuses a single
         // packument per `(registry, name)` pair, then dropped before
         // the install pass begins.
-        let mut registries = HashMap::new();
-        registries.insert("default".to_string(), config.registry.clone());
+        let registries: HashMap<String, String> =
+            config.resolved_registries().into_iter().collect();
 
         // User-supplied named-registry aliases from
         // `pnpm-workspace.yaml#namedRegistries`. `merge_named_registries`
@@ -967,7 +967,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 || serde_json::json!({}),
                 |lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})),
             );
-            let registries = serde_json::json!({ "default": config.registry });
+            let registries = serde_json::json!(config.resolved_registries());
             let ctx = pacquet_hooks::PreResolutionHookContext {
                 wanted_lockfile: wanted_lockfile_json,
                 current_lockfile: current_lockfile_json,

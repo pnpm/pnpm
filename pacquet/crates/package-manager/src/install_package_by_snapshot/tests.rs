@@ -1,11 +1,12 @@
 use super::{
     archive_filter_for, emit_progress_resolved, host_platform_selector, node_extras_filter,
-    render_variant_targets, synthesize_runtime_manifest_bytes,
+    render_variant_targets, synthesize_runtime_manifest_bytes, tarball_url_and_integrity,
 };
+use pacquet_config::Config;
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use pacquet_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey,
-    PlatformAssetResolution, PlatformAssetTarget,
+    PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
 };
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
 use pretty_assertions::assert_eq;
@@ -40,6 +41,22 @@ fn emits_resolved_with_supplied_identifiers() {
         ),
         "expected a single Resolved event with matching identifiers; got {captured:?}",
     );
+}
+
+#[test]
+fn registry_resolution_uses_scoped_registry_tarball_base() {
+    let mut config = Config::new();
+    config.registry = "https://default.example/npm/".to_string();
+    config.registries.insert("@private".to_string(), "https://private.example/npm/".to_string());
+
+    let integrity = DUMMY_SHA512.parse().expect("parse integrity");
+    let resolution = LockfileResolution::Registry(RegistryResolution { integrity });
+    let package_key: PackageKey = "@private/foo@1.0.0".parse().expect("parse package key");
+
+    let (tarball_url, _) =
+        tarball_url_and_integrity(&resolution, &package_key, &config).expect("registry tarball");
+
+    assert_eq!(tarball_url.as_ref(), "https://private.example/npm/@private/foo/-/foo-1.0.0.tgz");
 }
 
 /// `host_platform_selector` builds the selector that drives runtime-

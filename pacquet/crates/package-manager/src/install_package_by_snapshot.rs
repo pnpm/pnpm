@@ -15,6 +15,7 @@ use pacquet_lockfile::{
 };
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
+use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter,
     git_hosted_store_index_key,
@@ -603,10 +604,13 @@ pub fn tarball_url_and_integrity<'a>(
             Ok((tarball_resolution.tarball.as_str().pipe(Cow::Borrowed), integrity))
         }
         LockfileResolution::Registry(registry_resolution) => {
-            let registry = config.registry.strip_suffix('/').unwrap_or(&config.registry);
-            let name = &package_key.name;
+            let registries: HashMap<String, String> =
+                config.resolved_registries().into_iter().collect();
+            let name = package_key.name.to_string();
+            let registry = pick_registry_for_package(&registries, &name, None);
+            let registry = registry.strip_suffix('/').unwrap_or(&registry);
             let version = package_key.suffix.version();
-            let bare_name = name.bare.as_str();
+            let bare_name = package_key.name.bare.as_str();
             let tarball_url = format!("{registry}/{name}/-/{bare_name}-{version}.tgz");
             Ok((Cow::Owned(tarball_url), &registry_resolution.integrity))
         }

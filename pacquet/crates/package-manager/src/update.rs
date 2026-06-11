@@ -15,6 +15,7 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::{PackageTag, PackageVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 use std::{collections::HashSet, sync::Arc};
@@ -557,11 +558,14 @@ async fn fetch_latest(
     http_client: &ThrottledClient,
     config: &Config,
 ) -> Result<PackageVersion, UpdateError> {
+    let registries: std::collections::HashMap<String, String> =
+        config.resolved_registries().into_iter().collect();
+    let registry = pick_registry_for_package(&registries, name, None);
     PackageVersion::fetch_from_registry(
         name,
         PackageTag::Latest,
         http_client,
-        &config.registry,
+        &registry,
         &config.auth_headers,
     )
     .await

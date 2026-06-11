@@ -15,6 +15,7 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::{PackageTag, PackageVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 
@@ -150,11 +151,14 @@ where
             None => match prev_specifier.as_deref() {
                 Some(prev) if parse_catalog_protocol(prev).is_some() => prev.to_string(),
                 _ => {
+                    let registries: std::collections::HashMap<String, String> =
+                        config.resolved_registries().into_iter().collect();
+                    let registry = pick_registry_for_package(&registries, package_name, None);
                     let latest = PackageVersion::fetch_from_registry(
                         package_name,
                         PackageTag::Latest,
                         http_client,
-                        &config.registry,
+                        &registry,
                         &config.auth_headers,
                     )
                     .await
@@ -290,3 +294,6 @@ fn split_name_spec(input: &str) -> (&str, Option<&str>) {
         None => (input, None),
     }
 }
+
+#[cfg(test)]
+mod tests;
