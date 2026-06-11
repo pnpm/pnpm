@@ -275,6 +275,11 @@ describe('project .npmrc env expansion trust boundary', () => {
     expect(warnings).toEqual(expect.arrayContaining([
       expect.stringContaining('Ignored project-level request destination "registry"'),
     ]))
+    // The warning should guide the user toward a trusted source and the docs.
+    const registryWarning = warnings.find((w) => w.includes('Ignored project-level request destination "registry"')) ?? ''
+    expect(registryWarning).toContain('~/.npmrc')
+    expect(registryWarning).toContain('pnpm config set "registry" <value>')
+    expect(registryWarning).toContain('https://pnpm.io/npmrc')
   })
 
   test('project .npmrc does not expand env variables in scoped registry URLs or URL-scoped keys', async () => {
@@ -304,6 +309,12 @@ describe('project .npmrc env expansion trust boundary', () => {
       expect.stringContaining('Ignored project-level request destination "@scope:registry"'),
       expect.stringContaining('Ignored project-level request destination "//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken"'),
     ]))
+    // When the key itself contains a ${...} placeholder, the warning must not
+    // embed it in a runnable `pnpm config set "<key>"` command — a shell would
+    // expand the placeholder on copy-paste.
+    const urlScopedWarning = warnings.find((w) => w.includes('//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken')) ?? ''
+    expect(urlScopedWarning).not.toContain('pnpm config set "')
+    expect(urlScopedWarning).toContain('~/.npmrc')
   })
 
   test('project .npmrc does not expand env variables in auth values', async () => {
@@ -354,6 +365,11 @@ describe('project .npmrc env expansion trust boundary', () => {
       expect.stringContaining('Ignored project-level auth setting "cert"'),
       expect.stringContaining('Ignored project-level auth setting "key"'),
     ]))
+    // The warning should tell the user how to migrate the credential.
+    const authWarning = warnings.find((w) => w.includes('Ignored project-level auth setting "//attacker.example/:_authToken"')) ?? ''
+    expect(authWarning).toContain('pnpm config set "//attacker.example/:_authToken" <value>')
+    expect(authWarning).toContain('~/.npmrc')
+    expect(authWarning).toContain('https://pnpm.io/npmrc')
   })
 
   test('project .npmrc does not expand env variables in proxy URLs', async () => {
