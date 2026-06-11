@@ -1,5 +1,27 @@
 # pnpm
 
+## 11.6.0
+
+### Minor Changes
+
+- d976edf: `pnpm install` completes without re-resolving when `pnpm-lock.yaml` was deleted but `node_modules` is intact: the up-to-date check now treats the current lockfile (`node_modules/.pnpm/lock.yaml`) — the record of what the previous install materialized — as the wanted lockfile, verifies the manifests still match it, restores `pnpm-lock.yaml` from it, and reports "Already up to date". Previously this scenario triggered a full resolution and a re-verification of every locked package against the registry.
+- 615c669: Added support for configuring URL-scoped registry settings through `npm_config_//…` and `pnpm_config_//…` environment variables, for example:
+
+  ```text
+  npm_config_//registry.npmjs.org/:_authToken=<token>
+  pnpm_config_//registry.npmjs.org/:_authToken=<token>
+  ```
+
+  This provides a file-free way to supply registry authentication. Because the registry a value applies to is encoded in the (trusted) environment variable name, it is host-scoped by construction and cannot be redirected to another registry by repository-controlled config. The environment value is treated as trusted config: it takes precedence over a project/workspace `.npmrc` but is still overridden by command-line options. When the same key is provided through both prefixes, `pnpm_config_` wins.
+
+- 84bb4b1: Raised the default network concurrency from `min(64, max(cpuCores * 3, 16))` to `min(96, max(cpuCores * 3, 64))`. Package downloads are I/O-bound, not CPU-bound, so deriving the floor from the core count left machines with few cores (for example 4-vCPU CI runners) downloading only 16 tarballs at a time and unable to saturate a low-latency registry. The `networkConcurrency` setting still overrides the default.
+
+### Patch Changes
+
+- bc9ed78: Improved the warning printed when a project `.npmrc` uses an environment variable in a registry/proxy URL or in registry credentials. The message now explains why the setting was ignored and how to migrate it to a trusted source — for example by moving the line to the user-level `~/.npmrc` or running `pnpm config set "<key>" <value>` — with a link to https://pnpm.io/npmrc. The `pnpm config set` example is only suggested when the key has no `${...}` placeholder, so the snippet is always safe to copy-paste.
+- f11b4fc: Print a "Lockfile passes supply-chain policies (verified 2h ago)" message when lockfile verification is skipped because a cached verdict for the same lockfile content and policy is reused. Previously the cached short-circuit was completely silent, which made it look like the policy gate never ran [#12324](https://github.com/pnpm/pnpm/issues/12324).
+- 52be454: Platform-specific optional dependencies are now skipped even when their `os`/`cpu`/`libc` fields are missing from the registry metadata or the lockfile. Some registries strip these fields from the package metadata, which made pnpm download and install the binaries of every platform regardless of `supportedArchitectures`. The missing platform fields of an optional dependency are now inferred from its name (e.g. `@nx/nx-win32-arm64-msvc` → `os: win32`, `cpu: arm64`), so foreign-platform binaries are skipped without even downloading them [#11702](https://github.com/pnpm/pnpm/issues/11702).
+
 ## 11.5.3
 
 ### Patch Changes

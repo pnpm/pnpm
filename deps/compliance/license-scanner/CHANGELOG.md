@@ -1,5 +1,13 @@
 # @pnpm/license-scanner
 
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [52be454]
+  - @pnpm/config.package-is-installable@1100.0.10
+  - @pnpm/store.pkg-finder@1100.0.16
+
 ## 1100.0.17
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/read-project-manifest
 
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/pkg-manifest.utils@1100.2.4
+
 ## 1100.0.11
 
 ### Patch Changes

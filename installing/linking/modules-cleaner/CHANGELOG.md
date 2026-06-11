@@ -1,5 +1,14 @@
 # @pnpm/modules-cleaner
 
+## 1100.1.7
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/bins.remover@1100.0.9
+  - @pnpm/lockfile.filtering@1100.1.6
+
 ## 1100.1.6
 
 ### Patch Changes

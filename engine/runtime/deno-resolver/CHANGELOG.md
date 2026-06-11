@@ -1,5 +1,12 @@
 # @pnpm/resolving.deno-resolver
 
+## 1101.1.7
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.5.2
+- @pnpm/worker@1100.1.11
+
 ## 1101.1.6
 
 ### Patch Changes

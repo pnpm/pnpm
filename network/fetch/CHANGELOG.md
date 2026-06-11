@@ -1,5 +1,12 @@
 # @pnpm/fetch
 
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+
 ## 1100.1.1
 
 ### Patch Changes

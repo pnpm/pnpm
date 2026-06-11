@@ -1,5 +1,12 @@
 # @pnpm/filter-lockfile
 
+## 1100.1.6
+
+### Patch Changes
+
+- Updated dependencies [52be454]
+  - @pnpm/config.package-is-installable@1100.0.10
+
 ## 1100.1.5
 
 ### Patch Changes

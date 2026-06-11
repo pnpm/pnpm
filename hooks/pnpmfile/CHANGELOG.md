@@ -1,5 +1,13 @@
 # @pnpm/pnpmfile
 
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.13
 
 ### Patch Changes

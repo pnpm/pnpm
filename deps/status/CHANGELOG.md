@@ -1,5 +1,22 @@
 # @pnpm/deps.status
 
+## 1100.1.0
+
+### Minor Changes
+
+- d976edf: `pnpm install` completes without re-resolving when `pnpm-lock.yaml` was deleted but `node_modules` is intact: the up-to-date check now treats the current lockfile (`node_modules/.pnpm/lock.yaml`) — the record of what the previous install materialized — as the wanted lockfile, verifies the manifests still match it, restores `pnpm-lock.yaml` from it, and reports "Already up to date". Previously this scenario triggered a full resolution and a re-verification of every locked package against the registry.
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [615c669]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/workspace.state@1100.0.21
+  - @pnpm/installing.context@1100.0.17
+  - @pnpm/lockfile.verification@1100.0.17
+  - @pnpm/workspace.projects-reader@1101.0.11
+  - @pnpm/lockfile.settings-checker@1100.0.17
+
 ## 1100.0.23
 
 ### Patch Changes

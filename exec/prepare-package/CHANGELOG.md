@@ -1,5 +1,11 @@
 # @pnpm/prepare-package
 
+## 1100.0.17
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.17
+
 ## 1100.0.16
 
 ### Patch Changes

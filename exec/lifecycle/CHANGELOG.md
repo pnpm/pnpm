@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/bins.linker@1100.0.13
+  - @pnpm/fetching.directory-fetcher@1100.0.16
+
 ## 1100.0.16
 
 ### Patch Changes

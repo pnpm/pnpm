@@ -1,5 +1,11 @@
 # @pnpm/lockfile.preferred-versions
 
+## 1100.0.15
+
+### Patch Changes
+
+- @pnpm/pkg-manifest.utils@1100.2.4
+
 ## 1100.0.14
 
 ### Patch Changes

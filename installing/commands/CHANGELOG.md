@@ -1,5 +1,41 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.8.0
+
+### Minor Changes
+
+- d976edf: `pnpm install` completes without re-resolving when `pnpm-lock.yaml` was deleted but `node_modules` is intact: the up-to-date check now treats the current lockfile (`node_modules/.pnpm/lock.yaml`) — the record of what the previous install materialized — as the wanted lockfile, verifies the manifests still match it, restores `pnpm-lock.yaml` from it, and reports "Already up to date". Previously this scenario triggered a full resolution and a re-verification of every locked package against the registry.
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [d976edf]
+- Updated dependencies [f11b4fc]
+- Updated dependencies [615c669]
+- Updated dependencies [84bb4b1]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/deps.status@1100.1.0
+  - @pnpm/installing.deps-installer@1101.9.0
+  - @pnpm/building.after-install@1101.0.21
+  - @pnpm/global.commands@1100.0.27
+  - @pnpm/store.connection-manager@1100.2.8
+  - @pnpm/workspace.state@1100.0.21
+  - @pnpm/hooks.pnpmfile@1100.0.14
+  - @pnpm/installing.context@1100.0.17
+  - @pnpm/installing.env-installer@1101.1.8
+  - @pnpm/network.fetch@1100.1.2
+  - @pnpm/pkg-manifest.utils@1100.2.4
+  - @pnpm/resolving.npm-resolver@1101.5.2
+  - @pnpm/store.controller@1101.0.13
+  - @pnpm/cli.utils@1101.0.11
+  - @pnpm/deps.security.signatures@1101.2.1
+  - @pnpm/deps.inspection.outdated@1100.1.7
+  - @pnpm/workspace.project-manifest-reader@1100.0.12
+  - @pnpm/workspace.projects-graph@1100.0.17
+  - @pnpm/workspace.projects-reader@1101.0.11
+  - @pnpm/workspace.projects-filter@1100.0.20
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.12
+
 ## 1100.7.3
 
 ### Patch Changes

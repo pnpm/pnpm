@@ -1,5 +1,11 @@
 # @pnpm/store.pkg-finder
 
+## 1100.0.16
+
+### Patch Changes
+
+- @pnpm/fetching.directory-fetcher@1100.0.16
+
 ## 1100.0.15
 
 ### Patch Changes

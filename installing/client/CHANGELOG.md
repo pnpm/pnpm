@@ -1,5 +1,17 @@
 # @pnpm/client
 
+## 1100.2.7
+
+### Patch Changes
+
+- @pnpm/engine.runtime.node-resolver@1101.1.6
+- @pnpm/fetching.tarball-fetcher@1101.0.14
+- @pnpm/network.fetch@1100.1.2
+- @pnpm/resolving.npm-resolver@1101.5.2
+- @pnpm/resolving.default-resolver@1100.3.7
+- @pnpm/fetching.git-fetcher@1101.0.13
+- @pnpm/fetching.directory-fetcher@1100.0.16
+
 ## 1100.2.6
 
 ### Patch Changes

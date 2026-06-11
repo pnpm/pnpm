@@ -1,5 +1,25 @@
 # @pnpm/releasing.commands
 
+## 1100.4.4
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [d976edf]
+- Updated dependencies [615c669]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/installing.commands@1100.8.0
+  - @pnpm/engine.runtime.commands@1100.1.4
+  - @pnpm/engine.runtime.node-resolver@1101.1.6
+  - @pnpm/exec.lifecycle@1100.0.17
+  - @pnpm/fs.indexed-pkg-importer@1100.0.13
+  - @pnpm/network.fetch@1100.1.2
+  - @pnpm/cli.utils@1101.0.11
+  - @pnpm/installing.client@1100.2.7
+  - @pnpm/releasing.exportable-manifest@1100.1.5
+  - @pnpm/fetching.directory-fetcher@1100.0.16
+  - @pnpm/workspace.projects-filter@1100.0.20
+
 ## 1100.4.3
 
 ### Patch Changes
