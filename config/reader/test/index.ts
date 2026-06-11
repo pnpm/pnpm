@@ -666,6 +666,27 @@ test('project .npmrc does not expand env variables in scoped registry URLs or UR
   expect(urlScopedWarning).toContain('~/.npmrc')
 })
 
+test('the warning never embeds a shell-unsafe key in a runnable pnpm config set command', async () => {
+  prepare()
+
+  // A malicious repository could craft a key with shell metacharacters; the
+  // suggested copy-paste command must not become a command-injection vector.
+  fs.writeFileSync('.npmrc', '//$(touch pwned)`id`/:_authToken=${PNPM_TEST_TOKEN}\n', 'utf8')
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: { ...env, PNPM_TEST_TOKEN: 'secret' },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  const unsafeWarning = warnings.find((w) => w.includes('$(touch pwned)')) ?? ''
+  expect(unsafeWarning).not.toBe('')
+  expect(unsafeWarning).not.toContain('pnpm config set "')
+})
+
 test('project .npmrc does not expand env variables in auth values', async () => {
   prepare()
 
