@@ -35,7 +35,8 @@
 //! local-file-dependency bail (upstream's `treatLocalFileDepsAsOutdated`
 //! option, set by `installDeps`): no tracked mtime covers the *contents*
 //! of a local file dependency (a `file:` specifier or a bare local
-//! path/tarball spec), so projects declaring one always take the
+//! path/tarball spec, declared directly or through a `pnpm.overrides`
+//! entry), so projects declaring one always take the
 //! full install path, which refetches those dependencies
 //! (pnpm/pnpm#11795). The `isLocalFileDepUpdated` branch of
 //! `linkedPackagesAreUpToDate` is NOT
@@ -164,6 +165,11 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     if has_local_file_dep(project_manifests) {
         return Decision::Skipped {
             reason: "a dependency is a local file dependency and its contents may have changed",
+        };
+    }
+    if has_local_file_override(config) {
+        return Decision::Skipped {
+            reason: "an override maps to a local file dependency and its contents may have changed",
         };
     }
 
@@ -313,6 +319,19 @@ fn has_local_file_dep(project_manifests: &[(PathBuf, &PackageManifest)]) -> bool
             })
         })
     })
+}
+
+/// Whether any `pnpm.overrides` entry maps to a local file specifier.
+/// Port of upstream's `findLocalFileOverride` in
+/// `deps/status/src/checkDepsStatus.ts`: an override redirects every
+/// matching dependency in the graph to its specifier, so a local file
+/// override makes the installed contents depend on that directory or
+/// tarball the same way a direct local file dependency does.
+fn has_local_file_override(config: &Config) -> bool {
+    config
+        .overrides
+        .as_ref()
+        .is_some_and(|overrides| overrides.values().any(|spec| is_local_file_spec(spec)))
 }
 
 /// Whether the specifier resolves to a local directory or tarball whose

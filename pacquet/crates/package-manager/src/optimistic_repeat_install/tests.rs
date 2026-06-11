@@ -2,6 +2,7 @@ use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install, current_settings,
     current_settings_with_catalogs,
 };
+use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -101,6 +102,25 @@ fn setup_fresh_install(
     project_version: &str,
     manifest_extra_json: &str,
 ) -> (tempfile::TempDir, &'static Config, PackageManifest) {
+    setup_fresh_install_with_config(
+        config_kind,
+        project_name,
+        project_version,
+        manifest_extra_json,
+        |_| {},
+    )
+}
+
+/// Same as [`setup_fresh_install`] but applies `configure` to the
+/// `Config` before the workspace-state snapshot is taken, so the
+/// settings comparison sees the configured values as unchanged.
+fn setup_fresh_install_with_config(
+    config_kind: pacquet_config::NodeLinker,
+    project_name: &str,
+    project_version: &str,
+    manifest_extra_json: &str,
+    configure: impl FnOnce(&mut Config),
+) -> (tempfile::TempDir, &'static Config, PackageManifest) {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
     let manifest_path = workspace_root.join("package.json");
@@ -130,6 +150,7 @@ fn setup_fresh_install(
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
+    configure(&mut config);
     let config = Box::leak(Box::new(config));
     // Pre-create the modules dir so the "missing node_modules" guard
     // doesn't fire on the happy-path tests.
@@ -232,6 +253,61 @@ fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
             "spec {spec:?} must bail",
         );
     }
+}
+
+/// A `pnpm.overrides` entry mapping to a local file spec must bail the
+/// same way a direct local file dependency does: the override redirects
+/// every matching dependency in the graph to that directory, and
+/// nothing the fast path stats covers its contents.
+#[test]
+fn returns_skipped_when_an_override_maps_to_a_local_file_dependency() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides =
+                Some(IndexMap::from([("bar".to_string(), "file:../bar".to_string())]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("override")),
+        "decision was {decision:?}",
+    );
+}
+
+/// Registry and `link:` overrides keep the fast path: neither redirects
+/// a dependency to contents only a refetch would pick up.
+#[test]
+fn returns_up_to_date_when_overrides_are_not_local_paths() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides = Some(IndexMap::from([
+                ("bar".to_string(), "^2.0.0".to_string()),
+                ("baz".to_string(), "link:../baz".to_string()),
+            ]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
 }
 
 /// Specs the git, remote-tarball, and registry resolvers claim must not

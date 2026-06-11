@@ -172,6 +172,14 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         workspaceState,
       }
     }
+    const localFileOverride = findLocalFileOverride(opts.overrides)
+    if (localFileOverride != null) {
+      return {
+        upToDate: false,
+        issue: `The override "${localFileOverride}" maps to a local file dependency and its contents may have changed`,
+        workspaceState,
+      }
+    }
   }
 
   if (workspaceState.settings) {
@@ -661,6 +669,20 @@ function findLocalFileDep (manifests: ProjectManifest[]): string | undefined {
         if (isLocalFileSpec(spec)) return depName
       }
     }
+  }
+  return undefined
+}
+
+/**
+ * Returns the selector of the first override that maps to a local file
+ * specifier, or `undefined` when there is none. An override redirects every
+ * matching dependency in the graph to its specifier, so a local file override
+ * makes the installed contents depend on that directory or tarball the same
+ * way a direct local file dependency does.
+ */
+function findLocalFileOverride (overrides: Record<string, string> | undefined): string | undefined {
+  for (const [selector, spec] of Object.entries(overrides ?? {})) {
+    if (isLocalFileSpec(spec)) return selector
   }
   return undefined
 }

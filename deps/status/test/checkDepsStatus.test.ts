@@ -948,6 +948,48 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     expect(result.issue).toBe('The dependency "foo" is a local file dependency and its contents may have changed')
   })
 
+  it('returns upToDate: false when an override maps to a local file dependency', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: { foo: '^1.0.0' },
+      },
+      rootProjectManifestDir: '/project',
+      overrides: { bar: 'file:../bar' },
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      ...mockWorkspaceState(lastValidatedTimestamp).settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The override "bar" maps to a local file dependency and its contents may have changed')
+  })
+
+  it('does not report registry and link: overrides as outdated', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const overrides = { bar: '^2.0.0', baz: 'link:../baz' }
+    const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
+    workspaceState.settings = { ...workspaceState.settings, overrides }
+    jest.mocked(loadWorkspaceState).mockReturnValue(workspaceState)
+    mockUpToDateSingleProjectStats(lastValidatedTimestamp)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: { foo: '^1.0.0' },
+      },
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      ...workspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(true)
+  })
+
   it('does not report git, remote tarball, and tilde range dependencies as outdated', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
