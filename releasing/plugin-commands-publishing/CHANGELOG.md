@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.3.20
+
+### Patch Changes
+
+- Updated dependencies [598ea3f]
+- Updated dependencies [f85557b]
+  - @pnpm/config@1004.11.4
+  - @pnpm/cli-utils@1001.3.14
+  - @pnpm/plugin-commands-env@1000.0.70
+  - @pnpm/client@1001.1.28
+
 ## 1000.3.19
 
 ### Patch Changes
