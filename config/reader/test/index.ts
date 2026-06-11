@@ -1078,6 +1078,44 @@ test('URL-scoped auth from the environment overrides a project .npmrc for the sa
   expect(config.authConfig['//env-test.example/:_authToken']).toBe('env-token')
 })
 
+test('a CLI-provided URL-scoped auth token overrides the same env var', async () => {
+  prepareEmpty()
+
+  // Precedence is workspace < env < CLI; an explicit CLI value must still win.
+  const { config } = await getConfig({
+    cliOptions: {
+      '//env-test.example/:_authToken': 'cli-token',
+    },
+    env: {
+      ...env,
+      'npm_config_//env-test.example/:_authToken': 'env-token',
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//env-test.example/:_authToken']).toBe('cli-token')
+})
+
+test('URL-scoped env vars honor non-token credential fields and ignore non-URL keys', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      'npm_config_//env-test.example/:username': 'env-user',
+      'npm_config_//env-test.example/:_password': 'ZW52LXBhc3M=', // base64, value is opaque to pnpm
+      // A non-URL-scoped key must not be imported by the //-scoped env reader.
+      'npm_config_always-auth': 'true',
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//env-test.example/:username']).toBe('env-user')
+  expect(config.authConfig['//env-test.example/:_password']).toBe('ZW52LXBhc3M=')
+  expect(config.authConfig['always-auth']).toBeUndefined()
+})
+
 test('workspace .npmrc overrides pnpm auth file', async () => {
   prepareEmpty()
 
