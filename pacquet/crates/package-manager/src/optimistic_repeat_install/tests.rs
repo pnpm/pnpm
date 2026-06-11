@@ -183,7 +183,7 @@ fn returns_skipped_when_a_project_has_a_file_dependency() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(
-        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency"))
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
     );
 }
 
@@ -205,7 +205,7 @@ fn returns_skipped_when_a_project_has_a_file_tarball_dev_dependency() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert!(
-        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency"))
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
     );
 }
 
