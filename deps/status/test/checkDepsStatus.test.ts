@@ -1105,4 +1105,68 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     expect(result.upToDate).toBe(false)
     expect(result.issue).toBe('The dependency "foo" is a local file dependency and its contents may have changed')
   })
+
+  it('returns upToDate: false when a catalog: dependency resolves to a bare local path', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: { foo: 'catalog:' },
+      },
+      rootProjectManifestDir: '/project',
+      catalogs: { default: { foo: '../foo' } },
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      ...mockWorkspaceState(lastValidatedTimestamp).settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The dependency "foo" is a local file dependency and its contents may have changed')
+  })
+
+  it('does not report a catalog: dependency resolving to a registry range as outdated', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const catalogs = { default: { foo: '^1.0.0' } }
+    const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
+    workspaceState.settings = { ...workspaceState.settings, catalogs }
+    jest.mocked(loadWorkspaceState).mockReturnValue(workspaceState)
+    mockUpToDateSingleProjectStats(lastValidatedTimestamp)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: { foo: 'catalog:' },
+      },
+      rootProjectManifestDir: '/project',
+      catalogs,
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      ...workspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(true)
+  })
+
+  it('returns upToDate: false when an override maps through a catalog to a local path', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: { foo: '^1.0.0' },
+      },
+      rootProjectManifestDir: '/project',
+      overrides: { bar: 'catalog:' },
+      catalogs: { default: { bar: './vendor/bar' } },
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      ...mockWorkspaceState(lastValidatedTimestamp).settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The override "bar" maps to a local file dependency and its contents may have changed')
+  })
 })

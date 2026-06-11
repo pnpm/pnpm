@@ -393,6 +393,104 @@ fn returns_up_to_date_when_overrides_are_not_local_paths() {
     assert_eq!(decision, Decision::UpToDate);
 }
 
+/// A `catalog:` dependency whose catalog entry holds a bare local path
+/// is a local file dependency after dereferencing — the catalog
+/// resolver only bans the `workspace:`, `link:`, and `file:` protocols,
+/// so the bare-path spelling reaches the local resolver. Same bail as
+/// a direct local path.
+#[test]
+fn returns_skipped_when_a_catalog_dependency_resolves_to_a_local_path() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"catalog:"}"#,
+    );
+
+    let catalogs: Catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("foo".to_string(), "../foo".to_string())]),
+    )]);
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: None,
+        catalogs: &catalogs,
+    });
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+        "decision was {decision:?}",
+    );
+}
+
+/// A `catalog:` dependency resolving to a registry range keeps the
+/// fast path: the dereferenced specifier is not a local path.
+#[test]
+fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"catalog:"}"#,
+    );
+
+    let catalogs: Catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("foo".to_string(), "^1.0.0".to_string())]),
+    )]);
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: None,
+        catalogs: &catalogs,
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// A `pnpm.overrides` entry spelled `catalog:` whose catalog entry
+/// holds a local path bails like a direct local file override —
+/// overrides are dereferenced through `parse_config_overrides` before
+/// the check.
+#[test]
+fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides = Some(IndexMap::from([("bar".to_string(), "catalog:".to_string())]));
+        },
+    );
+
+    let catalogs: Catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("bar".to_string(), "./vendor/bar".to_string())]),
+    )]);
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: None,
+        catalogs: &catalogs,
+    });
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("override")),
+        "decision was {decision:?}",
+    );
+}
+
 /// Specs the git, remote-tarball, and registry resolvers claim must not
 /// bail — matching them would disable the fast path for every project
 /// with git dependencies.

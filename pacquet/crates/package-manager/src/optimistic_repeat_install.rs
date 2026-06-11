@@ -61,6 +61,7 @@ use std::{
     time::SystemTime,
 };
 
+use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
 use pacquet_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
@@ -162,12 +163,12 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     // Unconditional where upstream gates it behind
     // `treatLocalFileDepsAsOutdated`: the only caller here is the
     // install command — the one consumer that sets the flag upstream.
-    if has_local_file_dep(project_manifests, included) {
+    if has_local_file_dep(project_manifests, included, catalogs) {
         return Decision::Skipped {
             reason: "a dependency is a local file dependency and its contents may have changed",
         };
     }
-    if has_local_file_override(config) {
+    if has_local_file_override(config, catalogs) {
         return Decision::Skipped {
             reason: "an override maps to a local file dependency and its contents may have changed",
         };
@@ -313,10 +314,15 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
 /// install (per `included`) are skipped: their local file dependencies
 /// are not installed, so their contents cannot be stale. A change to
 /// the include flags between installs is caught separately by
-/// `settings_match`.
+/// `settings_match`. `catalog:` specs are dereferenced through the
+/// workspace catalogs: the catalog resolver only bans the `workspace:`,
+/// `link:`, and `file:` protocols, so a catalog entry can still hold a
+/// bare local path (`../lib`, `vendor/pkg.tgz`) that resolves to a
+/// local file dependency.
 fn has_local_file_dep(
     project_manifests: &[(PathBuf, &PackageManifest)],
     included: IncludedDependencies,
+    catalogs: &Catalogs,
 ) -> bool {
     let fields: [(&str, bool); 3] = [
         ("dependencies", included.dependencies),
@@ -327,10 +333,33 @@ fn has_local_file_dep(
         fields.iter().any(|(field, group_included)| {
             *group_included
                 && manifest.value().get(*field).and_then(|value| value.as_object()).is_some_and(
-                    |deps| deps.values().any(|spec| spec.as_str().is_some_and(is_local_file_spec)),
+                    |deps| {
+                        deps.iter().any(|(alias, spec)| {
+                            spec.as_str().is_some_and(|spec| {
+                                is_local_file_spec(spec)
+                                    || catalog_resolves_to_local_file(catalogs, alias, spec)
+                            })
+                        })
+                    },
                 )
         })
     })
+}
+
+/// Whether a `catalog:` spec dereferences (through the workspace
+/// catalogs) to a local file specifier. Non-catalog specs and
+/// misconfigured catalog entries return `false`: the former never
+/// consult the catalogs, and the latter fail the full install with the
+/// proper error anyway — the fast path only needs to not report
+/// up-to-date for a *valid* catalog entry holding a local path.
+fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, spec: &str) -> bool {
+    match resolve_from_catalog(
+        catalogs,
+        &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
+    ) {
+        CatalogResolutionResult::Found(found) => is_local_file_spec(&found.resolution.specifier),
+        _ => false,
+    }
 }
 
 /// Whether any `pnpm.overrides` entry maps to a local file specifier.
@@ -338,12 +367,19 @@ fn has_local_file_dep(
 /// `deps/status/src/checkDepsStatus.ts`: an override redirects every
 /// matching dependency in the graph to its specifier, so a local file
 /// override makes the installed contents depend on that directory or
-/// tarball the same way a direct local file dependency does.
-fn has_local_file_override(config: &Config) -> bool {
-    config
-        .overrides
-        .as_ref()
-        .is_some_and(|overrides| overrides.values().any(|spec| is_local_file_spec(spec)))
+/// tarball the same way a direct local file dependency does. Overrides
+/// are run through `parse_config_overrides` so `catalog:` specs are
+/// dereferenced before the check. A parse failure (misconfigured
+/// catalog, invalid selector) bails to the full install path, which
+/// surfaces the same error — mirroring upstream, where `parseOverrides`
+/// throws to `checkDepsStatus`'s outer catch and the caller falls back
+/// to a full install.
+fn has_local_file_override(config: &Config, catalogs: &Catalogs) -> bool {
+    match crate::install::parse_config_overrides(config, catalogs) {
+        Ok(Some(overrides)) => overrides.iter().any(|o| is_local_file_spec(&o.new_bare_specifier)),
+        Ok(None) => false,
+        Err(_) => true,
+    }
 }
 
 /// Whether the specifier resolves to a local directory or tarball whose
@@ -359,10 +395,10 @@ fn has_local_file_override(config: &Config) -> bool {
 /// git shorthand at this layer, and matching it would disable the
 /// repeat-install fast path for every project with git dependencies.
 /// Such specs (and anything else carrying a protocol or URL) stay on
-/// the fast path. That includes `catalog:` indirection: catalog entries
-/// cannot use the `file:` or `link:` protocols (see upstream's
-/// `resolveFromCatalog`), so local paths in catalogs are not a
-/// supported configuration.
+/// the fast path. `catalog:` specs also return `false` here — callers
+/// dereference them through the workspace catalogs first, because a
+/// catalog entry may hold a bare local path (the catalog resolver only
+/// bans the `workspace:`, `link:`, and `file:` protocols).
 fn is_local_file_spec(spec: &str) -> bool {
     if spec.starts_with("file:") {
         return true;

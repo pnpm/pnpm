@@ -3833,6 +3833,12 @@ importers:
 
   deps/status:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/config.parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides

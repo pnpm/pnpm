@@ -2,6 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
@@ -171,7 +173,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   if (opts.treatLocalFileDepsAsOutdated) {
     const manifests = allProjects?.map(({ manifest }) => manifest) ??
       (rootProjectManifest ? [rootProjectManifest] : [])
-    const localFileDep = findLocalFileDep(manifests, opts.include)
+    const localFileDep = findLocalFileDep(manifests, opts.include, catalogs)
     if (localFileDep != null) {
       return {
         upToDate: false,
@@ -179,7 +181,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         workspaceState,
       }
     }
-    const localFileOverride = findLocalFileOverride(opts.overrides)
+    const localFileOverride = findLocalFileOverride(opts.overrides, catalogs)
     if (localFileOverride != null) {
       return {
         upToDate: false,
@@ -676,9 +678,13 @@ async function assertWantedLockfileUpToDate (
  * `link:` dependencies are excluded: they are symlinked, so changes inside
  * them flow through without a reinstall. Dependency groups excluded from the
  * current install (per `include`) are skipped: their local file dependencies
- * are not installed, so their contents cannot be stale.
+ * are not installed, so their contents cannot be stale. `catalog:` specs are
+ * dereferenced through the catalogs config: the catalog resolver only bans
+ * the `workspace:`, `link:`, and `file:` protocols, so a catalog entry can
+ * still hold a bare local path (`../lib`, `vendor/pkg.tgz`) that resolves to
+ * a local file dependency.
  */
-function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDependencies): string | undefined {
+function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDependencies, catalogs?: Catalogs): string | undefined {
   for (const manifest of manifests) {
     for (const depField of DEPENDENCIES_FIELDS) {
       if (include?.[depField] === false) continue
@@ -687,7 +693,10 @@ function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDepen
       for (const [depName, spec] of Object.entries(deps)) {
         // A malformed manifest may carry a non-string spec; skip it rather
         // than throw — checkDepsStatus() must never crash.
-        if (typeof spec === 'string' && isLocalFileSpec(spec)) return depName
+        if (typeof spec !== 'string') continue
+        if (isLocalFileSpec(spec)) return depName
+        const catalogResult = resolveFromCatalog(catalogs ?? {}, { alias: depName, bareSpecifier: spec })
+        if (catalogResult.type === 'found' && isLocalFileSpec(catalogResult.resolution.specifier)) return depName
       }
     }
   }
@@ -699,13 +708,16 @@ function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDepen
  * specifier, or `undefined` when there is none. An override redirects every
  * matching dependency in the graph to its specifier, so a local file override
  * makes the installed contents depend on that directory or tarball the same
- * way a direct local file dependency does.
+ * way a direct local file dependency does. Overrides are run through
+ * `parseOverrides` so `catalog:` specs are dereferenced before the check.
+ * `parseOverrides` throws on a misconfigured catalog or invalid selector;
+ * that propagates to the outer catch in `checkDepsStatus`, which reports
+ * not-up-to-date, and the resulting full install surfaces the same error.
  */
-function findLocalFileOverride (overrides: Record<string, string> | undefined): string | undefined {
-  for (const [selector, spec] of Object.entries(overrides ?? {})) {
-    if (typeof spec === 'string' && isLocalFileSpec(spec)) return selector
-  }
-  return undefined
+function findLocalFileOverride (overrides: Record<string, string> | undefined, catalogs?: Catalogs): string | undefined {
+  if (overrides == null || isEmpty(overrides)) return undefined
+  return parseOverrides(overrides, catalogs)
+    .find(({ newBareSpecifier }) => isLocalFileSpec(newBareSpecifier))?.selector
 }
 
 const LOCAL_PATH_PREFIX = /^(?:[./\\]|~[/\\]|[a-z]:)/i
@@ -724,9 +736,10 @@ const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar)$/i
  * from a git shorthand at this layer, and matching it would disable the
  * repeat-install fast path for every project with git dependencies. Such
  * specs (and anything else carrying a protocol or URL) stay on the fast
- * path. That includes `catalog:` indirection: catalog entries cannot use
- * the `file:` or `link:` protocols (see `resolveFromCatalog`), so local
- * paths in catalogs are not a supported configuration.
+ * path. `catalog:` specs also return false here — callers dereference them
+ * through the catalogs config first, because a catalog entry may hold a
+ * bare local path (the catalog resolver only bans the `workspace:`,
+ * `link:`, and `file:` protocols).
  */
 function isLocalFileSpec (spec: string): boolean {
   if (spec.startsWith('file:')) return true
