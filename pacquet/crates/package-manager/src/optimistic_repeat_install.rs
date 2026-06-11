@@ -347,7 +347,10 @@ fn has_local_file_override(config: &Config) -> bool {
 /// git shorthand at this layer, and matching it would disable the
 /// repeat-install fast path for every project with git dependencies.
 /// Such specs (and anything else carrying a protocol or URL) stay on
-/// the fast path.
+/// the fast path. That includes `catalog:` indirection: catalog entries
+/// cannot use the `file:` or `link:` protocols (see upstream's
+/// `resolveFromCatalog`), so local paths in catalogs are not a
+/// supported configuration.
 fn is_local_file_spec(spec: &str) -> bool {
     if spec.starts_with("file:") {
         return true;

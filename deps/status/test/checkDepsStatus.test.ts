@@ -1015,4 +1015,46 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
 
     expect(result.upToDate).toBe(true)
   })
+
+  it('returns upToDate: false for a local file dependency even when nodeLinker is pnp', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: { foo: 'file:../foo' },
+      },
+      rootProjectManifestDir: '/project',
+      nodeLinker: 'pnp',
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      ...mockWorkspaceState(lastValidatedTimestamp).settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The dependency "foo" is a local file dependency and its contents may have changed')
+  })
+
+  it('skips non-string dependency specs in malformed manifests without throwing', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: {
+          broken: 42 as unknown as string,
+          foo: 'file:../foo',
+        },
+      },
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      ...mockWorkspaceState(lastValidatedTimestamp).settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The dependency "foo" is a local file dependency and its contents may have changed')
+  })
 })

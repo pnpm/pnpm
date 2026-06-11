@@ -152,15 +152,11 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     workspaceDir,
   } = opts
 
-  if (nodeLinker === 'pnp') {
-    globalWarn('verify-deps-before-run does not work with node-linker=pnp')
-    return { upToDate: true, workspaceState: undefined }
-  }
-
-  if (opts.ignoreFilteredInstallCache && workspaceState.filteredInstall) {
-    return { upToDate: undefined, workspaceState }
-  }
-
+  // This check must run before the node-linker=pnp early return below:
+  // that return reports up-to-date because verify-deps-before-run cannot
+  // inspect a PnP install, but for the optimistic repeat-install caller
+  // (the only one setting this flag) "up-to-date" would skip the install
+  // and break the local-file-deps guarantee.
   if (opts.treatLocalFileDepsAsOutdated) {
     const manifests = allProjects?.map(({ manifest }) => manifest) ??
       (rootProjectManifest ? [rootProjectManifest] : [])
@@ -180,6 +176,15 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         workspaceState,
       }
     }
+  }
+
+  if (nodeLinker === 'pnp') {
+    globalWarn('verify-deps-before-run does not work with node-linker=pnp')
+    return { upToDate: true, workspaceState: undefined }
+  }
+
+  if (opts.ignoreFilteredInstallCache && workspaceState.filteredInstall) {
+    return { upToDate: undefined, workspaceState }
   }
 
   if (workspaceState.settings) {
@@ -666,7 +671,9 @@ function findLocalFileDep (manifests: ProjectManifest[]): string | undefined {
       const deps = manifest[depField]
       if (deps == null) continue
       for (const [depName, spec] of Object.entries(deps)) {
-        if (isLocalFileSpec(spec)) return depName
+        // A malformed manifest may carry a non-string spec; skip it rather
+        // than throw — checkDepsStatus() must never crash.
+        if (typeof spec === 'string' && isLocalFileSpec(spec)) return depName
       }
     }
   }
@@ -682,7 +689,7 @@ function findLocalFileDep (manifests: ProjectManifest[]): string | undefined {
  */
 function findLocalFileOverride (overrides: Record<string, string> | undefined): string | undefined {
   for (const [selector, spec] of Object.entries(overrides ?? {})) {
-    if (isLocalFileSpec(spec)) return selector
+    if (typeof spec === 'string' && isLocalFileSpec(spec)) return selector
   }
   return undefined
 }
@@ -702,7 +709,10 @@ const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar)$/i
  * `dir/file.tgz`-less path like `user/repo` is statically indistinguishable
  * from a git shorthand at this layer, and matching it would disable the
  * repeat-install fast path for every project with git dependencies. Such
- * specs (and anything else carrying a protocol or URL) stay on the fast path.
+ * specs (and anything else carrying a protocol or URL) stay on the fast
+ * path. That includes `catalog:` indirection: catalog entries cannot use
+ * the `file:` or `link:` protocols (see `resolveFromCatalog`), so local
+ * paths in catalogs are not a supported configuration.
  */
 function isLocalFileSpec (spec: string): boolean {
   if (spec.startsWith('file:')) return true
