@@ -346,6 +346,16 @@ pub enum StoreIndexError {
         source: rusqlite::Error,
     },
 
+    /// The store path could not be turned into the `file:` URI that the
+    /// immutable open requires (see [`StoreIndex::open_immutable`]).
+    #[display("Failed to build a file: URI for index.db at {path:?}")]
+    #[diagnostic(code(pacquet_store_dir::store_index::file_uri))]
+    FileUri {
+        path: PathBuf,
+        #[error(source)]
+        source: Option<std::io::Error>,
+    },
+
     #[display("Failed to initialize index.db schema: {source}")]
     #[diagnostic(code(pacquet_store_dir::store_index::init_schema))]
     InitSchema {
@@ -471,7 +481,7 @@ impl StoreIndex {
     /// locks for it to wait on.
     pub fn open_immutable(store_dir: &Path) -> Result<Self, StoreIndexError> {
         let db_path = store_dir.join("index.db");
-        let uri = immutable_sqlite_uri(&db_path);
+        let uri = immutable_sqlite_uri(&db_path)?;
         let conn = Connection::open_with_flags(
             &uri,
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
@@ -917,19 +927,24 @@ pub struct SideEffectsDiff {
 }
 
 /// Build the `file://…?immutable=1` URI used to open `index.db` read-only (see
-/// [`StoreIndex::open_readonly`] for why immutable). [`Url::from_file_path`]
+/// [`StoreIndex::open_immutable`] for why immutable). [`Url::from_file_path`]
 /// yields a canonical file URL on every platform: it percent-encodes the URI
 /// delimiters that would otherwise truncate the path or inject a query/fragment
 /// (`?`, `#`, `%`, spaces) and, on Windows, maps the drive letter and
 /// backslashes into a valid `file:///C:/…` form. See <https://sqlite.org/uri.html>.
 ///
-/// The store index path is always absolute (it is derived from the store
-/// root), which is [`Url::from_file_path`]'s only precondition.
-fn immutable_sqlite_uri(db_path: &Path) -> String {
-    let mut url = Url::from_file_path(db_path)
-        .expect("store index path must be absolute to build a file: URI");
+/// [`Url::from_file_path`] only accepts an absolute path, so a relative store
+/// path is first absolutized against the current directory — the same
+/// resolution Node's `pathToFileURL` applies on the pnpm side.
+fn immutable_sqlite_uri(db_path: &Path) -> Result<String, StoreIndexError> {
+    let absolute = std::path::absolute(db_path).map_err(|source| StoreIndexError::FileUri {
+        path: db_path.to_path_buf(),
+        source: Some(source),
+    })?;
+    let mut url = Url::from_file_path(&absolute)
+        .map_err(|()| StoreIndexError::FileUri { path: absolute, source: None })?;
     url.query_pairs_mut().append_pair("immutable", "1");
-    url.into()
+    Ok(url.into())
 }
 
 #[cfg(test)]

@@ -1,10 +1,10 @@
 use super::{
     CafsFileInfo, GET_MANY_CHUNK, PackageFilesIndex, StoreIndex, git_hosted_store_index_key,
-    pick_store_index_key, store_index_key,
+    immutable_sqlite_uri, pick_store_index_key, store_index_key,
 };
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 use tempfile::tempdir;
 
 // `Url::from_file_path` only accepts a platform-absolute path: a POSIX
@@ -13,19 +13,26 @@ use tempfile::tempdir;
 #[cfg(unix)]
 #[test]
 fn immutable_uri_percent_encodes_sqlite_path_delimiters() {
-    use super::immutable_sqlite_uri;
-    use std::path::Path;
-
     // `/` stays literal; `?`, `#`, and `%` (the escape introducer) are
     // percent-encoded so they cannot truncate the path or inject a query.
     assert_eq!(
-        immutable_sqlite_uri(Path::new("/store/index.db")),
+        immutable_sqlite_uri(Path::new("/store/index.db")).unwrap(),
         "file:///store/index.db?immutable=1",
     );
     assert_eq!(
-        immutable_sqlite_uri(Path::new("/a?b/c#d/100%/index.db")),
+        immutable_sqlite_uri(Path::new("/a?b/c#d/100%/index.db")).unwrap(),
         "file:///a%3Fb/c%23d/100%25/index.db?immutable=1",
     );
+}
+
+/// A relative store path is absolutized against the current directory
+/// instead of failing — the resolution Node's `pathToFileURL` applies on
+/// the pnpm side.
+#[test]
+fn immutable_uri_absolutizes_a_relative_path() {
+    let uri = immutable_sqlite_uri(Path::new("relative-store/index.db")).unwrap();
+    assert!(uri.starts_with("file:///"), "{uri}");
+    assert!(uri.ends_with("/relative-store/index.db?immutable=1"), "{uri}");
 }
 
 fn sample_index() -> PackageFilesIndex {
