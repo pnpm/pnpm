@@ -139,7 +139,7 @@ pub enum PickPackageFromMetaError {
 ///
 /// Returns:
 ///
-/// - `Ok(Some(version))` — the picked version's cloned manifest.
+/// - `Ok(Some(version))` — the picked version's (shared) manifest.
 /// - `Ok(None)` — no version satisfies the spec. The orchestrator
 ///   layer above propagates this as "resolver returned nothing,"
 ///   not as an error.
@@ -149,7 +149,7 @@ pub fn pick_package_from_meta<PickFn>(
     opts: &PickPackageFromMetaOptions<'_>,
     meta: &Package,
     spec: &RegistryPackageSpec,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError>
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>
 where
     PickFn: Fn(&PickVersionByVersionRangeOptions<'_>) -> Option<String>,
 {
@@ -213,30 +213,73 @@ where
         return Err(PickPackageFromMetaError::NoVersions { pkg_name: spec.name.clone() });
     }
 
-    let picked_version: Option<String> = match spec.spec_type {
-        RegistryPackageSpecType::Version => Some(spec.fetch_spec.clone()),
-        RegistryPackageSpecType::Tag => meta_ref.dist_tag(&spec.fetch_spec).map(str::to_string),
-        RegistryPackageSpecType::Range => {
-            pick_version_by_range(&PickVersionByVersionRangeOptions {
-                meta: meta_ref,
-                version_range: &spec.fetch_spec,
-                preferred_version_selectors: opts.preferred_version_selectors,
-                published_by: opts.published_by,
-            })
-        }
-    };
+    // An undecodable fragment behaves as if the version were absent
+    // (the `PackageVersions` contract), so a pick whose winner fails
+    // to hydrate retries against the remaining versions instead of
+    // reporting "no match" while satisfying candidates exist. The
+    // owned filtered clone only materializes on that (rare) path.
+    let mut undecodable_excluded: Option<Package> = None;
+    loop {
+        let meta_now: &Package = undecodable_excluded.as_ref().unwrap_or(meta_ref);
+        let picked_version: Option<String> = match spec.spec_type {
+            RegistryPackageSpecType::Version => Some(spec.fetch_spec.clone()),
+            RegistryPackageSpecType::Tag => meta_now.dist_tag(&spec.fetch_spec).map(str::to_string),
+            RegistryPackageSpecType::Range => {
+                pick_version_by_range(&PickVersionByVersionRangeOptions {
+                    meta: meta_now,
+                    version_range: &spec.fetch_spec,
+                    preferred_version_selectors: opts.preferred_version_selectors,
+                    published_by: opts.published_by,
+                })
+            }
+        };
 
-    let Some(version) = picked_version else { return Ok(None) };
-    let Some(manifest) = meta_ref.versions.get(&version).cloned() else { return Ok(None) };
-    let mut manifest = manifest;
-    if !meta_ref.name.is_empty() {
-        // GitHub registry quirk: a scoped package can be published as
-        // `@owner/foo` while the per-version `name` is just `foo`.
-        // Match upstream's shim that pins the manifest name to the
-        // packument-level name.
-        manifest.name.clone_from(&meta_ref.name);
+        let Some(version) = picked_version else { return Ok(None) };
+        let Some(manifest) = meta_now.versions.get(&version) else {
+            if !meta_now.versions.contains_key(&version) {
+                // The picked string names a version the packument
+                // doesn't carry (a dangling dist-tag, an exact spec
+                // for an unpublished version) — nothing to retry.
+                return Ok(None);
+            }
+            undecodable_excluded = Some(without_version(meta_now, &version));
+            continue;
+        };
+        if !meta_now.name.is_empty() && manifest.name != meta_now.name {
+            // GitHub registry quirk: a scoped package can be published as
+            // `@owner/foo` while the per-version `name` is just `foo`.
+            // Match upstream's shim that pins the manifest name to the
+            // packument-level name.
+            let mut pinned = (*manifest).clone();
+            pinned.name.clone_from(&meta_now.name);
+            return Ok(Some(Arc::new(pinned)));
+        }
+        return Ok(Some(manifest));
     }
-    Ok(Some(manifest))
+}
+
+/// Clone `meta` minus one version — the retry step when a picked
+/// version's fragment turns out to be undecodable. Slots move without
+/// hydrating.
+fn without_version(meta: &Package, version: &str) -> Package {
+    Package {
+        name: meta.name.clone(),
+        // Tags pointing at the removed version go with it — the
+        // latest-tag fast path would otherwise re-pick the version
+        // this clone exists to exclude.
+        dist_tags: meta
+            .dist_tags
+            .iter()
+            .filter(|(_, target)| *target != version)
+            .map(|(tag, target)| (tag.clone(), target.clone()))
+            .collect(),
+        versions: meta.versions.filtered(|candidate| candidate != version),
+        time: meta.time.clone(),
+        modified: meta.modified.clone(),
+        etag: meta.etag.clone(),
+        homepage: meta.homepage.clone(),
+        mutex: Arc::default(),
+    }
 }
 
 /// Per-call inputs to the range-picker pluggable. Mirrors upstream's
@@ -303,8 +346,7 @@ pub fn pick_version_by_version_range(
     // pickPackageFromMeta.ts#L194-L201.
     if let Some(ref picked) = max_pick {
         let picked_meta = opts.meta.versions.get(picked);
-        let picked_is_deprecated =
-            picked_meta.and_then(|version| version.deprecated.as_ref()).is_some();
+        let picked_is_deprecated = picked_meta.is_some_and(|version| version.deprecated.is_some());
         if picked_is_deprecated && all_versions.len() > 1 {
             let non_deprecated: Vec<&str> = opts
                 .meta
@@ -364,6 +406,7 @@ pub fn pick_lowest_version_by_version_range(
 /// branch in [`pick_package_from_meta`]) only invokes this with full
 /// metadata. The abbreviated-metadata path takes the `meta.modified`
 /// shortcut above and never reaches this function.
+#[must_use]
 pub fn filter_pkg_metadata_by_publish_date(
     meta: &Package,
     cutoff: chrono::DateTime<chrono::Utc>,
@@ -374,8 +417,9 @@ pub fn filter_pkg_metadata_by_publish_date(
          caller must check before invoking",
     );
 
-    let mut versions_within_date = std::collections::HashMap::new();
-    for (version, manifest) in &meta.versions {
+    // Decide on version strings + the `time` map alone; slots move as
+    // raw fragments, so the filter never hydrates a manifest.
+    let versions_within_date = meta.versions.filtered(|version| {
         let mature = time
             .get(version)
             .and_then(serde_json::Value::as_str)
@@ -383,10 +427,8 @@ pub fn filter_pkg_metadata_by_publish_date(
             .is_some_and(|date| date <= cutoff);
         let trusted =
             trusted_versions.is_some_and(|allow| allow.iter().any(|allowed| allowed == version));
-        if mature || trusted {
-            versions_within_date.insert(version.clone(), manifest.clone());
-        }
-    }
+        mature || trusted
+    });
 
     let mut dist_tags_within_date = std::collections::HashMap::new();
     for (tag, version) in &meta.dist_tags {
@@ -410,12 +452,10 @@ pub fn filter_pkg_metadata_by_publish_date(
                 Some((ref best, best_raw)) => {
                     let best_deprecated = versions_within_date
                         .get(best_raw)
-                        .and_then(|manifest| manifest.deprecated.as_ref())
-                        .is_some();
+                        .is_some_and(|manifest| manifest.deprecated.is_some());
                     let candidate_deprecated = versions_within_date
                         .get(candidate_raw)
-                        .and_then(|manifest| manifest.deprecated.as_ref())
-                        .is_some();
+                        .is_some_and(|manifest| manifest.deprecated.is_some());
                     let candidate_wins = (candidate > *best
                         && best_deprecated == candidate_deprecated)
                         || (best_deprecated && !candidate_deprecated);

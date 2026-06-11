@@ -12,9 +12,9 @@
 //! to a plain GET — the same behavior callers got before Phase 5
 //! from [`crate::fetch_full_metadata()`].
 //!
-//! The cache layout matches pnpm's so a pnpm-populated mirror is
-//! usable from pacquet (and vice versa). The two-line NDJSON shape
-//! lives in [`crate::mirror`].
+//! The directory layout matches pnpm's; the file format is pacquet's
+//! own indexed shape (see [`crate::mirror`]) so warm loads hydrate
+//! only the version fragments a pick consults.
 
 use std::path::Path;
 
@@ -28,7 +28,7 @@ use crate::{
     fetch_full_metadata::{ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC},
     mirror::{
         ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta_async,
-        load_meta_headers_async, prepare_json_for_disk, save_meta,
+        load_meta_headers_async, save_meta_indexed,
     },
     registry_url::to_registry_url,
 };
@@ -190,29 +190,20 @@ pub async fn fetch_full_metadata_cached(
             .map_err(|error| FetchMetadataError::Decode { url: task_url, error })?;
 
         if let Some(path) = mirror_path.as_deref() {
-            match prepare_json_for_disk(&meta, etag.as_deref(), Some(&raw_body)) {
-                Ok(json) => {
-                    if let Err(error) = save_meta(path, &json) {
-                        // Fire-and-forget — a read-only cache dir or a
-                        // shared-store contention shouldn't fail the
-                        // install. The user just won't see the warm-cache
-                        // speedup next time.
-                        tracing::debug!(
-                            target: "pacquet_resolving_npm_resolver::cache",
-                            ?error,
-                            path = %path.display(),
-                            "could not persist mirror; bypassing cache write",
-                        );
-                    }
-                }
-                Err(error) => {
-                    tracing::debug!(
-                        target: "pacquet_resolving_npm_resolver::cache",
-                        ?error,
-                        path = %path.display(),
-                        "could not serialize mirror entry; bypassing cache write",
-                    );
-                }
+            // The lazily-parsed `meta` still borrows every version
+            // fragment from `raw_body`, so the indexed write streams
+            // the registry's own bytes — no re-serialization.
+            if let Err(error) = save_meta_indexed(path, &meta, etag.as_deref()) {
+                // Fire-and-forget — a read-only cache dir or a
+                // shared-store contention shouldn't fail the
+                // install. The user just won't see the warm-cache
+                // speedup next time.
+                tracing::debug!(
+                    target: "pacquet_resolving_npm_resolver::cache",
+                    ?error,
+                    path = %path.display(),
+                    "could not persist mirror; bypassing cache write",
+                );
             }
         }
         Ok(meta)

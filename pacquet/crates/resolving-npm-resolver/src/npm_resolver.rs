@@ -534,7 +534,7 @@ fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
 /// full packument (with all versions) on every pick.
 pub(crate) struct PickedFromRegistry {
     pub(crate) meta: std::sync::Arc<Package>,
-    pub(crate) version: PackageVersion,
+    pub(crate) version: std::sync::Arc<PackageVersion>,
 }
 
 /// Input bundle for [`build_resolve_result`]. Grouped so the

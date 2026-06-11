@@ -145,7 +145,7 @@ fn package_equality_compares_by_name_only() {
 fn latest_returns_version_pointed_to_by_dist_tag() {
     let pkg = package_with_versions("acme", &["1.0.0", "2.0.0", "3.0.0"], "2.0.0");
     let latest = pkg.latest();
-    assert_eq!(latest.version.to_string(), "2.0.0");
+    assert_eq!(latest.expect("latest manifest decodes").version.to_string(), "2.0.0");
 }
 
 /// `pinned_version` picks the highest version inside the given

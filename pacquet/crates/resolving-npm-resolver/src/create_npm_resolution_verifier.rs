@@ -989,7 +989,7 @@ fn project_trust_meta(meta: &Package) -> Package {
     let versions = meta
         .versions
         .iter()
-        .map(|(version, manifest)| (version.clone(), project_trust_package_version(manifest)))
+        .map(|(version, manifest)| (version.clone(), project_trust_package_version(&manifest)))
         .collect();
     Package {
         name: meta.name.clone(),
