@@ -90,12 +90,17 @@ export function hasEnvPlaceholder (value: string): boolean {
 
 const DOCS_URL = 'https://pnpm.io/npmrc'
 
-// A runnable `pnpm config set` example is only safe to suggest when the key has
-// no `${...}` placeholder — embedding such a key in a shell command would let
-// the shell expand it on copy-paste, producing a different key and possibly
-// leaking an env value into shell history.
+// The key embedded in the suggested `pnpm config set` command comes from a
+// repository-controlled .npmrc. A shell expands `$(...)`, backticks and `$VAR`
+// even inside double quotes, so suggesting a runnable command built from an
+// arbitrary key would turn this warning into a copy-paste command-injection
+// vector. Only emit the runnable example for keys made up entirely of
+// shell-inert characters — which covers every real registry/auth key
+// (`//host/:_authToken`, `@scope:registry`, `registry`, `https-proxy`, …).
+const SHELL_SAFE_KEY = /^[\w@.:/-]+$/
+
 function configSetExample (key: string): string {
-  return hasEnvPlaceholder(key) ? '' : ` (for example, run: pnpm config set "${key}" <value>)`
+  return SHELL_SAFE_KEY.test(key) ? ` (for example, run: pnpm config set "${key}" <value>)` : ''
 }
 
 function warnIgnoredRequestDestinationEnv (filePath: string, key: string, warnings: string[]): void {
