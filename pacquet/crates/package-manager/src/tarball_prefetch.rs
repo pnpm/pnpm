@@ -249,10 +249,14 @@ impl TarballPrefetcher {
             let LockfileResolution::Registry(registry_resolution) = &metadata.resolution else {
                 continue;
             };
+            // The lockfile records no dist size hints, so the downloads
+            // queue without a work estimate.
             self.prefetch(
                 package_key.without_peer().to_string(),
                 registry_tarball_url(package_key, config),
                 &registry_resolution.integrity.to_string(),
+                None,
+                None,
             );
         }
     }

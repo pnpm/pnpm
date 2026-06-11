@@ -391,7 +391,7 @@ pub enum InstallError {
     ConfigConflictLockfileOnlyWithNoLockfile,
 }
 
-impl<DependencyGroupList> Install<'_, DependencyGroupList>
+impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {

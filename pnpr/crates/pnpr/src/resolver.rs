@@ -322,7 +322,10 @@ pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> R
     ));
 
     match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
-        Ok(()) => ndjson_single_frame(&verify_done_frame()),
+        // The dist stats the verifier observed feed `/v1/resolve`'s sized
+        // `package` frames; this endpoint's client prefetches from its own
+        // lockfile before the verdict arrives, so only the verdict is sent.
+        Ok(_) => ndjson_single_frame(&verify_done_frame()),
         Err(VerifyFailure::Internal(response)) => response,
         Err(VerifyFailure::Violations(violations)) => {
             ndjson_single_frame(&violations_frame(&violations))
