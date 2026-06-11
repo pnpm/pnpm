@@ -114,6 +114,10 @@ impl EnvVar for Host {
     fn var(name: &str) -> Option<String> {
         std::env::var(name).ok()
     }
+
+    fn vars() -> Vec<(String, String)> {
+        std::env::vars().collect()
+    }
 }
 
 impl EnvVarOs for Host {

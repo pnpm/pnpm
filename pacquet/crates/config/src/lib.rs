@@ -1752,10 +1752,22 @@ impl Config {
             }),
         };
 
+        // URL-scoped credentials from `npm_config_//…` / `pnpm_config_//…`
+        // environment variables. These are trusted (they come from the
+        // environment, not the repository) and host-scoped by construction, so
+        // they sit at the top of the precedence chain — above the project
+        // `.npmrc` — mirroring the env-over-workspace ordering in pnpm's
+        // [`loadNpmrcFiles.ts`](https://github.com/pnpm/pnpm/blob/main/config/reader/src/loadNpmrcFiles.ts).
+        let env_scoped_source = {
+            let auth = crate::npmrc_auth::NpmrcAuth::from_url_scoped_env::<Sys>();
+            (!auth.creds_by_uri.is_empty()).then_some(auth)
+        };
+
         // Fold high-priority-first: the first present source is the
         // base, each lower source fills the gaps it left
         // ([`NpmrcAuth::merge_under`]).
-        let mut sources = [project_source, auth_ini_source, user_source].into_iter().flatten();
+        let mut sources =
+            [env_scoped_source, project_source, auth_ini_source, user_source].into_iter().flatten();
         let mut npmrc_auth = sources.next().unwrap_or_default();
         for lower in sources {
             npmrc_auth.merge_under(lower);

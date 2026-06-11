@@ -44,6 +44,18 @@ pub trait EnvVar {
     /// as `None` to match `std::env::var`'s behaviour, which is what
     /// pnpm itself observes via Node's `process.env`.
     fn var(name: &str) -> Option<String>;
+
+    /// Enumerate every `(name, value)` environment variable pair.
+    ///
+    /// Used by consumers that must match env vars by prefix rather than
+    /// by exact name (e.g. URL-scoped `npm_config_//…` auth settings,
+    /// where the host is part of the variable name). Defaults to an
+    /// empty set so existing fakes that only implement [`EnvVar::var`]
+    /// keep compiling; production providers override it.
+    #[must_use]
+    fn vars() -> Vec<(String, String)> {
+        Vec::new()
+    }
 }
 
 /// Production [`EnvVar`] provider: reads the real process environment via
@@ -57,6 +69,10 @@ pub struct SystemEnv;
 impl EnvVar for SystemEnv {
     fn var(name: &str) -> Option<String> {
         std::env::var(name).ok()
+    }
+
+    fn vars() -> Vec<(String, String)> {
+        std::env::vars().collect()
     }
 }
 
