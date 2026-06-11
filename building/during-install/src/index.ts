@@ -106,7 +106,7 @@ export async function buildModules<T extends string> (
         // is not — so only the patch write counts as blocking when scripts are
         // suppressed.
         const willPatch = node.patch != null
-        const willRunScripts = !opts.ignoreScripts && Boolean(node.requiresBuild) && allowBuild(node.name, node.version) === true
+        const willRunScripts = !opts.ignoreScripts && Boolean(node.requiresBuild) && allowBuild(node.depPath) === true
         if (willPatch || willRunScripts) {
           frozenStoreBlocked.add(`${node.name}@${node.version}`)
         }

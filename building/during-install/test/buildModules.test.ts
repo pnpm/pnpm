@@ -37,7 +37,7 @@ function singlePkgGraph (depPath: string, overrides: NodeOverrides): Dependencie
   } as unknown as DependenciesGraph<string>
 }
 
-const allowFoo = (name: string): boolean => name === 'foo'
+const allowFoo = (depPath: string): boolean => depPath === 'foo@1.0.0'
 
 test('frozenStore + GVS: an approved build that is not cached refuses up front', async () => {
   await expect(
