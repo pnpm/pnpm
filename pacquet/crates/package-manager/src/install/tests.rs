@@ -12,9 +12,9 @@ use pacquet_modules_yaml::{
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
-    BrokenModulesLog, ContextLog, HookLog, IgnoredScriptsLog, LogEvent, PackageManifestLog,
-    PackageManifestMessage, ProgressLog, ProgressMessage, Reporter, SilentReporter, Stage,
-    StageLog, StatsLog, StatsMessage, SummaryLog,
+    BrokenModulesLog, ContextLog, HookLog, IgnoredScriptsLog, LockfileVerificationMessage,
+    LogEvent, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage, Reporter,
+    SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::{
@@ -6106,9 +6106,16 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         )),
         "second install must reach the modules/current-lockfile no-op path; got {captured:#?}",
     );
+    let verification_messages: Vec<_> = captured
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::LockfileVerification(log) => Some(&log.message),
+            _ => None,
+        })
+        .collect();
     assert!(
-        !captured.iter().any(|event| matches!(event, LogEvent::LockfileVerification(_))),
-        "verification cache hit must skip the lockfile-verification fan-out; got {captured:#?}",
+        matches!(verification_messages.as_slice(), [LockfileVerificationMessage::Cached { .. }]),
+        "verification cache hit must skip the fan-out and announce the reused verdict; got {captured:#?}",
     );
 
     drop(dir);

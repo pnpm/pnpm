@@ -130,14 +130,28 @@ export async function verifyLockfileResolutions (
       verifiers: cacheVerifiers,
       hashLockfile,
     })
-    if (result.hit) return
+    if (result.hit) {
+      // A silent short-circuit looks like the policy gate never ran
+      // (pnpm/pnpm#12324), so surface the reused verdict — but only
+      // when policy verifiers are active; the shape-only run that
+      // every install performs stays quiet.
+      if (verifiers.length > 0) {
+        lockfileVerificationLogger.debug({
+          status: 'cached',
+          verifiedAt: result.verifiedAt,
+          lockfilePath: options?.lockfilePath,
+        })
+      }
+      return
+    }
     cachePrecomputed = result.precomputed
   }
 
   // Emit started/done around the actual verification pass — the
   // round-trip can be slow on a cold registry cache, and the cached
-  // short-circuit above doesn't reach this branch, so a user only
-  // sees these messages on installs that are doing real work.
+  // short-circuit above announces itself with its own `cached` event,
+  // so a user only sees these messages on installs that are doing
+  // real work.
   // A degenerate lockfile where every snapshot fails the
   // name/version extraction (so candidates is empty) skips emission
   // entirely — no work, no noise.

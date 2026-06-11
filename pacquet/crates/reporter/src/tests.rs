@@ -936,6 +936,55 @@ fn lockfile_verification_failed_event_matches_pnpm_wire_shape() {
     assert_eq!(json["lockfilePath"], "/proj/pnpm-lock.yaml");
 }
 
+/// `pnpm:lockfile-verification` `cached` carries the discriminator,
+/// the camelCase `verifiedAt` of the reused verdict, and the optional
+/// camelCase `lockfilePath` — no `entries` or `elapsedMs`, because
+/// the cache short-circuit happens before candidates are collected.
+#[test]
+fn lockfile_verification_cached_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Cached {
+            verified_at: Some("2026-06-11T10:00:00.000Z".to_string()),
+            lockfile_path: Some("/proj/pnpm-lock.yaml".to_string()),
+        },
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+    assert_eq!(json["name"], "pnpm:lockfile-verification");
+    assert_eq!(json["status"], "cached");
+    assert_eq!(json["verifiedAt"], "2026-06-11T10:00:00.000Z");
+    assert_eq!(json["lockfilePath"], "/proj/pnpm-lock.yaml");
+    assert!(json.get("entries").is_none(), "entries must be absent on cached");
+    assert!(json.get("elapsedMs").is_none(), "elapsedMs must be absent on cached");
+}
+
+/// A cached record written before `verifiedAt` existed surfaces as
+/// `None` and must be omitted from the wire rather than rendered as
+/// `null` — pnpm's reporter falls back to a timeless message on
+/// absence.
+#[test]
+fn lockfile_verification_cached_omits_absent_verified_at() {
+    let event = LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Cached { verified_at: None, lockfile_path: None },
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+    assert!(
+        json.get("verifiedAt").is_none(),
+        "verifiedAt must be omitted when absent, got {json:?}",
+    );
+}
+
 /// `lockfilePath` is upstream-optional (undefined in test paths that
 /// skip the cache wiring). When `None`, the field must be omitted
 /// rather than rendered as `null` — pnpm's reporter dispatches on

@@ -740,7 +740,10 @@ pub struct LockfileVerificationLog {
 /// `pnpm:lockfile-verification` discriminated payload. `Started`
 /// fires once before the per-candidate fan-out begins; exactly one
 /// terminal `Done` or `Failed` fires after, with `elapsed_ms`
-/// measured against the matching `Started`.
+/// measured against the matching `Started`. `Cached` fires instead
+/// of the pair when the verification cache short-circuits the gate;
+/// it carries no `entries` count because the short-circuit happens
+/// before candidates are collected.
 ///
 /// `lockfile_path` is the absolute path of the lockfile being
 /// verified. It's `Option` because the runner is invoked without a
@@ -766,6 +769,15 @@ pub enum LockfileVerificationMessage {
         entries: u64,
         #[serde(rename = "elapsedMs")]
         elapsed_ms: u64,
+        #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
+        lockfile_path: Option<String>,
+    },
+    Cached {
+        /// ISO-8601 timestamp of the verification run the cached
+        /// verdict was recorded by. Omitted when the cache record
+        /// predates the field.
+        #[serde(rename = "verifiedAt", skip_serializing_if = "Option::is_none")]
+        verified_at: Option<String>,
         #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
         lockfile_path: Option<String>,
     },

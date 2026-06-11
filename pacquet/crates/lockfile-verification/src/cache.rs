@@ -106,6 +106,10 @@ pub struct CacheLockfile {
 #[derive(Debug, Default, Clone)]
 pub struct CacheLookupResult {
     pub hit: bool,
+    /// ISO-8601 timestamp of the verification run the hit is reusing.
+    /// `Some` only on a hit, and only when the record carries a
+    /// non-empty timestamp.
+    pub verified_at: Option<String>,
     pub precomputed: CachePrecomputed,
 }
 
@@ -171,8 +175,11 @@ pub fn try_lockfile_verification_cache(
     if let Some(record) = indexes.by_path.get(&path_key)
         && stat_matches(&stat, &record.lockfile)
     {
+        let hit = every_verifier_trusts_cached_run(record, verifiers);
         return CacheLookupResult {
-            hit: every_verifier_trusts_cached_run(record, verifiers),
+            hit,
+            verified_at: (hit && !record.verified_at.is_empty())
+                .then(|| record.verified_at.clone()),
             precomputed: CachePrecomputed {
                 stat: Some(stat),
                 hash: Some(record.lockfile.hash.clone()),
@@ -184,12 +191,14 @@ pub fn try_lockfile_verification_cache(
     let Some(record) = indexes.by_hash.get(&hash) else {
         return CacheLookupResult {
             hit: false,
+            verified_at: None,
             precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
         };
     };
     if !every_verifier_trusts_cached_run(record, verifiers) {
         return CacheLookupResult {
             hit: false,
+            verified_at: None,
             precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
         };
     }
@@ -213,6 +222,7 @@ pub fn try_lockfile_verification_cache(
 
     CacheLookupResult {
         hit: true,
+        verified_at: (!refreshed.verified_at.is_empty()).then(|| refreshed.verified_at.clone()),
         precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
     }
 }

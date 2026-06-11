@@ -76,7 +76,9 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
 /// terminal `Done` (success) or `Failed` (rejection), even if the
 /// fan-out panics; the failure variant of the emit is fired from the
 /// drop guard so the reporter never leaves a hanging "Verifying..."
-/// frame.
+/// frame. When the verification cache short-circuits the gate and
+/// policy verifiers are active, a single `Cached` event fires
+/// instead of the `Started`/`Done` pair.
 pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
@@ -109,6 +111,8 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         hash
     };
 
+    let lockfile_path_str = opts.lockfile_path.map(|path| path.to_string_lossy().into_owned());
+
     let mut cache_precomputed: CachePrecomputed = CachePrecomputed::default();
     if let Some((cache_dir, lockfile_path)) = cache_inputs {
         let result = try_lockfile_verification_cache(
@@ -118,6 +122,19 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
             &mut hash_once,
         );
         if result.hit {
+            // A silent short-circuit looks like the policy gate never
+            // ran (pnpm/pnpm#12324), so surface the reused verdict —
+            // but only when policy verifiers are active; the
+            // shape-only run that every install performs stays quiet.
+            if !verifiers.is_empty() {
+                emit::<Reporter>(
+                    LogLevel::Debug,
+                    LockfileVerificationMessage::Cached {
+                        verified_at: result.verified_at,
+                        lockfile_path: lockfile_path_str,
+                    },
+                );
+            }
             return Ok(());
         }
         cache_precomputed = result.precomputed;
@@ -130,7 +147,6 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     if verifiers.is_empty() {
         return Ok(());
     }
-    let lockfile_path_str = opts.lockfile_path.map(|path| path.to_string_lossy().into_owned());
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
         // lockfile. Matches upstream's behavior at

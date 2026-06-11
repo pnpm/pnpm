@@ -2,7 +2,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
+import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
@@ -257,6 +258,63 @@ test('skips the verifier when the cache holds an unchanged lockfile + matching p
       cacheDir, lockfilePath,
     })
     expect(calls).toBe(1)
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('emits a cached event when the cache short-circuits verification', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+    const verifier = wrap(async () => ({ ok: true }), exampleSlot(60))
+
+    await verifyLockfileResolutions(lockfile, [verifier], { cacheDir, lockfilePath })
+
+    const debugSpy = jest.spyOn(lockfileVerificationLogger, 'debug')
+    try {
+      await verifyLockfileResolutions(lockfile, [verifier], { cacheDir, lockfilePath })
+      expect(debugSpy.mock.calls.map(([message]) => message)).toEqual([
+        {
+          status: 'cached',
+          verifiedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+          lockfilePath,
+        },
+      ])
+    } finally {
+      debugSpy.mockRestore()
+    }
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('reuses the cached verdict silently when no policy verifiers are active', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-vlr-'))
+  try {
+    const cacheDir = path.join(tmpDir, 'cache')
+    const lockfilePath = path.join(tmpDir, 'pnpm-lock.yaml')
+    await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
+    const lockfile = makeLockfile({
+      'a@1.0.0': { resolution: tarballResolution('sha512-a') },
+    })
+
+    await verifyLockfileResolutions(lockfile, [wrap(async () => ({ ok: true }), exampleSlot(60))], {
+      cacheDir, lockfilePath,
+    })
+
+    const debugSpy = jest.spyOn(lockfileVerificationLogger, 'debug')
+    try {
+      await verifyLockfileResolutions(lockfile, [], { cacheDir, lockfilePath })
+      expect(debugSpy).not.toHaveBeenCalled()
+    } finally {
+      debugSpy.mockRestore()
+    }
   } finally {
     await fs.promises.rm(tmpDir, { recursive: true, force: true })
   }

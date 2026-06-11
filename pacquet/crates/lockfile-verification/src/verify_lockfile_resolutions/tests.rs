@@ -513,6 +513,106 @@ async fn second_run_with_cache_skips_fan_out() {
     assert_eq!(CALLS.load(Ordering::SeqCst), 1, "second run skipped via cache");
 }
 
+/// A cache hit with active policy verifiers announces itself with a
+/// single `Cached` event instead of the `Started`/`Done` pair, so the
+/// short-circuit doesn't look like the policy gate never ran
+/// (pnpm/pnpm#12324).
+#[tokio::test]
+async fn cache_hit_emits_cached_event() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile_path = dir.path().join("pnpm-lock.yaml");
+    std::fs::write(&lockfile_path, SINGLE_PKG_LOCKFILE).expect("write lockfile");
+    let lockfile = parse(SINGLE_PKG_LOCKFILE);
+    let cache_dir = dir.path().join("cache");
+    let verifier = FailFor::new("UNUSED", "n/a", vec![]) as Arc<dyn ResolutionVerifier>;
+    let opts = VerifyLockfileResolutionsOptions {
+        lockfile_path: Some(&lockfile_path),
+        cache_dir: Some(&cache_dir),
+        ..Default::default()
+    };
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &opts,
+    )
+    .await
+    .expect("first run");
+    verify_lockfile_resolutions::<RecordingReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &opts,
+    )
+    .await
+    .expect("second run");
+
+    let captured = EVENTS.lock().unwrap();
+    assert_eq!(captured.len(), 1, "expected a single Cached event, got: {captured:?}");
+    match &captured[0] {
+        LogEvent::LockfileVerification(log) => match &log.message {
+            LockfileVerificationMessage::Cached { verified_at, lockfile_path: emitted } => {
+                assert_eq!(emitted.as_deref(), Some(&*lockfile_path.to_string_lossy()));
+                assert!(
+                    verified_at.is_some(),
+                    "the reused record carries the first run's timestamp",
+                );
+            }
+            other => panic!("expected Cached, got {other:?}"),
+        },
+        other => panic!("expected LockfileVerification, got {other:?}"),
+    }
+}
+
+/// A cache hit with no policy verifiers stays silent — the shape-only
+/// run that every install performs must not announce supply-chain
+/// policies the user never configured.
+#[tokio::test]
+async fn cache_hit_with_no_policy_verifiers_stays_silent() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile_path = dir.path().join("pnpm-lock.yaml");
+    std::fs::write(&lockfile_path, SINGLE_PKG_LOCKFILE).expect("write lockfile");
+    let lockfile = parse(SINGLE_PKG_LOCKFILE);
+    let cache_dir = dir.path().join("cache");
+    let verifier = FailFor::new("UNUSED", "n/a", vec![]) as Arc<dyn ResolutionVerifier>;
+    let opts = VerifyLockfileResolutionsOptions {
+        lockfile_path: Some(&lockfile_path),
+        cache_dir: Some(&cache_dir),
+        ..Default::default()
+    };
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &opts,
+    )
+    .await
+    .expect("first run");
+    verify_lockfile_resolutions::<RecordingReporter>(&lockfile, &[], &opts)
+        .await
+        .expect("second run");
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(captured.is_empty(), "shape-only cache hit must not emit, got: {captured:?}");
+}
+
 /// Catches a regression where `PkgName` would be passed into the
 /// ctx as a borrow whose lifetime didn't outlive the future.
 #[tokio::test]
