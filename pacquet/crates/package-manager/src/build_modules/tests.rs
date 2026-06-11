@@ -873,17 +873,19 @@ fn gvs_layout(dir: &Path) -> &'static VirtualStoreLayout {
 }
 
 /// Run [`BuildModules`] over a single patched `is-positive@1.0.0`
-/// snapshot, varying only `layout` and `frozen_store` — the two
-/// backstop inputs. No on-disk fixture: the snapshot's slot never
-/// materializes, so on paths that skip the backstop the run no-ops at
-/// the `!pkg_dir.exists()` guard rather than touching the (absent)
-/// patch file.
+/// snapshot, varying only `layout`, `frozen_store`, and the snapshot's
+/// `optional` flag — the three backstop inputs. No on-disk fixture: the
+/// snapshot's slot never materializes, so on paths that skip the
+/// backstop the run no-ops at the `!pkg_dir.exists()` guard rather than
+/// touching the (absent) patch file.
 fn frozen_backstop_run(
     layout: &VirtualStoreLayout,
     frozen_store: bool,
+    optional: bool,
 ) -> Result<Vec<String>, crate::build_modules::BuildModulesError> {
     let pkg_key = key("is-positive", "1.0.0");
-    let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
+    let snapshots =
+        HashMap::from([(pkg_key.clone(), SnapshotEntry { optional, ..SnapshotEntry::default() })]);
     let patches = single_patch(&pkg_key);
     let importers = root_importers(&[("is-positive", "1.0.0")]);
     let policy = policy_from_specs([], false);
@@ -928,12 +930,27 @@ fn frozen_store_gvs_patch_not_seeded_refuses() {
     let store_dir = tempdir().expect("create temp dir");
     let layout = gvs_layout(store_dir.path());
 
-    let err = frozen_backstop_run(layout, true)
+    let err = frozen_backstop_run(layout, true, false)
         .expect_err("a missing patched build under a frozen GVS store must refuse up front");
     assert!(
         matches!(err, crate::build_modules::BuildModulesError::FrozenStoreNeedsBuild { .. }),
         "expected FrozenStoreNeedsBuild, got {err:?}",
     );
+}
+
+/// An optional patched snapshot must not block the install: a build or
+/// patch failure on an optional dependency is non-fatal at runtime, so
+/// the backstop skips its build (emitting the skipped-optional log)
+/// instead of refusing. Mirrors the TS unit test
+/// `frozenStore + GVS: an optional patched package that is not cached is skipped, not blocked`.
+#[test]
+fn frozen_store_gvs_optional_not_seeded_skips() {
+    let store_dir = tempdir().expect("create temp dir");
+    let layout = gvs_layout(store_dir.path());
+
+    let ignored = frozen_backstop_run(layout, true, true)
+        .expect("an optional un-seeded build must be skipped, not refused");
+    assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 
 /// Negative control: the same patched, un-seeded snapshot does NOT trip
@@ -946,7 +963,7 @@ fn gvs_without_frozen_store_does_not_trip_backstop() {
     let store_dir = tempdir().expect("create temp dir");
     let layout = gvs_layout(store_dir.path());
 
-    let ignored = frozen_backstop_run(layout, false)
+    let ignored = frozen_backstop_run(layout, false, false)
         .expect("without frozen_store the backstop must not fire");
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
@@ -964,7 +981,7 @@ fn frozen_store_without_gvs_does_not_trip_backstop() {
         pacquet_config::default_virtual_store_dir_max_length() as usize,
     );
 
-    let ignored = frozen_backstop_run(&layout, true)
+    let ignored = frozen_backstop_run(&layout, true, false)
         .expect("the non-GVS layout writes to the project store, so the backstop must not fire");
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }

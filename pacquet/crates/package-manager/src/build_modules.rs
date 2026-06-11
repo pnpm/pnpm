@@ -758,6 +758,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         return Ok(());
     }
 
+    let optional = snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
+
     // Frozen-store backstop. Under the global virtual store the slot
     // directory lives inside the read-only store, so applying a patch
     // or running an approved lifecycle script (the two writes below)
@@ -769,6 +771,29 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // Bin-linking (the other write) reuses existing symlinks
     // write-free on a complete seed, so only patch/script writes gate.
     if frozen_store && layout.enable_global_virtual_store() && (has_patch || should_run_scripts) {
+        if optional {
+            // A build/patch failure on an optional dependency is non-fatal
+            // (see the lifecycle-script arm below), so a seed missing an
+            // optional package's build output skips that build instead of
+            // blocking the install.
+            Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+                level: LogLevel::Debug,
+                details: Some(format!(
+                    "The read-only store (frozenStore) is missing the build output of {name}@{version}."
+                )),
+                package: SkippedOptionalPackage::Installed {
+                    id: pkg_root_for_key(layout, pkg_root_by_key, snapshot_key).map_or_else(
+                        || snapshot_key.to_string(),
+                        |dir| dir.to_string_lossy().into_owned(),
+                    ),
+                    name,
+                    version,
+                },
+                prefix: lockfile_dir.to_string_lossy().into_owned(),
+                reason: SkippedOptionalReason::BuildFailure,
+            }));
+            return Ok(());
+        }
         return Err(BuildModulesError::FrozenStoreNeedsBuild {
             package: format!("{name}@{version}"),
         });
@@ -793,8 +818,6 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     } else {
         Vec::new()
     };
-
-    let optional = snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
 
     // Apply the patch before running postinstall hooks. Mirrors
     // upstream at

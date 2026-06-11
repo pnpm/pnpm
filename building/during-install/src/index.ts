@@ -87,7 +87,9 @@ export async function buildModules<T extends string> (
   // those off the same filtered chunk and refuse up front (see
   // `throwFrozenStoreNeedsBuild`) instead of failing cryptically once a script
   // starts. Bin-linking reuses existing symlinks write-free, and non-allowlisted
-  // scripts never run, so neither counts as a blocking write.
+  // scripts never run, so neither counts as a blocking write. Optional
+  // dependencies don't block either — their build failures are non-fatal at
+  // runtime, so their builds are skipped instead.
   const frozenStoreBlocked = (opts.frozenStore && opts.enableGlobalVirtualStore)
     ? new Set<string>()
     : undefined
@@ -100,17 +102,34 @@ export async function buildModules<T extends string> (
       chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
     }
     if (frozenStoreBlocked != null) {
-      for (const depPath of chunk) {
+      chunk = chunk.filter((depPath) => {
         const node = depGraph[depPath]
         // A patch is applied even under `ignoreScripts`, but a lifecycle script
         // is not — so only the patch write counts as blocking when scripts are
         // suppressed.
         const willPatch = node.patch != null
         const willRunScripts = !opts.ignoreScripts && Boolean(node.requiresBuild) && allowBuild(node.depPath) === true
-        if (willPatch || willRunScripts) {
-          frozenStoreBlocked.add(`${node.name}@${node.version}`)
+        if (!willPatch && !willRunScripts) return true
+        if (node.optional) {
+          // A build/patch failure on an optional dependency is non-fatal at
+          // runtime (see the catch in `buildDependency`), so a seed missing an
+          // optional package's build output skips that build instead of
+          // blocking the install.
+          skippedOptionalDependencyLogger.debug({
+            details: `The read-only store (frozenStore) is missing the build output of ${node.name}@${node.version}.`,
+            package: {
+              id: node.dir,
+              name: node.name,
+              version: node.version,
+            },
+            prefix: opts.lockfileDir,
+            reason: 'build_failure',
+          })
+          return false
         }
-      }
+        frozenStoreBlocked.add(`${node.name}@${node.version}`)
+        return true
+      })
     }
 
     return chunk.map((depPath) =>

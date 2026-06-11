@@ -18,6 +18,7 @@ interface NodeOverrides {
   requiresBuild?: boolean
   patch?: object
   isBuilt?: boolean
+  optional?: boolean
 }
 
 function singlePkgGraph (depPath: string, overrides: NodeOverrides): DependenciesGraph<string> {
@@ -110,6 +111,27 @@ test('frozenStore + GVS: a patched package under ignoreScripts still refuses (th
   ).rejects.toMatchObject({
     code: 'ERR_PNPM_FROZEN_STORE_NEEDS_BUILD',
   })
+})
+
+test('frozenStore + GVS: an optional approved build that is not cached is skipped, not blocked', async () => {
+  await expect(
+    buildModules(singlePkgGraph('foo@1.0.0', { requiresBuild: true, isBuilt: false, optional: true }), ['foo@1.0.0'], {
+      ...baseOpts,
+      allowBuild: allowFoo,
+      enableGlobalVirtualStore: true,
+      frozenStore: true,
+    })
+  ).resolves.toBeDefined()
+})
+
+test('frozenStore + GVS: an optional patched package that is not cached is skipped, not blocked', async () => {
+  await expect(
+    buildModules(singlePkgGraph('foo@1.0.0', { patch: { hash: 'h', path: '/p' }, isBuilt: false, optional: true }), ['foo@1.0.0'], {
+      ...baseOpts,
+      enableGlobalVirtualStore: true,
+      frozenStore: true,
+    })
+  ).resolves.toBeDefined()
 })
 
 test('frozenStore without GVS: an approved build is not blocked (builds write to the writable project store)', async () => {
