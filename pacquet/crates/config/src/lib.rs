@@ -832,7 +832,7 @@ pub struct Config {
     /// be written during this install — for running against a store on a
     /// read-only filesystem (a Nix store, a read-only bind mount, an OCI
     /// layer). When `true`, pacquet opens `index.db` through the
-    /// `immutable=1` URI (see `StoreIndex::open_readonly`) and suppresses
+    /// `immutable=1` URI (see `StoreIndex::open_immutable`) and suppresses
     /// every store-write path: the batched `index.db` writer is replaced
     /// with a drain-and-drop stub that never opens the DB, and
     /// `init_store_dir_best_effort` is skipped so no directory creation is

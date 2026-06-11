@@ -273,10 +273,13 @@ impl CreateVirtualStore<'_> {
             init_store_dir_best_effort(store_dir).await;
         }
 
+        let open_store_index = if config.frozen_store {
+            StoreIndex::shared_immutable_in
+        } else {
+            StoreIndex::shared_readonly_in
+        };
         let store_index =
-            match tokio::task::spawn_blocking(move || StoreIndex::shared_readonly_in(store_dir))
-                .await
-            {
+            match tokio::task::spawn_blocking(move || open_store_index(store_dir)).await {
                 Ok(store_index) => store_index,
                 Err(error) => {
                     tracing::warn!(

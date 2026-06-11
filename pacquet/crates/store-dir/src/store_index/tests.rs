@@ -147,12 +147,12 @@ fn reopening_the_same_db_sees_prior_writes() {
     assert_eq!(idx.get(&key).unwrap().unwrap(), payload);
 }
 
-/// `?` is a legal filename byte on Unix but a SQLite URI delimiter, so a raw
+/// `?` is a legal filename byte on Unix but a `SQLite` URI delimiter, so a raw
 /// `file:{path}?immutable=1` would truncate the path here. (`?` is illegal in
 /// Windows filenames, so this case cannot arise there.)
 #[cfg(unix)]
 #[test]
-fn open_readonly_handles_a_store_path_containing_a_question_mark() {
+fn open_immutable_handles_a_store_path_containing_a_question_mark() {
     let root = tempdir().unwrap();
     let store_dir = root.path().join("weird?store");
     std::fs::create_dir_all(&store_dir).unwrap();
@@ -161,7 +161,7 @@ fn open_readonly_handles_a_store_path_containing_a_question_mark() {
 
     StoreIndex::open(&store_dir).unwrap().set(&key, &payload).unwrap();
 
-    let idx = StoreIndex::open_readonly(&store_dir).unwrap();
+    let idx = StoreIndex::open_immutable(&store_dir).unwrap();
     assert_eq!(idx.get(&key).unwrap().unwrap(), payload);
 }
 
@@ -331,7 +331,7 @@ fn get_many_handles_more_keys_than_chunk_size() {
     }
 }
 
-/// `open_readonly` must read a WAL-mode `index.db` that lives on a
+/// `open_immutable` must read a WAL-mode `index.db` that lives on a
 /// read-only *directory* — the `frozenStore` / read-only-store
 /// scenario (a Nix store, a read-only bind mount, an OCI layer).
 ///
@@ -339,11 +339,11 @@ fn get_many_handles_more_keys_than_chunk_size() {
 /// `SQLITE_OPEN_READ_ONLY` open of a WAL database still tries to create
 /// the `-shm` sidecar in the directory, which fails with "attempt to
 /// write a readonly database" when the directory is not writable.
-/// Revert `open_readonly` to plain `SQLITE_OPEN_READ_ONLY` and this
+/// Revert `open_immutable` to plain `SQLITE_OPEN_READ_ONLY` and this
 /// test fails — confirming the URI is load-bearing.
 #[cfg(unix)]
 #[test]
-fn open_readonly_reads_wal_db_on_readonly_directory() {
+fn open_immutable_reads_wal_db_on_readonly_directory() {
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
 
@@ -364,14 +364,14 @@ fn open_readonly_reads_wal_db_on_readonly_directory() {
     let original = fs::metadata(dir.path()).unwrap().permissions();
     fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o555)).unwrap();
 
-    let read_result = StoreIndex::open_readonly(dir.path()).map(|idx| idx.get(&key));
+    let read_result = StoreIndex::open_immutable(dir.path()).map(|idx| idx.get(&key));
 
     // Restore write permission before assertions so the tempdir can be
     // cleaned up regardless of the outcome.
     fs::set_permissions(dir.path(), original).unwrap();
 
     let loaded = read_result
-        .expect("open_readonly must succeed on a read-only directory")
+        .expect("open_immutable must succeed on a read-only directory")
         .expect("get must not error")
         .expect("the seeded row must be readable");
     assert_eq!(loaded, payload);

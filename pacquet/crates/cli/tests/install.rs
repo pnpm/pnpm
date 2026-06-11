@@ -810,7 +810,7 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
 /// `--frozen-lockfile` install needs, yet the install would still fail
 /// because opening the WAL-mode `index.db` tries to create `-wal`/`-shm`
 /// sidecars in the store directory. `--frozen-store` opens the index through
-/// the `immutable=1` URI ([`StoreIndex::open_readonly`]) and replaces the
+/// the `immutable=1` URI ([`StoreIndex::open_immutable`]) and replaces the
 /// store-index writer with a drain-and-drop stub
 /// ([`StoreIndexWriter::spawn_disabled`]), so the install reads from the
 /// store and materializes `node_modules` without creating a single file under
@@ -819,8 +819,8 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
 /// This is the Rust parallel to the TypeScript end-to-end coverage that
 /// caught the equivalent worker-thread regression in pnpm
 /// (`@pnpm/worker` opened its own *writable* `StoreIndex` on every cache hit).
-/// pacquet has no analogous bug — reads always go through the immutable
-/// [`StoreIndex::shared_readonly_in`] and every warm-path store write is
+/// pacquet has no analogous bug — frozen-store reads go through the immutable
+/// [`StoreIndex::shared_immutable_in`] and every warm-path store write is
 /// either gated under `frozenStore` or best-effort — so there is no clean
 /// hard-fail negative control here; the load-bearing assertion is that the
 /// install *succeeds* against a genuinely read-only store and mutates nothing.

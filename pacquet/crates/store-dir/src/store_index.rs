@@ -182,11 +182,12 @@ impl StoreIndexWriter {
     /// Used when `frozenStore` is enabled: the store is opened read-only,
     /// so there is nothing to write back. Producers keep queuing rows
     /// through the normal handle (the call sites stay identical), but the
-    /// task touches no SQLite connection, so no `index.db` / WAL / SHM
+    /// task touches no `SQLite` connection, so no `index.db` / WAL / SHM
     /// sidecar is opened or created under the read-only store root.
     ///
     /// Returns the same `(handle, JoinHandle)` shape as [`Self::spawn`] so
     /// call sites can branch on `frozen_store` without diverging.
+    #[must_use]
     pub fn spawn_disabled()
     -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<WriteMsg>();
@@ -430,19 +431,12 @@ impl StoreIndex {
 
     /// Open an existing `index.db` read-only. Skips the schema-mutating
     /// PRAGMAs (`journal_mode=WAL`, `synchronous`, `wal_autocheckpoint`)
-    /// and `CREATE TABLE IF NOT EXISTS`, so the call cannot create WAL /
-    /// SHM sidecar files or otherwise mutate the store.
-    ///
-    /// Opens through the `file:…?immutable=1` URI rather than a plain
-    /// `SQLITE_OPEN_READ_ONLY` path. `index.db` is a WAL-mode database, and
-    /// plain read-only open of a WAL db still needs to create the `-shm`
-    /// sidecar in the store directory — which fails with "attempt to write a
-    /// readonly database" when the store lives on a read-only *directory*
-    /// (a Nix store, a read-only bind mount, an OCI layer). `immutable=1`
-    /// tells SQLite the file cannot change underneath it, so it bypasses the
-    /// WAL/shm machinery entirely and reads the raw file with zero sidecar
-    /// creation. The store dir being writable is the only reason the plain
-    /// flag has worked so far.
+    /// and `CREATE TABLE IF NOT EXISTS`. The connection still participates
+    /// in WAL locking (it may create the `-shm` sidecar in the store
+    /// directory), so it stays consistent while a concurrent writer — this
+    /// process's [`StoreIndexWriter`] or another pnpm/pacquet process —
+    /// mutates the same database. For a store on a read-only filesystem use
+    /// [`StoreIndex::open_immutable`] instead.
     ///
     /// We *do* set `busy_timeout`: it's a connection-local wait, not a
     /// DB mutation, and without it a concurrent writer (pnpm or another
@@ -451,14 +445,38 @@ impl StoreIndex {
     /// triggers a full re-download. 5 s matches the writer side.
     pub fn open_readonly(store_dir: &Path) -> Result<Self, StoreIndexError> {
         let db_path = store_dir.join("index.db");
+        let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))
+            .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
+        Ok(StoreIndex { conn })
+    }
+
+    /// Open an existing `index.db` from a store that is complete and
+    /// read-only (`frozenStore`): a Nix store, a read-only bind mount, an
+    /// OCI layer. `index.db` is a WAL-mode database, and even a plain
+    /// `SQLITE_OPEN_READ_ONLY` open needs to create the `-shm` sidecar in
+    /// the store directory — which fails with "attempt to write a readonly
+    /// database" when the directory is not writable. Opening through the
+    /// `file:…?immutable=1` URI tells `SQLite` the file cannot change
+    /// underneath it, so it bypasses the WAL/shm machinery entirely and
+    /// reads the raw file with zero sidecar creation.
+    ///
+    /// The immutability assertion is load-bearing: `SQLite` skips all locking
+    /// and change detection on this connection, so a concurrent writer makes
+    /// reads undefined (stale or corrupt results). Only open this way under
+    /// `frozenStore`, which disables every store-write path — for a store
+    /// that other connections may write, use [`StoreIndex::open_readonly`].
+    /// No `busy_timeout` is set because an immutable connection takes no
+    /// locks for it to wait on.
+    pub fn open_immutable(store_dir: &Path) -> Result<Self, StoreIndexError> {
+        let db_path = store_dir.join("index.db");
         let uri = immutable_sqlite_uri(&db_path);
         let conn = Connection::open_with_flags(
             &uri,
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
         )
-        .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
-        conn.busy_timeout(std::time::Duration::from_secs(5))
-            .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
+        .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
         Ok(StoreIndex { conn })
     }
 
@@ -477,11 +495,25 @@ impl StoreIndex {
     /// redoing its PRAGMAs) on every package, which otherwise scales
     /// linearly with the snapshot count.
     pub fn shared_readonly_in(store_dir: &StoreDir) -> Option<SharedReadonlyStoreIndex> {
+        StoreIndex::shared_in(store_dir, StoreIndex::open_readonly)
+    }
+
+    /// [`StoreIndex::shared_readonly_in`] for a frozen store — opens via
+    /// [`StoreIndex::open_immutable`], with its no-concurrent-writer
+    /// contract.
+    pub fn shared_immutable_in(store_dir: &StoreDir) -> Option<SharedReadonlyStoreIndex> {
+        StoreIndex::shared_in(store_dir, StoreIndex::open_immutable)
+    }
+
+    fn shared_in(
+        store_dir: &StoreDir,
+        open: fn(&Path) -> Result<Self, StoreIndexError>,
+    ) -> Option<SharedReadonlyStoreIndex> {
         let store_root = store_dir.root();
         if !store_root.join("index.db").exists() {
             return None;
         }
-        StoreIndex::open_readonly(store_root).ok().map(|index| Arc::new(Mutex::new(index)))
+        open(store_root).ok().map(|index| Arc::new(Mutex::new(index)))
     }
 
     /// Look up a package-files index by key. Returns `Ok(None)` if no row exists.
