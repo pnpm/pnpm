@@ -678,3 +678,14 @@ fn for_installs_falls_back_on_unencodable_user_agent() {
     )
     .expect("unencodable user-agent falls back to default");
 }
+
+/// Pins the floor and cap of the default request-concurrency formula.
+/// The floor exists because downloads are I/O-bound: deriving it from
+/// the core count left low-core CI runners draining multi-hundred-
+/// tarball installs 16 requests at a time without saturating a
+/// low-latency registry.
+#[test]
+fn default_network_concurrency_stays_within_floor_and_cap() {
+    let concurrency = super::default_network_concurrency();
+    assert!((64..=96).contains(&concurrency), "got {concurrency}");
+}
