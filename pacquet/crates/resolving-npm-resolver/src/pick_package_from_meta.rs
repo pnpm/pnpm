@@ -139,7 +139,7 @@ pub enum PickPackageFromMetaError {
 ///
 /// Returns:
 ///
-/// - `Ok(Some(version))` — the picked version's cloned manifest.
+/// - `Ok(Some(version))` — the picked version's (shared) manifest.
 /// - `Ok(None)` — no version satisfies the spec. The orchestrator
 ///   layer above propagates this as "resolver returned nothing,"
 ///   not as an error.
@@ -149,7 +149,7 @@ pub fn pick_package_from_meta<PickFn>(
     opts: &PickPackageFromMetaOptions<'_>,
     meta: &Package,
     spec: &RegistryPackageSpec,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError>
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>
 where
     PickFn: Fn(&PickVersionByVersionRangeOptions<'_>) -> Option<String>,
 {
@@ -227,14 +227,15 @@ where
     };
 
     let Some(version) = picked_version else { return Ok(None) };
-    let Some(manifest) = meta_ref.versions.get(&version).cloned() else { return Ok(None) };
-    let mut manifest = manifest;
-    if !meta_ref.name.is_empty() {
+    let Some(manifest) = meta_ref.versions.get(&version) else { return Ok(None) };
+    if !meta_ref.name.is_empty() && manifest.name != meta_ref.name {
         // GitHub registry quirk: a scoped package can be published as
         // `@owner/foo` while the per-version `name` is just `foo`.
         // Match upstream's shim that pins the manifest name to the
         // packument-level name.
-        manifest.name.clone_from(&meta_ref.name);
+        let mut pinned = (*manifest).clone();
+        pinned.name.clone_from(&meta_ref.name);
+        return Ok(Some(Arc::new(pinned)));
     }
     Ok(Some(manifest))
 }
@@ -303,8 +304,7 @@ pub fn pick_version_by_version_range(
     // pickPackageFromMeta.ts#L194-L201.
     if let Some(ref picked) = max_pick {
         let picked_meta = opts.meta.versions.get(picked);
-        let picked_is_deprecated =
-            picked_meta.and_then(|version| version.deprecated.as_ref()).is_some();
+        let picked_is_deprecated = picked_meta.is_some_and(|version| version.deprecated.is_some());
         if picked_is_deprecated && all_versions.len() > 1 {
             let non_deprecated: Vec<&str> = opts
                 .meta
@@ -374,8 +374,9 @@ pub fn filter_pkg_metadata_by_publish_date(
          caller must check before invoking",
     );
 
-    let mut versions_within_date = std::collections::HashMap::new();
-    for (version, manifest) in &meta.versions {
+    // Decide on version strings + the `time` map alone; slots move as
+    // raw fragments, so the filter never hydrates a manifest.
+    let versions_within_date = meta.versions.filtered(|version| {
         let mature = time
             .get(version)
             .and_then(serde_json::Value::as_str)
@@ -383,10 +384,8 @@ pub fn filter_pkg_metadata_by_publish_date(
             .is_some_and(|date| date <= cutoff);
         let trusted =
             trusted_versions.is_some_and(|allow| allow.iter().any(|allowed| allowed == version));
-        if mature || trusted {
-            versions_within_date.insert(version.clone(), manifest.clone());
-        }
-    }
+        mature || trusted
+    });
 
     let mut dist_tags_within_date = std::collections::HashMap::new();
     for (tag, version) in &meta.dist_tags {
@@ -410,12 +409,10 @@ pub fn filter_pkg_metadata_by_publish_date(
                 Some((ref best, best_raw)) => {
                     let best_deprecated = versions_within_date
                         .get(best_raw)
-                        .and_then(|manifest| manifest.deprecated.as_ref())
-                        .is_some();
+                        .is_some_and(|manifest| manifest.deprecated.is_some());
                     let candidate_deprecated = versions_within_date
                         .get(candidate_raw)
-                        .and_then(|manifest| manifest.deprecated.as_ref())
-                        .is_some();
+                        .is_some_and(|manifest| manifest.deprecated.is_some());
                     let candidate_wins = (candidate > *best
                         && best_deprecated == candidate_deprecated)
                         || (best_deprecated && !candidate_deprecated);

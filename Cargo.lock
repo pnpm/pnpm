@@ -4135,6 +4135,7 @@ dependencies = [
  "ssri",
  "tempfile",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

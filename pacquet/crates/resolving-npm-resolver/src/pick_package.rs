@@ -304,7 +304,7 @@ pub struct PickPackageOptions<'a> {
 #[derive(Debug)]
 pub struct PickPackageResult {
     pub meta: Arc<Package>,
-    pub picked_package: Option<PackageVersion>,
+    pub picked_package: Option<Arc<PackageVersion>>,
 }
 
 /// Failure modes for [`pick_package`]. Distinguishes the pure-pick
@@ -743,7 +743,7 @@ fn pick_matching_version_fast(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError> {
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
     if picker_opts.published_by.is_some() {
         pick_respecting_min_release_age(picker_opts, spec, meta)
     } else {
@@ -761,7 +761,7 @@ fn pick_matching_version_final(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError> {
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
     match pick_matching_version_fast(picker_opts, spec, meta) {
         Ok(picked) => Ok(picked),
         Err(PickPackageFromMetaError::MissingTime { pkg_name })
@@ -791,7 +791,7 @@ fn pick_respecting_min_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError> {
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
     run_picker(picker_opts, spec, |target_spec| {
         let highest = pick_package_from_meta(
             pick_version_by_version_range,
@@ -828,7 +828,7 @@ fn pick_ignoring_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError> {
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
     run_picker(picker_opts, spec, |target_spec| {
         if picker_opts.pick_lowest_version {
             pick_package_from_meta(
@@ -856,9 +856,10 @@ fn run_picker<PickOne>(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     pick_one: PickOne,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError>
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>
 where
-    PickOne: Fn(&RegistryPackageSpec) -> Result<Option<PackageVersion>, PickPackageFromMetaError>,
+    PickOne:
+        Fn(&RegistryPackageSpec) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>,
 {
     let current = pick_one(spec)?;
     if !picker_opts.include_latest_tag {
@@ -878,7 +879,10 @@ where
 /// as "no pick" so a single satisfying option wins by default.
 /// Mirrors upstream's
 /// [`pickMax`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L95-L102).
-fn pick_max(lhs: Option<PackageVersion>, rhs: Option<PackageVersion>) -> Option<PackageVersion> {
+fn pick_max(
+    lhs: Option<Arc<PackageVersion>>,
+    rhs: Option<Arc<PackageVersion>>,
+) -> Option<Arc<PackageVersion>> {
     match (lhs, rhs) {
         (None, rhs) => rhs,
         (lhs, None) => lhs,

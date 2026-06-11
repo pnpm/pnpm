@@ -175,7 +175,7 @@ pub fn fail_if_trust_downgraded(
         return Ok(());
     };
 
-    let current = get_trust_evidence(manifest);
+    let current = get_trust_evidence(&manifest);
     let current_rank = current.map_or(0u8, trust_rank);
     let prior_rank = trust_rank(strongest_prior);
     if current_rank < prior_rank {
@@ -221,7 +221,7 @@ fn detect_strongest_trust_evidence_before(
     exclude_prerelease: bool,
 ) -> Option<TrustEvidence> {
     let mut best: Option<TrustEvidence> = None;
-    for (version, manifest) in &meta.versions {
+    for (version, manifest) in meta.versions.iter() {
         if exclude_prerelease && is_prerelease(version) {
             continue;
         }
@@ -240,7 +240,7 @@ fn detect_strongest_trust_evidence_before(
         if parsed >= before_date {
             continue;
         }
-        let Some(evidence) = get_trust_evidence(manifest) else {
+        let Some(evidence) = get_trust_evidence(&manifest) else {
             continue;
         };
         // Keep the highest-ranked evidence seen so far. Don't short-

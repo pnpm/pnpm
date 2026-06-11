@@ -7,14 +7,16 @@ use pacquet_network::{AuthHeaders, ThrottledClient};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 
-use crate::{NetworkError, RegistryError, package_version::PackageVersion};
+use crate::{
+    NetworkError, RegistryError, package_version::PackageVersion, package_versions::PackageVersions,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Package {
     pub name: String,
     #[serde(rename = "dist-tags")]
     pub dist_tags: HashMap<String, String>,
-    pub versions: HashMap<String, PackageVersion>,
+    pub versions: PackageVersions,
 
     /// Per-version publish timestamps as the npm registry reports
     /// them. Each key is either a version string (value: ISO-8601
@@ -141,26 +143,28 @@ impl Package {
     }
 
     #[must_use]
-    pub fn pinned_version(&self, version_range: &str) -> Option<&PackageVersion> {
+    pub fn pinned_version(&self, version_range: &str) -> Option<Arc<PackageVersion>> {
         let range: node_semver::Range = version_range.parse().unwrap(); // TODO: this step should have happened in PackageManifest
-        let mut satisfied_versions = self
+        // Match on the version *strings* so only the winning manifest
+        // hydrates from its raw fragment.
+        let highest = self
             .versions
-            .values()
-            .filter(|version| version.version.satisfies(&range))
-            .collect::<Vec<&PackageVersion>>();
-
-        satisfied_versions.sort_by(|a, b| a.version.partial_cmp(&b.version).unwrap());
-
-        // Optimization opportunity:
-        // We can store this in a cache to remove filter operation and make this a O(1) operation.
-        satisfied_versions.last().copied()
+            .keys()
+            .filter_map(|key| {
+                key.parse::<node_semver::Version>()
+                    .ok()
+                    .filter(|version| version.satisfies(&range))
+                    .map(|version| (version, key))
+            })
+            .max_by(|(left, _), (right, _)| left.partial_cmp(right).unwrap())?;
+        self.versions.get(highest.1)
     }
 
     #[must_use]
-    pub fn latest(&self) -> &PackageVersion {
+    pub fn latest(&self) -> Arc<PackageVersion> {
         let version =
             self.dist_tags.get("latest").expect("latest tag is expected but not found for package");
-        self.versions.get(version).unwrap()
+        self.versions.get(version).expect("manifest of the latest version should decode")
     }
 }
 
