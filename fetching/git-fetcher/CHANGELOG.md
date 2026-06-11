@@ -1,5 +1,13 @@
 # @pnpm/git-fetcher
 
+## 1101.0.13
+
+### Patch Changes
+
+- @pnpm/exec.prepare-package@1100.0.17
+- @pnpm/worker@1100.1.11
+- @pnpm/resolving.git-resolver@1100.1.5
+
 ## 1101.0.12
 
 ### Patch Changes

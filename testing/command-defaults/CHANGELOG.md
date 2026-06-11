@@ -1,5 +1,11 @@
 # @pnpm/testing.command-defaults
 
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/testing.registry-mock@1100.0.5
+
 ## 1100.0.4
 
 ### Patch Changes

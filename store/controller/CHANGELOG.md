@@ -1,5 +1,15 @@
 # @pnpm/package-store
 
+## 1101.0.13
+
+### Patch Changes
+
+- Updated dependencies [84bb4b1]
+  - @pnpm/installing.package-requester@1101.1.0
+  - @pnpm/store.create-cafs-store@1100.0.13
+  - @pnpm/worker@1100.1.11
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1101.0.12
 
 ### Patch Changes

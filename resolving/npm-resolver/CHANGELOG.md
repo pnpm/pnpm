@@ -1,5 +1,14 @@
 # @pnpm/npm-resolver
 
+## 1101.5.2
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/worker@1100.1.11
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1101.5.1
 
 ### Patch Changes

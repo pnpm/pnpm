@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 1100.1.7
+
+### Patch Changes
+
+- @pnpm/pkg-manifest.utils@1100.2.4
+- @pnpm/resolving.npm-resolver@1101.5.2
+- @pnpm/installing.client@1100.2.7
+
 ## 1100.1.6
 
 ### Patch Changes

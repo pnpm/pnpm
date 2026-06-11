@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 1100.1.5
+
+### Patch Changes
+
+- @pnpm/workspace.project-manifest-reader@1100.0.12
+
 ## 1100.1.4
 
 ### Patch Changes

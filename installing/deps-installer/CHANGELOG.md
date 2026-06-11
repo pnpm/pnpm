@@ -1,5 +1,39 @@
 # @pnpm/core
 
+## 1101.9.0
+
+### Minor Changes
+
+- 84bb4b1: Raised the default network concurrency from `min(64, max(cpuCores * 3, 16))` to `min(96, max(cpuCores * 3, 64))`. Package downloads are I/O-bound, not CPU-bound, so deriving the floor from the core count left machines with few cores (for example 4-vCPU CI runners) downloading only 16 tarballs at a time and unable to saturate a low-latency registry. The `networkConcurrency` setting still overrides the default.
+
+### Patch Changes
+
+- f11b4fc: Print a "Lockfile passes supply-chain policies (verified 2h ago)" message when lockfile verification is skipped because a cached verdict for the same lockfile content and policy is reused. Previously the cached short-circuit was completely silent, which made it look like the policy gate never ran [#12324](https://github.com/pnpm/pnpm/issues/12324).
+- Updated dependencies [f11b4fc]
+- Updated dependencies [84bb4b1]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/installing.package-requester@1101.1.0
+  - @pnpm/building.after-install@1101.0.21
+  - @pnpm/building.during-install@1101.0.18
+  - @pnpm/bins.remover@1100.0.9
+  - @pnpm/exec.lifecycle@1100.0.17
+  - @pnpm/fs.symlink-dependency@1100.0.9
+  - @pnpm/installing.context@1100.0.17
+  - @pnpm/installing.deps-resolver@1100.2.2
+  - @pnpm/installing.deps-restorer@1101.1.11
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.9
+  - @pnpm/installing.linking.hoist@1100.0.13
+  - @pnpm/installing.linking.modules-cleaner@1100.1.7
+  - @pnpm/pkg-manifest.utils@1100.2.4
+  - @pnpm/lockfile.filtering@1100.1.6
+  - @pnpm/worker@1100.1.11
+  - @pnpm/lockfile.verification@1100.0.17
+  - @pnpm/bins.linker@1100.0.13
+  - @pnpm/lockfile.preferred-versions@1100.0.15
+  - @pnpm/workspace.project-manifest-reader@1100.0.12
+  - @pnpm/lockfile.settings-checker@1100.0.17
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1101.8.0
 
 ### Minor Changes

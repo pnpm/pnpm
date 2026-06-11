@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 1100.2.2
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/pkg-manifest.utils@1100.2.4
+  - @pnpm/resolving.npm-resolver@1101.5.2
+  - @pnpm/fetching.pick-fetcher@1100.0.11
+  - @pnpm/lockfile.preferred-versions@1100.0.15
+
 ## 1100.2.1
 
 ### Patch Changes

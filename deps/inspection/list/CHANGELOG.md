@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 1100.0.17
+
+### Patch Changes
+
+- @pnpm/workspace.project-manifest-reader@1100.0.12
+
 ## 1100.0.16
 
 ### Patch Changes

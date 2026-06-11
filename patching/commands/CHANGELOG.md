@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [d976edf]
+- Updated dependencies [615c669]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/installing.commands@1100.8.0
+  - @pnpm/store.connection-manager@1100.2.8
+  - @pnpm/cli.utils@1101.0.11
+  - @pnpm/fetching.pick-fetcher@1100.0.11
+  - @pnpm/workspace.project-manifest-reader@1100.0.12
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.1
+
 ## 1100.1.3
 
 ### Patch Changes

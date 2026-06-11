@@ -1,5 +1,19 @@
 # @pnpm/default-reporter
 
+## 1100.3.0
+
+### Minor Changes
+
+- f11b4fc: Print a "Lockfile passes supply-chain policies (verified 2h ago)" message when lockfile verification is skipped because a cached verdict for the same lockfile content and policy is reused. Previously the cached short-circuit was completely silent, which made it look like the policy gate never ran [#12324](https://github.com/pnpm/pnpm/issues/12324).
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [f11b4fc]
+- Updated dependencies [615c669]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/core-loggers@1100.2.0
+
 ## 1100.2.6
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @pnpm/config.deps-installer
 
+## 1101.1.8
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+- Updated dependencies [52be454]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/config.package-is-installable@1100.0.10
+  - @pnpm/installing.deps-resolver@1100.2.2
+  - @pnpm/network.fetch@1100.1.2
+  - @pnpm/resolving.npm-resolver@1101.5.2
+  - @pnpm/store.controller@1101.0.13
+  - @pnpm/worker@1100.1.11
+
 ## 1101.1.7
 
 ### Patch Changes

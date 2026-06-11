@@ -1,5 +1,17 @@
 # @pnpm/default-resolver
 
+## 1100.3.7
+
+### Patch Changes
+
+- @pnpm/engine.runtime.node-resolver@1101.1.6
+- @pnpm/resolving.npm-resolver@1101.5.2
+- @pnpm/resolving.git-resolver@1100.1.5
+- @pnpm/resolving.tarball-resolver@1100.1.3
+- @pnpm/engine.runtime.bun-resolver@1101.1.7
+- @pnpm/engine.runtime.deno-resolver@1101.1.7
+- @pnpm/resolving.local-resolver@1101.1.5
+
 ## 1100.3.6
 
 ### Patch Changes

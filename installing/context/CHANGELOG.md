@@ -1,5 +1,13 @@
 # @pnpm/get-context
 
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/store.controller@1101.0.13
+
 ## 1100.0.16
 
 ### Patch Changes

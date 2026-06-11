@@ -1,5 +1,11 @@
 # @pnpm/audit
 
+## 1101.0.15
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.1.2
+
 ## 1101.0.14
 
 ### Patch Changes

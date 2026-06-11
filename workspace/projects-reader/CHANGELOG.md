@@ -1,5 +1,12 @@
 # @pnpm/find-workspace-packages
 
+## 1101.0.11
+
+### Patch Changes
+
+- @pnpm/cli.utils@1101.0.11
+- @pnpm/workspace.project-manifest-reader@1100.0.12
+
 ## 1101.0.10
 
 ### Patch Changes

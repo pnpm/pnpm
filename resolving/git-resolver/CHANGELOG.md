@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 1100.1.5
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.1.2
+
 ## 1100.1.4
 
 ### Patch Changes

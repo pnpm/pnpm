@@ -1,5 +1,11 @@
 # @pnpm/create-cafs-store
 
+## 1100.0.13
+
+### Patch Changes
+
+- @pnpm/fs.indexed-pkg-importer@1100.0.13
+
 ## 1100.0.12
 
 ### Patch Changes

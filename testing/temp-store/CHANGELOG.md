@@ -1,5 +1,13 @@
 # @pnpm/testing.temp-store
 
+## 1100.1.8
+
+### Patch Changes
+
+- @pnpm/store.controller@1101.0.13
+- @pnpm/installing.client@1100.2.7
+- @pnpm/testing.registry-mock@1100.0.5
+
 ## 1100.1.7
 
 ### Patch Changes

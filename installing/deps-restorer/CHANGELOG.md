@@ -1,5 +1,27 @@
 # @pnpm/headless
 
+## 1101.1.11
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+- Updated dependencies [84bb4b1]
+- Updated dependencies [52be454]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/installing.package-requester@1101.1.0
+  - @pnpm/config.package-is-installable@1100.0.10
+  - @pnpm/building.during-install@1101.0.18
+  - @pnpm/deps.graph-builder@1100.0.15
+  - @pnpm/exec.lifecycle@1100.0.17
+  - @pnpm/fs.symlink-dependency@1100.0.9
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.9
+  - @pnpm/installing.linking.hoist@1100.0.13
+  - @pnpm/installing.linking.modules-cleaner@1100.1.7
+  - @pnpm/lockfile.filtering@1100.1.6
+  - @pnpm/worker@1100.1.11
+  - @pnpm/bins.linker@1100.0.13
+  - @pnpm/workspace.project-manifest-reader@1100.0.12
+
 ## 1101.1.10
 
 ### Patch Changes

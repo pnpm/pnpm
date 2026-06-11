@@ -1,5 +1,11 @@
 # @pnpm/deps.compliance.sbom
 
+## 1100.1.8
+
+### Patch Changes
+
+- @pnpm/store.pkg-finder@1100.0.16
+
 ## 1100.1.7
 
 ### Patch Changes

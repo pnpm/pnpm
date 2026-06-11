@@ -1,5 +1,11 @@
 # @pnpm/registry-access.client
 
+## 1100.1.3
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.1.2
+
 ## 1100.1.2
 
 ### Patch Changes

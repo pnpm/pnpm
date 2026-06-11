@@ -1,5 +1,14 @@
 # @pnpm/cli-utils
 
+## 1101.0.11
+
+### Patch Changes
+
+- Updated dependencies [52be454]
+  - @pnpm/config.package-is-installable@1100.0.10
+  - @pnpm/pkg-manifest.utils@1100.2.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.12
+
 ## 1101.0.10
 
 ### Patch Changes

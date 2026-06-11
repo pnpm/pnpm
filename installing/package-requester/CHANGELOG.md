@@ -1,5 +1,20 @@
 # @pnpm/package-requester
 
+## 1101.1.0
+
+### Minor Changes
+
+- 84bb4b1: Raised the default network concurrency from `min(64, max(cpuCores * 3, 16))` to `min(96, max(cpuCores * 3, 64))`. Package downloads are I/O-bound, not CPU-bound, so deriving the floor from the core count left machines with few cores (for example 4-vCPU CI runners) downloading only 16 tarballs at a time and unable to saturate a low-latency registry. The `networkConcurrency` setting still overrides the default.
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+- Updated dependencies [52be454]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/config.package-is-installable@1100.0.10
+  - @pnpm/fetching.pick-fetcher@1100.0.11
+  - @pnpm/worker@1100.1.11
+
 ## 1101.0.12
 
 ### Patch Changes

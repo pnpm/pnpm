@@ -1,5 +1,14 @@
 # @pnpm/deps.graph-builder
 
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+- Updated dependencies [52be454]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/config.package-is-installable@1100.0.10
+
 ## 1100.0.14
 
 ### Patch Changes
