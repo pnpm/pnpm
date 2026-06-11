@@ -62,6 +62,16 @@ export PNPM_HOME=dir2
 Setup complete. Open a new terminal to start using pnpm.`)
 })
 
+test('skipEnvPath skips addDirToEnvPath and prints manual instructions', async () => {
+  jest.mocked(addDirToEnvPath).mockClear()
+  const output = await setup.handler({ pnpmHomeDir: '/home/user/.pnpm', skipEnvPath: true })
+  expect(addDirToEnvPath).not.toHaveBeenCalled()
+  expect(output).toContain('Skipped updating ')
+  expect(output).toContain(process.platform === 'win32' ? 'Windows environment variables' : 'shell configuration files')
+  expect(output).toContain('PNPM_HOME=/home/user/.pnpm')
+  expect(output).toContain('PATH includes')
+})
+
 test('hint is added to ERR_PNPM_BAD_ENV_FOUND error object', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('BAD_ENV_FOUND', '')))
   let err!: PnpmError

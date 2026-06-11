@@ -17,6 +17,7 @@ export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   force: Boolean,
+  'skip-env-path': Boolean,
 })
 
 export const shorthands = {}
@@ -37,6 +38,10 @@ export function help (): string {
             description: 'Override the PNPM_HOME env variable in case it already exists',
             name: '--force',
             shortAlias: '-f',
+          },
+          {
+            description: "Don't modify shell configuration files or the Windows registry. Print the values that should be added to the environment instead.",
+            name: '--skip-env-path',
           },
         ],
       },
@@ -133,6 +138,7 @@ function createShellScript (targetDir: string, name: string, command: string): v
 export async function handler (
   opts: {
     force?: boolean
+    skipEnvPath?: boolean
     pnpmHomeDir: string
   }
 ): Promise<string> {
@@ -141,6 +147,9 @@ export async function handler (
   if (execPath.match(/\.[cm]?js$/) == null) {
     installCliGlobally(execPath, opts.pnpmHomeDir)
     createAliasScripts(binDir)
+  }
+  if (opts.skipEnvPath) {
+    return renderSkipEnvPathOutput(opts.pnpmHomeDir, binDir)
   }
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {
@@ -162,6 +171,18 @@ export async function handler (
     }
     throw err
   }
+}
+
+function renderSkipEnvPathOutput (pnpmHomeDir: string, binDir: string): string {
+  const target = process.platform === 'win32'
+    ? 'the Windows environment variables'
+    : 'shell configuration files'
+  return `Skipped updating ${target}.
+
+To start using pnpm, ensure the following are set in your environment:
+
+  PNPM_HOME=${pnpmHomeDir}
+  PATH includes ${binDir}`
 }
 
 function renderSetupOutput (report: PathExtenderReport): string {
