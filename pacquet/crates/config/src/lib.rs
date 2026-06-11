@@ -1752,7 +1752,7 @@ impl Config {
             }),
         };
 
-        // URL-scoped credentials from `npm_config_//…` / `pnpm_config_//…`
+        // URL-scoped credentials from `npm_config_//...` / `pnpm_config_//...`
         // environment variables. These are trusted (they come from the
         // environment, not the repository) and host-scoped by construction, so
         // they sit at the top of the precedence chain — above the project
