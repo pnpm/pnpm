@@ -48,7 +48,6 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "memoize": "catalog:",
-    "path-temp": "catalog:",
     "ramda": "catalog:"
   },
   "peerDependencies": {

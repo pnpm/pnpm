@@ -9306,9 +9306,6 @@ importers:
       memoize:
         specifier: 'catalog:'
         version: 11.0.0
-      path-temp:
-        specifier: 'catalog:'
-        version: 3.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'

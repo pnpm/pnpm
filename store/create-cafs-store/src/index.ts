@@ -14,7 +14,6 @@ import type {
   ImportPackageFunctionAsync,
 } from '@pnpm/store.controller-types'
 import memoize from 'memoize'
-import { pathTemp } from 'path-temp'
 
 export { type CafsLocker }
 
@@ -140,9 +139,8 @@ export function createCafsStore (
     storeDir,
     importPackage,
     tempDir: async () => {
-      const tmpDir = pathTemp(baseTempDir)
-      await fs.mkdir(tmpDir, { recursive: true })
-      return tmpDir
+      await fs.mkdir(baseTempDir, { recursive: true })
+      return fs.mkdtemp(path.join(baseTempDir, '_tmp_'))
     },
   }
 }
