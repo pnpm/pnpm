@@ -48,18 +48,6 @@ test('StoreIndex entries() iterates all SQLite entries', () => {
   }
 })
 
-// The `immutable=1` URI open only works on Node.js that passes
-// SQLITE_OPEN_URI to SQLite: v22.15.0+, v23.11.0+, and every v24+. On older
-// runtimes (including pnpm's `engines` floor of 22.13) the open throws a clear
-// ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE instead — asserted separately below.
-function nodeSupportsImmutableSqliteUri (): boolean {
-  const [major, minor] = process.versions.node.split('.', 2).map(Number)
-  if (major < 22) return false
-  if (major === 22) return minor >= 15
-  if (major === 23) return minor >= 11
-  return true
-}
-
 // The immutable open only works on a runtime that honors the immutable URI;
 // this is purely a Node-version property, independent of platform.
 const supportsImmutableUri = nodeSupportsImmutableSqliteUri()
@@ -145,3 +133,15 @@ testUnsupportedNode('StoreIndex frozen mode refuses to open on a Node.js without
   expect(() => new ReadOnlyStoreIndex(storeDir))
     .toThrow(expect.objectContaining({ code: 'ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE' }))
 })
+
+// The `immutable=1` URI open only works on Node.js that passes
+// SQLITE_OPEN_URI to SQLite: v22.15.0+, v23.11.0+, and every v24+. On older
+// runtimes (including pnpm's `engines` floor of 22.13) the open throws a clear
+// ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE instead — asserted separately below.
+function nodeSupportsImmutableSqliteUri (): boolean {
+  const [major, minor] = process.versions.node.split('.', 2).map(Number)
+  if (major < 22) return false
+  if (major === 22) return minor >= 15
+  if (major === 23) return minor >= 11
+  return true
+}

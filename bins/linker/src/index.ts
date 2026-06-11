@@ -258,47 +258,6 @@ export interface LinkBinOptions {
   preferSymlinkedExecutables?: boolean
 }
 
-// `fixBin` chmods the bin's source file (which lives inside the store) to make
-// it executable and rewrites a Windows CRLF shebang to LF. Under the global
-// virtual store that source is `{storeDir}/links/...`, so on a read-only store
-// (e.g. `frozenStore`) the chmod is refused — with EPERM/EACCES when the file is
-// owned but permissions forbid it, or EROFS on a genuinely read-only filesystem
-// (Nix store, RO bind mount, OCI layer). A complete seed already ships its bins
-// executable and shebang-normalized by the writable seed-build, so that work is
-// redundant: treat an already-correct target as a no-op, keeping bin-linking
-// write-free (see building/during-install: "Bin-linking reuses existing symlinks
-// write-free"). A non-executable bin — or one still carrying a CRLF shebang that
-// `fixBin` could not rewrite here — still throws, because that means the seed is
-// broken and the bin would not run.
-async function ensureExecutable (file: string, mode: number): Promise<void> {
-  try {
-    await fixBin(file, mode)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EROFS') {
-      const stat = await fs.stat(file).catch(() => undefined)
-      if (stat != null && (stat.mode & 0o111) !== 0 && !(await hasWindowsShebang(file))) return
-    }
-    throw err
-  }
-}
-
-// Detects a `#!`-shebang line terminated by CRLF, which fails to execute on
-// POSIX. Mirrors bin-links' own fix-bin detection so a chmod failure on a
-// read-only store is only swallowed when the bin is genuinely already correct.
-async function hasWindowsShebang (file: string): Promise<boolean> {
-  const fh = await fs.open(file, 'r').catch(() => undefined)
-  if (fh == null) return false
-  try {
-    const buf = Buffer.alloc(2048)
-    await fh.read(buf, 0, 2048, 0)
-    return buf[0] === 0x23 /* # */ && buf[1] === 0x21 /* ! */ && /^#![^\n]+\r\n/.test(buf.toString())
-  } catch {
-    return false
-  } finally {
-    await fh.close().catch(() => {})
-  }
-}
-
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
   // Skip if the existing bin already references the correct target.
@@ -399,6 +358,47 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     await ensureExecutable(cmd.path, 0o755)
+  }
+}
+
+// `fixBin` chmods the bin's source file (which lives inside the store) to make
+// it executable and rewrites a Windows CRLF shebang to LF. Under the global
+// virtual store that source is `{storeDir}/links/...`, so on a read-only store
+// (e.g. `frozenStore`) the chmod is refused — with EPERM/EACCES when the file is
+// owned but permissions forbid it, or EROFS on a genuinely read-only filesystem
+// (Nix store, RO bind mount, OCI layer). A complete seed already ships its bins
+// executable and shebang-normalized by the writable seed-build, so that work is
+// redundant: treat an already-correct target as a no-op, keeping bin-linking
+// write-free (see building/during-install: "Bin-linking reuses existing symlinks
+// write-free"). A non-executable bin — or one still carrying a CRLF shebang that
+// `fixBin` could not rewrite here — still throws, because that means the seed is
+// broken and the bin would not run.
+async function ensureExecutable (file: string, mode: number): Promise<void> {
+  try {
+    await fixBin(file, mode)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EROFS') {
+      const stat = await fs.stat(file).catch(() => undefined)
+      if (stat != null && (stat.mode & 0o111) !== 0 && !(await hasWindowsShebang(file))) return
+    }
+    throw err
+  }
+}
+
+// Detects a `#!`-shebang line terminated by CRLF, which fails to execute on
+// POSIX. Mirrors bin-links' own fix-bin detection so a chmod failure on a
+// read-only store is only swallowed when the bin is genuinely already correct.
+async function hasWindowsShebang (file: string): Promise<boolean> {
+  const fh = await fs.open(file, 'r').catch(() => undefined)
+  if (fh == null) return false
+  try {
+    const buf = Buffer.alloc(2048)
+    await fh.read(buf, 0, 2048, 0)
+    return buf[0] === 0x23 /* # */ && buf[1] === 0x21 /* ! */ && /^#![^\n]+\r\n/.test(buf.toString())
+  } catch {
+    return false
+  } finally {
+    await fh.close().catch(() => {})
   }
 }
 

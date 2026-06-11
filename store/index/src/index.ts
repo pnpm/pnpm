@@ -49,39 +49,6 @@ function sleepSync (ms: number): void {
 }
 
 /**
- * Build the `file://…?immutable=1` URI used to open `index.db` read-only (see
- * the frozen-store rationale at the call site). `pathToFileURL` yields a
- * canonical file URL on every platform: it percent-encodes the URI delimiters
- * that could otherwise truncate the path or inject a query/fragment (`?`, `#`,
- * `%`, spaces) and, on Windows, maps the drive letter and backslashes into a
- * valid `file:///C:/…` form. A raw `file:${path}` concatenation would mis-parse
- * those. See https://sqlite.org/uri.html.
- */
-function immutableSqliteUri (dbPath: string): string {
-  const url = pathToFileURL(dbPath)
-  url.searchParams.set('immutable', '1')
-  return url.href
-}
-
-/**
- * Whether the running Node.js can open a `file:…?immutable=1` SQLite URI.
- *
- * `node:sqlite` only passes `SQLITE_OPEN_URI` to SQLite — so the `immutable=1`
- * query is honored rather than treated as part of a literal filename — starting
- * in v22.15.0 (22.x line), v23.11.0 (23.x line), and every v24+. On older
- * runtimes the URI is opened as a literal path and fails with a cryptic
- * "unable to open database file"; we detect that up front to give actionable
- * guidance instead.
- */
-function nodeSupportsImmutableSqliteUri (): boolean {
-  const [major, minor] = process.versions.node.split('.', 2).map(Number)
-  if (major < 22) return false
-  if (major === 22) return minor >= 15
-  if (major === 23) return minor >= 11
-  return true
-}
-
-/**
  * Pack data for storage using msgpackr.
  * Use this when data will be packed in one thread and stored by another,
  * to ensure the same Packr instance is used for pack and unpack within each thread.
@@ -439,4 +406,37 @@ export class ReadOnlyStoreIndex extends StoreIndex {
   private throwReadOnly (): never {
     throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
   }
+}
+
+/**
+ * Build the `file://…?immutable=1` URI used to open `index.db` read-only (see
+ * the frozen-store rationale at the call site). `pathToFileURL` yields a
+ * canonical file URL on every platform: it percent-encodes the URI delimiters
+ * that could otherwise truncate the path or inject a query/fragment (`?`, `#`,
+ * `%`, spaces) and, on Windows, maps the drive letter and backslashes into a
+ * valid `file:///C:/…` form. A raw `file:${path}` concatenation would mis-parse
+ * those. See https://sqlite.org/uri.html.
+ */
+function immutableSqliteUri (dbPath: string): string {
+  const url = pathToFileURL(dbPath)
+  url.searchParams.set('immutable', '1')
+  return url.href
+}
+
+/**
+ * Whether the running Node.js can open a `file:…?immutable=1` SQLite URI.
+ *
+ * `node:sqlite` only passes `SQLITE_OPEN_URI` to SQLite — so the `immutable=1`
+ * query is honored rather than treated as part of a literal filename — starting
+ * in v22.15.0 (22.x line), v23.11.0 (23.x line), and every v24+. On older
+ * runtimes the URI is opened as a literal path and fails with a cryptic
+ * "unable to open database file"; we detect that up front to give actionable
+ * guidance instead.
+ */
+function nodeSupportsImmutableSqliteUri (): boolean {
+  const [major, minor] = process.versions.node.split('.', 2).map(Number)
+  if (major < 22) return false
+  if (major === 22) return minor >= 15
+  if (major === 23) return minor >= 11
+  return true
 }
