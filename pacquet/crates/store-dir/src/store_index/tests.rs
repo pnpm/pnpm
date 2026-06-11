@@ -1,10 +1,10 @@
 use super::{
     CafsFileInfo, GET_MANY_CHUNK, PackageFilesIndex, StoreIndex, git_hosted_store_index_key,
-    immutable_sqlite_uri, pick_store_index_key, store_index_key,
+    pick_store_index_key, store_index_key,
 };
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 use tempfile::tempdir;
 
 // `Url::from_file_path` only accepts a platform-absolute path: a POSIX
@@ -13,6 +13,9 @@ use tempfile::tempdir;
 #[cfg(unix)]
 #[test]
 fn immutable_uri_percent_encodes_sqlite_path_delimiters() {
+    use super::immutable_sqlite_uri;
+    use std::path::Path;
+
     // `/` stays literal; `?`, `#`, and `%` (the escape introducer) are
     // percent-encoded so they cannot truncate the path or inject a query.
     assert_eq!(
