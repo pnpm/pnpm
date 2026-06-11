@@ -1,5 +1,15 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.60
+
+### Patch Changes
+
+- Updated dependencies [598ea3f]
+- Updated dependencies [f85557b]
+  - @pnpm/config@1004.11.4
+  - @pnpm/cli-utils@1001.3.14
+  - @pnpm/client@1001.1.28
+
 ## 1000.1.59
 
 ### Patch Changes
