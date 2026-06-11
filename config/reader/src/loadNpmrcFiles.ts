@@ -13,7 +13,7 @@ import { npmDefaults } from './npmDefaults.js'
 export interface NpmrcConfigResult {
   /**
    * Merged auth/registry config from all sources.
-   * Priority (lowest to highest): builtin < defaults < user < auth.ini < workspace < CLI
+   * Priority (lowest to highest): builtin < defaults < user < auth.ini < workspace < env (//-scoped) < CLI
    */
   mergedConfig: Record<string, unknown>
   /** Raw config suitable for pnpmConfig.authConfig (filtered through pickIniConfig by consumer) */
@@ -85,6 +85,13 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // We clone first to avoid mutating the caller's cliOptions object.
   const cliOptions = rescopeUnscopedCreds({ ...opts.cliOptions }, '<command line>', warnings)
 
+  // URL-scoped auth/registry settings supplied via `npm_config_//…` and
+  // `pnpm_config_//…` environment variables. The registry a credential is
+  // bound to is encoded in the (trusted) variable name, so unlike a project
+  // `.npmrc` these cannot be redirected to another host by the repository —
+  // making them a safe, file-free way to configure registry authentication.
+  const envScopedConfig = readUrlScopedEnvConfig(env)
+
   // Read pnpm builtin rc + inline defaults
   const pnpmBuiltinConfig: Record<string, unknown> = {
     ...readAndFilterNpmrc(
@@ -107,9 +114,9 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   ])
 
   // Merge all sources (lowest to highest priority):
-  // builtin < defaults < user < auth.ini < workspace < CLI
+  // builtin < defaults < user < auth.ini < workspace < env (//-scoped) < CLI
   const mergedConfig: Record<string, unknown> = {}
-  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, workspaceNpmrc, cliOptions]) {
+  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, workspaceNpmrc, envScopedConfig, cliOptions]) {
     for (const [key, value] of Object.entries(source)) {
       if (isNpmrcReadableKey(key)) {
         mergedConfig[key] = value
@@ -117,8 +124,10 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     }
   }
 
+  // The env-scoped config is trusted (it comes from the environment, not the
+  // repository), so it is included here while the workspace .npmrc is not.
   const trustedConfig: Record<string, unknown> = {}
-  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, cliOptions]) {
+  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, envScopedConfig, cliOptions]) {
     for (const [key, value] of Object.entries(source)) {
       if (isNpmrcReadableKey(key)) {
         trustedConfig[key] = value
@@ -133,6 +142,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     ...userConfig,
     ...pnpmAuthConfig,
     ...workspaceNpmrc,
+    ...envScopedConfig,
     ...cliOptions,
   }
 
@@ -145,6 +155,31 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     localPrefix,
     warnings,
   }
+}
+
+// Matches `npm_config_//…` and `pnpm_config_//…` env var names. The prefix is
+// matched case-insensitively (as npm does), but the captured key keeps its
+// original case because URL-scoped keys are case-sensitive (e.g. `:_authToken`).
+const URL_SCOPED_ENV_RE = /^p?npm_config_(\/\/.+)$/i
+
+// Collect URL-scoped settings (keys beginning with `//host…`, such as
+// `//registry.npmjs.org/:_authToken`) from `npm_config_//…` and `pnpm_config_//…`
+// environment variables. These are host-scoped by construction — the registry
+// the value applies to is part of the variable name — so they are safe to honor
+// from the trusted environment without a config file. When the same key is set
+// through both prefixes, `pnpm_config_` wins.
+function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Record<string, unknown> {
+  const npmScoped: Record<string, string> = {}
+  const pnpmScoped: Record<string, string> = {}
+  for (const envKey of Object.keys(env)) {
+    const value = env[envKey]
+    if (value == null || value === '') continue
+    const match = URL_SCOPED_ENV_RE.exec(envKey)
+    if (match == null) continue
+    const target = envKey.slice(0, 5).toLowerCase() === 'pnpm_' ? pnpmScoped : npmScoped
+    target[match[1]] = value
+  }
+  return { ...npmScoped, ...pnpmScoped }
 }
 
 // Per-registry rc keys that, when written without a `//host/` prefix, fall

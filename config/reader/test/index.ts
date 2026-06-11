@@ -980,6 +980,70 @@ test('auth tokens from pnpm auth file override ~/.npmrc', async () => {
   }
 })
 
+test('reads URL-scoped auth from npm_config_// environment variables', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      'npm_config_//env-test.example/:_authToken': 'npm-env-token',
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//env-test.example/:_authToken']).toBe('npm-env-token')
+})
+
+test('reads URL-scoped auth from pnpm_config_// environment variables', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      'pnpm_config_//env-test.example/:_authToken': 'pnpm-env-token',
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//env-test.example/:_authToken']).toBe('pnpm-env-token')
+})
+
+test('pnpm_config_// takes precedence over npm_config_// for the same key', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      'npm_config_//env-test.example/:_authToken': 'npm-env-token',
+      'pnpm_config_//env-test.example/:_authToken': 'pnpm-env-token',
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//env-test.example/:_authToken']).toBe('pnpm-env-token')
+})
+
+test('URL-scoped auth from the environment overrides a project .npmrc for the same host', async () => {
+  prepareEmpty()
+
+  // The repository ships a literal token for the host; the trusted env value must win.
+  fs.writeFileSync('.npmrc', '//env-test.example/:_authToken=workspace-token', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      'npm_config_//env-test.example/:_authToken': 'env-token',
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//env-test.example/:_authToken']).toBe('env-token')
+})
+
 test('workspace .npmrc overrides pnpm auth file', async () => {
   prepareEmpty()
 
