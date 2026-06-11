@@ -107,6 +107,13 @@ interface CacheRecord {
 export interface CacheLookupResult {
   hit: boolean
   /**
+   * ISO-8601 timestamp of the verification run the hit is reusing.
+   * Set only on a hit, and only when the record carries a usable
+   * timestamp (records written before the field existed normalize to
+   * an empty string and surface as `undefined` here).
+   */
+  verifiedAt?: string
+  /**
    * stat + hash already computed during the lookup. When the caller
    * follows up with {@link recordVerification} after running the gate,
    * passing these back avoids re-stat'ing and (especially) re-hashing
@@ -254,8 +261,10 @@ export function tryLockfileVerificationCache (
   // hash without reading the file. Microseconds.
   const byPathRecord = indexes.byPath.get(key.lockfilePath)
   if (byPathRecord && statMatches(stat, byPathRecord.lockfile)) {
+    const hit = everyVerifierTrustsCachedRun(byPathRecord, key.verifiers)
     return {
-      hit: everyVerifierTrustsCachedRun(byPathRecord, key.verifiers),
+      hit,
+      verifiedAt: hit ? byPathRecord.verifiedAt || undefined : undefined,
       // The stat-match implies the file content is unchanged since the
       // cached record was written, so its hash is still correct. Pass
       // it through to skip hashing on the miss-then-record path.
@@ -285,7 +294,7 @@ export function tryLockfileVerificationCache (
     ...byHashRecord,
     lockfile: { ...byHashRecord.lockfile, path: key.lockfilePath, size: stat.size, mtimeNs: stat.mtimeNs, inode: stat.inode },
   })
-  return { hit: true, precomputed: { stat, hash } }
+  return { hit: true, verifiedAt: byHashRecord.verifiedAt || undefined, precomputed: { stat, hash } }
 }
 
 function everyVerifierTrustsCachedRun (record: CacheRecord, verifiers: readonly VerifierCacheIdentity[]): boolean {
