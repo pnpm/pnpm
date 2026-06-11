@@ -602,3 +602,68 @@ fn pick_from_meta_returns_none_for_undecodable_exact_version() {
     .expect("ok");
     assert!(picked.is_none());
 }
+
+/// The dist-tag repopulation tie-break prefers a non-deprecated
+/// candidate over a higher deprecated one (and only falls back to
+/// deprecated candidates when nothing else matches the tag family).
+#[test]
+fn filter_tag_rewrite_prefers_non_deprecated_candidate() {
+    let mut pkg = make_package(
+        "acme",
+        &[
+            ("2.1.0", None),
+            ("2.2.0", Some("use 3.x")),
+            ("2.5.0", None), // dropped by the cutoff
+        ],
+        &[("old", "2.5.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("2.1.0", "2024-01-01T00:00:00.000Z"),
+        ("2.2.0", "2024-06-01T00:00:00.000Z"),
+        ("2.5.0", "2025-06-01T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2025-01-01T00:00:00.000Z");
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+    assert_eq!(
+        filtered.dist_tag("old"),
+        Some("2.1.0"),
+        "non-deprecated 2.1.0 must beat the higher deprecated 2.2.0",
+    );
+}
+
+/// The repopulation tie-break must read deprecation from the raw
+/// fragments without full-manifest hydration. The fragments here are
+/// valid JSON but not decodable as complete version manifests, so a
+/// tie-break that hydrates to check `deprecated` sees every candidate
+/// as undecodable (= not deprecated) and picks the higher deprecated
+/// version instead. Guards the no-hydration deprecation probe the
+/// publish-date filter relies on — also matching pnpm, which reads
+/// `versions[candidate].deprecated` off plain parsed JSON without
+/// validating the rest of the entry.
+#[test]
+fn filter_tag_rewrite_reads_deprecation_from_raw_fragments() {
+    let mut pkg: Package = serde_json::from_str(
+        r#"{
+            "name": "acme",
+            "dist-tags": {"old": "2.5.0"},
+            "versions": {
+                "2.1.0": {"name": "acme"},
+                "2.2.0": {"name": "acme", "deprecated": "use 3.x"},
+                "2.5.0": {"name": "acme"}
+            }
+        }"#,
+    )
+    .expect("parse package");
+    pkg.time = Some(make_time_map(&[
+        ("2.1.0", "2024-01-01T00:00:00.000Z"),
+        ("2.2.0", "2024-06-01T00:00:00.000Z"),
+        ("2.5.0", "2025-06-01T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2025-01-01T00:00:00.000Z");
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+    assert_eq!(
+        filtered.dist_tag("old"),
+        Some("2.1.0"),
+        "deprecation must be read from the raw fragment, not via hydration",
+    );
+}

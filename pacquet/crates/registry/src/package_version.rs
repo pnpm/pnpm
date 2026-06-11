@@ -151,7 +151,7 @@ where
 /// A bool `true` becomes `Some("")`, a bool `false` becomes `None`;
 /// a string stays as `Some(s)`. Missing field defaults to `None` via
 /// the `#[serde(default)]` on the field itself.
-fn deserialize_deprecated_field<'de, Deser>(
+pub(crate) fn deserialize_deprecated_field<'de, Deser>(
     deserializer: Deser,
 ) -> Result<Option<String>, Deser::Error>
 where

@@ -591,12 +591,16 @@ fn build_scheme_proxy(
 /// [`worker/src/index.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/worker/src/index.ts#L63-L72):
 ///
 /// ```ts
-/// networkConcurrency = Math.min(64, Math.max(calcMaxWorkers() * 3, 16))
+/// networkConcurrency = Math.min(96, Math.max(calcMaxWorkers() * 3, 64))
 /// // calcMaxWorkers() = Math.max(1, availableParallelism() - 1)
 /// ```
 ///
-/// Concretely: 16 on a 4-core machine, 21 on 8-core, 27 on 10-core,
-/// 45 on 16-core, capped at 64.
+/// Concretely: 64 up to a 22-core machine, scaling with cores beyond
+/// that, capped at 96. The floor matters more than the scaling:
+/// downloads are I/O-bound, not CPU-bound, and a low-latency registry
+/// only saturates when enough requests are in flight — a CPU-derived
+/// floor left 4-core CI runners draining 600-tarball installs 16 at a
+/// time, several times slower than the same network could serve.
 ///
 /// Uses [`std::thread::available_parallelism`] rather than
 /// `num_cpus::get()` so cgroup / CPU-quota limits in containers and
@@ -608,7 +612,7 @@ fn build_scheme_proxy(
 pub fn default_network_concurrency() -> usize {
     let available_parallelism = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
     let max_workers = available_parallelism.saturating_sub(1).max(1);
-    max_workers.saturating_mul(3).clamp(16, 64)
+    max_workers.saturating_mul(3).clamp(64, 96)
 }
 
 /// This is only necessary for tests.

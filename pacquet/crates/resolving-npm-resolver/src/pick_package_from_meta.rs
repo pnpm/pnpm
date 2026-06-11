@@ -27,6 +27,7 @@
 //! module pulls in no I/O.
 
 use std::{
+    cell::OnceCell,
     collections::BTreeMap,
     sync::{Arc, LazyLock},
 };
@@ -345,15 +346,12 @@ pub fn pick_version_by_version_range(
     // non-deprecated subset. Matches upstream's loop at
     // pickPackageFromMeta.ts#L194-L201.
     if let Some(ref picked) = max_pick {
-        let picked_meta = opts.meta.versions.get(picked);
-        let picked_is_deprecated = picked_meta.is_some_and(|version| version.deprecated.is_some());
+        let picked_is_deprecated = opts.meta.versions.is_deprecated(picked);
         if picked_is_deprecated && all_versions.len() > 1 {
-            let non_deprecated: Vec<&str> = opts
-                .meta
-                .versions
+            let non_deprecated: Vec<&str> = all_versions
                 .iter()
-                .filter(|(_, manifest)| manifest.deprecated.is_none())
-                .map(|(name, _)| name.as_str())
+                .copied()
+                .filter(|version| !opts.meta.versions.is_deprecated(version))
                 .collect();
             if let Some(non_deprecated_max) = max_satisfying(&non_deprecated, opts.version_range) {
                 return Some(non_deprecated_max);
@@ -431,6 +429,14 @@ pub fn filter_pkg_metadata_by_publish_date(
     });
 
     let mut dist_tags_within_date = std::collections::HashMap::new();
+    // Candidate versions parsed once per filter call and shared by
+    // every repopulated tag, with the deprecation flag resolved
+    // lazily per candidate — mirrors upstream's `parsedSemverCache`.
+    // Deprecation goes through [`PackageVersions::is_deprecated`]
+    // instead of hydrating each candidate's manifest; the hydration
+    // per comparison dominated warm-resolve CPU on packuments with
+    // out-of-cutoff dist-tags.
+    let mut parsed_candidates: Option<Vec<(Version, &String, OnceCell<bool>)>> = None;
     for (tag, version) in &meta.dist_tags {
         if versions_within_date.contains_key(version) {
             dist_tags_within_date.insert(tag.clone(), version.clone());
@@ -438,35 +444,43 @@ pub fn filter_pkg_metadata_by_publish_date(
         }
         let Ok(original) = Version::parse(version) else { continue };
         let original_is_prerelease = !original.pre_release.is_empty();
-        let mut best_version: Option<(Version, &String)> = None;
-        for candidate_raw in versions_within_date.keys() {
-            let Ok(candidate) = Version::parse(candidate_raw) else { continue };
+        let candidates = parsed_candidates.get_or_insert_with(|| {
+            versions_within_date
+                .keys()
+                .filter_map(|raw| {
+                    Version::parse(raw).ok().map(|parsed| (parsed, raw, OnceCell::new()))
+                })
+                .collect()
+        });
+        let deprecated = |slot: &(Version, &String, OnceCell<bool>)| -> bool {
+            *slot.2.get_or_init(|| versions_within_date.is_deprecated(slot.1))
+        };
+        let mut best_index: Option<usize> = None;
+        for (index, slot) in candidates.iter().enumerate() {
+            let (candidate, _, _) = slot;
             if tag != "latest" && candidate.major != original.major {
                 continue;
             }
             if candidate.pre_release.is_empty() == original_is_prerelease {
                 continue;
             }
-            match best_version {
-                None => best_version = Some((candidate, candidate_raw)),
-                Some((ref best, best_raw)) => {
-                    let best_deprecated = versions_within_date
-                        .get(best_raw)
-                        .is_some_and(|manifest| manifest.deprecated.is_some());
-                    let candidate_deprecated = versions_within_date
-                        .get(candidate_raw)
-                        .is_some_and(|manifest| manifest.deprecated.is_some());
-                    let candidate_wins = (candidate > *best
+            match best_index {
+                None => best_index = Some(index),
+                Some(best) => {
+                    let best_slot = &candidates[best];
+                    let best_deprecated = deprecated(best_slot);
+                    let candidate_deprecated = deprecated(slot);
+                    let candidate_wins = (*candidate > best_slot.0
                         && best_deprecated == candidate_deprecated)
                         || (best_deprecated && !candidate_deprecated);
                     if candidate_wins {
-                        best_version = Some((candidate, candidate_raw));
+                        best_index = Some(index);
                     }
                 }
             }
         }
-        if let Some((_, best_raw)) = best_version {
-            dist_tags_within_date.insert(tag.clone(), best_raw.clone());
+        if let Some(best) = best_index {
+            dist_tags_within_date.insert(tag.clone(), candidates[best].1.clone());
         }
     }
 

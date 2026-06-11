@@ -24,7 +24,16 @@ use std::{
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::value::RawValue;
 
-use crate::package_version::PackageVersion;
+use crate::package_version::{PackageVersion, deserialize_deprecated_field};
+
+/// Single-field view of a version manifest for
+/// [`PackageVersions::is_deprecated`] — same normalization as
+/// [`PackageVersion::deprecated`], every other field skipped.
+#[derive(Deserialize)]
+struct DeprecatedProbe {
+    #[serde(default, deserialize_with = "deserialize_deprecated_field")]
+    deprecated: Option<String>,
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct PackageVersions {
@@ -139,6 +148,36 @@ impl PackageVersions {
     #[must_use]
     pub fn contains_key(&self, version: &str) -> bool {
         self.slots.contains_key(version)
+    }
+
+    /// Whether `version` is marked deprecated, equivalent to
+    /// `get(version).is_some_and(|manifest| manifest.deprecated.is_some())`
+    /// but without hydrating the full manifest: an unhydrated fragment
+    /// is probed with a single-field deserialize (skipped entirely when
+    /// the fragment text doesn't contain the `"deprecated"` key).
+    /// An absent version or an undecodable fragment reads as not
+    /// deprecated, matching the "undecodable fragment behaves as if
+    /// the version were absent" contract of [`PackageVersions::get`].
+    ///
+    /// The pick paths consult deprecation for *many* candidate
+    /// versions per packument (dist-tag repopulation, the
+    /// deprecated-pick fallback); hydrating each candidate parses its
+    /// whole manifest — including the flattened catch-all map — and
+    /// dominated warm-resolve CPU.
+    #[must_use]
+    pub fn is_deprecated(&self, version: &str) -> bool {
+        let Some(slot) = self.slots.get(version) else { return false };
+        if let Some(parsed) = slot.parsed.get() {
+            return parsed.as_ref().is_some_and(|manifest| manifest.deprecated.is_some());
+        }
+        let Some(json) = slot.source.json() else { return false };
+        // Absence of the key text anywhere in the fragment proves the
+        // field is absent; presence (possibly in an unrelated nested
+        // position) falls through to the real parse.
+        if !json.contains(r#""deprecated""#) {
+            return false;
+        }
+        serde_json::from_str::<DeprecatedProbe>(&json).is_ok_and(|probe| probe.deprecated.is_some())
     }
 
     /// Version strings, in `HashMap` order. Never hydrates.

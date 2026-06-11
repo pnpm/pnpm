@@ -35,9 +35,9 @@ use crate::{
 };
 
 /// Default concurrency cap for the per-candidate fan-out. Mirrors
-/// upstream's `DEFAULT_CONCURRENCY = 16` (the floor of pnpm's
+/// upstream's `DEFAULT_CONCURRENCY = 64` (the floor of pnpm's
 /// `package-requester` network-concurrency formula).
-const DEFAULT_CONCURRENCY: usize = 16;
+const DEFAULT_CONCURRENCY: usize = 64;
 
 /// Options bundle for [`verify_lockfile_resolutions`]. Mirrors
 /// upstream's
@@ -45,7 +45,7 @@ const DEFAULT_CONCURRENCY: usize = 16;
 #[derive(Debug, Default, Clone)]
 pub struct VerifyLockfileResolutionsOptions<'a> {
     /// Cap on concurrent verifier futures. `None` falls back to
-    /// the internal `DEFAULT_CONCURRENCY` (`16`, matching upstream).
+    /// the internal `DEFAULT_CONCURRENCY` (`64`, matching upstream).
     pub concurrency: Option<usize>,
     /// Absolute path of the lockfile being verified. Required for
     /// the on-disk verification cache (the stat shortcut + per-path

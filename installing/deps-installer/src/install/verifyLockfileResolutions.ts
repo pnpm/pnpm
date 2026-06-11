@@ -27,10 +27,10 @@ export type { ResolutionPolicyViolation }
 // count is in the header and the remainder is summarized at the end.
 const MAX_VIOLATIONS_TO_PRINT = 20
 
-// 16 mirrors the floor of pnpm's package-requester network-concurrency
-// (Math.min(64, Math.max(workers*3, 16))); keep them aligned so the
+// 64 mirrors the floor of pnpm's package-requester network-concurrency
+// (Math.min(96, Math.max(workers*3, 64))); keep them aligned so the
 // verification pass doesn't push past what the rest of the install respects.
-const DEFAULT_CONCURRENCY = 16
+const DEFAULT_CONCURRENCY = 64
 
 export const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE = 'RESOLUTION_SHAPE_MISMATCH'
 
