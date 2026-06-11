@@ -1044,3 +1044,94 @@ fn scoped_tls_keys_dont_collide_with_top_level() {
     assert_eq!(auth.ca, vec!["top-level".to_string()]);
     assert!(auth.tls_by_uri.is_empty(), "top-level `ca=` must not pollute tls_by_uri");
 }
+
+/// Like [`static_env!`] but also overrides [`EnvVar::vars`] so the fake
+/// can be enumerated — required by [`NpmrcAuth::from_url_scoped_env`],
+/// which matches `npm_config_//…` / `pnpm_config_//…` vars by prefix.
+macro_rules! static_env_with_vars {
+    ($name:ident, $entries:expr) => {
+        struct $name;
+        impl EnvVar for $name {
+            fn var(name: &str) -> Option<String> {
+                let entries: &[(&str, &str)] = $entries;
+                entries.iter().find(|(k, _)| *k == name).map(|(_, v)| (*v).to_string())
+            }
+            fn vars() -> Vec<(String, String)> {
+                let entries: &[(&str, &str)] = $entries;
+                entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
+            }
+        }
+    };
+}
+
+#[test]
+fn url_scoped_env_reads_npm_config_auth_token() {
+    static_env_with_vars!(Env, &[("npm_config_//registry.npmjs.org/:_authToken", "npm-env-token")]);
+    let auth = NpmrcAuth::from_url_scoped_env::<Env>();
+    assert_eq!(
+        auth.creds_by_uri.get("//registry.npmjs.org/").map(|creds| creds.auth_token.as_deref()),
+        Some(Some("npm-env-token")),
+    );
+}
+
+#[test]
+fn url_scoped_env_reads_pnpm_config_auth_token() {
+    static_env_with_vars!(
+        Env,
+        &[("pnpm_config_//registry.npmjs.org/:_authToken", "pnpm-env-token")]
+    );
+    let auth = NpmrcAuth::from_url_scoped_env::<Env>();
+    assert_eq!(
+        auth.creds_by_uri.get("//registry.npmjs.org/").map(|creds| creds.auth_token.as_deref()),
+        Some(Some("pnpm-env-token")),
+    );
+}
+
+#[test]
+fn url_scoped_env_pnpm_prefix_wins_over_npm() {
+    static_env_with_vars!(
+        Env,
+        &[
+            ("npm_config_//registry.npmjs.org/:_authToken", "npm-env-token"),
+            ("pnpm_config_//registry.npmjs.org/:_authToken", "pnpm-env-token"),
+        ]
+    );
+    let auth = NpmrcAuth::from_url_scoped_env::<Env>();
+    assert_eq!(
+        auth.creds_by_uri.get("//registry.npmjs.org/").map(|creds| creds.auth_token.as_deref()),
+        Some(Some("pnpm-env-token")),
+    );
+}
+
+#[test]
+fn url_scoped_env_ignores_non_url_and_empty_values() {
+    static_env_with_vars!(
+        Env,
+        &[
+            // Not URL-scoped (no leading `//`) — must be ignored here.
+            ("npm_config_registry", "https://example.test/"),
+            // Empty value — treated as unset.
+            ("npm_config_//empty.example/:_authToken", ""),
+            // Unrelated env var.
+            ("PATH", "/usr/bin"),
+        ]
+    );
+    let auth = NpmrcAuth::from_url_scoped_env::<Env>();
+    assert!(auth.creds_by_uri.is_empty());
+    assert!(auth.registry.is_none());
+}
+
+#[test]
+fn url_scoped_env_ignores_non_ascii_names_without_panicking() {
+    // A multi-byte env var name must not panic the byte-index prefix check
+    // in `parse_url_scoped_env_name` (regression: `name[..prefix.len()]`).
+    static_env_with_vars!(
+        Env,
+        &[
+            ("プログラム_config_//registry.example/:_authToken", "ignored"),
+            ("ñpm_config_//registry.example/:_authToken", "ignored"),
+        ]
+    );
+    let auth = NpmrcAuth::from_url_scoped_env::<Env>();
+    assert!(auth.creds_by_uri.is_empty());
+}

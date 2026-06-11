@@ -194,6 +194,9 @@ impl EnvVar for FakeEnv {
     fn var(name: &str) -> Option<String> {
         FAKE_ENV.with(|map| map.borrow().get(name).cloned())
     }
+    fn vars() -> Vec<(String, String)> {
+        FAKE_ENV.with(|map| map.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+    }
 }
 impl EnvVarOs for FakeEnv {
     fn var_os(_: &str) -> Option<OsString> {
@@ -438,6 +441,38 @@ pub fn user_auth_token_pins_to_its_own_file_registry() {
         Some("Bearer user-secret"),
     );
     assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+}
+
+/// End-to-end: a `npm_config_//…` env var is picked up by a full config
+/// load and outranks a literal token for the same host in the project
+/// `.npmrc` — the trusted, host-scoped env layer wins.
+#[test]
+pub fn url_scoped_env_auth_is_used_and_outranks_project_npmrc() {
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "//env2e.example.com/:_authToken=project-token\n");
+    set_fake_env(&[("npm_config_//env2e.example.com/:_authToken", "env-token")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.auth_headers.for_url("https://env2e.example.com/pkg").as_deref(),
+        Some("Bearer env-token"),
+    );
+}
+
+/// End-to-end: the `npm_config_//…` / `pnpm_config_//…` prefix is matched
+/// case-insensitively through the full load path.
+#[test]
+pub fn url_scoped_env_auth_prefix_is_case_insensitive_end_to_end() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("NPM_CONFIG_//env2e.example.com/:_authToken", "upper-token")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.auth_headers.for_url("https://env2e.example.com/pkg").as_deref(),
+        Some("Bearer upper-token"),
+    );
 }
 
 /// `_auth` (basic) is pinned the same way.

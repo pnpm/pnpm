@@ -164,6 +164,48 @@ impl NpmrcAuth {
         )
     }
 
+    /// Collect URL-scoped registry credentials supplied through
+    /// `npm_config_//…` and `pnpm_config_//…` environment variables, e.g.
+    /// `npm_config_//registry.npmjs.org/:_authToken=<token>`.
+    ///
+    /// The registry a credential applies to is encoded in the (trusted)
+    /// variable name, so — unlike a project `.npmrc` — these cannot be
+    /// redirected to another host by repository-controlled config. That makes
+    /// them a safe, file-free way to configure registry auth. The prefix is
+    /// matched case-insensitively (as npm does); the remainder keeps its case
+    /// because credential keys are case-sensitive (`:_authToken`). When the
+    /// same key is set through both prefixes, `pnpm_config_` wins.
+    ///
+    /// Only the four credential fields (`_authToken`, `_auth`, `username`,
+    /// `_password`) are honored — the same set [`split_creds_key`] recognises.
+    /// Values are used verbatim (no `${VAR}` re-expansion): they already come
+    /// resolved from the environment.
+    pub fn from_url_scoped_env<Sys: EnvVar>() -> Self {
+        // Merge into one map keyed by the URL-scoped key so each key is applied
+        // once. `pnpm_config_` is extended last so it wins over `npm_config_`.
+        let mut npm_scoped: HashMap<String, String> = HashMap::new();
+        let mut pnpm_scoped: HashMap<String, String> = HashMap::new();
+        for (name, value) in Sys::vars() {
+            if value.is_empty() {
+                continue;
+            }
+            if let Some((is_pnpm, key)) = parse_url_scoped_env_name(&name) {
+                let target = if is_pnpm { &mut pnpm_scoped } else { &mut npm_scoped };
+                target.insert(key.to_owned(), value);
+            }
+        }
+        npm_scoped.extend(pnpm_scoped);
+
+        let mut auth = NpmrcAuth::default();
+        for (key, value) in npm_scoped {
+            if let Some((uri, suffix)) = split_creds_key(&key) {
+                let entry = auth.creds_by_uri.entry(uri.to_owned()).or_default();
+                apply_creds_field(entry, suffix, value);
+            }
+        }
+        auth
+    }
+
     /// Parse an `.npmrc` file's contents and pick out the auth/network keys.
     /// Unknown keys are silently dropped. `${VAR}` placeholders inside keys
     /// and values are resolved via the [`EnvVar`] capability; unresolved
@@ -783,6 +825,26 @@ fn is_auth_value_key(key: &str) -> bool {
     matches!(key, "_authToken" | "_auth" | "_password" | "username" | "cert" | "key")
         || split_creds_key(key).is_some()
         || split_inline_identity_key(key).is_some()
+}
+
+/// Match a `npm_config_//…` / `pnpm_config_//…` environment variable name.
+/// Returns `(is_pnpm, key)` where `key` is the URL-scoped remainder
+/// (e.g. `//registry.npmjs.org/:_authToken`) with its case preserved.
+/// The prefix is matched case-insensitively, mirroring npm. `None` for any
+/// name that isn't one of these prefixes followed by `//`.
+fn parse_url_scoped_env_name(name: &str) -> Option<(bool, &str)> {
+    for (prefix, is_pnpm) in [("pnpm_config_", true), ("npm_config_", false)] {
+        // Slice with `get` rather than `name[..prefix.len()]`: a byte index
+        // landing inside a multi-byte char (a non-ASCII env var name) would
+        // otherwise panic before the prefix check can reject it.
+        let (Some(head), Some(rest)) = (name.get(..prefix.len()), name.get(prefix.len()..)) else {
+            continue;
+        };
+        if head.eq_ignore_ascii_case(prefix) && rest.starts_with("//") {
+            return Some((is_pnpm, rest));
+        }
+    }
+    None
 }
 
 fn split_creds_key(key: &str) -> Option<(&str, &str)> {

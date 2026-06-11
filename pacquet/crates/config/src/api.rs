@@ -114,6 +114,14 @@ impl EnvVar for Host {
     fn var(name: &str) -> Option<String> {
         std::env::var(name).ok()
     }
+
+    fn vars() -> Vec<(String, String)> {
+        // `std::env::vars()` panics on non-UTF-8 entries; iterate the
+        // OsString form and skip those, matching `var`'s `.ok()` behavior.
+        std::env::vars_os()
+            .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
+            .collect()
+    }
 }
 
 impl EnvVarOs for Host {
