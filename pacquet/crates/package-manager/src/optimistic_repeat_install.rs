@@ -376,7 +376,9 @@ fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, spec: &str) 
 /// to a full install.
 fn has_local_file_override(config: &Config, catalogs: &Catalogs) -> bool {
     match crate::install::parse_config_overrides(config, catalogs) {
-        Ok(Some(overrides)) => overrides.iter().any(|o| is_local_file_spec(&o.new_bare_specifier)),
+        Ok(Some(overrides)) => {
+            overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier))
+        }
         Ok(None) => false,
         Err(_) => true,
     }
