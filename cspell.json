@@ -97,6 +97,7 @@
     "eotp",
     "eperm",
     "epipe",
+    "erofs",
     "errcode",
     "esac",
     "etamponi",
