@@ -779,7 +779,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                 level: LogLevel::Debug,
                 details: Some(format!(
-                    "The read-only store (frozenStore) is missing the build output of {name}@{version}."
+                    "The read-only store (frozenStore) is missing the build output of {name}@{version}.",
                 )),
                 package: SkippedOptionalPackage::Installed {
                     id: pkg_root_for_key(layout, pkg_root_by_key, snapshot_key).map_or_else(
