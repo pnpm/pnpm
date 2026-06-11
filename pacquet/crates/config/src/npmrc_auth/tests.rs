@@ -1120,3 +1120,18 @@ fn url_scoped_env_ignores_non_url_and_empty_values() {
     assert!(auth.creds_by_uri.is_empty());
     assert!(auth.registry.is_none());
 }
+
+#[test]
+fn url_scoped_env_ignores_non_ascii_names_without_panicking() {
+    // A multi-byte env var name must not panic the byte-index prefix check
+    // in `parse_url_scoped_env_name` (regression: `name[..prefix.len()]`).
+    static_env_with_vars!(
+        Env,
+        &[
+            ("プログラム_config_//registry.example/:_authToken", "ignored"),
+            ("ñpm_config_//registry.example/:_authToken", "ignored"),
+        ]
+    );
+    let auth = NpmrcAuth::from_url_scoped_env::<Env>();
+    assert!(auth.creds_by_uri.is_empty());
+}

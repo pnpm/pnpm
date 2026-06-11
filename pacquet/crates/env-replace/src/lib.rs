@@ -72,7 +72,13 @@ impl EnvVar for SystemEnv {
     }
 
     fn vars() -> Vec<(String, String)> {
-        std::env::vars().collect()
+        // `std::env::vars()` panics if any name/value is not valid UTF-8.
+        // Iterate the OsString form and drop non-UTF-8 entries instead,
+        // matching `var`'s `std::env::var(..).ok()` (which yields `None`
+        // for non-UTF-8).
+        std::env::vars_os()
+            .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
+            .collect()
     }
 }
 

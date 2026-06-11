@@ -834,11 +834,14 @@ fn is_auth_value_key(key: &str) -> bool {
 /// name that isn't one of these prefixes followed by `//`.
 fn parse_url_scoped_env_name(name: &str) -> Option<(bool, &str)> {
     for (prefix, is_pnpm) in [("pnpm_config_", true), ("npm_config_", false)] {
-        if name.len() > prefix.len() && name[..prefix.len()].eq_ignore_ascii_case(prefix) {
-            let rest = &name[prefix.len()..];
-            if rest.starts_with("//") {
-                return Some((is_pnpm, rest));
-            }
+        // Slice with `get` rather than `name[..prefix.len()]`: a byte index
+        // landing inside a multi-byte char (a non-ASCII env var name) would
+        // otherwise panic before the prefix check can reject it.
+        let (Some(head), Some(rest)) = (name.get(..prefix.len()), name.get(prefix.len()..)) else {
+            continue;
+        };
+        if head.eq_ignore_ascii_case(prefix) && rest.starts_with("//") {
+            return Some((is_pnpm, rest));
         }
     }
     None
