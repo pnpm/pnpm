@@ -422,6 +422,30 @@ fn prior_version_missing_time_does_not_mask_trust_history() {
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
+/// A prior version whose manifest fragment does not decode fails the
+/// check closed (`TrustCheckFailed`) instead of being skipped — the
+/// skipped fragment could be the strongest prior evidence, and
+/// passing without it would let a downgrade through undetected.
+#[test]
+fn undecodable_prior_version_fails_closed() {
+    let body = serde_json::json!({
+        "name": "acme",
+        "dist-tags": {},
+        "time": {
+            "1.0.0": "2025-01-01T00:00:00.000Z",
+            "1.1.0": "2025-02-01T00:00:00.000Z",
+        },
+        "versions": {
+            "1.0.0": { "corrupt": "fragment" },
+            "1.1.0": version_json("acme", "1.1.0", Evidence::None),
+        },
+    });
+    let meta: Package = serde_json::from_value(body).expect("deserialize fixture Package");
+    let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
+        .expect_err("undecodable prior manifest must fail the trust check");
+    assert!(matches!(err, TrustViolation::TrustCheckFailed { .. }), "got {err:?}");
+}
+
 mod get_trust_evidence {
     use pacquet_registry::PackageVersion;
 
