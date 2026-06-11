@@ -64,7 +64,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     let http_client = ThrottledClient::default();
     let resolved_packages = ResolvedPackages::default();
     Add {
-        tarball_mem_cache: Default::default(),
+        tarball_mem_cache: Arc::default(),
         resolved_packages: &resolved_packages,
         http_client: &http_client,
         http_client_arc: Arc::new(ThrottledClient::default()),
