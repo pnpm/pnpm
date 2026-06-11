@@ -36,8 +36,8 @@ fn tarball_mismatch_maps_to_the_generic_envelope() {
 /// A `package` frame carries the fetch hint fields verbatim.
 #[test]
 fn a_package_frame_parses_its_fetch_hint() {
-    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz"}"#;
-    let Frame::Package { id, name, version, integrity, tarball } =
+    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42}"#;
+    let Frame::Package { id, name, version, integrity, tarball, unpacked_size, file_count } =
         parse_frame(line).expect("frame parses")
     else {
         panic!("expected a package frame");
@@ -47,6 +47,22 @@ fn a_package_frame_parses_its_fetch_hint() {
     assert_eq!(version, "1.0.0");
     assert_eq!(integrity, "sha512-abc");
     assert_eq!(tarball, "https://r.test/acme/-/acme-1.0.0.tgz");
+    assert_eq!(unpacked_size, Some(123456));
+    assert_eq!(file_count, Some(42));
+}
+
+/// A `package` frame without `unpackedSize` / `fileCount` — an older
+/// server, or a registry that never published the fields — still
+/// parses.
+#[test]
+fn a_package_frame_without_dist_stats_parses() {
+    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz"}"#;
+    let Frame::Package { unpacked_size, file_count, .. } = parse_frame(line).expect("frame parses")
+    else {
+        panic!("expected a package frame");
+    };
+    assert_eq!(unpacked_size, None);
+    assert_eq!(file_count, None);
 }
 
 /// A line with no `type` tag is malformed, not a silent success.

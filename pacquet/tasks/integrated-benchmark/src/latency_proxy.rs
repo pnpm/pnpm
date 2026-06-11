@@ -43,6 +43,15 @@ pub struct LinkProfile {
     /// Per-direction throughput cap in bytes per second; `None` leaves
     /// the direction at loopback speed (unlimited).
     pub rate_limit: Option<u64>,
+    /// Model TCP slow start: each connection starts at an initial
+    /// congestion window (~14.6 KB) and its effective rate
+    /// (`cwnd ÷ RTT`) doubles per delivered window until it reaches
+    /// `rate_limit`. Without it a transfer runs at the full cap from
+    /// its first byte, which overstates real-TCP throughput for small
+    /// and mid-size objects — a transfer under ~10 windows never gets
+    /// near the link's capacity. Requires both `one_way > 0` (the ramp
+    /// is per-RTT) and a `rate_limit` (the ceiling); ignored otherwise.
+    pub slow_start: bool,
 }
 
 /// A running proxy. Drop stops accepting new connections and joins the
@@ -128,6 +137,13 @@ fn accept_loop(
 /// client→server pump on a spawned one, so the connection's threads end
 /// together when either side closes.
 fn handle_connection(inbound: TcpStream, upstream: SocketAddr, profile: LinkProfile) {
+    // The accept listener is non-blocking, and BSD-derived platforms
+    // (macOS) hand accepted sockets the listener's O_NONBLOCK — the
+    // pump's blocking reads would then surface spurious `WouldBlock`
+    // errors and drop the connection before the first byte.
+    if inbound.set_nonblocking(false).is_err() {
+        return;
+    }
     let Ok(outbound) = TcpStream::connect(upstream) else { return };
     let _ = inbound.set_nodelay(true);
     let _ = outbound.set_nodelay(true);
@@ -170,6 +186,7 @@ fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
     // by each chunk's serialization time (`len / rate`) so the cap is a
     // sustained throughput limit, not just a per-chunk cap.
     let mut link_free_at = Instant::now();
+    let mut slow_start = SlowStart::for_profile(&profile);
     while let Ok((release, bytes)) = rx.recv() {
         // A chunk leaves no earlier than its latency release *and* no
         // earlier than the link finishing the previous chunk.
@@ -179,7 +196,11 @@ fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
             thread::sleep(send_at - now);
         }
         if let Some(rate) = profile.rate_limit {
-            link_free_at = send_at + Duration::from_secs_f64(bytes.len() as f64 / rate as f64);
+            let effective = match slow_start.as_mut() {
+                Some(ramp) => ramp.effective_rate(rate as f64, bytes.len()),
+                None => rate as f64,
+            };
+            link_free_at = send_at + Duration::from_secs_f64(bytes.len() as f64 / effective);
         }
         if dst.write_all(&bytes).is_err() {
             break;
@@ -193,6 +214,47 @@ fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
     drop(rx);
     let _ = dst.shutdown(Shutdown::Write);
     let _ = reader.join();
+}
+
+/// Initial congestion window, mirroring RFC 6928's 10 segments of
+/// ~1460 bytes.
+const INITIAL_CWND_BYTES: f64 = 14_600.0;
+
+/// Per-connection slow-start state: effective rate is `cwnd ÷ RTT`,
+/// and `cwnd` doubles each time a full window has been delivered,
+/// until the rate reaches the link's cap. An approximation of real
+/// TCP — no loss events, no congestion-avoidance phase — but it
+/// reproduces the property that matters for install benchmarks:
+/// per-connection throughput is a function of bytes already
+/// delivered, so short transfers never reach the cap.
+struct SlowStart {
+    cwnd: f64,
+    rtt_secs: f64,
+    bytes_in_round: f64,
+}
+
+impl SlowStart {
+    /// `Some` ramp when the profile asks for one and has the RTT +
+    /// cap the model needs; `None` keeps the flat-rate behavior.
+    fn for_profile(profile: &LinkProfile) -> Option<SlowStart> {
+        let rtt_secs = profile.one_way.as_secs_f64() * 2.0;
+        (profile.slow_start && rtt_secs > 0.0 && profile.rate_limit.is_some())
+            .then_some(SlowStart { cwnd: INITIAL_CWND_BYTES, rtt_secs, bytes_in_round: 0.0 })
+    }
+
+    /// The rate (bytes/sec) at which the next `len`-byte chunk
+    /// serializes, advancing the window-growth bookkeeping.
+    fn effective_rate(&mut self, cap: f64, len: usize) -> f64 {
+        let rate = (self.cwnd / self.rtt_secs).min(cap);
+        self.bytes_in_round += len as f64;
+        if self.bytes_in_round >= self.cwnd {
+            self.bytes_in_round = 0.0;
+            // Stop growing once the window sustains the cap
+            // (`cap × RTT` is the bandwidth-delay product).
+            self.cwnd = (self.cwnd * 2.0).min((cap * self.rtt_secs).max(INITIAL_CWND_BYTES));
+        }
+        rate
+    }
 }
 
 #[cfg(test)]

@@ -96,6 +96,7 @@ pub struct NodeResolver {
 }
 
 impl NodeResolver {
+    #[must_use]
     pub fn new(http_client: Arc<ThrottledClient>) -> Self {
         Self { http_client, node_download_mirrors: HashMap::new(), offline: false }
     }

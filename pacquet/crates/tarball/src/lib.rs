@@ -11,7 +11,7 @@ use derive_more::{Display, Error, From};
 use miette::Diagnostic;
 use pacquet_fs::file_mode;
 pub use pacquet_network::RetryOpts;
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
     Reporter, RequestRetryError, RequestRetryLog,
@@ -1314,6 +1314,12 @@ pub struct DownloadTarballToStore<'a> {
     pub verified_files_cache: SharedVerifiedFilesCache,
     pub package_integrity: &'a Integrity,
     pub package_unpacked_size: Option<usize>,
+    /// `dist.fileCount` when the registry published one. Combined with
+    /// `package_unpacked_size` into the download's queueing priority —
+    /// per-file pipeline overhead (CAS write syscalls, hashing) makes a
+    /// many-small-files package as slow to finish as a much larger
+    /// few-files one.
+    pub package_file_count: Option<usize>,
     pub package_url: &'a str,
     /// Stable identifier for the package, e.g. `"{name}@{version}"`. Paired
     /// with `package_integrity` to form the `SQLite` index key per pnpm v11's
@@ -1504,6 +1510,7 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     package_url: &str,
     expected_integrity: Option<&Integrity>,
     package_unpacked_size: Option<usize>,
+    download_priority: u64,
     package_id: &str,
     attempt: u32,
     store_dir: &'static StoreDir,
@@ -1518,14 +1525,16 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // batch of futures `connect()` while previous bodies are still
     // draining, breaking the bound on concurrent open sockets.
     //
-    // `acquire_for_url` routes the request through the per-registry
-    // TLS-configured client when one is set for `package_url`'s
-    // nerf-darted prefix, falling back to the default client
-    // otherwise. Tarball hosts that differ from the metadata host
-    // still pick up the right per-registry client because the
+    // `acquire_for_url_with_priority` routes the request through the
+    // per-registry TLS-configured client when one is set for
+    // `package_url`'s nerf-darted prefix, falling back to the default
+    // client otherwise. Tarball hosts that differ from the metadata
+    // host still pick up the right per-registry client because the
     // 5-step `pickSettingByUrl` lookup also matches on the tarball
-    // URL.
-    let client = http_client.acquire_for_url(package_url).await;
+    // URL. When the pool is saturated, the package with the most
+    // estimated pipeline work claims the next freed slot, so the
+    // longest download+extract jobs never start last.
+    let client = http_client.acquire_for_url_with_priority(package_url, download_priority).await;
     let mut request = client.get(package_url);
     // Match pnpm's tarball download path
     // ([`remoteTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L66-L70)):
@@ -1789,6 +1798,30 @@ fn progress_already_reported(progress_key: Option<(&SharedReportedProgressKeys, 
     progress_key.is_some_and(|(reported, key)| !reported.insert(key.to_owned()))
 }
 
+/// Byte-equivalent cost of one file's fixed pipeline overhead (the
+/// CAS-write syscalls and hash setup paid per file regardless of its
+/// size, ~75 µs against a pipeline that moves a byte through
+/// download + decompress + hash + write in ~25 ns). Folding it into
+/// the priority makes a many-small-files package rank as the long
+/// job it actually is: extraction cost, not just transfer cost,
+/// decides when a package's pipeline work finishes.
+const PRIORITY_BYTES_PER_FILE: u64 = 3_000;
+
+/// Queueing priority of a tarball download: the package's estimated
+/// total pipeline work (transfer + decompress + hash + CAS writes) in
+/// byte-equivalents. Missing hints contribute zero, so a package with
+/// no published `dist` stats queues behind every estimated one.
+#[must_use]
+pub fn download_priority(unpacked_size: Option<usize>, file_count: Option<usize>) -> u64 {
+    let size = unpacked_size.map_or(0, |size| size as u64);
+    let per_file =
+        file_count.map_or(0, |count| (count as u64).saturating_mul(PRIORITY_BYTES_PER_FILE));
+    // `UNPRIORITIZED` (`u64::MAX`) is the latency-class sentinel; a
+    // hostile registry publishing absurd `dist` stats must not be able
+    // to saturate a download's priority into that class.
+    size.saturating_add(per_file).min(UNPRIORITIZED - 1)
+}
+
 // 9 arguments — over the default clippy threshold but each is
 // distinct: client + URL + integrity describe the request, ID +
 // requester are the reporter dimensions, unpacked-size is allocation
@@ -1804,6 +1837,7 @@ async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     package_url: &str,
     expected_integrity: Option<&Integrity>,
     package_unpacked_size: Option<usize>,
+    download_priority: u64,
     package_id: &str,
     requester: &str,
     store_dir: &'static StoreDir,
@@ -1819,6 +1853,7 @@ async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
             package_url,
             expected_integrity,
             package_unpacked_size,
+            download_priority,
             package_id,
             attempt,
             store_dir,
@@ -2070,6 +2105,7 @@ impl<'a> DownloadTarballToStore<'a> {
             store_dir,
             package_integrity,
             package_unpacked_size,
+            package_file_count,
             package_url,
             package_id,
             requester,
@@ -2184,6 +2220,7 @@ impl<'a> DownloadTarballToStore<'a> {
                 package_url,
                 Some(package_integrity),
                 package_unpacked_size,
+                download_priority(package_unpacked_size, package_file_count),
                 package_id,
                 requester,
                 store_dir,
@@ -2269,11 +2306,15 @@ impl FetchTarballForResolution<'_> {
         // `name@version` is only known once the manifest is read below,
         // and the resolve-time fetch is silent (the install pass owns
         // the reporter ordering), so the placeholder never surfaces.
+        // `UNPRIORITIZED`: this fetch gates the resolver's walk (a
+        // tarball dep's manifest comes from its archive), so like a
+        // packument fetch it must not queue behind sized downloads.
         let (integrity, cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
             http_client,
             package_url,
             None,
             None,
+            UNPRIORITIZED,
             package_url,
             package_url,
             store_dir,

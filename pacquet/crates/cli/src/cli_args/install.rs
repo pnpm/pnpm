@@ -545,7 +545,13 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
                         || pkg.tarball.clone(),
                         |registry| registry.client_tarball_url(&pkg.tarball),
                     );
-                    prefetcher.prefetch(pkg.id, tarball, &pkg.integrity);
+                    prefetcher.prefetch(
+                        pkg.id,
+                        tarball,
+                        &pkg.integrity,
+                        pkg.unpacked_size,
+                        pkg.file_count,
+                    );
                 })
                 .await
         }

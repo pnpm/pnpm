@@ -8,7 +8,9 @@ use pacquet_resolving_resolver_base::{ResolutionVerification, ResolutionVerifier
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 
-use super::{CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier};
+use super::{
+    CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
+};
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
@@ -53,6 +55,7 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         // backoff (10 s + 60 s) on every run.
         retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
         now: None,
+        observed_dist_stats: None,
     }
 }
 
@@ -1051,4 +1054,58 @@ async fn concurrent_verifications_share_one_fetch() {
         assert_eq!(result, ResolutionVerification::Ok);
     }
     abbreviated_mock.assert_async().await;
+}
+
+/// The binding check records each verified entry's `dist.unpackedSize`
+/// and `dist.fileCount` into the `observed_dist_stats` sink when one is
+/// provided.
+#[tokio::test]
+async fn binding_check_records_dist_stats_into_the_sink() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let tarball_url = format!("{server_url}/acme/-/acme-1.0.0.tgz");
+    let packument = serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "tarball": tarball_url,
+                    "unpackedSize": 123_456,
+                    "fileCount": 42,
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+
+    let sink = observed_dist_stats_sink();
+    let mut opts = default_opts(&registry);
+    opts.observed_dist_stats = Some(Arc::clone(&sink));
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: tarball_url.clone(),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "acme".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+
+    assert_eq!(result, ResolutionVerification::Ok);
+    let recorded = sink
+        .get(&("acme".to_string(), "1.0.0".to_string()))
+        .map(|entry| *entry.value())
+        .expect("stats recorded");
+    assert_eq!(recorded.unpacked_size, Some(123_456));
+    assert_eq!(recorded.file_count, Some(42));
 }

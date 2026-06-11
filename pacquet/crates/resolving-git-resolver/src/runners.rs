@@ -29,6 +29,7 @@ pub struct RealGitProbe {
 }
 
 impl RealGitProbe {
+    #[must_use]
     pub fn new(http_client: Arc<ThrottledClient>) -> Self {
         Self { http_client, git_bin: None }
     }

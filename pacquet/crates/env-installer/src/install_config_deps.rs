@@ -183,6 +183,7 @@ async fn materialize<Reporter: self::Reporter>(
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: tarball,
         package_id: &package_id,
         auth_headers: opts.auth_headers,

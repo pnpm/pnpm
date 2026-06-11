@@ -302,6 +302,7 @@ impl InstallPackageBySnapshot<'_> {
                     verified_files_cache: Arc::clone(verified_files_cache),
                     package_integrity: integrity,
                     package_unpacked_size: None,
+                    package_file_count: None,
                     package_url: &tarball_url,
                     package_id: &package_id,
                     requester,
@@ -578,8 +579,16 @@ impl InstallPackageBySnapshot<'_> {
 /// Resolve the tarball URL + integrity for tarball- and registry-shaped
 /// resolutions. Factored out so the per-resolution-type dispatch in
 /// [`InstallPackageBySnapshot::run`] reads top-down: each variant builds
-/// its own `cas_paths`.
-fn tarball_url_and_integrity<'a>(
+/// its own `cas_paths`. Public because the pnpr server derives the same
+/// URLs when it announces a verified frozen lockfile's tarballs to the
+/// client — both sides must derive byte-identical URLs so the client's
+/// prefetch mem-cache keys line up.
+///
+/// # Panics
+///
+/// On directory / git / binary / variations resolutions — callers gate
+/// on the tarball/registry shapes first.
+pub fn tarball_url_and_integrity<'a>(
     resolution: &'a LockfileResolution,
     package_key: &PackageKey,
     config: &'a Config,
@@ -766,6 +775,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             verified_files_cache: Arc::clone(verified_files_cache),
             package_integrity: &binary.integrity,
             package_unpacked_size: None,
+            package_file_count: None,
             package_url: &binary.url,
             package_id: &package_id,
             requester,

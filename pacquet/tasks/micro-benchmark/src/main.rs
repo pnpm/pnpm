@@ -45,6 +45,7 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
                 verified_files_cache: pacquet_store_dir::SharedVerifiedFilesCache::default(),
                 package_integrity: &package_integrity,
                 package_unpacked_size: Some(16697),
+                package_file_count: None,
                 package_url: url,
                 package_id: "fast-querystring@1.0.0",
                 requester: "",

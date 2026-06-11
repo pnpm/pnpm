@@ -47,6 +47,7 @@ pub(crate) struct TarballDownload {
     pub package_url: String,
     pub integrity: Integrity,
     pub package_unpacked_size: Option<usize>,
+    pub package_file_count: Option<usize>,
 }
 
 /// [`tokio::spawn`] a single tarball download into the shared mem cache
@@ -74,6 +75,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
         package_url,
         integrity,
         package_unpacked_size,
+        package_file_count,
     } = download;
 
     tokio::spawn(async move {
@@ -86,6 +88,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
             verified_files_cache,
             package_integrity: &integrity,
             package_unpacked_size,
+            package_file_count,
             package_url: &package_url,
             package_id: &package_id,
             requester: &requester,
@@ -190,8 +193,18 @@ impl TarballPrefetcher {
     /// Fire a background download of one resolved tarball. Deduplicated
     /// by URL; a no-op when the same URL was already prefetched or when
     /// `integrity` doesn't parse (the materialization install fetches
-    /// that package the normal way).
-    pub fn prefetch(&self, package_id: String, package_url: String, integrity: &str) {
+    /// that package the normal way). `unpacked_size` (the frame's
+    /// `unpackedSize`, when the registry published one) sizes the
+    /// decompression buffer and acts as the download's queueing
+    /// priority — largest pending archives start first.
+    pub fn prefetch(
+        &self,
+        package_id: String,
+        package_url: String,
+        integrity: &str,
+        unpacked_size: Option<usize>,
+        file_count: Option<usize>,
+    ) {
         let integrity = match integrity.parse::<Integrity>() {
             Ok(integrity) => integrity,
             Err(error) => {
@@ -222,7 +235,8 @@ impl TarballPrefetcher {
             package_id,
             package_url,
             integrity,
-            package_unpacked_size: None,
+            package_unpacked_size: unpacked_size,
+            package_file_count: file_count,
         });
     }
 
