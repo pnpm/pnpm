@@ -123,6 +123,7 @@ async fn walks_dependencies_and_builds_flat_tree() {
             manifest_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
+            auto_install_peers: false,
         },
     )
     .await
@@ -193,6 +194,7 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
             manifest_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
+            auto_install_peers: false,
         },
     )
     .await
@@ -279,6 +281,7 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
             manifest_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
+            auto_install_peers: false,
         },
     )
     .await
@@ -321,6 +324,7 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
             manifest_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
+            auto_install_peers: false,
         },
     )
     .await
@@ -366,6 +370,7 @@ async fn transitive_dep_with_traversal_alias_is_rejected() {
             manifest_hook: None,
             pnpmfile_hook: None,
             read_package_log: None,
+            auto_install_peers: false,
         },
     )
     .await
@@ -445,6 +450,7 @@ mod block_exotic_subdeps {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -488,6 +494,7 @@ mod block_exotic_subdeps {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -532,6 +539,7 @@ mod block_exotic_subdeps {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -578,6 +586,7 @@ mod block_exotic_subdeps {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -621,6 +630,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -674,6 +684,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -725,6 +736,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -779,6 +791,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -904,6 +917,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -1006,6 +1020,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -1103,6 +1118,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -1178,6 +1194,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -1261,6 +1278,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -1311,6 +1329,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -1409,6 +1428,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -1505,6 +1525,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -1613,6 +1634,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -1683,6 +1705,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -1794,6 +1817,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -1903,6 +1927,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -2014,6 +2039,7 @@ mod peers {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -2108,6 +2134,7 @@ mod patched_dependencies {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -2157,6 +2184,7 @@ mod patched_dependencies {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -2192,6 +2220,7 @@ mod patched_dependencies {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -2243,6 +2272,7 @@ mod patched_dependencies {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -2318,6 +2348,7 @@ mod optional_propagation {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -2374,6 +2405,7 @@ mod optional_propagation {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -2440,6 +2472,7 @@ mod optional_propagation {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -2494,6 +2527,7 @@ mod optional_propagation {
                 manifest_hook: None,
                 pnpmfile_hook: None,
                 read_package_log: None,
+                auto_install_peers: false,
             },
         )
         .await
@@ -2507,5 +2541,211 @@ mod optional_propagation {
             tree.packages.get("transitive@1.0.0").expect("transitive resolved").optional,
             "child reached only via a parent's optionalDependencies edge is optional",
         );
+    }
+}
+
+mod importer_wanted_specs {
+    use super::{DependencyGroup, PackageManifest};
+    use crate::resolve_dependency_tree::importer_direct_wanted_specs;
+    use pretty_assertions::assert_eq;
+
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "test helpers take owned literal fixtures by value to keep call sites clean"
+    )]
+    fn manifest_with(groups: serde_json::Value) -> (tempfile::TempDir, PackageManifest) {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("package.json");
+        let mut json = serde_json::json!({ "name": "root", "version": "0.0.0" });
+        json.as_object_mut().unwrap().extend(groups.as_object().unwrap().clone());
+        std::fs::write(&path, serde_json::to_string(&json).unwrap()).expect("write package.json");
+        let manifest = PackageManifest::from_path(path).expect("parse package.json");
+        (tmp, manifest)
+    }
+
+    const ALL_GROUPS: [DependencyGroup; 3] =
+        [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+
+    #[test]
+    fn regular_dep_wins_over_own_peer_with_auto_install_peers() {
+        let (_tmp, manifest) = manifest_with(serde_json::json!({
+            "devDependencies": { "foo": "workspace:*" },
+            "peerDependencies": { "foo": "^1.0.0" },
+        }));
+        let wanted = importer_direct_wanted_specs(
+            &manifest,
+            ALL_GROUPS,
+            true,
+            &pacquet_catalogs_types::Catalogs::new(),
+        )
+        .unwrap();
+        assert_eq!(wanted, vec![("foo".to_string(), "workspace:*".to_string(), false, false)]);
+    }
+
+    #[test]
+    fn peer_only_dep_is_wanted_with_auto_install_peers() {
+        let (_tmp, manifest) = manifest_with(serde_json::json!({
+            "peerDependencies": { "peer-only": "^2.0.0" },
+        }));
+        let wanted = importer_direct_wanted_specs(
+            &manifest,
+            ALL_GROUPS,
+            true,
+            &pacquet_catalogs_types::Catalogs::new(),
+        )
+        .unwrap();
+        assert_eq!(wanted, vec![("peer-only".to_string(), "^2.0.0".to_string(), false, false)]);
+    }
+
+    #[test]
+    fn peer_only_dep_is_not_wanted_without_auto_install_peers() {
+        let (_tmp, manifest) = manifest_with(serde_json::json!({
+            "dependencies": { "regular": "^1.0.0" },
+            "peerDependencies": { "peer-only": "^2.0.0" },
+        }));
+        let wanted = importer_direct_wanted_specs(
+            &manifest,
+            ALL_GROUPS,
+            false,
+            &pacquet_catalogs_types::Catalogs::new(),
+        )
+        .unwrap();
+        assert_eq!(wanted, vec![("regular".to_string(), "^1.0.0".to_string(), false, false)]);
+    }
+
+    #[test]
+    fn later_regular_group_range_replaces_earlier_one() {
+        let (_tmp, manifest) = manifest_with(serde_json::json!({
+            "dependencies": { "foo": "^1.0.0" },
+            "optionalDependencies": { "foo": "^2.0.0" },
+        }));
+        let wanted = importer_direct_wanted_specs(
+            &manifest,
+            ALL_GROUPS,
+            false,
+            &pacquet_catalogs_types::Catalogs::new(),
+        )
+        .unwrap();
+        assert_eq!(wanted, vec![("foo".to_string(), "^2.0.0".to_string(), true, false)]);
+    }
+}
+
+mod peer_own_dep_shadowing {
+    use super::{
+        DependencyGroup, HashMap, Mutex, ResolveDependencyTreeOptions, ResolveOptions,
+        StubResolver, fake_manifest, fake_result, resolve_dependency_tree,
+    };
+
+    fn opts(auto_install_peers: bool) -> ResolveDependencyTreeOptions {
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+            manifest_hook: None,
+            pnpmfile_hook: None,
+            read_package_log: None,
+            auto_install_peers,
+        }
+    }
+
+    fn parser_table() -> HashMap<(String, String), pacquet_resolving_resolver_base::ResolveResult> {
+        let mut table = HashMap::new();
+        table.insert(
+            ("parser".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "parser",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "parser",
+                    "version": "1.0.0",
+                    "dependencies": { "types": "^1.0.0" },
+                    "peerDependencies": { "types": "*" },
+                }),
+            ),
+        );
+        table.insert(
+            ("types".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "types",
+                "1.0.0",
+                serde_json::json!({ "name": "types", "version": "1.0.0" }),
+            ),
+        );
+        table
+    }
+
+    #[tokio::test]
+    async fn auto_install_peers_keeps_the_peer_and_drops_the_own_dep() {
+        let resolver = StubResolver { table: parser_table(), calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parser": "^1.0.0" }));
+
+        let tree =
+            resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(true))
+                .await
+                .unwrap();
+
+        let parser = tree.packages.get("parser@1.0.0").expect("parser resolved");
+        assert!(
+            parser.peer_dependencies.contains_key("types"),
+            "the peer survives when it also appears in the package's own dependencies",
+        );
+        assert!(
+            !tree.packages.contains_key("types@1.0.0"),
+            "the peer-shadowed own dependency is not walked as a child",
+        );
+    }
+
+    #[tokio::test]
+    async fn without_auto_install_peers_the_own_dep_wins() {
+        let resolver = StubResolver { table: parser_table(), calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parser": "^1.0.0" }));
+
+        let tree =
+            resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(false))
+                .await
+                .unwrap();
+
+        let parser = tree.packages.get("parser@1.0.0").expect("parser resolved");
+        assert!(
+            !parser.peer_dependencies.contains_key("types"),
+            "the peer is dropped when the package supplies the name itself",
+        );
+        assert!(tree.packages.contains_key("types@1.0.0"), "the own dependency is walked");
+    }
+
+    #[tokio::test]
+    async fn non_optional_meta_only_entry_is_not_a_peer() {
+        let mut table = HashMap::new();
+        table.insert(
+            ("pkg".to_string(), "^1.0.0".to_string()),
+            fake_result(
+                "pkg",
+                "1.0.0",
+                serde_json::json!({
+                    "name": "pkg",
+                    "version": "1.0.0",
+                    "peerDependenciesMeta": {
+                        "ghost": {},
+                        "wanted-optional": { "optional": true },
+                    },
+                }),
+            ),
+        );
+        let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+        let (_tmp, manifest) = fake_manifest(serde_json::json!({ "pkg": "^1.0.0" }));
+
+        let tree =
+            resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(false))
+                .await
+                .unwrap();
+
+        let pkg = tree.packages.get("pkg@1.0.0").expect("pkg resolved");
+        assert!(
+            !pkg.peer_dependencies.contains_key("ghost"),
+            "a peerDependenciesMeta entry without optional: true and without a peerDependencies entry is ignored",
+        );
+        let optional_peer =
+            pkg.peer_dependencies.get("wanted-optional").expect("optional meta-only peer kept");
+        assert!(optional_peer.optional);
+        assert_eq!(optional_peer.version, "*");
     }
 }

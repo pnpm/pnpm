@@ -229,7 +229,8 @@ where
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(opts.manifest_hook.clone())
-            .with_pnpmfile_hook(opts.pnpmfile_hook.clone()),
+            .with_pnpmfile_hook(opts.pnpmfile_hook.clone())
+            .with_auto_install_peers(opts.auto_install_peers),
     );
     resolve_importer_with_workspace(
         resolver,
@@ -298,17 +299,14 @@ where
     let initial_wanted =
         importer_direct_wanted_specs(manifest, dependency_groups, auto_install_peers, &catalogs)?;
     let mut direct = extend_tree(&ctx, resolver, initial_wanted, importer_id).await?;
-    // The optional-peer hoist must only consider versions that were
-    // already in scope before this run — the wanted lockfile + manifests
-    // — mirroring upstream's static
-    // [`ctx.allPreferredVersions`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/src/resolveDependencies.ts#L340-L342).
-    // Feeding freshly-resolved transitive versions into that decision
-    // would hoist an optional peer (e.g. `debug`'s `supports-color`)
-    // against a deep-tree provider pnpm never sees, resolving the peer
-    // where pnpm leaves it bare. The required-peer hoist keeps using the
-    // run-extended map below: a required peer is auto-installed either
-    // way, and reusing an in-tree version matches pnpm's picker dedup.
-    let optional_hoist_preferred_versions = all_preferred_versions.clone();
+    // Both hoists read the run-extended preferred-versions map:
+    // upstream folds every resolved package's version into
+    // `ctx.allPreferredVersions`
+    // ([`resolveDependencies.ts#L1483-L1488`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/resolveDependencies.ts#L1483-L1488))
+    // and consults it for the optional hoist after each wave. What
+    // keeps e.g. `debug`'s `supports-color` from being hoisted against
+    // a deep-tree provider is not the map but the missing-peer set:
+    // meta-only peers never enter it (see `partition_missing_peers`).
     update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
 
     let mut parent_pkg_aliases: HashSet<String> =
@@ -382,10 +380,8 @@ where
         if all_missing_optional_peers.is_empty() {
             break;
         }
-        let hoisted_optional = get_hoistable_optional_peers(
-            &all_missing_optional_peers,
-            &optional_hoist_preferred_versions,
-        );
+        let hoisted_optional =
+            get_hoistable_optional_peers(&all_missing_optional_peers, &all_preferred_versions);
         if hoisted_optional.is_empty() {
             break;
         }
@@ -442,9 +438,17 @@ fn partition_missing_peers(
             .map(|entry| entry.wanted_range.as_str())
             .collect();
         if required_ranges.is_empty() {
+            // Meta-only peers don't feed the optional hoist: upstream's
+            // resolution-stage `getMissingPeers` reads `peerDependencies`
+            // entries only, so a peer declared solely via
+            // `peerDependenciesMeta` is never auto-resolved against an
+            // in-tree version.
             let mut seen: BTreeSet<String> = BTreeSet::new();
             let mut ordered: Vec<String> = Vec::new();
             for entry in entries {
+                if entry.meta_only {
+                    continue;
+                }
                 if seen.insert(entry.wanted_range.clone()) {
                     ordered.push(entry.wanted_range.clone());
                 }

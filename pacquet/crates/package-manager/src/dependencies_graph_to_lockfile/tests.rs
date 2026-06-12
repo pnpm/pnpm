@@ -554,8 +554,10 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
     let mut react_dom_children = BTreeMap::new();
     react_dom_children.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
     let mut react_dom_peers = BTreeMap::new();
-    react_dom_peers
-        .insert("react".to_string(), PeerDep { version: "17.0.2".to_string(), optional: false });
+    react_dom_peers.insert(
+        "react".to_string(),
+        PeerDep { version: "17.0.2".to_string(), optional: false, meta_only: false },
+    );
     let react_dom_dep_path = DepPath::from("react-dom@17.0.2(react@17.0.2)".to_string());
     let react_dom = DependenciesGraphNode {
         dep_path: react_dom_dep_path.clone(),

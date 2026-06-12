@@ -100,6 +100,9 @@ pub struct ResolveDependencyTreeOptions {
     /// calls. `None` leaves hook logging a no-op. See
     /// [`WorkspaceTreeCtx::with_read_package_log`].
     pub read_package_log: Option<pacquet_hooks::LogFn>,
+    /// The install's `autoInstallPeers` setting. See
+    /// [`WorkspaceTreeCtx::with_auto_install_peers`].
+    pub auto_install_peers: bool,
 }
 
 impl std::fmt::Debug for ResolveDependencyTreeOptions {
@@ -110,6 +113,7 @@ impl std::fmt::Debug for ResolveDependencyTreeOptions {
             .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
             .field("pnpmfile_hook", &self.pnpmfile_hook.as_ref().map(|_| "<hook>"))
             .field("read_package_log", &self.read_package_log.as_ref().map(|_| "<log>"))
+            .field("auto_install_peers", &self.auto_install_peers)
             .finish()
     }
 }
@@ -236,7 +240,8 @@ where
         .with_patched_dependencies(opts.patched_dependencies)
         .with_manifest_hook(opts.manifest_hook)
         .with_pnpmfile_hook(opts.pnpmfile_hook)
-        .with_read_package_log(opts.read_package_log);
+        .with_read_package_log(opts.read_package_log)
+        .with_auto_install_peers(opts.auto_install_peers);
     let optional_names = importer_optional_dependency_names(manifest);
     let injected_names = importer_injected_dependency_names(manifest);
     let mut wanted: Vec<WantedSpec> = Vec::new();
@@ -296,6 +301,14 @@ pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> 
 /// `peerDependencies`) tagged with the right `optional` / `injected`
 /// flags and with `catalog:` specifiers resolved.
 ///
+/// An alias declared in several groups yields one spec, merged the way
+/// pnpm spreads the groups in
+/// [`getWantedDependencies`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/getWantedDependencies.ts#L32-L43):
+/// `peerDependencies` first (when `auto_install_peers`), then
+/// `dependencies` < `devDependencies` < `optionalDependencies`, a later
+/// group's range replacing an earlier one — so an importer's own regular
+/// dep (e.g. a `workspace:*` devDependency) wins over its peer range.
+///
 /// Shared by [`fn@crate::resolve_importer`] (which walks them) and the
 /// `time-based` cutoff pre-pass in [`fn@crate::resolve_workspace`]
 /// (which only needs the resolved direct-dep publish dates), so both
@@ -312,13 +325,20 @@ pub(crate) fn importer_direct_wanted_specs<DependencyGroupList>(
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    let mut groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
-    if auto_install_peers && !groups.contains(&DependencyGroup::Peer) {
+    let included: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
+    let mut groups: Vec<DependencyGroup> = Vec::new();
+    if auto_install_peers || included.contains(&DependencyGroup::Peer) {
         groups.push(DependencyGroup::Peer);
     }
+    groups.extend(
+        [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
+            .into_iter()
+            .filter(|group| included.contains(group)),
+    );
     let optional_names = importer_optional_dependency_names(manifest);
     let injected_names = importer_injected_dependency_names(manifest);
-    let mut wanted: Vec<WantedSpec> = Vec::new();
+    let mut order: Vec<&str> = Vec::new();
+    let mut ranges: HashMap<&str, &str> = HashMap::new();
     for (name, range) in manifest.dependencies(groups) {
         if !crate::is_valid_dependency_alias(name) {
             return Err(ResolveDependencyTreeError::InvalidDependencyName {
@@ -326,10 +346,21 @@ where
                 alias: name.to_string(),
             });
         }
-        let optional = optional_names.contains(name);
-        let injected = injected_names.contains(name);
-        wanted.push((name.to_string(), range.to_string(), optional, injected));
+        if ranges.insert(name, range).is_none() {
+            order.push(name);
+        }
     }
+    let wanted: Vec<WantedSpec> = order
+        .into_iter()
+        .map(|name| {
+            (
+                name.to_string(),
+                ranges[name].to_string(),
+                optional_names.contains(name),
+                injected_names.contains(name),
+            )
+        })
+        .collect();
     resolve_catalog_specifiers(wanted, catalogs)
 }
 
@@ -473,6 +504,12 @@ pub struct WorkspaceTreeCtx {
     /// pnpmfile path. `None` leaves hook logging a no-op. See
     /// [`WorkspaceTreeCtx::with_read_package_log`].
     read_package_log: Option<pacquet_hooks::LogFn>,
+    /// The install's `autoInstallPeers` setting. When `true`,
+    /// [`fn@resolve_node`] drops a resolved package's `dependencies`
+    /// entries that are shadowed by its own `peerDependencies`, so the
+    /// peer edge supplies the package instead. See
+    /// [`omit_peer_shadowed_dependencies`].
+    auto_install_peers: bool,
 }
 
 impl Default for WorkspaceTreeCtx {
@@ -492,6 +529,7 @@ impl Default for WorkspaceTreeCtx {
             subtree_reusable: Mutex::new(HashMap::new()),
             pnpmfile_hook: None,
             read_package_log: None,
+            auto_install_peers: false,
         }
     }
 }
@@ -561,6 +599,13 @@ impl WorkspaceTreeCtx {
     #[must_use]
     pub fn with_read_package_log(mut self, read_package_log: Option<pacquet_hooks::LogFn>) -> Self {
         self.read_package_log = read_package_log;
+        self
+    }
+
+    /// Set the install's `autoInstallPeers` flag. See the field doc.
+    #[must_use]
+    pub fn with_auto_install_peers(mut self, auto_install_peers: bool) -> Self {
+        self.auto_install_peers = auto_install_peers;
         self
     }
 
@@ -749,6 +794,19 @@ impl TreeCtx {
                 "with_read_package_log called after the workspace ctx was shared via Arc::clone",
             )
             .read_package_log = read_package_log;
+        self
+    }
+
+    /// Set the install's `autoInstallPeers` flag on the underlying
+    /// [`WorkspaceTreeCtx`]. Like [`Self::with_pnpmfile_hook`], panics if
+    /// it has already been shared via `Arc::clone`.
+    #[must_use]
+    pub fn with_auto_install_peers(mut self, auto_install_peers: bool) -> Self {
+        Arc::get_mut(&mut self.workspace)
+            .expect(
+                "with_auto_install_peers called after the workspace ctx was shared via Arc::clone",
+            )
+            .auto_install_peers = auto_install_peers;
         self
     }
 
@@ -972,6 +1030,12 @@ where
                 .await
                 .map_err(ResolveDependencyTreeError::PnpmfileHook)?;
             result_inner.manifest = Some(updated);
+        }
+
+        if ctx.workspace.auto_install_peers
+            && let Some(manifest) = result_inner.manifest.take()
+        {
+            result_inner.manifest = Some(omit_peer_shadowed_dependencies(manifest));
         }
 
         let result = result.expect("Some-guarded above");
@@ -1752,17 +1816,23 @@ fn render_parent(result: &pacquet_resolving_resolver_base::ResolveResult) -> Str
 /// Extract `peerDependencies` from a resolved package's manifest, with
 /// `peerDependenciesMeta[name].optional` folded onto each entry.
 /// Mirrors upstream's
-/// [`peerDependenciesWithoutOwn`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1791-L1815):
-/// names also present in `dependencies` or `optionalDependencies` are
-/// skipped because those edges already supply the same package
-/// directly.
+/// [`peerDependenciesWithoutOwn`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/resolveDependencies.ts#L1840-L1864):
+/// the package's own name plus names also present in `dependencies` or
+/// `optionalDependencies` are skipped because those edges already
+/// supply the same package directly. Under `autoInstallPeers`,
+/// [`omit_peer_shadowed_dependencies`] has already dropped
+/// peer-shadowed names from `dependencies`, so those peers survive
+/// here. A `peerDependenciesMeta` entry without a matching
+/// `peerDependencies` entry only counts when `optional: true` —
+/// upstream treats it as an optional `"*"` peer and ignores
+/// non-optional meta-only entries.
 fn extract_peer_dependencies(
     result: &pacquet_resolving_resolver_base::ResolveResult,
 ) -> BTreeMap<String, PeerDep> {
     let Some(manifest) = result.manifest.as_ref() else { return BTreeMap::new() };
     let mut peers: BTreeMap<String, PeerDep> = BTreeMap::new();
 
-    let own_deps: HashSet<String> = ["dependencies", "optionalDependencies"]
+    let mut own_deps: HashSet<String> = ["dependencies", "optionalDependencies"]
         .iter()
         .flat_map(|key| {
             manifest
@@ -1772,6 +1842,9 @@ fn extract_peer_dependencies(
                 .flat_map(|map| map.keys().cloned())
         })
         .collect();
+    if let Some(name) = manifest.get("name").and_then(Value::as_str) {
+        own_deps.insert(name.to_string());
+    }
 
     if let Some(map) = manifest.get("peerDependencies").and_then(Value::as_object) {
         for (name, range) in map {
@@ -1781,7 +1854,7 @@ fn extract_peer_dependencies(
             if let Some(range_str) = range.as_str() {
                 peers.insert(
                     name.clone(),
-                    PeerDep { version: range_str.to_string(), optional: false },
+                    PeerDep { version: range_str.to_string(), optional: false, meta_only: false },
                 );
             }
         }
@@ -1789,21 +1862,51 @@ fn extract_peer_dependencies(
 
     if let Some(meta) = manifest.get("peerDependenciesMeta").and_then(Value::as_object) {
         for (name, info) in meta {
-            if own_deps.contains(name) {
+            if own_deps.contains(name)
+                || info.get("optional").and_then(Value::as_bool) != Some(true)
+            {
                 continue;
             }
-            let optional = info.get("optional").and_then(Value::as_bool).unwrap_or(false);
-            // peerDependenciesMeta can declare a peer without a
-            // matching peerDependencies entry — upstream treats those
-            // as version "*". Mirror that shape.
-            peers
-                .entry(name.clone())
-                .and_modify(|entry| entry.optional = entry.optional || optional)
-                .or_insert_with(|| PeerDep { version: "*".to_string(), optional });
+            peers.entry(name.clone()).and_modify(|entry| entry.optional = true).or_insert_with(
+                || PeerDep { version: "*".to_string(), optional: true, meta_only: true },
+            );
         }
     }
 
     peers
+}
+
+/// Drop a resolved package's `dependencies` entries that are shadowed
+/// by its own `peerDependencies`, so the peer edge (satisfied from an
+/// ancestor or auto-installed at the importer) supplies the package
+/// instead of a nested copy. Only applies under `autoInstallPeers` —
+/// mirrors upstream's dependencies-omit in
+/// [`resolveDependencies.ts`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/resolveDependencies.ts#L1527-L1542).
+/// (The non-`autoInstallPeers` arm there omits only peers resolvable
+/// from the parent scope; pacquet's per-package children cache has no
+/// parent context, so that arm is not ported and the own dependency
+/// keeps winning, which matches upstream whenever the peer is not in
+/// scope.)
+fn omit_peer_shadowed_dependencies(manifest: Arc<Value>) -> Arc<Value> {
+    let shadowed: Vec<String> = {
+        let Some(peers) = manifest.get("peerDependencies").and_then(Value::as_object) else {
+            return manifest;
+        };
+        let Some(deps) = manifest.get("dependencies").and_then(Value::as_object) else {
+            return manifest;
+        };
+        deps.keys().filter(|name| peers.contains_key(*name)).cloned().collect()
+    };
+    if shadowed.is_empty() {
+        return manifest;
+    }
+    let mut updated = (*manifest).clone();
+    if let Some(deps) = updated.get_mut("dependencies").and_then(Value::as_object_mut) {
+        for name in &shadowed {
+            deps.remove(name);
+        }
+    }
+    Arc::new(updated)
 }
 
 /// `true` when the package has no `dependencies`, `optionalDependencies`,

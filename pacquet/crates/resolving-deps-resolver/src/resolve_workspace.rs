@@ -105,6 +105,14 @@ pub struct WorkspaceResolveOptions {
     /// calls, pre-bound to the install's reporter. `None` leaves hook
     /// logging a no-op.
     pub read_package_log: Option<pacquet_hooks::LogFn>,
+
+    /// The install's `autoInstallPeers` setting, threaded onto the
+    /// shared [`WorkspaceTreeCtx`] so the tree walk drops
+    /// peer-shadowed `dependencies` entries the way pnpm does. Also
+    /// overrides every per-importer
+    /// [`crate::ResolveImporterOptions::auto_install_peers`] — the
+    /// setting is workspace-wide, like pnpm's `autoInstallPeers`.
+    pub auto_install_peers: bool,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -151,6 +159,7 @@ where
         time_based,
         wanted_lockfile,
         update_reuse_scope,
+        auto_install_peers,
     } = opts;
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
@@ -158,13 +167,24 @@ where
             .with_wanted_lockfile(wanted_lockfile)
             .with_update_reuse_scope(update_reuse_scope)
             .with_pnpmfile_hook(pnpmfile_hook)
-            .with_read_package_log(read_package_log),
+            .with_read_package_log(read_package_log)
+            .with_auto_install_peers(auto_install_peers),
     );
 
     // Build every importer's options up front so the `time-based`
     // pre-pass and the resolve loop see the same per-importer wiring.
-    let importer_opts: Vec<ResolveImporterOptions> =
-        importers.iter().map(&mut per_importer_options).collect();
+    // `auto_install_peers` is workspace-wide (one setting per install,
+    // like pnpm's `autoInstallPeers`), so the workspace-level value
+    // overrides whatever the per-importer callback set — the importer
+    // hoist loop and the tree walk's shadow pruning must agree.
+    let importer_opts: Vec<ResolveImporterOptions> = importers
+        .iter()
+        .map(&mut per_importer_options)
+        .map(|mut opts| {
+            opts.auto_install_peers = auto_install_peers;
+            opts
+        })
+        .collect();
 
     // The `minimumReleaseAge` cutoff is set uniformly on every
     // importer's `base_opts.published_by` by the install layer; it is
