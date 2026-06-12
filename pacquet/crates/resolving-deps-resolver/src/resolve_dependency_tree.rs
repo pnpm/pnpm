@@ -1693,7 +1693,7 @@ where
         return Ok(result);
     }
     let overlay_opts;
-    let opts = if cache_key.7.is_empty() {
+    let opts = if cache_key.8.is_empty() {
         opts
     } else {
         let mut owned = opts.clone();
@@ -1808,6 +1808,9 @@ where
                     opts.pick_lowest_version,
                     opts.published_by,
                     project_scope,
+                    // No prior-lockfile key: a warm entry must only be
+                    // reused by edges that carry no currentPkg either.
+                    None,
                     Vec::new(),
                 );
                 let _ = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await;
