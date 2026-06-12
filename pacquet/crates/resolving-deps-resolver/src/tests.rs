@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr, sync::Mutex};
+use std::{collections::HashMap, str::FromStr, sync::Mutex, time::Duration};
 
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
@@ -31,6 +31,40 @@ impl Resolver for StubResolver {
         self.calls.lock().unwrap().push(key.clone());
         let result = self.table.get(&key).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+struct DelayedAliasResolver {
+    table: HashMap<(String, String), ResolveResult>,
+    delayed_alias: String,
+}
+
+impl Resolver for DelayedAliasResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let key = (
+            wanted.alias.clone().unwrap_or_default(),
+            wanted.bare_specifier.clone().unwrap_or_default(),
+        );
+        let result = self.table.get(&key).cloned();
+        let should_delay = key.0 == self.delayed_alias;
+        Box::pin(async move {
+            if should_delay {
+                tokio::time::sleep(Duration::from_millis(25)).await;
+            }
+            Ok::<_, ResolveError>(result)
+        })
     }
 
     fn resolve_latest<'a>(
@@ -141,6 +175,85 @@ async fn walks_dependencies_and_builds_flat_tree() {
     let bar_tree_node = tree.dependencies_tree.get(bar_node_id).unwrap();
     assert_eq!(bar_tree_node.resolved_package_id, "bar@2.3.0");
     assert!(tree.policy_violations.is_empty());
+}
+
+#[tokio::test]
+async fn shallower_revisit_takes_over_shared_children_context() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("a".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "a",
+            "1.0.0",
+            serde_json::json!({
+                "name": "a",
+                "version": "1.0.0",
+                "dependencies": { "cycle": "1.0.0" }
+            }),
+        ),
+    );
+    table.insert(
+        ("cycle".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "cycle",
+            "1.0.0",
+            serde_json::json!({
+                "name": "cycle",
+                "version": "1.0.0",
+                "dependencies": { "shared": "1.0.0" }
+            }),
+        ),
+    );
+    table.insert(
+        ("c".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "c",
+            "1.0.0",
+            serde_json::json!({
+                "name": "c",
+                "version": "1.0.0",
+                "dependencies": { "shared": "1.0.0" }
+            }),
+        ),
+    );
+    table.insert(
+        ("shared".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "shared",
+            "1.0.0",
+            serde_json::json!({
+                "name": "shared",
+                "version": "1.0.0",
+                "dependencies": { "cycle": "1.0.0" }
+            }),
+        ),
+    );
+    let resolver = DelayedAliasResolver { table, delayed_alias: "c".to_string() };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "a": "1.0.0",
+        "c": "1.0.0"
+    }));
+
+    let tree = resolve_dependency_tree(
+        &resolver,
+        &manifest,
+        [DependencyGroup::Prod],
+        ResolveDependencyTreeOptions {
+            base_opts: ResolveOptions::default(),
+            patched_dependencies: None,
+            manifest_hook: None,
+            pnpmfile_hook: None,
+            read_package_log: None,
+            auto_install_peers: false,
+        },
+    )
+    .await
+    .unwrap();
+
+    let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
+    assert_eq!(shared_children.len(), 1);
+    assert_eq!(shared_children[0].alias, "cycle");
+    assert_eq!(shared_children[0].pkg_id, "cycle@1.0.0");
 }
 
 #[tokio::test]
