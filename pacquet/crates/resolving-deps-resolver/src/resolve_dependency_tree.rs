@@ -581,9 +581,16 @@ pub struct WorkspaceTreeCtx {
     /// a non-owner occurrence reuses the owner occurrence's children
     /// and missing-peer report. Consumed via [`crate::HoistMissingScope`].
     first_importer_by_pkg: Mutex<HashMap<String, String>>,
-    /// Per package: the missing-peer names reported under the current
-    /// children-owner context. Consumed via [`crate::HoistMissingScope`].
-    first_walk_missing_by_pkg: Mutex<HashMap<String, HashSet<String>>>,
+    /// Per package: the missing-peer names reported by the *initial*
+    /// peer walk of the current children-owner generation, plus the
+    /// owner that recorded them (`None` while only a non-owner's
+    /// provisional walk has been seen). Mirrors upstream's
+    /// once-per-generation `missingPeersOfChildren` promise: later
+    /// hoist waves of the same owner never refresh the record, so a
+    /// peer the owner only satisfied by hoisting stays visible to
+    /// every other importer's hoist. Consumed via
+    /// [`crate::HoistMissingScope`].
+    first_walk_missing_by_pkg: Mutex<HashMap<String, (Option<ChildrenOwner>, HashSet<String>)>>,
 }
 
 impl Default for WorkspaceTreeCtx {
@@ -663,9 +670,11 @@ impl WorkspaceTreeCtx {
         lock_recoverable(&self.first_importer_by_pkg).clone()
     }
 
-    /// Record a walk's per-package missing-peer names when the current
-    /// importer owns that package's shared children context. See the
-    /// `first_walk_missing_by_pkg` field doc.
+    /// Record a walk's per-package missing-peer names. The owning
+    /// importer's report is written once per ownership generation —
+    /// its own later hoist waves never refresh it — and replaces any
+    /// provisional report a non-owner's earlier walk left behind. See
+    /// the `first_walk_missing_by_pkg` field doc.
     pub fn record_first_walk_missing(
         &self,
         importer_id: &str,
@@ -674,16 +683,22 @@ impl WorkspaceTreeCtx {
         let owners = lock_recoverable(&self.children_owner_by_id).clone();
         let mut record = lock_recoverable(&self.first_walk_missing_by_pkg);
         for (pkg_id, owner) in &owners {
-            if owner.importer_id == importer_id {
+            if owner.importer_id != importer_id {
+                continue;
+            }
+            let recorded_by_current_owner = record
+                .get(pkg_id)
+                .is_some_and(|(recorded_by, _)| recorded_by.as_ref() == Some(owner));
+            if !recorded_by_current_owner {
                 record.insert(
                     pkg_id.clone(),
-                    missing_by_pkg.get(pkg_id).cloned().unwrap_or_default(),
+                    (Some(owner.clone()), missing_by_pkg.get(pkg_id).cloned().unwrap_or_default()),
                 );
             }
         }
         for (pkg_id, names) in missing_by_pkg {
             if owners.get(pkg_id).is_none_or(|owner| owner.importer_id != importer_id) {
-                record.entry(pkg_id.clone()).or_insert_with(|| names.clone());
+                record.entry(pkg_id.clone()).or_insert_with(|| (None, names.clone()));
             }
         }
     }
@@ -692,7 +707,10 @@ impl WorkspaceTreeCtx {
     /// See the `first_walk_missing_by_pkg` field doc.
     #[must_use]
     pub fn first_walk_missing_by_pkg(&self) -> HashMap<String, HashSet<String>> {
-        lock_recoverable(&self.first_walk_missing_by_pkg).clone()
+        lock_recoverable(&self.first_walk_missing_by_pkg)
+            .iter()
+            .map(|(pkg_id, (_, names))| (pkg_id.clone(), names.clone()))
+            .collect()
     }
 
     /// Set which dependencies `pacquet update` excludes from reuse. See
