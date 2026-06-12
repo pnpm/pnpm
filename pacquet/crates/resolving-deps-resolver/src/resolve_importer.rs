@@ -229,7 +229,8 @@ where
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(opts.manifest_hook.clone())
-            .with_pnpmfile_hook(opts.pnpmfile_hook.clone()),
+            .with_pnpmfile_hook(opts.pnpmfile_hook.clone())
+            .with_auto_install_peers(opts.auto_install_peers),
     );
     resolve_importer_with_workspace(
         resolver,

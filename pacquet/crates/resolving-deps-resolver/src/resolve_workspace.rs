@@ -105,6 +105,13 @@ pub struct WorkspaceResolveOptions {
     /// calls, pre-bound to the install's reporter. `None` leaves hook
     /// logging a no-op.
     pub read_package_log: Option<pacquet_hooks::LogFn>,
+
+    /// The install's `autoInstallPeers` setting, threaded onto the
+    /// shared [`WorkspaceTreeCtx`] so the tree walk drops
+    /// peer-shadowed `dependencies` entries the way pnpm does. The
+    /// per-importer [`crate::ResolveImporterOptions::auto_install_peers`]
+    /// must agree with this value.
+    pub auto_install_peers: bool,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -151,6 +158,7 @@ where
         time_based,
         wanted_lockfile,
         update_reuse_scope,
+        auto_install_peers,
     } = opts;
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
@@ -158,7 +166,8 @@ where
             .with_wanted_lockfile(wanted_lockfile)
             .with_update_reuse_scope(update_reuse_scope)
             .with_pnpmfile_hook(pnpmfile_hook)
-            .with_read_package_log(read_package_log),
+            .with_read_package_log(read_package_log)
+            .with_auto_install_peers(auto_install_peers),
     );
 
     // Build every importer's options up front so the `time-based`

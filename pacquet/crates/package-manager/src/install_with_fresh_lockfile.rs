@@ -1041,6 +1041,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     pacquet_resolving_deps_resolver::UpdateReuseScope::Except(names.clone())
                 }
             },
+            auto_install_peers: config.auto_install_peers,
         };
         let modules_basename = config.modules_dir.file_name().map_or_else(
             || std::ffi::OsString::from("node_modules"),
