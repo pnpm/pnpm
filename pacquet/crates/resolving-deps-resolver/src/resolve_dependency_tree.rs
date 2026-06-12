@@ -493,6 +493,21 @@ pub(crate) type WantedSpec = (String, String, bool, bool);
 /// `optionalDependencies` sections.
 type ChildSpec = (String, String, bool);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ChildrenOwner {
+    depth: i32,
+    importer_order: usize,
+    parent_path: Vec<String>,
+    importer_id: String,
+}
+
+impl ChildrenOwner {
+    fn wins_over(&self, other: &Self) -> bool {
+        (&self.depth, &self.importer_order, &self.parent_path)
+            < (&other.depth, &other.importer_order, &other.parent_path)
+    }
+}
+
 /// Workspace-shared maps. Every per-importer [`TreeCtx`] in a
 /// multi-importer install holds an `Arc<WorkspaceTreeCtx>` so the
 /// resolver's per-`pkgIdWithPatchHash` dedup (`packages`,
@@ -517,6 +532,8 @@ pub struct WorkspaceTreeCtx {
         Mutex<HashMap<WantedKey, Arc<pacquet_resolving_resolver_base::ResolveResult>>>,
     children_specs_by_id: Mutex<HashMap<String, Arc<Vec<ChildSpec>>>>,
     children_by_id: Mutex<HashMap<String, Arc<Vec<crate::resolved_tree::ChildEdge>>>>,
+    children_owner_by_id: Mutex<HashMap<String, ChildrenOwner>>,
+    node_parent_ids_by_id: Mutex<HashMap<NodeId, Arc<Vec<String>>>>,
     manifest_hook: Option<ManifestHook>,
     /// The previous `pnpm-lock.yaml` the install started from, when one
     /// exists. Consulted by `resolve_node` to reuse an already-resolved
@@ -553,19 +570,16 @@ pub struct WorkspaceTreeCtx {
     /// point doesn't thread registries (then `currentPkg` is withheld
     /// for `Registry`-shaped entries rather than sent without a URL).
     registries: HashMap<String, String>,
-    /// `pkg id → importer id` of the importer whose walk first resolved
-    /// each package. Mirrors the ownership implied by upstream's
+    /// `pkg id → importer id` of the importer whose occurrence owns
+    /// that package's shared children context. Ownership is chosen by
+    /// `(depth, importer order, parent path)`, mirroring upstream's
     /// per-`pkgId` shared subtree records
     /// ([`missingPeersOfChildrenByPkgId`](https://github.com/pnpm/pnpm/blob/a751c7f27d/installing/deps-resolver/src/resolveDependencies.ts#L193)):
-    /// a package revisited under a later importer does not recompute
-    /// its children's missing-peer report, so that importer's
-    /// peer-hoist must not see missing peers declared inside a
-    /// subtree first resolved elsewhere. Consumed via
-    /// [`crate::HoistMissingScope`].
+    /// a non-owner occurrence reuses the owner occurrence's children
+    /// and missing-peer report. Consumed via [`crate::HoistMissingScope`].
     first_importer_by_pkg: Mutex<HashMap<String, String>>,
-    /// Per package: the missing-peer names reported by the first
-    /// peer-walk that visited it (the walk of the importer that
-    /// claimed the package). Consumed via [`crate::HoistMissingScope`].
+    /// Per package: the missing-peer names reported under the current
+    /// children-owner context. Consumed via [`crate::HoistMissingScope`].
     first_walk_missing_by_pkg: Mutex<HashMap<String, HashSet<String>>>,
 }
 
@@ -580,6 +594,8 @@ impl Default for WorkspaceTreeCtx {
             resolved_by_wanted: Mutex::new(HashMap::new()),
             children_specs_by_id: Mutex::new(HashMap::new()),
             children_by_id: Mutex::new(HashMap::new()),
+            children_owner_by_id: Mutex::new(HashMap::new()),
+            node_parent_ids_by_id: Mutex::new(HashMap::new()),
             manifest_hook: None,
             wanted_lockfile: None,
             update_reuse_scope: UpdateReuseScope::All,
@@ -638,25 +654,39 @@ impl WorkspaceTreeCtx {
         self.wanted_lockfile.as_ref()
     }
 
-    /// Snapshot of `pkg id → first-resolving importer id`. See the
-    /// field doc.
+    /// Snapshot of `pkg id → children-owner importer id`. See the field doc.
     #[must_use]
     pub fn first_importer_by_pkg(&self) -> HashMap<String, String> {
         lock_recoverable(&self.first_importer_by_pkg).clone()
     }
 
-    /// Record a walk's per-package missing-peer names; the first walk
-    /// to visit a package wins. See the `first_walk_missing_by_pkg`
-    /// field doc.
-    pub fn record_first_walk_missing(&self, missing_by_pkg: &HashMap<String, HashSet<String>>) {
+    /// Record a walk's per-package missing-peer names when the current
+    /// importer owns that package's shared children context. See the
+    /// `first_walk_missing_by_pkg` field doc.
+    pub fn record_first_walk_missing(
+        &self,
+        importer_id: &str,
+        missing_by_pkg: &HashMap<String, HashSet<String>>,
+    ) {
+        let owners = lock_recoverable(&self.children_owner_by_id).clone();
         let mut record = lock_recoverable(&self.first_walk_missing_by_pkg);
+        for (pkg_id, owner) in &owners {
+            if owner.importer_id == importer_id {
+                record.insert(
+                    pkg_id.clone(),
+                    missing_by_pkg.get(pkg_id).cloned().unwrap_or_default(),
+                );
+            }
+        }
         for (pkg_id, names) in missing_by_pkg {
-            record.entry(pkg_id.clone()).or_insert_with(|| names.clone());
+            if owners.get(pkg_id).is_none_or(|owner| owner.importer_id != importer_id) {
+                record.entry(pkg_id.clone()).or_insert_with(|| names.clone());
+            }
         }
     }
 
-    /// Snapshot of the per-package first-walk missing-peer names. See
-    /// the `first_walk_missing_by_pkg` field doc.
+    /// Snapshot of the per-package owner-context missing-peer names.
+    /// See the `first_walk_missing_by_pkg` field doc.
     #[must_use]
     pub fn first_walk_missing_by_pkg(&self) -> HashMap<String, HashSet<String>> {
         lock_recoverable(&self.first_walk_missing_by_pkg).clone()
@@ -764,9 +794,10 @@ pub struct TreeCtx {
     /// install.
     patched_dependencies: Option<Arc<PatchGroupRecord>>,
     /// The importer this per-importer context walks for. Recorded into
-    /// [`WorkspaceTreeCtx`]'s `first_importer_by_pkg` when a package is
-    /// first resolved.
+    /// [`WorkspaceTreeCtx`]'s `first_importer_by_pkg` when one of its
+    /// occurrences owns a package's shared children context.
     importer_id: String,
+    importer_order: usize,
 }
 
 impl TreeCtx {
@@ -783,6 +814,7 @@ impl TreeCtx {
             workspace: Arc::new(WorkspaceTreeCtx::default()),
             patched_dependencies: None,
             importer_id: pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
+            importer_order: 0,
         }
     }
 
@@ -798,6 +830,7 @@ impl TreeCtx {
             workspace,
             patched_dependencies: None,
             importer_id: pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
+            importer_order: 0,
         }
     }
 
@@ -848,6 +881,15 @@ impl TreeCtx {
     #[must_use]
     pub fn with_importer_id(mut self, importer_id: &str) -> Self {
         self.importer_id = importer_id.to_string();
+        self
+    }
+
+    /// Set this importer's position in the workspace input order.
+    /// Child-subtree ownership uses it after depth, matching pnpm's
+    /// deterministic `(depth, importer order, parent path)` tie-break.
+    #[must_use]
+    pub fn with_importer_order(mut self, importer_order: usize) -> Self {
+        self.importer_order = importer_order;
         self
     }
 
@@ -1220,11 +1262,9 @@ where
     // flag so a single non-optional path flips it back to `false`.
     // Mirrors upstream's
     // [`resolvedPkgsById[...].optional = ... && currentIsOptional`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1630)
-    // arm. The `is_revisit` flag flows into the children handling
-    // below: a revisit can produce a [`TreeChildren::Lazy`] node
-    // because the first visit already populated
-    // [`WorkspaceTreeCtx`]'s `children_by_id` for this pkg, and revisits don't
-    // discover new transitive packages.
+    // arm. Child traversal is claimed separately below, so a later
+    // deterministically-better occurrence can replace the shared
+    // `children_by_id` entry without rewriting the package envelope.
     // Leaves (no deps / optional deps / peers / peerDependenciesMeta)
     // reuse the package id as their `NodeId`, collapsing every parent
     // edge onto one tree node. Non-leaves still get a fresh per-
@@ -1251,12 +1291,10 @@ where
     let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
-    let is_revisit;
     {
         let mut packages = lock_recoverable(&ctx.workspace.packages);
         if let Some(existing) = packages.get_mut(&id) {
             existing.optional = existing.optional && current_is_optional;
-            is_revisit = true;
         } else {
             let peer_dependencies =
                 if is_link { BTreeMap::new() } else { extract_peer_dependencies(&result) };
@@ -1278,39 +1316,25 @@ where
                     is_leaf,
                 },
             );
-            lock_recoverable(&ctx.workspace.first_importer_by_pkg)
-                .entry(id.clone())
-                .or_insert_with(|| ctx.importer_id.clone());
-            is_revisit = false;
         }
     }
 
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
+    let next_ancestors = Arc::new(next_ancestors);
+    let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids);
 
-    // **Revisit short-circuit (lazy children).** The first walk of
-    // this package populated `children_by_id[id]` with the resolved
-    // child pkg_ids — revisits skip the per-child recursion and
-    // emit a [`TreeChildren::Lazy`] entry instead. The peer-resolver's
-    // `realize_children` walks the cached `children_by_id` to
-    // allocate per-occurrence `NodeId`s on demand, applying the same
-    // `parent_ids` cycle-break upstream's `buildTree` does. Mirrors
-    // upstream's
-    // [`isNew` skip](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencies.ts#L1584):
-    // a second visit doesn't rebuild the subtree.
-    //
-    // First visits still walk eagerly so `children_by_id`,
-    // `packages`, `all_peer_dep_names`, and the per-pkg resolver
-    // caches get populated for every transitive package — without
-    // that pass, lazy revisits would have nothing to expand.
+    // Only the deterministic children owner walks this package's
+    // manifest children. Other occurrences stay lazy and expand from
+    // `children_by_id`, applying their own `parent_ids` cycle break.
     let children = if is_link {
         // Linked nodes don't walk their manifest's deps — see the
         // `is_link` comment block above. Empty `Realized` map matches
         // upstream's `children: {}` for the `isLinkedDependency`
         // branch.
         crate::resolved_tree::TreeChildren::Realized(BTreeMap::new())
-    } else if is_revisit {
-        crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::new(next_ancestors.clone()) }
+    } else if !children_owner.owns_children {
+        crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
     } else {
         // Look up cached children specs first; only walk the manifest on
         // a miss. The cache value is held by `Arc` so revisits clone the
@@ -1350,7 +1374,7 @@ where
                 };
                 let child_prior = prior_children_snapshot
                     .and_then(|snapshot| prior_child_key(snapshot, child_name, child_range));
-                let next_ancestors = next_ancestors.clone();
+                let next_ancestors = Arc::clone(&next_ancestors);
                 async move {
                     resolve_node(
                         ctx,
@@ -1366,29 +1390,31 @@ where
             })
             .pipe(future::try_join_all)
             .await?;
-        // Build the realized `(alias → NodeId)` map for THIS
-        // occurrence and the per-pkg `children_by_id` entry future
-        // revisits will reuse. `children_by_id` records the resolved
-        // child pkg ids (not NodeIds) plus the `optional` flag so
-        // lazy realisation can thread `current_is_optional` correctly.
-        let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
-        let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
-        // Build a spec → optional map to look up each child's `optional` flag.
-        let optional_by_alias: HashMap<&str, bool> =
-            child_specs.iter().map(|(name, _, optional)| (name.as_str(), *optional)).collect();
-        for dep in child_results.into_iter().flatten() {
-            let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
-            by_id.push(crate::resolved_tree::ChildEdge {
-                alias: dep.alias.clone(),
-                pkg_id: dep.id.clone(),
-                optional,
-            });
-            realized.insert(dep.alias, dep.node_id);
+        if is_current_children_owner(ctx, &id, &children_owner.owner) {
+            // Build the realized `(alias → NodeId)` map for THIS
+            // occurrence and the per-pkg `children_by_id` entry future
+            // revisits will reuse. `children_by_id` records the resolved
+            // child pkg ids (not NodeIds) plus the `optional` flag so
+            // lazy realisation can thread `current_is_optional` correctly.
+            let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
+            let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
+            // Build a spec → optional map to look up each child's `optional` flag.
+            let optional_by_alias: HashMap<&str, bool> =
+                child_specs.iter().map(|(name, _, optional)| (name.as_str(), *optional)).collect();
+            for dep in child_results.into_iter().flatten() {
+                let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
+                by_id.push(crate::resolved_tree::ChildEdge {
+                    alias: dep.alias.clone(),
+                    pkg_id: dep.id.clone(),
+                    optional,
+                });
+                realized.insert(dep.alias, dep.node_id);
+            }
+            lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
+            crate::resolved_tree::TreeChildren::Realized(realized)
+        } else {
+            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
         }
-        lock_recoverable(&ctx.workspace.children_by_id)
-            .entry(id.clone())
-            .or_insert_with(|| Arc::new(by_id));
-        crate::resolved_tree::TreeChildren::Realized(realized)
     };
 
     // Repeat-visit leaves collapse onto one tree node; keep the
@@ -1402,6 +1428,7 @@ where
     // short-circuits them in `resolve_node`. Mirrors upstream's
     // `depth: -1` on the `isLinkedDependency` arm.
     let node_depth = if is_link { -1 } else { depth };
+    remember_node_parent_ids(ctx, &node_id, Arc::clone(&next_ancestors));
     lock_recoverable(&ctx.workspace.dependencies_tree)
         .entry(node_id.clone())
         .and_modify(|node| {
@@ -1415,6 +1442,9 @@ where
             depth: node_depth,
             installable: true,
         });
+    if children_owner.owns_children && is_current_children_owner(ctx, &id, &children_owner.owner) {
+        make_non_owner_nodes_lazy(ctx, &id, &node_id);
+    }
 
     Ok(Some(DirectDep { alias, node_id, id }))
 }
@@ -1436,6 +1466,65 @@ fn landed_on_prior_entry(prior_key: &PkgNameVerPeer, resolved_pkg_id: &str) -> b
 struct ReusedNode {
     key: PkgNameVerPeer,
     result: pacquet_resolving_resolver_base::ResolveResult,
+}
+
+struct ChildrenOwnerClaim {
+    owner: ChildrenOwner,
+    owns_children: bool,
+}
+
+fn claim_children_owner(
+    ctx: &TreeCtx,
+    pkg_id: &str,
+    depth: i32,
+    ancestor_ids: &[String],
+) -> ChildrenOwnerClaim {
+    let owner = ChildrenOwner {
+        depth,
+        importer_order: ctx.importer_order,
+        parent_path: ancestor_ids.to_vec(),
+        importer_id: ctx.importer_id.clone(),
+    };
+    let owns_children = {
+        let mut owners = lock_recoverable(&ctx.workspace.children_owner_by_id);
+        match owners.get(pkg_id) {
+            Some(existing) if !owner.wins_over(existing) => false,
+            _ => {
+                owners.insert(pkg_id.to_string(), owner.clone());
+                true
+            }
+        }
+    };
+    if owns_children {
+        lock_recoverable(&ctx.workspace.first_importer_by_pkg)
+            .insert(pkg_id.to_string(), owner.importer_id.clone());
+    }
+    ChildrenOwnerClaim { owner, owns_children }
+}
+
+fn is_current_children_owner(ctx: &TreeCtx, pkg_id: &str, owner: &ChildrenOwner) -> bool {
+    lock_recoverable(&ctx.workspace.children_owner_by_id)
+        .get(pkg_id)
+        .is_some_and(|current| current == owner)
+}
+
+fn remember_node_parent_ids(ctx: &TreeCtx, node_id: &NodeId, parent_ids: Arc<Vec<String>>) {
+    lock_recoverable(&ctx.workspace.node_parent_ids_by_id).insert(node_id.clone(), parent_ids);
+}
+
+fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_id: &NodeId) {
+    let parent_ids_by_node = lock_recoverable(&ctx.workspace.node_parent_ids_by_id).clone();
+    let mut tree = lock_recoverable(&ctx.workspace.dependencies_tree);
+    for (node_id, node) in tree.iter_mut() {
+        if node_id == owner_node_id || node.resolved_package_id != pkg_id {
+            continue;
+        }
+        let Some(parent_ids) = parent_ids_by_node.get(node_id) else {
+            continue;
+        };
+        node.children =
+            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(parent_ids) };
+    }
 }
 
 /// Decide whether the current edge can reuse the prior lockfile's
@@ -1621,12 +1710,10 @@ where
     let is_leaf = child_refs.is_empty() && peer_dependencies.is_empty();
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
-    let is_revisit;
     {
         let mut packages = lock_recoverable(&ctx.workspace.packages);
         if let Some(existing) = packages.get_mut(&id) {
             existing.optional = existing.optional && current_is_optional;
-            is_revisit = true;
         } else {
             {
                 let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
@@ -1644,19 +1731,15 @@ where
                     is_leaf,
                 },
             );
-            lock_recoverable(&ctx.workspace.first_importer_by_pkg)
-                .entry(id.clone())
-                .or_insert_with(|| ctx.importer_id.clone());
-            is_revisit = false;
         }
     }
 
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
+    let next_ancestors = Arc::new(next_ancestors);
+    let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids);
 
-    let children = if is_revisit {
-        crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::new(next_ancestors.clone()) }
-    } else {
+    let children = if children_owner.owns_children {
         let child_results = child_refs
             .iter()
             .map(|(child_alias, child_key)| {
@@ -1669,7 +1752,7 @@ where
                     bare_specifier: Some(child_key.suffix.without_peer().to_string()),
                     ..WantedDependency::default()
                 };
-                let next_ancestors = next_ancestors.clone();
+                let next_ancestors = Arc::clone(&next_ancestors);
                 let child_key = child_key.clone();
                 async move {
                     resolve_node(
@@ -1686,27 +1769,32 @@ where
             })
             .pipe(future::try_join_all)
             .await?;
-        let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
-        let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
-        let optional_by_alias: HashMap<&str, bool> = child_refs
-            .iter()
-            .map(|(alias, _)| (alias.as_str(), is_optional_child(snapshot, alias)))
-            .collect();
-        for dep in child_results.into_iter().flatten() {
-            let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
-            by_id.push(crate::resolved_tree::ChildEdge {
-                alias: dep.alias.clone(),
-                pkg_id: dep.id.clone(),
-                optional,
-            });
-            realized.insert(dep.alias, dep.node_id);
+        if is_current_children_owner(ctx, &id, &children_owner.owner) {
+            let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
+            let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
+            let optional_by_alias: HashMap<&str, bool> = child_refs
+                .iter()
+                .map(|(alias, _)| (alias.as_str(), is_optional_child(snapshot, alias)))
+                .collect();
+            for dep in child_results.into_iter().flatten() {
+                let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
+                by_id.push(crate::resolved_tree::ChildEdge {
+                    alias: dep.alias.clone(),
+                    pkg_id: dep.id.clone(),
+                    optional,
+                });
+                realized.insert(dep.alias, dep.node_id);
+            }
+            lock_recoverable(&ctx.workspace.children_by_id).insert(id.clone(), Arc::new(by_id));
+            crate::resolved_tree::TreeChildren::Realized(realized)
+        } else {
+            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
         }
-        lock_recoverable(&ctx.workspace.children_by_id)
-            .entry(id.clone())
-            .or_insert_with(|| Arc::new(by_id));
-        crate::resolved_tree::TreeChildren::Realized(realized)
+    } else {
+        crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::clone(&next_ancestors) }
     };
 
+    remember_node_parent_ids(ctx, &node_id, Arc::clone(&next_ancestors));
     lock_recoverable(&ctx.workspace.dependencies_tree)
         .entry(node_id.clone())
         .and_modify(|node| {
@@ -1720,6 +1808,9 @@ where
             depth,
             installable: true,
         });
+    if children_owner.owns_children && is_current_children_owner(ctx, &id, &children_owner.owner) {
+        make_non_owner_nodes_lazy(ctx, &id, &node_id);
+    }
 
     Ok(Some(DirectDep { alias, node_id, id }))
 }

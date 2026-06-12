@@ -235,6 +235,7 @@ where
     resolve_importer_with_workspace(
         resolver,
         pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
+        0,
         manifest,
         dependency_groups,
         opts,
@@ -252,6 +253,7 @@ where
 pub async fn resolve_importer_with_workspace<DependencyGroupList, Chain>(
     resolver: &Chain,
     importer_id: &str,
+    importer_order: usize,
     manifest: &PackageManifest,
     dependency_groups: DependencyGroupList,
     opts: ResolveImporterOptions,
@@ -295,6 +297,7 @@ where
 
     let ctx = TreeCtx::with_workspace(workspace, base_opts)
         .with_importer_id(importer_id)
+        .with_importer_order(importer_order)
         .with_patched_dependencies(patched_dependencies)
         .with_resolution_mode(pick_lowest_direct, subdep_published_by);
 
@@ -316,29 +319,28 @@ where
     let mut all_missing_optional_peers: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
     // The hoist input must not see missing peers declared inside a
-    // subtree first resolved under an earlier importer — upstream
-    // reuses the first walk's children report there, so those peers
-    // never reach a later importer's hoist. The final per-importer
-    // pass below keeps the unscoped options so warnings stay complete.
-    // Snapshotted once per importer: suppression only consults entries
-    // recorded by earlier importers (everything this importer's own
-    // loop adds is self-claimed and exempt), so the maps cannot change
-    // in a way the loop observes.
-    let hoist_missing_scope = Arc::new(crate::resolve_peers::HoistMissingScope {
-        importer_id: importer_id.to_string(),
-        first_importer_by_pkg: ctx.workspace().first_importer_by_pkg(),
-        first_walk_missing_by_pkg: ctx.workspace().first_walk_missing_by_pkg(),
-    });
+    // subtree owned by another importer's shared children context —
+    // upstream reuses the owner walk's children report there, so those
+    // peers never reach a non-owner importer's hoist. The final
+    // per-importer pass below keeps the unscoped options so warnings
+    // stay complete.
+    // Snapshotted per peer pass because auto-hoisting can extend the
+    // tree and move children ownership to a shallower occurrence.
     let hoist_peers_opts = || {
         let mut opts = peers_opts();
-        opts.hoist_missing_scope = Some(Arc::clone(&hoist_missing_scope));
+        opts.hoist_missing_scope = Some(Arc::new(crate::resolve_peers::HoistMissingScope {
+            importer_id: importer_id.to_string(),
+            first_importer_by_pkg: ctx.workspace().first_importer_by_pkg(),
+            first_walk_missing_by_pkg: ctx.workspace().first_walk_missing_by_pkg(),
+        }));
         opts
     };
     loop {
         loop {
             let mut snapshot = ctx.snapshot(direct.clone());
             let peers_result = resolve_peers(&mut snapshot, hoist_peers_opts());
-            ctx.workspace().record_first_walk_missing(&peers_result.missing_names_by_pkg);
+            ctx.workspace()
+                .record_first_walk_missing(importer_id, &peers_result.missing_names_by_pkg);
 
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &peers_result.peer_dependency_issues.missing,

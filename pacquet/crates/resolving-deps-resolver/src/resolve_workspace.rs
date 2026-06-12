@@ -213,7 +213,9 @@ where
     };
 
     let mut per_importer_inputs: Vec<ImporterPeerInput> = Vec::with_capacity(importers.len());
-    for (importer, mut importer_opts) in importers.iter().zip(importer_opts) {
+    for (importer_order, (importer, mut importer_opts)) in
+        importers.iter().zip(importer_opts).enumerate()
+    {
         importer_opts.pick_lowest_direct = pick_lowest_direct;
         importer_opts.subdep_published_by = subdep_published_by;
         let project_dir = importer_opts.base_opts.project_dir.clone();
@@ -221,6 +223,7 @@ where
         let ResolveImporterResult { resolved_tree, .. } = resolve_importer_with_workspace(
             resolver,
             &importer.id,
+            importer_order,
             importer.manifest,
             dependency_groups.iter().copied(),
             importer_opts,

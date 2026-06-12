@@ -144,6 +144,57 @@ fn own_peer_is_resolved_from_peer_relevant_child() {
 }
 
 #[test]
+fn missing_names_by_pkg_records_only_children_context_missing_peers() {
+    let parent = NodeId::next();
+    let child = NodeId::next();
+
+    let mut parent_children = BTreeMap::new();
+    parent_children.insert("child".to_string(), child.clone());
+
+    let mut tree = ResolvedTree {
+        direct: vec![DirectDep {
+            alias: "parent".to_string(),
+            node_id: parent.clone(),
+            id: "parent@1.0.0".to_string(),
+        }],
+        packages: HashMap::from([
+            (
+                "parent@1.0.0".to_string(),
+                package_with_peer_dependencies(
+                    "parent",
+                    "1.0.0",
+                    &[("own-peer", "*", false)],
+                    false,
+                ),
+            ),
+            (
+                "child@1.0.0".to_string(),
+                package_with_peer_dependencies(
+                    "child",
+                    "1.0.0",
+                    &[("child-peer", "*", false)],
+                    false,
+                ),
+            ),
+        ]),
+        dependencies_tree: HashMap::from([
+            (parent, tree_node("parent@1.0.0", parent_children, 0)),
+            (child, tree_node("child@1.0.0", BTreeMap::new(), 1)),
+        ]),
+        all_peer_dep_names: HashSet::from(["own-peer".to_string(), "child-peer".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let parent_missing = result.missing_names_by_pkg.get("parent@1.0.0").unwrap();
+
+    assert!(parent_missing.contains("child-peer"));
+    assert!(!parent_missing.contains("own-peer"));
+}
+
+#[test]
 fn own_peer_is_resolved_from_aliased_child_real_name() {
     let peer_c = NodeId::leaf("peer-c@2.0.0");
     let consumer = NodeId::next();
@@ -427,6 +478,7 @@ fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
         node_dep_paths: HashMap::new(),
         node_external_peers: HashMap::new(),
         node_missing_peers: HashMap::new(),
+        node_missing_peers_of_children: HashMap::new(),
         in_progress: HashSet::new(),
         pending_peer_edges: Vec::new(),
         pure_pkgs: HashSet::new(),

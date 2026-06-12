@@ -135,19 +135,17 @@ pub struct ResolvePeersOptions {
     pub modules_dir: Option<std::path::PathBuf>,
 
     /// When `Some`, missing-peer issues declared inside a subtree
-    /// whose root package was first resolved under a *different*
-    /// importer are not emitted. The peer-hoist loop sets this so its
-    /// input matches upstream, where a revisited package's children
-    /// keep the missing-peer report computed under the first
-    /// resolver's alias chain
+    /// whose root package's shared children context is owned by a
+    /// *different* importer are not emitted. The peer-hoist loop sets
+    /// this so its input matches upstream, where a non-owner package
+    /// occurrence keeps the missing-peer report computed under the
+    /// owner occurrence's alias chain
     /// ([`missingPeersOfChildrenByPkgId`](https://github.com/pnpm/pnpm/blob/a751c7f27d/installing/deps-resolver/src/resolveDependencies.ts#L193)) —
     /// only the package's *own* peers are re-evaluated per occurrence.
     /// The final workspace-wide pass leaves this `None` so warnings
     /// still cover every importer. Held by `Arc`: the maps inside are
     /// per-importer snapshots shared across every hoist-loop
-    /// iteration — the entries relevant to suppression (those of
-    /// earlier importers) cannot change while one importer's loop
-    /// runs.
+    /// iteration.
     pub hoist_missing_scope: Option<std::sync::Arc<HoistMissingScope>>,
 }
 
@@ -156,17 +154,17 @@ pub struct ResolvePeersOptions {
 pub struct HoistMissingScope {
     /// The importer whose hoist input is being computed.
     pub importer_id: String,
-    /// `pkg id → first-resolving importer id`, from
+    /// `pkg id → children-owner importer id`, from
     /// [`crate::WorkspaceTreeCtx::first_importer_by_pkg`].
     pub first_importer_by_pkg: HashMap<String, String>,
-    /// Per package: the missing-peer names reported by the first walk
-    /// that visited it, from
+    /// Per package: the missing-peer names reported under the current
+    /// children-owner context, from
     /// [`crate::WorkspaceTreeCtx::first_walk_missing_by_pkg`]. A
     /// missing peer inside a foreign-claimed subtree is suppressed
-    /// only when the claimer's walk did *not* report it missing —
+    /// only when the owner's walk did *not* report it missing —
     /// i.e. that context satisfied it, which is what upstream's
     /// shared children report filtered out at walk time. Misses the
-    /// first walker could not satisfy stay visible to every importer
+    /// owner walk could not satisfy stay visible to every importer
     /// (and each hoists its own copy).
     pub first_walk_missing_by_pkg: HashMap<String, std::collections::HashSet<String>>,
 }
@@ -208,10 +206,10 @@ pub struct ResolvePeersResult {
     pub direct_dependencies_by_alias: BTreeMap<String, DepPath>,
     pub peer_dependency_issues: PeerDependencyIssues,
     /// Per resolved package: the union of missing-peer names its
-    /// occurrences reported in this walk. The hoist loop persists the
-    /// first walk's map per package so later importers can tell which
-    /// misses the first resolver's context already satisfied. See
-    /// [`HoistMissingScope`].
+    /// occurrences' children reported in this walk. The hoist loop
+    /// persists the owner-context map per package so non-owner importers
+    /// can tell which descendant misses the owner resolver's context
+    /// already satisfied. See [`HoistMissingScope`].
     pub missing_names_by_pkg: HashMap<String, std::collections::HashSet<String>>,
 }
 
@@ -261,6 +259,7 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
         node_dep_paths: HashMap::new(),
         node_external_peers: HashMap::new(),
         node_missing_peers: HashMap::new(),
+        node_missing_peers_of_children: HashMap::new(),
         in_progress: HashSet::new(),
         pending_peer_edges: Vec::new(),
         pure_pkgs: HashSet::new(),
@@ -297,6 +296,7 @@ pub fn resolve_peers_workspace(
         node_dep_paths: HashMap::new(),
         node_external_peers: HashMap::new(),
         node_missing_peers: HashMap::new(),
+        node_missing_peers_of_children: HashMap::new(),
         in_progress: HashSet::new(),
         pending_peer_edges: Vec::new(),
         pure_pkgs: HashSet::new(),
@@ -433,6 +433,9 @@ struct Walker<'tree> {
     /// Peers each node and its subtree declared but couldn't find.
     /// Indexed by `NodeId`; value's keys are peer aliases.
     node_missing_peers: HashMap<NodeId, HashMap<String, MissingPeerInfo>>,
+    /// Peers each node's children declared but couldn't find.
+    /// Indexed by `NodeId`; value's keys are peer aliases.
+    node_missing_peers_of_children: HashMap<NodeId, HashMap<String, MissingPeerInfo>>,
     /// Stack of nodes currently being walked. Re-entry on a node here
     /// is a cycle — the recursion bottoms out with a `name@version`
     /// peer-id and the original visit drives the actual graph insert.
@@ -511,11 +514,13 @@ struct ParentPkgInfo {
 /// `missing_peers` is the set of unmet peer requirements the original
 /// walk surfaced — when a cache item carries a missing peer that the
 /// current parent context *does* provide, the contexts are
-/// incompatible and the item must be rejected.
+/// incompatible and the item must be rejected. `missing_peers_of_children`
+/// is the subset upstream exposes as the package's children report.
 struct PeersCacheItem {
     dep_path: DepPath,
     resolved_peers: HashMap<String, NodeId>,
     missing_peers: HashMap<String, MissingPeerInfo>,
+    missing_peers_of_children: HashMap<String, MissingPeerInfo>,
 }
 
 /// One `parent → child` edge whose target wasn't walked yet at the
@@ -616,7 +621,7 @@ impl Walker<'_> {
         let graph = self.build_final_graph(&final_dep_paths);
         let mut missing_names_by_pkg: HashMap<String, std::collections::HashSet<String>> =
             HashMap::new();
-        for (node_id, missing) in &self.node_missing_peers {
+        for (node_id, missing) in &self.node_missing_peers_of_children {
             let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else { continue };
             missing_names_by_pkg
                 .entry(tree_node.resolved_package_id.clone())
@@ -879,6 +884,7 @@ impl Walker<'_> {
             let dep_path = cached.dep_path.clone();
             let resolved = cached.resolved_peers.clone();
             let missing = cached.missing_peers.clone();
+            let missing_of_children = cached.missing_peers_of_children.clone();
             // Re-emit the missing-peer issues against the current
             // parent chain so each occurrence of the package shows up
             // in the diagnostic, mirroring upstream's behaviour at the
@@ -905,6 +911,7 @@ impl Walker<'_> {
             self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
             self.node_external_peers.insert(node_id.clone(), resolved.clone());
             self.node_missing_peers.insert(node_id.clone(), missing.clone());
+            self.node_missing_peers_of_children.insert(node_id.clone(), missing_of_children);
             // Same depth tie-break as the `purePkgs` fast path and the
             // non-fast `entry(...).and_modify(...)` write below — a
             // shallower revisit through the cache must still lower the
@@ -978,7 +985,7 @@ impl Walker<'_> {
         all_resolved_peers.remove(&pkg_name);
 
         // Same for missing peers (children + own).
-        let mut all_missing_peers = missing_from_children;
+        let mut all_missing_peers = missing_from_children.clone();
         for (peer_alias, info) in &own_missing_peers {
             all_missing_peers.insert(peer_alias.clone(), info.clone());
         }
@@ -1003,6 +1010,7 @@ impl Walker<'_> {
         self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
         self.node_external_peers.insert(node_id.clone(), all_resolved_peers.clone());
         self.node_missing_peers.insert(node_id.clone(), all_missing_peers.clone());
+        self.node_missing_peers_of_children.insert(node_id.clone(), missing_from_children.clone());
 
         // The children's depPath edges become this node's graph children.
         // Resolved peers become extra edges, aliased by peer name. If a
@@ -1087,6 +1095,7 @@ impl Walker<'_> {
                 dep_path: dep_path.clone(),
                 resolved_peers: all_resolved_peers.clone(),
                 missing_peers: all_missing_peers.clone(),
+                missing_peers_of_children: missing_from_children,
             });
         }
 
