@@ -357,6 +357,32 @@ test('fetch timeout allows steady body progress past the timeout window', async 
   expect(body).toBe('abc')
 })
 
+test('fetch timeout fails when response headers stall', async () => {
+  const response = new Promise<Response>((resolve, reject) => {
+    const sockets = new Set<import('node:net').Socket>()
+    const server = http.createServer(() => {})
+    server.on('connection', (socket) => {
+      sockets.add(socket)
+      socket.on('close', () => sockets.delete(socket))
+    })
+    server.listen(0, () => {
+      const { port } = server.address() as { port: number }
+      const fetchFromRegistry = createFetchFromRegistry({})
+      fetchFromRegistry(`http://127.0.0.1:${port}/stalled`, {
+        retry: { retries: 0 },
+        timeout: 50,
+      }).then(resolve, reject).finally(() => {
+        for (const socket of sockets) {
+          socket.destroy()
+        }
+        server.close()
+      })
+    })
+  })
+
+  await expect(response).rejects.toThrow()
+})
+
 test('abbreviated metadata Accept header is not sent on write requests', async () => {
   const receivedHeaders = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
     const server = http.createServer((req, res) => {
