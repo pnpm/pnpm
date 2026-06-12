@@ -85,7 +85,10 @@ export function initDefaultReporter (
     // Without a new line the prompt will be joined with the previous output.
     // An example of such prompt may be seen by running: pnpm update --interactive
     if (!view.endsWith(EOL)) view += EOL
-    write(diff.update(view))
+    // Erase to end of line on every line so that remnants from external
+    // processes (e.g. SSH passphrase prompts) don't bleed through.
+    const ERASE_EOL = '\x1b[K'
+    write(diff.update(view).split('\n').join(`${ERASE_EOL}\n`))
   }
   return () => {
     subscription.unsubscribe()
