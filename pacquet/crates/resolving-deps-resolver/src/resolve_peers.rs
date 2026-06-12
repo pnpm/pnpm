@@ -1545,7 +1545,15 @@ impl Walker<'_> {
         let child_depth = depth + 1;
         let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
         for edge in children_spec.iter() {
-            if parent_ids.iter().any(|ancestor_id| ancestor_id == &edge.pkg_id) {
+            // Same cycle gate as the eager walk: keep the first
+            // re-entry, drop a direct self-edge or a second lap.
+            if pkg_id == edge.pkg_id
+                || crate::resolve_dependency_tree::parent_ids_contain_sequence(
+                    &parent_ids,
+                    &pkg_id,
+                    &edge.pkg_id,
+                )
+            {
                 continue;
             }
             // Reuse the first walk's classification (persisted on

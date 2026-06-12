@@ -590,7 +590,15 @@ pub struct WorkspaceTreeCtx {
     /// peer the owner only satisfied by hoisting stays visible to
     /// every other importer's hoist. Consumed via
     /// [`crate::HoistMissingScope`].
-    first_walk_missing_by_pkg: Mutex<HashMap<String, (Option<ChildrenOwner>, HashSet<String>)>>,
+    first_walk_missing_by_pkg: Mutex<HashMap<String, OwnerMissingRecord>>,
+}
+
+/// One [`WorkspaceTreeCtx::first_walk_missing_by_pkg`] entry: the
+/// missing-peer names plus the owner generation that recorded them
+/// (`None` for a non-owner's provisional report).
+struct OwnerMissingRecord {
+    recorded_by: Option<ChildrenOwner>,
+    names: HashSet<String>,
 }
 
 impl Default for WorkspaceTreeCtx {
@@ -686,19 +694,24 @@ impl WorkspaceTreeCtx {
             if owner.importer_id != importer_id {
                 continue;
             }
-            let recorded_by_current_owner = record
-                .get(pkg_id)
-                .is_some_and(|(recorded_by, _)| recorded_by.as_ref() == Some(owner));
+            let recorded_by_current_owner =
+                record.get(pkg_id).is_some_and(|entry| entry.recorded_by.as_ref() == Some(owner));
             if !recorded_by_current_owner {
                 record.insert(
                     pkg_id.clone(),
-                    (Some(owner.clone()), missing_by_pkg.get(pkg_id).cloned().unwrap_or_default()),
+                    OwnerMissingRecord {
+                        recorded_by: Some(owner.clone()),
+                        names: missing_by_pkg.get(pkg_id).cloned().unwrap_or_default(),
+                    },
                 );
             }
         }
         for (pkg_id, names) in missing_by_pkg {
             if owners.get(pkg_id).is_none_or(|owner| owner.importer_id != importer_id) {
-                record.entry(pkg_id.clone()).or_insert_with(|| (None, names.clone()));
+                record.entry(pkg_id.clone()).or_insert_with(|| OwnerMissingRecord {
+                    recorded_by: None,
+                    names: names.clone(),
+                });
             }
         }
     }
@@ -709,7 +722,7 @@ impl WorkspaceTreeCtx {
     pub fn first_walk_missing_by_pkg(&self) -> HashMap<String, HashSet<String>> {
         lock_recoverable(&self.first_walk_missing_by_pkg)
             .iter()
-            .map(|(pkg_id, (_, names))| (pkg_id.clone(), names.clone()))
+            .map(|(pkg_id, entry)| (pkg_id.clone(), entry.names.clone()))
             .collect()
     }
 
@@ -1357,8 +1370,13 @@ where
 
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
-    // Cycle break — see the doc comment above.
-    if ancestor_ids.iter().any(|prev| prev == &id) {
+    // Cycle break — see the doc comment above. A direct self-edge and
+    // the second lap of a longer cycle are dropped; the first re-entry
+    // is kept so the cycle-closing edge reaches the lockfile snapshot,
+    // mirroring upstream's `buildTree` gate.
+    if ancestor_ids.last().is_some_and(|parent| {
+        *parent == id || parent_ids_contain_sequence(ancestor_ids, parent, &id)
+    }) {
         return Ok(NodeSeed::Done(None));
     }
 
@@ -1632,6 +1650,31 @@ where
     }
 
     Ok(Some(DirectDep { alias, node_id, id }))
+}
+
+/// Whether the `parent → child` edge closes a dependency cycle's
+/// *second* lap. Mirrors upstream's
+/// [`parentIdsContainSequence`](https://github.com/pnpm/pnpm/blob/d2b42c2dfc/installing/deps-resolver/src/parentIdsContainSequence.ts):
+/// the first re-entry of a cycle is kept (so the cycle-closing
+/// dependency edge appears in the tree and the lockfile snapshot,
+/// with [`fn@crate::resolve_peers`]'s previously-resolved-children
+/// merge restoring the pruned edge on the repeated node); only the
+/// repeat of the full `parent … child` sequence is dropped.
+pub(crate) fn parent_ids_contain_sequence(
+    pkg_ids: &[String],
+    pkg_id1: &str,
+    pkg_id2: &str,
+) -> bool {
+    let Some(pkg1_index) = pkg_ids.iter().position(|id| id == pkg_id1) else {
+        return false;
+    };
+    if pkg1_index == pkg_ids.len() - 1 {
+        return false;
+    }
+    let Some(pkg2_index) = pkg_ids.iter().rposition(|id| id == pkg_id2) else {
+        return false;
+    };
+    pkg1_index < pkg2_index && pkg2_index != pkg_ids.len() - 1
 }
 
 /// Whether a freshly resolved node landed back on its previously
@@ -2089,7 +2132,9 @@ where
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
     // Cycle break — same as the fresh path.
-    if ancestor_ids.iter().any(|prev| prev == &id) {
+    if ancestor_ids.last().is_some_and(|parent| {
+        *parent == id || parent_ids_contain_sequence(ancestor_ids, parent, &id)
+    }) {
         return Ok(None);
     }
 
