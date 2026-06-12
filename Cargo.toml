@@ -235,6 +235,7 @@ mod_module_files       = "warn" # forbids mod.rs, enforcing the flat module.rs l
 
 # unsafe hygiene (restriction): every `unsafe` block carries its own `// SAFETY:` comment
 undocumented_unsafe_blocks = "warn"
+unnecessary_safety_comment = "warn" # ...and `SAFETY:` prose never decorates safe code
 
 [profile.release]
 opt-level     = 3
