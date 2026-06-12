@@ -1337,7 +1337,7 @@ where
         // rides along for `currentPkg` while reuse stays disabled.
         let prior_children_snapshot = prior_key
             .as_ref()
-            .filter(|key| key.without_peer().to_string() == result.id.to_string())
+            .filter(|key| landed_on_prior_entry(key, &id))
             .and_then(|key| ctx.workspace.wanted_lockfile.as_ref()?.snapshots.as_ref()?.get(key));
         let child_results = child_specs
             .iter()
@@ -1417,6 +1417,18 @@ where
         });
 
     Ok(Some(DirectDep { alias, node_id, id }))
+}
+
+/// Whether a freshly resolved node landed back on its previously
+/// recorded lockfile entry — pnpm's `parentPkg.updated == false` arm,
+/// which keeps the prior child refs alive. Compares suffix-stripped
+/// forms on both sides: `resolved_pkg_id` is the canonical dep-path id
+/// ([`build_pkg_id_with_patch_hash`]'s output, which may carry a
+/// `(patch_hash=…)` suffix and `name@`-prefixes `file:`/git/tarball
+/// ids), and the recorded key may carry peer and patch-hash suffixes —
+/// none of which change *which package version* the parent is.
+fn landed_on_prior_entry(prior_key: &PkgNameVerPeer, resolved_pkg_id: &str) -> bool {
+    prior_key.without_peer().to_string() == pacquet_deps_path::remove_suffix(resolved_pkg_id)
 }
 
 /// One reusable node: its prior-lockfile snapshot key plus the
@@ -2090,3 +2102,6 @@ const NON_EXOTIC_RESOLVED_VIA: &[&str] = &[
 fn is_exotic_resolved_via(resolved_via: &str) -> bool {
     !NON_EXOTIC_RESOLVED_VIA.contains(&resolved_via)
 }
+
+#[cfg(test)]
+mod tests;
