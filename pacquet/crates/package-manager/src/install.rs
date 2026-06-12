@@ -553,13 +553,20 @@ where
         // forcing the frozen path.
         let project_manifests =
             build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
-        // `pacquet update` must always re-resolve, so it bypasses the
-        // optimistic short-circuit: a compatible bump leaves the
-        // manifest byte-identical, which the repeat-install check would
-        // otherwise read as "nothing changed → already up to date" and
-        // skip the registry re-resolution entirely. Gating on
-        // `KeepAll` keeps `install` / `add` on the fast path.
-        let optimistic_decision = matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
+        // Only a full `pacquet install` may short-circuit. `add` and
+        // `remove` mutate the manifest in memory and persist it after
+        // this run returns, so the on-disk mtimes the check reads still
+        // describe the pre-mutation project — without this gate a fresh
+        // workspace state would read as "nothing changed → already up
+        // to date" and the mutation would never be resolved or
+        // materialized. Mirrors upstream `installDeps` calling
+        // `checkDepsStatus` only for the plain-install mutation, never
+        // for `installSome` / `uninstallSome`. `pacquet update` is
+        // excluded through its seed policy: a compatible bump leaves
+        // the manifest byte-identical, which the check would likewise
+        // read as up to date and skip the registry re-resolution.
+        let optimistic_decision = is_full_install
+            && matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !frozen_lockfile
             && check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
                 workspace_root: &workspace_root,

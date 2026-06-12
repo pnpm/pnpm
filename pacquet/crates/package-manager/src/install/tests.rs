@@ -5869,6 +5869,145 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     // absent so the polarity of the gate is clear.
 }
 
+/// `add` / `remove` mutate the manifest in memory and persist it only
+/// after `Install::run` returns, so the on-disk mtimes the optimistic
+/// check reads still describe the pre-mutation project. A partial
+/// install (`is_full_install: false`) must therefore never take the
+/// optimistic short-circuit — otherwise a fresh workspace state would
+/// read as "already up to date" and the mutation would never be
+/// resolved or materialized. Mirrors upstream `installDeps` calling
+/// `checkDepsStatus` only for the plain-install mutation.
+#[tokio::test]
+async fn partial_install_disables_optimistic_short_circuit() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.lockfile = false;
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    let config = config.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      sibling:"
+        "        specifier: link:../sibling"
+        "        version: link:../sibling"
+        "packages: {}"
+        "snapshots: {}"
+    })
+    .expect("parse lockfile");
+
+    let included = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+
+    // Seed the same state the optimistic test uses, so the only
+    // difference between the two is `is_full_install`.
+    let seed_modules = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Isolated),
+        included,
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
+    lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
+
+    let mut projects = std::collections::BTreeMap::new();
+    projects.insert(
+        project_root.to_string_lossy().into_owned(),
+        workspace_state::ProjectEntry {
+            name: Some("project".to_string()),
+            version: Some("1.0.0".to_string()),
+        },
+    );
+    let settings = crate::optimistic_repeat_install::current_settings(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        included,
+    );
+    workspace_state::update_workspace_state(
+        &project_root,
+        &pacquet_workspace_state::WorkspaceState {
+            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+            projects,
+            pnpmfiles: Vec::new(),
+            filtered_install: false,
+            config_dependencies: None,
+            settings,
+        },
+    )
+    .expect("seed workspace state");
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: true,
+        update_checksums: false,
+        // The only difference vs the optimistic test above.
+        is_full_install: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("partial install must still succeed via the regular dispatch");
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        !captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Pnpm(log) if log.message == "Already up to date"
+        )),
+        "the optimistic 'Already up to date' log MUST NOT fire for a partial install; got events: {captured:#?}",
+    );
+}
+
 /// Regression: a single-project install with NO lockfile anywhere —
 /// `pnpm-lock.yaml` is gone and the virtual store has no current
 /// `lock.yaml` to stand in for it — must NOT short-circuit, even when
