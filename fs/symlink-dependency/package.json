@@ -37,7 +37,8 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "symlink-dir": "catalog:"
+    "symlink-dir": "catalog:",
+    "validate-npm-package-name": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -46,7 +47,8 @@
     "@jest/globals": "catalog:",
     "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/prepare": "workspace:*"
+    "@pnpm/prepare": "workspace:*",
+    "@types/validate-npm-package-name": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

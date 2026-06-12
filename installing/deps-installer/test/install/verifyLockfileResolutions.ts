@@ -480,3 +480,57 @@ test('rejects a registry-style depPath whose git-host tarball varies the host ca
     code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
   })
 })
+
+test.each([
+  '../../../escape',
+  '@scope/../../escape',
+  '.bin',
+  '.pnpm',
+  'node_modules',
+])('rejects an importer dependency alias %p, even with no verifiers', async (alias) => {
+  const lockfile = {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        specifiers: { [alias]: '1.0.0' },
+        dependencies: { [alias]: '1.0.0' },
+      },
+    },
+    packages: {
+      'real@1.0.0': { resolution: tarballResolution() },
+    },
+  } as unknown as LockfileObject
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+    message: expect.stringMatching(/not valid package names/),
+  })
+})
+
+test('rejects an invalid alias nested in a package snapshot, even with no verifiers', async () => {
+  const lockfile = makeLockfile({
+    'real@1.0.0': {
+      resolution: tarballResolution(),
+      dependencies: { '../../../escape': '1.0.0' },
+    } as never,
+  })
+  await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+  })
+})
+
+test('accepts valid scoped and unscoped dependency aliases', async () => {
+  const lockfile = {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        specifiers: { foo: '1.0.0', '@scope/bar': '1.0.0' },
+        dependencies: { foo: '1.0.0', '@scope/bar': '1.0.0' },
+      },
+    },
+    packages: {
+      'foo@1.0.0': { resolution: tarballResolution() },
+      '@scope/bar@1.0.0': { resolution: tarballResolution() },
+    },
+  } as unknown as LockfileObject
+  await expect(verifyLockfileResolutions(lockfile, [])).resolves.toBeUndefined()
+})

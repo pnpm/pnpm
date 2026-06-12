@@ -4936,6 +4936,9 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.1
+      validate-npm-package-name:
+        specifier: 'catalog:'
+        version: 7.0.2
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -4949,6 +4952,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@types/validate-npm-package-name':
+        specifier: 'catalog:'
+        version: 4.0.2
 
   global/commands:
     dependencies:

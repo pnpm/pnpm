@@ -22,7 +22,7 @@ use pacquet_resolving_resolver_base::ResolutionVerifier;
 
 use crate::{
     cache::record_verification, hash_lockfile,
-    verify_lockfile_resolutions::with_resolution_shape_cache_identity,
+    verify_lockfile_resolutions::with_offline_check_cache_identities,
 };
 
 /// Persist the post-resolution lockfile as already-verified.
@@ -49,7 +49,7 @@ pub fn record_lockfile_verified(
     record_verification(
         cache_dir,
         lockfile_path,
-        &with_resolution_shape_cache_identity(verifiers),
+        &with_offline_check_cache_identities(verifiers),
         || hash_lockfile(lockfile),
         crate::cache::CachePrecomputed::default(),
     );

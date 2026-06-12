@@ -31,6 +31,7 @@
 //! to nest. Hoisting decisions are made at directory granularity,
 //! not depPath granularity.
 
+use crate::safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir};
 use derive_more::{Display, Error, From};
 use indexmap::IndexSet;
 use miette::Diagnostic;
@@ -325,6 +326,11 @@ pub enum HoistedDepGraphError {
     #[display("{_0}")]
     #[diagnostic(transparent)]
     Installability(#[error(source)] Box<InstallabilityError>),
+    /// A hoisted node's alias was rejected by `safe_join_modules_dir`
+    /// before the join. Surfaces `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
+    #[display("{_0}")]
+    #[diagnostic(transparent)]
+    InvalidDependencyAlias(#[error(source)] InvalidDependencyAliasError),
 }
 
 /// Build a directory-keyed [`LockfileToDepGraphResult`] from a
@@ -690,7 +696,7 @@ fn walk_deps(
             }
         }
 
-        let dir = modules.join(&dep.0.name);
+        let dir = safe_join_modules_dir(modules, &dep.0.name)?;
         let dep_location = path_relative_to_lockfile_dir(&dir, state.lockfile_dir);
 
         // Insert *before* recursing — mirrors upstream's
