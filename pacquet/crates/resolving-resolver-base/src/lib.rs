@@ -28,8 +28,8 @@ mod verifier;
 
 pub use publish_time::parse_packument_timestamp;
 pub use resolve::{
-    DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT, LatestInfo,
-    LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
+    CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT,
+    LatestInfo, LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, SharedDependencyManifest,
     UpdateBehavior, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
     VersionSelectors, WantedDependency, WorkspacePackage, WorkspacePackages,

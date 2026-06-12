@@ -4,6 +4,7 @@ mod build_resolution_verifiers;
 mod build_sequence;
 mod build_snapshot;
 mod catalog_mode;
+mod check_custom_resolver_force_resolve;
 mod create_symlink_layout;
 mod create_virtual_dir_by_snapshot;
 mod create_virtual_store;

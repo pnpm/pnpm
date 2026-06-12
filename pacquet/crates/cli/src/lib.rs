@@ -26,7 +26,9 @@ pub async fn main() -> miette::Result<()> {
     // `configure_rayon_pool` for them (Copilot review on <https://github.com/pnpm/pacquet/pull/292>).
     let args = CliArgs::parse_from(argv);
     configure_rayon_pool();
-    args.run(&config_overrides).await
+    // Boxed for `clippy::large_futures`: the command future exceeds the
+    // lint's stack-size threshold (the limit trips on Windows first).
+    Box::pin(args.run(&config_overrides)).await
 }
 
 /// Size rayon's global pool at `2 × available_parallelism`. The link

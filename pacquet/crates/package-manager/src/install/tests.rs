@@ -1060,8 +1060,10 @@ mod build_workspace_state_tests {
     /// timestamp.
     #[test]
     fn empty_project_list_produces_empty_projects_map() {
+        let dir = tempdir().unwrap();
         let config = Config::new();
         let state = build_workspace_state(
+            dir.path(),
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
@@ -1093,6 +1095,7 @@ mod build_workspace_state_tests {
 
         let config = Config::new();
         let state = build_workspace_state(
+            dir.path(),
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
@@ -1124,7 +1127,9 @@ mod build_workspace_state_tests {
             "@pnpm/pacquet".to_string(),
             ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string()),
         )]));
+        let dir = tempdir().unwrap();
         let state = build_workspace_state(
+            dir.path(),
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),

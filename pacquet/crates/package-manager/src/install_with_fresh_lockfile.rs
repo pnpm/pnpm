@@ -354,6 +354,20 @@ pub enum InstallWithFreshLockfileError {
     #[display("Failed to serialize lockfile for the afterAllResolved hook: {_0}")]
     #[diagnostic(code(pacquet_package_manager::after_all_resolved_serialize))]
     AfterAllResolvedSerialize(#[error(source)] serde_json::Error),
+
+    /// The pnpmfile's `getCustomResolvers` hook threw while loading custom
+    /// resolvers. Mirrors pnpm, where a throwing custom-resolver hook
+    /// aborts the install.
+    #[display("{_0}")]
+    #[diagnostic(code(PNPMFILE_FAIL))]
+    CustomResolverHook(#[error(not(source))] pacquet_hooks::HookError),
+
+    /// A custom resolver's `shouldRefreshResolution` hook threw while
+    /// checking whether to force re-resolution. Mirrors pnpm, where a
+    /// throwing hook aborts the install.
+    #[display("{_0}")]
+    #[diagnostic(code(PNPMFILE_FAIL))]
+    CustomResolverForceResolve(#[error(not(source))] pacquet_hooks::HookError),
 }
 
 impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFreshLockfileError {
@@ -682,18 +696,45 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             full_metadata,
             retry_opts: crate::retry_config::retry_opts_from_config(config),
         };
+        let pnpmfile_hook = finder::load_pnpmfile(lockfile_dir);
+        let custom_resolvers_raw: Vec<Arc<dyn pacquet_hooks::CustomResolver>> =
+            if let Some(ref hook) = pnpmfile_hook {
+                hook.get_custom_resolvers().await.map_err(|err| {
+                    tracing::error!(
+                        target: "pacquet::install",
+                        "Failed to get custom resolvers from pnpmfile: {err}",
+                    );
+                    InstallWithFreshLockfileError::CustomResolverHook(err)
+                })?
+            } else {
+                vec![]
+            };
+
         // Order mirrors upstream's chain at
         // <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L128-L147>:
-        // npm → jsr (folded into npm) → git → tarball → localScheme →
-        // node → deno → bun → namedRegistry → localPath. The
-        // local-resolver split is required by named-registry: a
+        // custom resolvers → npm → jsr (folded into npm) → git →
+        // tarball → localScheme → node → deno → bun → namedRegistry →
+        // localPath. Custom resolvers join only when they implement
+        // both `canResolve` and `resolve` (upstream skips the others).
+        // The local-resolver split is required by named-registry: a
         // `<alias>:@scope/pkg` specifier carries an embedded `/`,
         // which the path-shape detector
         // (`contains_path_sep` in `parse_bare_specifier.rs`) would
         // otherwise claim and prevent the named-registry resolver
         // from running.
-        let inner_resolver: Box<dyn Resolver> = Box::new(DefaultResolver::new(vec![
-            Box::new(ArcResolver(Arc::clone(&npm_resolver))),
+        let mut chain: Vec<Box<dyn Resolver>> = Vec::with_capacity(custom_resolvers_raw.len() + 9);
+        chain.extend(
+            custom_resolvers_raw
+                .iter()
+                .filter(|custom| custom.has_can_resolve() && custom.has_resolve())
+                .map(|custom| {
+                    Box::new(pacquet_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
+                        Arc::clone(custom),
+                    )) as Box<dyn Resolver>
+                }),
+        );
+        chain.extend([
+            Box::new(ArcResolver(Arc::clone(&npm_resolver))) as Box<dyn Resolver>,
             Box::new(git_resolver),
             Box::new(tarball_resolver),
             Box::new(local_scheme_resolver),
@@ -702,7 +743,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             Box::new(bun_resolver),
             Box::new(named_registry_resolver),
             Box::new(local_path_resolver),
-        ]));
+        ]);
+        let inner_resolver: Box<dyn Resolver> = Box::new(DefaultResolver::new(chain));
 
         // Wrap the resolver chain so each tarball-shaped result fires a
         // background download into `tarball_mem_cache` while the
@@ -948,7 +990,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 .collect();
         let peers_suffix_max_length =
             usize::try_from(config.peers_suffix_max_length).unwrap_or(usize::MAX);
-        let pnpmfile_hook = finder::load_pnpmfile(lockfile_dir);
         // Kept past the resolver hand-off (which consumes `pnpmfile_hook`) so
         // the `afterAllResolved` hook can transform the lockfile before it is
         // written.
@@ -1003,6 +1044,29 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .await;
         }
 
+        // `pacquet update` must re-resolve its targets to highest-in-range,
+        // so suppress reuse for them (and their subtrees). Custom resolvers
+        // may widen this to `None` via `shouldRefreshResolution`.
+        let mut update_reuse_scope = match &update_seed_policy {
+            UpdateSeedPolicy::KeepAll => pacquet_resolving_deps_resolver::UpdateReuseScope::All,
+            UpdateSeedPolicy::DropAll => pacquet_resolving_deps_resolver::UpdateReuseScope::None,
+            UpdateSeedPolicy::DropOnly(names) => {
+                pacquet_resolving_deps_resolver::UpdateReuseScope::Except(names.clone())
+            }
+        };
+
+        // A throwing hook propagates and aborts.
+        if let Some(lockfile) = wanted_lockfile
+            && crate::check_custom_resolver_force_resolve::check_custom_resolver_force_resolve(
+                &custom_resolvers_raw,
+                lockfile,
+            )
+            .await
+            .map_err(InstallWithFreshLockfileError::CustomResolverForceResolve)?
+        {
+            update_reuse_scope = pacquet_resolving_deps_resolver::UpdateReuseScope::None;
+        }
+
         let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
             dedupe_peers: config.dedupe_peers,
             dedupe_injected_deps: config.dedupe_injected_deps,
@@ -1030,17 +1094,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 })
                 .cloned()
                 .map(Arc::new),
-            // `pacquet update` must re-resolve its targets to highest-
-            // in-range, so suppress reuse for them (and their subtrees).
-            update_reuse_scope: match &update_seed_policy {
-                UpdateSeedPolicy::KeepAll => pacquet_resolving_deps_resolver::UpdateReuseScope::All,
-                UpdateSeedPolicy::DropAll => {
-                    pacquet_resolving_deps_resolver::UpdateReuseScope::None
-                }
-                UpdateSeedPolicy::DropOnly(names) => {
-                    pacquet_resolving_deps_resolver::UpdateReuseScope::Except(names.clone())
-                }
-            },
+            update_reuse_scope,
             auto_install_peers: config.auto_install_peers,
         };
         let modules_basename = config.modules_dir.file_name().map_or_else(

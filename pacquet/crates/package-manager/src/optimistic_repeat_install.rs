@@ -27,9 +27,12 @@
 //! dependency-relevant content still matches the lockfile, upstream's
 //! [`assertWantedLockfileUpToDate`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L483-L561)
 //! still reports up-to-date (a `touch package.json`, a `scripts` edit, or
-//! an `npm pkg set/delete` rewrite must not trigger a full install). The
-//! pnpmfile branch of `patchesOrHooksAreModified` and the
-//! `isLocalFileDepUpdated` branch of `linkedPackagesAreUpToDate` are NOT
+//! an `npm pkg set/delete` rewrite must not trigger a full install), and
+//! the pnpmfile branch of `patchesOrHooksAreModified` (an added, removed,
+//! or edited workspace pnpmfile invalidates the fast path; plugin
+//! pnpmfiles from config dependencies are covered by the
+//! `config_dependencies` comparison instead of the mtime check). The
+//! `isLocalFileDepUpdated` branch of `linkedPackagesAreUpToDate` is NOT
 //! ported here. When this function returns `Decision::Skipped` the caller
 //! proceeds with the full install path, which still has its own freshness
 //! guards (`check_lockfile_freshness`, the no-op short-circuit). Remaining
@@ -203,6 +206,15 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         return Decision::Skipped { reason: "a patch file is newer than the last validation" };
     }
 
+    // A pnpmfile added, removed, or edited in place can change
+    // resolution (readPackage rewrites, custom resolvers, a
+    // `shouldRefreshResolution` verdict) without touching any manifest,
+    // so it must defeat the mtime fast path. Upstream catches this in
+    // the pnpmfile branch of `patchesOrHooksAreModified`.
+    if pnpmfiles_modified_since(workspace_root, &state.pnpmfiles, state.last_validated_timestamp) {
+        return Decision::Skipped { reason: "a pnpmfile changed since the last validation" };
+    }
+
     // The fast-path conclusion. Upstream walks every manifest and
     // returns `upToDate: true` when none have an mtime newer than
     // `workspaceState.lastValidatedTimestamp`. The walk has to
@@ -242,6 +254,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
             // content check, so it degrades rather than fails.
             if is_workspace_install {
                 let new_state = crate::install::build_workspace_state(
+                    workspace_root,
                     config,
                     node_linker,
                     included,
@@ -967,6 +980,40 @@ fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64
         };
         let Ok(elapsed) = modified.duration_since(SystemTime::UNIX_EPOCH) else {
             return false;
+        };
+        let modified_ms = i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
+        modified_ms > cutoff_ms
+    })
+}
+
+/// The pnpmfile list recorded in the workspace state and compared by
+/// the freshness check: today just the workspace pnpmfile.
+/// Config-dependency plugin pnpmfiles are tracked via the
+/// `config_dependencies` comparison instead. pnpm records every loaded
+/// pnpmfile (`resolvedPnpmfilePaths`, plugins included).
+pub(crate) fn current_pnpmfiles(workspace_root: &Path) -> Vec<String> {
+    pacquet_hooks::finder::find_pnpmfile(workspace_root)
+        .map(|path| path.to_string_lossy().into_owned())
+        .into_iter()
+        .collect()
+}
+
+/// Mirrors the pnpmfile branch of upstream's
+/// [`patchesOrHooksAreModified`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L692-L703):
+/// the recorded pnpmfile list must match the current one, every
+/// recorded pnpmfile must still exist, and none may be newer than the
+/// last validation.
+fn pnpmfiles_modified_since(workspace_root: &Path, previous: &[String], cutoff_ms: i64) -> bool {
+    let current = current_pnpmfiles(workspace_root);
+    if current != previous {
+        return true;
+    }
+    current.iter().any(|path| {
+        let Ok(modified) = fs::metadata(path).and_then(|metadata| metadata.modified()) else {
+            return true;
+        };
+        let Ok(elapsed) = modified.duration_since(SystemTime::UNIX_EPOCH) else {
+            return true;
         };
         let modified_ms = i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
         modified_ms > cutoff_ms

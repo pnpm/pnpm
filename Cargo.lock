@@ -3835,6 +3835,9 @@ dependencies = [
  "async-trait",
  "derive_more",
  "pacquet-crypto-hash",
+ "pacquet-lockfile",
+ "pacquet-resolving-resolver-base",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",
@@ -3988,6 +3991,7 @@ name = "pacquet-package-manager"
 version = "0.0.1"
 dependencies = [
  "async-recursion",
+ "async-trait",
  "chrono",
  "dashmap",
  "derive_more",
