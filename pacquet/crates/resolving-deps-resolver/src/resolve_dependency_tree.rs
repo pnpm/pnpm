@@ -1767,6 +1767,15 @@ async fn warm_children_resolutions<Chain>(ctx: &TreeCtx, resolver: &Chain, seed:
 where
     Chain: Resolver + ?Sized,
 {
+    // A configured pnpmfile hook is externally observable per call
+    // (`readPackage` IPC, `context.log`, custom resolvers), so
+    // speculative resolutions must not fire it; the pure in-memory
+    // manifest hook (packageExtensions / overrides) is idempotent and
+    // cache-deduped, indistinguishable from a first-caller win in the
+    // pre-existing concurrent-miss race.
+    if ctx.workspace.pnpmfile_hook.is_some() {
+        return;
+    }
     let NodeSeed::Pending(pending) = seed else { return };
     if pending.is_link || pending.is_revisit {
         return;
