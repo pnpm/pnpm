@@ -179,8 +179,18 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacque
 function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm/pacquet'): string {
   const ext = process.platform === 'win32' ? '.exe' : ''
   const pacquetPkg = fs.realpathSync(path.join(lockfileDir, 'node_modules/.pnpm-config', packageName, 'package.json'))
+  return createRequire(pacquetPkg).resolve(`${pacquetPlatformPkgName()}/pacquet${ext}`)
+}
+
+/**
+ * Name of the `@pacquet/<platform>-<arch>[-musl]` package that holds the
+ * native pacquet binary for the host. On linux the binary packages are
+ * split by libc and only the matching one is installed, so spawning and
+ * signature verification must agree on this exact name.
+ */
+export function pacquetPlatformPkgName (): string {
   const libc = process.platform === 'linux' && getLibcFamilySync() === MUSL ? '-musl' : ''
-  return createRequire(pacquetPkg).resolve(`@pacquet/${process.platform}-${process.arch}${libc}/pacquet${ext}`)
+  return `@pacquet/${process.platform}-${process.arch}${libc}`
 }
 
 /**
