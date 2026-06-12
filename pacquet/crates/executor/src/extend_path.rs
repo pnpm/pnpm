@@ -39,6 +39,7 @@ pub enum ScriptsPrependNodePath {
 /// 5. `dirname(node_execpath)` when `scripts_prepend_node_path` is
 ///    [`Always`](ScriptsPrependNodePath::Always),
 /// 6. `original_path` (typically the inherited system PATH).
+#[must_use]
 pub fn extend_path(
     wd: &Path,
     original_path: Option<&OsString>,

@@ -23,6 +23,7 @@ export type StrictBuildOptions = {
   scriptsPrependNodePath: boolean | 'warn-only'
   shellEmulator: boolean
   skipIfHasSideEffectsCache?: boolean
+  frozenStore?: boolean
   storeDir: string // TODO: remove this property
   storeController: StoreController
   force: boolean
@@ -47,6 +48,8 @@ export type StrictBuildOptions = {
   shamefullyHoist: boolean
   deployAllFiles: boolean
   allowBuilds?: Record<string, boolean | string>
+  enableGlobalVirtualStore?: boolean
+  globalVirtualStoreDir?: string
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
   strictStorePkgContentCheck: boolean

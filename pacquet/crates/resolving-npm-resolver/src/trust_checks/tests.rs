@@ -246,7 +246,7 @@ fn prerelease_target_compares_against_prerelease_history() {
 
 /// `trust_policy_ignore_after_minutes` cuts the check off once a
 /// version is old enough. With `now` set 100 days after publish
-/// and the ignore-cutoff at 7 days (10_080 minutes), the check
+/// and the ignore-cutoff at 7 days (`10_080` minutes), the check
 /// skips even though prior history would have flagged a downgrade.
 #[test]
 fn ignore_after_skips_check_for_settled_versions() {
@@ -332,7 +332,7 @@ fn exclude_exact_version_short_circuits_check() {
 /// lookup, so a packument with no `time` map still passes rather than
 /// surfacing `TrustCheckFailed`. Pins the ordering of the exclude
 /// check ahead of the time assertion. Mirrors upstream's "does not
-/// fail with ERR_PNPM_MISSING_TIME when package@version is excluded".
+/// fail with `ERR_PNPM_MISSING_TIME` when package@version is excluded".
 #[test]
 fn exclude_exact_version_with_missing_time_does_not_fail() {
     let mut meta = make_package("acme", &[("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::None)]);
@@ -346,7 +346,7 @@ fn exclude_exact_version_with_missing_time_does_not_fail() {
 }
 
 /// Same as above, but the whole package name is excluded. Mirrors
-/// upstream's "does not fail with ERR_PNPM_MISSING_TIME when package
+/// upstream's "does not fail with `ERR_PNPM_MISSING_TIME` when package
 /// name is excluded".
 #[test]
 fn exclude_package_name_with_missing_time_does_not_fail() {
@@ -368,7 +368,7 @@ fn exclude_package_name_with_missing_time_does_not_fail() {
 
 /// Missing `time` entry for the target version surfaces as
 /// `TrustCheckFailed`. Mirrors upstream's
-/// `Missing time for version X of Y` PnpmError.
+/// `Missing time for version X of Y` `PnpmError`.
 #[test]
 fn missing_time_surfaces_trust_check_failed() {
     let mut meta = make_package("acme", &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)]);
@@ -420,6 +420,30 @@ fn prior_version_missing_time_does_not_mask_trust_history() {
     let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
         .expect_err("missing-time on a prior version must not mask the 1.0.0 baseline");
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+}
+
+/// A prior version whose manifest fragment does not decode fails the
+/// check closed (`TrustCheckFailed`) instead of being skipped — the
+/// skipped fragment could be the strongest prior evidence, and
+/// passing without it would let a downgrade through undetected.
+#[test]
+fn undecodable_prior_version_fails_closed() {
+    let body = serde_json::json!({
+        "name": "acme",
+        "dist-tags": {},
+        "time": {
+            "1.0.0": "2025-01-01T00:00:00.000Z",
+            "1.1.0": "2025-02-01T00:00:00.000Z",
+        },
+        "versions": {
+            "1.0.0": { "corrupt": "fragment" },
+            "1.1.0": version_json("acme", "1.1.0", Evidence::None),
+        },
+    });
+    let meta: Package = serde_json::from_value(body).expect("deserialize fixture Package");
+    let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
+        .expect_err("undecodable prior manifest must fail the trust check");
+    assert!(matches!(err, TrustViolation::TrustCheckFailed { .. }), "got {err:?}");
 }
 
 mod get_trust_evidence {

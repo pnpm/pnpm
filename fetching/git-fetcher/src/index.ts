@@ -8,6 +8,7 @@ import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
+import { createGitHostedPkgId } from '@pnpm/resolving.git-resolver'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
 import { rimraf } from '@zkochan/rimraf'
@@ -47,6 +48,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       const prepareResult = await preparePackage({
         allowBuild: opts.allowBuild,
         ignoreScripts: createOpts.ignoreScripts,
+        pkgResolutionId: createGitHostedPkgId(resolution),
         unsafePerm: createOpts.unsafePerm,
         userAgent: createOpts.userAgent,
       }, tempLocation, resolution.path ?? '')

@@ -31,17 +31,17 @@ fn missing(name: &str, range: &str) -> (String, MissingPeerInfo) {
     (name.to_string(), MissingPeerInfo { range: range.to_string() })
 }
 
-fn opts<'a>(
+fn opts(
     auto_install_peers: bool,
-    all_preferred_versions: &'a PreferredVersions,
-) -> HoistPeersOptions<'a> {
+    all_preferred_versions: &PreferredVersions,
+) -> HoistPeersOptions<'_> {
     HoistPeersOptions { auto_install_peers, all_preferred_versions, workspace_root_deps: &[] }
 }
 
 #[test]
 fn picks_already_available_prerelease_version() {
     let preferred = preferred(&[("foo", &[("1.0.0-beta.0", plain(VersionSelectorType::Version))])]);
-    let result = hoist_peers(opts(false, &preferred), &[missing("foo", "*")]);
+    let result = hoist_peers(&opts(false, &preferred), &[missing("foo", "*")]);
     let mut expected = BTreeMap::new();
     expected.insert("foo".to_string(), "1.0.0-beta.0".to_string());
     assert_eq!(result, expected);
@@ -56,7 +56,7 @@ fn respects_peer_dep_range_when_preferred_versions_exist() {
             ("4.3.0", plain(VersionSelectorType::Version)),
         ],
     )]);
-    let result = hoist_peers(opts(true, &preferred), &[missing("chai", "4.3.0")]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("chai", "4.3.0")]);
     let mut expected = BTreeMap::new();
     expected.insert("chai".to_string(), "4.3.0".to_string());
     assert_eq!(result, expected);
@@ -65,7 +65,7 @@ fn respects_peer_dep_range_when_preferred_versions_exist() {
 #[test]
 fn falls_back_to_range_when_no_preferred_version_satisfies_it() {
     let preferred = preferred(&[("chai", &[("5.2.1", plain(VersionSelectorType::Version))])]);
-    let result = hoist_peers(opts(true, &preferred), &[missing("chai", "4.3.0")]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("chai", "4.3.0")]);
     let mut expected = BTreeMap::new();
     expected.insert("chai".to_string(), "4.3.0".to_string());
     assert_eq!(result, expected);
@@ -81,7 +81,7 @@ fn picks_highest_preferred_version_for_deduplication_when_range_is_not_exact() {
             ("3.0.0", plain(VersionSelectorType::Version)),
         ],
     )]);
-    let result = hoist_peers(opts(true, &preferred), &[missing("foo", "^2.0.0")]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "^2.0.0")]);
     let mut expected = BTreeMap::new();
     expected.insert("foo".to_string(), "3.0.0".to_string());
     assert_eq!(result, expected);
@@ -90,7 +90,7 @@ fn picks_highest_preferred_version_for_deduplication_when_range_is_not_exact() {
 #[test]
 fn reuses_higher_preferred_version_when_range_is_not_exact() {
     let preferred = preferred(&[("foo", &[("2.0.0", plain(VersionSelectorType::Version))])]);
-    let result = hoist_peers(opts(true, &preferred), &[missing("foo", "1")]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "1")]);
     let mut expected = BTreeMap::new();
     expected.insert("foo".to_string(), "2.0.0".to_string());
     assert_eq!(result, expected);
@@ -100,7 +100,7 @@ fn reuses_higher_preferred_version_when_range_is_not_exact() {
 #[test]
 fn returns_valid_specifier_when_given_only_range_preferred_version_selectors() {
     let preferred = preferred(&[("foo", &[("^2.0.0", plain(VersionSelectorType::Range))])]);
-    let result = hoist_peers(opts(true, &preferred), &[missing("foo", "2")]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "2")]);
     let mut expected = BTreeMap::new();
     expected.insert("foo".to_string(), "^2.0.0".to_string());
     assert_eq!(result, expected);
@@ -109,7 +109,7 @@ fn returns_valid_specifier_when_given_only_range_preferred_version_selectors() {
 #[test]
 fn handles_workspace_protocol_range_without_panicking() {
     let preferred = preferred(&[("foo", &[("1.0.0", plain(VersionSelectorType::Version))])]);
-    let result = hoist_peers(opts(true, &preferred), &[missing("foo", "workspace:*")]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "workspace:*")]);
     let mut expected = BTreeMap::new();
     expected.insert("foo".to_string(), "1.0.0".to_string());
     assert_eq!(result, expected);
@@ -128,7 +128,7 @@ fn handles_version_selector_with_weight() {
             }),
         )],
     )]);
-    let result = hoist_peers(opts(true, &preferred), &[missing("foo", "1")]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("foo", "1")]);
     let mut expected = BTreeMap::new();
     expected.insert("foo".to_string(), "1.0.0".to_string());
     assert_eq!(result, expected);
@@ -205,7 +205,7 @@ fn get_hoistable_optional_peers_handles_version_selector_with_weight() {
 fn hoist_peers_accepts_prerelease_against_non_prerelease_range() {
     let preferred =
         preferred(&[("react", &[("18.0.0-rc.1", plain(VersionSelectorType::Version))])]);
-    let result = hoist_peers(opts(true, &preferred), &[missing("react", "^18.0.0")]);
+    let result = hoist_peers(&opts(true, &preferred), &[missing("react", "^18.0.0")]);
     let mut expected = BTreeMap::new();
     expected.insert("react".to_string(), "18.0.0-rc.1".to_string());
     assert_eq!(result, expected);

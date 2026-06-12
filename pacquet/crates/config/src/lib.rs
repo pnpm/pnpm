@@ -10,7 +10,10 @@ mod workspace_yaml;
 pub use crate::api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe};
 
 use indexmap::IndexMap;
-use pacquet_patching::{PatchGroupRecord, ResolvePatchedDependenciesError, resolve_and_group};
+use pacquet_patching::{
+    CalcPatchHashError, PatchGroupRecord, ResolvePatchedDependenciesError, calc_patch_hashes,
+    resolve_and_group,
+};
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::ConfigDependency;
 use pipe_trait::Pipe;
@@ -41,18 +44,18 @@ pub use workspace_yaml::{
     workspace_root_or,
 };
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeLinker {
-    /// dependencies are symlinked from a virtual store at node_modules/.pnpm.
+    /// dependencies are symlinked from a virtual store at `node_modules/.pnpm`.
     #[default]
     Isolated,
 
-    /// flat node_modules without symlinks is created. Same as the node_modules created by npm or
+    /// flat `node_modules` without symlinks is created. Same as the `node_modules` created by npm or
     /// Yarn Classic.
     Hoisted,
 
-    /// no node_modules. Plug'n'Play is an innovative strategy for Node that is used by
+    /// no `node_modules`. Plug'n'Play is an innovative strategy for Node that is used by
     /// Yarn Berry. It is recommended to also set symlink setting to false when using pnp as
     /// your linker.
     Pnp,
@@ -75,7 +78,7 @@ pub enum NodeLinker {
 /// No effect under `nodeLinker: isolated`. The user-facing mode is
 /// translated into the per-locator border map the hoister consumes
 /// by `crate::get_hoisting_limits` in `pacquet-package-manager`.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum HoistingLimits {
     #[default]
@@ -127,6 +130,16 @@ pub enum ScriptsPrependNodePath {
     WarnOnly,
 }
 
+impl serde::Serialize for ScriptsPrependNodePath {
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        match self {
+            ScriptsPrependNodePath::Always => serializer.serialize_bool(true),
+            ScriptsPrependNodePath::Never => serializer.serialize_bool(false),
+            ScriptsPrependNodePath::WarnOnly => serializer.serialize_str("warn-only"),
+        }
+    }
+}
+
 impl<'de> serde::Deserialize<'de> for ScriptsPrependNodePath {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
@@ -136,7 +149,7 @@ impl<'de> serde::Deserialize<'de> for ScriptsPrependNodePath {
         use std::fmt;
 
         struct V;
-        impl<'de> Visitor<'de> for V {
+        impl Visitor<'_> for V {
             type Value = ScriptsPrependNodePath;
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.write_str(r#"a boolean or the string "warn-only""#)
@@ -198,11 +211,22 @@ impl LinkWorkspacePackages {
     /// [`Self::DirectOnly`] arm only fires at the importer level
     /// (`current_depth == 0`); pacquet's caller decides which arm
     /// to expose by passing in the current depth.
+    #[must_use]
     pub fn enabled_at_depth(self, current_depth: u32) -> bool {
         match self {
             LinkWorkspacePackages::Off => false,
             LinkWorkspacePackages::DirectOnly => current_depth == 0,
             LinkWorkspacePackages::Deep => true,
+        }
+    }
+}
+
+impl serde::Serialize for LinkWorkspacePackages {
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        match self {
+            LinkWorkspacePackages::Off => serializer.serialize_bool(false),
+            LinkWorkspacePackages::DirectOnly => serializer.serialize_bool(true),
+            LinkWorkspacePackages::Deep => serializer.serialize_str("deep"),
         }
     }
 }
@@ -216,7 +240,7 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
         use std::fmt;
 
         struct V;
-        impl<'de> Visitor<'de> for V {
+        impl Visitor<'_> for V {
             type Value = LinkWorkspacePackages;
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.write_str(r#"a boolean or the string "deep""#)
@@ -256,7 +280,7 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
 /// [`ResolutionMode::TimeBased`] the resolver additionally constrains
 /// subdependencies to versions published no later than the newest
 /// resolved direct dependency (plus a one-hour delta).
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ResolutionMode {
     /// Pick the highest version that satisfies the range, everywhere.
@@ -279,12 +303,37 @@ impl ResolutionMode {
     /// [`Self::LowestDirect`]. Mirrors pnpm's
     /// [`pickLowestVersion`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L470)
     /// computation.
+    #[must_use]
     pub fn picks_lowest_direct(self) -> bool {
         matches!(self, ResolutionMode::TimeBased | ResolutionMode::LowestDirect)
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+/// How `pnpm add` / `pnpm update` reconcile a directly-specified version
+/// against a `catalog:` entry for the same package. Mirrors pnpm's
+/// [`catalogMode`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L186)
+/// setting.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CatalogMode {
+    /// The catalog is consulted only for explicit `catalog:` specifiers;
+    /// `add` / `update` never reconcile a direct version against it. The
+    /// default, matching pnpm's
+    /// [`'catalog-mode': 'manual'`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L132).
+    #[default]
+    Manual,
+
+    /// A direct version that disagrees with the matching catalog entry is
+    /// an error (`ERR_PNPM_CATALOG_VERSION_MISMATCH`).
+    Strict,
+
+    /// A direct version that disagrees with the matching catalog entry is
+    /// kept, with a warning; a version that agrees is used from the
+    /// catalog.
+    Prefer,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PackageImportMethod {
     ///  try to clone packages from the store. If cloning is not supported then hardlink packages
@@ -315,12 +364,12 @@ pub enum PackageImportMethod {
 /// (project-structural settings).
 #[derive(Debug, SmartDefault)]
 pub struct Config {
-    /// When true, all dependencies are hoisted to node_modules/.pnpm/node_modules.
-    /// This makes unlisted dependencies accessible to all packages inside node_modules.
+    /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
+    /// This makes unlisted dependencies accessible to all packages inside `node_modules`.
     #[default = true]
     pub hoist: bool,
 
-    /// Tells pnpm which packages should be hoisted to node_modules/.pnpm/node_modules.
+    /// Tells pnpm which packages should be hoisted to `node_modules/.pnpm/node_modules`.
     /// By default, all packages are hoisted - however, if you know that only some flawed packages
     /// have phantom dependencies, you can use this option to exclusively hoist the phantom
     /// dependencies (recommended).
@@ -356,18 +405,20 @@ pub struct Config {
     #[default(_code = "Some(default_public_hoist_pattern())")]
     pub public_hoist_pattern: Option<Vec<String>>,
 
-    /// By default, pnpm creates a semistrict node_modules, meaning dependencies have access to
-    /// undeclared dependencies but modules outside of node_modules do not. With this layout,
+    /// By default, pnpm creates a semistrict `node_modules`, meaning dependencies have access to
+    /// undeclared dependencies but modules outside of `node_modules` do not. With this layout,
     /// most of the packages in the ecosystem work with no issues. However, if some tooling only
-    /// works when the hoisted dependencies are in the root of node_modules, you can set this to
+    /// works when the hoisted dependencies are in the root of `node_modules`, you can set this to
     /// true to hoist them for you.
     pub shamefully_hoist: bool,
 
-    /// The location where all the packages are saved on the disk.
+    /// The location where all packages are saved on disk. Share a
+    /// writable store only between mutually trusted users, jobs, and
+    /// processes.
     #[default(_code = "default_store_dir::<Host>()")]
     pub store_dir: StoreDir,
 
-    /// The directory in which dependencies will be installed (instead of node_modules).
+    /// The directory in which dependencies will be installed (instead of `node_modules`).
     #[default(_code = "default_modules_dir()")]
     pub modules_dir: PathBuf,
 
@@ -433,7 +484,7 @@ pub struct Config {
     pub global_virtual_store_dir: PathBuf,
 
     /// Controls the way packages are imported from the store (if you want to disable symlinks
-    /// inside node_modules, then you need to change the node-linker setting, not this one).
+    /// inside `node_modules`, then you need to change the node-linker setting, not this one).
     pub package_import_method: PackageImportMethod,
 
     /// The time in minutes after which orphan packages from the modules directory should be
@@ -536,7 +587,7 @@ pub struct Config {
     /// spec. Pacquet doesn't have a metadata-fetch path yet (no
     /// resolver until Stage 2), so the same flag instead gates
     /// pacquet's tarball-fetch fall-through: when both the warm
-    /// prefetch and the SQLite `index.db` lookup miss, the tarball
+    /// prefetch and the `SQLite` `index.db` lookup miss, the tarball
     /// fetcher fails fast with `ERR_PACQUET_NO_OFFLINE_TARBALL`
     /// rather than hitting the registry. The frozen-lockfile install
     /// path needs no metadata, so the surface area collapses to
@@ -571,6 +622,11 @@ pub struct Config {
     /// The base URL of the npm package registry (trailing slash included).
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)
+
+    /// Scoped registry routes keyed by `@scope`, populated from
+    /// `.npmrc` `@scope:registry=...` and
+    /// `pnpm-workspace.yaml#registries`.
+    pub registries: BTreeMap<String, String>,
 
     /// User-defined named-registry aliases from
     /// `pnpm-workspace.yaml#namedRegistries`. Maps each alias name
@@ -768,11 +824,33 @@ pub struct Config {
     /// lookup skips that verification entirely and trusts the index — a
     /// missing blob is discovered lazily at link time instead.
     ///
+    /// This is corruption detection for a trusted store, not a tamper
+    /// boundary for a store writable by untrusted users or jobs.
+    ///
     /// Matches pnpm's `verifyStoreIntegrity` camelCase key in
     /// `pnpm-workspace.yaml` (same `true` default as pnpm's
     /// `installing/deps-installer/src/install/extendInstallOptions.ts`).
     #[default = true]
     pub verify_store_integrity: bool,
+
+    /// Opt-in assertion that the package store is complete and will not
+    /// be written during this install — for running against a store on a
+    /// read-only filesystem (a Nix store, a read-only bind mount, an OCI
+    /// layer). When `true`, pacquet opens `index.db` through the
+    /// `immutable=1` URI (see `StoreIndex::open_immutable`) and suppresses
+    /// every store-write path: the batched `index.db` writer is replaced
+    /// with a drain-and-drop stub that never opens the DB, and
+    /// `init_store_dir_best_effort` is skipped so no directory creation is
+    /// attempted under the store root. Pair with `--offline
+    /// --frozen-lockfile` against a fully-populated store.
+    ///
+    /// pnpm rejects `frozenStore` combined with `force` (force re-imports
+    /// packages into the store, which a read-only store cannot accept).
+    /// pacquet has no `force` flow yet, so there is no conflict to guard;
+    /// the guard ports alongside `force`.
+    ///
+    /// Matches pnpm's `frozenStore` / `--frozen-store` (default `false`).
+    pub frozen_store: bool,
 
     /// Whether to consult the side-effects cache
     /// (`PackageFilesIndex.sideEffects`) when importing a package
@@ -1128,6 +1206,8 @@ pub struct Config {
     /// verification gate to memoize past results in
     /// `<cache_dir>/lockfile-verified.jsonl`, and by the npm verifier
     /// to mirror full-metadata responses for conditional GETs.
+    /// Share a writable cache only between mutually trusted users,
+    /// jobs, and processes.
     ///
     /// Mirrors pnpm's
     /// [`cacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L159);
@@ -1237,6 +1317,37 @@ pub struct Config {
     /// [`'resolution-mode': 'highest'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L188).
     pub resolution_mode: ResolutionMode,
 
+    /// How `pnpm add` / `pnpm update` reconcile a directly-specified
+    /// version against a matching `catalog:` entry. See [`CatalogMode`].
+    /// Default [`CatalogMode::Manual`], matching pnpm's
+    /// [`'catalog-mode': 'manual'`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L132).
+    pub catalog_mode: CatalogMode,
+
+    /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
+    /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
+    /// (possibly modified) by the hook. `None` when no hook changed
+    /// them, in which case the install reads catalogs straight from the
+    /// workspace manifest. `Some` carries the complete catalog set the
+    /// hook produced (existing + injected), so the install uses it as-is
+    /// — the counterpart to pnpm's `config.catalogs` after the
+    /// `updateConfig` pass.
+    pub catalogs: Option<pacquet_catalogs_types::Catalogs>,
+
+    /// Name of the catalog `pnpm add` saves a new dependency into,
+    /// set by `--save-catalog-name=<name>` (with `--save-catalog` a
+    /// shorthand for `default`). When `Some`, an `add` writes
+    /// `catalog:`/`catalog:<name>` to the manifest and inserts the
+    /// entry into `pnpm-workspace.yaml` even under
+    /// [`CatalogMode::Manual`]. Mirrors pnpm's
+    /// [`saveCatalogName`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L92)
+    /// (default
+    /// [`undefined`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L191)).
+    /// A CLI-only flag in pnpm
+    /// ([`excludedPnpmKeys`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L138)),
+    /// so pacquet does not read it from `pnpm-workspace.yaml`; the
+    /// effective value is threaded onto the `add` command from the CLI.
+    pub save_catalog_name: Option<String>,
+
     /// Whether the configured registry returns the per-version `time`
     /// field in its *abbreviated* metadata. When `false` (the default),
     /// [`ResolutionMode::TimeBased`] resolution (and the
@@ -1299,6 +1410,7 @@ pub struct Config {
 }
 
 impl Config {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -1336,6 +1448,15 @@ impl Config {
     /// [`pickRespectingMinReleaseAge`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/resolving/npm-resolver/src/pickPackage.ts#L119-L132)).
     pub fn resolved_minimum_release_age(&self) -> Option<u64> {
         self.minimum_release_age.filter(|&minutes| minutes > 0)
+    }
+
+    /// Registry map in pnpm's `Registries` shape: `default` plus the
+    /// configured scoped routes keyed by `@scope`.
+    #[must_use]
+    pub fn resolved_registries(&self) -> BTreeMap<String, String> {
+        let mut registries = self.registries.clone();
+        registries.insert("default".to_string(), self.registry.clone());
+        registries
     }
 
     /// Whether the install should consult the side-effects cache.
@@ -1473,23 +1594,58 @@ impl Config {
         resolve_and_group(workspace_dir, raw)
     }
 
+    /// Resolve relative patch file paths in
+    /// [`Config::patched_dependencies`] against
+    /// [`Config::workspace_dir`] and hash each file, producing the
+    /// `patchedDependencies` map the lockfile records: each configured
+    /// key mapped to its patch file's SHA-256 hex digest.
+    ///
+    /// Mirrors upstream's
+    /// [`calcPatchHashes(opts.patchedDependencies)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L547-L549),
+    /// where `opts.patchedDependencies` is the manifest-dir-resolved
+    /// map produced by
+    /// [`getOptionsFromRootManifest`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts#L44-L46).
+    /// Distinct from [`Self::resolved_patched_dependencies`], which
+    /// groups the same entries by package name for the resolver — this
+    /// keeps the user's verbatim keys so the lockfile is byte-faithful
+    /// (e.g. a bare `foo` and `foo@*` stay separate keys rather than
+    /// collapsing into one group bucket).
+    ///
+    /// Returns `Ok(None)` when either field is unset.
+    pub fn patched_dependency_hashes(
+        &self,
+    ) -> Result<Option<BTreeMap<String, String>>, CalcPatchHashError> {
+        let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)
+        else {
+            return Ok(None);
+        };
+        let resolved = raw.iter().map(|(key, rel_or_abs)| {
+            let candidate = Path::new(rel_or_abs);
+            let path = if candidate.is_absolute() {
+                candidate.to_path_buf()
+            } else {
+                workspace_dir.join(candidate)
+            };
+            (key.clone(), path)
+        });
+        Ok(Some(calc_patch_hashes(resolved)?))
+    }
+
     /// Build the runtime config by layering:
     /// 1. hard-coded defaults, then
     /// 2. the supported `.npmrc` subset read from the nearest `.npmrc`
     ///    (cwd, falling back to home), then
     /// 3. the nearest `pnpm-workspace.yaml` walking up from cwd.
     ///
-    /// Pacquet currently applies `registry`, npm-auth credentials, the
+    /// Pacquet currently applies `registry`, scoped registry routes,
+    /// npm-auth credentials, the
     /// proxy keys (`https-proxy`, `http-proxy`, `proxy`, `no-proxy` /
     /// `noproxy`), and the TLS + local-address keys (`ca`, `cafile`,
     /// `cert`, `key`, `strict-ssl`, `local-address`) from `.npmrc`.
-    /// Other `.npmrc` entries — pnpm's scoped-registry keys and
-    /// per-registry TLS overrides (`//host:cafile=`, `//host:ca=`,
-    /// `//host:cert=`, `//host:key=`), plus project-structural
-    /// settings like `storeDir`, `lockfile` and `hoist-pattern` — are
-    /// silently ignored here. The first group is tracked for future
-    /// per-registry-TLS work; the second must come from
-    /// `pnpm-workspace.yaml` or CLI flags, matching pnpm 11.
+    /// Other `.npmrc` entries — project-structural settings like
+    /// `storeDir`, `lockfile` and `hoist-pattern` — are silently
+    /// ignored here. Those must come from `pnpm-workspace.yaml` or CLI
+    /// flags, matching pnpm 11.
     ///
     /// The yaml wins over `.npmrc` on any key it sets.
     ///
@@ -1518,9 +1674,9 @@ impl Config {
         self.modules_dir = start_dir.join("node_modules");
         self.virtual_store_dir = start_dir.join("node_modules/.pnpm");
 
-        // Read the nearest .npmrc (start_dir first, home second) and apply
-        // only the auth/network subset. Everything else is intentionally
-        // ignored.
+        // Read the project/workspace .npmrc plus trusted user-level sources
+        // and apply only the auth/network subset. Everything else is
+        // intentionally ignored.
         //
         // pnpm reads several `.npmrc` sources and merges them
         // (`user < auth.ini < workspace`), pinning each file's *unscoped*
@@ -1534,8 +1690,44 @@ impl Config {
         // participates in the user-level path resolution below, and its
         // directory is where `auth.ini` lives.
         let global_config_dir = default_config_dir::<Sys>();
-        let global_settings =
+        let mut global_settings =
             global_config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
+        if let Some(global_settings) = global_settings.as_mut() {
+            global_settings.substitute_env_trusted::<Sys>();
+        }
+
+        // Resolve the workspace dir before reading the project `.npmrc`
+        // so subdirectory invocations use the workspace-root config,
+        // matching pnpm's `opts.workspaceDir ?? localPrefix` boundary.
+        let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
+            .or_else(|| Sys::var_os("npm_config_workspace_dir"))
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from);
+        let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
+            // Env-var path: load yaml directly from the env dir. A
+            // missing file is silent (matching upstream), but the
+            // re-anchor still fires because the user has explicitly
+            // told us where the workspace lives.
+            let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
+            match fs::read_to_string(&yaml_path) {
+                Ok(text) => {
+                    let settings: WorkspaceSettings =
+                        serde_saphyr::from_str(&text).map_err(Box::new).map_err(|source| {
+                            LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source }
+                        })?;
+                    Some((env_dir, Some(settings)))
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
+                Err(source) => {
+                    return Err(LoadWorkspaceYamlError::ReadFile { path: yaml_path, source });
+                }
+            }
+        } else {
+            WorkspaceSettings::find_and_load(start_dir)?.map(|(path, settings)| {
+                let base_dir = path.parent().unwrap_or(start_dir).to_path_buf();
+                (base_dir, Some(settings))
+            })
+        };
 
         // Resolve the user-level `.npmrc` path. Precedence (pnpm's
         // [`index.ts:230`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L230)):
@@ -1560,16 +1752,22 @@ impl Config {
         // Build the merge sources in priority order (high → low):
         // project `.npmrc` > `auth.ini` > user-level `.npmrc`. Each is
         // parsed and rescoped independently before being folded together.
-        let parse_source = |text: String, dir: PathBuf, label: &str| {
+        let parse_trusted_source = |text: String, dir: PathBuf, label: &str| {
             let mut auth = crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text, &dir);
             auth.rescope_unscoped(label);
             auth
         };
-        let project_source = read_npmrc(start_dir)
-            .map(|text| parse_source(text, start_dir.to_path_buf(), "<project>/.npmrc"));
+        let project_npmrc_dir =
+            workspace_yaml.as_ref().map_or(start_dir, |(base_dir, _)| base_dir.as_path());
+        let project_source = read_npmrc(project_npmrc_dir).map(|text| {
+            let mut auth =
+                crate::npmrc_auth::NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir);
+            auth.rescope_unscoped("<project>/.npmrc");
+            auth
+        });
         let auth_ini_source = global_config_dir.as_deref().and_then(|dir| {
             read_npmrc_file(&dir.join("auth.ini"))
-                .map(|text| parse_source(text, dir.to_path_buf(), "auth.ini"))
+                .map(|text| parse_trusted_source(text, dir.to_path_buf(), "auth.ini"))
         });
         let user_source = match &user_npmrc_path {
             Some(path) => read_npmrc_file(path).map(|text| {
@@ -1577,17 +1775,30 @@ impl Config {
                 // the file's directory; for a bare filename (no parent)
                 // that's the empty path — i.e. the process cwd — never
                 // the file itself.
-                let dir = path.parent().map(|parent| parent.to_path_buf()).unwrap_or_default();
-                parse_source(text, dir, "<user>/.npmrc")
+                let dir = path.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+                parse_trusted_source(text, dir, "<user>/.npmrc")
             }),
-            None => Sys::home_dir()
-                .and_then(|dir| read_npmrc(&dir).map(|text| parse_source(text, dir, "~/.npmrc"))),
+            None => Sys::home_dir().and_then(|dir| {
+                read_npmrc(&dir).map(|text| parse_trusted_source(text, dir, "~/.npmrc"))
+            }),
+        };
+
+        // URL-scoped credentials from `npm_config_//...` / `pnpm_config_//...`
+        // environment variables. These are trusted (they come from the
+        // environment, not the repository) and host-scoped by construction, so
+        // they sit at the top of the precedence chain — above the project
+        // `.npmrc` — mirroring the env-over-workspace ordering in pnpm's
+        // [`loadNpmrcFiles.ts`](https://github.com/pnpm/pnpm/blob/main/config/reader/src/loadNpmrcFiles.ts).
+        let env_scoped_source = {
+            let auth = crate::npmrc_auth::NpmrcAuth::from_url_scoped_env::<Sys>();
+            (!auth.creds_by_uri.is_empty()).then_some(auth)
         };
 
         // Fold high-priority-first: the first present source is the
         // base, each lower source fills the gaps it left
         // ([`NpmrcAuth::merge_under`]).
-        let mut sources = [project_source, auth_ini_source, user_source].into_iter().flatten();
+        let mut sources =
+            [env_scoped_source, project_source, auth_ini_source, user_source].into_iter().flatten();
         let mut npmrc_auth = sources.next().unwrap_or_default();
         for lower in sources {
             npmrc_auth.merge_under(lower);
@@ -1639,32 +1850,18 @@ impl Config {
         // must fire only when the user has *not* pinned a path. See
         // [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
-        if let Some(mut global_settings) = global_settings {
+        if let Some(global_settings) = global_settings {
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
             store_dir_explicit |= global_settings.store_dir.is_some();
-            global_settings.substitute_env::<Sys>();
             let saved_workspace_dir = self.workspace_dir.take();
             global_settings.apply_to(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
         }
 
         // Layer pnpm-workspace.yaml overrides on top. A missing file is
-        // silent. Read or parse failures propagate to the caller.
-        //
-        // Resolve the workspace dir: `NPM_CONFIG_WORKSPACE_DIR`
-        // override first (mirroring upstream's `findWorkspaceDir` and
-        // [`pacquet_workspace::find_workspace_dir`]; both must agree on
-        // where the workspace lives, otherwise the per-importer
-        // `SymlinkDirectDependencies` writes and the virtual store
-        // would end up in different directories). Fall back to the
-        // upward walk for `pnpm-workspace.yaml` when the env var is
-        // unset or empty.
-        //
-        // The env var is read here rather than via
-        // [`pacquet_workspace`] to avoid adding a cross-crate
-        // dependency just for the lookup — the contract is fixed by
-        // pnpm upstream, so the duplication is low-risk.
+        // silent. Read or parse failures propagated while resolving
+        // `workspace_yaml` above.
         //
         // Capture the "did yaml set this field" booleans *before*
         // applying yaml so the GVS derivation downstream can tell apart
@@ -1673,36 +1870,6 @@ impl Config {
         // (SmartDefault wrote them in) and would either always or never
         // re-point them, neither of which matches upstream's
         // [`extendInstallOptions.ts:343-355`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/extendInstallOptions.ts#L343-L355).
-        let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
-            .or_else(|| Sys::var_os("npm_config_workspace_dir"))
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from);
-        let workspace_yaml = if let Some(env_dir) = env_workspace_dir {
-            // Env-var path: load yaml directly from the env dir. A
-            // missing file is silent (matching upstream), but the
-            // re-anchor still fires because the user has explicitly
-            // told us where the workspace lives.
-            let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
-            match fs::read_to_string(&yaml_path) {
-                Ok(text) => {
-                    let settings: WorkspaceSettings =
-                        serde_saphyr::from_str(&text).map_err(Box::new).map_err(|source| {
-                            LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source }
-                        })?;
-                    Some((env_dir, Some(settings)))
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
-                Err(source) => {
-                    return Err(LoadWorkspaceYamlError::ReadFile { path: yaml_path, source });
-                }
-            }
-        } else {
-            WorkspaceSettings::find_and_load(start_dir)?.map(|(path, settings)| {
-                let base_dir = path.parent().unwrap_or(start_dir).to_path_buf();
-                (base_dir, Some(settings))
-            })
-        };
-
         if let Some((base_dir, settings)) = workspace_yaml {
             // Re-anchor the path-valued defaults to the workspace root
             // before applying settings. Without this, a `pacquet install`
@@ -1741,7 +1908,7 @@ impl Config {
                 virtual_store_dir_explicit |= settings.virtual_store_dir.is_some();
                 global_virtual_store_dir_explicit |= settings.global_virtual_store_dir.is_some();
                 store_dir_explicit |= settings.store_dir.is_some();
-                settings.substitute_env::<Sys>();
+                settings.substitute_env_untrusted::<Sys>();
                 settings.apply_to(&mut self, &base_dir);
             }
         }
@@ -1765,7 +1932,7 @@ impl Config {
         virtual_store_dir_explicit |= env_settings.virtual_store_dir.is_some();
         global_virtual_store_dir_explicit |= env_settings.global_virtual_store_dir.is_some();
         store_dir_explicit |= env_settings.store_dir.is_some();
-        env_settings.substitute_env::<Sys>();
+        env_settings.substitute_env_trusted::<Sys>();
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;

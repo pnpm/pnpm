@@ -1,5 +1,40 @@
 # @pnpm/audit
 
+## 1101.0.15
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.1.2
+
+## 1101.0.14
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/lockfile.detect-dep-types@1100.0.10
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.types@1100.0.10
+  - @pnpm/lockfile.utils@1100.0.12
+  - @pnpm/lockfile.walker@1100.0.10
+  - @pnpm/network.fetch@1100.1.1
+
+## 1101.0.13
+
+### Patch Changes
+
+- Updated dependencies [60a1eec]
+- Updated dependencies [a017bf3]
+  - @pnpm/network.fetch@1100.1.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/lockfile.detect-dep-types@1100.0.9
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/lockfile.walker@1100.0.9
+
 ## 1101.0.12
 
 ### Patch Changes

@@ -1,5 +1,96 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.22
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [615c669]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/global.commands@1100.0.27
+  - @pnpm/store.connection-manager@1100.2.8
+  - @pnpm/installing.deps-restorer@1101.1.11
+  - @pnpm/installing.env-installer@1101.1.8
+  - @pnpm/resolving.npm-resolver@1101.5.2
+  - @pnpm/store.controller@1101.0.13
+  - @pnpm/cli.utils@1101.0.11
+  - @pnpm/installing.client@1100.2.7
+  - @pnpm/deps.security.signatures@1101.2.1
+  - @pnpm/bins.linker@1100.0.13
+  - @pnpm/workspace.project-manifest-reader@1100.0.12
+
+## 1101.1.21
+
+### Patch Changes
+
+- 3537020: Avoid writing `packageManagerDependencies` to `pnpm-lock.yaml` when package manager policy is set to `onFail: ignore` or `pmOnFail: ignore` [#12228](https://github.com/pnpm/pnpm/issues/12228).
+- 5f2bb9f: Security: pnpm now verifies the npm registry signature of a package-manager binary before spawning it, so a cloned repository cannot make pnpm download and execute an arbitrary native binary.
+
+  This covers two paths that select an executable from repository-controlled input:
+
+  - **pacquet install engine** — declaring `pacquet` (or `@pnpm/pacquet`) in `configDependencies` opts in to pnpm's Rust install engine. pnpm now verifies that the installed `pacquet` shim and the host's `@pacquet/<platform>-<arch>` binary carry a valid npm registry signature for their exact `name@version`, and refuses to run pacquet (failing the command) if the signature does not verify or cannot be checked. The only graceful fallback to pnpm's own engine is when pacquet has no binary for the current platform.
+  - **automatic version switch / `self-update`** — the `packageManager` / `devEngines.packageManager` field makes pnpm download and run a specific pnpm version. pnpm now verifies the registry signature of `pnpm`, `@pnpm/exe`, and the host platform binary before installing/spawning them, and refuses to run an engine whose signature does not match a published, signed release. The check runs only on an actual download (store cache miss), so it does not add a network round trip to every command.
+
+  In both cases the signature is verified over the _installed_ integrity, against npm's public signing keys that ship embedded in the pnpm CLI (like corepack), so bytes substituted via a tampered lockfile or a repository-controlled registry fail verification — and a registry the user did not vouch for cannot supply its own signing keys. The signed packument is fetched from the configured registry, so an npm mirror works transparently. Verification fails closed: if it cannot be completed (for example, the registry is unreachable), the command fails rather than running an unverified binary. The embedded keys are kept current by a release-time check against npm's signing-keys endpoint.
+
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [5f2bb9f]
+- Updated dependencies [1017c36]
+- Updated dependencies [bf1b731]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/deps.security.signatures@1101.2.0
+  - @pnpm/building.policy@1100.0.9
+  - @pnpm/deps.graph-hasher@1100.2.4
+  - @pnpm/installing.deps-restorer@1101.1.10
+  - @pnpm/types@1101.3.1
+  - @pnpm/global.commands@1100.0.26
+  - @pnpm/store.connection-manager@1100.2.7
+  - @pnpm/installing.env-installer@1101.1.7
+  - @pnpm/bins.linker@1100.0.12
+  - @pnpm/global.packages@1100.0.7
+  - @pnpm/installing.client@1100.2.6
+  - @pnpm/cli.meta@1100.0.7
+  - @pnpm/cli.utils@1101.0.10
+  - @pnpm/config.pick-registry-for-package@1100.0.8
+  - @pnpm/config.version-policy@1100.1.4
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.types@1100.0.10
+  - @pnpm/network.auth-header@1101.1.1
+  - @pnpm/resolving.npm-resolver@1101.5.1
+  - @pnpm/store.controller@1101.0.12
+  - @pnpm/workspace.project-manifest-reader@1100.0.11
+
+## 1101.1.20
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [722b9cd]
+- Updated dependencies [6d17b66]
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.npm-resolver@1101.5.0
+  - @pnpm/global.commands@1100.0.25
+  - @pnpm/installing.client@1100.2.5
+  - @pnpm/installing.env-installer@1101.1.6
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/bins.linker@1100.0.11
+  - @pnpm/building.policy@1100.0.8
+  - @pnpm/cli.meta@1100.0.6
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.version-policy@1100.1.3
+  - @pnpm/deps.graph-hasher@1100.2.3
+  - @pnpm/global.packages@1100.0.6
+  - @pnpm/installing.deps-restorer@1101.1.9
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/store.controller@1101.0.11
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+
 ## 1101.1.19
 
 ### Patch Changes

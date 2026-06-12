@@ -12,9 +12,9 @@
 //! to a plain GET — the same behavior callers got before Phase 5
 //! from [`crate::fetch_full_metadata()`].
 //!
-//! The cache layout matches pnpm's so a pnpm-populated mirror is
-//! usable from pacquet (and vice versa). The two-line NDJSON shape
-//! lives in [`crate::mirror`].
+//! The directory layout matches pnpm's; the file format is pacquet's
+//! own indexed shape (see [`crate::mirror`]) so warm loads hydrate
+//! only the version fragments a pick consults.
 
 use std::path::Path;
 
@@ -28,7 +28,7 @@ use crate::{
     fetch_full_metadata::{ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC},
     mirror::{
         ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta_async,
-        load_meta_headers_async, prepare_json_for_disk, save_meta,
+        load_meta_headers_async, save_meta_indexed,
     },
     registry_url::to_registry_url,
 };
@@ -121,7 +121,7 @@ pub async fn fetch_full_metadata_cached(
 
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    let (_client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
+    let (client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
         let mut request = client.get(&url).header(header::ACCEPT, accept);
         if let Some(value) = opts.auth_headers.for_url(&url) {
             request = request.header(header::AUTHORIZATION, value);
@@ -140,6 +140,9 @@ pub async fn fetch_full_metadata_cached(
     .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
 
     if response.status() == StatusCode::NOT_MODIFIED {
+        // No body to stream — release the connection and its
+        // network-concurrency permit before the mirror disk read.
+        drop(client);
         let Some(path) = mirror_path else {
             // 304 without an existing cache to fall back on — the
             // registry over-reached on `If-None-Match: <stale>`.
@@ -166,35 +169,47 @@ pub async fn fetch_full_metadata_cached(
         .text()
         .await
         .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-    let meta: Package = serde_json::from_str(&raw_body)
-        .map_err(|error| FetchMetadataError::Decode { url: url.clone(), error })?;
 
-    if let Some(path) = mirror_path.as_deref() {
-        match prepare_json_for_disk(&meta, etag.as_deref(), Some(&raw_body)) {
-            Ok(json) => {
-                if let Err(error) = save_meta(path, &json) {
-                    // Fire-and-forget — a read-only cache dir or a
-                    // shared-store contention shouldn't fail the
-                    // install. The user just won't see the warm-cache
-                    // speedup next time.
-                    tracing::debug!(
-                        target: "pacquet_resolving_npm_resolver::cache",
-                        ?error,
-                        path = %path.display(),
-                        "could not persist mirror; bypassing cache write",
-                    );
-                }
-            }
-            Err(error) => {
+    // Body fully buffered — release the connection and its
+    // network-concurrency permit before the CPU-bound parse so the
+    // semaphore keeps bounding *sockets*, not parses. Same
+    // buffer-then-release shape as the tarball pipeline in
+    // `pacquet-tarball`.
+    drop(client);
+
+    // Deserialize and persist the mirror off the reactor. Packuments
+    // run to several megabytes for high-release-cadence packages
+    // (`@fluentui/*`, `@types/node`, ...); parsing one inline pins a
+    // tokio worker for hundreds of milliseconds and stalls every
+    // socket that worker pumps — on a cold babylon install the
+    // inline parses held the metadata phase to a third of pnpm's
+    // throughput.
+    let task_url = url.clone();
+    let meta = tokio::task::spawn_blocking(move || -> Result<Package, FetchMetadataError> {
+        let meta: Package = serde_json::from_str(&raw_body)
+            .map_err(|error| FetchMetadataError::Decode { url: task_url, error })?;
+
+        if let Some(path) = mirror_path.as_deref() {
+            // The lazily-parsed `meta` still borrows every version
+            // fragment from `raw_body`, so the indexed write streams
+            // the registry's own bytes — no re-serialization.
+            if let Err(error) = save_meta_indexed(path, &meta, etag.as_deref()) {
+                // Fire-and-forget — a read-only cache dir or a
+                // shared-store contention shouldn't fail the
+                // install. The user just won't see the warm-cache
+                // speedup next time.
                 tracing::debug!(
                     target: "pacquet_resolving_npm_resolver::cache",
                     ?error,
                     path = %path.display(),
-                    "could not serialize mirror entry; bypassing cache write",
+                    "could not persist mirror; bypassing cache write",
                 );
             }
         }
-    }
+        Ok(meta)
+    })
+    .await
+    .map_err(|error| FetchMetadataError::ParseTask { url, error })??;
 
     meta.pipe(Ok)
 }

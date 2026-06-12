@@ -1,5 +1,161 @@
 # @pnpm/core
 
+## 1101.9.0
+
+### Minor Changes
+
+- 84bb4b1: Raised the default network concurrency from `min(64, max(cpuCores * 3, 16))` to `min(96, max(cpuCores * 3, 64))`. Package downloads are I/O-bound, not CPU-bound, so deriving the floor from the core count left machines with few cores (for example 4-vCPU CI runners) downloading only 16 tarballs at a time and unable to saturate a low-latency registry. The `networkConcurrency` setting still overrides the default.
+
+### Patch Changes
+
+- f11b4fc: Print a "Lockfile passes supply-chain policies (verified 2h ago)" message when lockfile verification is skipped because a cached verdict for the same lockfile content and policy is reused. Previously the cached short-circuit was completely silent, which made it look like the policy gate never ran [#12324](https://github.com/pnpm/pnpm/issues/12324).
+- Updated dependencies [f11b4fc]
+- Updated dependencies [84bb4b1]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/installing.package-requester@1101.1.0
+  - @pnpm/building.after-install@1101.0.21
+  - @pnpm/building.during-install@1101.0.18
+  - @pnpm/bins.remover@1100.0.9
+  - @pnpm/exec.lifecycle@1100.0.17
+  - @pnpm/fs.symlink-dependency@1100.0.9
+  - @pnpm/installing.context@1100.0.17
+  - @pnpm/installing.deps-resolver@1100.2.2
+  - @pnpm/installing.deps-restorer@1101.1.11
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.9
+  - @pnpm/installing.linking.hoist@1100.0.13
+  - @pnpm/installing.linking.modules-cleaner@1100.1.7
+  - @pnpm/pkg-manifest.utils@1100.2.4
+  - @pnpm/lockfile.filtering@1100.1.6
+  - @pnpm/worker@1100.1.11
+  - @pnpm/lockfile.verification@1100.0.17
+  - @pnpm/bins.linker@1100.0.13
+  - @pnpm/lockfile.preferred-versions@1100.0.15
+  - @pnpm/workspace.project-manifest-reader@1100.0.12
+  - @pnpm/lockfile.settings-checker@1100.0.17
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.8.0
+
+### Minor Changes
+
+- 089484a: The pnpr install accelerator is now used only to create the lockfile. Previously `POST /v1/install` returned the resolved lockfile **and** all missing file contents inline over a single connection, which was bandwidth-bound on cold/WAN installs (one TCP stream can't compete with a registry's parallel CDN fetches). The accelerator is now a two-phase flow: the pnpr server resolves and verifies the lockfile server-side (collapsing resolution's round-trip depth), then the client fetches every tarball directly from the registries in parallel, exactly like a normal install. This makes the accelerated path never slower than a plain install, and turns pnpr into a stateless resolver that stores no tarballs and serves no file content [#12230](https://github.com/pnpm/pnpm/issues/12230).
+
+### Patch Changes
+
+- bf1b731: Require trusted package identity before package-name `allowBuilds` entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the `allowBuilds` key. Lockfile verification now rejects lockfiles where a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [de32f83]
+- Updated dependencies [089484a]
+- Updated dependencies [29a496a]
+- Updated dependencies [bf1b731]
+  - @pnpm/pnpr.client@1.2.0
+  - @pnpm/worker@1100.1.10
+  - @pnpm/installing.deps-resolver@1100.2.1
+  - @pnpm/building.after-install@1101.0.20
+  - @pnpm/building.during-install@1101.0.17
+  - @pnpm/building.policy@1100.0.9
+  - @pnpm/deps.graph-hasher@1100.2.4
+  - @pnpm/installing.deps-restorer@1101.1.10
+  - @pnpm/types@1101.3.1
+  - @pnpm/bins.linker@1100.0.12
+  - @pnpm/bins.remover@1100.0.8
+  - @pnpm/config.normalize-registries@1100.0.7
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/exec.lifecycle@1100.0.16
+  - @pnpm/fs.symlink-dependency@1100.0.8
+  - @pnpm/hooks.read-package-hook@1100.0.7
+  - @pnpm/hooks.types@1100.0.11
+  - @pnpm/installing.context@1100.0.16
+  - @pnpm/installing.linking.hoist@1100.0.12
+  - @pnpm/installing.linking.modules-cleaner@1100.1.6
+  - @pnpm/installing.modules-yaml@1100.0.8
+  - @pnpm/installing.package-requester@1101.0.12
+  - @pnpm/lockfile.filtering@1100.1.5
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.preferred-versions@1100.0.14
+  - @pnpm/lockfile.pruner@1100.0.10
+  - @pnpm/lockfile.to-pnp@1100.0.13
+  - @pnpm/lockfile.utils@1100.0.12
+  - @pnpm/lockfile.verification@1100.0.16
+  - @pnpm/lockfile.walker@1100.0.10
+  - @pnpm/network.auth-header@1101.1.1
+  - @pnpm/pkg-manifest.utils@1100.2.3
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/store.controller-types@1100.1.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.11
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/lockfile.settings-checker@1100.0.16
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.8
+  - @pnpm/patching.config@1100.0.7
+
+## 1101.7.0
+
+### Minor Changes
+
+- 5192edf: The pnpr install accelerator now forwards the caller's per-registry credentials on `POST /v1/install`, so it can resolve, verify, and fetch private dependencies from external registries as the caller. The client sends an `Authorization` header identifying itself to the pnpr server plus an `authHeaders` map of the registry tokens (built with `@pnpm/network.auth-header`), and the server threads those credentials through resolution and fetch instead of reaching the registry anonymously. Externally-resolved private content carries no pnpr access policy, so the server gates it per user against the owning registry — serving a cache hit only to a user the registry has cleared — and re-checks access (clearing it on a `401`/`403`) rather than letting the store's possession of the bytes authorize anyone. Packages the registry serves anonymously are classified public once (globally) and then served to everyone without per-user access checks, so a registry that mixes public and private packages doesn't pay the per-user cost for its public ones.
+
+### Patch Changes
+
+- e7e99f0: Fix `pnpm update --recursive --lockfile-only <pkg>@<version>` crashing with `Invalid Version` when the catalog entry for `<pkg>` is a version range (e.g. `^21.2.10`) and `catalogMode` is `strict` or `prefer`. The catalog–version comparison now skips the equality check when either side is a range rather than passing a range to `semver.eq()`, so range specifiers fall through to the existing mismatch handling instead of throwing [#11570](https://github.com/pnpm/pnpm/issues/11570).
+- a017bf3: Fixed `optionalDependencies` being dropped when resolving through a `pnprServer`. The pnpr request now carries each project's optional dependencies (for both single-project and workspace installs), so the server resolves them like the local resolver does instead of producing a lockfile as if they did not exist.
+- f429f93: `pnpm install --lockfile-only` (and the `lockfileOnly` setting) is now honored when a `pnprServer` is configured. The pnpr path resolves and writes `pnpm-lock.yaml` but fetches no files into the store and links no `node_modules`, matching the local lockfile-only behavior. The client ignores any file/index lines an older pnpr server still streams, so the store stays untouched even against a server that predates the resolve-only mode [#12146](https://github.com/pnpm/pnpm/issues/12146).
+- a017bf3: Renamed the experimental `agent` setting to `pnprServer` so the pnpm CLI matches the same setting name pacquet uses for offloading resolution to a [pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) server. Point pnpm at a pnpr server with `pnprServer: <url>` in `pnpm-workspace.yaml` (or `--pnpr-server <url>`); the previous `agent` / `--agent` name no longer works. The client package was likewise renamed from `@pnpm/agent.client` to `@pnpm/pnpr.client`.
+- a358ee0: Don't promote a `runtime:` dependency (such as the Node.js version from `devEngines.runtime` or `pnpm runtime set`) into a catalog when `catalogMode` is `strict` or `prefer`. A `runtime:` dependency round-trips to `devEngines.runtime`, which only recognizes the `runtime:` protocol; cataloging it rewrote the manifest entry to `catalog:`, which broke that round-trip, stranded it in `devDependencies`, and left `devEngines.runtime` untouched.
+- 6d17b66: The lockfile verifier now checks that a registry entry pinning an explicit `tarball` URL points at the artifact the registry's own metadata lists for that `name@version`. Previously a tampered lockfile could pair a trusted `name@version` with an attacker-chosen tarball URL (and a matching integrity for those bytes), so the install fetched the attacker's bytes. A mismatch — or any entry that can't be confirmed against the registry — is rejected with `ERR_PNPM_TARBALL_URL_MISMATCH`. Non-registry resolutions (`file:`, git-hosted, etc.) and registry entries without an explicit tarball URL (the URL is reconstructed from name+version+registry, so it is inherently bound) are unaffected; non-standard registry tarball URLs (npm Enterprise, GitHub Packages) still pass because they match the metadata.
+
+  This binding is unconditional — it runs regardless of `minimumReleaseAge`/`trustPolicy` and is not narrowed by their exclude lists, since it guards integrity rather than maturity/trust. It is **fail-closed**: an entry passes only when the registry metadata affirmatively lists the version with a matching tarball URL. If the metadata can't be fetched, doesn't list the version, or omits `dist.tarball`, the entry is rejected. As a result, an install that re-verifies a lockfile (any install whose lockfile content changed since the last verified run, where the verification cache no longer applies) now requires the configured registry to be reachable. `trustLockfile` is the opt-out for environments that treat the on-disk lockfile as already trusted.
+
+  The `minimumReleaseAge`/`trustPolicy` verification also no longer applies to URL-keyed tarball dependencies (e.g. `https:` tarballs) that carry a semver `version` copied from their manifest — those are deliberate non-registry dependencies.
+
+- Updated dependencies [4e740d5]
+- Updated dependencies [5192edf]
+- Updated dependencies [a017bf3]
+- Updated dependencies [3b76b8e]
+- Updated dependencies [f429f93]
+- Updated dependencies [1c73e83]
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/building.after-install@1101.0.19
+  - @pnpm/network.auth-header@1101.1.0
+  - @pnpm/pnpr.client@1.1.0
+  - @pnpm/worker@1100.1.9
+  - @pnpm/installing.deps-resolver@1100.2.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/building.during-install@1101.0.16
+  - @pnpm/bins.linker@1100.0.11
+  - @pnpm/bins.remover@1100.0.7
+  - @pnpm/building.policy@1100.0.8
+  - @pnpm/config.normalize-registries@1100.0.6
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/deps.graph-hasher@1100.2.3
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/exec.lifecycle@1100.0.15
+  - @pnpm/fs.symlink-dependency@1100.0.7
+  - @pnpm/hooks.read-package-hook@1100.0.6
+  - @pnpm/hooks.types@1100.0.10
+  - @pnpm/installing.context@1100.0.15
+  - @pnpm/installing.deps-restorer@1101.1.9
+  - @pnpm/installing.linking.hoist@1100.0.11
+  - @pnpm/installing.linking.modules-cleaner@1100.1.5
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/installing.package-requester@1101.0.11
+  - @pnpm/lockfile.filtering@1100.1.4
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.preferred-versions@1100.0.13
+  - @pnpm/lockfile.pruner@1100.0.9
+  - @pnpm/lockfile.to-pnp@1100.0.12
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/lockfile.verification@1100.0.15
+  - @pnpm/lockfile.walker@1100.0.9
+  - @pnpm/pkg-manifest.utils@1100.2.2
+  - @pnpm/store.controller-types@1100.1.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/lockfile.settings-checker@1100.0.15
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.7
+  - @pnpm/patching.config@1100.0.6
+
 ## 1101.6.1
 
 ### Patch Changes

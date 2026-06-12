@@ -37,6 +37,7 @@ pub struct PkgIdWithPatchHash(String);
 impl PkgIdWithPatchHash {
     /// Borrow the underlying string. Mirrors `pacquet_modules_yaml::DepPath::as_str`.
     #[inline]
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }

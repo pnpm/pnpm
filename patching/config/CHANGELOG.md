@@ -1,5 +1,17 @@
 # @pnpm/patching.config
 
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/deps.path@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/deps.path@1100.0.6
+
 ## 1100.0.5
 
 ### Patch Changes

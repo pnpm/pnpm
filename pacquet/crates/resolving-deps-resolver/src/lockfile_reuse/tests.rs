@@ -29,9 +29,12 @@ fn empty_lockfile() -> Lockfile {
     Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).expect("lockfile v9"),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
@@ -45,6 +48,7 @@ fn registry_metadata() -> PackageMetadata {
                 .parse()
                 .expect("parse integrity"),
         }),
+        version: None,
         engines: None,
         cpu: None,
         os: None,

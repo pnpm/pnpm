@@ -38,7 +38,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use std::{fs, path::Path, process::Command, thread::sleep, time::Duration};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
@@ -70,7 +70,20 @@ fn package_integrity(lockfile: &str, package_key: &str) -> Option<String> {
             !trimmed.starts_with("snapshots:")
                 && (!trimmed.ends_with(':') || (line.len() - trimmed.len()) > header_indent)
         })
-        .find_map(|line| line.trim().strip_prefix("integrity:").map(|rest| rest.trim().to_string()))
+        // `integrity:` appears either on its own line (block style) or inside
+        // the single-line `resolution: {integrity: ..., tarball: ...}` flow map,
+        // so extract the value up to the next `,` / `}` / end-of-line. Match
+        // only the YAML key token (start-of-line, indent, `{`, or `,` before
+        // it) so a tarball URL/path containing the substring can't masquerade
+        // as the field and hide a genuinely missing `integrity`.
+        .find_map(|line| {
+            let key_at = line.match_indices("integrity:").find(|(idx, _)| {
+                matches!(line[..*idx].chars().next_back(), None | Some(' ' | '{' | ','))
+            })?;
+            let rest = line[key_at.0 + "integrity:".len()..].trim_start();
+            let end = rest.find([',', '}']).unwrap_or(rest.len());
+            Some(rest[..end].trim().to_string())
+        })
 }
 
 /// A remote-tarball dependency keeps its integrity when an unrelated
@@ -114,6 +127,10 @@ fn remote_tarball_integrity_survives_unrelated_install() {
     // Install an unrelated package. This rewrites the lockfile while the
     // tarball dependency is re-resolved — the exact
     // <https://github.com/pnpm/pnpm/issues/12001> trigger.
+    // Ensure the manifest mtime is observably newer than the first
+    // install's workspace-state validation timestamp; otherwise the
+    // optimistic repeat-install shortcut can legitimately skip resolution.
+    sleep(Duration::from_millis(20));
     fs::write(
         &manifest_path,
         serde_json::json!({

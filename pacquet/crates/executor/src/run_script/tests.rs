@@ -40,7 +40,7 @@ fn manifest() -> serde_json::Value {
 
 fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> std::process::ExitStatus {
     let extra_env = HashMap::new();
-    run_script(RunScript {
+    run_script(&RunScript {
         manifest: &manifest(),
         stage,
         script,

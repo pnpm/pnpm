@@ -28,6 +28,7 @@
 ///
 /// The URL-safe character set matches JS's `encodeURIComponent`: ASCII
 /// letters and digits plus `- _ . ! ~ * ' ( )`.
+#[must_use]
 pub fn is_valid_old_npm_package_name(name: &str) -> bool {
     if name.is_empty() {
         return false;

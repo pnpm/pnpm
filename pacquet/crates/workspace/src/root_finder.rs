@@ -105,6 +105,7 @@ pub fn find_workspace_dir(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspaceDi
 /// Without this, an exported-but-empty env var would short-circuit
 /// the upward walk and force the install into an invalid empty
 /// workspace dir.
+#[must_use]
 pub fn find_workspace_dir_from_env() -> Option<PathBuf> {
     find_workspace_dir_from_env_with::<crate::api::Host>()
 }

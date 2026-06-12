@@ -32,6 +32,7 @@ pub const WORKSPACE_STATE_FILENAME: &str = ".pnpm-workspace-state-v1.json";
 
 /// `<workspace_dir>/node_modules/.pnpm-workspace-state-v1.json`. Same
 /// resolution as upstream's [`getFilePath`](https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/filePath.ts).
+#[must_use]
 pub fn get_file_path(workspace_dir: &Path) -> PathBuf {
     workspace_dir.join("node_modules").join(WORKSPACE_STATE_FILENAME)
 }
@@ -91,10 +92,11 @@ pub struct WorkspaceState {
 /// <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/types.ts>.
 ///
 /// Every field is `Option` so pacquet can omit settings it does not
-/// track yet; missing keys round-trip as JSON `undefined`, which pnpm's
-/// `Object.entries(workspaceState.settings)` loop simply skips. Match
-/// what the install actually used — if pacquet's resolved value differs
-/// from pnpm's, pnpm correctly reinstalls.
+/// track yet. pnpm iterates the full `WORKSPACE_STATE_SETTING_KEYS`
+/// list and reads an omitted key as `undefined`, so a key pacquet omits
+/// stays compatible only while pnpm's resolved value for it is also
+/// `undefined`. Match what the install actually used — if pacquet's
+/// resolved value differs from pnpm's, pnpm correctly reinstalls.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceStateSettings {
@@ -114,6 +116,13 @@ pub struct WorkspaceStateSettings {
     pub dedupe_peers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dev: Option<bool>,
+    /// `None` and `Some(false)` both mean "global virtual store off" —
+    /// pnpm omits the key for its `undefined` default and only writes a
+    /// concrete value when `--global` (always `true`) or CI (`false`)
+    /// forces one. The freshness check coerces the two off-forms before
+    /// comparing (see `enable_global_virtual_store_match`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_global_virtual_store: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exclude_links_from_lockfile: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -126,6 +135,17 @@ pub struct WorkspaceStateSettings {
     pub inject_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_workspace_packages: Option<serde_json::Value>,
+    /// Minutes a published version must age before it may be installed.
+    /// pnpm resolves this to a concrete `24 * 60` default, so it must be
+    /// recorded for pnpm's all-key freshness check to stay on the fast
+    /// path after a pacquet install.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minimum_release_age: Option<u64>,
+    /// Whether versions whose registry metadata lacks a `time` field
+    /// pass the maturity check. pnpm defaults this to `true`, so it is
+    /// recorded for the same reason as [`Self::minimum_release_age`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minimum_release_age_ignore_missing_time: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_linker: Option<NodeLinker>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -255,11 +275,9 @@ pub enum LoadWorkspaceStateError {
 ///
 /// Truncates to `i64` because the JSON field is signed and the year
 /// 2038-pre-292277026596 range is the only one that matters.
+#[must_use]
 pub fn now_millis() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as i64)
-        .unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_millis() as i64)
 }
 
 #[cfg(test)]

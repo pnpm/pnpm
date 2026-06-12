@@ -1,5 +1,87 @@
 # @pnpm/building.after-install
 
+## 1101.0.21
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [f11b4fc]
+- Updated dependencies [615c669]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/store.connection-manager@1100.2.8
+  - @pnpm/exec.lifecycle@1100.0.17
+  - @pnpm/installing.context@1100.0.17
+  - @pnpm/worker@1100.1.11
+  - @pnpm/bins.linker@1100.0.13
+
+## 1101.0.20
+
+### Patch Changes
+
+- bf1b731: Require trusted package identity before package-name `allowBuilds` entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the `allowBuilds` key. Lockfile verification now rejects lockfiles where a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [089484a]
+- Updated dependencies [1017c36]
+- Updated dependencies [bf1b731]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/worker@1100.1.10
+  - @pnpm/building.policy@1100.0.9
+  - @pnpm/deps.graph-hasher@1100.2.4
+  - @pnpm/types@1101.3.1
+  - @pnpm/store.connection-manager@1100.2.7
+  - @pnpm/bins.linker@1100.0.12
+  - @pnpm/building.pkg-requires-build@1100.0.7
+  - @pnpm/config.normalize-registries@1100.0.7
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/exec.lifecycle@1100.0.16
+  - @pnpm/installing.context@1100.0.16
+  - @pnpm/installing.modules-yaml@1100.0.8
+  - @pnpm/lockfile.types@1100.0.10
+  - @pnpm/lockfile.utils@1100.0.12
+  - @pnpm/lockfile.walker@1100.0.10
+  - @pnpm/pkg-manifest.reader@1100.0.7
+  - @pnpm/store.cafs@1100.1.9
+  - @pnpm/store.controller-types@1100.1.4
+
+## 1101.0.19
+
+### Patch Changes
+
+- 4e740d5: Fix dependency build scripts not running under the global virtual store (`enableGlobalVirtualStore`).
+
+  In a workspace install, dependency build scripts are deferred to a single `rebuild` pass (`buildProjects`). That pass resolved each package's location from the classic `node_modules/.pnpm/<depPathToFilename>` layout, which does not exist under the global virtual store — so native dependencies (e.g. packages using `node-gyp` / `prebuild-install`) were never built and failed to load at runtime (`Cannot find module .../build/Release/*.node`).
+
+  `buildProjects` now resolves the global-virtual-store projection directory (`<storeDir>/links/<hash>`, computed with the same graph hash the installer uses) when `enableGlobalVirtualStore` is set, and serializes concurrent builds of the same shared projection so parallel workspace projects don't race on the same directory.
+
+- Updated dependencies [3b76b8e]
+- Updated dependencies [a017bf3]
+  - @pnpm/worker@1100.1.9
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/bins.linker@1100.0.11
+  - @pnpm/building.pkg-requires-build@1100.0.6
+  - @pnpm/building.policy@1100.0.8
+  - @pnpm/config.normalize-registries@1100.0.6
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/deps.graph-hasher@1100.2.3
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/exec.lifecycle@1100.0.15
+  - @pnpm/installing.context@1100.0.15
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/lockfile.walker@1100.0.9
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/store.cafs@1100.1.8
+  - @pnpm/store.controller-types@1100.1.3
+
 ## 1101.0.18
 
 ### Patch Changes

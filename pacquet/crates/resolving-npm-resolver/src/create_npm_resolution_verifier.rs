@@ -23,6 +23,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
@@ -46,6 +47,31 @@ use crate::{
         TRUST_DOWNGRADE_VIOLATION_CODE,
     },
 };
+
+/// Per-version `dist` statistics that estimate a tarball's pipeline
+/// work: `unpackedSize` (transfer + decompress + hash bytes) and
+/// `fileCount` (per-file CAS-write overhead). Either may be absent —
+/// registries only publish them for packages uploaded since npm 6.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct DistStats {
+    pub unpacked_size: Option<usize>,
+    pub file_count: Option<usize>,
+}
+
+/// `(package name, version) → dist` work statistics filled by the
+/// verifier as a side product of the tarball-URL binding check. The
+/// metadata is already in hand per entry, so collecting costs no extra
+/// fetch; consumers (the pnpr server's frozen fast path) use the stats
+/// to schedule the most expensive tarball downloads first. Shared as an
+/// `Arc` so the caller keeps a handle while the verifier fan-out writes.
+pub type ObservedDistStats = Arc<DashMap<(String, String), DistStats>>;
+
+/// Construct a fresh sink for
+/// [`CreateNpmResolutionVerifierOptions::observed_dist_stats`].
+#[must_use]
+pub fn observed_dist_stats_sink() -> ObservedDistStats {
+    Arc::new(DashMap::new())
+}
 
 /// Options bundle for [`create_npm_resolution_verifier`]. Mirrors
 /// upstream's
@@ -114,6 +140,10 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// the `trustPolicyIgnoreAfter` window. `None` falls back to
     /// wall-clock at construction time.
     pub now: Option<DateTime<Utc>>,
+    /// Optional sink the verifier fills with each verified entry's
+    /// `dist` work statistics (see [`ObservedDistStats`]). `None`
+    /// skips collection.
+    pub observed_dist_stats: Option<ObservedDistStats>,
 }
 
 /// Verifier returned by [`create_npm_resolution_verifier`]. Stores
@@ -143,6 +173,7 @@ pub struct NpmResolutionVerifier {
     now: Option<DateTime<Utc>>,
     policy_snapshot: serde_json::Map<String, JsonValue>,
     lookup_context: PublishedAtLookupContext,
+    observed_dist_stats: Option<ObservedDistStats>,
 }
 
 impl std::fmt::Debug for NpmResolutionVerifier {
@@ -223,10 +254,24 @@ pub fn create_npm_resolution_verifier(
         now: opts.now,
         policy_snapshot,
         lookup_context: PublishedAtLookupContext::new(),
+        observed_dist_stats: opts.observed_dist_stats,
     }
 }
 
 impl ResolutionVerifier for NpmResolutionVerifier {
+    fn might_verify(&self, resolution: &LockfileResolution, ctx: VerifyCtx<'_>) -> bool {
+        let Some(tarball_url) = npm_registry_tarball(resolution) else {
+            return false;
+        };
+        if tarball_url.is_some() {
+            return true;
+        }
+        self.age_check_active()
+            && !is_excluded(self.minimum_release_age_exclude.as_ref(), ctx.name, ctx.version)
+            || self.trust_check_active()
+                && !is_excluded(self.trust_policy_exclude.as_ref(), ctx.name, ctx.version)
+    }
+
     fn verify<'a>(
         &'a self,
         resolution: &'a LockfileResolution,
@@ -314,6 +359,14 @@ impl NpmResolutionVerifier {
             return ResolutionVerification::Ok;
         }
 
+        let age_applies = self.age_check_active()
+            && !is_excluded(self.minimum_release_age_exclude.as_ref(), ctx.name, ctx.version);
+        let trust_applies = self.trust_check_active()
+            && !is_excluded(self.trust_policy_exclude.as_ref(), ctx.name, ctx.version);
+        if tarball_url.is_none() && !age_applies && !trust_applies {
+            return ResolutionVerification::Ok;
+        }
+
         let registry = self.pick_registry(ctx.name, tarball_url);
 
         // A registry entry that pins an explicit tarball URL must point at
@@ -330,10 +383,6 @@ impl NpmResolutionVerifier {
             return violation;
         }
 
-        let age_applies = self.age_check_active()
-            && !is_excluded(self.minimum_release_age_exclude.as_ref(), ctx.name, ctx.version);
-        let trust_applies = self.trust_check_active()
-            && !is_excluded(self.trust_policy_exclude.as_ref(), ctx.name, ctx.version);
         if !age_applies && !trust_applies {
             return ResolutionVerification::Ok;
         }
@@ -403,6 +452,12 @@ impl NpmResolutionVerifier {
     ) -> Option<ResolutionVerification> {
         let registry_tarball = match self.fetch_abbreviated_meta(registry, name).await {
             Ok(Some(meta)) => {
+                if let Some(sink) = self.observed_dist_stats.as_ref()
+                    && let Some(stats) =
+                        meta.version_dist_stats.as_ref().and_then(|stats| stats.get(version))
+                {
+                    sink.insert((name.to_string(), version.to_string()), *stats);
+                }
                 meta.version_tarballs.and_then(|tarballs| tarballs.get(version).cloned())
             }
             Ok(None) | Err(_) => None,
@@ -934,7 +989,7 @@ fn project_trust_meta(meta: &Package) -> Package {
     let versions = meta
         .versions
         .iter()
-        .map(|(version, manifest)| (version.clone(), project_trust_package_version(manifest)))
+        .map(|(version, manifest)| (version.clone(), project_trust_package_version(&manifest)))
         .collect();
     Package {
         name: meta.name.clone(),
@@ -994,6 +1049,7 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
         peer_dependencies_meta: None,
         npm_user,
         deprecated: None,
+        other: HashMap::new(),
     }
 }
 
@@ -1010,9 +1066,22 @@ fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::Abbreviate
         .iter()
         .map(|(version, manifest)| (version.clone(), manifest.dist.tarball.clone()))
         .collect();
+    let version_dist_stats = meta
+        .versions
+        .iter()
+        .filter_map(|(version, manifest)| {
+            let stats = DistStats {
+                unpacked_size: manifest.dist.unpacked_size,
+                file_count: manifest.dist.file_count,
+            };
+            (stats.unpacked_size.is_some() || stats.file_count.is_some())
+                .then(|| (version.clone(), stats))
+        })
+        .collect();
     crate::lookup_context::AbbreviatedMetaProjection {
         modified: meta.modified.clone(),
         version_tarballs: Some(version_tarballs),
+        version_dist_stats: Some(version_dist_stats),
     }
 }
 

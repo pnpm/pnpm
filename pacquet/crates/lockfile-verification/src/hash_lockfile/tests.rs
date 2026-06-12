@@ -48,7 +48,7 @@ fn hash_is_stable_across_calls() {
 
 /// Lockfiles that parse to the same logical content but were
 /// written with different YAML key orders produce the same hash.
-/// HashMap key iteration is non-deterministic; the normalize step
+/// `HashMap` key iteration is non-deterministic; the normalize step
 /// is what makes the hash stable.
 #[test]
 fn key_order_in_yaml_does_not_affect_hash() {

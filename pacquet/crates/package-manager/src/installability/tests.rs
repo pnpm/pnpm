@@ -56,6 +56,7 @@ fn synthetic_metadata(
             git_hosted: None,
             path: None,
         }),
+        version: None,
         engines: engines.map(|entries| {
             entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
         }),
@@ -262,7 +263,7 @@ fn engines_without_node_or_pnpm_does_not_count_as_constraint() {
     let mut packages = HashMap::new();
     packages.insert(key, synthetic_metadata(Some(&[("npm", ">=8")]), None, None, None));
     assert!(
-        !any_installability_constraint(&packages),
+        !any_installability_constraint(&HashMap::new(), &packages),
         "engines.npm alone should not block the fast path",
     );
 }
@@ -276,7 +277,7 @@ fn platform_any_sentinel_does_not_count_as_constraint() {
     let mut packages = HashMap::new();
     packages.insert(key, synthetic_metadata(None, Some(&["any"]), Some(&["any"]), Some(&["any"])));
     assert!(
-        !any_installability_constraint(&packages),
+        !any_installability_constraint(&HashMap::new(), &packages),
         r#"cpu/os/libc = ["any"] should not block the fast path"#,
     );
 }
@@ -290,7 +291,7 @@ fn empty_platform_lists_do_not_count_as_constraint() {
     let mut packages = HashMap::new();
     packages.insert(key, synthetic_metadata(None, Some(&[]), Some(&[]), Some(&[])));
     assert!(
-        !any_installability_constraint(&packages),
+        !any_installability_constraint(&HashMap::new(), &packages),
         "empty platform lists should not block the fast path",
     );
 }
@@ -302,7 +303,10 @@ fn meaningful_engines_node_triggers_slow_path() {
     let key = snapshot_key("for-legacy-node@1.0.0");
     let mut packages = HashMap::new();
     packages.insert(key, synthetic_metadata(Some(&[("node", "0.10")]), None, None, None));
-    assert!(any_installability_constraint(&packages), "engines.node must trigger the slow path");
+    assert!(
+        any_installability_constraint(&HashMap::new(), &packages),
+        "engines.node must trigger the slow path",
+    );
 }
 
 /// A meaningful non-`any` platform value triggers the slow path.
@@ -311,7 +315,10 @@ fn meaningful_platform_value_triggers_slow_path() {
     let key = snapshot_key("not-compatible-with-any-os@1.0.0");
     let mut packages = HashMap::new();
     packages.insert(key, synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None));
-    assert!(any_installability_constraint(&packages), "non-any os must trigger the slow path");
+    assert!(
+        any_installability_constraint(&HashMap::new(), &packages),
+        "non-any os must trigger the slow path",
+    );
 }
 
 /// Peer-resolved variants of the same metadata row (e.g.
@@ -463,7 +470,7 @@ fn seeded_snapshot_short_circuits_recheck() {
     // re-emitting.
     packages.insert(key.clone(), synthetic_metadata(Some(&[("node", "0.10")]), None, None, None));
 
-    let seed = SkippedSnapshots::from_set([key.clone()].into_iter().collect());
+    let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
         &snapshots,
         &packages,
@@ -498,7 +505,7 @@ fn fast_path_preserves_seed() {
     // the seed becomes the final set.
     packages.insert(key.clone(), synthetic_metadata(None, None, None, None));
 
-    let seed = SkippedSnapshots::from_set([key.clone()].into_iter().collect());
+    let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
         &snapshots,
         &packages,
@@ -593,4 +600,140 @@ fn fetch_failed_and_optional_excluded_are_symmetric() {
     assert_eq!(skipped_b.len(), 1);
     assert_eq!(skipped_b.iter().count(), 1);
     assert!(skipped_b.contains(&key));
+}
+
+/// An optional snapshot whose metadata row carries no platform
+/// fields (some registries strip os/cpu/libc from the metadata they
+/// serve, and lockfile entries written from such metadata lack them
+/// too) is still skipped when its package name declares an
+/// unsupported platform. Ports the headless half of upstream's
+/// `optionalDependencies.ts` `skip optional dependencies that do not
+/// support the target architecture when their lockfile entries have
+/// no platform fields`.
+#[test]
+fn skip_optional_with_platform_inferred_from_name() {
+    reset_events();
+    let foreign = snapshot_key("@nx/nx-win32-arm64-msvc@1.0.0");
+    let matching = snapshot_key("@nx/nx-linux-x64-gnu@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(foreign.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    snapshots.insert(matching.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(foreign.clone(), synthetic_metadata(None, None, None, None));
+    packages.insert(matching.clone(), synthetic_metadata(None, None, None, None));
+
+    let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &snapshots,
+        &packages,
+        &host("20.10.0", "linux", "x64"),
+        "/proj",
+        SkippedSnapshots::new(),
+    )
+    .unwrap();
+
+    assert_eq!(skipped.len(), 1);
+    assert!(skipped.contains(&foreign));
+    assert!(!skipped.contains(&matching));
+
+    let events = take_events();
+    let skipped_events_count = events
+        .iter()
+        .filter(|event| matches!(event, LogEvent::SkippedOptionalDependency(_)))
+        .count();
+    assert_eq!(skipped_events_count, 1);
+}
+
+/// The platform is not inferred from the name of a non-optional
+/// snapshot: a regular dependency that happens to carry a platform
+/// token in its name installs everywhere unless its metadata says
+/// otherwise.
+#[test]
+fn name_inference_does_not_apply_to_non_optional_snapshots() {
+    reset_events();
+    let key = snapshot_key("@nx/nx-win32-arm64-msvc@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(key, synthetic_metadata(None, None, None, None));
+
+    let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &snapshots,
+        &packages,
+        &host("20.10.0", "linux", "x64"),
+        "/proj",
+        SkippedSnapshots::new(),
+    )
+    .unwrap();
+
+    assert!(skipped.is_empty());
+}
+
+/// A missing libc field alone is taken from the package name: with
+/// `supportedArchitectures.libc = ['glibc']`, the `-musl` variant is
+/// skipped and the `-gnu` variant stays, even though neither
+/// metadata row declares `libc`.
+#[test]
+fn missing_libc_is_inferred_from_name() {
+    reset_events();
+    let musl = snapshot_key("@nx/nx-linux-x64-musl@1.0.0");
+    let gnu = snapshot_key("@nx/nx-linux-x64-gnu@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(musl.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    snapshots.insert(gnu.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(musl.clone(), synthetic_metadata(None, Some(&["x64"]), Some(&["linux"]), None));
+    packages.insert(gnu.clone(), synthetic_metadata(None, Some(&["x64"]), Some(&["linux"]), None));
+
+    let mut host = host("20.10.0", "linux", "x64");
+    host.libc = "glibc";
+    host.supported_architectures = Some(pacquet_package_is_installable::SupportedArchitectures {
+        os: Some(vec!["linux".to_string()]),
+        cpu: Some(vec!["x64".to_string()]),
+        libc: Some(vec!["glibc".to_string()]),
+    });
+
+    let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &snapshots,
+        &packages,
+        &host,
+        "/proj",
+        SkippedSnapshots::new(),
+    )
+    .unwrap();
+
+    assert_eq!(skipped.len(), 1);
+    assert!(skipped.contains(&musl));
+    assert!(!skipped.contains(&gnu));
+}
+
+/// An optional snapshot whose name carries a platform token while
+/// its metadata row declares no platform fields must block the
+/// fast path — otherwise the inference never gets a chance to run.
+#[test]
+fn name_inferable_optional_snapshot_triggers_slow_path() {
+    let key = snapshot_key("@nx/nx-win32-arm64-msvc@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(key, synthetic_metadata(None, None, None, None));
+    assert!(
+        any_installability_constraint(&snapshots, &packages),
+        "a platform-named optional snapshot must trigger the slow path",
+    );
+}
+
+/// A name without an operating-system token never marks a package
+/// that declares no platform fields as platform-specific, so it
+/// must not block the fast path either.
+#[test]
+fn generic_name_does_not_trigger_slow_path() {
+    let key = snapshot_key("is-arm@1.0.0");
+    let mut snapshots = HashMap::new();
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    let mut packages = HashMap::new();
+    packages.insert(key, synthetic_metadata(None, None, None, None));
+    assert!(
+        !any_installability_constraint(&snapshots, &packages),
+        "a generic name segment must not block the fast path",
+    );
 }

@@ -139,7 +139,7 @@ test('fetch a package from Git that has a prepare script', async () => {
       type: 'git',
     },
     {
-      allowBuild: (pkgName) => pkgName === 'test-git-fetch',
+      allowBuild: (depPath) => depPath.startsWith('test-git-fetch@'),
       filesIndexFile: path.join(storeDir, 'index.json'),
     }
   )
@@ -221,7 +221,7 @@ test('fail when preparing a git-hosted package', async () => {
         repo: 'https://github.com/pnpm-e2e/prepare-script-fails.git',
         type: 'git',
       }, {
-        allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-fails',
+        allowBuild: (depPath) => depPath.startsWith('@pnpm.e2e/prepare-script-fails@'),
         filesIndexFile: path.join(storeDir, 'index.json'),
       })
   ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-fails.git": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
@@ -306,7 +306,7 @@ test('allow git package with prepare script', async () => {
       repo: 'https://github.com/pnpm-e2e/prepare-script-works.git',
       type: 'git',
     }, {
-      allowBuild: (pkgName) => pkgName === '@pnpm.e2e/prepare-script-works',
+      allowBuild: (depPath) => depPath.startsWith('@pnpm.e2e/prepare-script-works@'),
       filesIndexFile: path.join(storeDir, 'index.json'),
     })
   expect(filesMap.has('package.json')).toBeTruthy()

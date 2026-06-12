@@ -20,7 +20,13 @@ The directory lives at the repo root (sibling of `.changeset/`) rather than insi
 4. Appends the newly-consumed ids to `<current-branch>.txt`.
 5. Deletes the hidden files (their consumption is already on record).
 
-If `changeset version` fails, hidden files are renamed back to their original `.md` names so the working tree is left clean. The current branch is detected from `git rev-parse --abbrev-ref HEAD`; set `RELEASE_BRANCH` to override.
+If `changeset version` fails, hidden files are renamed back to their original `.md` names so the working tree is left clean.
+
+## Release-PR branch naming
+
+Releases land via a PR rather than a commit pushed straight to the target branch, so the branch the bump runs on is not the branch the release is *for*. Name the release PR branch `release-pr/<target>`, where `<target>` is the branch it merges into (`main`, `release/11.1`, …). The wrapper strips the `release-pr/` prefix and keys the ledger by `<target>`, so every release for `main` accumulates in `main.txt` instead of scattering into a new file per PR.
+
+The target branch is detected from `git rev-parse --abbrev-ref HEAD` (after stripping the prefix); a branch without the prefix is its own target. Set `RELEASE_BRANCH` to override (the prefix is stripped from it too).
 
 ## Workflow requirement
 

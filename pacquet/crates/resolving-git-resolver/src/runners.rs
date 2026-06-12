@@ -29,6 +29,7 @@ pub struct RealGitProbe {
 }
 
 impl RealGitProbe {
+    #[must_use]
     pub fn new(http_client: Arc<ThrottledClient>) -> Self {
         Self { http_client, git_bin: None }
     }
@@ -62,7 +63,7 @@ impl GitProbe for RealGitProbe {
                 };
                 cmd.args(["ls-remote", "--exit-code", &repo_owned, "HEAD"]);
                 cmd.stdout(Stdio::null()).stderr(Stdio::null()).stdin(Stdio::null());
-                cmd.status().map(|s| s.success()).unwrap_or(false)
+                cmd.status().is_ok_and(|s| s.success())
             })
             .await
             .unwrap_or(false)
@@ -84,6 +85,7 @@ pub struct RealGitRunner {
 }
 
 impl RealGitRunner {
+    #[must_use]
     pub fn new() -> Self {
         Self { git_bin: None }
     }
@@ -105,27 +107,29 @@ impl GitCommandRunner for RealGitRunner {
         let repo_owned = repo.to_string();
         let ref_owned = ref_.map(str::to_string);
         Box::pin(async move {
-            tokio::task::spawn_blocking(move || run_ls_remote_blocking(bin, repo_owned, ref_owned))
-                .await
-                .map_err(|err| GitRunError { message: format!("ls-remote task panicked: {err}") })?
+            tokio::task::spawn_blocking(move || {
+                run_ls_remote_blocking(bin.as_ref(), &repo_owned, ref_owned.as_ref())
+            })
+            .await
+            .map_err(|err| GitRunError { message: format!("ls-remote task panicked: {err}") })?
         })
     }
 }
 
 fn run_ls_remote_blocking(
-    bin: Option<PathBuf>,
-    repo: String,
-    ref_: Option<String>,
+    bin: Option<&PathBuf>,
+    repo: &str,
+    ref_: Option<&String>,
 ) -> Result<String, GitRunError> {
     let attempts = 2; // matches upstream `graceful-git` retries: 1
     let mut last_err: Option<String> = None;
     for _ in 0..attempts {
-        let mut cmd = match bin.as_ref() {
+        let mut cmd = match bin {
             Some(b) => std::process::Command::new(b),
             None => std::process::Command::new("git"),
         };
-        cmd.arg("ls-remote").arg(&repo);
-        if let Some(r) = ref_.as_deref() {
+        cmd.arg("ls-remote").arg(repo);
+        if let Some(r) = ref_ {
             cmd.arg(r);
             cmd.arg(format!("{r}^{{}}"));
         }

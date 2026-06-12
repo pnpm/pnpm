@@ -15,13 +15,14 @@ use pacquet_lockfile::{
 };
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
+use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter,
     git_hosted_store_index_key,
 };
 use pacquet_tarball::{
-    DownloadTarballToStore, DownloadZipArchiveToStore, IgnoreEntryFilter, PrefetchedCasPaths,
-    TarballError,
+    DownloadTarballToStore, DownloadZipArchiveToStore, IgnoreEntryFilter, MemCache,
+    PrefetchedCasPaths, SharedReportedProgressKeys, TarballError,
 };
 use pipe_trait::Pipe;
 use std::{
@@ -49,6 +50,24 @@ pub struct InstallPackageBySnapshot<'a> {
     /// Install-scoped batched cache lookup result. See
     /// [`pacquet_tarball::prefetch_cas_paths`].
     pub prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
+    /// Install-scoped shared in-flight tarball cache. When present, the
+    /// registry/tarball download routes through
+    /// [`DownloadTarballToStore::run_with_mem_cache`] so it parks on (or
+    /// reuses) a download already in flight or completed for the same
+    /// URL, rather than racing a second fetch of the same bytes. Both
+    /// background prefetchers feed it: the pnpr client's
+    /// [`crate::TarballPrefetcher`] (frozen materialization) and the
+    /// fresh-resolve path's [`crate::PrefetchingResolver`] (cold batch,
+    /// closing the race in
+    /// <https://github.com/pnpm/pnpm/issues/12241>). `None` keeps the
+    /// standalone `run_without_mem_cache` path for installs with no
+    /// prefetcher (e.g. a plain `--frozen-lockfile` without pnpr).
+    pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
+    /// Install-scoped package-status progress dedupe. Shared with the
+    /// resolve-time prefetcher on the fresh path so the cold fallback
+    /// does not double-count a package whose early prefetch already
+    /// emitted `fetched` or `found_in_store`.
+    pub progress_reported: Option<&'a SharedReportedProgressKeys>,
     /// Install-scoped `verifiedFilesCache` shared across every
     /// per-snapshot fetch. See `DownloadTarballToStore::verified_files_cache`
     /// for the rationale.
@@ -96,6 +115,19 @@ pub struct InstallPackageBySnapshot<'a> {
     /// [`nodeLinker === 'hoisted'`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L425)
     /// branch in `headlessInstall`.
     pub node_linker: NodeLinker,
+    /// When `true`, return the fetched CAS paths without populating the
+    /// virtual-store slot ([`CreateVirtualDirBySnapshot`]) — the caller
+    /// links them itself in a separate parallel pass. The cold batch in
+    /// [`crate::CreateVirtualStore`] sets this so the per-snapshot
+    /// download futures don't each run a *blocking* `rayon::join` link
+    /// inside the cooperative `try_join_all` task, which would serialize
+    /// the links one-at-a-time; instead every slot links concurrently
+    /// once its tarball is in the store. No effect under
+    /// [`NodeLinker::Hoisted`], which never writes virtual-store slots.
+    pub defer_link: bool,
+    #[cfg(test)]
+    pub(crate) link_concurrency_probe:
+        Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
 }
 
 /// Error type of [`InstallPackageBySnapshot`].
@@ -193,7 +225,7 @@ pub enum InstallPackageBySnapshotError {
     },
 }
 
-impl<'a> InstallPackageBySnapshot<'a> {
+impl InstallPackageBySnapshot<'_> {
     /// Execute the subroutine. Returns the CAS file index for the
     /// fetched package — the map relative-archive-path →
     /// absolute-store-path that downstream consumers use to either
@@ -218,6 +250,8 @@ impl<'a> InstallPackageBySnapshot<'a> {
             store_index,
             store_index_writer,
             prefetched_cas_paths,
+            tarball_mem_cache,
+            progress_reported,
             verified_files_cache,
             logged_methods,
             requester,
@@ -228,6 +262,9 @@ impl<'a> InstallPackageBySnapshot<'a> {
             skipped,
             workspace_root,
             node_linker,
+            defer_link,
+            #[cfg(test)]
+            link_concurrency_probe,
         } = self;
 
         // TODO: skip when already exists in store?
@@ -244,7 +281,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
         // (`None → false`) matches pnpm v11's policy: build scripts
         // have to be explicitly opted in to run.
         let allow_build_closure =
-            |name: &str, version: &str| allow_build_policy.check(name, version).unwrap_or(false);
+            |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
         let scripts_prepend_node_path = match config.scripts_prepend_node_path {
             pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
             pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
@@ -257,7 +294,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
                 let (tarball_url, integrity) =
                     tarball_url_and_integrity(&metadata.resolution, package_key, config)?;
-                let raw_cas_paths = DownloadTarballToStore {
+                let download = DownloadTarballToStore {
                     http_client,
                     store_dir: &config.store_dir,
                     store_index: store_index.cloned(),
@@ -266,6 +303,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
                     verified_files_cache: Arc::clone(verified_files_cache),
                     package_integrity: integrity,
                     package_unpacked_size: None,
+                    package_file_count: None,
                     package_url: &tarball_url,
                     package_id: &package_id,
                     requester,
@@ -274,9 +312,49 @@ impl<'a> InstallPackageBySnapshot<'a> {
                     auth_headers: &config.auth_headers,
                     ignore_file_pattern: None,
                     offline: config.offline,
+                    progress_reported: progress_reported.cloned(),
+                };
+                // Reuse an in-flight or completed background download
+                // through the shared mem cache when one is provided;
+                // otherwise fetch standalone. The owned `HashMap` is
+                // cloned out of the shared `Arc` so the rest of this pass
+                // keeps its by-value contract.
+                //
+                // Restricted to registry resolutions: those are the only
+                // ones the background prefetchers populate under a key
+                // this pass also writes — the pnpr `TarballPrefetcher` and
+                // the resolve-time `PrefetchingResolver` both key by
+                // `name@version`, matching the materialization store-index
+                // row. A remote tarball, by contrast, resolves with no
+                // `name_ver`, so the prefetcher skips it; its only
+                // mem-cache entry comes from the resolver's
+                // download-to-resolve, keyed by `name@version`, whereas the
+                // lockfile (and this pass) address it by `name@<url>`.
+                // Reusing that entry would skip writing the `name@<url>`
+                // store-index row a later re-resolve needs to reuse the
+                // warm store, so remote tarballs must take the standalone
+                // path. See <https://github.com/pnpm/pnpm/issues/12241>.
+                let raw_cas_paths = match tarball_mem_cache {
+                    Some(mem_cache)
+                        if matches!(&metadata.resolution, LockfileResolution::Registry(_)) =>
+                    {
+                        // `clone()` is cheap (refs + `Arc`s) and lets us
+                        // retry through `run_without_mem_cache` below if
+                        // the shared download failed.
+                        match download.clone().run_with_mem_cache::<Reporter>(mem_cache).await {
+                            Ok(cas_paths) => Ok((*cas_paths).clone()),
+                            // The prefetch is best-effort: if the sibling
+                            // download for this URL failed (transient
+                            // network, etc.), do our own retried fetch
+                            // rather than inheriting the failure.
+                            Err(TarballError::SiblingFetchFailed { .. }) => {
+                                download.run_without_mem_cache::<Reporter>().await
+                            }
+                            Err(err) => Err(err),
+                        }
+                    }
+                    _ => download.run_without_mem_cache::<Reporter>().await,
                 }
-                .run_without_mem_cache::<Reporter>()
-                .await
                 .map_err(InstallPackageBySnapshotError::DownloadTarball)?;
 
                 // Run the git-hosted prepare+packlist pass for
@@ -477,7 +555,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
         // hoisted skips both `linkAllModules` (slot symlinks) and
         // `linkAllPkgs` (slot file imports), and runs
         // `linkHoistedModules` over the CAS paths instead.
-        if matches!(node_linker, NodeLinker::Isolated | NodeLinker::Pnp) {
+        if !defer_link && matches!(node_linker, NodeLinker::Isolated | NodeLinker::Pnp) {
             CreateVirtualDirBySnapshot {
                 layout,
                 cas_paths: &cas_paths,
@@ -488,6 +566,8 @@ impl<'a> InstallPackageBySnapshot<'a> {
                 package_key,
                 snapshot,
                 skipped,
+                #[cfg(test)]
+                link_concurrency_probe,
             }
             .run::<Reporter>()
             .map_err(InstallPackageBySnapshotError::CreateVirtualDir)?;
@@ -500,8 +580,16 @@ impl<'a> InstallPackageBySnapshot<'a> {
 /// Resolve the tarball URL + integrity for tarball- and registry-shaped
 /// resolutions. Factored out so the per-resolution-type dispatch in
 /// [`InstallPackageBySnapshot::run`] reads top-down: each variant builds
-/// its own `cas_paths`.
-fn tarball_url_and_integrity<'a>(
+/// its own `cas_paths`. Public because the pnpr server derives the same
+/// URLs when it announces a verified frozen lockfile's tarballs to the
+/// client — both sides must derive byte-identical URLs so the client's
+/// prefetch mem-cache keys line up.
+///
+/// # Panics
+///
+/// On directory / git / binary / variations resolutions — callers gate
+/// on the tarball/registry shapes first.
+pub fn tarball_url_and_integrity<'a>(
     resolution: &'a LockfileResolution,
     package_key: &PackageKey,
     config: &'a Config,
@@ -516,10 +604,13 @@ fn tarball_url_and_integrity<'a>(
             Ok((tarball_resolution.tarball.as_str().pipe(Cow::Borrowed), integrity))
         }
         LockfileResolution::Registry(registry_resolution) => {
-            let registry = config.registry.strip_suffix('/').unwrap_or(&config.registry);
-            let name = &package_key.name;
+            let registries: HashMap<String, String> =
+                config.resolved_registries().into_iter().collect();
+            let name = package_key.name.to_string();
+            let registry = pick_registry_for_package(&registries, &name, None);
+            let registry = registry.strip_suffix('/').unwrap_or(&registry);
             let version = package_key.suffix.version();
-            let bare_name = name.bare.as_str();
+            let bare_name = package_key.name.bare.as_str();
             let tarball_url = format!("{registry}/{name}/-/{bare_name}-{version}.tgz");
             Ok((Cow::Owned(tarball_url), &registry_resolution.integrity))
         }
@@ -688,6 +779,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             verified_files_cache: Arc::clone(verified_files_cache),
             package_integrity: &binary.integrity,
             package_unpacked_size: None,
+            package_file_count: None,
             package_url: &binary.url,
             package_id: &package_id,
             requester,
@@ -696,6 +788,9 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             auth_headers: &config.auth_headers,
             ignore_file_pattern,
             offline: config.offline,
+            // Cold-batch binary tarball download: emits `fetched`
+            // directly, so no network-fetched tracking is needed.
+            progress_reported: None,
         }
         .run_without_mem_cache::<Reporter>()
         .await

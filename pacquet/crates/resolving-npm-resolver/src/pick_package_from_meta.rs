@@ -27,6 +27,7 @@
 //! module pulls in no I/O.
 
 use std::{
+    cell::OnceCell,
     collections::BTreeMap,
     sync::{Arc, LazyLock},
 };
@@ -139,7 +140,7 @@ pub enum PickPackageFromMetaError {
 ///
 /// Returns:
 ///
-/// - `Ok(Some(version))` — the picked version's cloned manifest.
+/// - `Ok(Some(version))` — the picked version's (shared) manifest.
 /// - `Ok(None)` — no version satisfies the spec. The orchestrator
 ///   layer above propagates this as "resolver returned nothing,"
 ///   not as an error.
@@ -149,7 +150,7 @@ pub fn pick_package_from_meta<PickFn>(
     opts: &PickPackageFromMetaOptions<'_>,
     meta: &Package,
     spec: &RegistryPackageSpec,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError>
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>
 where
     PickFn: Fn(&PickVersionByVersionRangeOptions<'_>) -> Option<String>,
 {
@@ -161,8 +162,7 @@ where
         Some(cutoff) => {
             let exclude_result = opts
                 .published_by_exclude
-                .map(|policy| policy.matches(&meta.name))
-                .unwrap_or(PolicyMatch::No);
+                .map_or(PolicyMatch::No, |policy| policy.matches(&meta.name));
             if matches!(exclude_result, PolicyMatch::AnyVersion) {
                 // Bare-name match — every version of this package is
                 // covered by the exclude, so the maturity filter is
@@ -214,30 +214,73 @@ where
         return Err(PickPackageFromMetaError::NoVersions { pkg_name: spec.name.clone() });
     }
 
-    let picked_version: Option<String> = match spec.spec_type {
-        RegistryPackageSpecType::Version => Some(spec.fetch_spec.clone()),
-        RegistryPackageSpecType::Tag => meta_ref.dist_tag(&spec.fetch_spec).map(str::to_string),
-        RegistryPackageSpecType::Range => {
-            pick_version_by_range(&PickVersionByVersionRangeOptions {
-                meta: meta_ref,
-                version_range: &spec.fetch_spec,
-                preferred_version_selectors: opts.preferred_version_selectors,
-                published_by: opts.published_by,
-            })
-        }
-    };
+    // An undecodable fragment behaves as if the version were absent
+    // (the `PackageVersions` contract), so a pick whose winner fails
+    // to hydrate retries against the remaining versions instead of
+    // reporting "no match" while satisfying candidates exist. The
+    // owned filtered clone only materializes on that (rare) path.
+    let mut undecodable_excluded: Option<Package> = None;
+    loop {
+        let meta_now: &Package = undecodable_excluded.as_ref().unwrap_or(meta_ref);
+        let picked_version: Option<String> = match spec.spec_type {
+            RegistryPackageSpecType::Version => Some(spec.fetch_spec.clone()),
+            RegistryPackageSpecType::Tag => meta_now.dist_tag(&spec.fetch_spec).map(str::to_string),
+            RegistryPackageSpecType::Range => {
+                pick_version_by_range(&PickVersionByVersionRangeOptions {
+                    meta: meta_now,
+                    version_range: &spec.fetch_spec,
+                    preferred_version_selectors: opts.preferred_version_selectors,
+                    published_by: opts.published_by,
+                })
+            }
+        };
 
-    let Some(version) = picked_version else { return Ok(None) };
-    let Some(manifest) = meta_ref.versions.get(&version).cloned() else { return Ok(None) };
-    let mut manifest = manifest;
-    if !meta_ref.name.is_empty() {
-        // GitHub registry quirk: a scoped package can be published as
-        // `@owner/foo` while the per-version `name` is just `foo`.
-        // Match upstream's shim that pins the manifest name to the
-        // packument-level name.
-        manifest.name = meta_ref.name.clone();
+        let Some(version) = picked_version else { return Ok(None) };
+        let Some(manifest) = meta_now.versions.get(&version) else {
+            if !meta_now.versions.contains_key(&version) {
+                // The picked string names a version the packument
+                // doesn't carry (a dangling dist-tag, an exact spec
+                // for an unpublished version) — nothing to retry.
+                return Ok(None);
+            }
+            undecodable_excluded = Some(without_version(meta_now, &version));
+            continue;
+        };
+        if !meta_now.name.is_empty() && manifest.name != meta_now.name {
+            // GitHub registry quirk: a scoped package can be published as
+            // `@owner/foo` while the per-version `name` is just `foo`.
+            // Match upstream's shim that pins the manifest name to the
+            // packument-level name.
+            let mut pinned = (*manifest).clone();
+            pinned.name.clone_from(&meta_now.name);
+            return Ok(Some(Arc::new(pinned)));
+        }
+        return Ok(Some(manifest));
     }
-    Ok(Some(manifest))
+}
+
+/// Clone `meta` minus one version — the retry step when a picked
+/// version's fragment turns out to be undecodable. Slots move without
+/// hydrating.
+fn without_version(meta: &Package, version: &str) -> Package {
+    Package {
+        name: meta.name.clone(),
+        // Tags pointing at the removed version go with it — the
+        // latest-tag fast path would otherwise re-pick the version
+        // this clone exists to exclude.
+        dist_tags: meta
+            .dist_tags
+            .iter()
+            .filter(|(_, target)| *target != version)
+            .map(|(tag, target)| (tag.clone(), target.clone()))
+            .collect(),
+        versions: meta.versions.filtered(|candidate| candidate != version),
+        time: meta.time.clone(),
+        modified: meta.modified.clone(),
+        etag: meta.etag.clone(),
+        homepage: meta.homepage.clone(),
+        mutex: Arc::default(),
+    }
 }
 
 /// Per-call inputs to the range-picker pluggable. Mirrors upstream's
@@ -303,16 +346,12 @@ pub fn pick_version_by_version_range(
     // non-deprecated subset. Matches upstream's loop at
     // pickPackageFromMeta.ts#L194-L201.
     if let Some(ref picked) = max_pick {
-        let picked_meta = opts.meta.versions.get(picked);
-        let picked_is_deprecated =
-            picked_meta.and_then(|version| version.deprecated.as_ref()).is_some();
+        let picked_is_deprecated = opts.meta.versions.is_deprecated(picked);
         if picked_is_deprecated && all_versions.len() > 1 {
-            let non_deprecated: Vec<&str> = opts
-                .meta
-                .versions
+            let non_deprecated: Vec<&str> = all_versions
                 .iter()
-                .filter(|(_, manifest)| manifest.deprecated.is_none())
-                .map(|(name, _)| name.as_str())
+                .copied()
+                .filter(|version| !opts.meta.versions.is_deprecated(version))
                 .collect();
             if let Some(non_deprecated_max) = max_satisfying(&non_deprecated, opts.version_range) {
                 return Some(non_deprecated_max);
@@ -365,6 +404,7 @@ pub fn pick_lowest_version_by_version_range(
 /// branch in [`pick_package_from_meta`]) only invokes this with full
 /// metadata. The abbreviated-metadata path takes the `meta.modified`
 /// shortcut above and never reaches this function.
+#[must_use]
 pub fn filter_pkg_metadata_by_publish_date(
     meta: &Package,
     cutoff: chrono::DateTime<chrono::Utc>,
@@ -375,23 +415,28 @@ pub fn filter_pkg_metadata_by_publish_date(
          caller must check before invoking",
     );
 
-    let mut versions_within_date = std::collections::HashMap::new();
-    for (version, manifest) in &meta.versions {
+    // Decide on version strings + the `time` map alone; slots move as
+    // raw fragments, so the filter never hydrates a manifest.
+    let versions_within_date = meta.versions.filtered(|version| {
         let mature = time
             .get(version)
             .and_then(serde_json::Value::as_str)
             .and_then(parse_packument_timestamp)
-            .map(|date| date <= cutoff)
-            .unwrap_or(false);
-        let trusted = trusted_versions
-            .map(|allow| allow.iter().any(|allowed| allowed == version))
-            .unwrap_or(false);
-        if mature || trusted {
-            versions_within_date.insert(version.clone(), manifest.clone());
-        }
-    }
+            .is_some_and(|date| date <= cutoff);
+        let trusted =
+            trusted_versions.is_some_and(|allow| allow.iter().any(|allowed| allowed == version));
+        mature || trusted
+    });
 
     let mut dist_tags_within_date = std::collections::HashMap::new();
+    // Candidate versions parsed once per filter call and shared by
+    // every repopulated tag, with the deprecation flag resolved
+    // lazily per candidate — mirrors upstream's `parsedSemverCache`.
+    // Deprecation goes through [`PackageVersions::is_deprecated`]
+    // instead of hydrating each candidate's manifest; the hydration
+    // per comparison dominated warm-resolve CPU on packuments with
+    // out-of-cutoff dist-tags.
+    let mut parsed_candidates: Option<Vec<(Version, &String, OnceCell<bool>)>> = None;
     for (tag, version) in &meta.dist_tags {
         if versions_within_date.contains_key(version) {
             dist_tags_within_date.insert(tag.clone(), version.clone());
@@ -399,37 +444,43 @@ pub fn filter_pkg_metadata_by_publish_date(
         }
         let Ok(original) = Version::parse(version) else { continue };
         let original_is_prerelease = !original.pre_release.is_empty();
-        let mut best_version: Option<(Version, &String)> = None;
-        for candidate_raw in versions_within_date.keys() {
-            let Ok(candidate) = Version::parse(candidate_raw) else { continue };
+        let candidates = parsed_candidates.get_or_insert_with(|| {
+            versions_within_date
+                .keys()
+                .filter_map(|raw| {
+                    Version::parse(raw).ok().map(|parsed| (parsed, raw, OnceCell::new()))
+                })
+                .collect()
+        });
+        let deprecated = |slot: &(Version, &String, OnceCell<bool>)| -> bool {
+            *slot.2.get_or_init(|| versions_within_date.is_deprecated(slot.1))
+        };
+        let mut best_index: Option<usize> = None;
+        for (index, slot) in candidates.iter().enumerate() {
+            let (candidate, _, _) = slot;
             if tag != "latest" && candidate.major != original.major {
                 continue;
             }
             if candidate.pre_release.is_empty() == original_is_prerelease {
                 continue;
             }
-            match best_version {
-                None => best_version = Some((candidate, candidate_raw)),
-                Some((ref best, best_raw)) => {
-                    let best_deprecated = versions_within_date
-                        .get(best_raw)
-                        .and_then(|manifest| manifest.deprecated.as_ref())
-                        .is_some();
-                    let candidate_deprecated = versions_within_date
-                        .get(candidate_raw)
-                        .and_then(|manifest| manifest.deprecated.as_ref())
-                        .is_some();
-                    let candidate_wins = (candidate > *best
+            match best_index {
+                None => best_index = Some(index),
+                Some(best) => {
+                    let best_slot = &candidates[best];
+                    let best_deprecated = deprecated(best_slot);
+                    let candidate_deprecated = deprecated(slot);
+                    let candidate_wins = (*candidate > best_slot.0
                         && best_deprecated == candidate_deprecated)
                         || (best_deprecated && !candidate_deprecated);
                     if candidate_wins {
-                        best_version = Some((candidate, candidate_raw));
+                        best_index = Some(index);
                     }
                 }
             }
         }
-        if let Some((_, best_raw)) = best_version {
-            dist_tags_within_date.insert(tag.clone(), best_raw.clone());
+        if let Some(best) = best_index {
+            dist_tags_within_date.insert(tag.clone(), candidates[best].1.clone());
         }
     }
 
@@ -612,8 +663,7 @@ fn has_unpublished_versions(meta: &Package) -> bool {
     unpublished
         .get("versions")
         .and_then(serde_json::Value::as_array)
-        .map(|versions| !versions.is_empty())
-        .unwrap_or(false)
+        .is_some_and(|versions| !versions.is_empty())
 }
 
 #[cfg(test)]

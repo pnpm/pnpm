@@ -171,7 +171,7 @@ fn make_env_tmpdir_gating_mirrors_unsafe_perm() {
 }
 
 /// `extra_env` is applied AFTER the lifecycle-area writes, so it can
-/// override INIT_CWD etc. — matches index.js:88-92's `Object.entries(opts.extraEnv)`
+/// override `INIT_CWD` etc. — matches index.js:88-92's `Object.entries(opts.extraEnv)`
 /// loop order. But `npm_lifecycle_script` is stamped *after* extraEnv
 /// (set in lifecycle_ at index.js:125), so the caller can never
 /// clobber it.

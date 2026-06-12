@@ -29,6 +29,11 @@ export function reportLockfileVerification (
   return Rx.of(lockfileVerification$.pipe(
     map((log) => {
       const path_ = formatLockfilePath(log.lockfilePath, opts.cwd, expectedDir)
+      if (log.status === 'cached') {
+        return {
+          msg: `${chalk.green('✓')} Lockfile${path_} passes supply-chain policies (${formatCachedVerdict(log.verifiedAt)})`,
+        }
+      }
       const progress = formatProgress(log)
       switch (log.status) {
         case 'started':
@@ -58,6 +63,17 @@ export function reportLockfileVerification (
 function formatProgress (log: LockfileVerificationLog): string {
   const checked = log.status === 'started' ? 0 : log.checked
   return `${checked}/${log.entries} ${log.entries === 1 ? 'entry' : 'entries'}`
+}
+
+// Relative "verified 2h ago" when the cached record carries a parseable
+// timestamp; the timeless "previously verified" otherwise. The elapsed
+// time is clamped at zero so a clock that moved backwards between the
+// verification run and this install doesn't render a negative age.
+function formatCachedVerdict (verifiedAt: string | undefined): string {
+  if (verifiedAt == null) return 'previously verified'
+  const elapsedMs = Date.now() - Date.parse(verifiedAt)
+  if (Number.isNaN(elapsedMs)) return 'previously verified'
+  return `verified ${prettyMs(Math.max(elapsedMs, 0), { compact: true })} ago`
 }
 
 // Returns a leading-space-prefixed `at <path>` suffix only when the

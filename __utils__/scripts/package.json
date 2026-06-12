@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/scripts",
-  "version": "1100.0.11",
+  "version": "1100.0.14",
   "private": true,
   "type": "module",
   "scripts": {
@@ -23,7 +23,6 @@
     "@pnpm/logger": "catalog:",
     "@pnpm/scripts": "workspace:*",
     "@types/normalize-path": "catalog:",
-    "@types/tar": "catalog:",
     "cross-env": "catalog:"
   },
   "jest": {

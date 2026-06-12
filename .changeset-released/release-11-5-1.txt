@@ -1,8 +1,0 @@
-audit-path-traversal-performance
-fix-workspace-state-race
-lucky-user-agent
-pnpm-agent-shield-license
-preserve-tarball-integrity-on-reresolution
-publish-normalize-repository
-steady-optional-peers
-twelve-peers-diamond

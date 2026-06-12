@@ -78,11 +78,17 @@ pub struct ResolveImporterOptions {
     /// Seed for the preferred-versions tie-break table. The
     /// orchestrator extends this in place as packages are walked —
     /// each newly-resolved `name@version` lands as a plain
-    /// [`VersionSelectorType::Version`] entry so [`hoist_peers`] and
-    /// [`get_hoistable_optional_peers`] can reuse it. Pass the result
-    /// of `get_preferred_versions_from_lockfile_and_manifests` from
-    /// the `lockfile-preferred-versions` crate, or an empty map when
-    /// no lockfile + manifest seeding is available.
+    /// [`VersionSelectorType::Version`] entry so the [`hoist_peers`]
+    /// (required-peer) picker can reuse a version a sibling already
+    /// brought. The [`get_hoistable_optional_peers`] picker instead
+    /// reads a snapshot taken *before* any run-resolved version is
+    /// folded in — mirroring upstream's static
+    /// [`ctx.allPreferredVersions`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/src/resolveDependencies.ts#L340-L342)
+    /// — so an optional peer is never hoisted against a deep-tree
+    /// provider pnpm can't see. Pass the result of
+    /// `get_preferred_versions_from_lockfile_and_manifests` from the
+    /// `lockfile-preferred-versions` crate, or an empty map when no
+    /// lockfile + manifest seeding is available.
     pub all_preferred_versions: PreferredVersions,
 
     /// Configured `patchedDependencies`, grouped by package name. The
@@ -223,7 +229,8 @@ where
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
             .with_manifest_hook(opts.manifest_hook.clone())
-            .with_pnpmfile_hook(opts.pnpmfile_hook.clone()),
+            .with_pnpmfile_hook(opts.pnpmfile_hook.clone())
+            .with_auto_install_peers(opts.auto_install_peers),
     );
     resolve_importer_with_workspace(
         resolver,
@@ -283,25 +290,55 @@ where
         exclude_links_from_lockfile,
         lockfile_dir: lockfile_dir.clone(),
         modules_dir: modules_dir.clone(),
+        hoist_missing_scope: None,
     };
 
     let ctx = TreeCtx::with_workspace(workspace, base_opts)
+        .with_importer_id(importer_id)
         .with_patched_dependencies(patched_dependencies)
         .with_resolution_mode(pick_lowest_direct, subdep_published_by);
 
     let initial_wanted =
         importer_direct_wanted_specs(manifest, dependency_groups, auto_install_peers, &catalogs)?;
     let mut direct = extend_tree(&ctx, resolver, initial_wanted, importer_id).await?;
+    // Both hoists read the run-extended preferred-versions map:
+    // upstream folds every resolved package's version into
+    // `ctx.allPreferredVersions`
+    // ([`resolveDependencies.ts#L1483-L1488`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/resolveDependencies.ts#L1483-L1488))
+    // and consults it for the optional hoist after each wave. What
+    // keeps e.g. `debug`'s `supports-color` from being hoisted against
+    // a deep-tree provider is not the map but the missing-peer set:
+    // meta-only peers never enter it (see `partition_missing_peers`).
     update_preferred_versions_with_ctx(&ctx, &mut all_preferred_versions);
 
     let mut parent_pkg_aliases: HashSet<String> =
         direct.iter().map(|dep| dep.alias.clone()).collect();
     let mut all_missing_optional_peers: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
+    // The hoist input must not see missing peers declared inside a
+    // subtree first resolved under an earlier importer — upstream
+    // reuses the first walk's children report there, so those peers
+    // never reach a later importer's hoist. The final per-importer
+    // pass below keeps the unscoped options so warnings stay complete.
+    // Snapshotted once per importer: suppression only consults entries
+    // recorded by earlier importers (everything this importer's own
+    // loop adds is self-claimed and exempt), so the maps cannot change
+    // in a way the loop observes.
+    let hoist_missing_scope = Arc::new(crate::resolve_peers::HoistMissingScope {
+        importer_id: importer_id.to_string(),
+        first_importer_by_pkg: ctx.workspace().first_importer_by_pkg(),
+        first_walk_missing_by_pkg: ctx.workspace().first_walk_missing_by_pkg(),
+    });
+    let hoist_peers_opts = || {
+        let mut opts = peers_opts();
+        opts.hoist_missing_scope = Some(Arc::clone(&hoist_missing_scope));
+        opts
+    };
     loop {
         loop {
             let mut snapshot = ctx.snapshot(direct.clone());
-            let peers_result = resolve_peers(&mut snapshot, peers_opts());
+            let peers_result = resolve_peers(&mut snapshot, hoist_peers_opts());
+            ctx.workspace().record_first_walk_missing(&peers_result.missing_names_by_pkg);
 
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &peers_result.peer_dependency_issues.missing,
@@ -330,7 +367,7 @@ where
             let missing_as_pairs: Vec<(String, MissingPeerInfo)> =
                 missing_required.iter().map(|(n, info)| (n.clone(), info.clone())).collect();
             let hoisted = hoist_peers(
-                HoistPeersOptions {
+                &HoistPeersOptions {
                     auto_install_peers,
                     all_preferred_versions: &all_preferred_versions,
                     workspace_root_deps: &workspace_root_deps,
@@ -423,9 +460,17 @@ fn partition_missing_peers(
             .map(|entry| entry.wanted_range.as_str())
             .collect();
         if required_ranges.is_empty() {
+            // Meta-only peers don't feed the optional hoist: upstream's
+            // resolution-stage `getMissingPeers` reads `peerDependencies`
+            // entries only, so a peer declared solely via
+            // `peerDependenciesMeta` is never auto-resolved against an
+            // in-tree version.
             let mut seen: BTreeSet<String> = BTreeSet::new();
             let mut ordered: Vec<String> = Vec::new();
             for entry in entries {
+                if entry.meta_only {
+                    continue;
+                }
                 if seen.insert(entry.wanted_range.clone()) {
                     ordered.push(entry.wanted_range.clone());
                 }

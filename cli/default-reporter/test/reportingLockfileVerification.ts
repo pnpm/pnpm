@@ -148,6 +148,42 @@ test('prints progress updates with checked and total entries', async () => {
   expect(stripAnsi(progress)).toBe('? Verifying lockfile against supply-chain policies (7/12 entries)...')
 })
 
+test('prints a previously-verified line when the cached verdict is reused', async () => {
+  const cwd = '/repo'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: cwd } as Config & ConfigContext,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(1), toArray()))
+
+  lockfileVerificationLogger.debug({
+    status: 'cached',
+    verifiedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    lockfilePath: path.join(cwd, 'pnpm-lock.yaml'),
+  })
+
+  const [cached] = await frames
+  expect(stripAnsi(cached)).toBe('✓ Lockfile passes supply-chain policies (verified 2h ago)')
+})
+
+test('falls back to a timeless cached message when the record has no timestamp', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(1), toArray()))
+
+  lockfileVerificationLogger.debug({ status: 'cached' })
+
+  const [cached] = await frames
+  expect(stripAnsi(cached)).toBe('✓ Lockfile passes supply-chain policies (previously verified)')
+})
+
 test('emits a brief failure line on failed status', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },

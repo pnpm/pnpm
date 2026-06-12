@@ -1,5 +1,57 @@
 # @pnpm/package-requester
 
+## 1101.1.0
+
+### Minor Changes
+
+- 84bb4b1: Raised the default network concurrency from `min(64, max(cpuCores * 3, 16))` to `min(96, max(cpuCores * 3, 64))`. Package downloads are I/O-bound, not CPU-bound, so deriving the floor from the core count left machines with few cores (for example 4-vCPU CI runners) downloading only 16 tarballs at a time and unable to saturate a low-latency registry. The `networkConcurrency` setting still overrides the default.
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+- Updated dependencies [52be454]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/config.package-is-installable@1100.0.10
+  - @pnpm/fetching.pick-fetcher@1100.0.11
+  - @pnpm/worker@1100.1.11
+
+## 1101.0.12
+
+### Patch Changes
+
+- Updated dependencies [089484a]
+- Updated dependencies [bf1b731]
+  - @pnpm/worker@1100.1.10
+  - @pnpm/types@1101.3.1
+  - @pnpm/fetching.pick-fetcher@1100.0.11
+  - @pnpm/config.package-is-installable@1100.0.9
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/fetching.fetcher-base@1100.1.8
+  - @pnpm/hooks.types@1100.0.11
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/store.cafs@1100.1.9
+  - @pnpm/store.controller-types@1100.1.4
+
+## 1101.0.11
+
+### Patch Changes
+
+- Updated dependencies [3b76b8e]
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/worker@1100.1.9
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/fetching.pick-fetcher@1100.0.10
+  - @pnpm/config.package-is-installable@1100.0.8
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/fetching.fetcher-base@1100.1.7
+  - @pnpm/hooks.types@1100.0.10
+  - @pnpm/store.cafs@1100.1.8
+  - @pnpm/store.controller-types@1100.1.3
+
 ## 1101.0.10
 
 ### Patch Changes

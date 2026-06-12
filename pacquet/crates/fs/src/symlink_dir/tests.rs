@@ -209,3 +209,36 @@ fn read_symlink_dir_reads_back_what_force_symlink_dir_wrote() {
     .expect("canonicalize read-back path");
     assert_eq!(resolved_read, fs::canonicalize(&target).expect("canonicalize target"));
 }
+
+/// Same reuse contract when the link lives in a *different* parent
+/// directory than the target, so the on-disk link contents contain
+/// `..` segments (the virtual-store layout shape:
+/// `.pnpm/a@1/node_modules/b` → `.pnpm/b@2/node_modules/b`). The
+/// up-to-date check must collapse those segments like Node's
+/// `path.relative` does; comparing the joined path verbatim reads
+/// every such link as stale.
+#[test]
+fn force_symlink_dir_reuses_relative_link_across_parents() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("store").join("b@2").join("node_modules").join("b");
+    let link = root.path().join("store").join("a@1").join("node_modules").join("b");
+    fs::create_dir_all(&target).expect("create target dir");
+
+    let first = force_symlink_dir(&target, &link).expect("first call");
+    assert_eq!(first, ForceSymlinkOutcome { reused: false, warning: None });
+    #[cfg(unix)]
+    {
+        let contents = fs::read_link(&link).expect("read link");
+        assert!(
+            contents.to_string_lossy().contains(".."),
+            "link contents should be relative with parent segments: {contents:?}",
+        );
+    }
+
+    let second = force_symlink_dir(&target, &link).expect("second call");
+    assert_eq!(
+        second,
+        ForceSymlinkOutcome { reused: true, warning: None },
+        "an up-to-date relative link must be reused, not rewritten",
+    );
+}

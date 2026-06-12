@@ -74,21 +74,21 @@ catalog:
   '@babel/core': ^7.29.7
   '@babel/plugin-transform-explicit-resource-management': ^7.29.7
   '@changesets/cli': ^2.31.0
-  '@commitlint/cli': ^20.5.3
-  '@commitlint/config-conventional': ^20.5.3
-  '@commitlint/prompt-cli': ^20.5.3
-  '@cyclonedx/cyclonedx-library': 10.0.0
+  '@commitlint/cli': ^21.0.2
+  '@commitlint/config-conventional': ^21.0.2
+  '@commitlint/prompt-cli': ^21.0.2
+  '@cyclonedx/cyclonedx-library': 10.1.0
   '@eslint/js': ^10.0.1
   '@inquirer/prompts': ^8.4.3
-  '@jest/globals': 30.3.0
+  '@jest/globals': 30.4.1
   '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
   '@pnpm/colorize-semver-diff': ^2.0.0
   '@pnpm/config.env-replace': ^4.1.0
-  '@pnpm/config.nerf-dart': ^1.0.1
+  '@pnpm/config.nerf-dart': ^2.0.1
   '@pnpm/exec': ^4.0.0
-  '@pnpm/log.group': 3.0.2
-  '@pnpm/logger': '^1001.0.1'
+  '@pnpm/log.group': 4.0.1
+  '@pnpm/logger': '^1100.0.0'
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/nopt': ^0.3.1
   '@pnpm/npm-lifecycle': 1100.0.0-1
@@ -98,9 +98,9 @@ catalog:
   '@pnpm/semver-diff': ^2.0.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
-  '@pnpm/util.lex-comparator': ^3.0.2
+  '@pnpm/util.lex-comparator': ^4.0.1
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.7
+  '@rushstack/worker-pool': 0.7.18
   '@stylistic/eslint-plugin': ^5.10.0
   '@types/adm-zip': ^0.5.8
   '@types/archy': 0.0.36
@@ -114,15 +114,17 @@ catalog:
   '@types/isexe': 2.0.4
   '@types/jest': ^30.0.0
   '@types/js-yaml': ^4.0.9
-  '@types/libnpmpublish': ^9.0.1
+  '@types/libnpmpublish': ^11.2.0
   '@types/lodash.kebabcase': 4.1.9
   '@types/lodash.throttle': 4.1.9
   '@types/micromatch': ^4.0.10
+  # Kept on 22.x to match pnpm's minimum supported Node.js version (>=22.13);
+  # newer majors would type APIs that don't exist on the supported floor.
   '@types/node': ^22.19.19
   '@types/normalize-package-data': ^2.4.4
   '@types/normalize-path': ^3.0.2
   '@types/object-hash': 3.0.6
-  '@types/parse-json': ^4.0.2
+  '@types/parse-json': ^7.0.0
   '@types/picomatch': ^4.0.3
   '@types/pnpm__byline': npm:@types/byline@^4.2.36
   '@types/proxyquire': ^1.3.31
@@ -131,17 +133,16 @@ catalog:
   '@types/retry': ^0.12.5
   '@types/semver': 7.7.1
   '@types/ssri': ^7.1.5
-  '@types/tar': ^7.0.87
   '@types/tar-stream': ^3.1.4
   '@types/touch': ^3.1.5
   '@types/validate-npm-package-name': ^4.0.2
   '@types/which': ^3.0.4
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
-  '@types/zkochan__table': npm:@types/table@6.0.0
-  '@typescript-eslint/utils': ^8.60.0
-  '@typescript/native-preview': 7.0.0-dev.20260421.2
-  '@yarnpkg/core': 4.5.0
+  '@types/zkochan__table': npm:@types/table@6.3.2
+  '@typescript-eslint/utils': ^8.61.0
+  '@typescript/native-preview': 7.0.0-dev.20260610.1
+  '@yarnpkg/core': 4.8.0
   '@yarnpkg/extensions': 2.0.6
   '@yarnpkg/lockfile': ^1.1.0
   '@yarnpkg/nm': 4.0.7
@@ -157,6 +158,11 @@ catalog:
   archy: ^1.0.0
   better-path-resolve: 2.0.0
   bin-links: ^6.0.2
+  # bole 6 is ESM-only. Under Jest, the workspace logger's ESM bole and the
+  # published @pnpm/logger's CJS bole 5 land in different realms, so the
+  # globalThis.$$bole output registry is no longer shared and log events
+  # emitted through one logger copy never reach the other's streamParser.
+  # Keep bole 5 until the published @pnpm/logger ships with bole 6.
   bole: ^5.0.29
   boxen: npm:@zkochan/boxen@5.1.2
   c8: ^11.0.0
@@ -166,13 +172,15 @@ catalog:
   can-write-to-dir: ^2.0.0
   chalk: ^5.6.2
   ci-info: ^4.4.0
-  cli-truncate: ^5.2.0
+  cli-truncate: ^6.0.0
   cmd-extension: ^2.0.0
   comver-to-semver: ^2.0.0
-  concurrently: 9.2.1
+  concurrently: 10.0.3
   cross-env: ^10.1.0
   cross-spawn: ^7.0.6
-  cspell: 9.7.0
+  # cspell 10.x requires Node.js >=22.18.0, above pnpm's supported floor of
+  # Node.js >=22.13.
+  cspell: 9.8.0
   deep-require-cwd: 1.0.0
   delay: ^7.0.0
   detect-indent: 7.0.2
@@ -181,15 +189,15 @@ catalog:
   dint: ^5.1.0
   dir-is-case-sensitive: ^3.0.0
   encode-registry: ^3.0.1
-  esbuild: ^0.27.7
+  esbuild: ^0.28.0
   escape-string-regexp: ^5.0.0
   eslint: ^10.4.0
   eslint-plugin-import-x: ^4.16.2
   eslint-plugin-jest: ^29.15.2
-  eslint-plugin-n: ^17.24.0
+  eslint-plugin-n: ^18.1.0
   eslint-plugin-promise: ^7.3.0
   eslint-plugin-regexp: ^3.1.0
-  eslint-plugin-simple-import-sort: ^12.1.1
+  eslint-plugin-simple-import-sort: ^13.0.0
   execa: npm:safe-execa@0.3.0
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
@@ -207,6 +215,8 @@ catalog:
   https-proxy-server-express: 0.1.2
   husky: ^9.1.7
   hyperdrive-schemas: ^2.0.0
+  # ini 7.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
+  # supported floor of Node.js >=22.13.
   ini: 6.0.0
   is-gzip: 2.0.0
   is-inner-link: ^5.0.0
@@ -218,7 +228,7 @@ catalog:
   js-yaml: npm:@zkochan/js-yaml@0.0.11
   json5: ^2.2.3
   keyv: 5.6.0
-  lcov-result-merger: ^5.0.1
+  lcov-result-merger: ^6.0.0
   libnpmpublish: ^11.2.0
   load-json-file: ^7.0.1
   lodash.kebabcase: ^4.1.1
@@ -227,20 +237,23 @@ catalog:
   lru-cache: ^11.5.0
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
-  memoize: ^10.2.0
+  memoize: ^11.0.0
   micromatch: ^4.0.8
-  # msgpackr 1.11.9 has broken type definitions (uses Iterable/Iterator without
-  # required type arguments), incompatible with TypeScript 5.9.
-  msgpackr: 1.11.8
+  msgpackr: 2.0.4
   nm-prune: ^5.0.0
-  nock: 13.3.4
   normalize-newline: 5.0.0
+  # normalize-package-data 9.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0,
+  # above pnpm's supported floor of Node.js >=22.13.
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
   normalize-registry-url: 2.0.1
+  # npm-packlist 11.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above
+  # pnpm's supported floor of Node.js >=22.13.
   npm-packlist: 10.0.4
   object-hash: 3.0.0
-  open: ^7.4.2
+  open: ^11.0.0
+  openpgp: ^6.3.1
+  '@openpgp/web-stream-tools': 0.3.1
   p-defer: ^4.0.1
   p-every: ^2.0.0
   p-filter: ^4.1.0
@@ -254,7 +267,7 @@ catalog:
   path-exists: ^5.0.0
   path-name: ^1.0.0
   path-temp: ^3.0.0
-  pidtree: ^0.6.0
+  pidtree: ^1.0.0
   preferred-pm: ^5.0.0
   pretty-bytes: ^7.1.0
   pretty-ms: ^9.3.0
@@ -279,7 +292,7 @@ catalog:
   safe-execa: ^0.3.0
   safe-promise-defer: ^2.0.0
   sanitize-filename: ^1.6.4
-  semver: ^7.8.1
+  semver: ^7.8.4
   semver-range-intersect: ^0.3.1
   semver-utils: ^1.1.4
   shlex: ^3.0.0
@@ -288,6 +301,8 @@ catalog:
   sort-keys: ^6.0.0
   split-cmd: ^1.1.0
   split2: ^4.2.0
+  # ssri 14.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
+  # supported floor of Node.js >=22.13.
   ssri: 13.0.1
   stacktracey: ^2.2.0
   string-length: ^7.0.1
@@ -305,14 +320,20 @@ catalog:
   touch: 3.1.1
   tree-kill: ^1.2.2
   ts-jest-resolver: 2.0.1
-  typescript: 5.9.3
-  typescript-eslint: ^8.60.0
-  undici: ^7.26.0
+  typescript: 6.0.3
+  typescript-eslint: ^8.61.0
+  # undici 8.x requires Node.js >=22.19.0, above pnpm's supported floor of
+  # Node.js >=22.13.
+  undici: ^7.27.2
   unified: ^11.0.5
+  # validate-npm-package-name 8.x requires Node.js ^22.22.2 || ^24.15.0 ||
+  # >=26.0.0, above pnpm's supported floor of Node.js >=22.13.
   validate-npm-package-name: 7.0.2
   version-selector-type: ^3.0.0
   vfile: ^6.0.3
   which: npm:@pnpm/which@^3.0.1
+  # write-file-atomic 8.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0,
+  # above pnpm's supported floor of Node.js >=22.13.
   write-file-atomic: ^7.0.1
   write-ini-file: 5.0.0
   write-json-file: ^7.0.0
@@ -327,7 +348,7 @@ catalogMode: strict
 cleanupUnusedCatalogs: true
 
 configDependencies:
-  '@pnpm/pacquet': 0.2.13
+  '@pnpm/pacquet': 0.11.4
 
 enableGlobalVirtualStore: true
 
@@ -344,7 +365,7 @@ minimumReleaseAge: 1440 # At least a day
 
 minimumReleaseAgeExclude:
   - '@pnpm/*'
-  - '@rushstack/worker-pool@0.7.7'
+  - '@rushstack/worker-pool@0.7.18'
   - '@zkochan/*'
   - '@zkochan/cmd-shim@9.0.3'
   - better-path-resolve
@@ -436,7 +457,10 @@ overrides:
   request: npm:postman-request@2.88.1-postman.40
   semver@<7.5.2: 'catalog:'
   send@<0.19.0: ^0.19.0
+  shell-quote@<1.8.4: '>=1.8.4'
   serve-static@<1.16.0: ^1.16.0
+  # GHSA-w7jw-789q-3m8p / CVE-2026-9277: 1.8.4 patches critical shell-quote vulnerabilities in <=1.8.3.
+  shell-quote: 1.8.4
   socks@2: ^2.8.1
   tar@<=7.5.9: '>=7.5.10'
   tmp@<=0.2.3: '>=0.2.4'

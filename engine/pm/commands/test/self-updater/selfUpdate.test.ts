@@ -66,6 +66,9 @@ function prepareOptions (dir: string) {
     cacheDir: path.join(dir, '.cache'),
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     dir,
+    // The fixture pnpm installed here is not signed with npm's real keys, so
+    // skip the engine identity signature check (empty trusted-keys = skip).
+    trustedKeys: [],
   }
 }
 
@@ -289,6 +292,45 @@ test('self-update respects minimumReleaseAge for implicit latest resolution', as
 
   expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
+})
+
+test('self-update does not write packageManagerDependencies when package manager onFail is ignore', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '^9.0.0',
+      },
+    },
+  })
+  const lockfilePath = path.join(opts.dir, 'pnpm-lock.yaml')
+  fs.writeFileSync(lockfilePath, [
+    '---',
+    "lockfileVersion: '9.0'",
+    '',
+    'importers:',
+    '',
+    '  .:',
+    '    configDependencies: {}',
+    '',
+    'packages: {}',
+    'snapshots: {}',
+    '---',
+    '',
+  ].join('\n'), 'utf8')
+  mockRegistryForUpdate(opts.registries.default, '9.1.0', createMetadata('9.1.0', opts.registries.default))
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '^9.0.0',
+      fromDevEngines: true,
+      onFail: 'ignore',
+    },
+  }, [])
+
+  expect(fs.readFileSync(lockfilePath, 'utf8')).not.toContain('packageManagerDependencies')
 })
 
 test('global self-update respects minimumReleaseAge: skips immature latest, no-op when older mature matches active', async () => {

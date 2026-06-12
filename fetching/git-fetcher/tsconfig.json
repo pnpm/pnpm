@@ -25,6 +25,9 @@
       "path": "../../fs/packlist"
     },
     {
+      "path": "../../resolving/git-resolver"
+    },
+    {
       "path": "../../store/cafs"
     },
     {

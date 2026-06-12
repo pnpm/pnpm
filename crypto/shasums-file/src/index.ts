@@ -3,6 +3,10 @@ import type {
   FetchFromRegistry,
 } from '@pnpm/fetching.types'
 
+import { fetchVerifiedNodeShasums } from './verifyNodeShasums.js'
+
+export { fetchVerifiedNodeShasums }
+
 export interface ShasumsFileItem {
   integrity: string
   fileName: string
@@ -12,7 +16,23 @@ export async function fetchShasumsFile (
   fetch: FetchFromRegistry,
   shasumsUrl: string
 ): Promise<ShasumsFileItem[]> {
-  const shasumsFileContent = await fetchShasumsFileRaw(fetch, shasumsUrl)
+  return parseShasumsFile(await fetchShasumsFileRaw(fetch, shasumsUrl))
+}
+
+/**
+ * Like {@link fetchShasumsFile}, but first verifies the SHASUMS file's detached
+ * OpenPGP signature against the Node.js release keys (see
+ * {@link fetchVerifiedNodeShasums}). Use this whenever the SHASUMS file is
+ * fetched from a repository-configurable Node.js mirror.
+ */
+export async function fetchVerifiedNodeShasumsFile (
+  fetch: FetchFromRegistry,
+  shasumsUrl: string
+): Promise<ShasumsFileItem[]> {
+  return parseShasumsFile(await fetchVerifiedNodeShasums(fetch, shasumsUrl))
+}
+
+export function parseShasumsFile (shasumsFileContent: string): ShasumsFileItem[] {
   const lines = shasumsFileContent.split('\n')
   const items: ShasumsFileItem[] = []
   for (const line of lines) {

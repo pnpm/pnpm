@@ -13,6 +13,7 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
 /// accept all three through `new Date(...)`; this is the matching
 /// tolerance for pacquet, whose [`DateTime::parse_from_rfc3339`] alone
 /// rejects the two shorter forms.
+#[must_use]
 pub fn parse_packument_timestamp(input: &str) -> Option<DateTime<Utc>> {
     if let Ok(parsed) = DateTime::parse_from_rfc3339(input) {
         return Some(parsed.with_timezone(&Utc));

@@ -65,11 +65,12 @@ pub struct HoistGraphNode {
 /// hoist pass simply won't see the missing snapshot.
 ///
 /// Parallelized via rayon: each snapshot's children-map build is
-/// independent (no shared mutable state), and the children HashMap
+/// independent (no shared mutable state), and the children `HashMap`
 /// allocations are the dominant cost on large lockfiles. Using
 /// [`rayon::prelude::ParallelIterator::collect`] into a `HashMap`
 /// fans the per-snapshot work across the rayon thread pool and
 /// hands the result back as a single map.
+#[must_use]
 pub fn build_hoist_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
@@ -139,6 +140,10 @@ pub type DirectDepsByImporter = HashMap<String, HashMap<String, PackageKey>>;
 /// loop.
 ///
 /// [#443]: https://github.com/pnpm/pacquet/pull/443
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "dependency_groups is cloned per importer; the owned `impl IntoIterator + Clone` avoids a parenthesized `&(… + …)` borrow"
+)]
 pub fn build_direct_deps_by_importer<'a, Iter>(
     importers: Iter,
     dependency_groups: impl IntoIterator<Item = pacquet_package_manifest::DependencyGroup> + Clone,
@@ -248,6 +253,7 @@ pub struct HoistResult {
 ///
 /// Returns `None` when the graph is empty (mirroring upstream's early
 /// return; spares the symlink pass any work).
+#[must_use]
 pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistResult> {
     if input.graph.is_empty() {
         return None;
@@ -432,11 +438,11 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
 /// Internal BFS row. `children` borrows from the input graph (or the
 /// importer's direct-deps map for the depth=-1 pseudo-nodes) so the
 /// BFS allocates one `Vec<BfsEntry>` plus the `visited`/`queue`
-/// collections — no per-node HashMap clones, which was the dominant
+/// collections — no per-node `HashMap` clones, which was the dominant
 /// allocation hotspot pre-optimization. `sort_key` is still a
 /// `String` because `PackageKey` doesn't carry an `Ord` impl that
 /// would match the old `to_string()` lex order; that single
-/// allocation per node is cheap relative to what was a HashMap clone.
+/// allocation per node is cheap relative to what was a `HashMap` clone.
 struct BfsEntry<'a> {
     depth: i32,
     sort_key: String,
@@ -446,7 +452,7 @@ struct BfsEntry<'a> {
 /// Create the hoist symlinks. Mirrors upstream's
 /// [`symlinkHoistedDependencies`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L269-L307).
 ///
-/// For each (snapshot_key, alias, kind) entry, link
+/// For each (`snapshot_key`, alias, kind) entry, link
 /// `<target_dir>/<alias>` → `<layout.slot_dir(key)>/node_modules/<package_name>`,
 /// where `<target_dir>` is `<public_hoisted_modules_dir>` for public-kind
 /// or `<private_hoisted_modules_dir>` for private-kind. The
@@ -461,7 +467,7 @@ struct BfsEntry<'a> {
 /// `symlinkDir({ overwrite: false })`. The "overwrite a
 /// virtual-store-resident link" branch upstream additionally does
 /// (via `resolveLinkTarget` + `isSubdir`) is intentionally not
-/// ported — see the `external_symlink_introspection` known_failure
+/// ported — see the `external_symlink_introspection` `known_failure`
 /// reason.
 ///
 /// Two-phase to amortize directory creation:

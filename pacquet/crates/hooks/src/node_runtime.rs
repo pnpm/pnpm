@@ -25,6 +25,7 @@ pub struct NodeJsHooks {
 const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl NodeJsHooks {
+    #[must_use]
     pub fn new(file: PathBuf) -> Self {
         NodeJsHooks { file, worker: OnceCell::new() }
     }
@@ -46,14 +47,8 @@ impl NodeJsHooks {
         logger: &crate::PreResolutionHookLogger,
     ) {
         let file_path = self.file.to_string_lossy();
-        let file_path_escaped = match serde_json::to_string(&file_path) {
-            Ok(s) => s,
-            Err(_) => return,
-        };
-        let ctx_payload = match serde_json::to_string(&args) {
-            Ok(s) => s,
-            Err(_) => return,
-        };
+        let Ok(file_path_escaped) = serde_json::to_string(&file_path) else { return };
+        let Ok(ctx_payload) = serde_json::to_string(&args) else { return };
 
         let (input_type, wrapper) = if file_path.ends_with(".mjs") {
             (
@@ -68,7 +63,6 @@ const logger = {{
 }};
 await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 "#,
-                    file_path_escaped = file_path_escaped,
                 ),
             )
         } else {
@@ -85,12 +79,11 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
   await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 }})();
 "#,
-                    file_path_escaped = file_path_escaped,
                 ),
             )
         };
 
-        let mut child = match Command::new("node")
+        let Ok(mut child) = Command::new("node")
             .arg("--input-type")
             .arg(input_type)
             .arg("-e")
@@ -98,12 +91,9 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             .kill_on_drop(true)
             .stdin(std::process::Stdio::piped())
             .spawn()
-        {
-            Ok(child) => child,
-            Err(_) => {
-                (logger.warn)("pnpmfile hook failed to start".to_string());
-                return;
-            }
+        else {
+            (logger.warn)("pnpmfile hook failed to start".to_string());
+            return;
         };
 
         if let Some(mut stdin) = child.stdin.take()
@@ -113,17 +103,14 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             return;
         }
 
-        let output = match timeout(HOOK_TIMEOUT, child.wait_with_output()).await {
-            Ok(Ok(output)) => output,
-            Ok(Err(_)) | Err(_) => {
-                (logger.warn)("pnpmfile hook timed out or failed to execute".to_string());
-                return;
-            }
+        let Ok(Ok(output)) = timeout(HOOK_TIMEOUT, child.wait_with_output()).await else {
+            (logger.warn)("pnpmfile hook timed out or failed to execute".to_string());
+            return;
         };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            (logger.warn)(format!("pnpmfile hook failed: {}", stderr));
+            (logger.warn)(format!("pnpmfile hook failed: {stderr}"));
         }
     }
 }
@@ -144,6 +131,18 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         ctx: crate::HookContext,
     ) -> Result<Value, HookError> {
         self.worker().await?.call("afterAllResolved", lockfile, ctx.log).await
+    }
+
+    async fn update_config(
+        &self,
+        config: Value,
+        ctx: crate::HookContext,
+    ) -> Result<Value, HookError> {
+        // The worker returns `null` when the pnpmfile exports no
+        // `updateConfig` hook (the generic `typeof fn === 'function'`
+        // branch); in that case the config is left unchanged.
+        let result = self.worker().await?.call("updateConfig", config.clone(), ctx.log).await?;
+        Ok(if result.is_null() { config } else { result })
     }
 
     async fn pre_resolution(
@@ -172,7 +171,94 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         }
     }
 
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        // Gate on the loaded module exporting `hooks`, mirroring pnpm's
+        // `entries.some(entry => entry.hooks != null)`. The checksum
+        // value itself is a pure hash of the pnpmfile's normalized
+        // bytes — only this gate needs to consult the evaluated module.
+        let worker = self.worker().await.ok()?;
+        if !worker.has_hooks().await {
+            return None;
+        }
+        pacquet_crypto_hash::create_hash_from_file(&self.file).ok()
+    }
+
     fn source_path(&self) -> Option<&std::path::Path> {
         Some(&self.file)
+    }
+
+    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn crate::CustomResolver>>, HookError> {
+        let worker = self.worker().await?;
+        let capabilities = worker.get_resolver_capabilities().await?;
+        Ok(capabilities
+            .into_iter()
+            .enumerate()
+            .map(|(index, capabilities)| {
+                Arc::new(NodeJsCustomResolver { worker: Arc::clone(&worker), index, capabilities })
+                    as Arc<dyn crate::CustomResolver>
+            })
+            .collect())
+    }
+}
+
+pub struct NodeJsCustomResolver {
+    worker: Arc<NodeWorker>,
+    index: usize,
+    capabilities: crate::worker::ResolverCapabilities,
+}
+
+#[async_trait]
+impl crate::CustomResolver for NodeJsCustomResolver {
+    fn has_can_resolve(&self) -> bool {
+        self.capabilities.can_resolve
+    }
+
+    fn has_resolve(&self) -> bool {
+        self.capabilities.resolve
+    }
+
+    fn has_should_refresh_resolution(&self) -> bool {
+        self.capabilities.should_refresh_resolution
+    }
+
+    async fn can_resolve(&self, wanted_dependency: Value) -> Result<bool, HookError> {
+        let res = self
+            .worker
+            .call_resolver(
+                self.index,
+                "canResolve",
+                serde_json::json!([wanted_dependency]),
+                Arc::new(|_| {}),
+            )
+            .await?;
+        Ok(res.as_bool().unwrap_or(false))
+    }
+
+    async fn resolve(&self, wanted_dependency: Value, opts: Value) -> Result<Value, HookError> {
+        self.worker
+            .call_resolver(
+                self.index,
+                "resolve",
+                serde_json::json!([wanted_dependency, opts]),
+                Arc::new(|_| {}),
+            )
+            .await
+    }
+
+    async fn should_refresh_resolution(
+        &self,
+        dep_path: &pacquet_lockfile::PackageKey,
+        pkg_snapshot: Value,
+    ) -> Result<bool, HookError> {
+        let res = self
+            .worker
+            .call_resolver(
+                self.index,
+                "shouldRefreshResolution",
+                serde_json::json!([dep_path.to_string(), pkg_snapshot]),
+                Arc::new(|_| {}),
+            )
+            .await?;
+        Ok(res.as_bool().unwrap_or(false))
     }
 }

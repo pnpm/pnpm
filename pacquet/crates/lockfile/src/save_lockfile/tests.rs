@@ -32,14 +32,14 @@ const LOCKFILE_YAML: &str = text_block! {
     ""
     "packages:"
     ""
-    "  react@17.0.2:"
-    "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
-    "    engines: {node: '>=0.10.0'}"
-    ""
     "  react-dom@17.0.2:"
     "    resolution: {integrity: sha512-s4h96KtLDUQlsENhMn1ar8t2bEa+q/YAtj8pPPdIjPDGBDIVNsrD9aXNWqspUe6AzKCIG0C1HZZLqLV7qpOBGA==}"
     "    peerDependencies:"
     "      react: 17.0.2"
+    ""
+    "  react@17.0.2:"
+    "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
+    "    engines: {node: '>=0.10.0'}"
     ""
     "  typescript@5.1.6:"
     "    resolution: {integrity: sha512-zaWCozRZ6DLEWAWFrVDz1H6FVXzUSfTy5FUMWsQlU8Ym5JP9eO4xkTIROFCQvhQf61z6O/G6ugw3SgAnvvm+HA==}"
@@ -48,11 +48,11 @@ const LOCKFILE_YAML: &str = text_block! {
     ""
     "snapshots:"
     ""
-    "  react@17.0.2: {}"
-    ""
     "  react-dom@17.0.2(react@17.0.2):"
     "    dependencies:"
     "      react: 17.0.2"
+    ""
+    "  react@17.0.2: {}"
     ""
     "  typescript@5.1.6: {}"
 };
@@ -82,6 +82,25 @@ fn round_trip_parse_save_parse_preserves_lockfile() {
     let reparsed: Lockfile = serde_saphyr::from_str(&saved_bytes).expect("reparse lockfile");
 
     assert_eq!(original, reparsed);
+}
+
+/// Byte-for-byte parity: parsing a pnpm-authored v9 lockfile and saving it
+/// reproduces the exact bytes pnpm wrote. [`LOCKFILE_YAML`] is laid out the way
+/// pnpm's `js-yaml` dumper writes it — blank lines between top-level and
+/// section entries, single-quoted ambiguous scalars, single-line
+/// `resolution` / `engines`, and priority-then-lexical key ordering — so an
+/// exact match proves pacquet's writer matches pnpm's formatting.
+#[test]
+fn save_reproduces_pnpm_authored_bytes() {
+    let original: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    original.save_to_path(&path).expect("save lockfile");
+
+    let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
+    // `text_block!` omits the trailing newline; the writer appends one.
+    assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n"));
 }
 
 /// A workspace lockfile with multiple importers, one of which has a
@@ -161,6 +180,50 @@ fn workspace_lockfile_with_link_dep_round_trips() {
     assert_eq!(original, reparsed);
 }
 
+/// The top-level `patchedDependencies:` block renders between
+/// `settings:` and `importers:` (its slot in pnpm's `sortLockfileKeys`
+/// root-key order), with each configured key mapped to its patch-file
+/// hash and the keys sorted lexically. Models the `graceful-fs@4.2.11`
+/// entry the pnpm monorepo's own lockfile carries.
+#[test]
+fn patched_dependencies_block_round_trips_and_renders_in_order() {
+    const PATCHED_YAML: &str = text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "settings:"
+        "  autoInstallPeers: true"
+        "  excludeLinksFromLockfile: false"
+        ""
+        "patchedDependencies:"
+        "  graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    dependencies:"
+        "      react:"
+        "        specifier: ^17.0.2"
+        "        version: 17.0.2"
+        ""
+        "snapshots:"
+        ""
+        "  react@17.0.2: {}"
+    };
+
+    let original: Lockfile = serde_saphyr::from_str(PATCHED_YAML).expect("parse fixture lockfile");
+    let patched = original.patched_dependencies.as_ref().expect("patchedDependencies parsed");
+    assert_eq!(
+        patched.get("graceful-fs@4.2.11").map(String::as_str),
+        Some("68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1"),
+    );
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    original.save_to_path(&path).expect("save lockfile");
+    let saved = std::fs::read_to_string(&path).expect("read saved lockfile");
+    assert_eq!(saved, format!("{PATCHED_YAML}\n"));
+}
+
 /// `peersSuffixMaxLength` is serialized into `settings:` only when set
 /// to a non-default value. Lockfiles written by the default install
 /// must round-trip without the field, matching pnpm's
@@ -180,10 +243,13 @@ fn peers_suffix_max_length_omitted_from_settings_when_unset() {
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
         }),
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
-        importers: Default::default(),
+        patched_dependencies: None,
+        importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
     };
@@ -216,10 +282,13 @@ fn peers_suffix_max_length_serialized_when_set() {
             inject_workspace_packages: false,
             peers_suffix_max_length: Some(10),
         }),
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
-        importers: Default::default(),
+        patched_dependencies: None,
+        importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
     };

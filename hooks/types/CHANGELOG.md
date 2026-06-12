@@ -1,5 +1,28 @@
 # @pnpm/hooks.types
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/fetching.fetcher-base@1100.1.8
+  - @pnpm/lockfile.types@1100.0.10
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/store.cafs-types@1100.0.1
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/fetching.fetcher-base@1100.1.7
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/store.cafs-types@1100.0.1
+
 ## 1100.0.9
 
 ### Patch Changes

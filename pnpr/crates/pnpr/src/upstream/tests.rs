@@ -1,12 +1,176 @@
-use super::{abbreviate_packument, extract_version_manifest, rewrite_tarball_urls};
+use super::{
+    CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
+    extract_version_manifest, rewrite_tarball_urls,
+};
 use crate::package_name::PackageName;
 use chrono::{DateTime, TimeZone, Utc};
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use serde_json::json;
 
 /// Fixed "current time" for abbreviation tests so the `time`-map
 /// coarsening (which buckets entries by age) is deterministic.
 fn now() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2024, 3, 20, 12, 0, 0).unwrap()
+}
+
+/// Build a header map carrying a bearer `Authorization` plus one
+/// custom header — the resolved per-uplink set an [`Upstream`] is
+/// expected to attach to every request.
+fn auth_and_custom_headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer secret-token"));
+    headers.insert("x-org", HeaderValue::from_static("acme"));
+    headers
+}
+
+#[tokio::test]
+async fn fetch_packument_forwards_configured_headers() {
+    let mut server = mockito::Server::new_async().await;
+    // The mock only matches when both headers are present, so an
+    // `Ok` outcome proves they rode along on the request.
+    let mock = server
+        .mock("GET", "/foo")
+        .match_header("authorization", "Bearer secret-token")
+        .match_header("x-org", "acme")
+        .with_status(200)
+        .with_body(json!({ "name": "foo" }).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = Upstream::new(server.url(), auth_and_custom_headers());
+    let name = PackageName::parse("foo").unwrap();
+    let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
+
+    assert!(matches!(outcome, PackumentFetch::Modified(_)));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_tarball_response_forwards_configured_headers() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .match_header("authorization", "Bearer secret-token")
+        .match_header("x-org", "acme")
+        .with_status(200)
+        .with_body("tarball-bytes")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = Upstream::new(server.url(), auth_and_custom_headers());
+    let name = PackageName::parse("foo").unwrap();
+    let outcome = upstream.fetch_tarball_response(&name, "foo-1.0.0.tgz").await.unwrap();
+
+    assert!(matches!(outcome, FetchOutcome::Ok(_)));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_packument_sends_no_authorization_when_headers_empty() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/foo")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body(json!({ "name": "foo" }).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let name = PackageName::parse("foo").unwrap();
+    let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
+
+    assert!(matches!(outcome, PackumentFetch::Modified(_)));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_packument_captures_validators_from_response() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("etag", r#""abc123""#)
+        .with_header("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")
+        .with_body(json!({ "name": "foo" }).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let name = PackageName::parse("foo").unwrap();
+    let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
+
+    let PackumentFetch::Modified(fetched) = outcome else { panic!("expected a body") };
+    assert_eq!(fetched.validators.etag.as_deref(), Some(r#""abc123""#));
+    assert_eq!(fetched.validators.last_modified.as_deref(), Some("Wed, 21 Oct 2015 07:28:00 GMT"));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_packument_replays_validators_and_handles_304() {
+    let mut server = mockito::Server::new_async().await;
+    // The mock only matches when both conditional headers are present,
+    // so a `NotModified` outcome proves they rode along on the request.
+    let mock = server
+        .mock("GET", "/foo")
+        .match_header("if-none-match", r#""abc123""#)
+        .match_header("if-modified-since", "Wed, 21 Oct 2015 07:28:00 GMT")
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let name = PackageName::parse("foo").unwrap();
+    let validators = CacheValidators {
+        etag: Some(r#""abc123""#.to_string()),
+        last_modified: Some("Wed, 21 Oct 2015 07:28:00 GMT".to_string()),
+    };
+    let outcome = upstream.fetch_packument(&name, &validators).await.unwrap();
+
+    assert!(matches!(outcome, PackumentFetch::NotModified));
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_packument_304_without_validators_is_an_error() {
+    let mut server = mockito::Server::new_async().await;
+    // No conditional header is sent (empty validators), so a `304` here is
+    // a misbehaving upstream — there's no body and nothing to revalidate
+    // against. It must surface as an error, not a `NotModified` that the
+    // caller could mistake for "keep serving the cache".
+    let mock = server
+        .mock("GET", "/foo")
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .match_header("if-modified-since", mockito::Matcher::Missing)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let name = PackageName::parse("foo").unwrap();
+    let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
+
+    assert!(result.is_err(), "an unconditional 304 must not be treated as NotModified");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_packument_maps_404_to_not_found() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/foo").with_status(404).expect(1).create_async().await;
+
+    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let name = PackageName::parse("foo").unwrap();
+    let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
+
+    assert!(matches!(outcome, PackumentFetch::NotFound));
+    mock.assert_async().await;
 }
 
 #[test]
@@ -174,12 +338,13 @@ fn abbreviation_drops_fields_the_resolver_ignores() {
     // `shasum` dropped because `integrity` is present.
     assert_eq!(version["dist"]["integrity"], "sha512-abc");
     assert!(version["dist"].get("shasum").is_none());
-    // Legacy PGP signature and unused size fields dropped; ECDSA
-    // registry signatures kept.
+    // Legacy PGP signature dropped; ECDSA registry signatures kept.
     assert!(version["dist"].get("npm-signature").is_none());
-    assert!(version["dist"].get("fileCount").is_none());
-    assert!(version["dist"].get("unpackedSize").is_none());
     assert_eq!(version["dist"]["signatures"][0]["keyid"], "SHA256:xyz");
+    // Size hints kept: pacquet reads both for decompression
+    // preallocation and download scheduling.
+    assert_eq!(version["dist"]["fileCount"], 12);
+    assert_eq!(version["dist"]["unpackedSize"], 34567);
 }
 
 #[test]

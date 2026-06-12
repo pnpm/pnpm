@@ -169,13 +169,13 @@ pub fn fail_if_trust_downgraded(
     })?;
 
     let exclude_prerelease = !is_prerelease(version);
-    let strongest_prior =
-        match detect_strongest_trust_evidence_before(meta, version_date, exclude_prerelease) {
-            Some(rank) => rank,
-            None => return Ok(()),
-        };
+    let Some(strongest_prior) =
+        detect_strongest_trust_evidence_before(meta, version_date, exclude_prerelease)?
+    else {
+        return Ok(());
+    };
 
-    let current = get_trust_evidence(manifest);
+    let current = get_trust_evidence(&manifest);
     let current_rank = current.map_or(0u8, trust_rank);
     let prior_rank = trust_rank(strongest_prior);
     if current_rank < prior_rank {
@@ -215,13 +215,18 @@ fn pretty_print_trust_evidence(evidence: Option<TrustEvidence>) -> &'static str 
 /// strongest [`TrustEvidence`] seen. Prereleases are filtered out
 /// when the current version is *not* itself a prerelease — matches
 /// upstream's `semver.prerelease(version, true)` guard.
+///
+/// Fails closed: a prior version whose manifest is listed but does
+/// not decode makes the scan error rather than skip — skipping could
+/// hide the strongest prior evidence and let a trust downgrade pass
+/// undetected.
 fn detect_strongest_trust_evidence_before(
     meta: &Package,
     before_date: DateTime<Utc>,
     exclude_prerelease: bool,
-) -> Option<TrustEvidence> {
+) -> Result<Option<TrustEvidence>, TrustViolation> {
     let mut best: Option<TrustEvidence> = None;
-    for (version, manifest) in &meta.versions {
+    for version in meta.versions.keys() {
         if exclude_prerelease && is_prerelease(version) {
             continue;
         }
@@ -240,7 +245,15 @@ fn detect_strongest_trust_evidence_before(
         if parsed >= before_date {
             continue;
         }
-        let Some(evidence) = get_trust_evidence(manifest) else {
+        let Some(manifest) = meta.versions.get(version) else {
+            return Err(TrustViolation::TrustCheckFailed {
+                reason: format!(
+                    "undecodable version object for version {version} of {name} in metadata",
+                    name = meta.name,
+                ),
+            });
+        };
+        let Some(evidence) = get_trust_evidence(&manifest) else {
             continue;
         };
         // Keep the highest-ranked evidence seen so far. Don't short-
@@ -251,11 +264,11 @@ fn detect_strongest_trust_evidence_before(
         if best.is_none_or(|current| trust_rank(evidence) > trust_rank(current)) {
             best = Some(evidence);
             if evidence == TrustEvidence::StagedPublish {
-                return best;
+                return Ok(best);
             }
         }
     }
-    best
+    Ok(best)
 }
 
 /// `_npmUser.approver` (a staged publish) outranks everything; failing
@@ -264,6 +277,7 @@ fn detect_strongest_trust_evidence_before(
 /// otherwise the publisher flag is ignored and the version falls back
 /// to the provenance rank or `None`. Mirrors pnpm's
 /// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/trustChecks.ts#L123-L134).
+#[must_use]
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
     let has_approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref()).is_some();
     if has_approver {
@@ -283,7 +297,7 @@ pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
 }
 
 fn is_prerelease(version: &str) -> bool {
-    Version::parse(version).map(|parsed| !parsed.pre_release.is_empty()).unwrap_or(false)
+    Version::parse(version).is_ok_and(|parsed| !parsed.pre_release.is_empty())
 }
 
 #[cfg(test)]

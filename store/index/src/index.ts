@@ -1,8 +1,12 @@
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
+import { pathToFileURL } from 'node:url'
 
+import { PnpmError } from '@pnpm/error'
 import { Packr } from 'msgpackr'
+
+const FROZEN_STORE_WRITE_MESSAGE = 'Cannot write to the package store because frozenStore is enabled (the store is opened read-only). This indicates the store is missing content the install needs.'
 
 // Use createRequire to load node:sqlite because it is a prefix-only builtin
 // that Jest's ESM module resolver cannot handle.
@@ -106,22 +110,37 @@ export function closeAllStoreIndexes (): void {
 }
 
 export class StoreIndex {
-  private db: DatabaseSyncType
-  private closed = false
+  protected db!: DatabaseSyncType
+  protected closed = false
   private pendingWrites: Array<{ key: string, buffer: Uint8Array }> = []
   private flushScheduled = false
-  private stmtGet: StatementSync
-  private stmtSet: StatementSync
-  private stmtDel: StatementSync
-  private stmtHas: StatementSync
-  private stmtAll: StatementSync
-  private stmtKeys: StatementSync
+  protected stmtGet!: StatementSync
+  protected stmtSet!: StatementSync
+  protected stmtDel!: StatementSync
+  protected stmtHas!: StatementSync
+  protected stmtAll!: StatementSync
+  protected stmtKeys!: StatementSync
   private readonly exitHandler: () => void
 
   constructor (storeDir: string) {
-    const dbPath = `${storeDir}/index.db`
+    this.openDatabase(storeDir)
+    this.prepareStatements()
+    this.exitHandler = () => this.close()
+    // Multiple StoreIndex instances may be created (e.g. in tests), each adding
+    // an exit listener. Raise the limit to avoid MaxListenersExceededWarning.
+    // Skip when maxListeners is 0 (unlimited).
+    const currentMax = process.getMaxListeners()
+    if (currentMax !== 0 && currentMax < openInstances.size + 11) {
+      process.setMaxListeners(Math.max(currentMax + 10, openInstances.size + 11))
+    }
+    process.on('exit', this.exitHandler)
+    openInstances.add(this)
+  }
+
+  /** Open the SQLite connection. Overridden by {@link ReadOnlyStoreIndex}. */
+  protected openDatabase (storeDir: string): void {
     fs.mkdirSync(storeDir, { recursive: true })
-    this.db = new DatabaseSync(dbPath)
+    this.db = new DatabaseSync(`${storeDir}/index.db`)
     // Set busy_timeout FIRST so SQLite's internal busy handler is active
     // during all subsequent operations. On Windows, file locking is mandatory
     // and concurrent processes (e.g. parallel dlx calls) will contend.
@@ -143,22 +162,16 @@ export class StoreIndex {
         ) WITHOUT ROWID
       `)
     })
+  }
+
+  /** Prepare the prepared statements. Overridden by {@link ReadOnlyStoreIndex} to skip the write statements. */
+  protected prepareStatements (): void {
     this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
     this.stmtSet = this.db.prepare('INSERT OR REPLACE INTO package_index (key, data) VALUES (?, ?)')
     this.stmtDel = this.db.prepare('DELETE FROM package_index WHERE key = ?')
     this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
     this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
     this.stmtKeys = this.db.prepare('SELECT key FROM package_index')
-    this.exitHandler = () => this.close()
-    // Multiple StoreIndex instances may be created (e.g. in tests), each adding
-    // an exit listener. Raise the limit to avoid MaxListenersExceededWarning.
-    // Skip when maxListeners is 0 (unlimited).
-    const currentMax = process.getMaxListeners()
-    if (currentMax !== 0 && currentMax < openInstances.size + 11) {
-      process.setMaxListeners(Math.max(currentMax + 10, openInstances.size + 11))
-    }
-    process.on('exit', this.exitHandler)
-    openInstances.add(this)
   }
 
   get (key: string): unknown | undefined {
@@ -317,15 +330,113 @@ export class StoreIndex {
     this.closed = true
     openInstances.delete(this)
     process.removeListener('exit', this.exitHandler)
-    try {
-      this.db.exec('PRAGMA optimize')
-    } catch {
-      // PRAGMA optimize is a performance hint; safe to ignore if the DB is locked.
-    }
+    this.optimizeBeforeClose()
     try {
       this.db.close()
     } catch {
       // The DB may be locked by another connection; the OS will reclaim it on process exit.
     }
   }
+
+  /** Run `PRAGMA optimize` before closing. Overridden by {@link ReadOnlyStoreIndex} to skip it (the DB is immutable). */
+  protected optimizeBeforeClose (): void {
+    try {
+      this.db.exec('PRAGMA optimize')
+    } catch {
+      // PRAGMA optimize is a performance hint; safe to ignore if the DB is locked.
+    }
+  }
+}
+
+/**
+ * A {@link StoreIndex} opened read-only for installs against a store on a
+ * read-only filesystem (`frozenStore`). The index is a WAL-mode database, and a
+ * normal WAL read creates an `index.db-shm` sidecar in the store directory —
+ * which fails on a read-only directory and surfaces as "attempt to write a
+ * readonly database" on the first query. Opening via the SQLite `immutable=1`
+ * URI tells SQLite the file cannot change, so it bypasses the WAL/shm machinery
+ * and reads the file directly, creating no sidecars.
+ *
+ * The store is assumed complete; every write is a programming error and throws.
+ */
+export class ReadOnlyStoreIndex extends StoreIndex {
+  protected override openDatabase (storeDir: string): void {
+    if (!nodeSupportsImmutableSqliteUri()) {
+      throw new PnpmError(
+        'FROZEN_STORE_UNSUPPORTED_NODE',
+        `frozenStore opens the store index read-only via a SQLite "immutable" URI, which requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0, but the current version is ${process.versions.node}. Upgrade Node.js, or run without frozenStore.`
+      )
+    }
+    this.db = new DatabaseSync(immutableSqliteUri(`${storeDir}/index.db`))
+  }
+
+  protected override prepareStatements (): void {
+    this.stmtGet = this.db.prepare('SELECT data FROM package_index WHERE key = ?')
+    this.stmtHas = this.db.prepare('SELECT 1 FROM package_index WHERE key = ?')
+    this.stmtAll = this.db.prepare('SELECT key, data FROM package_index')
+    this.stmtKeys = this.db.prepare('SELECT key FROM package_index')
+  }
+
+  protected override optimizeBeforeClose (): void {}
+
+  override set (_key: string, _data: unknown): void {
+    this.throwReadOnly()
+  }
+
+  override delete (_key: string): boolean {
+    this.throwReadOnly()
+  }
+
+  override queueWrites (_writes: Array<{ key: string, buffer: Uint8Array }>): void {
+    this.throwReadOnly()
+  }
+
+  override setRawMany (_entries: Array<{ key: string, buffer: Uint8Array }>): void {
+    this.throwReadOnly()
+  }
+
+  override deleteMany (_keys: string[]): void {
+    this.throwReadOnly()
+  }
+
+  override checkpoint (): void {
+    this.throwReadOnly()
+  }
+
+  private throwReadOnly (): never {
+    throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
+  }
+}
+
+/**
+ * Build the `file://…?immutable=1` URI used to open `index.db` read-only (see
+ * the frozen-store rationale at the call site). `pathToFileURL` yields a
+ * canonical file URL on every platform: it percent-encodes the URI delimiters
+ * that could otherwise truncate the path or inject a query/fragment (`?`, `#`,
+ * `%`, spaces) and, on Windows, maps the drive letter and backslashes into a
+ * valid `file:///C:/…` form. A raw `file:${path}` concatenation would mis-parse
+ * those. See https://sqlite.org/uri.html.
+ */
+function immutableSqliteUri (dbPath: string): string {
+  const url = pathToFileURL(dbPath)
+  url.searchParams.set('immutable', '1')
+  return url.href
+}
+
+/**
+ * Whether the running Node.js can open a `file:…?immutable=1` SQLite URI.
+ *
+ * `node:sqlite` only passes `SQLITE_OPEN_URI` to SQLite — so the `immutable=1`
+ * query is honored rather than treated as part of a literal filename — starting
+ * in v22.15.0 (22.x line), v23.11.0 (23.x line), and every v24+. On older
+ * runtimes the URI is opened as a literal path and fails with a cryptic
+ * "unable to open database file"; we detect that up front to give actionable
+ * guidance instead.
+ */
+function nodeSupportsImmutableSqliteUri (): boolean {
+  const [major, minor] = process.versions.node.split('.', 2).map(Number)
+  if (major < 22) return false
+  if (major === 22) return minor >= 15
+  if (major === 23) return minor >= 11
+  return true
 }

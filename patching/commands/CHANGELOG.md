@@ -1,5 +1,71 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [d976edf]
+- Updated dependencies [615c669]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/installing.commands@1100.8.0
+  - @pnpm/store.connection-manager@1100.2.8
+  - @pnpm/cli.utils@1101.0.11
+  - @pnpm/fetching.pick-fetcher@1100.0.11
+  - @pnpm/workspace.project-manifest-reader@1100.0.12
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.1
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [5f2bb9f]
+- Updated dependencies [1017c36]
+- Updated dependencies [e4d2fe0]
+- Updated dependencies [bf1b731]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/installing.commands@1100.7.3
+  - @pnpm/types@1101.3.1
+  - @pnpm/store.connection-manager@1100.2.7
+  - @pnpm/fetching.pick-fetcher@1100.0.11
+  - @pnpm/cli.utils@1101.0.10
+  - @pnpm/config.writer@1100.0.12
+  - @pnpm/installing.modules-yaml@1100.0.8
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.utils@1100.0.12
+  - @pnpm/pkg-manifest.reader@1100.0.7
+  - @pnpm/workspace.project-manifest-reader@1100.0.11
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.7
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.1
+
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/installing.commands@1100.7.2
+  - @pnpm/fetching.pick-fetcher@1100.0.10
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.writer@1100.0.11
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/patching.apply-patch@1100.0.1
+
 ## 1100.1.1
 
 ### Patch Changes

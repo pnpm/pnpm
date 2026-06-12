@@ -60,7 +60,7 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
         optional: false,
     };
 
-    let ran = run_postinstall_hooks::<RecordingReporter>(opts).expect("postinstall");
+    let ran = run_postinstall_hooks::<RecordingReporter>(&opts).expect("postinstall");
     assert!(ran, "postinstall script should report executed");
 
     let captured = EVENTS.lock().expect("lock").clone();
@@ -169,7 +169,7 @@ fn lifecycle_events_carry_optional_flag() {
         optional: true,
     };
 
-    run_postinstall_hooks::<RecordingReporter>(opts).expect("postinstall");
+    run_postinstall_hooks::<RecordingReporter>(&opts).expect("postinstall");
 
     let captured = EVENTS.lock().expect("lock").clone();
     let lifecycle_events: Vec<_> = captured
@@ -242,7 +242,7 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
         optional: false,
     };
 
-    let err = run_postinstall_hooks::<RecordingReporter>(opts).expect_err("script must fail");
+    let err = run_postinstall_hooks::<RecordingReporter>(&opts).expect_err("script must fail");
     eprintln!("ERR: {err}");
 
     let captured = EVENTS.lock().expect("lock").clone();
@@ -292,7 +292,7 @@ fn lifecycle_runs_under_silent_reporter() {
         optional: false,
     };
 
-    let ran = run_postinstall_hooks::<SilentReporter>(opts).expect("postinstall");
+    let ran = run_postinstall_hooks::<SilentReporter>(&opts).expect("postinstall");
     assert!(ran, "postinstall script should report executed: ran={ran}");
 }
 
@@ -326,7 +326,7 @@ fn missing_manifest_returns_false() {
         optional: false,
     };
 
-    let ran = run_postinstall_hooks::<SilentReporter>(opts).expect("missing manifest is OK");
+    let ran = run_postinstall_hooks::<SilentReporter>(&opts).expect("missing manifest is OK");
     assert!(!ran, "missing manifest must report no scripts ran: ran={ran}");
 }
 
@@ -399,7 +399,7 @@ fn child_sees_stamped_npm_package_and_no_leaked_npm_config() {
         optional: false,
     };
 
-    let ran = run_postinstall_hooks::<SilentReporter>(opts).expect("postinstall");
+    let ran = run_postinstall_hooks::<SilentReporter>(&opts).expect("postinstall");
     assert!(ran, "run_postinstall_hooks must report at least one script ran: ran={ran}");
 
     let dump = fs::read_to_string(&dump_path).expect("read env dump");
@@ -454,7 +454,7 @@ fn malformed_manifest_propagates_error() {
         optional: false,
     };
 
-    let err = run_postinstall_hooks::<SilentReporter>(opts).expect_err("malformed JSON must fail");
+    let err = run_postinstall_hooks::<SilentReporter>(&opts).expect_err("malformed JSON must fail");
     eprintln!("ERR: {err}");
     assert!(
         matches!(

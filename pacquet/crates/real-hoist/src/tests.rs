@@ -33,9 +33,12 @@ fn empty_lockfile() -> Lockfile {
     Lockfile {
         lockfile_version: lockfile_version(),
         settings: Some(LockfileSettings::default()),
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
@@ -62,9 +65,12 @@ fn hoist_throws_on_broken_lockfile() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: None,
@@ -113,9 +119,12 @@ fn one_transitive_dep_hoists_to_root() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: Some(snapshots),
@@ -125,7 +134,7 @@ fn one_transitive_dep_hoists_to_root() {
     assert_eq!(result.name, ".");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     assert_eq!(names, ["a", "b"], "both a and b sit at root: {result:#?}");
     let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
     assert!(dep_a.dependencies.borrow().is_empty(), "a's b moved to root: {dep_a:#?}");
@@ -166,9 +175,12 @@ fn diamond_dep_hoists_once_to_root() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: Some(snapshots),
@@ -177,7 +189,7 @@ fn diamond_dep_hoists_once_to_root() {
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     assert_eq!(names, ["a", "b", "c"], "diamond flattens at root: {result:#?}");
     let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
     let dep_c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
@@ -244,9 +256,12 @@ fn version_conflict_keeps_loser_at_parent() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: Some(snapshots),
@@ -255,7 +270,7 @@ fn version_conflict_keeps_loser_at_parent() {
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     assert_eq!(names, ["a", "b", "c"], "root has a, c, and one b");
     let b_at_root = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "b").unwrap().0);
     // DFS visits root's direct deps in alias order (`a` then
@@ -315,9 +330,12 @@ fn deep_chain_flattens_in_one_pass() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: Some(snapshots),
@@ -326,7 +344,7 @@ fn deep_chain_flattens_in_one_pass() {
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     assert_eq!(names, ["a", "b", "c", "d"], "depth-4 chain flattens: {result:#?}");
     for entry in root_children.iter() {
         assert!(entry.0.dependencies.borrow().is_empty(), "{} has no nested deps", entry.0.name);
@@ -354,16 +372,19 @@ fn external_dependencies_are_stripped_from_the_result() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: Some(snapshots),
     };
 
     let opts = HoistOpts {
-        external_dependencies: ["bit-managed".to_string()].into_iter().collect(),
+        external_dependencies: std::iter::once("bit-managed".to_string()).collect(),
         ..HoistOpts::default()
     };
     let result = hoist(&lockfile, &opts).expect("hoist should succeed");
@@ -407,9 +428,12 @@ fn transitive_npm_alias_resolves_target_snapshot() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: Some(snapshots),
@@ -424,7 +448,7 @@ fn transitive_npm_alias_resolves_target_snapshot() {
     // carry the resolved target's identity.
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     assert_eq!(names, ["aliased-name", "host"]);
     let aliased = Rc::clone(
         &root_children
@@ -458,6 +482,7 @@ fn pkg_metadata_with_peer(peer_name: &str) -> pacquet_lockfile::PackageMetadata 
             git_hosted: None,
             path: None,
         }),
+        version: None,
         engines: None,
         cpu: None,
         os: None,
@@ -511,9 +536,12 @@ fn peer_constrained_node_stays_under_parent_when_root_provides_different_ident()
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
@@ -522,7 +550,7 @@ fn peer_constrained_node_stays_under_parent_when_root_provides_different_ident()
     let result = hoist(&lockfile, &HoistOpts::default()).expect("peer-aware hoist should succeed");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     // Root has the two direct deps; `widget` is NOT at root.
     assert_eq!(names, ["app", "react"], "widget stays under app: {result:#?}");
     let app = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "app").unwrap().0);
@@ -594,9 +622,12 @@ fn peer_check_uses_post_hoist_ancestor_path_not_queue_time_path() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
@@ -605,7 +636,7 @@ fn peer_check_uses_post_hoist_ancestor_path_not_queue_time_path() {
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     // The whole chain flattens: mid (no name conflict) hoists to
     // root, and terminal (peer-friendly along its post-hoist
     // path) hoists past mid.
@@ -659,9 +690,12 @@ fn peer_constrained_node_hoists_when_ancestor_and_root_agree() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
@@ -670,7 +704,7 @@ fn peer_constrained_node_hoists_when_ancestor_and_root_agree() {
     let result = hoist(&lockfile, &HoistOpts::default()).expect("peer-aware hoist should succeed");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     // widget hoists to root because the peer resolves identically
     // at root and at app.
     assert_eq!(names, ["app", "react", "widget"], "widget hoists past app: {result:#?}");
@@ -735,9 +769,12 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: Some(packages),
         snapshots: Some(snapshots),
@@ -746,7 +783,7 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
     let result = hoist(&lockfile, &HoistOpts::default()).expect("multi-round should converge");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     // All three at root after multi-round convergence.
     assert_eq!(
         names,
@@ -787,9 +824,12 @@ fn hoisting_limits_border_keeps_descendants_nested() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: Some(snapshots),
@@ -803,7 +843,7 @@ fn hoisting_limits_border_keeps_descendants_nested() {
     let result = hoist(&lockfile, &opts).expect("hoist with limits should succeed");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     assert_eq!(names, ["a"], "border node a sits at root; b did not flatten: {result:#?}");
     let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
     let a_deps = dep_a.dependencies.borrow();
@@ -842,9 +882,12 @@ fn hoisting_limits_border_keeps_all_descendants_nested() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: Some(snapshots),
@@ -858,14 +901,14 @@ fn hoisting_limits_border_keeps_all_descendants_nested() {
     let result = hoist(&lockfile, &opts).expect("hoist with limits should succeed");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     // Only the border node `a` sits at root; all of its deps stay
     // nested beneath it.
     assert_eq!(names, ["a"], "only the border a sits at root: {result:#?}");
     let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
     let a_deps = dep_a.dependencies.borrow();
     let mut a_names: Vec<&str> = a_deps.iter().map(|dep| dep.0.name.as_str()).collect();
-    a_names.sort();
+    a_names.sort_unstable();
     assert_eq!(
         a_names,
         ["b", "c", "d"],
@@ -899,9 +942,12 @@ fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: Some(snapshots),
@@ -916,7 +962,7 @@ fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
     let result = hoist(&lockfile, &opts).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     // b still hoists because the limits don't apply to `.@`.
     assert_eq!(names, ["a", "b"], "limits keyed elsewhere don't affect root hoist: {result:#?}");
 }
@@ -950,9 +996,12 @@ fn self_dependency_does_not_loop() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: Some(snapshots),
@@ -1004,9 +1053,12 @@ fn basic_cyclic_dependency_terminates() {
         &Lockfile {
             lockfile_version: lockfile_version(),
             settings: None,
+            catalogs: None,
             overrides: None,
             package_extensions_checksum: None,
+            pnpmfile_checksum: None,
             ignored_optional_dependencies: None,
+            patched_dependencies: None,
             importers,
             packages: None,
             snapshots: Some(snapshots),
@@ -1016,7 +1068,7 @@ fn basic_cyclic_dependency_terminates() {
     .expect("cycle should not loop");
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
-    names.sort();
+    names.sort_unstable();
     assert_eq!(names, ["a", "b"], "both a and b flatten to root: {result:#?}");
     let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
     let dep_b = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "b").unwrap().0);
@@ -1041,9 +1093,12 @@ fn multi_importer_lockfile_emits_workspace_children() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: None,
@@ -1085,9 +1140,12 @@ fn hoist_workspace_packages_false_omits_workspace_children() {
     let lockfile = Lockfile {
         lockfile_version: lockfile_version(),
         settings: None,
+        catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
+        patched_dependencies: None,
         importers,
         packages: None,
         snapshots: None,

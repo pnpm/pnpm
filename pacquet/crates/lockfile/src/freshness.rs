@@ -136,6 +136,25 @@ pub enum StalenessReason {
         "`packageExtensionsChecksum` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
     )]
     PackageExtensionsChecksumChanged { lockfile: Option<String>, config: Option<String> },
+
+    /// The lockfile's `patchedDependencies` (key → patch-file hash)
+    /// doesn't match the map the current install would write. Mirrors
+    /// upstream's
+    /// [`getOutdatedLockfileSetting.ts:61-63`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L61-L63):
+    /// upstream returns `'patchedDependencies'` and `needsFullResolution`
+    /// flips on. Pacquet has no resolver, so the matching action is to
+    /// surface this as `OutdatedLockfile`. A changed patch file changes
+    /// its hash here, which is what catches an edited patch whose
+    /// `(patch_hash=...)` depPath suffix would otherwise go stale. Both
+    /// values are normalized into a `BTreeMap` so the comparison is
+    /// order-insensitive (matching upstream's Ramda `equals`).
+    #[display(
+        "`patchedDependencies` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
+    )]
+    PatchedDependenciesChanged {
+        lockfile: BTreeMap<String, String>,
+        config: BTreeMap<String, String>,
+    },
 }
 
 /// Per-bucket diff against the manifest's flat union of deps.
@@ -206,6 +225,7 @@ fn noun_verb_for(n: usize) -> (&'static str, &'static str) {
 /// `true` when the flat-record diff is empty in all three buckets —
 /// the manifest and the lockfile agree on the set of specifiers.
 impl SpecDiff {
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.added.is_empty() && self.removed.is_empty() && self.modified.is_empty()
     }
@@ -213,10 +233,11 @@ impl SpecDiff {
 
 /// Verify that lockfile-level settings the install pipeline reads
 /// from `pnpm-workspace.yaml` haven't drifted since the lockfile
-/// was written. Today this covers `overrides` and
-/// `ignoredOptionalDependencies` (umbrella [#434] slice 7); the
-/// variants below will grow as more upstream settings land
-/// (`catalogs`, `patchedDependencies`, `pnpmfileChecksum`, etc.).
+/// was written. Today this covers `overrides`,
+/// `packageExtensionsChecksum`, `ignoredOptionalDependencies`,
+/// `patchedDependencies`, and the relevant `settings.*` keys (umbrella
+/// [#434] slice 7); the variants below will grow as more upstream
+/// settings land (`catalogs`, `pnpmfileChecksum`, etc.).
 ///
 /// Mirrors upstream's
 /// [`getOutdatedLockfileSetting`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts).
@@ -233,6 +254,7 @@ pub fn check_lockfile_settings(
     overrides: Option<&HashMap<String, String>>,
     package_extensions_checksum: Option<&str>,
     ignored_optional_dependencies: Option<&[String]>,
+    patched_dependencies: Option<&BTreeMap<String, String>>,
     inject_workspace_packages: bool,
     peers_suffix_max_length: u64,
 ) -> Result<(), StalenessReason> {
@@ -281,6 +303,24 @@ pub fn check_lockfile_settings(
         return Err(StalenessReason::IgnoredOptionalDependenciesChanged {
             lockfile: lockfile_set,
             config: config_set,
+        });
+    }
+
+    // Upstream checks `patchedDependencies` right after
+    // `ignoredOptionalDependencies` via
+    // `!equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})`.
+    // Both maps are already key-sorted (`BTreeMap`), so `==` reproduces
+    // the order-insensitive `equals`; absent on either side normalizes
+    // to an empty map. A changed patch file changes its hash here, so
+    // this is what invalidates a lockfile whose `(patch_hash=...)` depPath
+    // suffixes would otherwise go stale.
+    let empty_patches: BTreeMap<String, String> = BTreeMap::new();
+    let lockfile_patches = lockfile.patched_dependencies.as_ref().unwrap_or(&empty_patches);
+    let config_patches = patched_dependencies.unwrap_or(&empty_patches);
+    if lockfile_patches != config_patches {
+        return Err(StalenessReason::PatchedDependenciesChanged {
+            lockfile: lockfile_patches.clone(),
+            config: config_patches.clone(),
         });
     }
 
@@ -396,8 +436,10 @@ pub fn satisfies_package_manifest(
     let importer_meta = importer.dependencies_meta.as_ref();
     if !dependencies_meta_equal(importer_meta, manifest_meta) {
         return Err(StalenessReason::DependenciesMetaMismatch {
-            lockfile: importer_meta.map_or_else(|| "{}".to_string(), |v| v.to_string()),
-            manifest: manifest_meta.map_or_else(|| "{}".to_string(), |v| v.to_string()),
+            lockfile: importer_meta
+                .map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
+            manifest: manifest_meta
+                .map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
         });
     }
 

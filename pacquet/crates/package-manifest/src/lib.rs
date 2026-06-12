@@ -139,10 +139,12 @@ impl PackageManifest {
         Ok(PackageManifest { path, value })
     }
 
+    #[must_use]
     pub fn path(&self) -> &'_ Path {
         &self.path
     }
 
+    #[must_use]
     pub fn value(&self) -> &'_ Value {
         &self.value
     }
@@ -173,10 +175,10 @@ impl PackageManifest {
         // TODO: add error when `version` is found to not be a string
         groups
             .into_iter()
-            .flat_map(|group| self.value.get::<&str>(group.into()))
-            .flat_map(|dependencies| dependencies.as_object())
+            .filter_map(|group| self.value.get::<&str>(group.into()))
+            .filter_map(|dependencies| dependencies.as_object())
             .flatten()
-            .flat_map(|(name, version)| version.as_str().map(|value| (name.as_str(), value)))
+            .filter_map(|(name, version)| version.as_str().map(|value| (name.as_str(), value)))
     }
 
     /// Resolve a `(key, bare_specifier)` pair from a `package.json`
@@ -192,6 +194,7 @@ impl PackageManifest {
     ///
     /// Mirrors pnpm's `parseBareSpecifier`. Reference:
     /// <https://github.com/pnpm/pnpm/blob/1819226b51/resolving/npm-resolver/src/parseBareSpecifier.ts>
+    #[must_use]
     pub fn resolve_registry_dependency<'a>(
         key: &'a str,
         bare_specifier: &'a str,
@@ -249,6 +252,7 @@ impl PackageManifest {
     /// (called without `autoInstallPeers`) at
     /// <https://github.com/pnpm/pnpm/blob/9cad8274fd/pkg-manifest/utils/src/getAllDependenciesFromManifest.ts>,
     /// the set `pnpm remove` validates removal targets against.
+    #[must_use]
     pub fn available_dependency_names(&self, save_type: Option<DependencyGroup>) -> Vec<String> {
         let groups: &[DependencyGroup] = match save_type {
             Some(ref group) => std::slice::from_ref(group),
@@ -338,8 +342,8 @@ const RUNTIME_NAMES: [&str; 3] = ["node", "deno", "bun"];
 /// - no `version` is set (upstream warns and skips; pacquet skips
 ///   silently — the staleness check still surfaces the gap downstream).
 ///
-/// WebContainer's "no runtime download" branch upstream is intentionally
-/// omitted: pacquet does not run in WebContainer.
+/// `WebContainer`'s "no runtime download" branch upstream is intentionally
+/// omitted: pacquet does not run in `WebContainer`.
 pub fn convert_engines_runtime_to_dependencies(
     manifest: &mut Value,
     engines_field: &str,
@@ -423,19 +427,12 @@ pub fn pkg_requires_build(pkg_root: &Path) -> bool {
     if pkg_root.join("binding.gyp").exists() || pkg_root.join(".hooks").is_dir() {
         return true;
     }
-    let manifest = match safe_read_package_json_from_dir(pkg_root) {
-        Ok(Some(value)) => value,
-        _ => return false,
-    };
-    manifest
-        .get("scripts")
-        .and_then(Value::as_object)
-        .map(|scripts| {
-            scripts.contains_key("preinstall")
-                || scripts.contains_key("install")
-                || scripts.contains_key("postinstall")
-        })
-        .unwrap_or(false)
+    let Ok(Some(manifest)) = safe_read_package_json_from_dir(pkg_root) else { return false };
+    manifest.get("scripts").and_then(Value::as_object).is_some_and(|scripts| {
+        scripts.contains_key("preinstall")
+            || scripts.contains_key("install")
+            || scripts.contains_key("postinstall")
+    })
 }
 
 #[cfg(test)]

@@ -118,7 +118,7 @@ pub struct ResolvedPackage {
     /// the peer-resolution pass does when it carves
     /// `DependenciesGraphNode`s out of the resolved tree) is an
     /// `Arc::clone` instead of a deep copy of every `String` field
-    /// on `ResolveResult` (id, alias, resolved_via, name_ver, ...).
+    /// on `ResolveResult` (id, alias, `resolved_via`, `name_ver`, ...).
     pub result: std::sync::Arc<ResolveResult>,
     /// `peerDependencies` from the package's manifest, with names that
     /// also appear in the package's own `dependencies` /
@@ -172,6 +172,13 @@ pub struct PeerDep {
     /// is set — a missing peer with `optional` true is recorded as an
     /// issue but does not block resolution.
     pub optional: bool,
+    /// `true` when the peer exists only via `peerDependenciesMeta`
+    /// (no `peerDependencies` entry). Upstream's resolution-stage
+    /// [`getMissingPeers`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/resolveDependencies.ts#L1773-L1782)
+    /// reads `peerDependencies` only, so a meta-only peer never feeds
+    /// the optional-peer hoist — it still resolves in the peer pass
+    /// when a provider is genuinely in scope.
+    pub meta_only: bool,
 }
 
 /// One per-occurrence node in the dependencies tree. Mirrors upstream's
@@ -224,6 +231,7 @@ pub enum TreeChildren {
 impl TreeChildren {
     /// Empty realized children. Used for leaves so callers don't have
     /// to construct an empty `BTreeMap` themselves.
+    #[must_use]
     pub fn empty() -> Self {
         TreeChildren::Realized(BTreeMap::new())
     }
@@ -235,6 +243,7 @@ impl TreeChildren {
     /// via `Walker::realize_children`). Consumers that genuinely
     /// can't realize (e.g. the dependency-tree walker writing a
     /// fresh map) should match on the enum directly.
+    #[must_use]
     pub fn realized(&self) -> &BTreeMap<String, NodeId> {
         match self {
             TreeChildren::Realized(map) => map,

@@ -29,6 +29,7 @@ fn make_pkg_version(name: &str, version: &str, deprecated: Option<&str>) -> Pack
         peer_dependencies: None,
         optional_dependencies: None,
         peer_dependencies_meta: None,
+        other: HashMap::default(),
         npm_user: None,
         deprecated: deprecated.map(str::to_string),
     }
@@ -55,7 +56,7 @@ fn make_package(
         modified: None,
         etag: None,
         homepage: None,
-        mutex: Default::default(),
+        mutex: std::sync::Arc::default(),
     }
 }
 
@@ -184,7 +185,7 @@ fn lowest_version_picker_picks_min_in_range() {
     assert_eq!(pick_lowest_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
 }
 
-/// `*` lowest pick uses the smallest version (HashMap iteration is
+/// `*` lowest pick uses the smallest version (`HashMap` iteration is
 /// unordered, so the picker has to sort).
 #[test]
 fn lowest_version_star_picks_smallest() {
@@ -549,4 +550,120 @@ fn lowest_picker_with_published_by_drops_immature_min() {
     )
     .expect("ok");
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.1.0"));
+}
+
+/// A range pick whose winning version carries an undecodable manifest
+/// fragment retries against the remaining versions — the undecodable
+/// entry behaves as if it were absent from the packument.
+#[test]
+fn pick_from_meta_skips_undecodable_winner_and_retries() {
+    let pkg: Package = serde_json::from_str(
+        r#"{
+            "name": "acme",
+            "dist-tags": {"latest": "1.2.0"},
+            "versions": {
+                "1.0.0": {"name": "acme", "version": "1.0.0", "dist": {"integrity": "sha512-a", "tarball": "https://r/acme-1.0.0.tgz"}},
+                "1.2.0": {"corrupt": "fragment"}
+            }
+        }"#,
+    )
+    .expect("parse package");
+    let picked = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions::default(),
+        &pkg,
+        &spec("acme", "^1.0.0", RegistryPackageSpecType::Range),
+    )
+    .expect("ok");
+    assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.0.0"));
+}
+
+/// An exact-version spec naming an undecodable manifest yields no
+/// match (there is no other candidate to retry) rather than looping
+/// or erroring.
+#[test]
+fn pick_from_meta_returns_none_for_undecodable_exact_version() {
+    let pkg: Package = serde_json::from_str(
+        r#"{
+            "name": "acme",
+            "dist-tags": {},
+            "versions": {
+                "1.2.0": {"corrupt": "fragment"}
+            }
+        }"#,
+    )
+    .expect("parse package");
+    let picked = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions::default(),
+        &pkg,
+        &spec("acme", "1.2.0", RegistryPackageSpecType::Version),
+    )
+    .expect("ok");
+    assert!(picked.is_none());
+}
+
+/// The dist-tag repopulation tie-break prefers a non-deprecated
+/// candidate over a higher deprecated one (and only falls back to
+/// deprecated candidates when nothing else matches the tag family).
+#[test]
+fn filter_tag_rewrite_prefers_non_deprecated_candidate() {
+    let mut pkg = make_package(
+        "acme",
+        &[
+            ("2.1.0", None),
+            ("2.2.0", Some("use 3.x")),
+            ("2.5.0", None), // dropped by the cutoff
+        ],
+        &[("old", "2.5.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("2.1.0", "2024-01-01T00:00:00.000Z"),
+        ("2.2.0", "2024-06-01T00:00:00.000Z"),
+        ("2.5.0", "2025-06-01T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2025-01-01T00:00:00.000Z");
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+    assert_eq!(
+        filtered.dist_tag("old"),
+        Some("2.1.0"),
+        "non-deprecated 2.1.0 must beat the higher deprecated 2.2.0",
+    );
+}
+
+/// The repopulation tie-break must read deprecation from the raw
+/// fragments without full-manifest hydration. The fragments here are
+/// valid JSON but not decodable as complete version manifests, so a
+/// tie-break that hydrates to check `deprecated` sees every candidate
+/// as undecodable (= not deprecated) and picks the higher deprecated
+/// version instead. Guards the no-hydration deprecation probe the
+/// publish-date filter relies on — also matching pnpm, which reads
+/// `versions[candidate].deprecated` off plain parsed JSON without
+/// validating the rest of the entry.
+#[test]
+fn filter_tag_rewrite_reads_deprecation_from_raw_fragments() {
+    let mut pkg: Package = serde_json::from_str(
+        r#"{
+            "name": "acme",
+            "dist-tags": {"old": "2.5.0"},
+            "versions": {
+                "2.1.0": {"name": "acme"},
+                "2.2.0": {"name": "acme", "deprecated": "use 3.x"},
+                "2.5.0": {"name": "acme"}
+            }
+        }"#,
+    )
+    .expect("parse package");
+    pkg.time = Some(make_time_map(&[
+        ("2.1.0", "2024-01-01T00:00:00.000Z"),
+        ("2.2.0", "2024-06-01T00:00:00.000Z"),
+        ("2.5.0", "2025-06-01T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2025-01-01T00:00:00.000Z");
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+    assert_eq!(
+        filtered.dist_tag("old"),
+        Some("2.1.0"),
+        "deprecation must be read from the raw fragment, not via hydration",
+    );
 }

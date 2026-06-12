@@ -121,13 +121,22 @@ pub enum RegistryError {
     #[display("Token database error: {_0}")]
     Sqlite(rusqlite::Error),
 
-    /// A blocking task spawned for bcrypt or SQLite work panicked
+    /// Networked-SQLite (libsql / Turso) auth backend failure.
+    #[display("Auth database error: {_0}")]
+    Libsql(libsql::Error),
+
+    /// A blocking task spawned for bcrypt or `SQLite` work panicked
     /// or was cancelled. Treat as an internal server error.
     #[display("Background task failed: {_0}")]
     JoinError(tokio::task::JoinError),
 
     #[display("I/O error: {_0}")]
     Io(std::io::Error),
+
+    /// Object-store (S3 / R2 / S3-compatible) backend failure on the
+    /// hosted store.
+    #[display("Object store error: {_0}")]
+    ObjectStore(object_store::Error),
 
     #[display("JSON error: {_0}")]
     Json(serde_json::Error),
@@ -148,6 +157,7 @@ impl RegistryError {
     /// * `504 Gateway Timeout` — upstream took too long to respond.
     /// * `400 Bad Request` — client-supplied package or tarball name
     ///   wasn't usable. Not retryable.
+    #[must_use]
     pub fn status_code(&self) -> StatusCode {
         match self {
             RegistryError::Upstream { source, .. } => {
@@ -174,8 +184,11 @@ impl RegistryError {
             RegistryError::InvalidHtpasswdFile { .. }
             | RegistryError::Bcrypt(_)
             | RegistryError::Sqlite(_)
+            | RegistryError::Libsql(_)
             | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            RegistryError::Io(_) | RegistryError::Json(_) => StatusCode::BAD_GATEWAY,
+            RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
+                StatusCode::BAD_GATEWAY
+            }
         }
     }
 }

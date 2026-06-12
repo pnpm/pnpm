@@ -9,7 +9,7 @@ pub async fn ensure_virtual_registry(registry: &str) {
         eprintln!("HEAD request to {registry} returned an error");
         eprintln!("Make sure the registry server is operational");
         panic!("{error}");
-    };
+    }
 }
 
 /// Common git-repo check. Asserts `<path>/.git` exists as a directory

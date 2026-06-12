@@ -1,5 +1,49 @@
 # @pnpm/deps.graph-builder
 
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+- Updated dependencies [52be454]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/config.package-is-installable@1100.0.10
+
+## 1100.0.14
+
+### Patch Changes
+
+- bf1b731: Require trusted package identity before package-name `allowBuilds` entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the `allowBuilds` key. Lockfile verification now rejects lockfiles where a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [bf1b731]
+  - @pnpm/deps.graph-hasher@1100.2.4
+  - @pnpm/types@1101.3.1
+  - @pnpm/config.package-is-installable@1100.0.9
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/hooks.types@1100.0.11
+  - @pnpm/installing.modules-yaml@1100.0.8
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.utils@1100.0.12
+  - @pnpm/store.controller-types@1100.1.4
+  - @pnpm/patching.config@1100.0.7
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/config.package-is-installable@1100.0.8
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/deps.graph-hasher@1100.2.3
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/hooks.types@1100.0.10
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/store.controller-types@1100.1.3
+  - @pnpm/patching.config@1100.0.6
+
 ## 1100.0.12
 
 ### Patch Changes

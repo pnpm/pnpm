@@ -9,6 +9,11 @@ mod work_env;
 mod workspace_manifest;
 
 use cli_args::{RegistryMode, TargetKind};
+use latency_proxy::{LatencyProxy, LinkProfile, mbps_to_bytes_per_sec};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    time::Duration,
+};
 
 #[tokio::main]
 async fn main() {
@@ -26,6 +31,9 @@ async fn main() {
         with_pnpm,
         pnpr_latency_ms,
         registry_latency_ms,
+        pnpr_server_registry_latency_ms,
+        registry_bandwidth_mbps,
+        registry_slow_start,
         reuse_prebuilt_binaries,
         build_only,
         targets,
@@ -45,6 +53,22 @@ async fn main() {
         }
         RegistryMode::Npm => "https://registry.npmjs.org/".to_string(),
     };
+    let registry_rate_limit = mbps_to_bytes_per_sec(registry_bandwidth_mbps);
+    let proxy_spawned_registry = !build_only
+        && matches!(registry_mode, RegistryMode::Verdaccio)
+        && (registry_latency_ms > 0 || registry_rate_limit.is_some());
+    let spawned_registry_port = if proxy_spawned_registry {
+        pacquet_registry_mock::pick_unused_port()
+            .expect("pick an unused port for the registry upstream")
+    } else {
+        registry_port
+    };
+    let registry_cache_populator = if proxy_spawned_registry {
+        format!("http://localhost:{spawned_registry_port}/")
+    } else {
+        registry.clone()
+    };
+    let registry_public_url = registry.trim_end_matches('/').to_string();
 
     let verdaccio = if build_only {
         None
@@ -55,12 +79,13 @@ async fn main() {
                     .arg("install")
                     .pipe(verify::executor("just install"));
                 pacquet_registry_mock::MockInstanceOptions {
-                    client: &Default::default(),
-                    port: registry_port,
+                    client: &reqwest::Client::default(),
+                    port: spawned_registry_port,
+                    public_url: proxy_spawned_registry.then_some(registry_public_url.as_str()),
                     stdout: work_env.join("verdaccio.stdout.log").pipe(Some).as_deref(),
                     stderr: work_env.join("verdaccio.stderr.log").pipe(Some).as_deref(),
                     max_retries: 10,
-                    retry_delay: tokio::time::Duration::from_millis(500),
+                    retry_delay: Duration::from_millis(500),
                 }
                 .spawn_if_necessary()
                 .await
@@ -72,6 +97,27 @@ async fn main() {
             RegistryMode::Npm => None,
         }
     };
+    let registry_proxy = proxy_spawned_registry.then(|| {
+        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, spawned_registry_port));
+        let listen = SocketAddr::from((Ipv4Addr::LOCALHOST, registry_port));
+        let profile = LinkProfile {
+            one_way: Duration::from_millis(registry_latency_ms) / 2,
+            rate_limit: registry_rate_limit,
+            slow_start: registry_slow_start,
+        };
+        let proxy =
+            LatencyProxy::spawn_on(listen, upstream, profile).expect("spawn registry proxy");
+        eprintln!(
+            "Fronting the registry with {}ms round-trip latency + {} download cap (proxy at {})",
+            registry_latency_ms,
+            match registry_bandwidth_mbps {
+                mbps if mbps > 0.0 => format!("{mbps} Mbit/s"),
+                _ => "no".to_string(),
+            },
+            proxy.addr,
+        );
+        proxy
+    });
 
     let has_pacquet_target = targets.iter().any(|target| target.kind == TargetKind::Pacquet);
     let has_pnpm_target = targets.iter().any(|target| target.kind == TargetKind::Pnpm);
@@ -114,6 +160,7 @@ async fn main() {
         with_pnpm,
         targets,
         registry,
+        registry_cache_populator,
         registry_mode,
         repository,
         pnpm_repository,
@@ -122,7 +169,10 @@ async fn main() {
         fixture_dir,
         pnpr_latency_ms,
         registry_latency_ms,
-        registry_port,
+        pnpr_server_registry_latency_ms,
+        registry_bandwidth_mbps,
+        registry_slow_start,
+        registry_port: spawned_registry_port,
         reuse_prebuilt_binaries,
     };
     if build_only {
@@ -130,5 +180,6 @@ async fn main() {
     } else {
         env.run();
     }
+    drop(registry_proxy);
     drop(verdaccio); // terminate verdaccio if exists
 }

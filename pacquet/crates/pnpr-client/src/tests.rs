@@ -1,30 +1,15 @@
-use super::{PnprClientError, VerifyError, parse_inline_response};
+use super::{Frame, PnprClientError, VerifyError, build_verify_error, parse_frame};
 
-/// Frame a JSON header into a complete inline install payload with an
-/// empty file section (the `{}` prefix plus the end-of-stream marker),
-/// matching what the server sends when there are no files to inline.
-fn inline_payload(header_json: &str) -> Vec<u8> {
-    let header = header_json.as_bytes();
-    let mut payload = Vec::new();
-    payload.extend_from_slice(&(header.len() as u32).to_be_bytes());
-    payload.extend_from_slice(header);
-    payload.extend_from_slice(&2u32.to_be_bytes());
-    payload.extend_from_slice(b"{}");
-    payload.extend_from_slice(&[0u8; 64]);
-    payload
-}
-
-/// A header carrying verification violations is rebuilt into the same
-/// `VerifyError` the local gate raises, so the CLI aborts with an
-/// identical diagnostic code + breakdown.
+/// A `violations` frame is rebuilt into the same `VerifyError` the local
+/// gate raises, so the CLI aborts with an identical diagnostic code +
+/// breakdown.
 #[test]
-fn header_with_violations_rebuilds_a_verify_error() {
-    let payload = inline_payload(
-        r#"{"violations":[{"name":"@foo/no-deps","version":"1.0.0","code":"MINIMUM_RELEASE_AGE_VIOLATION","reason":"was published yesterday"}]}"#,
-    );
-    let Err(PnprClientError::Verification(verify_err)) = parse_inline_response(&payload) else {
-        panic!("expected a Verification error");
+fn a_violations_frame_rebuilds_a_verify_error() {
+    let line = br#"{"type":"violations","violations":[{"name":"@foo/no-deps","version":"1.0.0","code":"MINIMUM_RELEASE_AGE_VIOLATION","reason":"was published yesterday"}]}"#;
+    let Frame::Violations { violations } = parse_frame(line).expect("frame parses") else {
+        panic!("expected a violations frame");
     };
+    let verify_err = build_verify_error(violations);
     assert!(
         matches!(verify_err, VerifyError::MinimumReleaseAgeViolation { .. }),
         "got {verify_err:?}",
@@ -37,24 +22,53 @@ fn header_with_violations_rebuilds_a_verify_error() {
 /// variant.
 #[test]
 fn tarball_mismatch_maps_to_the_generic_envelope() {
-    let payload = inline_payload(
-        r#"{"violations":[{"name":"acme","version":"1.0.0","code":"TARBALL_URL_MISMATCH","reason":"url mismatch"}]}"#,
-    );
-    let Err(PnprClientError::Verification(verify_err)) = parse_inline_response(&payload) else {
-        panic!("expected a Verification error");
+    let line = br#"{"type":"violations","violations":[{"name":"acme","version":"1.0.0","code":"TARBALL_URL_MISMATCH","reason":"url mismatch"}]}"#;
+    let Frame::Violations { violations } = parse_frame(line).expect("frame parses") else {
+        panic!("expected a violations frame");
     };
+    let verify_err = build_verify_error(violations);
     assert!(
         matches!(verify_err, VerifyError::LockfileResolutionVerification { .. }),
         "got {verify_err:?}",
     );
 }
 
-/// A header with no lockfile and no violations is a malformed response,
-/// not a silent success.
+/// A `package` frame carries the fetch hint fields verbatim.
 #[test]
-fn header_without_a_lockfile_is_a_protocol_error() {
-    let payload = inline_payload("{}");
-    let Err(PnprClientError::Protocol(_)) = parse_inline_response(&payload) else {
+fn a_package_frame_parses_its_fetch_hint() {
+    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42}"#;
+    let Frame::Package { id, name, version, integrity, tarball, unpacked_size, file_count } =
+        parse_frame(line).expect("frame parses")
+    else {
+        panic!("expected a package frame");
+    };
+    assert_eq!(id, "acme@1.0.0");
+    assert_eq!(name, "acme");
+    assert_eq!(version, "1.0.0");
+    assert_eq!(integrity, "sha512-abc");
+    assert_eq!(tarball, "https://r.test/acme/-/acme-1.0.0.tgz");
+    assert_eq!(unpacked_size, Some(123456));
+    assert_eq!(file_count, Some(42));
+}
+
+/// A `package` frame without `unpackedSize` / `fileCount` — an older
+/// server, or a registry that never published the fields — still
+/// parses.
+#[test]
+fn a_package_frame_without_dist_stats_parses() {
+    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz"}"#;
+    let Frame::Package { unpacked_size, file_count, .. } = parse_frame(line).expect("frame parses")
+    else {
+        panic!("expected a package frame");
+    };
+    assert_eq!(unpacked_size, None);
+    assert_eq!(file_count, None);
+}
+
+/// A line with no `type` tag is malformed, not a silent success.
+#[test]
+fn an_untyped_frame_is_a_protocol_error() {
+    let Err(PnprClientError::Protocol(_)) = parse_frame(b"{}") else {
         panic!("expected a Protocol error");
     };
 }

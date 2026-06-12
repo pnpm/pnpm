@@ -44,6 +44,14 @@ jobs:
             target: aarch64-unknown-linux-gnu
             code-target: linux-arm64
 
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            code-target: linux-x64-musl
+
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            code-target: linux-arm64-musl
+
           - os: macos-latest
             target: x86_64-apple-darwin
             code-target: darwin-x64
@@ -60,7 +68,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
         with:
           tool: cross
 
@@ -185,7 +193,7 @@ jobs:
         with:
           args: unzip -qq *.zip -d .
 
-      - name: Untar
+      - name: Extract tarballs
         run: ls *.gz | xargs -i tar xf {}
 
       - name: Generate npm packages

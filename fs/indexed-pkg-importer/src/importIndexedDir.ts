@@ -36,24 +36,27 @@ export function importIndexedDir (
   // Fast path: import directly without staging.  Callers already verified
   // the target package is missing (pkgExistsAtTargetDir / pkgLinkedToStore),
   // so we can write straight into newDir and skip the temp dir + rename.
-  // On any error, clean up and fall through to the staging path which has
-  // full error handling (EEXIST dedup, ENOENT sanitized-filename retry, etc.).
+  // On failure we fall through to the staging path, which has full error
+  // handling (EEXIST dedup, ENOENT sanitized-filename retry, etc.) and
+  // atomically swaps in a complete directory.
   // keepModulesDir needs the staging path to preserve the existing node_modules.
-  if (!opts.keepModulesDir) try {
-    // For safeToSkip (content-addressed GVS), use non-destructive mkdirSync
-    // so concurrent importers don't wipe each other's files.
+  if (!opts.keepModulesDir) {
     if (opts.safeToSkip) {
-      fs.mkdirSync(newDir, { recursive: true })
-    } else {
-      makeEmptyDirSync(newDir, { recursive: true })
-    }
-    tryImportIndexedDir(importer, newDir, filenames)
-    return
-  } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
-      // A concurrent importer may have completed the directory.
-      // If all files match, there's nothing left to do.
-      if (allFilesMatch(newDir, filenames)) return
+      // Content-addressed target (e.g. global virtual store): the path is
+      // shared across projects, so concurrent importers are expected. Use a
+      // non-destructive mkdir and let importFile dedup via EEXIST. If another
+      // importer already completed the directory, there's nothing to do.
+      try {
+        fs.mkdirSync(newDir, { recursive: true })
+        tryImportIndexedDir(importer, newDir, filenames)
+        return
+      } catch (err) {
+        if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST' && allFilesMatch(newDir, filenames)) {
+          return
+        }
+      }
+    } else if (tryExclusiveImport(importer, newDir, filenames)) {
+      return
     }
   }
   // Staging path: create in temp dir, then atomically rename.
@@ -120,6 +123,46 @@ export function importIndexedDir (
       rimrafSync(stage)
     } catch {} // eslint-disable-line:no-empty
     throw renameErr
+  }
+}
+
+// Fast path for the regular virtual store: write directly into newDir, but
+// only when we can create it exclusively. A successful exclusive mkdir proves
+// no other process is importing the same package concurrently, so the direct
+// (non-atomic) write is safe. If newDir already exists — a concurrent importer
+// or a stale partial directory from an interrupted import — this returns false
+// so the caller falls back to the staging path, which builds a complete
+// directory in a private temp dir and atomically renames it into place.
+//
+// Destructively emptying a directory another process may be populating could
+// otherwise leave a partial package behind: if the surviving files include the
+// package.json completion marker, every later install treats the broken
+// directory as complete and never repairs it.
+function tryExclusiveImport (
+  importer: Importer,
+  newDir: string,
+  filenames: Map<string, string>
+): boolean {
+  fs.mkdirSync(path.dirname(newDir), { recursive: true })
+  try {
+    fs.mkdirSync(newDir)
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') return false
+    throw err
+  }
+  // We exclusively created newDir, so no other process writes into it directly
+  // (concurrent importers see EEXIST above and take the staging path). The
+  // directory is ours: on failure we remove our partial result before falling
+  // back to staging, so the next attempt — including this process's own method
+  // fallbacks (clone → hardlink → copy) — can fast-path again.
+  try {
+    tryImportIndexedDir(importer, newDir, filenames)
+    return true
+  } catch {
+    try {
+      rimrafSync(newDir)
+    } catch {} // eslint-disable-line:no-empty
+    return false
   }
 }
 

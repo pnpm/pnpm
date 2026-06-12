@@ -1,5 +1,61 @@
 # @pnpm/building.commands
 
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [d976edf]
+- Updated dependencies [615c669]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/installing.commands@1100.8.0
+  - @pnpm/building.after-install@1101.0.21
+  - @pnpm/store.connection-manager@1100.2.8
+  - @pnpm/cli.utils@1101.0.11
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [5f2bb9f]
+- Updated dependencies [1017c36]
+- Updated dependencies [e4d2fe0]
+- Updated dependencies [bf1b731]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/installing.commands@1100.7.3
+  - @pnpm/cli.common-cli-options-help@1100.0.2
+  - @pnpm/building.after-install@1101.0.20
+  - @pnpm/building.policy@1100.0.9
+  - @pnpm/types@1101.3.1
+  - @pnpm/store.connection-manager@1100.2.7
+  - @pnpm/cli.utils@1101.0.10
+  - @pnpm/config.writer@1100.0.12
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/installing.modules-yaml@1100.0.8
+  - @pnpm/workspace.projects-sorter@1100.0.6
+
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [4e740d5]
+- Updated dependencies [a017bf3]
+  - @pnpm/building.after-install@1101.0.19
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/installing.commands@1100.7.2
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/config.writer@1100.0.11
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/workspace.projects-sorter@1100.0.5
+
 ## 1100.1.1
 
 ### Patch Changes

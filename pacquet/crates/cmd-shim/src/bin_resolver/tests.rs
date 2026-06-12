@@ -362,9 +362,31 @@ fn empty_bin_key_is_rejected() {
     assert_eq!(commands[0].name, "good");
 }
 
-/// [`lexical_normalize`] drops `.` (CurDir) segments. This is a direct
+/// The relative names `.` and `..` survive the URL-safe guard's character
+/// set (`.` is unescaped by `encodeURIComponent`) but resolve to the bin
+/// directory itself or its parent when joined to a target dir, so
+/// `is_safe_bin_name` must reject them. Scoped forms like `@scope/..`
+/// collapse to `..` after the scope strip and must be rejected too.
+#[test]
+fn reserved_relative_bin_names_are_rejected() {
+    let manifest = json!({
+        "name": "malicious",
+        "version": "1.0.0",
+        "bin": {
+            ".": "dot.js",
+            "..": "dotdot.js",
+            "@scope/..": "scoped-dotdot.js",
+            "good": "good.js",
+        },
+    });
+    let commands = get_bins_from_package_manifest::<Host>(&manifest, Path::new("/p"));
+    assert_eq!(commands.len(), 1);
+    assert_eq!(commands[0].name, "good");
+}
+
+/// [`lexical_normalize`] drops `.` (`CurDir`) segments. This is a direct
 /// test on the helper. The integration-style test below covers the same
-/// arm via `directories.bin`, but a direct assertion makes the CurDir
+/// arm via `directories.bin`, but a direct assertion makes the `CurDir`
 /// branch visible to coverage tooling that can't see through inlined
 /// call chains.
 #[test]
@@ -442,8 +464,8 @@ fn directories_bin_handles_curdir_in_relative_path() {
 /// `commands_from_directories_bin` skips entries whose path doesn't
 /// yield a usable file name. That covers the `path.file_name() == None`
 /// and `to_str() == None` branches, both of which the real fs hardly
-/// ever reaches (file_name() returns None only for paths ending in
-/// `..`, and to_str() fails only on non-UTF-8 bytes which are rare on
+/// ever reaches (`file_name()` returns None only for paths ending in
+/// `..`, and `to_str()` fails only on non-UTF-8 bytes which are rare on
 /// Unix and impossible on Windows). A fake [`FsWalkFiles`] hands back one
 /// such path so the `continue` arm gets exercised directly. The
 /// regular `cli` entry alongside it confirms that the well-formed

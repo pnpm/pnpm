@@ -21,26 +21,19 @@ use tempfile::tempdir;
 /// Build an [`AllowBuildPolicy`] from a list of `(spec, allowed)`
 /// pairs, mirroring how `pnpm-workspace.yaml`'s `allowBuilds` map
 /// would arrive at the policy. Each spec is parsed through
-/// [`crate::expand_package_version_specs`] so version unions
-/// (`foo@1.0.0 || 2.0.0`) work the same way they do at runtime.
+/// [`AllowBuildPolicy::from_config`] so version unions and depPath
+/// keys work the same way they do at runtime.
 /// Panics on any parse failure — test inputs must be valid.
 fn policy_from_specs<const LEN: usize>(
     entries: [(&str, bool); LEN],
     dangerously_allow_all: bool,
 ) -> AllowBuildPolicy {
-    use crate::expand_package_version_specs;
-    let mut allowed_specs: Vec<&str> = Vec::new();
-    let mut disallowed_specs: Vec<&str> = Vec::new();
+    let mut config = Config::new();
+    config.dangerously_allow_all_builds = dangerously_allow_all;
     for (spec, value) in entries {
-        if value {
-            allowed_specs.push(spec);
-        } else {
-            disallowed_specs.push(spec);
-        }
+        config.allow_builds.insert(spec.to_string(), value);
     }
-    let expanded_allowed = expand_package_version_specs(allowed_specs).expect("valid specs");
-    let expanded_disallowed = expand_package_version_specs(disallowed_specs).expect("valid specs");
-    AllowBuildPolicy::new(expanded_allowed, expanded_disallowed, dangerously_allow_all)
+    AllowBuildPolicy::from_config(&config).expect("valid specs")
 }
 
 #[test]
@@ -74,25 +67,55 @@ fn parse_key_without_leading_slash() {
 #[test]
 fn default_policy_denies_all() {
     let policy = AllowBuildPolicy::default();
-    assert_eq!(policy.check("any-package", "1.0.0"), None);
+    assert_eq!(policy.check("any-package@1.0.0"), None);
 }
 
 #[test]
 fn explicit_allow() {
     let policy = policy_from_specs([("@pnpm.e2e/install-script-example", true)], false);
-    assert_eq!(policy.check("@pnpm.e2e/install-script-example", "1.0.0"), Some(true));
+    assert_eq!(policy.check("@pnpm.e2e/install-script-example@1.0.0"), Some(true));
+}
+
+#[test]
+fn explicit_allow_requires_registry_style_dep_path() {
+    let policy = policy_from_specs([("@pnpm.e2e/install-script-example", true)], false);
+    assert_eq!(
+        policy.check("@pnpm.e2e/install-script-example@git+https://example.com/x.git#abc123"),
+        None,
+    );
+    assert_eq!(policy.check("@pnpm.e2e/install-script-example@1.0.0"), Some(true));
+}
+
+#[test]
+fn explicit_allow_by_dep_path_allows_untrusted_package_identity() {
+    let policy = policy_from_specs(
+        [("foo@git+https://github.com/org/foo.git#abc123", true), ("foo", true)],
+        false,
+    );
+    assert_eq!(
+        policy.check("foo@git+https://github.com/org/foo.git#abc123(react@19.0.0)"),
+        Some(true),
+    );
+    assert_eq!(policy.check("foo@git+https://github.com/attacker/foo.git#abc123"), None);
+}
+
+#[test]
+fn explicit_allow_by_tarball_dep_path_allows_untrusted_package_identity() {
+    let policy = policy_from_specs([("foo@https://example.com/foo.tgz", true)], false);
+
+    assert_eq!(policy.check("foo@https://example.com/foo.tgz"), Some(true));
 }
 
 #[test]
 fn explicit_deny() {
     let policy = policy_from_specs([("@pnpm.e2e/bad-package", false)], false);
-    assert_eq!(policy.check("@pnpm.e2e/bad-package", "1.0.0"), Some(false));
+    assert_eq!(policy.check("@pnpm.e2e/bad-package@1.0.0"), Some(false));
 }
 
 #[test]
 fn unlisted_returns_none() {
     let policy = policy_from_specs([("@pnpm.e2e/allowed", true)], false);
-    assert_eq!(policy.check("@pnpm.e2e/not-listed", "1.0.0"), None);
+    assert_eq!(policy.check("@pnpm.e2e/not-listed@1.0.0"), None);
 }
 
 /// Upstream checks `expandedDisallowed` before `expandedAllowed`
@@ -106,8 +129,8 @@ fn unlisted_returns_none() {
 fn disallow_bare_name_wins_over_allow_exact_version() {
     let policy =
         policy_from_specs([("@pnpm.e2e/pkg@1.0.0", true), ("@pnpm.e2e/pkg", false)], false);
-    assert_eq!(policy.check("@pnpm.e2e/pkg", "1.0.0"), Some(false));
-    assert_eq!(policy.check("@pnpm.e2e/pkg", "2.0.0"), Some(false));
+    assert_eq!(policy.check("@pnpm.e2e/pkg@1.0.0"), Some(false));
+    assert_eq!(policy.check("@pnpm.e2e/pkg@2.0.0"), Some(false));
 }
 
 /// The converse: a bare-name allow combined with an exact-version
@@ -117,27 +140,33 @@ fn disallow_bare_name_wins_over_allow_exact_version() {
 fn disallow_exact_version_with_allow_bare_name() {
     let policy =
         policy_from_specs([("@pnpm.e2e/pkg", true), ("@pnpm.e2e/pkg@1.0.0", false)], false);
-    assert_eq!(policy.check("@pnpm.e2e/pkg", "1.0.0"), Some(false));
-    assert_eq!(policy.check("@pnpm.e2e/pkg", "2.0.0"), Some(true));
+    assert_eq!(policy.check("@pnpm.e2e/pkg@1.0.0"), Some(false));
+    assert_eq!(policy.check("@pnpm.e2e/pkg@2.0.0"), Some(true));
 }
 
 #[test]
 fn empty_rules_denies_all() {
     let policy = policy_from_specs([], false);
-    assert_eq!(policy.check("any-package", "1.0.0"), None);
+    assert_eq!(policy.check("any-package@1.0.0"), None);
 }
 
 #[test]
 fn dangerously_allow_all_builds() {
     let policy = policy_from_specs([], true);
-    assert_eq!(policy.check("any-package", "1.0.0"), Some(true));
-    assert_eq!(policy.check("other-package", "2.0.0"), Some(true));
+    assert_eq!(policy.check("any-package@1.0.0"), Some(true));
+    assert_eq!(policy.check("other-package@2.0.0"), Some(true));
+}
+
+#[test]
+fn dangerously_allow_all_allows_artifact_dep_paths() {
+    let policy = policy_from_specs([], true);
+    assert_eq!(policy.check("anything@git+https://example.com/x.git#abc123"), Some(true));
 }
 
 #[test]
 fn dangerously_allow_all_overrides_deny() {
     let policy = policy_from_specs([("@pnpm.e2e/pkg", false)], true);
-    assert_eq!(policy.check("@pnpm.e2e/pkg", "1.0.0"), Some(true));
+    assert_eq!(policy.check("@pnpm.e2e/pkg@1.0.0"), Some(true));
 }
 
 /// Mirrors upstream's
@@ -148,11 +177,11 @@ fn dangerously_allow_all_overrides_deny() {
 #[test]
 fn allow_via_version_union() {
     let policy = policy_from_specs([("foo", true), ("qar@1.0.0 || 2.0.0", true)], false);
-    assert_eq!(policy.check("foo", "1.0.0"), Some(true));
-    assert_eq!(policy.check("bar", "1.0.0"), None);
-    assert_eq!(policy.check("qar", "1.0.0"), Some(true));
-    assert_eq!(policy.check("qar", "2.0.0"), Some(true));
-    assert_eq!(policy.check("qar", "1.1.0"), None);
+    assert_eq!(policy.check("foo@1.0.0"), Some(true));
+    assert_eq!(policy.check("bar@1.0.0"), None);
+    assert_eq!(policy.check("qar@1.0.0"), Some(true));
+    assert_eq!(policy.check("qar@2.0.0"), Some(true));
+    assert_eq!(policy.check("qar@1.1.0"), None);
 }
 
 /// Mirrors upstream's
@@ -165,8 +194,8 @@ fn allow_via_version_union() {
 #[test]
 fn wildcard_name_in_allow_builds_does_not_match_real_package() {
     let policy = policy_from_specs([("is-*", true)], false);
-    assert_eq!(policy.check("is-odd", "1.0.0"), None);
-    assert_eq!(policy.check("is-positive", "1.0.0"), None);
+    assert_eq!(policy.check("is-odd@1.0.0"), None);
+    assert_eq!(policy.check("is-positive@1.0.0"), None);
 }
 
 /// `from_config` propagates `expand_package_version_specs` errors —
@@ -201,7 +230,7 @@ fn from_config_propagates_name_pattern_in_version_union() {
 #[test]
 fn empty_config_denies_all() {
     let policy = AllowBuildPolicy::from_config(&Config::new()).expect("empty config never errors");
-    assert_eq!(policy.check("anything", "1.0.0"), None);
+    assert_eq!(policy.check("anything@1.0.0"), None);
 }
 
 #[test]
@@ -212,9 +241,9 @@ fn from_config_consumes_allow_builds_and_dangerously_allow_all_builds() {
     config.allow_builds.insert("@pnpm.e2e/bad-package".to_string(), false);
 
     let policy = AllowBuildPolicy::from_config(&config).expect("valid specs");
-    assert_eq!(policy.check("@pnpm.e2e/install-script-example", "1.0.0"), Some(true));
-    assert_eq!(policy.check("@pnpm.e2e/bad-package", "1.0.0"), Some(false));
-    assert_eq!(policy.check("@pnpm.e2e/unrelated", "1.0.0"), None);
+    assert_eq!(policy.check("@pnpm.e2e/install-script-example@1.0.0"), Some(true));
+    assert_eq!(policy.check("@pnpm.e2e/bad-package@1.0.0"), Some(false));
+    assert_eq!(policy.check("@pnpm.e2e/unrelated@1.0.0"), None);
 }
 
 fn name(text: &str) -> PkgName {
@@ -316,6 +345,7 @@ fn build_modules_collects_ignored_builds() {
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -388,6 +418,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules under concurrency");
@@ -448,6 +479,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -531,6 +563,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<RecordingReporter>()
     .expect("optional build failure must NOT abort the install");
@@ -600,6 +633,7 @@ fn using_side_effects_cache_skips_rebuild() {
                             .expect("parse integrity"),
                     },
                 ),
+                version: None,
                 engines: None,
                 cpu: None,
                 os: None,
@@ -668,6 +702,7 @@ fn using_side_effects_cache_skips_rebuild() {
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<RecordingReporter>()
     .expect("install must succeed when the cache hit skips the rebuild");
@@ -735,6 +770,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<SilentReporter>()
     .expect_err("with cache disabled, the failing postinstall must run and the install must fail");
@@ -795,11 +831,159 @@ fn fail_when_failing_postinstall_is_required() {
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<SilentReporter>()
     .expect_err("required build failure must propagate");
     eprintln!("ERR: {err}");
     assert!(matches!(err, crate::build_modules::BuildModulesError::LifecycleScript(_)));
+}
+
+// --- frozen-store build backstop ---------------------------------------
+
+/// A `pnpm-workspace.yaml`-shaped patch entry for one package. The
+/// `patch_file_path` is left `None` because the frozen-store backstop
+/// fires before any patch application — the entry only has to make
+/// `has_patch` true and land the snapshot in the build sequence.
+fn single_patch(key: &PackageKey) -> HashMap<PackageKey, pacquet_patching::ExtendedPatchInfo> {
+    HashMap::from([(
+        key.without_peer(),
+        pacquet_patching::ExtendedPatchInfo {
+            hash: "deadbeef".to_string(),
+            patch_file_path: None,
+            key: key.without_peer().to_string(),
+        },
+    )])
+}
+
+/// Build a global-virtual-store [`VirtualStoreLayout`] for a backstop
+/// test. `snapshots: None` short-circuits [`VirtualStoreLayout::new`]
+/// to an empty `gvs_suffixes` map, which is all the backstop needs —
+/// it queries [`VirtualStoreLayout::enable_global_virtual_store`]
+/// (true iff `gvs_suffixes.is_some()`) and fires before any slot-dir
+/// lookup.
+fn gvs_layout(dir: &Path) -> &'static VirtualStoreLayout {
+    let mut config = Config::new();
+    config.enable_global_virtual_store = true;
+    config.store_dir = dir.join("store").into();
+    config.global_virtual_store_dir = dir.join("store/links");
+    config.virtual_store_dir = dir.join("node_modules/.pacquet");
+    let config = config.leak();
+    Box::leak(Box::new(VirtualStoreLayout::new(config, None, None, None, None)))
+}
+
+/// Run [`BuildModules`] over a single patched `is-positive@1.0.0`
+/// snapshot, varying only `layout`, `frozen_store`, and the snapshot's
+/// `optional` flag — the three backstop inputs. No on-disk fixture: the
+/// snapshot's slot never materializes, so on paths that skip the
+/// backstop the run no-ops at the `!pkg_dir.exists()` guard rather than
+/// touching the (absent) patch file.
+fn frozen_backstop_run(
+    layout: &VirtualStoreLayout,
+    frozen_store: bool,
+    optional: bool,
+) -> Result<Vec<String>, crate::build_modules::BuildModulesError> {
+    let pkg_key = key("is-positive", "1.0.0");
+    let snapshots =
+        HashMap::from([(pkg_key.clone(), SnapshotEntry { optional, ..SnapshotEntry::default() })]);
+    let patches = single_patch(&pkg_key);
+    let importers = root_importers(&[("is-positive", "1.0.0")]);
+    let policy = policy_from_specs([], false);
+    let modules_dir = tempdir().expect("create temp dir");
+    let lockfile_dir = tempdir().expect("create temp dir");
+
+    BuildModules {
+        layout,
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        packages: None,
+        importers: &importers,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: None,
+        engine_name: None,
+        side_effects_cache: false,
+        side_effects_cache_write: false,
+        store_dir: None,
+        store_index_writer: None,
+        patches: Some(&patches),
+
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_root_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store,
+    }
+    .run::<SilentReporter>()
+}
+
+/// Positive: under the global virtual store, a patched package whose
+/// build output is missing from the read-only store refuses up front
+/// with `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD` rather than crashing on a
+/// raw `EROFS` when `apply_patch_to_dir` tries to write into the store.
+/// Mirrors the TS unit test
+/// `frozenStore + GVS: a patched package that is not cached refuses up front`.
+#[test]
+fn frozen_store_gvs_patch_not_seeded_refuses() {
+    let store_dir = tempdir().expect("create temp dir");
+    let layout = gvs_layout(store_dir.path());
+
+    let err = frozen_backstop_run(layout, true, false)
+        .expect_err("a missing patched build under a frozen GVS store must refuse up front");
+    assert!(
+        matches!(err, crate::build_modules::BuildModulesError::FrozenStoreNeedsBuild { .. }),
+        "expected FrozenStoreNeedsBuild, got {err:?}",
+    );
+}
+
+/// An optional patched snapshot must not block the install: a build or
+/// patch failure on an optional dependency is non-fatal at runtime, so
+/// the backstop skips its build (emitting the skipped-optional log)
+/// instead of refusing. Mirrors the TS unit test
+/// `frozenStore + GVS: an optional patched package that is not cached is skipped, not blocked`.
+#[test]
+fn frozen_store_gvs_optional_not_seeded_skips() {
+    let store_dir = tempdir().expect("create temp dir");
+    let layout = gvs_layout(store_dir.path());
+
+    let ignored = frozen_backstop_run(layout, true, true)
+        .expect("an optional un-seeded build must be skipped, not refused");
+    assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
+}
+
+/// Negative control: the same patched, un-seeded snapshot does NOT trip
+/// the backstop when `frozen_store` is off — proving the flag is
+/// load-bearing. With no fixture on disk the run no-ops at the
+/// `!pkg_dir.exists()` guard, so it returns `Ok` rather than attempting
+/// to apply the (absent) patch file.
+#[test]
+fn gvs_without_frozen_store_does_not_trip_backstop() {
+    let store_dir = tempdir().expect("create temp dir");
+    let layout = gvs_layout(store_dir.path());
+
+    let ignored = frozen_backstop_run(layout, false, false)
+        .expect("without frozen_store the backstop must not fire");
+    assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
+}
+
+/// Negative control: under the legacy (non-GVS) layout, package
+/// directories live under the writable project-local virtual store, so
+/// the backstop is correctly inert even with `frozen_store` enabled —
+/// builds and patches there never touch the read-only store. Mirrors
+/// the TS unit test `frozenStore without GVS: ... is not blocked`.
+#[test]
+fn frozen_store_without_gvs_does_not_trip_backstop() {
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    let layout = VirtualStoreLayout::legacy(
+        virtual_store_dir.path(),
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
+
+    let ignored = frozen_backstop_run(&layout, true, false)
+        .expect("the non-GVS layout writes to the project store, so the backstop must not fire");
+    assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 
 /// Materialize a package fixture whose contents are byte-identical
@@ -832,7 +1016,7 @@ fn create_failing_postinstall_fixture(virtual_store_dir: &Path, key: &PackageKey
 /// for the package list. The frozen-install path emits this once after
 /// `BuildModules::run` returns; this test exercises the equivalent
 /// emit shape directly so `LogEvent::IgnoredScripts` stays connected
-/// to the BuildModules return value.
+/// to the `BuildModules` return value.
 #[test]
 fn ignored_scripts_event_carries_returned_names() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -872,7 +1056,7 @@ fn ignored_scripts_event_carries_returned_names() {
 /// Returns the package directory path and the actual file mode of
 /// `index.js`. The mode is read from disk because `fs::write()`
 /// assigns permissions according to the process umask (typically
-/// 0022 → 0o644, but 0002 → 0o664 when pam_umask's `usergroups`
+/// 0022 → 0o644, but 0002 → 0o664 when `pam_umask`'s `usergroups`
 /// logic matches UID to group name, the default on Debian for
 /// non-root users). Callers that pre-seed store rows should use
 /// this returned mode so `calculate_diff()` doesn't flag a
@@ -944,6 +1128,7 @@ async fn write_path_populates_side_effects_row() {
                         integrity: integrity_str.parse().expect("parse integrity"),
                     },
                 ),
+                version: None,
                 engines: None,
                 cpu: None,
                 os: None,
@@ -1047,6 +1232,7 @@ async fn write_path_populates_side_effects_row() {
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1094,6 +1280,7 @@ async fn write_path_disabled_skips_upload() {
                         integrity: integrity_str.parse().expect("parse integrity"),
                     },
                 ),
+                version: None,
                 engines: None,
                 cpu: None,
                 os: None,
@@ -1160,6 +1347,7 @@ async fn write_path_disabled_skips_upload() {
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1177,7 +1365,7 @@ async fn write_path_disabled_skips_upload() {
 ///
 /// Upstream stubs `opts.storeController.upload` to throw and
 /// asserts the install completes (the postinstall ran, the
-/// generated file is on disk) but the SQLite row's `side_effects`
+/// generated file is on disk) but the `SQLite` row's `side_effects`
 /// stays empty.
 ///
 /// Pacquet has no DI seam for the upload, but the WRITE path's
@@ -1208,6 +1396,7 @@ async fn upload_error_does_not_interrupt_install() {
                         integrity: integrity_str.parse().expect("parse integrity"),
                     },
                 ),
+                version: None,
                 engines: None,
                 cpu: None,
                 os: None,
@@ -1281,6 +1470,7 @@ async fn upload_error_does_not_interrupt_install() {
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<SilentReporter>()
     .expect("upload failure must not propagate; install continues");
@@ -1388,6 +1578,7 @@ async fn write_path_cache_key_includes_patch_hash() {
                         integrity: integrity_str.parse().expect("parse integrity"),
                     },
                 ),
+                version: None,
                 engines: None,
                 cpu: None,
                 os: None,
@@ -1513,6 +1704,7 @@ new file mode 100644
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1622,6 +1814,7 @@ new file mode 100644
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1702,6 +1895,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         skipped: &SkippedSnapshots::default(),
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
+        frozen_store: false,
     }
     .run::<SilentReporter>()
     .expect_err("missing patch_file_path must surface as PatchFilePathMissing");

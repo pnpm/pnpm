@@ -82,6 +82,7 @@ pub enum Prefix {
 impl Prefix {
     /// String form, including the trailing `:` for non-`None`
     /// variants. Round-trips through the parser.
+    #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Prefix::None => "",
@@ -100,6 +101,7 @@ impl PkgVerPeer {
     /// Get the version part. The `runtime:` prefix (if any) is
     /// stripped — callers that need to discriminate runtime
     /// entries should consult [`PkgVerPeer::prefix`] instead.
+    #[must_use]
     pub fn version(&self) -> &'_ VersionPart {
         &self.version
     }
@@ -107,6 +109,7 @@ impl PkgVerPeer {
     /// Semver `Version` if this is a [`VersionPart::Semver`], else
     /// `None`. Use from call sites that need `major` / `minor` /
     /// `patch` — Display via [`PkgVerPeer::version`] covers the rest.
+    #[must_use]
     pub fn version_semver(&self) -> Option<&'_ Version> {
         match &self.version {
             VersionPart::Semver(version) => Some(version),
@@ -115,11 +118,13 @@ impl PkgVerPeer {
     }
 
     /// Get the peer part.
+    #[must_use]
     pub fn peer(&self) -> &'_ str {
         self.peer.as_str()
     }
 
     /// Get the prefix variant.
+    #[must_use]
     pub fn prefix(&self) -> Prefix {
         self.prefix
     }
@@ -129,6 +134,7 @@ impl PkgVerPeer {
     /// backward-compatible with pre-runtime consumers. New callers
     /// that need the prefix should access it via
     /// [`PkgVerPeer::prefix`] before destructuring.
+    #[must_use]
     pub fn into_tuple(self) -> (VersionPart, String) {
         let PkgVerPeer { prefix: _, version, peer } = self;
         (version, peer)
@@ -144,6 +150,7 @@ impl PkgVerPeer {
     /// (e.g. a workspace `link:<rel-path>(peer@x)` shape under
     /// `linkWorkspacePackages: true`) whose `Display` form would not
     /// re-parse as a [`PkgVerPeer`].
+    #[must_use]
     pub fn without_peer(&self) -> PkgVerPeer {
         PkgVerPeer { prefix: self.prefix, version: self.version.clone(), peer: String::new() }
     }

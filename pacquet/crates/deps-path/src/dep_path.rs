@@ -16,6 +16,7 @@ pub struct DepPath(String);
 
 impl DepPath {
     /// Borrow the underlying depPath string.
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }

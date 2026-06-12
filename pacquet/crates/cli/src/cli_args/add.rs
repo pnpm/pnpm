@@ -1,10 +1,11 @@
-use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
+use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs, config_deps};
 use clap::Args;
 use miette::Context;
 use pacquet_package_manager::Add;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
-use std::path::PathBuf;
+use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Args)]
 pub struct AddDependencyOptions {
@@ -26,7 +27,6 @@ impl AddDependencyOptions {
     /// Whether to add entry to `"dependencies"`.
     ///
     /// **NOTE:** no `--save-*` flags implies save as prod.
-    #[inline(always)]
     fn save_prod(&self) -> bool {
         let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
         save_prod || (!save_dev && !save_optional && !save_peer)
@@ -35,20 +35,17 @@ impl AddDependencyOptions {
     /// Whether to add entry to `"devDependencies"`.
     ///
     /// **NOTE:** `--save-peer` without any other `--save-*` flags implies save as dev.
-    #[inline(always)]
     fn save_dev(&self) -> bool {
         let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
         save_dev || (!save_prod && !save_optional && save_peer)
     }
 
     /// Whether to add entry to `"optionalDependencies"`.
-    #[inline(always)]
     fn save_optional(&self) -> bool {
         self.save_optional
     }
 
     /// Whether to add entry to `"peerDependencies"`.
-    #[inline(always)]
     fn save_peer(&self) -> bool {
         self.save_peer
     }
@@ -81,12 +78,29 @@ pub struct AddArgs {
     /// the default semver range operator.
     #[clap(short = 'E', long = "save-exact")]
     pub save_exact: bool,
+    /// Save the new dependency to the default catalog: `catalog:` is written
+    /// to `package.json` and the specifier to `pnpm-workspace.yaml`'s
+    /// `catalog:` block. Shorthand for `--save-catalog-name=default`.
+    #[clap(long = "save-catalog")]
+    pub save_catalog: bool,
+    /// Save the new dependency to the named catalog `<name>`: `catalog:<name>`
+    /// is written to `package.json` and the specifier to the matching entry
+    /// under `pnpm-workspace.yaml`'s `catalogs:`.
+    #[clap(long = "save-catalog-name", value_name = "name")]
+    pub save_catalog_name: Option<String>,
+    /// Add the package as a configurational dependency: the clean
+    /// specifier is written to `pnpm-workspace.yaml`'s `configDependencies`
+    /// block, the resolved version + integrity to the env lockfile, and
+    /// the package linked into `node_modules/.pnpm-config`. Mirrors pnpm's
+    /// `pnpm add --config`.
+    #[clap(long = "config")]
+    pub config: bool,
     /// Dependencies are not downloaded. The package is added to the
     /// manifest and only `pnpm-lock.yaml` is updated; no `node_modules`
     /// is created. Mirrors pnpm's `--lockfile-only`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
-    /// The directory with links to the store (default is node_modules/.pacquet).
+    /// The directory with links to the store (default is `node_modules/.pacquet`).
     /// All direct and indirect dependencies of the project are linked into this directory
     #[clap(long = "virtual-store-dir", default_value = "node_modules/.pacquet")]
     pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this
@@ -95,6 +109,37 @@ pub struct AddArgs {
 impl AddArgs {
     /// Execute the subcommand.
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
+        // `--config` routes to the configurational-dependency path
+        // instead of the regular `package.json` add: resolve + install
+        // into `.pnpm-config`, then record the clean specifier in
+        // `pnpm-workspace.yaml`.
+        if self.config {
+            let parsed = parse_wanted_dependency(&self.package_name);
+            let Some(name) = parsed.alias else {
+                return Err(miette::miette!(
+                    "'{}' is not a valid package name for a configuration dependency",
+                    self.package_name,
+                ));
+            };
+            // No version given → resolve the `latest` tag, matching the
+            // default `add` behavior.
+            let specifier = parsed.bare_specifier.unwrap_or_else(|| "latest".to_string());
+            // configDependencies are workspace-level: write to the
+            // workspace root's `pnpm-workspace.yaml` / env lockfile /
+            // `.pnpm-config`, not the current package's. Fall back to the
+            // manifest's directory for a single-package repo.
+            let root_dir = state.config.workspace_dir.clone().unwrap_or_else(|| {
+                state.manifest.path().parent().map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+            });
+            return config_deps::add_config_dependency::<Reporter>(
+                state.config,
+                &root_dir,
+                &name,
+                &specifier,
+            )
+            .await;
+        }
+
         // Merge CLI overrides with the yaml-derived value before
         // handing off to the install pipeline. See
         // `cli_args::install.rs` for the parallel comment — the
@@ -103,10 +148,21 @@ impl AddArgs {
         let supported_architectures =
             self.supported_architectures.apply_to(state.config.supported_architectures.clone());
 
+        // `--save-catalog-name=<name>` wins; `--save-catalog` is the
+        // shorthand for the default catalog; otherwise fall back to the
+        // `saveCatalogName` config default (`None`). Mirrors pnpm's
+        // `save-catalog` → `--save-catalog-name=default` shorthand.
+        let save_catalog_name = self
+            .save_catalog_name
+            .clone()
+            .or_else(|| self.save_catalog.then(|| "default".to_string()))
+            .or_else(|| state.config.save_catalog_name.clone());
+
         add_package::<Reporter, _, _>(
             state,
             &self.package_name,
             self.save_exact,
+            save_catalog_name,
             self.lockfile_only,
             supported_architectures,
             || self.dependency_options.dependency_groups(),
@@ -125,6 +181,7 @@ pub(crate) async fn add_package<Reporter, ListDependencyGroups, DependencyGroupL
     mut state: State,
     package_name: &str,
     save_exact: bool,
+    save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
     list_dependency_groups: ListDependencyGroups,
@@ -151,6 +208,7 @@ where
         list_dependency_groups,
         package_name,
         save_exact,
+        save_catalog_name,
         resolved_packages,
         supported_architectures,
         lockfile_only,

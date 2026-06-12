@@ -1,5 +1,62 @@
 # @pnpm/config
 
+## 1101.8.0
+
+### Minor Changes
+
+- 615c669: Added support for configuring URL-scoped registry settings through `npm_config_//…` and `pnpm_config_//…` environment variables, for example:
+
+  ```text
+  npm_config_//registry.npmjs.org/:_authToken=<token>
+  pnpm_config_//registry.npmjs.org/:_authToken=<token>
+  ```
+
+  This provides a file-free way to supply registry authentication. Because the registry a value applies to is encoded in the (trusted) environment variable name, it is host-scoped by construction and cannot be redirected to another registry by repository-controlled config. The environment value is treated as trusted config: it takes precedence over a project/workspace `.npmrc` but is still overridden by command-line options. When the same key is provided through both prefixes, `pnpm_config_` wins.
+
+### Patch Changes
+
+- bc9ed78: Improved the warning printed when a project `.npmrc` uses an environment variable in a registry/proxy URL or in registry credentials. The message now explains why the setting was ignored and how to migrate it to a trusted source — for example by moving the line to the user-level `~/.npmrc` or running `pnpm config set "<key>" <value>` — with a link to https://pnpm.io/npmrc. The `pnpm config set` example is only suggested when the key has no `${...}` placeholder, so the snippet is always safe to copy-paste.
+  - @pnpm/hooks.pnpmfile@1100.0.14
+  - @pnpm/pkg-manifest.utils@1100.2.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.12
+
+## 1101.7.0
+
+### Minor Changes
+
+- 1017c36: Stopped expanding environment variables in repository-controlled registry/proxy request destinations and registry credential values from `.npmrc`, and in workspace registry URLs from `pnpm-workspace.yaml`. Move dynamic registry URL and token configuration to trusted user, global, CLI, or environment config.
+
+### Patch Changes
+
+- 822beb5: Resolve package-manager bootstrap dependencies with trusted user or CLI registry and network config, and reject package-manager env-lockfile records that do not use registry package paths with integrity-only resolutions before auto-switch execution.
+- 3537020: Avoid writing `packageManagerDependencies` to `pnpm-lock.yaml` when package manager policy is set to `onFail: ignore` or `pmOnFail: ignore` [#12228](https://github.com/pnpm/pnpm/issues/12228).
+- 894ea6a: Using the `$` version reference syntax in `overrides` (e.g. `"react": "$react"`) now prints a deprecation warning. The syntax still works, but [catalogs](https://pnpm.io/catalogs) are the recommended way to keep an overridden version in sync with the rest of the workspace. Reference a catalog entry with the `catalog:` protocol instead.
+- 6b5d91a: Fixed `pnpm config get globalconfig` to return the global `config.yaml` path again [pnpm/pnpm#11962](https://github.com/pnpm/pnpm/issues/11962).
+- 027196b: Fixed bare `--color` so it does not consume the following CLI flag, allowing command shorthands like `--parallel` to expand correctly and forms like `pnpm --color with current <command>` to dispatch the inner command instead of failing with `MISSING_WITH_CURRENT_CMD`.
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/hooks.pnpmfile@1100.0.13
+  - @pnpm/pkg-manifest.utils@1100.2.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.11
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.7
+  - @pnpm/catalogs.config@1100.0.0
+
+## 1101.6.0
+
+### Minor Changes
+
+- a017bf3: Renamed the experimental `agent` setting to `pnprServer` so the pnpm CLI matches the same setting name pacquet uses for offloading resolution to a [pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) server. Point pnpm at a pnpr server with `pnprServer: <url>` in `pnpm-workspace.yaml` (or `--pnpr-server <url>`); the previous `agent` / `--agent` name no longer works. The client package was likewise renamed from `@pnpm/agent.client` to `@pnpm/pnpr.client`.
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/hooks.pnpmfile@1100.0.12
+  - @pnpm/pkg-manifest.utils@1100.2.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.6
+  - @pnpm/catalogs.config@1100.0.0
+
 ## 1101.5.0
 
 ### Minor Changes

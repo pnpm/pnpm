@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.pm.commands",
-  "version": "1101.1.19",
+  "version": "1101.1.22",
   "description": "pnpm commands for self-updating and setting up pnpm",
   "keywords": [
     "pnpm",
@@ -35,9 +35,11 @@
     "@pnpm/building.policy": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",
+    "@pnpm/deps.security.signatures": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
@@ -46,6 +48,7 @@
     "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/os.env.path-extender": "catalog:",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/shell.path": "workspace:*",

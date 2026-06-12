@@ -1,7 +1,10 @@
 import fs from 'node:fs'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import path from 'node:path'
 
 import { describe, expect, jest, test } from '@jest/globals'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   install,
@@ -11,10 +14,12 @@ import {
 } from '@pnpm/installing.deps-installer'
 import type { LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import deepRequireCwd from 'deep-require-cwd'
 import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -139,6 +144,80 @@ test('skip optional dependency that does not support the current OS', async () =
     expect(modules?.skipped).toStrictEqual(['@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 })
+
+// Test case for https://github.com/pnpm/pnpm/issues/11702
+test('skip optional dependencies whose names declare unsupported platforms when the registry metadata has no platform fields', async () => {
+  const project = prepareEmpty()
+  const server = createMetadataStrippingRegistryProxy()
+  await new Promise<void>((resolve) => {
+    server.listen(0, resolve)
+  })
+  const registryProxy = `http://localhost:${(server.address() as AddressInfo).port}/`
+  try {
+    await install({
+      dependencies: {
+        '@pnpm.e2e/has-many-optional-deps': '1.0.0',
+      },
+    }, testDefaults({
+      registries: { default: registryProxy },
+      supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
+    }))
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err == null) {
+          resolve()
+        } else {
+          reject(err)
+        }
+      })
+    })
+  }
+
+  expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-arm64', './package.json']).version).toBe('1.0.0')
+
+  // The platforms of the other binaries are inferred from their names, so
+  // they are skipped without even downloading their tarballs.
+  project.storeHasNot('@pnpm.e2e/linux-x64', '1.0.0')
+  project.storeHasNot('@pnpm.e2e/windows-x64', '1.0.0')
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+linux-x64@1.0.0'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+windows-x64@1.0.0'))).toBeFalsy()
+
+  const modulesInfo = readYamlFileSync<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+  expect(modulesInfo.skipped).toContain('@pnpm.e2e/linux-x64@1.0.0')
+  expect(modulesInfo.skipped).toContain('@pnpm.e2e/windows-x64@1.0.0')
+})
+
+// Simulates a registry that strips os/cpu/libc from packument version objects
+// (some registry proxies do this), forwarding everything else to the registry mock.
+function createMetadataStrippingRegistryProxy (): http.Server {
+  return http.createServer((req, res) => {
+    (async () => {
+      const upstream = await fetch(`http://localhost:${REGISTRY_MOCK_PORT}${req.url}`, {
+        method: req.method,
+        headers: { accept: req.headers.accept ?? '*/*' },
+      })
+      const contentType = upstream.headers.get('content-type') ?? ''
+      if (contentType.includes('json')) {
+        const doc = await upstream.json() as { versions?: Record<string, Record<string, unknown>> }
+        for (const versionMeta of Object.values(doc.versions ?? {})) {
+          delete versionMeta.os
+          delete versionMeta.cpu
+          delete versionMeta.libc
+        }
+        res.writeHead(upstream.status, { 'content-type': 'application/json' })
+        res.end(JSON.stringify(doc))
+      } else {
+        res.writeHead(upstream.status, { 'content-type': contentType })
+        res.end(Buffer.from(await upstream.arrayBuffer()))
+      }
+    })().catch((err) => {
+      res.writeHead(500)
+      res.end(String(err))
+    })
+  })
+}
 
 test('skip optional dependency that does not support the current Node version', async () => {
   const project = prepareEmpty()
@@ -614,6 +693,43 @@ describe('supported architectures', () => {
       supportedArchitectures: { os: ['linux'], cpu: ['x64'] },
     })
     expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/linux-x64', './package.json']).version).toBe('1.0.0')
+  })
+  // Test case for https://github.com/pnpm/pnpm/issues/11702
+  test.each(['isolated', 'hoisted'])('skip optional dependencies that do not support the target architecture when their lockfile entries have no platform fields (nodeLinker=%s)', async (nodeLinker) => {
+    const project = prepareEmpty()
+    const supportedArchitectures = { os: ['darwin'], cpu: ['arm64'] }
+
+    const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
+      ...testDefaults({ nodeLinker }),
+      supportedArchitectures,
+    })
+
+    // Simulate a lockfile resolved from registry metadata that lacks
+    // the platform fields.
+    const lockfile = project.readLockfile()
+    for (const pkgSnapshot of Object.values(lockfile.packages)) {
+      delete pkgSnapshot.os
+      delete pkgSnapshot.cpu
+      delete pkgSnapshot.libc
+    }
+    writeYamlFileSync(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
+    rimrafSync('node_modules')
+
+    await install(manifest, {
+      ...testDefaults({ nodeLinker }),
+      frozenLockfile: true,
+      supportedArchitectures,
+    })
+
+    if (nodeLinker === 'hoisted') {
+      expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/darwin-arm64'))).toBeTruthy()
+      expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/darwin-x64'))).toBeFalsy()
+      expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/linux-x64'))).toBeFalsy()
+    } else {
+      expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-arm64', './package.json']).version).toBe('1.0.0')
+      expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+darwin-x64@1.0.0'))).toBeFalsy()
+      expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+linux-x64@1.0.0'))).toBeFalsy()
+    }
   })
   test('remove optional dependencies that are not used', async () => {
     prepareEmpty()

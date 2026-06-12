@@ -14,7 +14,6 @@ import pLimit from 'p-limit'
 
 import type {
   AddDirToStoreMessage,
-  FetchAndWriteCafsMessage,
   HardLinkDirMessage,
   LinkPkgMessage,
   SymlinkAllModulesMessage,
@@ -101,7 +100,15 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
       if (indexWrites) {
         // Write immediately so that subsequent worker reads (e.g. side effects)
         // see the committed data without waiting for nextTick.
-        opts.storeIndex.setRawMany(indexWrites)
+        // A throw must reject rather than escape the message callback, where it
+        // would surface as an uncaughtException and leave this promise pending —
+        // e.g. ReadOnlyStoreIndex refusing the write under frozenStore.
+        try {
+          opts.storeIndex.setRawMany(indexWrites)
+        } catch (err: unknown) {
+          reject(err as Error)
+          return
+        }
       }
       resolve(value)
     })
@@ -182,7 +189,13 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
         return
       }
       if (indexWrites) {
-        opts.storeIndex.queueWrites(indexWrites)
+        // See addFilesFromDir: a throw must reject, not escape the callback.
+        try {
+          opts.storeIndex.queueWrites(indexWrites)
+        } catch (err: unknown) {
+          reject(err as Error)
+          return
+        }
       }
       resolve(value)
     })
@@ -201,37 +214,11 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
 }
 
 
-export async function fetchAndWriteCafsFiles (opts: {
-  registryUrl: string
-  storeDir: string
-  digests: FetchAndWriteCafsMessage['digests']
-}): Promise<number> {
-  if (!workerPool) {
-    workerPool = createTarballWorkerPool()
-  }
-  const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<number>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, filesWritten }) => {
-      workerPool!.checkinWorker(localWorker)
-      if (status === 'error') {
-        reject(new PnpmError('CAFS_FETCH_WRITE', error.message))
-        return
-      }
-      resolve(filesWritten)
-    })
-    localWorker.postMessage({
-      type: 'fetch-and-write-cafs',
-      registryUrl: opts.registryUrl,
-      storeDir: opts.storeDir,
-      digests: opts.digests,
-    } satisfies FetchAndWriteCafsMessage)
-  })
-}
-
 export interface ReadPkgFromCafsContext {
   storeDir: string
   verifyStoreIntegrity: boolean
   strictStorePkgContentCheck?: boolean
+  frozenStore?: boolean
 }
 
 export interface ReadPkgFromCafsOptions {
@@ -281,33 +268,7 @@ export async function readPkgFromCafs (
 // so, running them in parallel helps only to a point.
 // With local experimenting it was discovered that running 4 workers gives the best results.
 // Adding more workers actually makes installation slower.
-let limitImportingPackage = pLimit(4)
-
-/**
- * Temporarily change import concurrency. Called by the pnpr server code path
- * where there's no concurrent fetching competing for workers. Returns a
- * disposer that restores the previous limiter — callers must invoke it (in a
- * finally block) to avoid leaking the mutation to other installs in the same
- * process (e.g. test suites).
- *
- * If two installs overlap, the disposer for the outer install would otherwise
- * clobber the inner one's still-active limiter. Each disposer captures the
- * limiter it installed and only restores when it's still the active one,
- * leaving any newer override in place.
- */
-export function setImportConcurrency (concurrency: number): () => void {
-  if (!Number.isInteger(concurrency) || concurrency < 1) {
-    throw new Error(`setImportConcurrency: expected a positive integer, got ${concurrency}`)
-  }
-  const previous = limitImportingPackage
-  const installed = pLimit(concurrency)
-  limitImportingPackage = installed
-  return () => {
-    if (limitImportingPackage === installed) {
-      limitImportingPackage = previous
-    }
-  }
-}
+const limitImportingPackage = pLimit(4)
 
 export async function importPackage (
   opts: Omit<LinkPkgMessage, 'type'>

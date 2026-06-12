@@ -1,6 +1,8 @@
 import type { PublishSummary } from '../tarball/publishSummary.js'
 import type { StageItem } from './types.js'
 
+export { normalizePackageName } from '../tarball/safeTarballFilename.js'
+
 export function renderStageItem (item: StageItem): string {
   const { id, packageName, version, tag, createdAt, actor, actorType, shasum, ...rest } = item
   return renderKeyValues({
@@ -44,10 +46,6 @@ export function renderStagePublishSummary (
     return `+ ${id} (staged with id ${summary.stageId})`
   }
   return `+ ${id} (staged)`
-}
-
-export function normalizePackageName (name: string): string {
-  return name.replace('@', '').replace('/', '-')
 }
 
 function renderKeyValues (values: Record<string, unknown>): string {

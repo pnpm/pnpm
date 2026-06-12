@@ -235,7 +235,7 @@ async fn all_ok_emits_started_then_done() {
     }
 }
 
-/// Single MIN_AGE violation → resolves to the per-policy variant
+/// Single `MIN_AGE` violation → resolves to the per-policy variant
 /// with that one entry in the breakdown.
 #[tokio::test]
 async fn single_violation_picks_per_policy_variant() {
@@ -256,7 +256,7 @@ async fn single_violation_picks_per_policy_variant() {
 }
 
 /// Two verifiers with different codes both rejecting → mixed batch
-/// escalates to LockfileResolutionVerification.
+/// escalates to `LockfileResolutionVerification`.
 #[tokio::test]
 async fn mixed_code_batch_escalates() {
     let lockfile = parse(TWO_PKG_LOCKFILE);
@@ -402,6 +402,53 @@ async fn one_packages_entry_yields_one_verification() {
     assert_eq!(CALLS.load(Ordering::SeqCst), 1);
 }
 
+#[tokio::test]
+async fn uninterested_verifier_skips_candidate_fan_out() {
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    CALLS.store(0, Ordering::SeqCst);
+
+    struct Uninterested {
+        policy: serde_json::Map<String, serde_json::Value>,
+    }
+    impl ResolutionVerifier for Uninterested {
+        fn might_verify(&self, _resolution: &LockfileResolution, _ctx: VerifyCtx<'_>) -> bool {
+            false
+        }
+
+        fn verify<'a>(
+            &'a self,
+            _resolution: &'a LockfileResolution,
+            _ctx: VerifyCtx<'a>,
+        ) -> VerifyFuture<'a> {
+            CALLS.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { ResolutionVerification::Ok })
+        }
+
+        fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+            &self.policy
+        }
+
+        fn can_trust_past_check(
+            &self,
+            _cached: &serde_json::Map<String, serde_json::Value>,
+        ) -> bool {
+            true
+        }
+    }
+
+    let lockfile = parse(SINGLE_PKG_LOCKFILE);
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(Uninterested { policy: serde_json::Map::new() });
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[verifier],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect("all-ok");
+    assert_eq!(CALLS.load(Ordering::SeqCst), 0);
+}
+
 /// End-to-end cache wiring: a successful first run records the
 /// verification; a second run against the same lockfile +
 /// trustworthy verifier policies hits the cache and never invokes
@@ -466,6 +513,106 @@ async fn second_run_with_cache_skips_fan_out() {
     assert_eq!(CALLS.load(Ordering::SeqCst), 1, "second run skipped via cache");
 }
 
+/// A cache hit with active policy verifiers announces itself with a
+/// single `Cached` event instead of the `Started`/`Done` pair, so the
+/// short-circuit doesn't look like the policy gate never ran
+/// (pnpm/pnpm#12324).
+#[tokio::test]
+async fn cache_hit_emits_cached_event() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile_path = dir.path().join("pnpm-lock.yaml");
+    std::fs::write(&lockfile_path, SINGLE_PKG_LOCKFILE).expect("write lockfile");
+    let lockfile = parse(SINGLE_PKG_LOCKFILE);
+    let cache_dir = dir.path().join("cache");
+    let verifier = FailFor::new("UNUSED", "n/a", vec![]) as Arc<dyn ResolutionVerifier>;
+    let opts = VerifyLockfileResolutionsOptions {
+        lockfile_path: Some(&lockfile_path),
+        cache_dir: Some(&cache_dir),
+        ..Default::default()
+    };
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &opts,
+    )
+    .await
+    .expect("first run");
+    verify_lockfile_resolutions::<RecordingReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &opts,
+    )
+    .await
+    .expect("second run");
+
+    let captured = EVENTS.lock().unwrap();
+    assert_eq!(captured.len(), 1, "expected a single Cached event, got: {captured:?}");
+    match &captured[0] {
+        LogEvent::LockfileVerification(log) => match &log.message {
+            LockfileVerificationMessage::Cached { verified_at, lockfile_path: emitted } => {
+                assert_eq!(emitted.as_deref(), Some(&*lockfile_path.to_string_lossy()));
+                assert!(
+                    verified_at.is_some(),
+                    "the reused record carries the first run's timestamp",
+                );
+            }
+            other => panic!("expected Cached, got {other:?}"),
+        },
+        other => panic!("expected LockfileVerification, got {other:?}"),
+    }
+}
+
+/// A cache hit with no policy verifiers stays silent — the shape-only
+/// run that every install performs must not announce supply-chain
+/// policies the user never configured.
+#[tokio::test]
+async fn cache_hit_with_no_policy_verifiers_stays_silent() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile_path = dir.path().join("pnpm-lock.yaml");
+    std::fs::write(&lockfile_path, SINGLE_PKG_LOCKFILE).expect("write lockfile");
+    let lockfile = parse(SINGLE_PKG_LOCKFILE);
+    let cache_dir = dir.path().join("cache");
+    let verifier = FailFor::new("UNUSED", "n/a", vec![]) as Arc<dyn ResolutionVerifier>;
+    let opts = VerifyLockfileResolutionsOptions {
+        lockfile_path: Some(&lockfile_path),
+        cache_dir: Some(&cache_dir),
+        ..Default::default()
+    };
+
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        std::slice::from_ref(&verifier),
+        &opts,
+    )
+    .await
+    .expect("first run");
+    verify_lockfile_resolutions::<RecordingReporter>(&lockfile, &[], &opts)
+        .await
+        .expect("second run");
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(captured.is_empty(), "shape-only cache hit must not emit, got: {captured:?}");
+}
+
 /// Catches a regression where `PkgName` would be passed into the
 /// ctx as a borrow whose lifetime didn't outlive the future.
 #[tokio::test]
@@ -479,4 +626,278 @@ async fn ctx_borrows_have_expected_lifetimes() {
     )
     .await;
     assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn rejects_registry_style_key_backed_by_git_resolution_even_with_no_verifiers() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {type: git, repo: https://example.com/acme.git, commit: 0123456789abcdef0123456789abcdef01234567}
+
+snapshots:
+
+  acme@1.0.0: {}
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("registry-style key with a git resolution must be rejected");
+    let VerifyError::ResolutionShapeMismatch { count, breakdown } = err else {
+        panic!("expected ResolutionShapeMismatch, got {err:?}");
+    };
+    assert_eq!(count, 1);
+    assert!(breakdown.contains("acme@1.0.0"), "breakdown: {breakdown}");
+}
+
+#[tokio::test]
+async fn accepts_artifact_keys_with_non_registry_resolutions() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: github:org/acme
+        version: git+https://example.com/acme.git#0123456789abcdef0123456789abcdef01234567
+
+packages:
+
+  acme@git+https://example.com/acme.git#0123456789abcdef0123456789abcdef01234567:
+    resolution: {type: git, repo: https://example.com/acme.git, commit: 0123456789abcdef0123456789abcdef01234567}
+    version: 1.0.0
+
+snapshots:
+
+  acme@git+https://example.com/acme.git#0123456789abcdef0123456789abcdef01234567: {}
+",
+    );
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect("artifact-keyed git entry passes the structural gate");
+}
+
+#[tokio::test]
+async fn rejects_git_host_tarball_when_git_hosted_flag_is_cleared() {
+    // A tampered lockfile sets gitHosted: false on a codeload URL under a
+    // semver key to dodge the flag-only check; the URL must still flag it.
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {integrity: sha512-deadbeef, tarball: 'https://codeload.github.com/org/acme/tar.gz/abc123', gitHosted: false}
+
+snapshots:
+
+  acme@1.0.0: {}
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("git-host tarball under a semver key must be rejected regardless of the flag");
+    let VerifyError::ResolutionShapeMismatch { count, .. } = err else {
+        panic!("expected ResolutionShapeMismatch, got {err:?}");
+    };
+    assert_eq!(count, 1);
+}
+
+#[tokio::test]
+async fn rejects_semver_key_backed_by_non_http_tarball() {
+    // A file: tarball under a semver key is not registry-backed and the npm
+    // verifier skips non-http(s) tarballs, so the shape pass must reject it.
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {integrity: sha512-deadbeef, tarball: 'file:///tmp/evil.tgz'}
+
+snapshots:
+
+  acme@1.0.0: {}
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("file: tarball under a semver key must be rejected");
+    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
+}
+
+#[tokio::test]
+async fn rejects_git_host_tarball_with_uppercased_host() {
+    // Hostnames are case-insensitive; an uppercased codeload host with
+    // gitHosted: false must still be rejected under a semver key.
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {integrity: sha512-deadbeef, tarball: 'https://CODELOAD.GITHUB.COM/org/acme/tar.gz/abc123', gitHosted: false}
+
+snapshots:
+
+  acme@1.0.0: {}
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("uppercased git-host tarball must be rejected");
+    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
+}
+
+#[tokio::test]
+async fn rejects_invalid_importer_alias_even_with_no_verifiers() {
+    for alias in ["../../../escape", "@scope/../../escape", ".bin", ".pnpm", "node_modules"] {
+        let yaml = format!(
+            "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      '{alias}':\n        specifier: ^1.0.0\n        version: 1.0.0\n\npackages:\n\n  real@1.0.0:\n    resolution: {{integrity: sha512-deadbeef}}\n\nsnapshots:\n\n  real@1.0.0: {{}}\n",
+        );
+        let lockfile = parse(&yaml);
+        let err = verify_lockfile_resolutions::<SilentReporter>(
+            &lockfile,
+            &[],
+            &VerifyLockfileResolutionsOptions::default(),
+        )
+        .await
+        .expect_err("invalid importer alias must be rejected");
+        let VerifyError::InvalidDependencyAlias { count, breakdown } = err else {
+            panic!("expected InvalidDependencyAlias for {alias:?}, got {err:?}");
+        };
+        assert_eq!(count, 1);
+        assert!(breakdown.contains(alias), "breakdown {breakdown:?} should mention {alias:?}");
+    }
+}
+
+#[tokio::test]
+async fn rejects_invalid_alias_nested_in_snapshot() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      real:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  real@1.0.0:
+    resolution: {integrity: sha512-deadbeef}
+
+snapshots:
+
+  real@1.0.0:
+    dependencies:
+      '../../../escape': 1.0.0
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("invalid alias nested in a snapshot must be rejected");
+    assert!(matches!(err, VerifyError::InvalidDependencyAlias { .. }), "got {err:?}");
+}
+
+#[tokio::test]
+async fn accepts_valid_scoped_and_unscoped_aliases() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+      '@scope/bar':
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-deadbeef}
+
+  '@scope/bar@1.0.0':
+    resolution: {integrity: sha512-deadbeef}
+
+snapshots:
+
+  foo@1.0.0: {}
+  '@scope/bar@1.0.0': {}
+",
+    );
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect("valid scoped and unscoped aliases pass");
 }

@@ -17,15 +17,6 @@
     },
     {
       "path": "../../lockfile/types"
-    },
-    {
-      "path": "../../store/cafs"
-    },
-    {
-      "path": "../../store/index"
-    },
-    {
-      "path": "../../worker"
     }
   ]
 }

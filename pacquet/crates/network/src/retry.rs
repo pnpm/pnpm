@@ -68,8 +68,8 @@ impl Default for RetryOpts {
         Self {
             retries: 2,
             factor: 10,
-            min_timeout: Duration::from_millis(10_000),
-            max_timeout: Duration::from_millis(60_000),
+            min_timeout: Duration::from_secs(10),
+            max_timeout: Duration::from_mins(1),
         }
     }
 }
@@ -78,6 +78,7 @@ impl RetryOpts {
     /// Backoff to wait before the `(attempt + 1)`-th attempt, where
     /// `attempt` is the zero-indexed number of failures so far. Matches
     /// `@zkochan/retry`'s formula with `randomize: false`.
+    #[must_use]
     pub fn delay_for(self, attempt: u32) -> Duration {
         // `Duration::as_millis` returns `u128` because a `Duration` can
         // hold values that overflow `u64` milliseconds, but
@@ -95,6 +96,7 @@ impl RetryOpts {
 /// Registry responses worth retrying: request timeout (408), too many
 /// requests (429), and any 5xx. Matches the retryable set
 /// `make-fetch-happen` applies under pnpm's metadata fetch.
+#[must_use]
 pub fn should_retry_status(status: StatusCode) -> bool {
     status == StatusCode::REQUEST_TIMEOUT
         || status == StatusCode::TOO_MANY_REQUESTS

@@ -2,11 +2,13 @@ mod package;
 mod package_distribution;
 mod package_tag;
 mod package_version;
+mod package_versions;
 
 pub use package::Package;
 pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};
 pub use package_tag::PackageTag;
 pub use package_version::{Approver, NpmUser, PackageVersion, TrustedPublisher};
+pub use package_versions::PackageVersions;
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;

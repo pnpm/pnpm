@@ -106,6 +106,10 @@ pub struct CacheLockfile {
 #[derive(Debug, Default, Clone)]
 pub struct CacheLookupResult {
     pub hit: bool,
+    /// ISO-8601 timestamp of the verification run the hit is reusing.
+    /// `Some` only on a hit, and only when the record carries a
+    /// non-empty timestamp.
+    pub verified_at: Option<String>,
     pub precomputed: CachePrecomputed,
 }
 
@@ -154,13 +158,10 @@ pub fn try_lockfile_verification_cache(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     mut hash_lockfile: impl FnMut() -> String,
 ) -> CacheLookupResult {
-    let indexes = match read_cache(cache_dir) {
-        Ok(indexes) => indexes,
-        Err(_) => {
-            // A corrupt cache file should never block the install;
-            // fall through to verification so the gate still runs.
-            return CacheLookupResult::default();
-        }
+    let Ok(indexes) = read_cache(cache_dir) else {
+        // A corrupt cache file should never block the install;
+        // fall through to verification so the gate still runs.
+        return CacheLookupResult::default();
     };
 
     let Some(stat) = stat_lockfile(lockfile_path) else {
@@ -174,8 +175,11 @@ pub fn try_lockfile_verification_cache(
     if let Some(record) = indexes.by_path.get(&path_key)
         && stat_matches(&stat, &record.lockfile)
     {
+        let hit = every_verifier_trusts_cached_run(record, verifiers);
         return CacheLookupResult {
-            hit: every_verifier_trusts_cached_run(record, verifiers),
+            hit,
+            verified_at: (hit && !record.verified_at.is_empty())
+                .then(|| record.verified_at.clone()),
             precomputed: CachePrecomputed {
                 stat: Some(stat),
                 hash: Some(record.lockfile.hash.clone()),
@@ -187,12 +191,14 @@ pub fn try_lockfile_verification_cache(
     let Some(record) = indexes.by_hash.get(&hash) else {
         return CacheLookupResult {
             hit: false,
+            verified_at: None,
             precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
         };
     };
     if !every_verifier_trusts_cached_run(record, verifiers) {
         return CacheLookupResult {
             hit: false,
+            verified_at: None,
             precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
         };
     }
@@ -216,6 +222,7 @@ pub fn try_lockfile_verification_cache(
 
     CacheLookupResult {
         hit: true,
+        verified_at: (!refreshed.verified_at.is_empty()).then(|| refreshed.verified_at.clone()),
         precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
     }
 }
@@ -237,10 +244,7 @@ pub fn record_verification(
     mut hash_lockfile: impl FnMut() -> String,
     precomputed: CachePrecomputed,
 ) {
-    let stat = match precomputed.stat.or_else(|| stat_lockfile(lockfile_path)) {
-        Some(stat) => stat,
-        None => return,
-    };
+    let Some(stat) = precomputed.stat.or_else(|| stat_lockfile(lockfile_path)) else { return };
     let hash = precomputed.hash.unwrap_or_else(&mut hash_lockfile);
     let record = CacheRecord {
         lockfile: CacheLockfile {
@@ -307,8 +311,7 @@ fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
         .modified()
         .ok()
         .and_then(|modified| modified.duration_since(SystemTime::UNIX_EPOCH).ok())
-        .map(|duration| duration.as_nanos().to_string())
-        .unwrap_or_else(|| "0".to_string());
+        .map_or_else(|| "0".to_string(), |duration| duration.as_nanos().to_string());
     let inode = inode_of(&metadata);
     Some(LockfileStat { size, mtime_ns, inode })
 }
@@ -376,10 +379,7 @@ fn maybe_compact_cache(cache_dir: &Path) {
     if size <= COMPACT_TRIGGER_BYTES {
         return;
     }
-    let contents = match fs::read_to_string(&cache_file_path) {
-        Ok(contents) => contents,
-        Err(_) => return,
-    };
+    let Ok(contents) = fs::read_to_string(&cache_file_path) else { return };
 
     // Walk reverse so the newest record per (path, hash) wins, drop
     // older duplicates, then trim to MAX_CACHE_ENTRIES.

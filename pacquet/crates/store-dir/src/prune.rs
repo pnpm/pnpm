@@ -378,7 +378,7 @@ fn list_subdirs(dir: &Path) -> Result<Vec<std::ffi::OsString>, PruneError> {
     };
     let mut out = Vec::new();
     for entry in entries.flatten() {
-        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+        if entry.file_type().is_ok_and(|t| t.is_dir()) {
             out.push(entry.file_name());
         }
     }

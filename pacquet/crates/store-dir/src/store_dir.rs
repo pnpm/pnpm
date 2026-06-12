@@ -129,7 +129,7 @@ impl StoreDir {
 
     /// The directory that contains all content-addressed files.
     fn files(&self) -> PathBuf {
-        self.files_dir().to_path_buf()
+        self.files_dir().clone()
     }
 
     /// Borrow the memoised `<root>/files` path. The CAS write hot

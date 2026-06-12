@@ -95,6 +95,7 @@ impl ImporterDepVersion {
     /// also correct for [`Self::Alias`] entries — `as_regular` returns
     /// `None` for aliases, so callers that only handle the regular
     /// branch would silently drop aliased deps.
+    #[must_use]
     pub fn as_regular(&self) -> Option<&'_ PkgVerPeer> {
         match self {
             ImporterDepVersion::Regular(v) => Some(v),
@@ -107,6 +108,7 @@ impl ImporterDepVersion {
     /// `Some(alias)` when this dependency resolves through the virtual
     /// store under a name different from the importer-map key; `None`
     /// otherwise.
+    #[must_use]
     pub fn as_alias(&self) -> Option<&'_ PkgNameVerPeer> {
         match self {
             ImporterDepVersion::Alias(alias) => Some(alias),
@@ -120,6 +122,7 @@ impl ImporterDepVersion {
     /// `None` when it resolves through the virtual store. The
     /// returned string is the path portion *without* the `link:`
     /// prefix.
+    #[must_use]
     pub fn as_link_target(&self) -> Option<&'_ str> {
         match self {
             ImporterDepVersion::Regular(_)
@@ -132,6 +135,7 @@ impl ImporterDepVersion {
     /// `Some(payload)` when this dependency is an injected `file:` dep;
     /// `None` otherwise. The returned string is the path (plus optional
     /// peer suffix) *without* the `file:` prefix.
+    #[must_use]
     pub fn as_file_target(&self) -> Option<&'_ str> {
         match self {
             ImporterDepVersion::File(target) => Some(target.as_str()),
@@ -150,6 +154,7 @@ impl ImporterDepVersion {
     /// `refToRelative`. For [`Self::File`] the key is `(importer_key,
     /// file:<payload>)` because the `file:` prefix is part of the
     /// snapshot key in `snapshots:`.
+    #[must_use]
     pub fn resolved_key(&self, importer_key: &PkgName) -> Option<PkgNameVerPeer> {
         match self {
             ImporterDepVersion::Regular(ver) => {
@@ -168,6 +173,7 @@ impl ImporterDepVersion {
     /// `link:` / `file:` siblings. For [`Self::Alias`] this returns the
     /// alias's suffix, matching the version present in the snapshot
     /// key.
+    #[must_use]
     pub fn ver_peer(&self) -> Option<&'_ PkgVerPeer> {
         match self {
             ImporterDepVersion::Regular(ver) => Some(ver),

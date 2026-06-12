@@ -2,7 +2,7 @@ use crate::{Config, api::EnvVar};
 use pacquet_env_replace::env_replace_lossy;
 use pacquet_network::{AuthHeaders, NoProxySetting, PerRegistryTls, RegistryTls, base64_encode};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -11,6 +11,7 @@ use std::{
 ///
 /// The parser pulls out:
 /// * the top-level `registry=` URL (already supported pre-[#336]),
+/// * scoped registry routes (`@scope:registry=...`),
 /// * default-registry credentials (`_auth`, `_authToken`,
 ///   `username` + `_password`),
 /// * per-registry credentials keyed on a nerf-darted URI prefix
@@ -32,9 +33,8 @@ use std::{
 /// never reaches downstream auth code (critical for OIDC trusted publishing
 /// — see <https://github.com/pnpm/pnpm/issues/11513>), again matching pnpm.
 ///
-/// Other `.npmrc` knobs (scoped `@scope:registry`, per-registry TLS
-/// like `//host:cafile=`, etc.) remain unparsed for now. See the
-/// upstream
+/// Other project-structural `.npmrc` knobs remain unparsed for now.
+/// See the upstream
 /// [`isIniConfigKey`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/localConfig.ts#L160-L161)
 /// list. They will land here as the matching feature work picks them
 /// up.
@@ -43,6 +43,7 @@ use std::{
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
     pub registry: Option<String>,
+    pub scoped_registries: BTreeMap<String, String>,
     /// Default-registry creds (i.e. `_auth=…`, `_authToken=…`,
     /// `username=…` / `_password=…` without a leading `//host/`).
     /// Applied to whichever URI the resolved `registry` points at.
@@ -125,6 +126,12 @@ pub(crate) struct RawCreds {
     pub password: Option<String>,
 }
 
+#[derive(Clone, Copy)]
+struct ParseOptions {
+    expand_auth_value_env: bool,
+    expand_request_destination_env: bool,
+}
+
 impl RawCreds {
     fn is_empty(&self) -> bool {
         self.auth_token.is_none()
@@ -150,6 +157,56 @@ impl RawCreds {
 const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 impl NpmrcAuth {
+    pub fn from_project_ini<Sys: EnvVar>(text: &str, npmrc_dir: &Path) -> Self {
+        Self::from_ini_with_options::<Sys>(
+            text,
+            npmrc_dir,
+            ParseOptions { expand_auth_value_env: false, expand_request_destination_env: false },
+        )
+    }
+
+    /// Collect URL-scoped registry credentials supplied through
+    /// `npm_config_//…` and `pnpm_config_//…` environment variables, e.g.
+    /// `npm_config_//registry.npmjs.org/:_authToken=<token>`.
+    ///
+    /// The registry a credential applies to is encoded in the (trusted)
+    /// variable name, so — unlike a project `.npmrc` — these cannot be
+    /// redirected to another host by repository-controlled config. That makes
+    /// them a safe, file-free way to configure registry auth. The prefix is
+    /// matched case-insensitively (as npm does); the remainder keeps its case
+    /// because credential keys are case-sensitive (`:_authToken`). When the
+    /// same key is set through both prefixes, `pnpm_config_` wins.
+    ///
+    /// Only the four credential fields (`_authToken`, `_auth`, `username`,
+    /// `_password`) are honored — the same set [`split_creds_key`] recognises.
+    /// Values are used verbatim (no `${VAR}` re-expansion): they already come
+    /// resolved from the environment.
+    pub fn from_url_scoped_env<Sys: EnvVar>() -> Self {
+        // Merge into one map keyed by the URL-scoped key so each key is applied
+        // once. `pnpm_config_` is extended last so it wins over `npm_config_`.
+        let mut npm_scoped: HashMap<String, String> = HashMap::new();
+        let mut pnpm_scoped: HashMap<String, String> = HashMap::new();
+        for (name, value) in Sys::vars() {
+            if value.is_empty() {
+                continue;
+            }
+            if let Some((is_pnpm, key)) = parse_url_scoped_env_name(&name) {
+                let target = if is_pnpm { &mut pnpm_scoped } else { &mut npm_scoped };
+                target.insert(key.to_owned(), value);
+            }
+        }
+        npm_scoped.extend(pnpm_scoped);
+
+        let mut auth = NpmrcAuth::default();
+        for (key, value) in npm_scoped {
+            if let Some((uri, suffix)) = split_creds_key(&key) {
+                let entry = auth.creds_by_uri.entry(uri.to_owned()).or_default();
+                apply_creds_field(entry, suffix, value);
+            }
+        }
+        auth
+    }
+
     /// Parse an `.npmrc` file's contents and pick out the auth/network keys.
     /// Unknown keys are silently dropped. `${VAR}` placeholders inside keys
     /// and values are resolved via the [`EnvVar`] capability; unresolved
@@ -170,6 +227,18 @@ impl NpmrcAuth {
     /// project `.npmrc` reachable via `pacquet --dir <proj>` from a
     /// different cwd still finds its CA bundle (pnpm/pnpm#11726).
     pub fn from_ini<Sys: EnvVar>(text: &str, npmrc_dir: &Path) -> Self {
+        Self::from_ini_with_options::<Sys>(
+            text,
+            npmrc_dir,
+            ParseOptions { expand_auth_value_env: true, expand_request_destination_env: true },
+        )
+    }
+
+    fn from_ini_with_options<Sys: EnvVar>(
+        text: &str,
+        npmrc_dir: &Path,
+        opts: ParseOptions,
+    ) -> Self {
         let mut auth = NpmrcAuth::default();
         for line in text.lines() {
             let line = line.trim();
@@ -185,7 +254,49 @@ impl NpmrcAuth {
             // Apply ${VAR} substitution to both the key and the value,
             // matching `readAndFilterNpmrc` in pnpm's `loadNpmrcFiles.ts`.
             // Unresolved placeholders become "" and are recorded as warnings.
+            if !opts.expand_request_destination_env
+                && has_env_placeholder(raw_key)
+                && is_request_destination_key(raw_key)
+            {
+                auth.warn_ignored_request_destination_env(raw_key);
+                continue;
+            }
+            if !opts.expand_auth_value_env
+                && has_env_placeholder(raw_key)
+                && is_auth_value_key(raw_key)
+            {
+                auth.warn_ignored_auth_value_env(raw_key);
+                continue;
+            }
             let (key, key_unresolved) = env_replace_lossy::<Sys>(raw_key);
+            if !opts.expand_request_destination_env
+                && has_env_placeholder(raw_key)
+                && is_request_destination_key(&key)
+            {
+                auth.warn_ignored_request_destination_env(raw_key);
+                continue;
+            }
+            if !opts.expand_auth_value_env
+                && has_env_placeholder(raw_key)
+                && is_auth_value_key(&key)
+            {
+                auth.warn_ignored_auth_value_env(raw_key);
+                continue;
+            }
+            if !opts.expand_request_destination_env
+                && has_env_placeholder(raw_value)
+                && is_request_destination_value_key(&key)
+            {
+                auth.warn_ignored_request_destination_env(&key);
+                continue;
+            }
+            if !opts.expand_auth_value_env
+                && has_env_placeholder(raw_value)
+                && is_auth_value_key(&key)
+            {
+                auth.warn_ignored_auth_value_env(&key);
+                continue;
+            }
             let (value, value_unresolved) = env_replace_lossy::<Sys>(raw_value);
             for placeholder in key_unresolved.into_iter().chain(value_unresolved) {
                 auth.warnings.push(format!("Failed to replace env in config: {placeholder}"));
@@ -193,6 +304,10 @@ impl NpmrcAuth {
 
             if key == "registry" {
                 auth.registry = Some(value);
+                continue;
+            }
+            if let Some(scope) = scoped_registry_key(&key) {
+                auth.scoped_registries.insert(scope.to_string(), normalize_registry_url(&value));
                 continue;
             }
 
@@ -279,6 +394,18 @@ impl NpmrcAuth {
             apply_creds_field(&mut auth.default_creds, key.as_str(), value);
         }
         auth
+    }
+
+    fn warn_ignored_request_destination_env(&mut self, key: &str) {
+        self.warnings.push(format!(
+            "Ignored project-level request destination {key:?}: environment variables are not expanded in repository-controlled registry or proxy URLs.",
+        ));
+    }
+
+    fn warn_ignored_auth_value_env(&mut self, key: &str) {
+        self.warnings.push(format!(
+            "Ignored project-level auth setting {key:?}: environment variables are not expanded in repository-controlled registry credentials.",
+        ));
     }
 
     /// Resolve the TLS + `local-address` slots on `config.tls`.
@@ -373,6 +500,7 @@ impl NpmrcAuth {
             config.registry =
                 if registry.ends_with('/') { registry } else { format!("{registry}/") };
         }
+        config.registries.append(&mut self.scoped_registries);
         for message in std::mem::take(&mut self.warnings) {
             tracing::warn!(target: "pacquet::npmrc", "{message}");
         }
@@ -433,8 +561,7 @@ impl NpmrcAuth {
             .registry
             .as_deref()
             .filter(|registry| !registry.is_empty())
-            .map(normalize_registry_url)
-            .unwrap_or_else(|| DEFAULT_REGISTRY.to_string());
+            .map_or_else(|| DEFAULT_REGISTRY.to_string(), normalize_registry_url);
         let key = pacquet_network::nerf_dart(&registry);
         if key.is_empty() {
             // Unparsable registry (e.g. an unresolved `${VAR}`). Drop
@@ -501,6 +628,9 @@ impl NpmrcAuth {
     /// pinned to the right registry before they are combined.
     pub fn merge_under(&mut self, lower: NpmrcAuth) {
         self.registry = self.registry.take().or(lower.registry);
+        for (scope, registry) in lower.scoped_registries {
+            self.scoped_registries.entry(scope).or_insert(registry);
+        }
         self.https_proxy = self.https_proxy.take().or(lower.https_proxy);
         self.http_proxy = self.http_proxy.take().or(lower.http_proxy);
         self.legacy_proxy = self.legacy_proxy.take().or(lower.legacy_proxy);
@@ -578,6 +708,29 @@ fn parse_bool(value: &str) -> Option<bool> {
         "false" => Some(false),
         _ => None,
     }
+}
+
+fn is_request_destination_key(key: &str) -> bool {
+    is_registry_key(key) || key.starts_with("//")
+}
+
+fn is_request_destination_value_key(key: &str) -> bool {
+    is_registry_key(key) || matches!(key, "https-proxy" | "http-proxy" | "proxy")
+}
+
+fn is_registry_key(key: &str) -> bool {
+    key == "registry" || (key.starts_with('@') && key.ends_with(":registry"))
+}
+
+fn scoped_registry_key(key: &str) -> Option<&str> {
+    key.strip_suffix(":registry")
+        .filter(|scope| scope.starts_with('@') && scope.len() > 1 && !scope.contains('/'))
+}
+
+fn has_env_placeholder(value: &str) -> bool {
+    value
+        .match_indices("${")
+        .any(|(start, _)| value[start + 2..].find('}').is_some_and(|end| end > 0))
 }
 
 /// Read a `cafile` path and split the contents on
@@ -682,6 +835,32 @@ fn base64_decode(input: &str) -> Option<String> {
 /// mirroring `AUTH_SUFFIX_RE` from pnpm's `getNetworkConfigs.ts`.
 const CREDS_SUFFIXES: &[&str] = &["_authToken", "_auth", "_password", "username"];
 
+fn is_auth_value_key(key: &str) -> bool {
+    matches!(key, "_authToken" | "_auth" | "_password" | "username" | "cert" | "key")
+        || split_creds_key(key).is_some()
+        || split_inline_identity_key(key).is_some()
+}
+
+/// Match a `npm_config_//…` / `pnpm_config_//…` environment variable name.
+/// Returns `(is_pnpm, key)` where `key` is the URL-scoped remainder
+/// (e.g. `//registry.npmjs.org/:_authToken`) with its case preserved.
+/// The prefix is matched case-insensitively, mirroring npm. `None` for any
+/// name that isn't one of these prefixes followed by `//`.
+fn parse_url_scoped_env_name(name: &str) -> Option<(bool, &str)> {
+    for (prefix, is_pnpm) in [("pnpm_config_", true), ("npm_config_", false)] {
+        // Slice with `get` rather than `name[..prefix.len()]`: a byte index
+        // landing inside a multi-byte char (a non-ASCII env var name) would
+        // otherwise panic before the prefix check can reject it.
+        let (Some(head), Some(rest)) = (name.get(..prefix.len()), name.get(prefix.len()..)) else {
+            continue;
+        };
+        if head.eq_ignore_ascii_case(prefix) && rest.starts_with("//") {
+            return Some((is_pnpm, rest));
+        }
+    }
+    None
+}
+
 fn split_creds_key(key: &str) -> Option<(&str, &str)> {
     if !key.starts_with("//") {
         return None;
@@ -744,6 +923,11 @@ fn split_ssl_key(key: &str) -> Option<(&str, &'static str, bool)> {
         }
     }
     None
+}
+
+fn split_inline_identity_key(key: &str) -> Option<(&str, &'static str)> {
+    let (uri, field, is_file) = split_ssl_key(key)?;
+    (!is_file && matches!(field, "cert" | "key")).then_some((uri, field))
 }
 
 /// Write a per-registry TLS value onto a [`RegistryTls`] entry.

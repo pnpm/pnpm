@@ -25,6 +25,7 @@ pacquet-crypto-shasums-file               = { path = "pacquet/crates/crypto-shas
 pacquet-engine-runtime-bun-resolver       = { path = "pacquet/crates/engine-runtime-bun-resolver" }
 pacquet-engine-runtime-deno-resolver      = { path = "pacquet/crates/engine-runtime-deno-resolver" }
 pacquet-engine-runtime-node-resolver      = { path = "pacquet/crates/engine-runtime-node-resolver" }
+pacquet-env-installer                     = { path = "pacquet/crates/env-installer" }
 pacquet-env-replace                       = { path = "pacquet/crates/env-replace" }
 pacquet-fs                                = { path = "pacquet/crates/fs" }
 pacquet-registry                          = { path = "pacquet/crates/registry" }
@@ -64,6 +65,7 @@ pacquet-resolving-parse-wanted-dependency = { path = "pacquet/crates/resolving-p
 pacquet-resolving-resolver-base           = { path = "pacquet/crates/resolving-resolver-base" }
 pacquet-resolving-tarball-resolver        = { path = "pacquet/crates/resolving-tarball-resolver" }
 pacquet-workspace                         = { path = "pacquet/crates/workspace" }
+pacquet-workspace-manifest-writer         = { path = "pacquet/crates/workspace-manifest-writer" }
 pacquet-workspace-projects-filter         = { path = "pacquet/crates/workspace-projects-filter" }
 pacquet-workspace-projects-graph          = { path = "pacquet/crates/workspace-projects-graph" }
 pacquet-workspace-range-resolver          = { path = "pacquet/crates/workspace-range-resolver" }
@@ -79,6 +81,7 @@ pnpr-fixtures = { path = "pnpr/crates/pnpr-fixtures" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }
+async-trait = { version = "0.1.83" }
 axum = { version = "0.8.7", default-features = false, features = [
   "http1",
   "tokio",
@@ -92,7 +95,7 @@ base64 = { version = "0.22.1" }
 bcrypt = { version = "0.19.1" }
 bytes = { version = "1.11.0" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
-dashmap = { version = "6.1.0" }
+dashmap = { version = "6.2.1" }
 derive_more = { version = "2.1.1", features = ["full"] }
 dialoguer = { version = "0.11.0", default-features = false }
 diffy = { version = "0.5.0" }
@@ -103,12 +106,14 @@ ignore = { version = "0.4.25" }
 indexmap = { version = "2.14.0", features = ["serde"] }
 insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.14.0" }
+libsql = { version = "0.9.30", default-features = false, features = ["core", "remote", "replication"] }
 futures-util = { version = "0.3.32" }
 flate2 = { version = "1.1.9" }
 gethostname = { version = "1" }
 getrandom = { version = "0.4.2" }
 miette = { version = "7.6.0", features = ["fancy"] }
 num_cpus = { version = "1.17.0" }
+object_store = { version = "0.12", features = ["aws"] }
 os_display = { version = "0.1.4" }
 owo-colors = { version = "4", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.29" }
@@ -125,12 +130,13 @@ reqwest = { version = "0.13", default-features = false, features = [
 node-semver = { version = "2.2.0" }
 pathdiff = { version = "0.2.3" }
 pipe-trait = { version = "0.4.0" }
+pgp = { version = "0.19.0", default-features = false }
 rayon = { version = "1.12.0" }
 rmp-serde = { version = "1.3.0" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = { version = "1.0.150", features = ["preserve_order"] }
-serde-saphyr = { version = "0.0.26" }
+serde_json = { version = "1.0.150", features = ["preserve_order", "raw_value"] }
+serde-saphyr = { version = "0.0.27" }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2               = { version = "0.10.9" }
 smart-default      = { version = "0.7.1" }
@@ -138,7 +144,7 @@ split-first-char   = { version = "2.0.1" }
 ssri               = { version = "9.2.0" }
 strum              = { version = "0.28.0", features = ["derive"] }
 sysinfo            = { version = "0.39.2" }
-tabled             = { version = "0.17" }
+tabled             = { version = "0.20" }
 tar                = { version = "0.4.46" }
 text-block-macros  = { version = "0.2.0" }
 tower              = { version = "0.5.3" }
@@ -146,7 +152,11 @@ tower-http         = { version = "0.6.11", features = ["compression-gzip", "trac
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
+url                = { version = "2.5.8" }
 walkdir            = { version = "2.5.0" }
+yaml_serde         = { version = "0.10.4" }
+yamlpatch          = { version = "1.25.2" }
+yamlpath           = { version = "1.25.2" }
 wax                = { version = "0.7.0" }
 which              = { version = "8.0.2" }
 zip                = { version = "8", default-features = false, features = ["deflate"] }
@@ -175,12 +185,53 @@ allow_branch = "main"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfectionist"))'] }
 
 [workspace.lints.clippy]
-clone_on_ref_ptr             = "warn"
-if_then_some_else_none       = "warn"
-needless_collect             = "warn"
-or_fun_call                  = "warn"
-redundant_clone              = "warn"
-unnecessary_lazy_evaluations = "warn"
+pedantic = { level = "warn", priority = -1 }
+nursery  = { level = "warn", priority = -1 }
+
+doc_link_with_quotes                      = "allow" # false positive: matches markdown link titles
+unreadable_literal                        = "allow" # false positive: octal file modes
+case_sensitive_file_extension_comparisons = "allow" # extension checks are intentionally case-sensitive
+implicit_hasher                           = "allow" # only matters across a public API
+unnecessary_debug_formatting              = "allow" # keeps the quoted `Path` output
+option_option                             = "allow" # distinguishes missing from null
+cast_possible_truncation                  = "allow" # deliberate numeric narrowing
+cast_sign_loss                            = "allow"
+cast_possible_wrap                        = "allow"
+cast_precision_loss                       = "allow"
+missing_errors_doc                        = "allow" # error enums are self-documenting (#[display] + #[diagnostic(code)]); a # Errors section would just restate them
+missing_panics_doc                        = "allow" # deferred: refactor away / document / #[expect] each panic before enabling
+too_many_lines                            = "allow" # pacquet mirrors pnpm's function decomposition
+struct_excessive_bools                    = "allow" # option structs mirror pnpm's
+fn_params_excessive_bools                 = "allow" # mirrors pnpm's option parameters
+match_same_arms                           = "allow" # arms kept explicit to mirror pnpm's switch cases
+unnecessary_wraps                         = "allow"
+unused_async                              = "allow" # deferred: audit each async signature (trait/seam-required?) before enabling
+similar_names                             = "allow" # names ported verbatim from pnpm
+items_after_statements                    = "allow"
+needless_continue                         = "allow"
+many_single_char_names                    = "allow" # perfectionist's single_letter_* lints already cover this with finer per-position control
+
+# nursery-group opt-outs (the group is experimental; these lints are either
+# false positives on this code or fight conventions the project keeps on purpose)
+use_self                            = "allow" # spelling out the concrete type name over Self is left to author discretion
+too_long_first_doc_paragraph        = "allow" # doc comments deliberately open with a detailed pnpm-parity summary, not a one-line lede
+missing_const_for_fn                = "allow" # const-ness is a forward semver commitment and this nursery lint is noisy / churns as const-eval grows
+option_if_let_else                  = "allow" # the suggested map_or_else closures read worse than the if-let they replace
+significant_drop_tightening         = "allow" # the flagged guards are held deliberately (atomic check-then-act); early-dropping is FP-prone and behavioral
+redundant_pub_crate                 = "allow" # pub(crate) is kept to document intended visibility even where technically redundant
+derive_partial_eq_without_eq        = "allow" # deriving Eq is a forward semver commitment that all fields stay Eq
+branches_sharing_code               = "allow" # false-positive-prone: clippy itself flags its own suggestion as needing adjustment
+useless_let_if_seq                  = "allow" # rewrites large init blocks into an awkward if-as-expression
+single_option_map                   = "allow" # flags test helpers that exist precisely to dedupe a `.map` over an Option
+iter_with_drain                     = "allow" # false positive: drain(..) reuses the batch Vec's allocation across loop iterations; into_iter() would consume it
+literal_string_with_formatting_args = "allow" # false positive: `${VAR:-default}` strings are .npmrc / env-replace fixtures, not Rust format args
+collection_is_never_read            = "allow" # false positive: the flagged Vec owns sockets to keep them alive, it is never meant to be read
+
+# restriction lints opted into individually — not part of any default group or
+# the nursery group, so these lines are what enable them (kept on purpose).
+clone_on_ref_ptr       = "warn"
+if_then_some_else_none = "warn"
+mod_module_files       = "warn" # forbids mod.rs, enforcing the flat module.rs layout (see CODE_STYLE_GUIDE.md)
 
 [profile.release]
 opt-level     = 3

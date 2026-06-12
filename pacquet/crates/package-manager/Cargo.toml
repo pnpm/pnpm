@@ -12,6 +12,8 @@ repository.workspace  = true
 
 [dependencies]
 pacquet-catalogs-config                   = { workspace = true }
+pacquet-catalogs-protocol-parser          = { workspace = true }
+pacquet-catalogs-resolver                 = { workspace = true }
 pacquet-catalogs-types                    = { workspace = true }
 pacquet-cmd-shim                          = { workspace = true }
 pacquet-crypto-hash                       = { workspace = true }
@@ -49,6 +51,7 @@ pacquet-resolving-tarball-resolver        = { workspace = true }
 pacquet-store-dir                         = { workspace = true }
 pacquet-tarball                           = { workspace = true }
 pacquet-workspace                         = { workspace = true }
+pacquet-workspace-manifest-writer         = { workspace = true }
 pacquet-workspace-state                   = { workspace = true }
 
 async-recursion = { workspace = true }
@@ -72,9 +75,11 @@ miette          = { workspace = true }
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }
 
+async-trait       = { workspace = true }
 node-semver       = { workspace = true }
 dunce             = { workspace = true }
 insta             = { workspace = true }
+mockito           = { workspace = true }
 pathdiff          = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr      = { workspace = true }

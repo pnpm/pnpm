@@ -25,7 +25,9 @@
 //! fails the test until someone classifies it — which is how this test
 //! keeps catching the next default that needs porting.
 
-use crate::{Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, ScriptsPrependNodePath};
+use crate::{
+    CatalogMode, Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, ScriptsPrependNodePath,
+};
 use std::collections::BTreeSet;
 
 /// A pnpm default value reduced to the shapes this test compares.
@@ -37,6 +39,9 @@ enum Scalar {
     /// Order-insensitive list of strings (pnpm's array defaults carry
     /// no meaningful order).
     Set(BTreeSet<String>),
+    /// pnpm's `undefined` default — pacquet models it as a `None`
+    /// `Option` field (e.g. `save-catalog-name`).
+    Undefined,
 }
 
 fn s(value: &str) -> Scalar {
@@ -59,7 +64,6 @@ const NON_LITERAL: &[&str] = &[
 /// means moving its key from here into a `mapped` row.
 const NOT_PORTED: &[&str] = &[
     "bail",
-    "catalog-mode",
     "ci",
     "color",
     "deploy-all-files",
@@ -81,7 +85,6 @@ const NOT_PORTED: &[&str] = &[
     "pending",
     "recursive-install",
     "reverse",
-    "save-catalog-name",
     "save-peer",
     "save-workspace-protocol",
     "shared-workspace-lockfile",
@@ -137,11 +140,14 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ),
         ("node-linker", node_linker_scalar(cfg.node_linker)),
         ("resolution-mode", resolution_mode_scalar(cfg.resolution_mode)),
+        ("catalog-mode", catalog_mode_scalar(cfg.catalog_mode)),
+        ("save-catalog-name", save_catalog_name_scalar(cfg.save_catalog_name.as_deref())),
         ("fetch-retries", Int(i64::from(cfg.fetch_retries))),
         ("fetch-retry-factor", Int(i64::from(cfg.fetch_retry_factor))),
         ("fetch-retry-maxtimeout", Int(cfg.fetch_retry_maxtimeout as i64)),
         ("fetch-retry-mintimeout", Int(cfg.fetch_retry_mintimeout as i64)),
         ("fetch-timeout", Int(cfg.fetch_timeout as i64)),
+        ("frozen-store", Bool(cfg.frozen_store)),
         (
             "minimum-release-age",
             Int(cfg.minimum_release_age.expect("pacquet defaults minimum-release-age to Some")
@@ -175,6 +181,21 @@ fn resolution_mode_scalar(value: ResolutionMode) -> Scalar {
         ResolutionMode::Highest => s("highest"),
         ResolutionMode::TimeBased => s("time-based"),
         ResolutionMode::LowestDirect => s("lowest-direct"),
+    }
+}
+
+fn catalog_mode_scalar(value: CatalogMode) -> Scalar {
+    match value {
+        CatalogMode::Manual => s("manual"),
+        CatalogMode::Strict => s("strict"),
+        CatalogMode::Prefer => s("prefer"),
+    }
+}
+
+fn save_catalog_name_scalar(value: Option<&str>) -> Scalar {
+    match value {
+        Some(name) => s(name),
+        None => Scalar::Undefined,
     }
 }
 
@@ -276,6 +297,9 @@ fn strip_line_comment(line: &str) -> &str {
 /// changed — exactly the drift worth failing on).
 fn parse_scalar(raw: &str, key: &str) -> Scalar {
     let raw = raw.trim();
+    if raw == "undefined" {
+        return Scalar::Undefined;
+    }
     if raw == "true" || raw == "false" {
         return Scalar::Bool(raw == "true");
     }
@@ -333,8 +357,10 @@ fn every_pnpm_default_is_classified() {
 
     let mapped: BTreeSet<String> =
         mapped_rows(&cfg).into_iter().map(|(key, _)| key.to_string()).collect();
-    let non_literal: BTreeSet<String> = NON_LITERAL.iter().map(|key| key.to_string()).collect();
-    let not_ported: BTreeSet<String> = NOT_PORTED.iter().map(|key| key.to_string()).collect();
+    let non_literal: BTreeSet<String> =
+        NON_LITERAL.iter().map(std::string::ToString::to_string).collect();
+    let not_ported: BTreeSet<String> =
+        NOT_PORTED.iter().map(std::string::ToString::to_string).collect();
 
     // The three buckets must be disjoint — a key can't be both mapped
     // and skipped.

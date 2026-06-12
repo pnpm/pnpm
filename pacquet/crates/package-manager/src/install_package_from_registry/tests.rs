@@ -1,3 +1,8 @@
+#![expect(
+    clippy::default_trait_access,
+    reason = "struct-literal test fixtures; field types are evident from the literal and naming each would force ~20 imports"
+)]
+
 use super::{InstallPackageFromRegistry, InstallPackageFromRegistryError};
 use pacquet_config::Config;
 use pacquet_lockfile::{LockfileResolution, TarballResolution};
@@ -44,6 +49,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         prefer_offline: false,
         lockfile_include_tarball_url: false,
         registry: "https://registry.npmjs.com/".to_string(),
+        registries: Default::default(),
         pnpr_server: None,
         named_registries: Default::default(),
         auto_install_peers: false,
@@ -63,6 +69,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
         verify_store_integrity: true,
+        frozen_store: false,
         side_effects_cache: true,
         side_effects_cache_readonly: false,
         fetch_retries: 2,
@@ -105,6 +112,9 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         trust_policy_exclude: None,
         trust_policy_ignore_after: None,
         resolution_mode: Default::default(),
+        catalog_mode: Default::default(),
+        catalogs: None,
+        save_catalog_name: None,
         registry_supports_time_field: false,
         allowed_deprecated_versions: Default::default(),
         update_config: Default::default(),

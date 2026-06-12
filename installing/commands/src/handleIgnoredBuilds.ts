@@ -1,5 +1,5 @@
+import { allowBuildKeyFromIgnoredBuild } from '@pnpm/building.policy'
 import { writeSettings } from '@pnpm/config.writer'
-import { parse } from '@pnpm/deps.path'
 import {
   IgnoredBuildsError,
 } from '@pnpm/installing.deps-installer'
@@ -47,5 +47,5 @@ async function writeIgnoredBuildsToAllowBuilds (
 }
 
 function packageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): string[] {
-  return Array.from(new Set(Array.from(ignoredBuilds).map((dp) => parse(dp).name ?? dp))).sort(lexCompare)
+  return Array.from(new Set(Array.from(ignoredBuilds).map(allowBuildKeyFromIgnoredBuild))).sort(lexCompare)
 }

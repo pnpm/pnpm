@@ -70,6 +70,17 @@ jobs:
         with:
           persist-credentials: false
 
+      # The clippy --all-targets pass plus the nextest build hold two
+      # full sets of debug artifacts in target/, which no longer fits
+      # in the hosted runner's free disk — the linker dies with ENOSPC
+      # / SIGBUS mid-build. Drop the preinstalled toolchains this job
+      # never uses (~25 GB) before compiling anything.
+      - name: Free up runner disk space
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Install Rust Toolchain
         uses: ./.github/actions/rustup
         with:
@@ -98,7 +109,7 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
       - name: Install just
-        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
         with:
           tool: just
 
@@ -106,7 +117,7 @@ jobs:
         run: just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
         with:
           tool: cargo-nextest
 
@@ -146,7 +157,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@5374cbf686e897b15713110e233094e2874de7ef # v1.46.1
+      - uses: crate-ci/typos@f8a58b6b53f2279f71eb605f03a4ae4d10608f45 # v1.47.0
         with:
           files: pacquet pnpr
 
@@ -168,7 +179,7 @@ jobs:
 
       - name: Install cargo-deny
         if: steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@184183c2401be73c3bf42c2e61268aa5855379c1 # v2.78.1
+        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
         with:
           tool: cargo-deny
 

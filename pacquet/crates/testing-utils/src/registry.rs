@@ -16,6 +16,7 @@ impl TestRegistry {
         Self { instance: TestRegistryInstance::get() }
     }
 
+    #[must_use]
     pub fn url(&self) -> String {
         self.instance.url.clone()
     }
@@ -47,7 +48,7 @@ impl TestRegistryInstance {
         config.public_url = url.trim_end_matches('/').to_string();
         // A long TTL keeps the fixture packuments (whose `time` values are static)
         // from being treated as stale and refetched from the uplink.
-        config.packument_ttl = std::time::Duration::from_secs(31_536_000);
+        config.packument_ttl = std::time::Duration::from_hours(8760);
         thread::Builder::new()
             .name("pacquet-test-registry".to_string())
             .spawn(move || run_registry(config, listener))

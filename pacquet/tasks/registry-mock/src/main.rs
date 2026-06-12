@@ -21,7 +21,7 @@ async fn main() {
     match Cli::parse() {
         Cli::Launch => launch().await,
         Cli::End => end(),
-    };
+    }
 }
 
 async fn launch() {
@@ -30,6 +30,7 @@ async fn launch() {
     let options = MockInstanceOptions {
         client: &Client::new(),
         port: pick_unused_port().expect("pick an unused port"),
+        public_url: None,
         stdout: Some(&stdout),
         stderr: Some(&stderr),
         max_retries: 20,

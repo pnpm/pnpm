@@ -63,6 +63,7 @@ impl SnapshotDepRef {
     /// Returns `None` for [`SnapshotDepRef::Link`] entries — `link:` deps
     /// don't live in the virtual store and have no snapshot key. Mirrors
     /// upstream's `refToRelative` returning `null` for `link:` references.
+    #[must_use]
     pub fn resolve(&self, alias_name: &PkgName) -> Option<PkgNameVerPeer> {
         match self {
             SnapshotDepRef::Plain(ver_peer) => {
@@ -77,6 +78,7 @@ impl SnapshotDepRef {
     ///
     /// Returns `None` for [`SnapshotDepRef::Link`] entries — a `link:` dep
     /// has no version slot.
+    #[must_use]
     pub fn ver_peer(&self) -> Option<&'_ PkgVerPeer> {
         match self {
             SnapshotDepRef::Plain(ver_peer) => Some(ver_peer),
@@ -88,6 +90,7 @@ impl SnapshotDepRef {
     /// `Some(target)` when this reference is a `link:` workspace sibling;
     /// `None` otherwise. The returned string is the path portion *without*
     /// the `link:` prefix.
+    #[must_use]
     pub fn as_link_target(&self) -> Option<&'_ str> {
         match self {
             SnapshotDepRef::Plain(_) | SnapshotDepRef::Alias(_) => None,

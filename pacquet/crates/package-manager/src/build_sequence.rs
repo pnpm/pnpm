@@ -118,7 +118,7 @@ fn build_children_map(
         // off whichever sibling visits it second. Both the entry
         // nodes and every child list must be in a deterministic
         // order for the build sequence to be reproducible.
-        child_keys.sort_by_key(|k| k.to_string());
+        child_keys.sort_by_key(std::string::ToString::to_string);
         children.insert(key.clone(), child_keys);
     }
     children
@@ -176,7 +176,7 @@ fn collect_root_dep_paths(
     // run. Long-term fix is to preserve lockfile declaration order
     // via `IndexMap`; until then, an alphabetical sort is enough to
     // make the build path deterministic.
-    roots.sort_by_key(|k| k.to_string());
+    roots.sort_by_key(std::string::ToString::to_string);
     roots
 }
 

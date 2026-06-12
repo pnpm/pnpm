@@ -38,6 +38,7 @@ pub struct DefaultResolver {
 impl DefaultResolver {
     /// Build a dispatcher from a chain of resolvers. Order is preserved
     /// — earlier entries get the first shot at every wanted dependency.
+    #[must_use]
     pub fn new(chain: Vec<Box<dyn Resolver>>) -> Self {
         Self { chain }
     }
@@ -137,6 +138,7 @@ pub struct SpecNotSupportedByAnyResolverError {
 }
 
 impl SpecNotSupportedByAnyResolverError {
+    #[must_use]
     pub fn new(wanted_dependency: &WantedDependency) -> Self {
         let specifier = render_specifier(wanted_dependency);
         let quoted = quote_specifier(&specifier);
@@ -164,7 +166,7 @@ fn render_specifier(wanted_dependency: &WantedDependency) -> String {
 
 /// Wrap a non-empty specifier in double quotes and leave the empty
 /// case bare. Mirrors upstream's
-/// `if (specifier !== '') specifier = \`"${specifier}"\`` step.
+/// ``if (specifier !== '') specifier = `"${specifier}"` `` step.
 fn quote_specifier(specifier: &str) -> String {
     if specifier.is_empty() { String::new() } else { format!("\"{specifier}\"") }
 }

@@ -1,4 +1,7 @@
-use crate::{Lockfile, serialize_yaml};
+use crate::{
+    Lockfile, serialize_yaml,
+    yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, extract_env_document},
+};
 use derive_more::{Display, Error};
 use pacquet_diagnostics::miette::{self, Diagnostic};
 use std::{
@@ -19,7 +22,7 @@ pub enum SaveLockfileError {
 
     #[display("Failed to serialize lockfile to YAML: {_0}")]
     #[diagnostic(code(pacquet_lockfile::serialize_yaml))]
-    SerializeYaml(serde_saphyr::ser::Error),
+    SerializeYaml(serde_json::Error),
 
     #[display("Failed to write lockfile content: {_0}")]
     #[diagnostic(code(pacquet_lockfile::write_file))]
@@ -51,19 +54,40 @@ pub enum SaveLockfileError {
     },
 }
 
-/// Write an arbitrary lockfile-shaped value to `path` as pnpm-formatted YAML.
+/// Write an arbitrary lockfile-shaped value to the *wanted* lockfile at
+/// `path` as pnpm-formatted YAML.
 ///
 /// Used by the `afterAllResolved` pnpmfile hook, whose JSON result may carry
 /// arbitrary keys the typed [`Lockfile`] cannot represent. `serde_json`'s
 /// `preserve_order` feature keeps the key order produced by serializing the
 /// [`Lockfile`] and appended by the hook, so the output matches the typed write
 /// for unmodified lockfiles.
+///
+/// The env lockfile document (the config-dependency snapshot that the
+/// env-installer writes as the *first* YAML document of `pnpm-lock.yaml`)
+/// is preserved: if `path` already begins with one, it is re-prepended
+/// ahead of the freshly serialized main document. Mirrors upstream's
+/// `writeWantedLockfile`, which re-reads the env document and writes
+/// `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}${mainDoc}`
+/// at <https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/fs/src/write.ts#L73-L80>.
+/// A lockfile with no env document round-trips byte-for-byte (no
+/// leading `---`).
 pub fn save_value_to_path<Document: serde::Serialize>(
     value: &Document,
     path: &Path,
 ) -> Result<(), SaveLockfileError> {
     let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
-    fs::write(path, content).map_err(SaveLockfileError::WriteFile)
+    let env_prefix = match fs::read_to_string(path) {
+        Ok(existing) => extract_env_document(&existing)
+            .map(|env| format!("{YAML_DOCUMENT_START}{env}{YAML_DOCUMENT_SEPARATOR}")),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => return Err(SaveLockfileError::WriteFile(error)),
+    };
+    let output = match env_prefix {
+        Some(prefix) => format!("{prefix}{content}"),
+        None => content,
+    };
+    fs::write(path, output).map_err(SaveLockfileError::WriteFile)
 }
 
 impl Lockfile {
@@ -138,8 +162,7 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let file_name = target
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| String::from("lock.yaml"));
+        .map_or_else(|| String::from("lock.yaml"), |name| name.to_string_lossy().into_owned());
 
     let mut last_already_exists: Option<io::Error> = None;
     for _ in 0..MAX_TEMP_ATTEMPTS {

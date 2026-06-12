@@ -77,7 +77,7 @@ impl ResolutionVerifier for StubVerifier {
         &self,
         cached_policy: &serde_json::Map<String, serde_json::Value>,
     ) -> bool {
-        cached_policy.get("stub").and_then(|value| value.as_bool()).unwrap_or(false)
+        cached_policy.get("stub").and_then(serde_json::Value::as_bool).unwrap_or(false)
     }
 }
 

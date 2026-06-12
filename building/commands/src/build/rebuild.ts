@@ -76,6 +76,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 
 export type RebuildCommandOpts = Pick<Config,
 | 'dir'
+| 'enableGlobalVirtualStore'
 | 'engineStrict'
 | 'lockfileDir'
 | 'nodeLinker'

@@ -38,7 +38,8 @@ mod violation_codes;
 mod workspace_pref_to_npm;
 
 pub use create_npm_resolution_verifier::{
-    CreateNpmResolutionVerifierOptions, NpmResolutionVerifier, create_npm_resolution_verifier,
+    CreateNpmResolutionVerifierOptions, DistStats, NpmResolutionVerifier, ObservedDistStats,
+    create_npm_resolution_verifier, observed_dist_stats_sink,
 };
 pub use errors::FetchMetadataError;
 pub use fetch_attestation_published_at::{FetchAttestationOptions, fetch_attestation_published_at};
@@ -69,6 +70,7 @@ pub use pick_package_from_meta::{
     RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
     pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
 };
+pub use registry_url::to_registry_url;
 pub use resolve_from_workspace::{
     ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, try_resolve_from_workspace,
 };

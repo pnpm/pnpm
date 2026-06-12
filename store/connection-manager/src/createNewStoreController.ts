@@ -5,7 +5,7 @@ import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { type CafsLocker, createPackageStore, type StoreController } from '@pnpm/store.controller'
-import { StoreIndex } from '@pnpm/store.index'
+import { ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
 
 type CreateResolverOptions = Pick<Config,
 | 'fetchRetries'
@@ -22,6 +22,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'cert'
 | 'engineStrict'
 | 'force'
+| 'frozenStore'
 | 'nodeDownloadMirrors'
 | 'nodeVersion'
 | 'fetchTimeout'
@@ -72,8 +73,10 @@ export async function createNewStoreController (
       opts.trustPolicy === 'no-downgrade'
     ) && !opts.registrySupportsTimeField
   )
-  await fs.mkdir(opts.storeDir, { recursive: true })
-  const storeIndex = new StoreIndex(opts.storeDir)
+  if (!opts.frozenStore) {
+    await fs.mkdir(opts.storeDir, { recursive: true })
+  }
+  const storeIndex = opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir)
   const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
@@ -82,6 +85,7 @@ export async function createNewStoreController (
     cacheDir: opts.cacheDir,
     storeDir: opts.storeDir,
     cert: opts.cert,
+    frozenStore: opts.frozenStore,
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs,
     fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
     fullMetadata,
@@ -146,6 +150,7 @@ export async function createNewStoreController (
       strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
       clearResolutionCache,
       customFetchers: opts.hooks?.customFetchers,
+      frozenStore: opts.frozenStore,
       storeIndex,
     }),
     dir: opts.storeDir,

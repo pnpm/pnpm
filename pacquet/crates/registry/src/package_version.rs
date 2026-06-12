@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
 
-#[derive(Debug, Clone, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageVersion {
     pub name: String,
@@ -84,7 +84,18 @@ pub struct PackageVersion {
         skip_serializing_if = "Option::is_none"
     )]
     pub deprecated: Option<String>,
+
+    /// Every other field of the registry's per-version manifest, captured
+    /// verbatim. pnpm's resolver returns the whole picked manifest, and the
+    /// lockfile writer reads `engines` / `cpu` / `os` / `libc` / `bin` /
+    /// `bundleDependencies` off it to populate the `packages:` entry. Keeping a
+    /// flatten catch-all (rather than a typed field per key) mirrors that
+    /// passthrough and tolerates the historical shape variance npm serves.
+    #[serde(flatten)]
+    pub other: HashMap<String, serde_json::Value>,
 }
+
+impl Eq for PackageVersion {}
 
 /// Deserialize a `Record<string, string>`-shaped dependency map while
 /// tolerating historical npm registry entries whose values are objects
@@ -140,7 +151,7 @@ where
 /// A bool `true` becomes `Some("")`, a bool `false` becomes `None`;
 /// a string stays as `Some(s)`. Missing field defaults to `None` via
 /// the `#[serde(default)]` on the field itself.
-fn deserialize_deprecated_field<'de, Deser>(
+pub(crate) fn deserialize_deprecated_field<'de, Deser>(
     deserializer: Deser,
 ) -> Result<Option<String>, Deser::Error>
 where
@@ -269,6 +280,7 @@ impl PackageVersion {
             .pipe(Ok)
     }
 
+    #[must_use]
     pub fn as_tarball_url(&self) -> &str {
         self.dist.tarball.as_str()
     }
@@ -290,6 +302,7 @@ impl PackageVersion {
             .map(|(name, version)| (name.as_str(), version.as_str()))
     }
 
+    #[must_use]
     pub fn serialize(&self, save_exact: bool) -> String {
         let prefix = if save_exact { "" } else { "^" };
         format!("{0}{1}", prefix, self.version)

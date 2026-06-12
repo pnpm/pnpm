@@ -1,6 +1,6 @@
 //! Encoder and decoder for the narrow subset of
 //! [msgpackr](https://github.com/kriszyp/msgpackr)'s wire format that
-//! pnpm v11 uses to write `index.db` rows — standard MessagePack
+//! pnpm v11 uses to write `index.db` rows — standard `MessagePack`
 //! extended with msgpackr's **records** extension.
 //!
 //! ## Why this exists
@@ -37,7 +37,7 @@
 //! …                                                     │ inlined
 //! <value N-1>     raw msgpack value for field N-1     ──┘
 //! ```
-//! The slot byte is from `0x40..=0x7f`. (These bytes are where MessagePack
+//! The slot byte is from `0x40..=0x7f`. (These bytes are where `MessagePack`
 //! would normally encode positive fixints 64–127; inside a records stream
 //! those values are instead hoisted into `uint 8`, so the range is free.)
 //!
@@ -48,7 +48,7 @@
 //! ```
 //!
 //! Everything else (maps, arrays, strings, ints, bools, nil, floats) is
-//! vanilla MessagePack. Despite `moreTypes: true`, pnpm's payloads encode
+//! vanilla `MessagePack`. Despite `moreTypes: true`, pnpm's payloads encode
 //! JS `Map` objects as standard msgpack `fixmap`/`map16`/`map32` — no
 //! ext-type wrapping. `checkedAt` timestamps are written as `float 64`
 //! because JS numbers are doubles.
@@ -57,7 +57,7 @@
 //!
 //! **Read side** ([`transcode_to_plain_msgpack`]): rather than
 //! deserialize `PackageFilesIndex` directly from msgpackr bytes, we
-//! transcode to vanilla MessagePack (expanding each record instance
+//! transcode to vanilla `MessagePack` (expanding each record instance
 //! into a string-keyed map) and hand the result to `rmp_serde`.
 //! Reusing the existing `Deserialize` derive keeps the decoder focused
 //! on the wire-format transformation and nothing else.
@@ -153,7 +153,7 @@ pub enum DecodeError {
 /// `rmp_serde` can deserialize.
 ///
 /// `bytes` may already be pure msgpack (e.g. pacquet-written rows). The
-/// bytes `0x40..=0x7f` are ambiguous — in vanilla MessagePack they're
+/// bytes `0x40..=0x7f` are ambiguous — in vanilla `MessagePack` they're
 /// positive fixints 64–127; inside a msgpackr-records stream they're
 /// record-slot references. We disambiguate by tracking whether a record
 /// definition has been seen in the stream so far: until the first
@@ -361,7 +361,7 @@ fn transcode_value(
             reader.read_u8()?;
             let bits = reader.read_bytes(4)?;
             let value = f32::from_be_bytes([bits[0], bits[1], bits[2], bits[3]]);
-            maybe_narrow_float_to_uint(writer, value as f64, 0xca, &[bits[0], bits[1], bits[2], bits[3]]);
+            maybe_narrow_float_to_uint(writer, f64::from(value), 0xca, &[bits[0], bits[1], bits[2], bits[3]]);
             Ok(())
         }
         0xcb /* float 64 */ => {
@@ -497,7 +497,7 @@ fn read_string(reader: &mut Reader<'_>) -> Result<String, DecodeError> {
 }
 
 /// Exactly 2^64 as f64 — the smallest `f64` value that does **not** fit
-/// in a `u64`. `u64::MAX as f64` rounds *up* to 2^64 (u64::MAX is
+/// in a `u64`. `u64::MAX as f64` rounds *up* to 2^64 (`u64::MAX` is
 /// 2^64 − 1, which is not exactly representable in f64), so using it as
 /// the inclusive upper bound would admit a literal 2^64 and silently
 /// saturate to `u64::MAX` on cast.
@@ -528,7 +528,7 @@ fn maybe_narrow_float_to_uint(
 fn write_map_header(writer: &mut Vec<u8>, n: usize) {
     if n < 16 {
         writer.push(0x80 | (n as u8));
-    } else if n <= u16::MAX as usize {
+    } else if u16::try_from(n).is_ok() {
         writer.push(0xde);
         writer.extend_from_slice(&(n as u16).to_be_bytes());
     } else {
@@ -547,10 +547,10 @@ fn write_str(writer: &mut Vec<u8>, text: &str) {
     let n = bytes.len();
     if n < 32 {
         writer.push(0xa0 | (n as u8));
-    } else if n <= u8::MAX as usize {
+    } else if u8::try_from(n).is_ok() {
         writer.push(0xd9);
         writer.push(n as u8);
-    } else if n <= u16::MAX as usize {
+    } else if u16::try_from(n).is_ok() {
         writer.push(0xda);
         writer.extend_from_slice(&(n as u16).to_be_bytes());
     } else {
@@ -571,8 +571,8 @@ fn write_str(writer: &mut Vec<u8>, text: &str) {
 ///
 /// ## Why not `rmp_serde::to_vec_named`?
 ///
-/// `rmp_serde` emits plain MessagePack — every struct becomes a `fixmap`
-/// / `map16` / `map32`. That's a perfectly valid MessagePack encoding,
+/// `rmp_serde` emits plain `MessagePack` — every struct becomes a `fixmap`
+/// / `map16` / `map32`. That's a perfectly valid `MessagePack` encoding,
 /// but msgpackr with `useRecords: true` interprets *every* msgpack map
 /// (no matter the nesting depth) as a JS `Map` object, including the
 /// top-level `PackageFilesIndex`. pnpm's reader then does
@@ -876,7 +876,7 @@ fn encode_json_object(
 }
 
 /// Encode a [`serde_json::Number`] using the smallest slot-safe
-/// MessagePack form. The branch order matches what pnpm's msgpackr
+/// `MessagePack` form. The branch order matches what pnpm's msgpackr
 /// itself picks: any integer value first (so a JSON `1.0` parsed as
 /// `Number(1)` stays an integer on the wire), falling through to
 /// `float 64` only when the number genuinely needs the precision.
@@ -925,7 +925,7 @@ fn encode_cafs_file_info(
     }
 
     write_str(writer, &info.digest);
-    write_uint(writer, info.mode as u64);
+    write_uint(writer, u64::from(info.mode));
     write_uint(writer, info.size);
     if let Some(v) = info.checked_at {
         // Float 64 — not uint 64 — because msgpackr decodes `uint 64`
@@ -995,7 +995,7 @@ fn write_record_def_header(writer: &mut Vec<u8>, slot: u8, fields: &[&str]) {
 fn write_array_header(writer: &mut Vec<u8>, n: usize) {
     if n < 16 {
         writer.push(0x90 | (n as u8));
-    } else if n <= u16::MAX as usize {
+    } else if u16::try_from(n).is_ok() {
         writer.push(0xdc);
         writer.extend_from_slice(&(n as u16).to_be_bytes());
     } else {
@@ -1008,7 +1008,7 @@ fn write_array_header(writer: &mut Vec<u8>, n: usize) {
     }
 }
 
-/// Write an unsigned integer in the smallest MessagePack encoding that
+/// Write an unsigned integer in the smallest `MessagePack` encoding that
 /// is safe inside an active records stream. Values `0x40..=0x7f` cannot
 /// be emitted as positive fixints — their byte representation collides
 /// with record-slot references — so they get promoted to `uint 8`.
@@ -1016,19 +1016,19 @@ fn write_array_header(writer: &mut Vec<u8>, n: usize) {
 /// the same reason. `mode: u32` (e.g. `0o755` = 493) and `size: u64`
 /// round-trip through this.
 fn write_uint(writer: &mut Vec<u8>, value: u64) {
-    if value < SLOT_LO as u64 {
+    if value < u64::from(SLOT_LO) {
         // Positive fixint 0x00..=0x3f — below the slot range, safe to
         // emit bare.
         writer.push(value as u8);
-    } else if value <= u8::MAX as u64 {
+    } else if u8::try_from(value).is_ok() {
         // Covers 0x40..=0xff; the 0x40..=0x7f sub-range must use uint 8
         // so the decoder doesn't mistake it for a slot byte.
         writer.push(0xcc);
         writer.push(value as u8);
-    } else if value <= u16::MAX as u64 {
+    } else if u16::try_from(value).is_ok() {
         writer.push(0xcd);
         writer.extend_from_slice(&(value as u16).to_be_bytes());
-    } else if value <= u32::MAX as u64 {
+    } else if u32::try_from(value).is_ok() {
         writer.push(0xce);
         writer.extend_from_slice(&(value as u32).to_be_bytes());
     } else {
@@ -1042,7 +1042,7 @@ fn write_float64(writer: &mut Vec<u8>, value: f64) {
     writer.extend_from_slice(&value.to_be_bytes());
 }
 
-/// Write a signed integer in the smallest MessagePack encoding.
+/// Write a signed integer in the smallest `MessagePack` encoding.
 /// Negative values use the int 8/16/32/64 family (`0xd0..=0xd3`),
 /// whose header bytes are outside the records-mode slot range so
 /// they're always safe to emit. Non-negative values delegate to
@@ -1053,13 +1053,13 @@ fn write_int(writer: &mut Vec<u8>, value: i64) {
     } else if value >= -32 {
         // Negative fixint `0xe0..=0xff`; outside slot range.
         writer.push(value as i8 as u8);
-    } else if value >= i8::MIN as i64 {
+    } else if value >= i64::from(i8::MIN) {
         writer.push(0xd0);
         writer.push(value as i8 as u8);
-    } else if value >= i16::MIN as i64 {
+    } else if value >= i64::from(i16::MIN) {
         writer.push(0xd1);
         writer.extend_from_slice(&(value as i16).to_be_bytes());
-    } else if value >= i32::MIN as i64 {
+    } else if value >= i64::from(i32::MIN) {
         writer.push(0xd2);
         writer.extend_from_slice(&(value as i32).to_be_bytes());
     } else {

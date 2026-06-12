@@ -76,6 +76,13 @@ pub struct PeerDependencyIssues {
 pub struct MissingPeer {
     pub wanted_range: String,
     pub optional: bool,
+    /// `true` when the requiring package declares the peer only via
+    /// `peerDependenciesMeta`. Pacquet-internal (upstream's issue item
+    /// has no such field): the importer hoist loop uses it to keep
+    /// meta-only peers out of the optional-peer hoist, mirroring
+    /// upstream's `getMissingPeers`, which feeds the hoist from
+    /// `peerDependencies` entries only.
+    pub meta_only: bool,
     /// Chain of `(name, version)` from the root importer down to the
     /// parent that declared the peer requirement. Mirrors upstream's
     /// `parents: ParentPackages`.

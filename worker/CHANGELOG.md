@@ -1,5 +1,37 @@
 # @pnpm/worker
 
+## 1100.1.11
+
+### Patch Changes
+
+- @pnpm/fs.symlink-dependency@1100.0.9
+- @pnpm/store.create-cafs-store@1100.0.13
+- @pnpm/fs.hard-link-dir@1100.0.1
+
+## 1100.1.10
+
+### Patch Changes
+
+- 089484a: The pnpr install accelerator is now used only to create the lockfile. Previously `POST /v1/install` returned the resolved lockfile **and** all missing file contents inline over a single connection, which was bandwidth-bound on cold/WAN installs (one TCP stream can't compete with a registry's parallel CDN fetches). The accelerator is now a two-phase flow: the pnpr server resolves and verifies the lockfile server-side (collapsing resolution's round-trip depth), then the client fetches every tarball directly from the registries in parallel, exactly like a normal install. This makes the accelerated path never slower than a plain install, and turns pnpr into a stateless resolver that stores no tarballs and serves no file content [#12230](https://github.com/pnpm/pnpm/issues/12230).
+  - @pnpm/building.pkg-requires-build@1100.0.7
+  - @pnpm/fs.symlink-dependency@1100.0.8
+  - @pnpm/store.cafs@1100.1.9
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/fs.hard-link-dir@1100.0.1
+  - @pnpm/store.create-cafs-store@1100.0.12
+
+## 1100.1.9
+
+### Patch Changes
+
+- 3b76b8e: The pnpr install accelerator now serves resolved files only in the single gzipped `POST /v1/install` response and authorizes every package whose bytes it serves against the server's access policy. The separate unauthenticated `POST /v1/files` endpoint has been removed: the client materializes the inlined files straight into its content-addressable store, and a content-addressed digest is no longer a bearer capability for a package the caller cannot read.
+  - @pnpm/store.create-cafs-store@1100.0.11
+  - @pnpm/building.pkg-requires-build@1100.0.6
+  - @pnpm/fs.symlink-dependency@1100.0.7
+  - @pnpm/store.cafs@1100.1.8
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/fs.hard-link-dir@1100.0.1
+
 ## 1100.1.8
 
 ### Patch Changes

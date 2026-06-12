@@ -1,5 +1,29 @@
 # @pnpm/read-project-manifest
 
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/pkg-manifest.utils@1100.2.4
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/pkg-manifest.utils@1100.2.3
+  - @pnpm/workspace.project-manifest-writer@1100.0.7
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/pkg-manifest.utils@1100.2.2
+  - @pnpm/workspace.project-manifest-writer@1100.0.6
+
 ## 1100.0.9
 
 ### Patch Changes

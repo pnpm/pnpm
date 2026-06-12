@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1101.6.1",
+  "version": "1101.9.0",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -98,6 +98,7 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
@@ -155,7 +156,6 @@
     "execa": "catalog:",
     "exists-link": "catalog:",
     "is-windows": "catalog:",
-    "nock": "catalog:",
     "path-name": "catalog:",
     "read-yaml-file": "catalog:",
     "resolve-link-target": "catalog:",

@@ -253,39 +253,21 @@ fn should_install_circular_dependencies() {
     drop((root, mock_instance)); // cleanup
 }
 
-/// End-to-end coverage for `${VAR}` substitution in `.npmrc`.
-///
-/// `<Host as EnvVar>::var` (the `std::env::var` bridge in
-/// `crates/config/src/api.rs`) is unreachable by every other test
-/// because `add_mocked_registry` writes literal values, so
-/// `env_replace` short-circuits at the no-`$` branch.
-///
-/// This test rewrites the registry URL to `${PACQUET_TEST_REGISTRY}`,
-/// sets that variable on the spawned process, and asserts the install
-/// succeeds. The auth-token `${VAR}` substitution path covered by
-/// upstream's [`installing/deps-installer/test/install/auth.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/installing/deps-installer/test/install/auth.ts)
-/// is not exercised here. The mock registry doesn't gate on auth, so
-/// substituting the registry URL is the smallest scenario that drives
-/// `<Host as EnvVar>::var` end-to-end. Token-substitution coverage
-/// belongs in a test against a registry that actually validates the
-/// header.
 #[test]
-fn install_resolves_env_var_in_npmrc_registry() {
+fn install_resolves_env_var_in_user_npmrc_registry() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
 
-    eprintln!("Patching .npmrc to use ${{PACQUET_TEST_REGISTRY}}...");
-    // Replace the literal `registry=` line written by
-    // `add_mocked_registry` with one that references an env var.
-    // Keep the other lines (`store-dir`, `cache-dir`) intact.
     let mocked_registry_url = mock_instance.url();
     let original = fs::read_to_string(&npmrc_path).expect("read .npmrc");
-    let patched = original
-        .replace(&format!("registry={mocked_registry_url}"), "registry=${PACQUET_TEST_REGISTRY}");
+    let patched = original.replace(&format!("registry={mocked_registry_url}\n"), "");
     eprintln!("npmrc_path={npmrc_path:?}\noriginal_npmrc={original:?}\npatched_npmrc={patched:?}");
     assert_ne!(original, patched, ".npmrc layout drifted; update this test");
     fs::write(&npmrc_path, &patched).expect("rewrite .npmrc");
+
+    let user_npmrc_path = root.path().join("trusted-user.npmrc");
+    fs::write(&user_npmrc_path, "registry=${PACQUET_TEST_REGISTRY}\n").expect("write user .npmrc");
 
     eprintln!("Creating package.json...");
     let manifest_path = workspace.join("package.json");
@@ -299,6 +281,8 @@ fn install_resolves_env_var_in_npmrc_registry() {
     eprintln!("Executing command with PACQUET_TEST_REGISTRY set...");
     pacquet
         .with_env("PACQUET_TEST_REGISTRY", &mocked_registry_url)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(user_npmrc_path)
         .with_arg("install")
         .assert()
         .success();
@@ -307,6 +291,49 @@ fn install_resolves_env_var_in_npmrc_registry() {
     let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
     let installed = is_symlink_or_junction(&symlink_path).unwrap();
     eprintln!("symlink_path={symlink_path:?} installed={installed}");
+    assert!(installed, "expected installed symlink/junction at {symlink_path:?}");
+
+    drop((root, mock_instance)); // cleanup
+}
+
+#[test]
+fn install_ignores_env_var_in_project_npmrc_registry() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
+
+    let mocked_registry_url = mock_instance.url();
+    let original = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    let patched = original
+        .replace(&format!("registry={mocked_registry_url}"), "registry=${PACQUET_TEST_REGISTRY}");
+    eprintln!("npmrc_path={npmrc_path:?}\noriginal_npmrc={original:?}\npatched_npmrc={patched:?}");
+    assert_ne!(original, patched, ".npmrc layout drifted; update this test");
+    fs::write(&npmrc_path, &patched).expect("rewrite .npmrc");
+
+    let user_npmrc_path = root.path().join("trusted-user.npmrc");
+    fs::write(&user_npmrc_path, format!("registry={mocked_registry_url}\n"))
+        .expect("write user .npmrc");
+
+    eprintln!("Creating package.json...");
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    eprintln!("Executing command with PACQUET_TEST_REGISTRY set...");
+    pacquet
+        .with_env("PACQUET_TEST_REGISTRY", "http://127.0.0.1:9/leaked/")
+        .with_arg("--npmrc-auth-file")
+        .with_arg(user_npmrc_path)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
+    let installed = is_symlink_or_junction(&symlink_path).unwrap();
     assert!(installed, "expected installed symlink/junction at {symlink_path:?}");
 
     drop((root, mock_instance)); // cleanup
@@ -374,9 +401,9 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
 ///
 /// This is the scenario behind the pnpm regression in
 /// [pnpm/pnpm#12079](https://github.com/pnpm/pnpm/issues/12079). pacquet
-/// resolves it consistently — `bump_occurrence_on_shadow` always prefers
-/// the node's own child over an inherited same-version instance, so it
-/// never reuses the root-level `ts@2.0.0` parser for the nested plugin.
+/// resolves it consistently by switching from the inherited same-version
+/// parser to the node's own child when that inherited parser carries a
+/// conflicting peer context.
 /// Mirrors the upstream coverage in
 /// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/762e80be49/installing/deps-installer/test/install/peerDependencies.ts).
 #[test]
@@ -411,6 +438,93 @@ fn peer_shared_through_a_diamond_is_resolved_consistently() {
     );
 
     drop((root, mock_instance)); // cleanup
+}
+
+#[test]
+fn peer_dependencies_resolve_from_aliased_subdependencies() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/abc-parent-with-aliases": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.1)"),
+        "aliased subdependencies should satisfy abc's peers; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_resolves_from_aliased_direct_dependency() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "peer-a": "npm:@pnpm.e2e/peer-a@1.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)"),
+        "aliased direct dependency should satisfy abc's peer-a; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_resolves_from_alias_that_differs_from_real_name() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/peer-b": "npm:@pnpm.e2e/peer-a@1.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)"),
+        "abc's snapshot key should keep both peer-a contributions; lockfile:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("'@pnpm.e2e/peer-a': 1.0.0"),
+        "real peer name should be linked in abc's snapshot dependencies; lockfile:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("'@pnpm.e2e/peer-b': '@pnpm.e2e/peer-a@1.0.0'"),
+        "alias peer name should also be linked to the aliased provider; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_prefers_highest_version_among_aliases_of_same_package() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "peer-c3": "npm:@pnpm.e2e/peer-c@1.0.0",
+        "peer-c2": "npm:@pnpm.e2e/peer-c@1.0.1",
+        "peer-c1": "npm:@pnpm.e2e/peer-c@2.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)"),
+        "highest aliased peer-c version should satisfy abc's peer-c; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_prefers_non_aliased_provider_over_alias() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/peer-c": "1.0.0",
+        "peer-c": "npm:@pnpm.e2e/peer-c@2.0.0",
+        "@pnpm.e2e/abc": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@1.0.0)"),
+        "non-aliased peer-c should win over the aliased provider; lockfile:\n{lockfile}",
+    );
+}
+
+#[test]
+fn peer_dependency_prefers_highest_aliased_subdependency_version() {
+    let lockfile = install_with_peer_alias_deps(serde_json::json!({
+        "@pnpm.e2e/abc-parent-with-aliases-of-same-pkg": "1.0.0",
+    }));
+
+    assert!(
+        lockfile.contains("@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)"),
+        "highest aliased peer-c subdependency should satisfy abc's peer-c; lockfile:\n{lockfile}",
+    );
 }
 
 /// `catalog:` on a direct dep should be dereferenced through
@@ -690,6 +804,143 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
     drop((root, mock_instance)); // cleanup
 }
 
+/// The reason `--frozen-store` exists: install against a package store that
+/// lives on a read-only filesystem (a Nix store, a read-only bind mount, an
+/// OCI layer). A complete store plus an up-to-date lockfile is all a
+/// `--frozen-lockfile` install needs, yet the install would still fail
+/// because opening the WAL-mode `index.db` tries to create `-wal`/`-shm`
+/// sidecars in the store directory. `--frozen-store` opens the index through
+/// the `immutable=1` URI ([`StoreIndex::open_immutable`]) and replaces the
+/// store-index writer with a drain-and-drop stub
+/// ([`StoreIndexWriter::spawn_disabled`]), so the install reads from the
+/// store and materializes `node_modules` without creating a single file under
+/// the (here `0555`) store root.
+///
+/// This is the Rust parallel to the TypeScript end-to-end coverage that
+/// caught the equivalent worker-thread regression in pnpm
+/// (`@pnpm/worker` opened its own *writable* `StoreIndex` on every cache hit).
+/// pacquet has no analogous bug — frozen-store reads go through the immutable
+/// [`StoreIndex::shared_immutable_in`] and every warm-path store write is
+/// either gated under `frozenStore` or best-effort — so there is no clean
+/// hard-fail negative control here; the load-bearing assertion is that the
+/// install *succeeds* against a genuinely read-only store and mutates nothing.
+#[cfg(unix)]
+#[test]
+fn frozen_store_installs_against_a_read_only_store() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    eprintln!("Creating package.json...");
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
+
+    eprintln!("Priming the store and lockfile with a writable install...");
+    pacquet.with_arg("install").assert().success();
+
+    // Drop node_modules so the frozen run cannot take the up-to-date
+    // short-circuit — it must re-materialize from the store, which
+    // exercises the read path against the now read-only index.
+    eprintln!("Removing node_modules so the frozen install re-materializes...");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    eprintln!("Making every directory in the store tree read-only (0555)...");
+    set_dir_modes(&store_dir, 0o555);
+
+    // The store root is `<store-dir>/v11` (the `STORE_VERSION` suffix), which
+    // is where `index.db` and the CAFS shards live.
+    let store_root = store_dir.join("v11");
+
+    // Guard: prove the chmod actually took. A green result below would be a
+    // false pass if the store dir were somehow still writable.
+    assert!(
+        fs::write(store_root.join("pacquet-write-probe"), b"x").is_err(),
+        "the store root must be read-only for this test to mean anything",
+    );
+
+    eprintln!("Running install --frozen-lockfile --frozen-store --offline...");
+    let output = new_pacquet_command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--frozen-store", "--offline"])
+        .output()
+        .expect("run pacquet install --frozen-store");
+    assert!(
+        output.status.success(),
+        "frozen-store install against a read-only store must succeed: stderr={}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    eprintln!("node_modules must be materialized from the read-only store...");
+    let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
+    assert!(
+        is_symlink_or_junction(&symlink_path).expect("stat the dependency symlink"),
+        "the direct dependency must be linked into node_modules",
+    );
+    assert!(
+        workspace.join("node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0").exists(),
+        "the virtual-store entry must be present",
+    );
+
+    eprintln!("No WAL/SHM/journal sidecars may have been created under the store...");
+    for sidecar in ["index.db-wal", "index.db-shm", "index.db-journal"] {
+        assert!(
+            !store_root.join(sidecar).exists(),
+            "frozen-store must not create the {sidecar} sidecar under the read-only store",
+        );
+    }
+
+    // Restore writability so the TempDir can clean itself up — unlinking a
+    // file needs write permission on its *parent* directory.
+    set_dir_modes(&store_dir, 0o755);
+
+    drop((root, mock_instance)); // cleanup
+}
+
+/// `--frozen-store` with a configured `pnprServer` is a hard config conflict:
+/// the pnpr path resolves and streams missing files straight into the store,
+/// which `frozenStore` opens read-only. pacquet must refuse up front with
+/// `ERR_PNPM_FROZEN_STORE_INCOMPATIBLE_WITH_PNPR` (before any network), matching
+/// pnpm's guard in `installFromPnpmRegistry`. The server URL points at a closed
+/// port precisely to prove the guard fires before any connection is attempted.
+#[test]
+fn frozen_store_with_a_pnpr_server_is_a_config_conflict() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
+
+    let output = pacquet
+        .with_args(["install", "--frozen-store", "--pnpr-server", "http://127.0.0.1:0"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("stderr={stderr}");
+    // The miette report hard-wraps the message and inserts box-drawing
+    // characters on wrapped lines; strip whitespace and those glyphs before
+    // substring-matching so wrap position can't make the assertion brittle.
+    let flattened: String = stderr
+        .chars()
+        .filter(|ch| !ch.is_whitespace() && !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
+        .collect();
+    assert!(
+        flattened.contains("ERR_PNPM_FROZEN_STORE_INCOMPATIBLE_WITH_PNPR"),
+        "stderr did not carry the frozen-store/pnpr conflict code: {stderr}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
 /// `resolutionMode: highest` (the default) resolves a direct dependency
 /// to the highest version satisfying its range. `@pnpm.e2e/foo`
 /// publishes `100.0.0` and `100.1.0`; `^100.0.0` therefore lands on
@@ -839,10 +1090,60 @@ fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
     drop((root, mock_instance)); // cleanup
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test fixture; the value is embedded whole into a serde_json::json! object"
+)]
+fn install_with_peer_alias_deps(dependencies: serde_json::Value) -> String {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("autoInstallPeers: false\n");
+    workspace_yaml.push_str("strictPeerDependencies: false\n");
+    workspace_yaml.push_str("peersSuffixMaxLength: 1000\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": dependencies }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+
+    drop((root, mock_instance));
+    lockfile
+}
+
 /// A fresh `pacquet` command rooted at `workspace`, for tests that run the
 /// binary more than once (the builder is consumed on `assert()`).
 fn new_pacquet_command(workspace: &std::path::Path) -> std::process::Command {
     std::process::Command::cargo_bin("pacquet")
         .expect("find the pacquet binary")
         .with_current_dir(workspace)
+}
+
+/// Recursively set `mode` on `path` and every directory beneath it. Children
+/// are re-permissioned before their parent so each `read_dir` runs while the
+/// directory is still traversable, which lets the same helper both lock a
+/// tree down to `0555` and restore it to `0755`.
+#[cfg(unix)]
+fn set_dir_modes(path: &std::path::Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    for entry in fs::read_dir(path).expect("read directory while setting modes") {
+        let entry = entry.expect("read directory entry");
+        if entry.file_type().expect("stat directory entry").is_dir() {
+            set_dir_modes(&entry.path(), mode);
+        }
+    }
+    fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("set directory mode");
 }

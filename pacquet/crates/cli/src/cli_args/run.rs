@@ -8,6 +8,7 @@ use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
+    fmt::Write as _,
     path::{Path, PathBuf},
 };
 
@@ -295,7 +296,7 @@ pub(super) fn run_stages(
 /// Run one lifecycle stage. Returns `Ok(None)` when pnpm's per-stage
 /// no-op guards apply (empty body, or `npx only-allow pnpm` with no
 /// args), so the caller can record "didn't actually run" without
-/// inventing a synthetic ExitStatus. A non-success ExitStatus is
+/// inventing a synthetic `ExitStatus`. A non-success `ExitStatus` is
 /// returned to the caller — single-project `RunArgs::run` exits with
 /// the code; recursive `run_recursive` records `Failure` and decides
 /// whether to bail.
@@ -322,7 +323,7 @@ pub(super) fn run_stage(
         return Ok(None);
     }
 
-    let status = run_script(RunScript {
+    let status = run_script(&RunScript {
         manifest: ctx.manifest.value(),
         stage,
         script,
@@ -443,16 +444,14 @@ fn render_project_commands(manifest: &Value) -> String {
 
     let mut output = String::new();
     if !lifecycle.is_empty() {
-        output.push_str(&format!("Lifecycle scripts:\n{}", render_commands(&lifecycle)));
+        write!(output, "Lifecycle scripts:\n{}", render_commands(&lifecycle)).unwrap();
     }
     if !other.is_empty() {
         if !output.is_empty() {
             output.push_str("\n\n");
         }
-        output.push_str(&format!(
-            "Commands available via \"pnpm run\":\n{}",
-            render_commands(&other),
-        ));
+        write!(output, "Commands available via \"pnpm run\":\n{}", render_commands(&other))
+            .unwrap();
     }
     output
 }

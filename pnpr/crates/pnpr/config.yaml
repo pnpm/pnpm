@@ -1,5 +1,42 @@
-# path to a directory with all packages
+# path to a directory with the authoritative packages — those published
+# to this server and anything served in static mode. This is the source
+# of truth; back it up and keep it on a durable volume.
 storage: ./storage
+# path to the disposable proxy cache: the mirror of upstream registries
+# plus the install-accelerator store. Safe to wipe at any time. Defaults
+# to a `.pnpr-cache` subdirectory of `storage`; point it at a separate,
+# ephemeral volume to keep cached upstream content off the durable disk.
+#cache: ./cache
+# Store the hosted (published) packages in an S3-compatible object store
+# instead of the local `storage` directory. Works with AWS S3 (omit
+# `endpoint`), Cloudflare R2 (`region: auto` + the account endpoint),
+# MinIO, Backblaze B2, etc. The proxy cache and install-accelerator
+# stores always stay on local disk. Credentials fall back to the
+# standard AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment
+# variables when not set here.
+#s3:
+#  bucket: my-pnpr-packages
+#  region: auto
+#  endpoint: https://<account-id>.r2.cloudflarestorage.com
+#  prefix: packages
+#  accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
+#  secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
+#  forcePathStyle: false
+#  allowHttp: false
+# Back the auth record stores (users + tokens) with a networked SQLite
+# database (libsql / Turso) instead of the local htpasswd file + SQLite
+# token db. Lets several stateless pnpr replicas share one consistent set
+# of accounts. When omitted, auth stays on local disk (see `auth:`
+# below). `authToken` is optional for an unauthenticated local `sqld`.
+# Set `replicaPath` to keep a local embedded replica so the auth hot
+# path (token lookups) reads locally instead of over the network;
+# `syncIntervalSecs` bounds how stale a read can be (e.g. revocation lag).
+#backend:
+#  libsql:
+#    url: ${PNPR_LIBSQL_URL}
+#    authToken: ${PNPR_LIBSQL_TOKEN}
+#    replicaPath: ./auth-replica.db
+#    syncIntervalSecs: 60
 secret: pnpm-registry-mock-secret-key-32
 
 auth:

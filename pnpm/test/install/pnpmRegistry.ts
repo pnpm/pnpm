@@ -11,8 +11,8 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpm } from '../utils/index.js'
 
 // The pnpr server started by the test harness (see the with-registry jest
-// preset) serves the install-accelerator endpoints (/v1/install, /v1/files)
-// on the registry-mock port, so it doubles as the pnpr server under test.
+// preset) serves the resolver endpoint (/v1/resolve) on the
+// registry-mock port, so it doubles as the pnpr server under test.
 const PNPR = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 let server: http.Server
@@ -20,7 +20,7 @@ let serverPort: number
 let requestCount: number
 
 beforeAll(async () => {
-  // Counting proxy — forwards to the pnpr server and counts /v1/install
+  // Counting proxy — forwards to the pnpr server and counts /v1/resolve
   // requests so we can assert that the pnpr server path was actually taken.
   requestCount = 0
   server = http.createServer((req, res) => {
@@ -28,7 +28,7 @@ beforeAll(async () => {
       res.writeHead(400).end()
       return
     }
-    if (req.url === '/v1/install') {
+    if (req.url === '/v1/resolve') {
       requestCount++
     }
     const proxyReq = http.request(`${PNPR}${req.url}`, {

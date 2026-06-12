@@ -94,7 +94,7 @@ fn cas_path_for(store: &StoreDir, content: &[u8]) -> std::path::PathBuf {
 /// The reproducer.
 ///
 /// Pre-Option-C: the verifier deletes the file while the simulated
-/// writer "holds the lock", because verify_file doesn't acquire the
+/// writer "holds the lock", because `verify_file` doesn't acquire the
 /// lock at all.
 ///
 /// Post-Option-C: the verifier acquires `cas_write_lock(path)`
@@ -126,7 +126,7 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
     // writers; with Option C, `verify_file` acquires the same lock
     // before considering a delete.
     let lock = pacquet_fs::cas_write_lock(&target);
-    let guard = lock.lock().unwrap_or_else(|p| p.into_inner());
+    let guard = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
     // Use a channel to synchronize lock-release with the verifier so
     // we can assert the file's state at a known point.

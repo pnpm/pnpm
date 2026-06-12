@@ -58,14 +58,21 @@ export async function addUser (opts: AddUserOptions): Promise<AddUserResult> {
   })
 }
 
+// pnpr keeps proxied upstream packages in a cache mirror separate from hosted
+// (fixture) packages — a `.pnpr-cache` subdirectory of the storage root.
+const PROXY_CACHE_DIR = '.pnpr-cache'
+
+type Packument = { versions: Record<string, { dist: { integrity: string } }> }
+
 /**
  * Reads a package version's tarball integrity from the registry storage that
  * the test harness built from the fixtures. The storage path is published as
  * `PNPM_REGISTRY_MOCK_STORAGE` by the with-registry jest globalSetup.
  *
- * Uplinked packages (proxied from the upstream registry) are written to
- * storage lazily on first request, so the read is retried briefly while the
- * packument is still being written.
+ * Hosted (fixture) packuments live at `<storage>/<pkg>/package.json`; upstream
+ * packages are proxied into `<storage>/.pnpr-cache/<pkg>/package.json`, written
+ * lazily on first request — so both are tried and the read is retried while the
+ * cache write is still in flight.
  */
 export function getIntegrity (pkgName: string, pkgVersion: string): string {
   const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
@@ -75,30 +82,44 @@ export function getIntegrity (pkgName: string, pkgVersion: string): string {
       'Tests that call getIntegrity must run under the with-registry jest preset.'
     )
   }
-  const filePath = path.join(storage, pkgName, 'package.json')
+  const candidatePaths = [
+    path.join(storage, pkgName, 'package.json'),
+    path.join(storage, PROXY_CACHE_DIR, pkgName, 'package.json'),
+  ]
   const maxRetries = 4
   let delay = 200 // milliseconds
-  let content: { versions: Record<string, { dist: { integrity: string } }> } | undefined
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      content = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-      break
-    } catch (err: unknown) {
-      if (attempt === maxRetries || !isTransientReadError(err)) {
-        throw err
-      }
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
-      delay *= 2
+    const content = readPackument(candidatePaths)
+    if (content) {
+      return content.versions[pkgVersion].dist.integrity
     }
+    if (attempt === maxRetries) break
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
+    delay *= 2
   }
-  if (!content) {
-    throw new Error(`Failed to read package.json for ${pkgName}@${pkgVersion} after ${maxRetries} attempts`)
-  }
-  return content.versions[pkgVersion].dist.integrity
+  throw new Error(`Failed to read package.json for ${pkgName}@${pkgVersion} after ${maxRetries} attempts`)
 }
 
-function isTransientReadError (err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false
-  if (err instanceof SyntaxError && err.message.endsWith('Unexpected end of JSON input')) return true
-  return (err as NodeJS.ErrnoException).code === 'ENOENT'
+// Returns the first readable packument among the candidates, or `undefined` when
+// none is ready yet (missing file or partial write) so the caller retries.
+// Re-throws any other read/parse error so genuine failures surface immediately.
+function readPackument (candidatePaths: string[]): Packument | undefined {
+  for (const filePath of candidatePaths) {
+    let raw: string
+    try {
+      raw = fs.readFileSync(filePath, 'utf8')
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue
+      throw err
+    }
+    try {
+      return JSON.parse(raw) as Packument
+    } catch (err: unknown) {
+      if (err instanceof SyntaxError && err.message.endsWith('Unexpected end of JSON input')) {
+        return undefined
+      }
+      throw err
+    }
+  }
+  return undefined
 }

@@ -68,8 +68,9 @@ pub struct HoistPeersOptions<'a> {
 /// 4. No preferred-version entry + `auto_install_peers` → the range
 ///    itself.
 /// 5. Otherwise → omit (caller leaves the missing peer alone).
+#[must_use]
 pub fn hoist_peers(
-    opts: HoistPeersOptions<'_>,
+    opts: &HoistPeersOptions<'_>,
     missing_required_peers: &[(String, MissingPeerInfo)],
 ) -> BTreeMap<String, String> {
     let mut dependencies = BTreeMap::new();
@@ -149,6 +150,7 @@ pub fn hoist_peers(
 /// [seeded from the wanted lockfile](https://github.com/pnpm/pnpm/blob/a1bda24c4f/lockfile/preferred-versions/src/index.ts#L35-L55).
 /// Both are eligible so an already locked optional peer is not discarded
 /// during re-resolution.
+#[must_use]
 pub fn get_hoistable_optional_peers(
     all_missing_optional_peers: &BTreeMap<String, Vec<String>>,
     all_preferred_versions: &PreferredVersions,
@@ -169,8 +171,7 @@ pub fn get_hoistable_optional_peers(
             if !ranges.iter().all(|range| {
                 range
                     .parse::<Range>()
-                    .map(|parsed| satisfies_including_prerelease(&parsed, &version))
-                    .unwrap_or(false)
+                    .is_ok_and(|parsed| satisfies_including_prerelease(&parsed, &version))
             }) {
                 continue;
             }

@@ -17,8 +17,8 @@
 //! [`config/reader/src/index.ts:719-722`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L719-L722).
 
 use crate::{
-    HoistingLimits, NodeLinker, PackageImportMethod, ResolutionMode, ScriptsPrependNodePath,
-    TrustPolicy, WorkspaceSettings, api::EnvVar,
+    CatalogMode, HoistingLimits, NodeLinker, PackageImportMethod, ResolutionMode,
+    ScriptsPrependNodePath, TrustPolicy, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -78,6 +78,7 @@ impl WorkspaceSettings {
     /// settings via [`Self::apply_to`] *after* `pnpm-workspace.yaml` so
     /// env vars win over yaml, mirroring upstream's order at
     /// [`config/reader/src/index.ts:471-488`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L471-L488).
+    #[must_use]
     pub fn from_pnpm_config_env<Sys: EnvVar>() -> Self {
         let mut settings = WorkspaceSettings::default();
 
@@ -202,6 +203,7 @@ impl WorkspaceSettings {
         json_field!(trust_policy_exclude, "TRUST_POLICY_EXCLUDE");
         json_field!(trust_policy_ignore_after, "TRUST_POLICY_IGNORE_AFTER");
         enum_field!(resolution_mode, "RESOLUTION_MODE", ResolutionMode);
+        enum_field!(catalog_mode, "CATALOG_MODE", CatalogMode);
         json_field!(registry_supports_time_field, "REGISTRY_SUPPORTS_TIME_FIELD");
         json_field!(allowed_deprecated_versions, "ALLOWED_DEPRECATED_VERSIONS");
         json_field!(update_config, "UPDATE_CONFIG");

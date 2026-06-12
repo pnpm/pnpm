@@ -1,5 +1,36 @@
 # @pnpm/cli-utils
 
+## 1101.0.11
+
+### Patch Changes
+
+- Updated dependencies [52be454]
+  - @pnpm/config.package-is-installable@1100.0.10
+  - @pnpm/pkg-manifest.utils@1100.2.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.12
+
+## 1101.0.10
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/cli.meta@1100.0.7
+  - @pnpm/config.package-is-installable@1100.0.9
+  - @pnpm/pkg-manifest.utils@1100.2.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.11
+
+## 1101.0.9
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/cli.meta@1100.0.6
+  - @pnpm/config.package-is-installable@1100.0.8
+  - @pnpm/pkg-manifest.utils@1100.2.2
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+
 ## 1101.0.8
 
 ### Patch Changes

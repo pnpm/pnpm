@@ -1,29 +1,20 @@
-//! Serializer options that match pnpm's lockfile YAML formatting.
+//! Canonical key ordering for lockfile maps, plus the YAML serialization entry
+//! point.
 //!
-//! pnpm's `pnpm-lock.yaml` is emitted by `js-yaml` with default options, which
-//! keeps long single-line scalars (notably `integrity: sha512-…` hashes) as
-//! plain scalars. `serde_saphyr` defaults to folding long single-line strings
-//! into block style (`>-`), so we explicitly disable that to preserve byte-
-//! level parity with what pnpm produces.
+//! The byte-level YAML rendering lives in [`crate::yaml_emit`], a port of the
+//! `@zkochan/js-yaml` dumper pnpm uses for `pnpm-lock.yaml`. This module keeps
+//! the `serialize_with` helpers that canonicalize map key order before that
+//! rendering runs.
 
 use serde::{
     Serialize,
     ser::{SerializeMap, Serializer},
 };
-use serde_saphyr::{SerializerOptions, ser, ser_options, to_string_with_options};
 use std::{collections::HashMap, fmt::Display};
 
-/// Serializer options matching pnpm's lockfile output.
-fn options() -> SerializerOptions {
-    ser_options! {
-        prefer_block_scalars: false,
-    }
-}
-
-/// Serialize `value` to a YAML string with options that match pnpm's lockfile
-/// formatting.
-pub(crate) fn to_string<Value: Serialize>(value: &Value) -> Result<String, ser::Error> {
-    to_string_with_options(value, options())
+/// Serialize `value` to a YAML string matching pnpm's lockfile formatting.
+pub(crate) fn to_string<Value: Serialize>(value: &Value) -> Result<String, serde_json::Error> {
+    crate::yaml_emit::to_string(value)
 }
 
 /// Serialize a [`HashMap`] with its entries emitted in canonical key order.
@@ -61,6 +52,7 @@ where
 /// unreachable in practice — every call site pairs this with
 /// `skip_serializing_if = "Option::is_none"` — but is handled so the helper
 /// is a drop-in `serialize_with` for optional maps.
+#[expect(clippy::ref_option, reason = "serde serialize_with is invoked as f(&field, serializer)")]
 pub(crate) fn sorted_map_opt<Key, Value, Ser>(
     map: &Option<HashMap<Key, Value>>,
     serializer: Ser,

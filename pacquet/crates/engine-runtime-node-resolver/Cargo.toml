@@ -26,6 +26,7 @@ ssri        = { workspace = true }
 tokio       = { workspace = true }
 
 [dev-dependencies]
+mockito           = { workspace = true }
 pretty_assertions = { workspace = true }
 tokio             = { workspace = true, features = ["macros", "rt"] }
 

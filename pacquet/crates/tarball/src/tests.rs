@@ -1,10 +1,10 @@
 use super::{
     DownloadTarballToStore, HttpStatusError, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
-    TarballError, VerifyChecksumError, allocate_tarball_buffer, extract_tarball_entries,
-    extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
-    normalize_bundled_manifest, prefetch_cas_paths,
+    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_tarball_buffer,
+    download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
+    is_transient_error, normalize_bundled_manifest, prefetch_cas_paths,
 };
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
 use pacquet_store_dir::{
     CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
@@ -107,7 +107,7 @@ async fn network_error_display_includes_reqwest_inner_chain() {
     // `walk_reqwest_chain`, this is exactly what got dropped.
     let leaf_section = rendered
         .split_once("error sending request for url (")
-        .and_then(|(_, rest)| rest.split_once(")"))
+        .and_then(|(_, rest)| rest.split_once(')'))
         .map(|(_, after_paren)| after_paren)
         .expect("rendered output should include reqwest's wrapper");
     assert!(
@@ -162,13 +162,14 @@ fn tempdir_with_leaked_path() -> (TempDir, &'static StoreDir) {
 async fn packages_under_orgs_should_work() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     let cas_files = DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
         package_integrity: &integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w=="),
         package_unpacked_size: Some(16697),
+        package_file_count: None,
         package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
         package_id: "@fastify/error@3.3.0",
         requester: "",
@@ -178,6 +179,7 @@ async fn packages_under_orgs_should_work() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -208,17 +210,66 @@ async fn packages_under_orgs_should_work() {
     drop(store_dir);
 }
 
+/// A successful network download records its
+/// `store_index_key(integrity, pkg_id)` in the supplied
+/// [`SharedReportedProgressKeys`] set, so a later install pass can skip
+/// a duplicate package-status event for the same key. Regression guard
+/// for <https://github.com/pnpm/pnpm/issues/12235>.
+#[tokio::test]
+#[cfg(not(target_os = "windows"))]
+async fn network_fetch_records_progress_key() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let pkg_integrity = integrity(
+        "sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==",
+    );
+    let pkg_id = "@fastify/error@3.3.0";
+    let progress_reported = SharedReportedProgressKeys::default();
+
+    DownloadTarballToStore {
+        http_client: &ThrottledClient::default(),
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        package_integrity: &pkg_integrity,
+        package_unpacked_size: Some(16697),
+        package_file_count: None,
+        package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
+        package_id: pkg_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .unwrap();
+
+    let expected_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+    assert!(
+        progress_reported.contains(&expected_key),
+        "network download must record its progress key; got {progress_reported:?}",
+    );
+
+    drop(store_dir);
+}
+
 #[tokio::test]
 async fn should_throw_error_on_checksum_mismatch() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,
         verify_store_integrity: true,
         package_integrity: &integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w=="),
         package_unpacked_size: Some(16697),
+        package_file_count: None,
         package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
         package_id: "@fastify/error@3.3.0",
         requester: "",
@@ -228,6 +279,7 @@ async fn should_throw_error_on_checksum_mismatch() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -236,7 +288,7 @@ async fn should_throw_error_on_checksum_mismatch() {
     drop(store_dir);
 }
 
-/// When the SQLite index already has an entry for this
+/// When the `SQLite` index already has an entry for this
 /// `(integrity, pkg_id)` pair and every referenced CAFS file is on
 /// disk, `run_without_mem_cache` must return the cached layout
 /// without issuing an HTTP request. We prove the "no network"
@@ -284,6 +336,10 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     index.set(&index_key, &entry).unwrap();
     drop(index);
 
+    // A cache hit also emits package-status progress, so it records the
+    // key to prevent a later warm/cold pass from counting the same
+    // package status again.
+    let progress_reported = SharedReportedProgressKeys::default();
     let cas_paths = DownloadTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
@@ -292,6 +348,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         verify_store_integrity: true,
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         // Any request that reaches the network here would fail the
         // test; the cache lookup must short-circuit before we get
         // near it. `fast_fail_client` caps that at 1 s per side in
@@ -305,6 +362,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -313,15 +371,19 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     assert_eq!(cas_paths.len(), 2);
     assert_eq!(cas_paths.get("package.json"), Some(&pkg_json_path));
     assert_eq!(cas_paths.get("bin/cli.js"), Some(&bin_path));
+    assert!(
+        progress_reported.contains(&index_key),
+        "a store cache hit must record its progress key; got {progress_reported:?}",
+    );
 
     drop(store_dir);
 }
 
 /// When `prefetched_cas_paths` already covers the requested
 /// `(integrity, pkg_id)`, `run_without_mem_cache` must short-circuit
-/// to the prefetched map and never touch the SQLite index or the
+/// to the prefetched map and never touch the `SQLite` index or the
 /// network. `store_index: None` proves it doesn't fall through to
-/// the per-snapshot SQLite lookup, and the unreachable
+/// the per-snapshot `SQLite` lookup, and the unreachable
 /// `package_url` proves the network path is also bypassed.
 #[tokio::test]
 async fn reuses_prefetched_cas_paths_when_provided() {
@@ -357,6 +419,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         verify_store_integrity: true,
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
         package_id: pkg_id,
         requester: "",
@@ -366,6 +429,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -586,6 +650,7 @@ async fn falls_through_when_cafs_file_missing() {
         verify_store_integrity: true,
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
         package_id: pkg_id,
         requester: "",
@@ -595,6 +660,7 @@ async fn falls_through_when_cafs_file_missing() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -647,6 +713,7 @@ async fn falls_through_when_digest_is_malformed() {
         verify_store_integrity: true,
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
         package_id: pkg_id,
         requester: "",
@@ -656,6 +723,7 @@ async fn falls_through_when_digest_is_malformed() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -711,6 +779,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         verify_store_integrity: true,
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
         package_id: pkg_id,
         requester: "",
@@ -720,6 +789,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -785,6 +855,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         verify_store_integrity: true,
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: "http://127.0.0.1:1/unreachable.tgz",
         package_id: pkg_id,
         requester: "",
@@ -794,6 +865,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -958,10 +1030,10 @@ fn extract_tarball_applies_ignore_filter_dropping_entries_from_both_maps() {
 #[test]
 fn retry_opts_delay_matches_pnpm_formula() {
     let opts = RetryOpts::default();
-    assert_eq!(opts.delay_for(0), Duration::from_millis(10_000));
+    assert_eq!(opts.delay_for(0), Duration::from_secs(10));
     // 10s * 10 = 100s, capped at 60s
-    assert_eq!(opts.delay_for(1), Duration::from_millis(60_000));
-    assert_eq!(opts.delay_for(5), Duration::from_millis(60_000));
+    assert_eq!(opts.delay_for(1), Duration::from_mins(1));
+    assert_eq!(opts.delay_for(5), Duration::from_mins(1));
 }
 
 /// Pathological `attempt` values must not panic / overflow. The
@@ -971,7 +1043,7 @@ fn retry_opts_delay_matches_pnpm_formula() {
 #[test]
 fn retry_opts_delay_does_not_overflow() {
     let opts = RetryOpts::default();
-    assert_eq!(opts.delay_for(u32::MAX), Duration::from_millis(60_000));
+    assert_eq!(opts.delay_for(u32::MAX), Duration::from_mins(1));
 }
 
 /// pnpm's
@@ -1063,11 +1135,13 @@ async fn retries_then_succeeds_on_transient_5xx() {
         &url,
         Some(&pkg_integrity),
         None,
+        0,
         "test-pkg",
         "",
         store_path,
         fast_retry_opts(),
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -1111,11 +1185,13 @@ async fn retries_integrity_mismatch_until_exhausted() {
         &url,
         Some(&pkg_integrity),
         None,
+        0,
         "test-pkg",
         "",
         store_path,
         fast_retry_opts(),
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -1143,11 +1219,13 @@ async fn fails_fast_on_404() {
         &url,
         Some(&pkg_integrity),
         None,
+        0,
         "test-pkg",
         "",
         store_path,
         fast_retry_opts(),
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -1161,7 +1239,7 @@ async fn fails_fast_on_404() {
 }
 
 /// pnpm retries arbitrary 4xx codes that aren't 401/403/404 (any
-/// FetchError throws to the outer catch, which only short-circuits
+/// `FetchError` throws to the outer catch, which only short-circuits
 /// on the explicit no-retry set). 410 Gone is the canonical example
 /// — semantically permanent but pnpm still hits it `retries+1` times.
 #[tokio::test]
@@ -1184,11 +1262,13 @@ async fn retries_other_4xx_codes() {
         &url,
         Some(&pkg_integrity),
         None,
+        0,
         "test-pkg",
         "",
         store_path,
         fast_retry_opts(),
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -1219,11 +1299,13 @@ async fn retry_exhaustion_returns_last_error() {
         &url,
         Some(&pkg_integrity),
         None,
+        0,
         "test-pkg",
         "",
         store_path,
         fast_retry_opts(),
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -1242,19 +1324,19 @@ async fn retry_exhaustion_returns_last_error() {
 /// shard read guard) across two `.await` points; under enough
 /// concurrency another task on the same worker would call
 /// `mem_cache.insert` for a key hashing to the same shard, block
-/// on the parking_lot write, and starve every worker.
+/// on the `parking_lot` write, and starve every worker.
 ///
 /// To reproduce end-to-end:
 /// * Mockito serves the real fastify-error tarball with a
-///   per-request sleep so the InProgress window is wide enough to
+///   per-request sleep so the `InProgress` window is wide enough to
 ///   schedule the contending task.
 /// * Two concurrent calls for the same URL: one wins the else
 ///   branch, the other parks in the if-let branch.
 /// * A third call for a different URL whose key hashes to the same
-///   DashMap shard. Its else branch calls `mem_cache.insert`, which
+///   `DashMap` shard. Its else branch calls `mem_cache.insert`, which
 ///   needs a write guard on the same shard.
 /// * Single-worker tokio runtime: with the bug, the only worker
-///   blocks on parking_lot's exclusive wait and nothing else can be
+///   blocks on `parking_lot`'s exclusive wait and nothing else can be
 ///   polled. The runtime is parked in a side OS thread so the test
 ///   asserts the deadlock as a wall-clock timeout instead of
 ///   hanging the test process forever.
@@ -1341,6 +1423,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     verify_store_integrity: true,
                     package_integrity: pkg_integrity,
                     package_unpacked_size: None,
+                    package_file_count: None,
                     package_url: url,
                     package_id: "fastify-error@3.3.0",
                     requester: "",
@@ -1350,6 +1433,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     auth_headers,
                     ignore_file_pattern: None,
                     offline: false,
+                    progress_reported: None,
                 };
 
                 // Spawn each task and yield once before the next so the
@@ -1413,11 +1497,13 @@ async fn zero_retries_makes_a_single_attempt() {
         &url,
         Some(&pkg_integrity),
         None,
+        0,
         "test-pkg",
         "",
         store_path,
         opts,
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -1458,11 +1544,13 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
         &url,
         Some(&pkg_integrity),
         None,
+        0,
         "test-pkg",
         "",
         store_path,
         fast_retry_opts(),
         &auth_headers,
+        None,
         None,
     )
     .await
@@ -1512,11 +1600,13 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
         &url,
         Some(&pkg_integrity),
         None,
+        0,
         "test-pkg",
         "",
         store_path,
         fast_retry_opts(),
         &auth_headers,
+        None,
         None,
     )
     .await
@@ -1531,18 +1621,11 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     drop(store_dir_keep);
 }
 
-/// `run_with_mem_cache`'s `Available` short-circuit emits
-/// `pnpm:progress found_in_store` against the *caller's* reporter,
-/// regardless of who originally populated the slot. The
-/// `PrefetchingResolver` populates the slot via a `SilentReporter`
-/// so the resolve-time fetch doesn't fire `fetched` ahead of the
-/// install pass's `resolved`; the install pass's later
-/// `run_with_mem_cache` call must still produce the
-/// `found_in_store` event for `@pnpm/cli.default-reporter` to see
-/// the documented `resolved → fetched|found_in_store → imported`
-/// triple. Without the emit on the short-circuit, the install pass
-/// would silently skip past the cache hit and the event triple
-/// would be missing its middle.
+/// Without a shared progress-dedupe set, `run_with_mem_cache`'s
+/// `Available` short-circuit emits `pnpm:progress found_in_store`
+/// against the caller's reporter, regardless of who originally
+/// populated the slot. This preserves the legacy install path where a
+/// later caller still needs its own visible cache-hit event.
 ///
 /// Drives two `run_with_mem_cache` calls for the same URL but
 /// different `package_id`s. The first uses `SilentReporter`
@@ -1583,9 +1666,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     let mem_cache = MemCache::default();
     let verified_files_cache = SharedVerifiedFilesCache::default();
 
-    // First requester: silent (mirrors the `PrefetchingResolver`
-    // route, which uses `SilentReporter` so its resolve-time
-    // emits don't land before the install pass emits `resolved`).
+    // First requester: silent legacy owner.
     DownloadTarballToStore {
         http_client: &client,
         store_dir: store_path,
@@ -1595,6 +1676,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: &url,
         package_id: "first@1.0.0",
         requester: "/proj",
@@ -1603,15 +1685,16 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_with_mem_cache::<pacquet_reporter::SilentReporter>(&mem_cache)
     .await
     .expect("first call should populate the mem cache");
 
     // Second requester: same URL, different `package_id`. Hits the
-    // immediate-`Available` branch — must emit one `found_in_store`
-    // against the recording reporter so consumers see the cache
-    // hit even though the owner emit was silent.
+    // immediate-`Available` branch and emits one `found_in_store`
+    // because no shared progress set says this package status was
+    // already reported.
     EVENTS.lock().unwrap().clear();
     DownloadTarballToStore {
         http_client: &client,
@@ -1622,6 +1705,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: &url,
         package_id: "second@2.0.0",
         requester: "/proj",
@@ -1630,6 +1714,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -1664,6 +1749,122 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
             LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
         )),
         "fetched must NOT fire on a mem-cache hit; got {captured:?}",
+    );
+
+    drop(store_dir_keep);
+}
+
+/// With a shared progress-dedupe set, the first owner reports the
+/// package status and records the cache key. A later caller that hits
+/// the in-memory cache for the same package key must not emit a second
+/// `fetched` or `found_in_store`.
+#[tokio::test]
+async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
+    use std::sync::Mutex;
+
+    use pacquet_reporter::{LogEvent, ProgressMessage};
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl pacquet_reporter::Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+    let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
+    let mem_cache = MemCache::default();
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let progress_reported = SharedReportedProgressKeys::default();
+    let pkg_id = "@fastify/error@3.3.0";
+
+    EVENTS.lock().unwrap().clear();
+    DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+        package_integrity: &pkg_integrity,
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &url,
+        package_id: pkg_id,
+        requester: "/proj",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
+    }
+    .run_with_mem_cache::<RecordingReporter>(&mem_cache)
+    .await
+    .expect("first call should fetch and report");
+
+    // Clone the events out rather than binding the `MutexGuard`: a
+    // named guard lexically spans the second download's `.await` below
+    // (clippy's `await_holding_lock` is scope-based and ignores an
+    // explicit `drop`), even though the data is only read here.
+    let first = EVENTS.lock().unwrap().clone();
+    assert!(
+        first.iter().any(|e| matches!(
+            e,
+            LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
+        )),
+        "first call must report fetched; got {first:?}",
+    );
+
+    EVENTS.lock().unwrap().clear();
+    DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+        package_integrity: &pkg_integrity,
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &url,
+        package_id: pkg_id,
+        requester: "/proj",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: false,
+        progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
+    }
+    .run_with_mem_cache::<RecordingReporter>(&mem_cache)
+    .await
+    .expect("second call should reuse the mem cache");
+
+    let second = EVENTS.lock().unwrap().clone();
+    assert!(
+        !second.iter().any(|e| matches!(
+            e,
+            LogEvent::Progress(log)
+                if matches!(
+                    &log.message,
+                    ProgressMessage::Fetched { .. } | ProgressMessage::FoundInStore { .. }
+                )
+        )),
+        "second call must not duplicate package status; got {second:?}",
     );
 
     drop(store_dir_keep);
@@ -1722,6 +1923,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: url,
         package_id: "deadlock@1.0.0",
         requester: "/proj",
@@ -1730,6 +1932,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         auth_headers,
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     };
 
     // Drive both calls concurrently. Pre-fix: the first to hit the
@@ -1783,7 +1986,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
 ///   (mockito sends one for `with_body`).
 /// * `pnpm:fetching-progress in_progress` is throttled to ~200ms; the
 ///   tiny FASTIFY tarball used here downloads in well under that, so
-///   we don't assert any in_progress events fire.
+///   we don't assert any `in_progress` events fire.
 /// * `pnpm:progress fetched` fires once after the retry loop returns
 ///   `Ok` — never when an attempt fails — with the `package_id` and
 ///   `requester` threaded down from the install layer.
@@ -1825,11 +2028,13 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
         &url,
         Some(&pkg_integrity),
         None,
+        0,
         "@fastify/error@3.3.0",
         "",
         store_path,
         fast_retry_opts(),
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -1915,11 +2120,13 @@ async fn started_fires_for_connection_level_failures() {
         "http://127.0.0.1:1/pkg.tgz", // port 1 is reserved → connect-refused
         Some(&pkg_integrity),
         None,
+        0,
         "test-pkg",
         "/proj",
         store_path,
         RetryOpts { retries: 0, ..fast_retry_opts() },
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -2004,6 +2211,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: &url,
         package_id: "@fastify/error@3.3.0",
         requester: "/proj",
@@ -2012,6 +2220,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2042,6 +2251,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: &url,
         package_id: "@fastify/error@3.3.0",
         requester: "/proj",
@@ -2050,6 +2260,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: false,
+        progress_reported: None,
     }
     .run_without_mem_cache::<RecordingReporter>()
     .await
@@ -2122,11 +2333,13 @@ async fn request_retry_event_fires_per_retried_attempt() {
         &url,
         Some(&pkg_integrity),
         None,
+        0,
         "test-pkg",
         "",
         store_path,
         fast_retry_opts(),
         &AuthHeaders::default(),
+        None,
         None,
     )
     .await
@@ -2307,7 +2520,7 @@ fn extract_zip_rejects_parent_dir_component() {
 /// directory either way (the CAS write path is gated on file
 /// entries), but rejecting outright keeps the "no unsafe entry
 /// accepted" contract intact for tooling that inspects the error
-/// code (Caught by CodeRabbit on [#472](https://github.com/pnpm/pacquet/pull/472)).
+/// code (Caught by `CodeRabbit` on [#472](https://github.com/pnpm/pacquet/pull/472)).
 #[test]
 fn extract_zip_rejects_directory_entry_with_parent_component() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
@@ -2425,7 +2638,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
     let pkg_id = "@fastify/error@3.3.0";
 
     let err = DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,
@@ -2433,6 +2646,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: &url,
         package_id: pkg_id,
         requester: "",
@@ -2441,6 +2655,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: true,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2495,7 +2710,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
     prefetched.insert(cache_key, Arc::new(HashMap::new()));
 
     let cas_paths = DownloadTarballToStore {
-        http_client: &Default::default(),
+        http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
         store_index_writer: None,
@@ -2503,6 +2718,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         verified_files_cache: SharedVerifiedFilesCache::default(),
         package_integrity: &pkg_integrity,
         package_unpacked_size: None,
+        package_file_count: None,
         package_url: &url,
         package_id: pkg_id,
         requester: "",
@@ -2511,6 +2727,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         auth_headers: &AuthHeaders::default(),
         ignore_file_pattern: None,
         offline: true,
+        progress_reported: None,
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2704,4 +2921,14 @@ mod normalize_bundled_manifest_tests {
             })),
         );
     }
+}
+
+/// Saturated `dist` stats must not collide with the latency-class
+/// sentinel (`UNPRIORITIZED`) — a hostile registry publishing absurd
+/// sizes would otherwise reclassify its downloads as metadata.
+#[test]
+fn download_priority_never_reaches_the_latency_sentinel() {
+    let priority = download_priority(Some(usize::MAX), Some(usize::MAX));
+    assert!(priority < UNPRIORITIZED);
+    assert_eq!(priority, UNPRIORITIZED - 1);
 }

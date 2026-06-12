@@ -1,5 +1,24 @@
 # @pnpm/building.policy
 
+## 1100.0.9
+
+### Patch Changes
+
+- bf1b731: Require trusted package identity before package-name `allowBuilds` entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the `allowBuilds` key. Lockfile verification now rejects lockfiles where a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/config.version-policy@1100.1.4
+  - @pnpm/deps.path@1100.0.7
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/config.version-policy@1100.1.3
+  - @pnpm/deps.path@1100.0.6
+
 ## 1100.0.7
 
 ### Patch Changes

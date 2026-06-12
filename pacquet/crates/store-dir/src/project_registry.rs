@@ -305,7 +305,7 @@ pub fn get_registered_projects(
         let absolute_target = if target.is_absolute() {
             target.clone()
         } else {
-            link_path.parent().map(|p| p.join(&target)).unwrap_or_else(|| target.clone())
+            link_path.parent().map_or_else(|| target.clone(), |p| p.join(&target))
         };
 
         match fs::metadata(&absolute_target) {
@@ -385,7 +385,7 @@ fn canonicalize_or_join(link_path: &Path, target: &Path) -> PathBuf {
     let absolute = if target.is_absolute() {
         target.to_path_buf()
     } else {
-        link_path.parent().map(|p| p.join(target)).unwrap_or_else(|| target.to_path_buf())
+        link_path.parent().map_or_else(|| target.to_path_buf(), |p| p.join(target))
     };
     dunce::canonicalize(&absolute).unwrap_or(absolute)
 }

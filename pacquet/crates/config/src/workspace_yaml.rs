@@ -1,6 +1,6 @@
 use crate::{
-    Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PackageImportMethod, ResolutionMode,
-    ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
+    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PackageImportMethod,
+    ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -72,7 +72,7 @@ where
 /// [`getOptionsFromRootManifest.ts`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts)
 /// is wrapped at that call site, so its `manifestDir` parameter
 /// actually carries the *workspace* dir.
-#[derive(Debug, Default, PartialEq, Deserialize)]
+#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
     pub hoist: Option<bool>,
@@ -124,6 +124,7 @@ pub struct WorkspaceSettings {
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
+    pub registries: Option<BTreeMap<String, String>>,
     pub pnpr_server: Option<String>,
 
     /// User-defined named-registry aliases. Outer key is the alias
@@ -171,6 +172,12 @@ pub struct WorkspaceSettings {
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
     pub verify_store_integrity: Option<bool>,
+    /// `frozenStore` from `pnpm-workspace.yaml`. Opens the store
+    /// read-only and suppresses every store write — see
+    /// [`Config::frozen_store`]. Default `false`.
+    ///
+    /// [`Config::frozen_store`]: crate::Config::frozen_store
+    pub frozen_store: Option<bool>,
     pub side_effects_cache: Option<bool>,
     pub side_effects_cache_readonly: Option<bool>,
     pub fetch_retries: Option<u32>,
@@ -405,6 +412,9 @@ pub struct WorkspaceSettings {
     /// `resolutionMode` from `pnpm-workspace.yaml`. See
     /// [`ResolutionMode`].
     pub resolution_mode: Option<ResolutionMode>,
+
+    /// `catalogMode` from `pnpm-workspace.yaml`. See [`CatalogMode`].
+    pub catalog_mode: Option<CatalogMode>,
 
     /// `registrySupportsTimeField` from `pnpm-workspace.yaml`. See
     /// [`Config::registry_supports_time_field`].
@@ -643,23 +653,56 @@ impl WorkspaceSettings {
         Ok(None)
     }
 
-    /// Expand `${VAR}` placeholders inside string-valued map fields
-    /// that pnpm runs through `envReplace`. Today only
-    /// `namedRegistries` qualifies — the upstream
-    /// [`replaceEnvInSettings`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L66-L84)
-    /// pass routes `registries` and `namedRegistries` through
-    /// `replaceEnvInStringValues`; pacquet exposes only the latter
-    /// at the yaml layer.
+    /// Expand `${VAR}` in trusted user-controlled settings.
     ///
-    /// Call this before [`Self::apply_to`] so the substituted values
-    /// land in [`Config`].
-    pub fn substitute_env<Sys: EnvVar>(&mut self) {
-        if let Some(named_registries) = self.named_registries.as_mut() {
-            for value in named_registries.values_mut() {
-                let (substituted, _) = env_replace_lossy::<Sys>(value);
-                *value = substituted;
-            }
+    /// Call this before [`Self::apply_to`] so expanded values land in
+    /// [`Config`].
+    pub fn substitute_env_trusted<Sys: EnvVar>(&mut self) {
+        self.substitute_env_scalars::<Sys>();
+        substitute_optional_string::<Sys>(&mut self.pnpr_server);
+        substitute_optional_string::<Sys>(&mut self.registry);
+        substitute_optional_string_map::<Sys>(&mut self.registries);
+        substitute_optional_string_map::<Sys>(&mut self.named_registries);
+    }
+
+    /// Expand `${VAR}` in ordinary string settings, but drop
+    /// placeholders inside workspace-controlled request-destination
+    /// fields.
+    /// The upstream
+    /// [`replaceEnvInSettings`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L66-L84)
+    /// pass still runs `envReplace` on scalar strings while filtering
+    /// `registry`, `registries`, `namedRegistries`, and `pnprServer`
+    /// instead of expanding environment variables into request URLs.
+    ///
+    /// Call this before [`Self::apply_to`] so expanded values land in
+    /// [`Config`] and filtered values do not.
+    pub fn substitute_env_untrusted<Sys: EnvVar>(&mut self) {
+        self.substitute_env_scalars::<Sys>();
+
+        if self.registry.as_deref().is_some_and(has_env_placeholder) {
+            self.registry = None;
         }
+        if let Some(registries) = self.registries.as_mut() {
+            registries.retain(|_, value| !has_env_placeholder(value));
+        }
+        if let Some(named_registries) = self.named_registries.as_mut() {
+            named_registries.retain(|_, value| !has_env_placeholder(value));
+        }
+        if self.pnpr_server.as_deref().is_some_and(has_env_placeholder) {
+            self.pnpr_server = None;
+        }
+    }
+
+    fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
+        substitute_optional_string::<Sys>(&mut self.store_dir);
+        substitute_optional_string::<Sys>(&mut self.modules_dir);
+        substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
+        substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
+        substitute_optional_string::<Sys>(&mut self.user_agent);
+        substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
+        substitute_optional_string::<Sys>(&mut self.cache_dir);
+        substitute_optional_inner_string::<Sys>(&mut self.script_shell);
+        substitute_optional_inner_string::<Sys>(&mut self.node_options);
     }
 
     /// Apply every set field onto `config`, leaving unset ones untouched.
@@ -690,7 +733,7 @@ impl WorkspaceSettings {
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, dedupe_peers, dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies,
-            resolve_peers_from_workspace_root, verify_store_integrity,
+            resolve_peers_from_workspace_root, verify_store_integrity, frozen_store,
             block_exotic_subdeps,
             link_workspace_packages,
             inject_workspace_packages,
@@ -701,7 +744,7 @@ impl WorkspaceSettings {
             network_concurrency, fetch_timeout, user_agent,
             enable_global_virtual_store,
             git_shallow_hosts,
-            resolution_mode, registry_supports_time_field,
+            resolution_mode, catalog_mode, registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
         }
@@ -751,8 +794,18 @@ impl WorkspaceSettings {
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
         }
+        if let Some(registries) = self.registries {
+            for (scope, registry) in registries {
+                let registry = normalize_registry_url(&registry);
+                if scope == "default" {
+                    config.registry = registry;
+                } else {
+                    config.registries.insert(scope, registry);
+                }
+            }
+        }
         if let Some(v) = self.registry {
-            config.registry = if v.ends_with('/') { v } else { format!("{v}/") };
+            config.registry = normalize_registry_url(&v);
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
@@ -872,6 +925,39 @@ impl WorkspaceSettings {
     }
 }
 
+fn has_env_placeholder(value: &str) -> bool {
+    value
+        .match_indices("${")
+        .any(|(start, _)| value[start + 2..].find('}').is_some_and(|end| end > 0))
+}
+
+fn substitute_optional_string<Sys: EnvVar>(value: &mut Option<String>) {
+    if let Some(value) = value {
+        let (substituted, _) = env_replace_lossy::<Sys>(value);
+        *value = substituted;
+    }
+}
+
+fn substitute_optional_string_map<Sys: EnvVar>(value: &mut Option<BTreeMap<String, String>>) {
+    if let Some(value) = value {
+        for map_value in value.values_mut() {
+            let (substituted, _) = env_replace_lossy::<Sys>(map_value);
+            *map_value = substituted;
+        }
+    }
+}
+
+fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<Option<String>>) {
+    if let Some(Some(value)) = value {
+        let (substituted, _) = env_replace_lossy::<Sys>(value);
+        *value = substituted;
+    }
+}
+
+fn normalize_registry_url(registry: &str) -> String {
+    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
 fn resolve(base: &Path, value: &str) -> PathBuf {
     let candidate = Path::new(value);
     if candidate.is_absolute() { candidate.to_path_buf() } else { base.join(candidate) }
@@ -893,6 +979,7 @@ fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {
 /// directory containing the nearest ancestor `pnpm-workspace.yaml`.
 /// Returns `start` itself if no manifest is found, so callers can always
 /// use the result as a resolution base.
+#[must_use]
 pub fn workspace_root_or(start: &Path) -> PathBuf {
     find_workspace_manifest(start)
         .and_then(|path| path.parent().map(Path::to_path_buf))

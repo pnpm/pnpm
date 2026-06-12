@@ -13,6 +13,13 @@ use std::collections::HashMap;
 pub struct PackageMetadata {
     pub resolution: LockfileResolution,
 
+    /// Emitted only for non-registry packages (depPath contains `:`) whose
+    /// manifest carries a version and whose resolution isn't a directory —
+    /// matching pnpm's `toLockfileDependency`. Registry packages omit it
+    /// because the version is already the depPath suffix.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+
     #[serde(
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"

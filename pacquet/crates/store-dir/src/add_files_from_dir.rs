@@ -146,10 +146,7 @@ fn walk(
             // symlink and validate it resolves inside the package
             // root. Broken or out-of-root symlinks are skipped
             // silently.
-            let real = match dunce::canonicalize(&absolute) {
-                Ok(p) => p,
-                Err(_) => continue,
-            };
+            let Ok(real) = dunce::canonicalize(&absolute) else { continue };
             if !real.starts_with(&ctx.canonical_root) {
                 continue;
             }

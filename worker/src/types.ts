@@ -72,17 +72,11 @@ export interface ReadPkgFromCafsMessage {
   verifyStoreIntegrity: boolean
   expectedPkg?: PkgNameVersion
   strictStorePkgContentCheck?: boolean
+  frozenStore?: boolean
 }
 
 export interface HardLinkDirMessage {
   type: 'hardLinkDir'
   src: string
   destDirs: string[]
-}
-
-export interface FetchAndWriteCafsMessage {
-  type: 'fetch-and-write-cafs'
-  registryUrl: string
-  storeDir: string
-  digests: Array<{ digest: string, size: number, executable: boolean }>
 }

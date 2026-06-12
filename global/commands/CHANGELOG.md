@@ -1,5 +1,72 @@
 # @pnpm/global.commands
 
+## 1100.0.27
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [f11b4fc]
+- Updated dependencies [615c669]
+- Updated dependencies [84bb4b1]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/installing.deps-installer@1101.9.0
+  - @pnpm/store.connection-manager@1100.2.8
+  - @pnpm/bins.remover@1100.0.9
+  - @pnpm/cli.utils@1101.0.11
+  - @pnpm/bins.linker@1100.0.13
+  - @pnpm/deps.inspection.list@1100.0.17
+
+## 1100.0.26
+
+### Patch Changes
+
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [089484a]
+- Updated dependencies [1017c36]
+- Updated dependencies [230df57]
+- Updated dependencies [bf1b731]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/installing.deps-installer@1101.8.0
+  - @pnpm/bins.resolver@1100.0.7
+  - @pnpm/types@1101.3.1
+  - @pnpm/store.connection-manager@1100.2.7
+  - @pnpm/bins.linker@1100.0.12
+  - @pnpm/bins.remover@1100.0.8
+  - @pnpm/global.packages@1100.0.7
+  - @pnpm/cli.utils@1101.0.10
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/deps.inspection.list@1100.0.16
+  - @pnpm/pkg-manifest.reader@1100.0.7
+
+## 1100.0.25
+
+### Patch Changes
+
+- Updated dependencies [e7e99f0]
+- Updated dependencies [5192edf]
+- Updated dependencies [a017bf3]
+- Updated dependencies [f429f93]
+- Updated dependencies [a017bf3]
+- Updated dependencies [a358ee0]
+- Updated dependencies [6d17b66]
+  - @pnpm/installing.deps-installer@1101.7.0
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/store.connection-manager@1100.2.6
+  - @pnpm/bins.linker@1100.0.11
+  - @pnpm/bins.remover@1100.0.7
+  - @pnpm/bins.resolver@1100.0.6
+  - @pnpm/cli.utils@1101.0.9
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/deps.inspection.list@1100.0.15
+  - @pnpm/global.packages@1100.0.6
+  - @pnpm/pkg-manifest.reader@1100.0.6
+
 ## 1100.0.24
 
 ### Patch Changes

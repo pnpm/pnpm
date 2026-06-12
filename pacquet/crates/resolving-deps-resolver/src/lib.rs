@@ -65,6 +65,7 @@
 //!   `pacquet-lockfile-preferred-versions` crate.
 
 mod dedupe_injected_deps;
+mod dedupe_peer_dependents;
 mod dependencies_graph;
 mod hoist_peers;
 mod lockfile_reuse;
@@ -94,8 +95,8 @@ pub use resolve_importer::{
     resolve_importer_with_workspace,
 };
 pub use resolve_peers::{
-    ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult, WorkspaceResolvePeersResult,
-    resolve_peers, resolve_peers_workspace,
+    HoistMissingScope, ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult,
+    WorkspaceResolvePeersResult, resolve_peers, resolve_peers_workspace,
 };
 pub use resolve_workspace::{
     ResolveWorkspaceResult, WorkspaceImporter, WorkspaceResolveOptions, resolve_workspace,

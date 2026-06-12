@@ -198,12 +198,7 @@ impl VirtualStoreLayout {
         let built_dep_paths: Option<HashSet<PackageKey>> = allow_build_policy.map(|policy| {
             snapshots
                 .keys()
-                .filter(|key| {
-                    let metadata_key = key.without_peer();
-                    let name = metadata_key.name.to_string();
-                    let version = metadata_key.suffix.version().to_string();
-                    policy.check(&name, &version) == Some(true)
-                })
+                .filter(|key| policy.check(&key.without_peer().to_string()) == Some(true))
                 .cloned()
                 .collect()
         });
@@ -257,6 +252,7 @@ impl VirtualStoreLayout {
     /// [`pacquet_modules_yaml::Modules`] writer, which still records
     /// the legacy [`Config::virtual_store_dir`] string) have one
     /// source of truth.
+    #[must_use]
     pub fn package_store_dir(&self) -> &Path {
         &self.package_store_dir
     }
@@ -265,6 +261,7 @@ impl VirtualStoreLayout {
     /// Mirrors `config.enable_global_virtual_store` — captured here so
     /// callers can ask the layout itself instead of having to keep a
     /// separate `&Config` reference for the boolean.
+    #[must_use]
     pub fn enable_global_virtual_store(&self) -> bool {
         self.gvs_suffixes.is_some()
     }
@@ -277,6 +274,7 @@ impl VirtualStoreLayout {
     /// the install touches must have been visited in
     /// [`Self::new`]; the fallback is defensive rather than expected
     /// to fire).
+    #[must_use]
     pub fn slot_dir(&self, key: &PackageKey) -> PathBuf {
         let suffix = match &self.gvs_suffixes {
             Some(map) => map

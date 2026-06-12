@@ -33,6 +33,7 @@ use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_registry::{Package, PackageVersion};
+use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use std::{collections::HashMap, io::Write};
 
 /// Which registry version a dependency is compared against to decide
@@ -125,10 +126,14 @@ pub async fn collect_outdated(
         .map(|(alias, group, bare_specifier, current)| async move {
             let (package_name, range) =
                 PackageManifest::resolve_registry_dependency(alias, bare_specifier);
+            let registries: HashMap<String, String> =
+                config.resolved_registries().into_iter().collect();
+            let registry =
+                pick_registry_for_package(&registries, package_name, Some(bare_specifier));
             let package = Package::fetch_from_registry(
                 package_name,
                 http_client,
-                &config.registry,
+                &registry,
                 &config.auth_headers,
             )
             .await
@@ -146,7 +151,7 @@ pub async fn collect_outdated(
                 current,
                 target: target.version.clone(),
                 deprecated,
-                homepage: package.homepage.clone(),
+                homepage: package.homepage,
             })
         });
 
@@ -156,11 +161,11 @@ pub async fn collect_outdated(
 /// Resolve the [`TargetVersion`] to a concrete published version, or
 /// `None` when the registry has no matching version (no `latest` tag, no
 /// in-range version, or a non-semver range).
-fn resolve_target<'a>(
-    package: &'a Package,
+fn resolve_target(
+    package: &Package,
     range: &str,
     target_version: TargetVersion,
-) -> Option<&'a PackageVersion> {
+) -> Option<std::sync::Arc<PackageVersion>> {
     match target_version {
         TargetVersion::Latest => {
             let tag = package.dist_tag("latest")?;
@@ -438,7 +443,7 @@ fn change_priority(change: Change) -> u8 {
 fn sort_outdated(outdated: &mut [OutdatedPackage], sort_by: Option<SortBy>) {
     match sort_by {
         Some(SortBy::Name) => {
-            outdated.sort_by(|left, right| left.package_name.cmp(&right.package_name))
+            outdated.sort_by(|left, right| left.package_name.cmp(&right.package_name));
         }
         None => outdated.sort_by(|left, right| {
             let by_change = change_priority(classify(&left.current, &left.target))

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.git-fetcher",
-  "version": "1101.0.10",
+  "version": "1101.0.13",
   "description": "A fetcher for git-hosted packages",
   "keywords": [
     "pnpm",
@@ -36,6 +36,7 @@
     "@pnpm/exec.prepare-package": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
+    "@pnpm/resolving.git-resolver": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:"

@@ -25,9 +25,10 @@ pub fn enable_gvs_in_workspace_yaml(workspace: &Path, extra_yaml: &str) {
 
 /// Snapshot-friendly view of every row in `<store>/v11/index.db`.
 ///
-/// The outer key is the SQLite key (`"{integrity}\t{pkgId}"`). The inner
+/// The outer key is the `SQLite` key (`"{integrity}\t{pkgId}"`). The inner
 /// map is the package's files — one entry per path inside the tarball.
 /// `checked_at` is scrubbed because its value depends on install time.
+#[must_use]
 pub fn index_file_contents(store_dir: &Path) -> BTreeMap<String, BTreeMap<String, CafsFileInfo>> {
     let store = StoreDir::new(store_dir);
     // open_readonly: we're just reading for snapshot assertions, so don't

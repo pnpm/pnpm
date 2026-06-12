@@ -198,7 +198,7 @@ pub enum LinkVirtualStoreBinsError {
 /// set is taken from the lockfile and each child's manifest is
 /// looked up in `package_manifests` rather than read off disk —
 /// matching pnpm's `linkBinsOfDependencies` which consumes
-/// `bundledManifest` straight out of the SQLite store index (see
+/// `bundledManifest` straight out of the `SQLite` store index (see
 /// <https://github.com/pnpm/pnpm/blob/4750fd370c/building/during-install/src/index.ts#L289>).
 /// When `snapshots` is `None` (install without a lockfile), the
 /// linker falls back to enumerating slots and reading manifests via
@@ -243,7 +243,7 @@ pub struct LinkVirtualStoreBins<'a> {
     pub skipped: &'a SkippedSnapshots,
 }
 
-impl<'a> LinkVirtualStoreBins<'a> {
+impl LinkVirtualStoreBins<'_> {
     pub fn run(self) -> Result<(), LinkVirtualStoreBinsError> {
         self.run_with::<Host>()
     }

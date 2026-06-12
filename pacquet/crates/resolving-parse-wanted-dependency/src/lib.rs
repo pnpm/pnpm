@@ -46,6 +46,7 @@ pub struct ParsedWantedDependency {
 /// substring before that `@` parses as a valid (old-style) npm package
 /// name, the split is taken; otherwise the input passes through as a
 /// bare specifier.
+#[must_use]
 pub fn parse_wanted_dependency(raw_wanted_dependency: &str) -> ParsedWantedDependency {
     let version_delimiter = find_version_delimiter(raw_wanted_dependency);
     if let Some(idx) = version_delimiter {

@@ -22,6 +22,7 @@ use pacquet_crypto_hash::shorten_virtual_store_name;
 ///    [`pacquet_crypto_hash::shorten_virtual_store_name`]. Same trailing
 ///    branch the flat-name call sites already consume — single source of
 ///    truth for the truncation arithmetic and `file+` carve-out.
+#[must_use]
 pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> String {
     let mut filename = dep_path_to_filename_unescaped(dep_path);
     filename = filename.replace(['\\', '/', ':', '*', '?', '"', '<', '>', '|', '#'], "+");

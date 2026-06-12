@@ -17,7 +17,7 @@
 //!   from the tarball download and copies it to the prepared key on
 //!   the fast path. Pacquet's tarball download path doesn't write a
 //!   raw row at this key, so on the fast path we synthesize the
-//!   prepared row directly from the input `cas_paths` (no fs::read,
+//!   prepared row directly from the input `cas_paths` (no `fs::read`,
 //!   no re-hash). When fast-path triggers and `should_be_built` is
 //!   false, the synthesized row lands at the final key — matches the
 //!   shape upstream's "copy raw→prepared" produces. The skipped
@@ -33,7 +33,7 @@ use crate::{
     error::GitFetcherError,
     fetcher::GitFetchOutput,
     packlist::packlist,
-    prepare_package::{PreparePackageOptions, PreparedPackage, prepare_package},
+    prepare_package::{AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package},
 };
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_package_manifest::safe_read_package_json_from_dir;
@@ -63,7 +63,7 @@ pub struct GitHostedTarballFetcher<'a> {
     /// `None` packs the tarball root.
     pub path: Option<&'a str>,
     /// Routed through to [`crate::prepare_package()`]'s `allow_build`.
-    pub allow_build: &'a (dyn Fn(&str, &str) -> bool + Send + Sync),
+    pub allow_build: AllowBuildRef<'a>,
     pub ignore_scripts: bool,
     pub unsafe_perm: bool,
     pub user_agent: Option<&'a str>,
@@ -83,7 +83,7 @@ pub struct GitHostedTarballFetcher<'a> {
     pub files_index_file: &'a str,
 }
 
-impl<'a> GitHostedTarballFetcher<'a> {
+impl GitHostedTarballFetcher<'_> {
     /// Run the fetcher. Blocks under
     /// [`tokio::task::block_in_place`] so the synchronous
     /// `preparePackage` work doesn't tie up the async runtime.
@@ -108,7 +108,8 @@ impl<'a> GitHostedTarballFetcher<'a> {
         // `should_be_built` flag.
         let empty_env: HashMap<String, String> = HashMap::new();
         let prepare_opts = PreparePackageOptions {
-            allow_build: Box::new(|name, version| (self.allow_build)(name, version)),
+            allow_build: Box::new(|dep_path| (self.allow_build)(dep_path)),
+            dep_path: self.package_id,
             ignore_scripts: self.ignore_scripts,
             unsafe_perm: self.unsafe_perm,
             user_agent: self.user_agent,

@@ -1,13 +1,18 @@
 use crate::{
     error::RegistryError,
     policy::{AccessList, PackagePolicies, PackagePolicy},
+    s3::{S3Settings, build_s3_store},
 };
 use indexmap::IndexMap;
-use pacquet_env_replace::{SystemEnv, env_replace_lossy};
+use object_store::ObjectStore;
+use pacquet_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
 use std::{
+    fmt,
     net::SocketAddr,
     path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 
@@ -52,10 +57,19 @@ pub struct Config {
     /// `dist.tarball` URLs in served packuments so tarball requests
     /// flow through this server.
     pub public_url: String,
-    /// Directory under which packuments and tarballs live.
-    /// In proxy mode this doubles as the cache; with no matching
-    /// `proxy:` rule it is the source of truth.
+    /// Directory under which authoritative packuments and tarballs
+    /// live: packages published to this server and the content served
+    /// in static mode. This is the source of truth — it is never
+    /// overwritten by an upstream refresh, so operators back it up and
+    /// keep it on a durable volume.
     pub storage: PathBuf,
+    /// Directory under which the disposable proxy cache lives —
+    /// the mirror of upstream registries plus the resolver's cache.
+    /// Safe to wipe at any time; it self-heals on the next
+    /// request. Defaults to a `.pnpr-cache` subdirectory of
+    /// [`Self::storage`]; set the YAML `cache:` key (or `--cache`) to
+    /// an absolute path to put it on separate, ephemeral disk.
+    pub cache_storage: PathBuf,
     /// Named upstream npm registries. Referenced by name from
     /// [`PackageAccess::proxy`].
     pub uplinks: IndexMap<String, UplinkConfig>,
@@ -85,6 +99,79 @@ pub struct Config {
     /// installs at startup. Sourced from the YAML `log:` object
     /// (Verdaccio 6+ shape). Defaults to pretty/info.
     pub logs: LogConfig,
+    /// Where the authoritative (hosted) store lives. Defaults to
+    /// [`HostedStoreConfig::Fs`] — the local [`Self::storage`]
+    /// directory. The YAML `s3:` block switches it to an S3-compatible
+    /// object store (S3, Cloudflare R2, `MinIO`, ...).
+    pub hosted_store: HostedStoreConfig,
+    /// Which record store backs the auth state (users + tokens).
+    /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
+    /// plus `SQLite` token database. The YAML `backend.libsql:` block
+    /// switches both to a shared networked-SQLite database so several
+    /// stateless pnpr replicas see a consistent set of accounts.
+    pub backend: BackendConfig,
+}
+
+/// The resolved hosted-store backend. The object-store client is built
+/// once at config-load time (the fallible step), so constructing the
+/// storage layer from it is infallible.
+#[derive(Debug, Clone)]
+pub enum HostedStoreConfig {
+    /// Local directory — [`Config::storage`].
+    Fs,
+    /// S3-compatible bucket. `prefix` is normalized to `""` or a
+    /// `.../`-terminated key prefix.
+    S3 { store: Arc<dyn ObjectStore>, prefix: String },
+}
+
+/// The resolved record-store backend for auth (users + tokens). Unlike
+/// [`HostedStoreConfig`], this only carries the parsed settings — the
+/// fallible step (connecting to the networked database and ensuring its
+/// schema) is async, so it runs in `AuthState::load` rather than at
+/// config-parse time.
+#[derive(Debug, Default, Clone)]
+pub enum BackendConfig {
+    /// Local htpasswd users + `SQLite` tokens (or in-memory when no file
+    /// is configured). Today's behaviour.
+    #[default]
+    Local,
+    /// Networked `SQLite` (libsql / Turso): both records live in one
+    /// shared database reachable over the network.
+    Libsql(LibsqlSettings),
+}
+
+/// The YAML `backend.libsql:` block. Whole-file `${ENV}` substitution
+/// runs before parsing, so `url`/`authToken` can hold `${...}` refs and
+/// keep secrets out of the committed config.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibsqlSettings {
+    /// libsql/Turso database URL, e.g. `libsql://db.turso.io` or
+    /// `http://127.0.0.1:8080` for a local `sqld`.
+    pub url: String,
+    /// Bearer token for the database. Omit for an unauthenticated local
+    /// `sqld`.
+    #[serde(default)]
+    pub auth_token: Option<String>,
+    /// Local path for an embedded replica. When set, the primary is
+    /// replicated to this file and reads (the auth hot path) hit the
+    /// local copy instead of a network round-trip per lookup; writes
+    /// still go to the primary. Absent ⇒ every read is a remote query.
+    #[serde(default)]
+    pub replica_path: Option<PathBuf>,
+    /// How often (seconds) the embedded replica pulls from the primary.
+    /// Only meaningful with `replicaPath`; bounds how stale a read can
+    /// be — most importantly, token-revocation lag. `0` disables
+    /// background sync (the replica then only reflects its own writes
+    /// plus the initial sync at startup). Defaults to
+    /// [`LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS`].
+    #[serde(default)]
+    pub sync_interval_secs: Option<u64>,
+}
+
+impl LibsqlSettings {
+    /// Default embedded-replica background sync cadence.
+    pub const DEFAULT_SYNC_INTERVAL_SECS: u64 = 60;
 }
 
 /// Auth-related runtime configuration. Built from the YAML
@@ -163,6 +250,7 @@ impl LogConfig {
     pub const STDOUT_SINK: &'static str = "stdout";
 
     /// Whether the configured sink is one the server implements.
+    #[must_use]
     pub fn sink_is_supported(&self) -> bool {
         self.sink == Self::STDOUT_SINK
     }
@@ -211,6 +299,7 @@ impl LogLevel {
     /// plus a `pnpr::access=info` target so the per-request
     /// access log surfaces even when the rest of the crate is
     /// quieter.
+    #[must_use]
     pub fn as_filter_directive(self) -> &'static str {
         match self {
             LogLevel::Trace => "trace",
@@ -223,12 +312,164 @@ impl LogLevel {
     }
 }
 
-/// Verdaccio-shaped uplink declaration. Only `url` is honored —
-/// other fields verdaccio supports (auth headers, timeouts, agent
-/// options) are not implemented yet.
-#[derive(Debug, Clone, Deserialize)]
+/// Runtime uplink declaration: the upstream `url` plus the request
+/// headers pnpr attaches to every fetch it makes to that uplink.
+///
+/// [`Self::headers`] is resolved once, at config load, from the YAML
+/// `auth:` block (an `Authorization` header derived from
+/// `type`/`token`/`token_env`) merged with the `headers:` map. The
+/// parse-time shape lives in `UplinkFile`; `resolve_uplink` turns
+/// one into the other. Verdaccio fields pnpr doesn't model yet
+/// (timeouts, agent options, `maxage`) are accepted and dropped.
+#[derive(Clone)]
 pub struct UplinkConfig {
     pub url: String,
+    /// Auth + custom headers, fully resolved and ready to attach to
+    /// every request pnpr makes to this uplink.
+    pub headers: HeaderMap,
+}
+
+impl fmt::Debug for UplinkConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UplinkConfig")
+            .field("url", &self.url)
+            .field("headers", &RedactedHeaders(&self.headers))
+            .finish()
+    }
+}
+
+/// Wraps a [`HeaderMap`] so its `Debug` lists header names with values
+/// redacted. Uplink headers carry credentials (an `Authorization`, or
+/// an API key in a custom header), and those must never reach a log
+/// line, span, or diagnostic dump.
+pub(crate) struct RedactedHeaders<'a>(pub(crate) &'a HeaderMap);
+
+impl fmt::Debug for RedactedHeaders<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map().entries(self.0.keys().map(|name| (name.as_str(), "<redacted>"))).finish()
+    }
+}
+
+/// Disk shape of one `uplinks:` entry. Mirrors verdaccio's uplink
+/// config for the subset pnpr implements: `url`, an `auth:` block,
+/// and a free-form `headers:` map. Resolved into [`UplinkConfig`] by
+/// [`resolve_uplink`].
+#[derive(Debug, Deserialize)]
+struct UplinkFile {
+    url: String,
+    #[serde(default)]
+    auth: Option<UplinkAuthFile>,
+    #[serde(default)]
+    headers: IndexMap<String, String>,
+}
+
+/// The YAML `auth:` block on an uplink. `token` takes priority over
+/// `token_env`; either resolves to the credential placed in the
+/// `Authorization` header, encoded per [`UplinkAuthType`].
+#[derive(Debug, Deserialize)]
+struct UplinkAuthFile {
+    r#type: UplinkAuthType,
+    #[serde(default)]
+    token: Option<String>,
+    #[serde(default)]
+    token_env: Option<TokenEnv>,
+}
+
+/// How the resolved token is encoded into the `Authorization` header:
+/// `bearer` → `Bearer <token>`, `basic` → `Basic <token>` (the token
+/// is used verbatim, matching verdaccio's assumption that a `basic`
+/// token is already a base64 `user:pass`).
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum UplinkAuthType {
+    Bearer,
+    Basic,
+}
+
+/// Verdaccio's `token_env`: either the boolean `true` (read the
+/// default `NPM_TOKEN` env var) or a string naming the env var to
+/// read. `false` reads nothing.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum TokenEnv {
+    Flag(bool),
+    Named(String),
+}
+
+impl TokenEnv {
+    /// Default env var name verdaccio reads for `token_env: true`.
+    const DEFAULT_VAR: &'static str = "NPM_TOKEN";
+
+    /// The env var name to read, or `None` for `token_env: false`.
+    fn var_name(&self) -> Option<&str> {
+        match self {
+            TokenEnv::Flag(true) => Some(Self::DEFAULT_VAR),
+            TokenEnv::Flag(false) => None,
+            TokenEnv::Named(name) => Some(name),
+        }
+    }
+}
+
+/// Resolve one parsed [`UplinkFile`] into a runtime [`UplinkConfig`],
+/// baking the `auth:` credential and `headers:` map into a single
+/// [`HeaderMap`]. Reads env vars (for `token_env`) through `Sys` so
+/// the resolution is testable.
+///
+/// The auth-derived `Authorization` header is inserted first, then the
+/// custom `headers:` are merged on top — so a custom `Authorization`
+/// entry overrides the one derived from `auth:`, matching verdaccio's
+/// merge order. A configured `auth:` block that resolves to no token,
+/// an unknown header name, or a non-ASCII header value is a config
+/// error rather than a silent unauthenticated request.
+fn resolve_uplink<Sys: EnvVar>(
+    name: &str,
+    file: UplinkFile,
+) -> Result<UplinkConfig, RegistryError> {
+    let mut headers = HeaderMap::new();
+    if let Some(auth) = &file.auth {
+        let token =
+            resolve_uplink_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
+                reason: format!(
+                    "uplink {name:?} has an auth block but no token could be resolved \
+                     (set auth.token or point auth.token_env at a set env var)",
+                ),
+            })?;
+        let value = match auth.r#type {
+            UplinkAuthType::Bearer => format!("Bearer {token}"),
+            UplinkAuthType::Basic => format!("Basic {token}"),
+        };
+        let value = HeaderValue::from_str(&value).map_err(|_| RegistryError::InvalidConfig {
+            reason: format!("uplink {name:?} auth token is not a valid header value"),
+        })?;
+        headers.insert(AUTHORIZATION, value);
+    }
+    for (raw_name, raw_value) in &file.headers {
+        let header_name = HeaderName::from_bytes(raw_name.as_bytes()).map_err(|_| {
+            RegistryError::InvalidConfig {
+                reason: format!("uplink {name:?} has an invalid header name {raw_name:?}"),
+            }
+        })?;
+        let header_value =
+            HeaderValue::from_str(raw_value).map_err(|_| RegistryError::InvalidConfig {
+                reason: format!("uplink {name:?} header {raw_name:?} has an invalid value"),
+            })?;
+        headers.insert(header_name, header_value);
+    }
+    Ok(UplinkConfig { url: file.url, headers })
+}
+
+/// Pick the credential for an uplink's `auth:` block: an explicit
+/// `token` wins; otherwise read the env var named by `token_env`.
+fn resolve_uplink_token<Sys: EnvVar>(auth: &UplinkAuthFile) -> Option<String> {
+    if let Some(token) = &auth.token {
+        return non_empty_token(token);
+    }
+    let var_name = auth.token_env.as_ref()?.var_name()?;
+    Sys::var(var_name).and_then(|token| non_empty_token(&token))
+}
+
+fn non_empty_token(token: &str) -> Option<String> {
+    (!token.trim().is_empty()).then(|| token.to_string())
 }
 
 /// Per-package routing and access rules. `access` / `publish` are
@@ -279,8 +520,22 @@ impl AccessSpec {
 struct ConfigFile {
     #[serde(default = "default_storage_string")]
     storage: String,
+    /// Disposable proxy-cache root. Not a verdaccio key — when omitted
+    /// it defaults to a `.pnpr-cache` subdirectory of `storage`.
     #[serde(default)]
-    uplinks: IndexMap<String, UplinkConfig>,
+    cache: Option<String>,
+    /// pnpr-only block: store the hosted (published) packages in an
+    /// S3-compatible object store instead of `storage`. Absent on a
+    /// stock verdaccio config (silently ignored there).
+    #[serde(default)]
+    s3: Option<S3Settings>,
+    /// pnpr-only block: back the auth record stores (users + tokens)
+    /// with a networked `SQLite` database. Absent on a stock verdaccio
+    /// config (silently ignored there).
+    #[serde(default)]
+    backend: Option<BackendFile>,
+    #[serde(default)]
+    uplinks: IndexMap<String, UplinkFile>,
     #[serde(default)]
     packages: IndexMap<String, PackageAccess>,
     #[serde(default)]
@@ -316,6 +571,12 @@ struct AuthFile {
 }
 
 #[derive(Debug, Default, Deserialize)]
+struct BackendFile {
+    #[serde(default)]
+    libsql: Option<LibsqlSettings>,
+}
+
+#[derive(Debug, Default, Deserialize)]
 struct HtpasswdFile {
     #[serde(default)]
     file: Option<String>,
@@ -336,16 +597,20 @@ impl Config {
     pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:4873";
     /// Default packument TTL — five minutes, matching the historical
     /// proxy-mode default.
-    pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_secs(5 * 60);
+    pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_mins(5);
 
     /// Build a proxy-mode config with the default npm upstream: a single
     /// `npmjs` uplink plus a `**` package rule that routes everything
     /// through it. Kept for callers that don't use YAML config.
+    #[must_use]
     pub fn proxy(listen: SocketAddr, storage: PathBuf) -> Self {
         let mut uplinks = IndexMap::new();
         uplinks.insert(
             "npmjs".to_string(),
-            UplinkConfig { url: "https://registry.npmjs.org".to_string() },
+            UplinkConfig {
+                url: "https://registry.npmjs.org".to_string(),
+                headers: HeaderMap::new(),
+            },
         );
         let mut packages = IndexMap::new();
         packages.insert(
@@ -355,6 +620,7 @@ impl Config {
         Self {
             listen,
             public_url: format!("http://{listen}"),
+            cache_storage: default_cache_dir(&storage),
             storage,
             uplinks,
             packages,
@@ -362,15 +628,19 @@ impl Config {
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
+            hosted_store: HostedStoreConfig::Fs,
+            backend: BackendConfig::Local,
         }
     }
 
     /// Build a static-mode config that serves `storage` verbatim:
     /// no uplinks declared, so no package rule resolves to one.
+    #[must_use]
     pub fn static_serve(listen: SocketAddr, storage: PathBuf) -> Self {
         Self {
             listen,
             public_url: format!("http://{listen}"),
+            cache_storage: default_cache_dir(&storage),
             storage,
             uplinks: IndexMap::new(),
             packages: IndexMap::new(),
@@ -378,6 +648,8 @@ impl Config {
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
             logs: LogConfig::default(),
+            hosted_store: HostedStoreConfig::Fs,
+            backend: BackendConfig::Local,
         }
     }
 
@@ -415,6 +687,7 @@ impl Config {
     ///
     /// Panics if the bundled YAML fails to parse — that would be a
     /// build-time bug since the file is compiled in.
+    #[must_use]
     pub fn from_default_yaml(
         base_dir: &Path,
         listen: SocketAddr,
@@ -483,20 +756,55 @@ impl Config {
         let file: ConfigFile = serde_saphyr::from_str(&substituted)
             .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
         let storage = resolve_relative(&file.storage, base_dir);
+        let cache_storage = file
+            .cache
+            .as_deref()
+            .map_or_else(|| default_cache_dir(&storage), |raw| resolve_relative(raw, base_dir));
+        let hosted_store = match &file.s3 {
+            Some(s3) => {
+                HostedStoreConfig::S3 { store: build_s3_store(s3)?, prefix: s3.normalized_prefix() }
+            }
+            None => HostedStoreConfig::Fs,
+        };
+        let backend = match file.backend.and_then(|block| block.libsql) {
+            Some(mut settings) => {
+                // Resolve a relative `replicaPath` against the config
+                // file's directory, the same convention `storage` and
+                // the auth files follow, so `./auth-replica.db` lands
+                // next to the config rather than in the process CWD.
+                if let Some(path) = settings.replica_path.take() {
+                    settings.replica_path =
+                        Some(if path.is_absolute() { path } else { base_dir.join(path) });
+                }
+                BackendConfig::Libsql(settings)
+            }
+            None => BackendConfig::Local,
+        };
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
         let policies = build_policies(&file.packages)?;
+        let uplinks = file
+            .uplinks
+            .into_iter()
+            .map(|(name, uplink)| {
+                let resolved = resolve_uplink::<SystemEnv>(&name, uplink)?;
+                Ok((name, resolved))
+            })
+            .collect::<Result<IndexMap<_, _>, RegistryError>>()?;
         Ok(Self {
             listen,
             public_url,
             storage,
-            uplinks: file.uplinks,
+            cache_storage,
+            uplinks,
             packages: file.packages,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies,
             auth,
             logs,
+            hosted_store,
+            backend,
         })
     }
 
@@ -507,6 +815,7 @@ impl Config {
     /// first-match-wins semantics. The returned tuple's first element
     /// is the uplink *name* (the key in [`Self::uplinks`]); callers
     /// that have pre-built per-uplink state can use it as an index.
+    #[must_use]
     pub fn resolve_uplink(&self, package_name: &str) -> Option<(&str, &UplinkConfig)> {
         let access = self.packages.iter().find_map(|(pattern, access)| {
             pattern_matches(pattern, package_name).then_some(access)
@@ -608,6 +917,18 @@ fn resolve_relative(raw: &str, base_dir: &Path) -> PathBuf {
 
 fn default_storage_string() -> String {
     "./storage".to_string()
+}
+
+/// The disposable proxy cache lives under a hidden `.pnpr-cache`
+/// subdirectory of `storage` by default. Nesting it under `storage`
+/// keeps a `--storage`-only deployment self-contained, while the dot
+/// prefix keeps the local search scan (which walks `<storage>/<pkg>`)
+/// from treating it as a package. Operators who want the cache on a
+/// separate, wipe-able volume point the `cache:` key at an absolute
+/// path instead.
+#[must_use]
+pub fn default_cache_dir(storage: &Path) -> PathBuf {
+    storage.join(".pnpr-cache")
 }
 
 /// Match a verdaccio package pattern against a package name.

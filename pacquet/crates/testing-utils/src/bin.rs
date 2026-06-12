@@ -23,6 +23,7 @@ pub struct CommandTempCwd<NpmrcInfo> {
 impl CommandTempCwd<()> {
     /// Create a temporary directory, a `workspace` sub-directory, a `pacquet` command,
     /// and a `pnpm` command with current dir set to the `workspace` sub-directory.
+    #[must_use]
     pub fn init() -> Self {
         let root = tempdir().expect("create temporary directory");
         let workspace = root.path().join("workspace");
@@ -53,6 +54,7 @@ impl CommandTempCwd<()> {
     ///
     /// Also writes a `pnpm-workspace.yaml` with `storeDir` / `cacheDir` because
     /// pnpm 11 reads those from the workspace YAML rather than `.npmrc`.
+    #[must_use]
     pub fn add_mocked_registry(self) -> CommandTempCwd<AddMockedRegistry> {
         let store_dir = self.root.path().join("pacquet-store");
         let cache_dir = self.root.path().join("pacquet-cache");

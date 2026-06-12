@@ -58,7 +58,7 @@ pub trait GetHomeDir {
 /// Capability: read the process's current working directory.
 ///
 /// Mirrors [`std::env::current_dir`]. Only used by code that
-/// genuinely needs the cwd — the SmartDefault for
+/// genuinely needs the cwd — the `SmartDefault` for
 /// [`crate::Config::store_dir`] consults it on Windows for the
 /// drive-letter derivation. Code that needs a "starting path" — like
 /// [`crate::Config::current`] — takes a direct path parameter
@@ -113,6 +113,14 @@ pub struct Host;
 impl EnvVar for Host {
     fn var(name: &str) -> Option<String> {
         std::env::var(name).ok()
+    }
+
+    fn vars() -> Vec<(String, String)> {
+        // `std::env::vars()` panics on non-UTF-8 entries; iterate the
+        // OsString form and skip those, matching `var`'s `.ok()` behavior.
+        std::env::vars_os()
+            .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
+            .collect()
     }
 }
 

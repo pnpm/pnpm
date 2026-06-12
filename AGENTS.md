@@ -146,6 +146,31 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) specific
 -   `test`: adding missing tests
 -   `chore`: changes to build process or auxiliary tools
 
+### Install the git hooks before committing
+
+The git hooks in `.husky/` (including the `commit-msg` check described below) only run once husky has wired them into git. A fresh clone does **not** have them active until installed. **Before making any commit, ensure the hooks are installed** by running one of:
+
+```bash
+pnpm install      # runs the "prepare": "husky" script as part of install
+# or, if dependencies are already installed, register the hooks on their own:
+pnpm exec husky
+```
+
+You can confirm the hooks are active with `git config core.hooksPath` (it should point at husky's directory) and by checking that `.husky/_/` exists. Do not commit with hooks uninstalled — that silently skips every check, including the bare `#NNN` rejection below.
+
+### Never use bare `#NNN` issue/PR references
+
+**Do not write a bare `#NNN` (a `#` followed by digits) anywhere in a commit message.** A `commit-msg` hook (`.husky/reject-bare-issue-refs.mjs`) rejects them.
+
+GitHub turns any `#NNN` into a link to issue/PR `NNN` of *this* repo, which is almost never what a bare reference means. This is a frequent AI mistake in two forms:
+
+-   Using `#1`, `#2`, `#3`, … to enumerate items in a list. GitHub instead links them to unrelated issues `#1`, `#2`, `#3` of this repo. **Fix:** don't use `#` for enumeration — write `item 1`, `(1)`, `1.`, or rephrase.
+-   Referring to issue `#NNN` of a *different* repository. GitHub instead links it to issue `NNN` of this repo. **Fix:** use qualified syntax `owner/repo#NNN` or an absolute URL `https://github.com/owner/repo/issues/NNN`.
+
+For references to issues/PRs in **this** repo, also use the qualified form `pnpm/pnpm#NNN` or the absolute URL `https://github.com/pnpm/pnpm/issues/NNN`. Qualified syntax and absolute URLs are always unambiguous, so this rule is applied to every `#NNN` without exception.
+
+**Address the root cause when the hook fires.** Rewrite the reference into the correct unambiguous form. Never bypass the check with `git commit --no-verify`, by editing or deleting the hook, or with any suppression file.
+
 ## Changesets (TypeScript only)
 
 If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory. The changeset file should describe the change and specify the packages that are affected with the pending version bump types: patch, minor, or major.
