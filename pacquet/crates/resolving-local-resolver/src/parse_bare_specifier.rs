@@ -254,9 +254,7 @@ fn resolve_path(where_dir: &Path, spec: &str) -> PathBuf {
     if is_absolute_specifier(spec) {
         return PathBuf::from(spec);
     }
-    let mut joined = where_dir.to_path_buf();
-    joined.push(spec);
-    normalize_components(&joined)
+    normalize_components(&where_dir.join(spec))
 }
 
 /// Collapse `.` and `..` components the way Node's `path.resolve`

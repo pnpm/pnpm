@@ -231,5 +231,5 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
     mock.assert_async().await;
 
     // Restore so TempDir's drop can clean up.
-    fs::set_permissions(cache.path(), fs::Permissions::from_mode(mode)).ok();
+    let _ = fs::set_permissions(cache.path(), fs::Permissions::from_mode(mode));
 }

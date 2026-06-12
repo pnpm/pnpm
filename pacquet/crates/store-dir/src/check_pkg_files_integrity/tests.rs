@@ -18,7 +18,7 @@ fn plant_cafs_file(store_dir: &StoreDir, digest: &str, mode: u32, content: &[u8]
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     let mut file = fs::File::create(&path).unwrap();
     file.write_all(content).unwrap();
-    file.sync_all().ok();
+    let _ = file.sync_all();
     path
 }
 

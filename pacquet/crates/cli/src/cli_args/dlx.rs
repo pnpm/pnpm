@@ -357,6 +357,10 @@ fn run_bin(
     let status =
         cmd.status().map_err(|source| DlxError::Spawn { command: bin_name.to_string(), source })?;
     if !status.success() {
+        #[expect(
+            clippy::exit,
+            reason = "dlx propagates the spawned command's exit status, like pnpm"
+        )]
         std::process::exit(status.code().unwrap_or(1));
     }
     Ok(())

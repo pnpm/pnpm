@@ -24,9 +24,9 @@ fn manifest_from_value(value: Value) -> PackageManifest {
     let dir = tempfile::tempdir().expect("tempdir for manifest");
     let path = dir.path().join("package.json");
     std::fs::write(&path, serde_json::to_string(&value).unwrap()).unwrap();
-    // Keep the tempdir alive by leaking its path; tests don't rely on
-    // cleanup since they only inspect the in-memory value.
-    std::mem::forget(dir);
+    // Persist the tempdir; tests only inspect the in-memory value and
+    // don't rely on cleanup.
+    let _ = dir.keep();
     PackageManifest::from_path(path).expect("read fixture manifest")
 }
 

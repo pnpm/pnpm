@@ -70,7 +70,8 @@ impl PreparedRegistryInfo {
         let info = RegistryInfo { port, pid };
         let prepared = PreparedRegistryInfo { info };
         prepared.save();
-        forget(mock_instance); // prevent this process from killing itself on drop
+        #[expect(clippy::mem_forget, reason = "prevent this process from killing itself on drop")]
+        forget(mock_instance);
         prepared
     }
 

@@ -29,8 +29,8 @@ fn common_layer(trace_var: &str) -> Box<dyn Layer<tracing_subscriber::Registry> 
             .with_target("pacquet_tarball", default_level)
             .boxed()
     } else {
-        // SAFETY: for the `expect`, if we can't parse the directive, then the tracing result would be
-        // unexpected, then panic is reasonable
+        // If we can't parse the directive, then the tracing result would be
+        // unexpected, so panicking on the `expect` is reasonable.
         EnvFilter::builder()
             .with_regex(true)
             .parse(trace_var)
