@@ -166,7 +166,7 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 pub fn ensure_file(
     file_path: &Path,
     content: &[u8],
-    mode: Option<u32>,
+    #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
     // See the "Process-local per-path mutex" bullet above and
     // [`cas_write_lock`] for the rationale.
@@ -375,8 +375,7 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 fn write_atomic(
     file_path: &Path,
     content: &[u8],
-    #[cfg_attr(windows, expect(unused, reason = "mode is only applied on POSIX platforms"))]
-    mode: Option<u32>,
+    #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
     /// Retries after `AlreadyExists` on the temp path. Sixteen fresh
     /// counter values is plenty — under benign conditions we never
@@ -516,10 +515,7 @@ fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
 /// classifier is disabled and any `rename` error propagates
 /// immediately.
 fn is_transient_rename_error(
-    #[cfg_attr(
-        not(windows),
-        expect(unused, reason = "only inspected in the Windows branch below")
-    )]
+    #[cfg_attr(not(windows), allow(unused, reason = "only inspected in the Windows branch below"))]
     error: &io::Error,
 ) -> bool {
     #[cfg(windows)]

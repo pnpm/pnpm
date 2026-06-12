@@ -1828,7 +1828,7 @@ pub fn download_priority(unpacked_size: Option<usize>, file_count: Option<usize>
 // hinting, store_dir + retry_opts are install-scoped, and
 // ignore_file_pattern is the per-fetch archive filter. Bundling
 // into a struct would just push the same fields into a wrapper.
-#[expect(
+#[allow(
     clippy::too_many_arguments,
     reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
 )]
@@ -2378,9 +2378,13 @@ fn manifest_package_id(manifest: Option<&serde_json::Value>) -> Option<String> {
 /// `addFilesFromDir` does on each tempdir file).
 // 8 arguments — over the default clippy threshold, but each is
 // distinct (see the matching note on `fetch_and_extract_zip_with_retry`).
-#[expect(
+#[allow(
     clippy::too_many_arguments,
     reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
+)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "arg count is set by upstream pnpm's fetcher signature"
 )]
 async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     http_client: &ThrottledClient,

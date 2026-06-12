@@ -605,7 +605,7 @@ impl BuildModules<'_> {
 /// dispatch can call it once per chunk member. The body is the same
 /// as the pre-`#12` sequential loop — `continue`s become `return Ok(())`
 /// here.
-#[expect(
+#[allow(
     clippy::too_many_arguments,
     reason = "the parameters are independent inputs; bundling them into a struct would not improve clarity"
 )]
