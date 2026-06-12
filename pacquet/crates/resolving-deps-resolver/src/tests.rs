@@ -2643,8 +2643,7 @@ mod peer_own_dep_shadowing {
         }
     }
 
-    fn parser_table() -> HashMap<(String, String), pacquet_resolving_resolver_base::ResolveResult>
-    {
+    fn parser_table() -> HashMap<(String, String), pacquet_resolving_resolver_base::ResolveResult> {
         let mut table = HashMap::new();
         table.insert(
             ("parser".to_string(), "^1.0.0".to_string()),
@@ -2675,14 +2674,10 @@ mod peer_own_dep_shadowing {
         let resolver = StubResolver { table: parser_table(), calls: Mutex::new(Vec::new()) };
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parser": "^1.0.0" }));
 
-        let tree = resolve_dependency_tree(
-            &resolver,
-            &manifest,
-            [DependencyGroup::Prod],
-            opts(true),
-        )
-        .await
-        .unwrap();
+        let tree =
+            resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(true))
+                .await
+                .unwrap();
 
         let parser = tree.packages.get("parser@1.0.0").expect("parser resolved");
         assert!(
@@ -2700,14 +2695,10 @@ mod peer_own_dep_shadowing {
         let resolver = StubResolver { table: parser_table(), calls: Mutex::new(Vec::new()) };
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parser": "^1.0.0" }));
 
-        let tree = resolve_dependency_tree(
-            &resolver,
-            &manifest,
-            [DependencyGroup::Prod],
-            opts(false),
-        )
-        .await
-        .unwrap();
+        let tree =
+            resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(false))
+                .await
+                .unwrap();
 
         let parser = tree.packages.get("parser@1.0.0").expect("parser resolved");
         assert!(
@@ -2738,14 +2729,10 @@ mod peer_own_dep_shadowing {
         let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "pkg": "^1.0.0" }));
 
-        let tree = resolve_dependency_tree(
-            &resolver,
-            &manifest,
-            [DependencyGroup::Prod],
-            opts(false),
-        )
-        .await
-        .unwrap();
+        let tree =
+            resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(false))
+                .await
+                .unwrap();
 
         let pkg = tree.packages.get("pkg@1.0.0").expect("pkg resolved");
         assert!(

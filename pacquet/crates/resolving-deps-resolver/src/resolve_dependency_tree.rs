@@ -1867,14 +1867,9 @@ fn extract_peer_dependencies(
             {
                 continue;
             }
-            peers
-                .entry(name.clone())
-                .and_modify(|entry| entry.optional = true)
-                .or_insert_with(|| PeerDep {
-                    version: "*".to_string(),
-                    optional: true,
-                    meta_only: true,
-                });
+            peers.entry(name.clone()).and_modify(|entry| entry.optional = true).or_insert_with(
+                || PeerDep { version: "*".to_string(), optional: true, meta_only: true },
+            );
         }
     }
 

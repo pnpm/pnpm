@@ -247,7 +247,8 @@ impl VersionsOverrider {
             };
 
             if chosen.inner.new_bare_specifier == "-" {
-                if let Some(peers) = value.get_mut("peerDependencies").and_then(Value::as_object_mut)
+                if let Some(peers) =
+                    value.get_mut("peerDependencies").and_then(Value::as_object_mut)
                 {
                     peers.remove(&name);
                 }
@@ -260,7 +261,8 @@ impl VersionsOverrider {
             );
 
             if is_valid_peer_range(&new_spec) {
-                if let Some(peers) = value.get_mut("peerDependencies").and_then(Value::as_object_mut)
+                if let Some(peers) =
+                    value.get_mut("peerDependencies").and_then(Value::as_object_mut)
                 {
                     peers.insert(name, Value::String(new_spec));
                 }
