@@ -239,7 +239,8 @@ unnecessary_safety_comment = "warn" # ...and `SAFETY:` prose never decorates saf
 
 # leftover-marker guards (restriction). `dbg_macro` stays off on purpose:
 # CODE_STYLE_GUIDE.md prescribes `dbg!` for complex structures in tests.
-todo = "warn"
+todo          = "warn"
+unimplemented = "warn"
 
 [profile.release]
 opt-level     = 3
