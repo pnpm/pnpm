@@ -462,7 +462,7 @@ type WantedKey = (
     Option<DateTime<Utc>>,
     Option<PathBuf>,
     Option<PkgNameVerPeer>,
-    Vec<String>,
+    Vec<(String, Vec<String>)>,
 );
 
 /// Whether a wanted dep's resolution is computed relative to the
@@ -1274,21 +1274,30 @@ where
         .then(|| ctx.base_opts.project_dir.clone());
     // The overlay's view for this edge joins the cache key: the same
     // range can legitimately pick different versions under levels
-    // that resolved different siblings. The view covers every name
-    // the picker may merge the overlay under (alias, `npm:` inner
-    // target, folded `jsr:` name). Empty for almost every edge, so
-    // the dedup keeps working where it matters.
-    let overlay_versions: Vec<String> = pick_overlay
+    // that resolved different siblings. The view keeps each candidate
+    // name (alias, `npm:` inner target, folded `jsr:` name) paired
+    // with its versions — the picker consults the overlay per name,
+    // so a flat union of versions could collide two overlays that
+    // distribute the same versions across different names. Empty for
+    // almost every edge, so the dedup keeps working where it matters.
+    let overlay_versions: Vec<(String, Vec<String>)> = pick_overlay
         .as_ref()
         .map(|overlay| {
-            let mut versions: Vec<String> = overlay_lookup_names(&wanted)
-                .iter()
-                .flat_map(|name| overlay.versions_for(name))
-                .map(str::to_string)
+            let mut view: Vec<(String, Vec<String>)> = overlay_lookup_names(&wanted)
+                .into_iter()
+                .filter_map(|name| {
+                    let mut versions: Vec<String> =
+                        overlay.versions_for(&name).into_iter().map(str::to_string).collect();
+                    if versions.is_empty() {
+                        return None;
+                    }
+                    versions.sort_unstable();
+                    versions.dedup();
+                    Some((name, versions))
+                })
                 .collect();
-            versions.sort_unstable();
-            versions.dedup();
-            versions
+            view.sort_unstable();
+            view
         })
         .unwrap_or_default();
     let cache_key: WantedKey = (
