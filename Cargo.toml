@@ -262,6 +262,10 @@ verbose_file_reads     = "warn"
 allow_attributes                = "warn"
 allow_attributes_without_reason = "warn" # every suppression states why it exists
 
+# cargo-group lints opted into individually (`cargo_common_metadata` and
+# `multiple_crate_versions` stay off: unpublished crates / transitive-dep noise).
+negative_feature_names = "warn"
+
 [profile.release]
 opt-level     = 3
 lto           = "fat"
