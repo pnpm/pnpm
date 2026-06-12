@@ -59,10 +59,11 @@ fn fresh_target_links_files() {
 }
 
 /// Default opts (isolated linker) must short-circuit when the target
-/// already exists. This is the load-bearing invariant for the virtual
-/// store: each slot is populated exactly once and never re-imported.
-/// A regression here would cause the isolated linker to do redundant
-/// work and possibly clobber working state.
+/// already holds the completion marker (`package.json`). This is the
+/// load-bearing invariant for the virtual store: a fully-imported slot
+/// is never re-imported. The gate keys on the marker, not on mere
+/// directory existence — a marker-less partial directory is repaired
+/// instead (see [`partial_dir_without_marker_is_repaired`]).
 #[test]
 fn existing_target_short_circuits_under_default_opts() {
     let tmp = tempdir().unwrap();
@@ -532,4 +533,141 @@ fn concurrent_force_imports_into_different_targets_do_not_collide() {
     assert_eq!(fs::read(target_b.join("package.json")).unwrap(), b"two");
     assert!(!target_a.join("stale.txt").exists());
     assert!(!target_b.join("stale.txt").exists());
+}
+
+/// Core of the pnpm/pnpm#12204 port (commit cbfeeef328): a directory
+/// left behind by an interrupted import — present, holding some files,
+/// but missing the `package.json` completion marker — is *repaired* on
+/// the next default-opts import, not treated as complete. The repair is
+/// non-destructive (a sibling importer's unrelated file survives) and
+/// EEXIST-tolerant (an already-linked file is left in place).
+#[test]
+fn partial_dir_without_marker_is_repaired() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"v1");
+    let code = write_source(&src_root, "index.js", b"codev1");
+    let cas = cas_map(&[("package.json", pkg_json), ("lib/index.js", code)]);
+
+    // An interrupted import: the directory and one non-marker file were
+    // written, then the process died before the marker was placed. A
+    // second, unrelated file stands in for a concurrent importer's work.
+    let target = tmp.path().join("pkg");
+    fs::create_dir_all(target.join("lib")).unwrap();
+    fs::write(target.join("lib/index.js"), b"codev1").unwrap();
+    fs::write(target.join("leftover.txt"), b"keep me").unwrap();
+    assert!(!target.join("package.json").exists(), "precondition: marker absent");
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("a marker-less partial directory must be repaired, not skipped");
+
+    // The marker is now present, the already-linked file is intact, and
+    // the unrelated sibling file was not destroyed.
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"v1");
+    assert_eq!(fs::read(target.join("lib/index.js")).unwrap(), b"codev1");
+    assert_eq!(fs::read(target.join("leftover.txt")).unwrap(), b"keep me");
+}
+
+/// The mirror of [`partial_dir_without_marker_is_repaired`]: once the
+/// marker is present the import is skipped wholesale, even if other
+/// files are missing. This matches pnpm's `pkgExistsAtTargetDir`, which
+/// checks only the marker — writing it last is what makes its presence a
+/// sound completeness signal, so a marker-present-but-otherwise-partial
+/// directory is not a state a finished import can produce.
+#[test]
+fn existing_marker_short_circuits_even_when_other_files_missing() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"vNEW");
+    let code = write_source(&src_root, "index.js", b"code");
+    let cas = cas_map(&[("package.json", pkg_json), ("lib/index.js", code)]);
+
+    let target = tmp.path().join("pkg");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("package.json"), b"vOLD").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("marker present should short-circuit");
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"vOLD", "marker untouched");
+    assert!(!target.join("lib/index.js").exists(), "skipped import must not link other files");
+}
+
+/// When the file map has no `package.json` (an old store entry indexed
+/// before the synthetic manifest), the marker falls back to the
+/// lexicographically smallest filename. A directory missing that file is
+/// still recognised as incomplete and repaired.
+#[test]
+fn fallback_marker_repairs_when_no_package_json() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let a = write_source(&src_root, "a.txt", b"A");
+    let b = write_source(&src_root, "b.txt", b"B");
+    // No package.json: marker is "a.txt" (lexicographically smallest).
+    let cas = cas_map(&[("a.txt", a), ("b.txt", b)]);
+
+    // Partial: the non-marker file is present, the marker ("a.txt") is not.
+    let target = tmp.path().join("pkg");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("b.txt"), b"B").unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("missing fallback marker must trigger repair");
+
+    assert_eq!(fs::read(target.join("a.txt")).unwrap(), b"A");
+    assert_eq!(fs::read(target.join("b.txt")).unwrap(), b"B");
+}
+
+/// A successful fresh import must place the marker and leave no staging
+/// temp behind: the marker is imported into a private temp sibling and
+/// renamed onto `package.json`, so a leaked `*_pacquet-stage_*` file
+/// would mean the rename never happened.
+#[test]
+fn fresh_import_places_marker_and_leaks_no_temp() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let pkg_json = write_source(&src_root, "package.json", b"{}");
+    let code = write_source(&src_root, "index.js", b"code");
+    let cas = cas_map(&[("package.json", pkg_json), ("index.js", code)]);
+
+    let target = tmp.path().join("pkg");
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("fresh import should succeed");
+
+    assert!(target.join("package.json").exists(), "marker must be placed");
+    for entry in walkdir::WalkDir::new(&target) {
+        let path = entry.unwrap().into_path();
+        assert!(
+            !path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.contains("pacquet-stage")),
+            "marker staging temp leaked at {path:?}",
+        );
+    }
 }
