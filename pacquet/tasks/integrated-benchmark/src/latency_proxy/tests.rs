@@ -163,13 +163,18 @@ fn slow_start_ramps_per_connection_throughput() {
         start.elapsed()
     };
 
-    let flat = timed_transfer(false).min(timed_transfer(false));
-    let ramped = timed_transfer(true);
+    let best_of = |samples: u32, slow_start: bool| {
+        (0..samples).map(|_| timed_transfer(slow_start)).min().expect("at least one sample")
+    };
     // Flat: ~2×20ms latency + 256KiB/10MB/s ≈ 66 ms. Ramped: the first
     // windows (14.6 KB and doubling) each serialize at cwnd/RTT, adding ~3-4
-    // window-times before the rate approaches the cap. Compare against the
-    // faster flat sample so scheduler noise on one baseline run does not hide
-    // the slow-start overhead.
+    // window-times before the rate approaches the cap. Compare the best of
+    // several samples on each side: the minimum is the noise-resistant
+    // estimator on a loaded CI runner — scheduler stalls only ever inflate a
+    // sample, while slow start's ramp overhead is structural and survives in
+    // every sample, including the minimum.
+    let flat = best_of(3, false);
+    let ramped = best_of(3, true);
     assert!(
         ramped > flat + Duration::from_millis(25),
         "slow start should add ramp-up time: flat {flat:?} vs ramped {ramped:?}",
