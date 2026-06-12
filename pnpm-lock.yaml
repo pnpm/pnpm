@@ -5405,6 +5405,9 @@ importers:
       ci-info:
         specifier: 'catalog:'
         version: 4.4.0
+      detect-libc:
+        specifier: 'catalog:'
+        version: 2.1.2
       get-npm-tarball-url:
         specifier: 'catalog:'
         version: 2.1.0

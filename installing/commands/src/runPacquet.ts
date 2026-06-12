@@ -8,6 +8,7 @@ import type { Writable } from 'node:stream'
 import { PnpmError } from '@pnpm/error'
 import { logger, streamParser } from '@pnpm/logger'
 import chalk from 'chalk'
+import { MUSL, familySync as getLibcFamilySync } from 'detect-libc'
 
 // The runtime `streamParser` is a `Transform` stream (split2 + JSON.parse).
 // Its public typing only exposes `on`/`removeListener`, so we narrow to the
@@ -178,7 +179,8 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacque
 function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm/pacquet'): string {
   const ext = process.platform === 'win32' ? '.exe' : ''
   const pacquetPkg = fs.realpathSync(path.join(lockfileDir, 'node_modules/.pnpm-config', packageName, 'package.json'))
-  return createRequire(pacquetPkg).resolve(`@pacquet/${process.platform}-${process.arch}/pacquet${ext}`)
+  const libc = process.platform === 'linux' && getLibcFamilySync() === MUSL ? '-musl' : ''
+  return createRequire(pacquetPkg).resolve(`@pacquet/${process.platform}-${process.arch}${libc}/pacquet${ext}`)
 }
 
 /**
