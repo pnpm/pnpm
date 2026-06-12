@@ -264,7 +264,8 @@ allow_attributes_without_reason = "warn" # every suppression states why it exist
 
 # cargo-group lints opted into individually (`cargo_common_metadata` and
 # `multiple_crate_versions` stay off: unpublished crates / transitive-dep noise).
-negative_feature_names = "warn"
+negative_feature_names  = "warn"
+redundant_feature_names = "warn"
 
 [profile.release]
 opt-level     = 3
