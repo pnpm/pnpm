@@ -1059,7 +1059,11 @@ where
                     ..WantedDependency::default()
                 };
                 let base_overlay = ctx.base_opts.preferred_versions_overlay.clone();
-                resolve_node_seed(ctx, resolver, wanted, &[], 0, false, reuse, base_overlay).await
+                let seed =
+                    resolve_node_seed(ctx, resolver, wanted, &[], 0, false, reuse, base_overlay)
+                        .await?;
+                warm_children_resolutions(ctx, resolver, &seed).await;
+                Ok::<NodeSeed, ResolveDependencyTreeError>(seed)
             }
         })
         .pipe(future::try_join_all)
@@ -1311,72 +1315,9 @@ where
         prior_key.clone(),
         overlay_versions.clone(),
     );
-    let cached =
-        lock_recoverable(&ctx.workspace.resolved_by_wanted).get(&cache_key).map(Arc::clone);
-    let result = if let Some(result) = cached {
-        result
-    } else {
-        let overlay_opts;
-        let opts = if overlay_versions.is_empty() {
-            opts
-        } else {
-            let mut owned = opts.clone();
-            owned.preferred_versions_overlay.clone_from(&pick_overlay);
-            overlay_opts = owned;
-            &overlay_opts
-        };
-        let mut result = resolver
-            .resolve(&wanted, opts)
-            .await
-            .map_err(|err: ResolveError| ResolveDependencyTreeError::Resolve(err.to_string()))?;
-        let Some(result_inner) = result.as_mut() else {
-            return Err(ResolveDependencyTreeError::SpecNotSupported {
-                specifier: render_specifier(&wanted),
-            });
-        };
-        // Apply the configured `readPackageHook` (today:
-        // `packageExtensions`) to the manifest fragment before
-        // anything downstream sees it. Mirrors upstream's
-        // [`ctx.readPackageHook(pkg)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencies.ts#L1481-L1483)
-        // call at the resolveDependency seam. The hook clones the
-        // inner `Value` only when it modifies it, so unrelated
-        // manifests keep sharing the resolver's cached `Arc`.
-        if let Some(hook) = ctx.workspace.manifest_hook.as_ref()
-            && let Some(manifest) = result_inner.manifest.take()
-        {
-            result_inner.manifest = Some(hook(manifest));
-        }
-
-        if let Some(pnpmfile_hook) = ctx.workspace.pnpmfile_hook.as_ref()
-            && let Some(manifest) = result_inner.manifest.take()
-        {
-            let log = ctx.workspace.read_package_log.clone().unwrap_or_else(|| Arc::new(|_| {}));
-            let hook_ctx = pacquet_hooks::HookContext { log };
-
-            let updated = pnpmfile_hook
-                .read_package((*manifest).clone(), hook_ctx)
-                .await
-                .map_err(ResolveDependencyTreeError::PnpmfileHook)?;
-            result_inner.manifest = Some(updated);
-        }
-
-        if ctx.workspace.auto_install_peers
-            && let Some(manifest) = result_inner.manifest.take()
-        {
-            result_inner.manifest = Some(omit_peer_shadowed_dependencies(manifest));
-        }
-
-        let result = result.expect("Some-guarded above");
-        // Wrap in `Arc` once so the cache, the per-id
-        // `ResolvedPackage` envelope, and the later peer-resolved
-        // graph node share one heap-allocated `ResolveResult`
-        // instead of cloning every `String` field per occurrence.
-        let result = Arc::new(result);
-        lock_recoverable(&ctx.workspace.resolved_by_wanted)
-            .entry(cache_key)
-            .or_insert_with(|| Arc::clone(&result));
-        result
-    };
+    let result =
+        resolve_wanted_cached(ctx, resolver, &wanted, opts, pick_overlay.as_ref(), cache_key)
+            .await?;
 
     if let Some(violation) = result.policy_violation.clone() {
         lock_recoverable(&ctx.workspace.policy_violations).push(violation);
@@ -1578,7 +1519,7 @@ where
                 let next_ancestors = Arc::clone(&next_ancestors);
                 let pick_overlay = children_overlay.clone();
                 async move {
-                    resolve_node_seed(
+                    let seed = resolve_node_seed(
                         ctx,
                         resolver,
                         child_wanted,
@@ -1588,7 +1529,9 @@ where
                         ReuseSource::PriorOnly { key: child_prior },
                         pick_overlay,
                     )
-                    .await
+                    .await?;
+                    warm_children_resolutions(ctx, resolver, &seed).await;
+                    Ok::<NodeSeed, ResolveDependencyTreeError>(seed)
                 }
             })
             .pipe(future::try_join_all)
@@ -1725,6 +1668,144 @@ fn overlay_lookup_names(wanted: &WantedDependency) -> Vec<String> {
         names.push(spec.npm_pkg_name);
     }
     names
+}
+
+/// Look the wanted edge up in the per-wanted dedup cache or run the
+/// resolver chain and the manifest-hook pipeline, caching the
+/// `Arc<ResolveResult>` under `cache_key`. Concurrent first-callers
+/// can both miss and resolve in parallel — the resolver's own
+/// per-cache-key fetch locker coalesces the network work, and the
+/// second `or_insert` loses the race harmlessly.
+async fn resolve_wanted_cached<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &WantedDependency,
+    opts: &ResolveOptions,
+    pick_overlay: Option<&Arc<PreferredVersionsOverlay>>,
+    cache_key: WantedKey,
+) -> Result<Arc<pacquet_resolving_resolver_base::ResolveResult>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    let cached =
+        lock_recoverable(&ctx.workspace.resolved_by_wanted).get(&cache_key).map(Arc::clone);
+    if let Some(result) = cached {
+        return Ok(result);
+    }
+    let overlay_opts;
+    let opts = if cache_key.7.is_empty() {
+        opts
+    } else {
+        let mut owned = opts.clone();
+        owned.preferred_versions_overlay = pick_overlay.map(Arc::clone);
+        overlay_opts = owned;
+        &overlay_opts
+    };
+    let mut result = resolver
+        .resolve(wanted, opts)
+        .await
+        .map_err(|err: ResolveError| ResolveDependencyTreeError::Resolve(err.to_string()))?;
+    let Some(result_inner) = result.as_mut() else {
+        return Err(ResolveDependencyTreeError::SpecNotSupported {
+            specifier: render_specifier(wanted),
+        });
+    };
+    // Apply the configured `readPackageHook` (today:
+    // `packageExtensions`) to the manifest fragment before
+    // anything downstream sees it. Mirrors upstream's
+    // [`ctx.readPackageHook(pkg)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencies.ts#L1481-L1483)
+    // call at the resolveDependency seam. The hook clones the
+    // inner `Value` only when it modifies it, so unrelated
+    // manifests keep sharing the resolver's cached `Arc`.
+    if let Some(hook) = ctx.workspace.manifest_hook.as_ref()
+        && let Some(manifest) = result_inner.manifest.take()
+    {
+        result_inner.manifest = Some(hook(manifest));
+    }
+
+    if let Some(pnpmfile_hook) = ctx.workspace.pnpmfile_hook.as_ref()
+        && let Some(manifest) = result_inner.manifest.take()
+    {
+        let log = ctx.workspace.read_package_log.clone().unwrap_or_else(|| Arc::new(|_| {}));
+        let hook_ctx = pacquet_hooks::HookContext { log };
+
+        let updated = pnpmfile_hook
+            .read_package((*manifest).clone(), hook_ctx)
+            .await
+            .map_err(ResolveDependencyTreeError::PnpmfileHook)?;
+        result_inner.manifest = Some(updated);
+    }
+
+    if ctx.workspace.auto_install_peers
+        && let Some(manifest) = result_inner.manifest.take()
+    {
+        result_inner.manifest = Some(omit_peer_shadowed_dependencies(manifest));
+    }
+
+    let result = result.expect("Some-guarded above");
+    // Wrap in `Arc` once so the cache, the per-id
+    // `ResolvedPackage` envelope, and the later peer-resolved
+    // graph node share one heap-allocated `ResolveResult`
+    // instead of cloning every `String` field per occurrence.
+    let result = Arc::new(result);
+    lock_recoverable(&ctx.workspace.resolved_by_wanted)
+        .entry(cache_key)
+        .or_insert_with(|| Arc::clone(&result));
+    Ok(result)
+}
+
+/// Speculatively warm a freshly-seeded node's children resolutions so
+/// their packuments download while the sibling level's barrier waits
+/// for its slowest member. Results are discarded — the real picks run
+/// in the walk phase with the level's preferred-versions overlay and
+/// hit the warm metadata caches — and errors are swallowed: a
+/// speculative fetch must never fail the install (the real resolve
+/// will surface it). Recovers the cross-level pipelining the
+/// postponed-resolution barrier otherwise serializes; pure overlap,
+/// no behavioral effect.
+async fn warm_children_resolutions<Chain>(ctx: &TreeCtx, resolver: &Chain, seed: &NodeSeed)
+where
+    Chain: Resolver + ?Sized,
+{
+    let NodeSeed::Pending(pending) = seed else { return };
+    if pending.is_link || pending.is_revisit {
+        return;
+    }
+    let Ok(specs) = extract_children(&pending.result) else { return };
+    let opts = ctx.opts_for_depth(pending.depth + 1);
+    specs
+        .iter()
+        .map(|(name, range, optional)| {
+            let wanted = WantedDependency {
+                alias: Some(name.clone()),
+                bare_specifier: Some(range.clone()),
+                optional: Some(*optional),
+                ..WantedDependency::default()
+            };
+            async move {
+                // Warm through the same per-wanted dedup cache, under
+                // the empty-overlay-view key: when the real pick's
+                // view is empty too (the overwhelmingly common case)
+                // it reuses this entry outright; otherwise it misses
+                // into its own bucket and re-picks from the warm
+                // metadata caches.
+                let project_scope = is_project_relative_specifier(wanted.bare_specifier.as_deref())
+                    .then(|| ctx.base_opts.project_dir.clone());
+                let cache_key: WantedKey = (
+                    wanted.alias.clone(),
+                    wanted.bare_specifier.clone(),
+                    wanted.optional,
+                    wanted.injected,
+                    opts.pick_lowest_version,
+                    opts.published_by,
+                    project_scope,
+                    Vec::new(),
+                );
+                let _ = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await;
+            }
+        })
+        .pipe(future::join_all)
+        .await;
 }
 
 /// The `(name → versions)` additions one resolved level contributes
