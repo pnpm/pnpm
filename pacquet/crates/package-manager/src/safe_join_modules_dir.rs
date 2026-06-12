@@ -5,8 +5,7 @@
 //! and a reserved alias (`.bin`, `.pnpm`, `node_modules`) would
 //! overwrite pnpm-owned layout. Mirrors pnpm's
 //! [`safeJoinModulesDir`](https://github.com/pnpm/pnpm/blob/main/fs/symlink-dependency/src/safeJoinModulesDir.ts)
-//! and routes through the same
-//! [`is_valid_dependency_alias`](pacquet_resolving_deps_resolver::is_valid_dependency_alias)
+//! and routes through the same [`is_valid_dependency_alias`]
 //! check pacquet applies to direct-dependency aliases at resolution
 //! time, so the hoisted restore path enforces the boundary the
 //! resolution path already enforces.
