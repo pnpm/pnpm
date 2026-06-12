@@ -1058,12 +1058,18 @@ where
                     injected: injected.then_some(true),
                     ..WantedDependency::default()
                 };
-                resolve_node_seed(ctx, resolver, wanted, &[], 0, false, reuse, None).await
+                let base_overlay = ctx.base_opts.preferred_versions_overlay.clone();
+                resolve_node_seed(ctx, resolver, wanted, &[], 0, false, reuse, base_overlay).await
             }
         })
         .pipe(future::try_join_all)
         .await?;
-    let children_overlay = PreferredVersionsOverlay::layer(None, level_versions(ctx, &seeds));
+    // The level chain extends any caller-seeded overlay so descendant
+    // picks and cache keys keep honoring it.
+    let children_overlay = PreferredVersionsOverlay::layer(
+        ctx.base_opts.preferred_versions_overlay.clone(),
+        level_versions(ctx, &seeds),
+    );
     // Phase 2: walk each direct dep's children with the level overlay.
     let results = seeds
         .into_iter()
@@ -1101,6 +1107,7 @@ async fn resolve_node<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
+    let base_overlay = ctx.base_opts.preferred_versions_overlay.clone();
     match resolve_node_seed(
         ctx,
         resolver,
@@ -1109,12 +1116,14 @@ where
         depth,
         parent_optional,
         reuse,
-        None,
+        base_overlay.clone(),
     )
     .await?
     {
         NodeSeed::Done(dep) => Ok(dep),
-        NodeSeed::Pending(pending) => walk_node_children(ctx, resolver, *pending, None).await,
+        NodeSeed::Pending(pending) => {
+            walk_node_children(ctx, resolver, *pending, base_overlay).await
+        }
     }
 }
 
@@ -1263,15 +1272,23 @@ where
     // versions never share a `currentPkg`-dependent result.
     let project_scope = is_project_relative_specifier(wanted.bare_specifier.as_deref())
         .then(|| ctx.base_opts.project_dir.clone());
-    // The overlay's view for this alias joins the cache key: the same
+    // The overlay's view for this edge joins the cache key: the same
     // range can legitimately pick different versions under levels
-    // that resolved different siblings. Empty for almost every edge,
-    // so the dedup keeps working where it matters.
+    // that resolved different siblings. The view covers every name
+    // the picker may merge the overlay under (alias, `npm:` inner
+    // target, folded `jsr:` name). Empty for almost every edge, so
+    // the dedup keeps working where it matters.
     let overlay_versions: Vec<String> = pick_overlay
         .as_ref()
-        .zip(wanted.alias.as_deref())
-        .map(|(overlay, alias)| {
-            overlay.versions_for(alias).into_iter().map(str::to_string).collect()
+        .map(|overlay| {
+            let mut versions: Vec<String> = overlay_lookup_names(&wanted)
+                .iter()
+                .flat_map(|name| overlay.versions_for(name))
+                .map(str::to_string)
+                .collect();
+            versions.sort_unstable();
+            versions.dedup();
+            versions
         })
         .unwrap_or_default();
     let cache_key: WantedKey = (
@@ -1657,6 +1674,48 @@ where
 /// none of which change *which package version* the parent is.
 fn landed_on_prior_entry(prior_key: &PkgNameVerPeer, resolved_pkg_id: &str) -> bool {
     prior_key.without_peer().to_string() == pacquet_deps_path::remove_suffix(resolved_pkg_id)
+}
+
+/// The package names the npm picker may consult the preferred-versions
+/// overlay under for one wanted edge: the alias itself, plus the inner
+/// target of an `npm:` alias and the folded `@jsr/...` name of a
+/// `jsr:` specifier — mirroring the name derivation in the npm
+/// resolver's `parse_bare_specifier`, which keys its overlay merge by
+/// the resolved `spec.name` rather than the outer alias.
+fn overlay_lookup_names(wanted: &WantedDependency) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    if let Some(alias) = wanted.alias.as_deref()
+        && !alias.is_empty()
+    {
+        names.push(alias.to_string());
+    }
+    let Some(bare) = wanted.bare_specifier.as_deref() else { return names };
+    if let Some(rest) = bare.strip_prefix("npm:") {
+        let alias_keeps_name = wanted
+            .alias
+            .as_deref()
+            .is_some_and(|alias| !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok());
+        if !alias_keeps_name {
+            let last_at =
+                rest.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
+            let inner = match last_at {
+                Some(idx) if idx >= 1 => &rest[..idx],
+                _ => rest,
+            };
+            if !inner.is_empty() && !names.iter().any(|name| name == inner) {
+                names.push(inner.to_string());
+            }
+        }
+    } else if bare.starts_with("jsr:")
+        && let Ok(Some(spec)) = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(
+            bare,
+            wanted.alias.as_deref(),
+        )
+        && !names.contains(&spec.npm_pkg_name)
+    {
+        names.push(spec.npm_pkg_name);
+    }
+    names
 }
 
 /// The `(name → versions)` additions one resolved level contributes
