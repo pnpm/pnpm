@@ -559,9 +559,7 @@ struct NodeRecord {
 /// directly, so neither field is read after construction yet.
 #[derive(Debug, Clone)]
 struct MissingPeerInfo {
-    #[allow(dead_code, reason = "future peersCache validation")]
     range: String,
-    #[allow(dead_code, reason = "future peersCache validation")]
     optional: bool,
     /// See [`crate::dependencies_graph::MissingPeer::meta_only`].
     meta_only: bool,
@@ -1129,10 +1127,6 @@ impl Walker<'_> {
         }
     }
 
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "splitting these into a struct would only obscure the call site"
-    )]
     /// `true` when a missing-peer issue for `peer_name` under the
     /// given ancestor chain must not be emitted for the hoist input.
     /// See [`ResolvePeersOptions::hoist_missing_scope`].

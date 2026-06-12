@@ -256,6 +256,11 @@ pathbuf_init_then_push = "warn"
 string_add             = "warn"
 verbose_file_reads     = "warn"
 
+# attribute hygiene (restriction): #[expect] over #[allow], so a suppression
+# whose lint stops firing surfaces as an unfulfilled-expectation warning
+# instead of silently going stale.
+allow_attributes = "warn"
+
 [profile.release]
 opt-level     = 3
 lto           = "fat"

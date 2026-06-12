@@ -178,7 +178,7 @@ pub enum RegistryMode {
 // will stop firing once the `Hoisted*` and `Pnp*` linker buckets land.
 // Keeping the prefix is intentional — it mirrors the slug's leading
 // segment and makes the linker grouping legible in code.
-#[allow(
+#[expect(
     clippy::enum_variant_names,
     reason = "the shared `Isolated` prefix mirrors the scenario slug and keeps the linker grouping legible; it stops firing once other linker buckets land"
 )]
