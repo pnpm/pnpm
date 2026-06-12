@@ -62,12 +62,21 @@ impl State {
         require_lockfile: bool,
     ) -> Result<Self, InitStateError> {
         let should_load = config.lockfile || require_lockfile;
+        let lockfile = if should_load {
+            manifest_path
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .to_path_buf()
+                .pipe(LazyLockfile::deferred)
+        } else {
+            LazyLockfile::disabled()
+        };
         Ok(State {
             config,
             manifest: manifest_path
                 .pipe(PackageManifest::create_if_needed)
                 .map_err(InitStateError::Manifest)?,
-            lockfile: LazyLockfile::deferred(should_load),
+            lockfile,
             http_client: std::sync::Arc::new(
                 ThrottledClient::for_installs(
                     &config.proxy,

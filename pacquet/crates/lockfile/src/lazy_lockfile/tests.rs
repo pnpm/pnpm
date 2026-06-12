@@ -1,5 +1,6 @@
 use super::{LazyLockfile, MaybeLazyLockfile};
 use crate::Lockfile;
+use std::fs;
 
 fn minimal_lockfile() -> Lockfile {
     serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse a minimal lockfile")
@@ -22,9 +23,25 @@ fn preloaded_none_reports_absent() {
 
 #[test]
 fn disabled_never_touches_the_filesystem() {
-    let lazy = LazyLockfile::deferred(false);
+    let lazy = LazyLockfile::disabled();
     assert!(lazy.get().expect("disabled load is infallible").is_none());
     assert!(!lazy.is_loaded_or_on_disk());
+}
+
+#[test]
+fn deferred_loads_from_the_given_dir_not_the_process_cwd() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
+        .expect("write pnpm-lock.yaml");
+
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf());
+    assert!(lazy.is_loaded_or_on_disk(), "probe must find the dir-addressed lockfile");
+    assert!(lazy.get().expect("deferred load succeeds").is_some());
+
+    let empty = tempfile::tempdir().expect("tempdir");
+    let lazy = LazyLockfile::deferred(empty.path().to_path_buf());
+    assert!(!lazy.is_loaded_or_on_disk());
+    assert!(lazy.get().expect("absent lockfile loads as None").is_none());
 }
 
 #[test]

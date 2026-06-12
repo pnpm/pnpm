@@ -1,5 +1,5 @@
 use crate::{LoadLockfileError, Lockfile};
-use std::{path::Path, sync::OnceLock};
+use std::{path::PathBuf, sync::OnceLock};
 
 /// Wanted lockfile (`pnpm-lock.yaml`) whose read + parse are deferred
 /// until a consumer actually needs the contents.
@@ -12,20 +12,29 @@ use std::{path::Path, sync::OnceLock};
 /// [`LazyLockfile::get`] immediately and behave as if it were loaded
 /// eagerly.
 pub struct LazyLockfile {
-    /// `false` mirrors `lockfile: false` config: [`Self::get`] yields
-    /// `None` without touching the filesystem, matching the eager
-    /// loader's "don't even read the file" behavior.
-    enabled: bool,
+    /// Directory containing `pnpm-lock.yaml`. `None` mirrors
+    /// `lockfile: false` config: [`Self::get`] yields `None` without
+    /// touching the filesystem, matching the eager loader's "don't
+    /// even read the file" behavior.
+    dir: Option<PathBuf>,
     cell: OnceLock<Option<Lockfile>>,
 }
 
 impl LazyLockfile {
-    /// A lockfile that will be loaded from the current directory (the
-    /// same source as [`Lockfile::load_from_current_dir`]) on first
-    /// [`Self::get`]. `enabled: false` skips the load entirely.
+    /// A lockfile that will be loaded from `<dir>/pnpm-lock.yaml` (the
+    /// same source as [`Lockfile::load_wanted_from_dir`]) on first
+    /// [`Self::get`].
     #[must_use]
-    pub fn deferred(enabled: bool) -> Self {
-        LazyLockfile { enabled, cell: OnceLock::new() }
+    pub fn deferred(dir: PathBuf) -> Self {
+        LazyLockfile { dir: Some(dir), cell: OnceLock::new() }
+    }
+
+    /// A lockfile that is never loaded — [`Self::get`] yields `None`
+    /// without touching the filesystem. Mirrors `lockfile: false`
+    /// config.
+    #[must_use]
+    pub fn disabled() -> Self {
+        LazyLockfile { dir: None, cell: OnceLock::new() }
     }
 
     /// A lockfile that is already in memory; [`Self::get`] returns it
@@ -34,7 +43,7 @@ impl LazyLockfile {
     pub fn preloaded(lockfile: Option<Lockfile>) -> Self {
         let cell = OnceLock::new();
         cell.set(lockfile).expect("a fresh OnceLock accepts the first set");
-        LazyLockfile { enabled: true, cell }
+        LazyLockfile { dir: None, cell }
     }
 
     /// The parsed wanted lockfile, loading it on first call. `None`
@@ -45,7 +54,10 @@ impl LazyLockfile {
         if let Some(lockfile) = self.cell.get() {
             return Ok(lockfile.as_ref());
         }
-        let loaded = if self.enabled { Lockfile::load_from_current_dir()? } else { None };
+        let loaded = match self.dir.as_deref() {
+            Some(dir) => Lockfile::load_wanted_from_dir(dir)?,
+            None => None,
+        };
         Ok(self.cell.get_or_init(|| loaded).as_ref())
     }
 
@@ -58,7 +70,7 @@ impl LazyLockfile {
         if let Some(lockfile) = self.cell.get() {
             return lockfile.is_some();
         }
-        self.enabled && Path::new(Lockfile::FILE_NAME).exists()
+        self.dir.as_deref().is_some_and(|dir| dir.join(Lockfile::FILE_NAME).exists())
     }
 }
 

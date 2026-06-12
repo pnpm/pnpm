@@ -1811,7 +1811,14 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
         load_workspace_projects(&workspace_root, workspace_manifest.as_ref()).ok()?;
     let project_manifests =
         build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
-    let lockfile = LazyLockfile::deferred(config.lockfile);
+    // Same lockfile source as `State::init`'s (the manifest's
+    // directory), so the pre-runtime check and the in-pipeline check
+    // reach their verdicts from the same file.
+    let lockfile = if config.lockfile {
+        LazyLockfile::deferred(manifest_dir.to_path_buf())
+    } else {
+        LazyLockfile::disabled()
+    };
     (check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: &workspace_root,
         config,
