@@ -244,9 +244,10 @@ unimplemented = "warn"
 
 # explicit-intent guards (restriction): leaking, discarding, exiting, and
 # looping forever are all legal but must be spelled out at the use site.
-exit          = "warn" # deliberate exits carry #[expect] (e.g. dlx propagating the child's status)
-infinite_loop = "warn"
-mem_forget    = "warn" # deliberate leaks carry #[expect] with the reason
+exit             = "warn" # deliberate exits carry #[expect] (e.g. dlx propagating the child's status)
+infinite_loop    = "warn"
+mem_forget       = "warn" # deliberate leaks carry #[expect] with the reason
+unused_result_ok = "warn" # discard with `let _ = ...`, not `.ok()`
 
 get_unwrap = "warn" # `x[i]` over `x.get(i).unwrap()`: same panic, clearer intent and message
 
