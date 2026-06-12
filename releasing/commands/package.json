@@ -107,7 +107,6 @@
     "@types/proxyquire": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "@types/tar": "catalog:",
     "@types/tar-stream": "catalog:",
     "@types/validate-npm-package-name": "catalog:",
     "ci-info": "catalog:",

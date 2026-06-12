@@ -300,17 +300,17 @@ catalogs:
       specifier: ^2.31.0
       version: 2.31.0
     '@commitlint/cli':
-      specifier: ^20.5.3
-      version: 20.5.3
+      specifier: ^21.0.2
+      version: 21.0.2
     '@commitlint/config-conventional':
-      specifier: ^20.5.3
-      version: 20.5.3
+      specifier: ^21.0.2
+      version: 21.0.2
     '@commitlint/prompt-cli':
-      specifier: ^20.5.3
-      version: 20.5.3
+      specifier: ^21.0.2
+      version: 21.0.2
     '@cyclonedx/cyclonedx-library':
-      specifier: 10.0.0
-      version: 10.0.0
+      specifier: 10.1.0
+      version: 10.1.0
     '@eslint/js':
       specifier: ^10.0.1
       version: 10.0.1
@@ -318,8 +318,8 @@ catalogs:
       specifier: ^8.4.3
       version: 8.5.2
     '@jest/globals':
-      specifier: 30.3.0
-      version: 30.3.0
+      specifier: 30.4.1
+      version: 30.4.1
     '@npm/types':
       specifier: ^2.1.0
       version: 2.1.0
@@ -336,17 +336,17 @@ catalogs:
       specifier: ^4.1.0
       version: 4.1.0
     '@pnpm/config.nerf-dart':
-      specifier: ^1.0.1
-      version: 1.0.1
+      specifier: ^2.0.1
+      version: 2.0.1
     '@pnpm/exec':
       specifier: ^4.0.0
       version: 4.0.0
     '@pnpm/log.group':
-      specifier: 3.0.2
-      version: 3.0.2
+      specifier: 4.0.1
+      version: 4.0.1
     '@pnpm/logger':
-      specifier: ^1001.0.1
-      version: 1001.0.1
+      specifier: ^1100.0.0
+      version: 1100.0.0
     '@pnpm/meta-updater':
       specifier: 2.0.6
       version: 2.0.6
@@ -375,14 +375,14 @@ catalogs:
       specifier: 0.0.0
       version: 0.0.0
     '@pnpm/util.lex-comparator':
-      specifier: ^3.0.2
-      version: 3.0.2
+      specifier: ^4.0.1
+      version: 4.0.1
     '@reflink/reflink':
       specifier: 0.1.19
       version: 0.1.19
     '@rushstack/worker-pool':
-      specifier: 0.7.7
-      version: 0.7.7
+      specifier: 0.7.18
+      version: 0.7.18
     '@stylistic/eslint-plugin':
       specifier: ^5.10.0
       version: 5.10.0
@@ -423,8 +423,8 @@ catalogs:
       specifier: ^4.0.9
       version: 4.0.9
     '@types/libnpmpublish':
-      specifier: ^9.0.1
-      version: 9.0.1
+      specifier: ^11.2.0
+      version: 11.2.0
     '@types/lodash.kebabcase':
       specifier: 4.1.9
       version: 4.1.9
@@ -447,8 +447,8 @@ catalogs:
       specifier: 3.0.6
       version: 3.0.6
     '@types/parse-json':
-      specifier: ^4.0.2
-      version: 4.0.2
+      specifier: ^7.0.0
+      version: 7.0.0
     '@types/picomatch':
       specifier: ^4.0.3
       version: 4.0.3
@@ -473,9 +473,6 @@ catalogs:
     '@types/ssri':
       specifier: ^7.1.5
       version: 7.1.5
-    '@types/tar':
-      specifier: ^7.0.87
-      version: 7.0.87
     '@types/tar-stream':
       specifier: ^3.1.4
       version: 3.1.4
@@ -495,17 +492,17 @@ catalogs:
       specifier: ^1.1.9
       version: 1.1.9
     '@types/zkochan__table':
-      specifier: npm:@types/table@6.0.0
-      version: 6.0.0
+      specifier: npm:@types/table@6.3.2
+      version: 6.3.2
     '@typescript-eslint/utils':
-      specifier: ^8.60.0
-      version: 8.60.1
+      specifier: ^8.61.0
+      version: 8.61.0
     '@typescript/native-preview':
-      specifier: 7.0.0-dev.20260421.2
-      version: 7.0.0-dev.20260421.2
+      specifier: 7.0.0-dev.20260610.1
+      version: 7.0.0-dev.20260610.1
     '@yarnpkg/core':
-      specifier: 4.5.0
-      version: 4.5.0
+      specifier: 4.8.0
+      version: 4.8.0
     '@yarnpkg/extensions':
       specifier: 2.0.6
       version: 2.0.6
@@ -579,8 +576,8 @@ catalogs:
       specifier: ^4.4.0
       version: 4.4.0
     cli-truncate:
-      specifier: ^5.2.0
-      version: 5.2.0
+      specifier: ^6.0.0
+      version: 6.0.0
     cmd-extension:
       specifier: ^2.0.0
       version: 2.0.0
@@ -588,8 +585,8 @@ catalogs:
       specifier: ^2.0.0
       version: 2.0.0
     concurrently:
-      specifier: 9.2.1
-      version: 9.2.1
+      specifier: 10.0.3
+      version: 10.0.3
     cross-env:
       specifier: ^10.1.0
       version: 10.1.0
@@ -597,8 +594,8 @@ catalogs:
       specifier: ^7.0.6
       version: 7.0.6
     cspell:
-      specifier: 9.7.0
-      version: 9.7.0
+      specifier: 9.8.0
+      version: 9.8.0
     deep-require-cwd:
       specifier: 1.0.0
       version: 1.0.0
@@ -624,8 +621,8 @@ catalogs:
       specifier: ^3.0.1
       version: 3.0.1
     esbuild:
-      specifier: ^0.27.7
-      version: 0.27.7
+      specifier: ^0.28.0
+      version: 0.28.0
     escape-string-regexp:
       specifier: ^5.0.0
       version: 5.0.0
@@ -639,8 +636,8 @@ catalogs:
       specifier: ^29.15.2
       version: 29.15.2
     eslint-plugin-n:
-      specifier: ^17.24.0
-      version: 17.24.0
+      specifier: ^18.1.0
+      version: 18.1.0
     eslint-plugin-promise:
       specifier: ^7.3.0
       version: 7.3.0
@@ -648,8 +645,8 @@ catalogs:
       specifier: ^3.1.0
       version: 3.1.0
     eslint-plugin-simple-import-sort:
-      specifier: ^12.1.1
-      version: 12.1.1
+      specifier: ^13.0.0
+      version: 13.0.0
     execa:
       specifier: npm:safe-execa@0.3.0
       version: 0.3.0
@@ -735,8 +732,8 @@ catalogs:
       specifier: 5.6.0
       version: 5.6.0
     lcov-result-merger:
-      specifier: ^5.0.1
-      version: 5.0.1
+      specifier: ^6.0.0
+      version: 6.0.0
     libnpmpublish:
       specifier: ^11.2.0
       version: 11.2.0
@@ -762,20 +759,17 @@ catalogs:
       specifier: ^4.0.0
       version: 4.0.0
     memoize:
-      specifier: ^10.2.0
-      version: 10.2.0
+      specifier: ^11.0.0
+      version: 11.0.0
     micromatch:
       specifier: ^4.0.8
       version: 4.0.8
     msgpackr:
-      specifier: 1.11.8
-      version: 1.11.8
+      specifier: 2.0.4
+      version: 2.0.4
     nm-prune:
       specifier: ^5.0.0
       version: 5.0.0
-    nock:
-      specifier: 13.3.4
-      version: 13.3.4
     normalize-newline:
       specifier: 5.0.0
       version: 5.0.0
@@ -795,8 +789,8 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     open:
-      specifier: ^7.4.2
-      version: 7.4.2
+      specifier: ^11.0.0
+      version: 11.0.0
     openpgp:
       specifier: ^6.3.1
       version: 6.3.1
@@ -840,8 +834,8 @@ catalogs:
       specifier: ^3.0.0
       version: 3.0.0
     pidtree:
-      specifier: ^0.6.0
-      version: 0.6.0
+      specifier: ^1.0.0
+      version: 1.0.0
     preferred-pm:
       specifier: ^5.0.0
       version: 5.0.0
@@ -915,8 +909,8 @@ catalogs:
       specifier: ^1.6.4
       version: 1.6.4
     semver:
-      specifier: ^7.8.1
-      version: 7.8.3
+      specifier: ^7.8.4
+      version: 7.8.4
     semver-range-intersect:
       specifier: ^0.3.1
       version: 0.3.1
@@ -984,13 +978,13 @@ catalogs:
       specifier: 2.0.1
       version: 2.0.1
     typescript:
-      specifier: 5.9.3
-      version: 5.9.3
+      specifier: 6.0.3
+      version: 6.0.3
     typescript-eslint:
-      specifier: ^8.60.0
-      version: 8.60.1
+      specifier: ^8.61.0
+      version: 8.61.0
     undici:
-      specifier: ^7.26.0
+      specifier: ^7.27.2
       version: 7.27.2
     unified:
       specifier: ^11.0.5
@@ -1069,7 +1063,7 @@ overrides:
   postman-request>qs: ^6.14.1
   qs@>=6.11.1 <=6.15.1: ^6.15.2
   request: npm:postman-request@2.88.1-postman.40
-  semver@<7.5.2: ^7.8.1
+  semver@<7.5.2: ^7.8.4
   send@<0.19.0: ^0.19.0
   shell-quote@<1.8.4: '>=1.8.4'
   serve-static@<1.16.0: ^1.16.0
@@ -1097,13 +1091,13 @@ importers:
         version: 2.31.0(@types/node@22.19.20)
       '@commitlint/cli':
         specifier: 'catalog:'
-        version: 20.5.3(@types/node@22.19.20)(conventional-commits-parser@6.4.0)(typescript@5.9.3)
+        version: 21.0.2(@types/node@22.19.20)(conventional-commits-parser@6.4.0)(typescript@6.0.3)
       '@commitlint/config-conventional':
         specifier: 'catalog:'
-        version: 20.5.3
+        version: 21.0.2
       '@commitlint/prompt-cli':
         specifier: 'catalog:'
-        version: 20.5.3(@types/node@22.19.20)(typescript@5.9.3)
+        version: 21.0.2(@types/node@22.19.20)(typescript@6.0.3)
       '@pnpm/eslint-config':
         specifier: workspace:*
         version: link:__utils__/eslint-config
@@ -1130,19 +1124,19 @@ importers:
         version: 4.0.3
       '@typescript/native-preview':
         specifier: 'catalog:'
-        version: 7.0.0-dev.20260421.2
+        version: 7.0.0-dev.20260610.1
       c8:
         specifier: 'catalog:'
         version: 11.0.0
       concurrently:
         specifier: 'catalog:'
-        version: 9.2.1
+        version: 10.0.3
       cross-env:
         specifier: 'catalog:'
         version: 10.1.0
       cspell:
         specifier: 'catalog:'
-        version: 9.7.0
+        version: 9.8.0
       eslint:
         specifier: 'catalog:'
         version: 10.4.1(jiti@2.6.1)
@@ -1160,7 +1154,7 @@ importers:
         version: 5.6.0
       lcov-result-merger:
         specifier: 'catalog:'
-        version: 5.0.1
+        version: 6.0.0
       node:
         specifier: runtime:26.3.0
         version: runtime:26.3.0
@@ -1172,7 +1166,7 @@ importers:
         version: 0.4.0
       typescript:
         specifier: 'catalog:'
-        version: 5.9.3
+        version: 6.0.3
 
   .meta-updater:
     dependencies:
@@ -1211,7 +1205,7 @@ importers:
         version: 3.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
@@ -1242,7 +1236,7 @@ importers:
     dependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../assert-store
@@ -1297,7 +1291,7 @@ importers:
     dependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1331,32 +1325,32 @@ importers:
         version: 10.4.1(jiti@2.6.1)
       eslint-plugin-import-x:
         specifier: 'catalog:'
-        version: 4.16.2(@typescript-eslint/utils@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3))(eslint@10.4.1(jiti@2.6.1))
+        version: 4.16.2(@typescript-eslint/utils@8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3))(eslint@10.4.1(jiti@2.6.1))
       eslint-plugin-n:
         specifier: 'catalog:'
-        version: 17.24.0(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
+        version: 18.1.0(eslint@10.4.1(jiti@2.6.1))(ts-declaration-location@1.0.7(typescript@6.0.3))(typescript@6.0.3)
       eslint-plugin-promise:
         specifier: 'catalog:'
         version: 7.3.0(eslint@10.4.1(jiti@2.6.1))
       eslint-plugin-simple-import-sort:
         specifier: 'catalog:'
-        version: 12.1.1(eslint@10.4.1(jiti@2.6.1))
+        version: 13.0.0(eslint@10.4.1(jiti@2.6.1))
       typescript:
         specifier: 'catalog:'
-        version: 5.9.3
+        version: 6.0.3
       typescript-eslint:
         specifier: 'catalog:'
-        version: 8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
+        version: 8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
     devDependencies:
       '@pnpm/eslint-config':
         specifier: workspace:*
         version: 'link:'
       '@typescript-eslint/utils':
         specifier: 'catalog:'
-        version: 8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
+        version: 8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
       eslint-plugin-jest:
         specifier: 'catalog:'
-        version: 29.15.2(@typescript-eslint/eslint-plugin@8.60.1(@typescript-eslint/parser@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3))(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3))(eslint@10.4.1(jiti@2.6.1))(jest@30.4.2(@babel/types@7.29.7)(@types/node@22.19.20))(typescript@5.9.3)
+        version: 29.15.2(@typescript-eslint/eslint-plugin@8.61.0(@typescript-eslint/parser@8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3))(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3))(eslint@10.4.1(jiti@2.6.1))(jest@30.4.2(@babel/types@7.29.7)(@types/node@22.19.20))(typescript@6.0.3)
 
   __utils__/get-release-text:
     dependencies:
@@ -1480,22 +1474,19 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/jest-config':
         specifier: workspace:*
         version: link:../jest-config
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1100.0.0
       '@pnpm/scripts':
         specifier: workspace:*
         version: 'link:'
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
-      '@types/tar':
-        specifier: 'catalog:'
-        version: 7.0.87
       cross-env:
         specifier: 'catalog:'
         version: 10.1.0
@@ -1520,7 +1511,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../prepare
@@ -1578,7 +1569,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/auth.commands':
         specifier: workspace:*
         version: 'link:'
@@ -1632,14 +1623,14 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: 'link:'
@@ -1722,7 +1713,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/bins.resolver':
         specifier: workspace:*
         version: 'link:'
@@ -1788,7 +1779,7 @@ importers:
         version: link:../../lockfile/walker
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1100.0.0
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0
@@ -1824,7 +1815,7 @@ importers:
         version: 5.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@pnpm/building.after-install':
         specifier: workspace:*
@@ -1882,7 +1873,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
@@ -1901,7 +1892,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
@@ -2019,7 +2010,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/building.during-install':
         specifier: workspace:*
         version: 'link:'
@@ -2054,7 +2045,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/building.policy':
         specifier: workspace:*
         version: 'link:'
@@ -2119,7 +2110,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/cache.commands':
         specifier: workspace:*
         version: 'link:'
@@ -2150,7 +2141,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/catalogs.config':
         specifier: workspace:*
         version: 'link:'
@@ -2165,7 +2156,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/catalogs.protocol-parser':
         specifier: workspace:*
         version: 'link:'
@@ -2181,7 +2172,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/catalogs.resolver':
         specifier: workspace:*
         version: 'link:'
@@ -2249,7 +2240,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/cli.commands':
         specifier: workspace:*
         version: 'link:'
@@ -2294,7 +2285,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       ansi-diff:
         specifier: 'catalog:'
         version: 1.2.0
@@ -2306,7 +2297,7 @@ importers:
         version: 5.6.2
       cli-truncate:
         specifier: 'catalog:'
-        version: 5.2.0
+        version: 6.0.0
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -2324,7 +2315,7 @@ importers:
         version: 7.8.2
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       stacktracey:
         specifier: 'catalog:'
         version: 2.2.0
@@ -2334,7 +2325,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/cli.default-reporter':
         specifier: workspace:*
         version: 'link:'
@@ -2371,7 +2362,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/cli.meta':
         specifier: workspace:*
         version: 'link:'
@@ -2393,7 +2384,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/cli.parse-cli-args':
         specifier: workspace:*
         version: 'link:'
@@ -2485,7 +2476,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/config.commands':
         specifier: workspace:*
         version: 'link:'
@@ -2513,7 +2504,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: 'link:'
@@ -2562,14 +2553,14 @@ importers:
         version: safe-execa@0.3.0
       memoize:
         specifier: 'catalog:'
-        version: 10.2.0
+        version: 11.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/config.package-is-installable':
         specifier: workspace:*
         version: 'link:'
@@ -2597,7 +2588,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/config.parse-overrides':
         specifier: workspace:*
         version: 'link:'
@@ -2610,7 +2601,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: 'link:'
@@ -2631,7 +2622,7 @@ importers:
         version: link:../matcher
       '@pnpm/config.nerf-dart':
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 2.0.1
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -2643,7 +2634,7 @@ importers:
         version: link:../../hooks/pnpmfile
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1100.0.0
       '@pnpm/network.git-utils':
         specifier: workspace:*
         version: link:../../network/git-utils
@@ -2706,11 +2697,11 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/config.reader':
         specifier: workspace:*
         version: 'link:'
@@ -2752,11 +2743,11 @@ importers:
         version: link:../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: 'link:'
@@ -2804,7 +2795,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/error':
         specifier: workspace:*
         version: 'link:'
@@ -2820,7 +2811,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: 'link:'
@@ -2842,7 +2833,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: 'link:'
@@ -2867,7 +2858,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/crypto.integrity':
         specifier: workspace:*
         version: 'link:'
@@ -2883,7 +2874,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: 'link:'
@@ -2907,14 +2898,14 @@ importers:
         version: link:../../fetching/types
       openpgp:
         specifier: 'catalog:'
-        version: 6.3.1(@openpgp/web-stream-tools@0.3.1(@types/node@25.9.3)(typescript@5.9.3))
+        version: 6.3.1(@openpgp/web-stream-tools@0.3.1(@types/node@25.9.3)(typescript@6.0.3))
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@openpgp/web-stream-tools':
         specifier: 'catalog:'
-        version: 0.3.1(@types/node@25.9.3)(typescript@5.9.3)
+        version: 0.3.1(@types/node@25.9.3)(typescript@6.0.3)
       '@pnpm/crypto.shasums-file':
         specifier: workspace:*
         version: 'link:'
@@ -2953,11 +2944,11 @@ importers:
         version: link:../../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -3062,7 +3053,7 @@ importers:
         version: 5.6.2
       memoize:
         specifier: 'catalog:'
-        version: 10.2.0
+        version: 11.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -3071,11 +3062,11 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.compliance.commands':
         specifier: workspace:*
         version: 'link:'
@@ -3111,13 +3102,10 @@ importers:
         version: 7.7.1
       '@types/zkochan__table':
         specifier: 'catalog:'
-        version: '@types/table@6.0.0'
+        version: '@types/table@6.3.2'
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       read-yaml-file:
         specifier: 'catalog:'
         version: 3.0.0
@@ -3129,7 +3117,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.compliance.license-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -3186,11 +3174,11 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -3214,7 +3202,7 @@ importers:
     dependencies:
       '@cyclonedx/cyclonedx-library':
         specifier: 'catalog:'
-        version: 10.0.0(ajv@8.20.0)(spdx-expression-parse@4.0.0)
+        version: 10.1.0(ajv@8.20.0)(spdx-expression-parse@4.0.0)
       '@pnpm/deps.compliance.license-resolver':
         specifier: workspace:*
         version: link:../license-resolver
@@ -3254,7 +3242,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.compliance.sbom':
         specifier: workspace:*
         version: 'link:'
@@ -3355,7 +3343,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.graph-hasher':
         specifier: workspace:*
         version: 'link:'
@@ -3364,7 +3352,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.graph-sequencer':
         specifier: workspace:*
         version: 'link:'
@@ -3421,7 +3409,7 @@ importers:
         version: link:../../../lockfile/fs
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1100.0.0
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../../network/auth-header
@@ -3460,7 +3448,7 @@ importers:
         version: '@pnpm/hosted-git-info@1.0.0'
       open:
         specifier: 'catalog:'
-        version: 7.4.2
+        version: 11.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -3470,7 +3458,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -3503,7 +3491,7 @@ importers:
         version: 0.31.1
       '@types/zkochan__table':
         specifier: 'catalog:'
-        version: '@types/table@6.0.0'
+        version: '@types/table@6.3.2'
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
@@ -3533,7 +3521,7 @@ importers:
         version: link:../../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../../workspace/project-manifest-reader
@@ -3549,7 +3537,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.inspection.list':
         specifier: workspace:*
         version: 'link:'
@@ -3612,11 +3600,11 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.inspection.outdated':
         specifier: workspace:*
         version: 'link:'
@@ -3658,14 +3646,14 @@ importers:
         version: link:../../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       semver-range-intersect:
         specifier: 'catalog:'
         version: 0.3.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.inspection.peers-checker':
         specifier: workspace:*
         version: 'link:'
@@ -3687,7 +3675,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.inspection.peers-issues-renderer':
         specifier: workspace:*
         version: 'link:'
@@ -3735,7 +3723,7 @@ importers:
         version: link:../../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -3753,11 +3741,11 @@ importers:
         version: 3.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -3784,11 +3772,11 @@ importers:
         version: link:../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.path':
         specifier: workspace:*
         version: 'link:'
@@ -3800,7 +3788,7 @@ importers:
     dependencies:
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@pnpm/deps.peer-range':
         specifier: workspace:*
@@ -3826,7 +3814,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.security.signatures':
         specifier: workspace:*
         version: 'link:'
@@ -3868,7 +3856,7 @@ importers:
         version: link:../../lockfile/verification
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1100.0.0
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -3890,7 +3878,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/deps.status':
         specifier: workspace:*
         version: 'link:'
@@ -3998,14 +3986,14 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../../core/constants
@@ -4059,13 +4047,13 @@ importers:
         version: link:../../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../../worker
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@pnpm/engine.runtime.bun-resolver':
         specifier: workspace:*
@@ -4100,7 +4088,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/engine.runtime.commands':
         specifier: workspace:*
         version: 'link:'
@@ -4139,13 +4127,13 @@ importers:
         version: link:../../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../../worker
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@pnpm/engine.runtime.deno-resolver':
         specifier: workspace:*
@@ -4176,14 +4164,14 @@ importers:
         version: link:../../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/engine.runtime.node-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -4207,11 +4195,11 @@ importers:
         version: safe-execa@0.3.0
       memoize:
         specifier: 'catalog:'
-        version: 10.2.0
+        version: 11.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/engine.runtime.system-version':
         specifier: workspace:*
         version: 'link:'
@@ -4274,7 +4262,7 @@ importers:
         version: link:../../installing/commands
       '@pnpm/log.group':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
@@ -4292,7 +4280,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/workspace.injected-deps-syncer':
         specifier: workspace:*
         version: link:../../workspace/injected-deps-syncer
@@ -4335,7 +4323,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/engine.runtime.system-version':
         specifier: workspace:*
         version: link:../../engine/runtime/system-version
@@ -4420,7 +4408,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: 'link:'
@@ -4485,7 +4473,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/exec.prepare-package':
         specifier: workspace:*
         version: 'link:'
@@ -4540,7 +4528,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -4577,7 +4565,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fetching.directory-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -4589,7 +4577,7 @@ importers:
         version: link:../../__utils__/test-fixtures
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
@@ -4645,7 +4633,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fetching.git-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -4663,7 +4651,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -4688,7 +4676,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fetching.pick-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -4761,7 +4749,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fetching.tarball-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -4782,7 +4770,7 @@ importers:
         version: link:../../__utils__/test-fixtures
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@types/lodash.throttle':
         specifier: 'catalog:'
         version: 4.1.9
@@ -4842,7 +4830,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: 'link:'
@@ -4891,7 +4879,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
         version: 'link:'
@@ -4909,7 +4897,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fs.is-empty-dir-or-nothing':
         specifier: workspace:*
         version: 'link:'
@@ -4951,7 +4939,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
         version: 'link:'
@@ -5011,7 +4999,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
@@ -5021,7 +5009,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/global.commands':
         specifier: workspace:*
         version: 'link:'
@@ -5042,7 +5030,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
     devDependencies:
       '@pnpm/global.packages':
         specifier: workspace:*
@@ -5080,7 +5068,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -5116,7 +5104,7 @@ importers:
         version: link:../../core/types
       '@yarnpkg/extensions':
         specifier: 'catalog:'
-        version: 2.0.6(@yarnpkg/core@4.5.0(typanion@3.14.0))
+        version: 2.0.6(@yarnpkg/core@4.8.0(typanion@3.14.0))
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -5125,11 +5113,11 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/hooks.read-package-hook':
         specifier: workspace:*
         version: 'link:'
@@ -5144,7 +5132,7 @@ importers:
         version: 7.7.1
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.5.0(typanion@3.14.0)
+        version: 4.8.0(typanion@3.14.0)
 
   hooks/types:
     dependencies:
@@ -5166,7 +5154,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: 'link:'
@@ -5224,7 +5212,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -5356,7 +5344,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
@@ -5386,7 +5374,7 @@ importers:
         version: link:../../workspace/workspace-manifest-writer
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.5.0(typanion@3.14.0)
+        version: 4.8.0(typanion@3.14.0)
       '@yarnpkg/lockfile':
         specifier: 'catalog:'
         version: 1.1.0
@@ -5435,7 +5423,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
@@ -5486,7 +5474,7 @@ importers:
         version: 1.1.9
       '@types/zkochan__table':
         specifier: 'catalog:'
-        version: '@types/table@6.0.0'
+        version: '@types/table@6.3.2'
       delay:
         specifier: 'catalog:'
         version: 7.0.0
@@ -5553,7 +5541,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/installing.context':
         specifier: workspace:*
         version: 'link:'
@@ -5581,7 +5569,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/installing.dedupe.check':
         specifier: workspace:*
         version: 'link:'
@@ -5600,7 +5588,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/installing.dedupe.issues-renderer':
         specifier: workspace:*
         version: 'link:'
@@ -5771,7 +5759,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -5813,11 +5801,11 @@ importers:
         version: 5.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
@@ -5883,7 +5871,7 @@ importers:
         version: 7.7.1
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.5.0(typanion@3.14.0)
+        version: 4.8.0(typanion@3.14.0)
       ci-info:
         specifier: 'catalog:'
         version: 4.4.0
@@ -5899,9 +5887,6 @@ importers:
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
-      nock:
-        specifier: 'catalog:'
-        version: 13.3.4
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -5994,13 +5979,13 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/workspace.spec-parser':
         specifier: workspace:*
         version: link:../../workspace/spec-parser
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.5.0(typanion@3.14.0)
+        version: 4.8.0(typanion@3.14.0)
       graph-cycles:
         specifier: 'catalog:'
         version: 3.0.0
@@ -6033,7 +6018,7 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       semver-range-intersect:
         specifier: 'catalog:'
         version: 0.3.1
@@ -6046,7 +6031,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/installing.deps-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -6173,7 +6158,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
@@ -6221,7 +6206,7 @@ importers:
         version: 0.31.1
       concurrently:
         specifier: 'catalog:'
-        version: 9.2.1
+        version: 10.0.3
       isexe:
         specifier: 'catalog:'
         version: 4.0.0
@@ -6278,7 +6263,7 @@ importers:
         version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1100.0.0
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
@@ -6314,14 +6299,14 @@ importers:
         version: 2.1.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/installing.env-installer':
         specifier: workspace:*
         version: 'link:'
@@ -6394,7 +6379,7 @@ importers:
         version: link:../../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
@@ -6481,7 +6466,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/installing.linking.real-hoist':
         specifier: workspace:*
         version: 'link:'
@@ -6515,7 +6500,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: 'link:'
@@ -6596,14 +6581,14 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       ssri:
         specifier: 'catalog:'
         version: 13.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../client
@@ -6729,7 +6714,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/lockfile.filtering':
         specifier: workspace:*
         version: 'link:'
@@ -6798,7 +6783,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       strip-bom:
         specifier: 'catalog:'
         version: 5.0.0
@@ -6808,7 +6793,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: 'link:'
@@ -6878,7 +6863,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/lockfile.make-dedicated-lockfile':
         specifier: workspace:*
         version: 'link:'
@@ -6908,11 +6893,11 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/lockfile.merger':
         specifier: workspace:*
         version: 'link:'
@@ -6965,7 +6950,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/lockfile.pruner':
         specifier: workspace:*
         version: 'link:'
@@ -7036,7 +7021,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/lockfile.to-pnp':
         specifier: workspace:*
         version: 'link:'
@@ -7095,7 +7080,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: 'link:'
@@ -7149,14 +7134,14 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -7239,7 +7224,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -7261,7 +7246,7 @@ importers:
     dependencies:
       '@pnpm/config.nerf-dart':
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 2.0.1
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
@@ -7271,7 +7256,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: 'link:'
@@ -7283,7 +7268,7 @@ importers:
     dependencies:
       '@pnpm/config.nerf-dart':
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 2.0.1
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
@@ -7311,7 +7296,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -7330,7 +7315,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/network.git-utils':
         specifier: workspace:*
         version: 'link:'
@@ -7345,14 +7330,14 @@ importers:
         version: link:../../core/error
       open:
         specifier: 'catalog:'
-        version: 7.4.2
+        version: 11.0.0
       qrcode-terminal:
         specifier: 'catalog:'
         version: 0.12.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/network.web-auth':
         specifier: workspace:*
         version: 'link:'
@@ -7364,14 +7349,14 @@ importers:
     dependencies:
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       sort-keys:
         specifier: 'catalog:'
         version: 6.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: 'link:'
@@ -7384,7 +7369,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/object.property-path':
         specifier: workspace:*
         version: 'link:'
@@ -7406,7 +7391,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -7514,7 +7499,7 @@ importers:
         version: 0.3.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       terminal-link:
         specifier: 'catalog:'
         version: 5.0.0
@@ -7524,7 +7509,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -7575,17 +7560,17 @@ importers:
         version: link:../../core/error
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1100.0.0
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../types
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/patching.config':
         specifier: workspace:*
         version: 'link:'
@@ -7622,7 +7607,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/pkg-manifest.commands':
         specifier: workspace:*
         version: 'link:'
@@ -7647,7 +7632,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: 'link:'
@@ -7671,11 +7656,11 @@ importers:
         version: link:../../core/types
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -7700,7 +7685,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../__utils__/assert-project
@@ -7859,7 +7844,7 @@ importers:
         version: link:../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../worker
@@ -7934,7 +7919,7 @@ importers:
         version: 3.0.0
       esbuild:
         specifier: 'catalog:'
-        version: 0.27.7
+        version: 0.28.0
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
@@ -7979,7 +7964,7 @@ importers:
         version: 1.0.0
       pidtree:
         specifier: 'catalog:'
-        version: 0.6.0
+        version: 1.0.0
       ps-list:
         specifier: 'catalog:'
         version: 9.0.0
@@ -7994,7 +7979,7 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       split-cmd:
         specifier: 'catalog:'
         version: 1.1.0
@@ -8034,7 +8019,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/exe':
         specifier: workspace:*
         version: 'link:'
@@ -8119,7 +8104,7 @@ importers:
         version: link:../../workspace/workspace-manifest-reader
       esbuild:
         specifier: 'catalog:'
-        version: 0.27.7
+        version: 0.28.0
     devDependencies:
       pd:
         specifier: workspace:*
@@ -8209,11 +8194,11 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -8387,7 +8372,7 @@ importers:
         version: 2.0.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       tar-stream:
         specifier: 'catalog:'
         version: 3.2.0
@@ -8409,7 +8394,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
@@ -8448,7 +8433,7 @@ importers:
         version: 1.0.2
       '@types/libnpmpublish':
         specifier: 'catalog:'
-        version: 9.0.1
+        version: 11.2.0
       '@types/proxyquire':
         specifier: 'catalog:'
         version: 1.3.31
@@ -8458,9 +8443,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.7.1
-      '@types/tar':
-        specifier: 'catalog:'
-        version: 7.0.87
       '@types/tar-stream':
         specifier: 'catalog:'
         version: 3.1.4
@@ -8515,7 +8497,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/catalogs.config':
         specifier: workspace:*
         version: link:../../catalogs/config
@@ -8588,7 +8570,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -8633,11 +8615,11 @@ importers:
         version: '@pnpm/hosted-git-info@1.0.0'
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -8662,7 +8644,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/resolving.jsr-specifier-parser':
         specifier: workspace:*
         version: 'link:'
@@ -8690,7 +8672,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -8789,7 +8771,7 @@ importers:
         version: 7.0.1
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       semver-utils:
         specifier: 'catalog:'
         version: 1.1.4
@@ -8802,7 +8784,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -8857,11 +8839,11 @@ importers:
         version: link:../types
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../../core/logger
@@ -8903,7 +8885,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
@@ -8919,7 +8901,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/shell.path':
         specifier: workspace:*
         version: 'link:'
@@ -8958,14 +8940,14 @@ importers:
         version: 7.0.1
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
       strip-bom:
         specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: 'link:'
@@ -9067,7 +9049,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       archy:
         specifier: 'catalog:'
         version: 1.0.0
@@ -9089,7 +9071,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
@@ -9235,7 +9217,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../../installing/client
@@ -9296,7 +9278,7 @@ importers:
         version: link:../controller-types
       memoize:
         specifier: 'catalog:'
-        version: 10.2.0
+        version: 11.0.0
       path-temp:
         specifier: 'catalog:'
         version: 3.0.0
@@ -9324,11 +9306,11 @@ importers:
     dependencies:
       msgpackr:
         specifier: 'catalog:'
-        version: 1.11.8
+        version: 2.0.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/store.index':
         specifier: workspace:*
         version: 'link:'
@@ -9368,7 +9350,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/store.path':
         specifier: workspace:*
         version: 'link:'
@@ -9405,7 +9387,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/store.pkg-finder':
         specifier: workspace:*
         version: 'link:'
@@ -9479,7 +9461,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/text.comments-parser':
         specifier: workspace:*
         version: 'link:'
@@ -9488,7 +9470,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/text.naming-cases':
         specifier: workspace:*
         version: 'link:'
@@ -9497,7 +9479,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/text.tree-renderer':
         specifier: workspace:*
         version: 'link:'
@@ -9536,7 +9518,7 @@ importers:
         version: link:../store/index
       '@rushstack/worker-pool':
         specifier: 'catalog:'
-        version: 0.7.7(@types/node@25.9.3)
+        version: 0.7.18(@types/node@25.9.3)
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -9545,11 +9527,11 @@ importers:
         version: 7.3.0
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../core/logger
@@ -9601,7 +9583,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -9640,7 +9622,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/workspace.projects-reader':
         specifier: workspace:*
         version: link:../projects-reader
@@ -9653,7 +9635,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -9674,7 +9656,7 @@ importers:
         version: link:../../fs/graceful-fs
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 1001.0.1
+        version: 1100.0.0
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
@@ -9714,7 +9696,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -9726,7 +9708,7 @@ importers:
         version: 1.0.2
       '@types/parse-json':
         specifier: 'catalog:'
-        version: 4.0.2
+        version: 7.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -9751,7 +9733,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/workspace.project-manifest-writer':
         specifier: workspace:*
         version: 'link:'
@@ -9797,7 +9779,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -9849,7 +9831,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/workspace.projects-graph':
         specifier: workspace:*
         version: 'link:'
@@ -9873,7 +9855,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../project-manifest-reader
@@ -9886,7 +9868,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -9914,11 +9896,11 @@ importers:
     dependencies:
       semver:
         specifier: 'catalog:'
-        version: 7.8.3
+        version: 7.8.4
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/workspace.range-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -9937,7 +9919,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/workspace.root-finder':
         specifier: workspace:*
         version: 'link:'
@@ -9946,7 +9928,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/workspace.spec-parser':
         specifier: workspace:*
         version: 'link:'
@@ -9971,7 +9953,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
@@ -10005,7 +9987,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: 'link:'
@@ -10029,7 +10011,7 @@ importers:
         version: link:../../core/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.2
+        version: 4.0.1
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: link:../workspace-manifest-reader
@@ -10048,7 +10030,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -10082,7 +10064,7 @@ importers:
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
-        version: 30.3.0
+        version: 30.4.1
       '@pnpm/yaml.document-sync':
         specifier: workspace:*
         version: 'link:'
@@ -10334,83 +10316,83 @@ packages:
   '@changesets/write@0.4.0':
     resolution: {integrity: sha512-CdTLvIOPiCNuH71pyDu3rA+Q0n65cmAbXnwWH84rKGiFumFzkmHNT8KHTMEchcxN+Kl8I54xGUhJ7l3E7X396Q==}
 
-  '@commitlint/cli@20.5.3':
-    resolution: {integrity: sha512-OJdL0EXWD5y9LPa0nr/geOwzaS8BsdaybKkcloB0JgsguGxNv2R+hC2FTPqrAcprg35zF33KOQerY0x8W1aesA==}
-    engines: {node: '>=v18'}
+  '@commitlint/cli@21.0.2':
+    resolution: {integrity: sha512-YMmfLbqBg+ZRvvmPhc+cilSQFrh/AgzVgCT1U/OifmUZEwPbvCtA8rN//YNaF9d5eoZphxVMGYtmwA2QgQORgg==}
+    engines: {node: '>=22.12.0'}
     hasBin: true
 
-  '@commitlint/config-conventional@20.5.3':
-    resolution: {integrity: sha512-j34Qqeaa152chJgz2ysyk0BCpHenJn1lV0Rx0VXf8k3ccQcED+48EZrzMvo9jLmJUyBrrBwvu89I+2er4gW7QQ==}
-    engines: {node: '>=v18'}
+  '@commitlint/config-conventional@21.0.2':
+    resolution: {integrity: sha512-P/ZRhryQmkj0Z0dY9FOoRwe3xkwJyyAdtXwt01NT2kuZttcG2CNYp1q5Ci3u+nDT2jcbJRw2kt13Czl1qKNPfg==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/config-validator@20.5.0':
-    resolution: {integrity: sha512-T/Uh6iJUzyx7j35GmHWdIiGRQB+ouZDk0pwAaYq4SXgB54KZhFdJ0vYmxiW6AMYICTIWuyMxDBl1jK74oFp/Gw==}
-    engines: {node: '>=v18'}
+  '@commitlint/config-validator@21.0.1':
+    resolution: {integrity: sha512-Zd2UFdndeMMaW2O96HK0tdfT4gOImUvidMpAd/pws2zZ4m1nrAZ/9b/v2JYuE8fs86GpXv9F7LNaIuCIWhY+pA==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/ensure@20.5.3':
-    resolution: {integrity: sha512-4i4AgNvH62owG9MwSiWKrle7HGNpBHHdLnWFIp5fTsHUYe5kRuh15t08L/0pdbbrRk8JKXQxxN4hZQcn+szkrw==}
-    engines: {node: '>=v18'}
+  '@commitlint/ensure@21.0.1':
+    resolution: {integrity: sha512-jJ1037967wU7YN/xkv+iRlOBlmaOXPhPO5KQSqya6GyXzBlwuLzELBFao16DVg9dZyqmNrhewzwZ3SAibetHBQ==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/execute-rule@20.0.0':
-    resolution: {integrity: sha512-xyCoOShoPuPL44gVa+5EdZsBVao/pNzpQhkzq3RdtlFdKZtjWcLlUFQHSWBuhk5utKYykeJPSz2i8ABHQA+ZZw==}
-    engines: {node: '>=v18'}
+  '@commitlint/execute-rule@21.0.1':
+    resolution: {integrity: sha512-RifH+FmImozKBE6mozhF4K3r2RRKP7SMi/Q/zLCmExtp5e05lhHOUYqGBlFBAGNHaZxU/WYw1XuugYK9jQzqnA==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/format@20.5.0':
-    resolution: {integrity: sha512-TI9EwFU/qZWSK7a5qyXMpKPPv3qta7FO4tKW+Wt2al7sgMbLWTsAcDpX1cU8k16TRdsiiet9aOw0zpvRXNJu7Q==}
-    engines: {node: '>=v18'}
+  '@commitlint/format@21.0.1':
+    resolution: {integrity: sha512-ksmG2+cHGtuDPQQbhBbC4unwm444+6TiPw0d1bKf67hntgZqZ8E0g1MuYKUuyT5IH4IMmXZhKq22/Z3jBvtQIw==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/is-ignored@20.5.0':
-    resolution: {integrity: sha512-JWLarAsurHJhPozbuAH6GbP4p/hdOCoqS9zJMfqwswne+/GPs5V0+rrsfOkP68Y8PSLphwtFXV0EzJ+GTXTTGg==}
-    engines: {node: '>=v18'}
+  '@commitlint/is-ignored@21.0.2':
+    resolution: {integrity: sha512-H5z4t8PC9tUsmZ/o+EptM3Nq8sTFtskAShdcqxCoyzklW5eaVT5xbrDAET2uypzir9Vsj4ZZmBtyKjYe2XqgeQ==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/lint@20.5.3':
-    resolution: {integrity: sha512-M7JbWBNr2gXKaPc4i/KipsuW1gkDHpj35KPjWtKy3Z+2AQw5wu1gBi1LIO0uoaij67CqY4K8PxPZSGens4evCw==}
-    engines: {node: '>=v18'}
+  '@commitlint/lint@21.0.2':
+    resolution: {integrity: sha512-PnUmLYGeGLfW8oVatR9KpNxSHYAnJOEWlMZzfdeFOUq6WUrFx1fGQaWCWJqMoIll/xPM+GdfJV+tKHZVHhl0Fg==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/load@20.5.3':
-    resolution: {integrity: sha512-1FDZWuKyu98Myb8i7Tp31jPU2rZpOwAdYRyJcy2KoGg7Xk2A+bgHN8smhMaaNSNkmE8fwt53BokywZq8Gv/5XQ==}
-    engines: {node: '>=v18'}
+  '@commitlint/load@21.0.2':
+    resolution: {integrity: sha512-lwUE70hN0/qE/ZRROhbaX65ly/FF12DrqfReLCESo37M0OQCFAf2jRS+2tSCSORq+bm4Kdju7qNDj46uc1QzTA==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/message@20.4.3':
-    resolution: {integrity: sha512-6akwCYrzcrFcTYz9GyUaWlhisY4lmQ3KvrnabmhoeAV8nRH4dXJAh4+EUQ3uArtxxKQkvxJS78hNX2EU3USgxQ==}
-    engines: {node: '>=v18'}
+  '@commitlint/message@21.0.2':
+    resolution: {integrity: sha512-5n4aqHGD/FNnom/D5L8i7cYtV+xjuXcBL832C3w9VglEsZzIsoHpJsvxzJ7cgiOsOdc/2jU4t5+7qMHh7GBX3g==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/parse@20.5.0':
-    resolution: {integrity: sha512-SeKWHBMk7YOTnnEWUhx+d1a9vHsjjuo6Uo1xRfPNfeY4bdYFasCH1dDpAv13Lyn+dDPOels+jP6D2GRZqzc5fA==}
-    engines: {node: '>=v18'}
+  '@commitlint/parse@21.0.2':
+    resolution: {integrity: sha512-QVZJhGHTm+oiuWyEKOCTQ0ZM3mfJ0eGWFeHuj7WzSKEth+UukcCHac9GD8pgdFlg/qGkFWOtyaNd1T8REgagaw==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/prompt-cli@20.5.3':
-    resolution: {integrity: sha512-6BZZecUQB8yEMqQZY0Tve1afM27/njXtVmNnhT1k8GjmWtmtHanUIPTjSqu8SuIdXCeLhBowvMyyKGTQNOpyuA==}
-    engines: {node: '>=v18'}
+  '@commitlint/prompt-cli@21.0.2':
+    resolution: {integrity: sha512-wvUpzmqQctoYBVikMb1vNOoUvMqQjc8LQ3a+QdrbQqmN4NOIDlMRQo5NNiGL67ZY1PwjeXh4m22yGIBIzfz8SA==}
+    engines: {node: '>=22.12.0'}
     hasBin: true
 
-  '@commitlint/prompt@20.5.3':
-    resolution: {integrity: sha512-AGoW5GoofJrdzhmkgikAHOgiJAijY1NjRPHxNRaWZpHo1QzKqj1N2Azqg+ldZoiChQ9bxwC0UolVvFN/wK20Bg==}
-    engines: {node: '>=v18'}
+  '@commitlint/prompt@21.0.2':
+    resolution: {integrity: sha512-AJcnWRkcVkUw114Dc3VWTs5fEBYK30cO808cu8xh66h2hyRuPYF9ZELXIRQeeRnJmOJTU2WXi/VUq5mJ8qlhjg==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/read@20.5.0':
-    resolution: {integrity: sha512-JDEIJ2+GnWpK8QqwfmW7O42h0aycJEWNqcdkJnyzLD11nf9dW2dWLTVEa8Wtlo4IZFGLPATjR5neA5QlOvIH1w==}
-    engines: {node: '>=v18'}
+  '@commitlint/read@21.0.2':
+    resolution: {integrity: sha512-BtsrnLVycSSKf4Q0gMch4giCj5NNlmcbhc8ra5vONgGtP2IjRDo33bEFtr5Pm+2N+5fXGWb2MksWPrspPfdhdw==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/resolve-extends@20.5.3':
-    resolution: {integrity: sha512-+ogW9v/u9JqpvAgTrLra/YTFo0KkjU6iNblF89pPsj4NebNc+DAWctsludwezI8YnsjBmfHpApSwcXprN/f/ew==}
-    engines: {node: '>=v18'}
+  '@commitlint/resolve-extends@21.0.1':
+    resolution: {integrity: sha512-0DhjYWL6uYrY16Efa032fYk3woGJDU4AGWiG1XXltT9AMUNYKyb5cIZU2ivbaMZ3+kKFqUjikD2cjh66Sbh/Sg==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/rules@20.5.3':
-    resolution: {integrity: sha512-MPlMnb9D3wbszYMp+1hPtuhtPJndRo6I6yfkZVA4+jR8w7Kqp0u2u/Y+gzbaItx5Lltq5rw7FSZQWJMoXUC4NQ==}
-    engines: {node: '>=v18'}
+  '@commitlint/rules@21.0.2':
+    resolution: {integrity: sha512-k6tQ69Td7t2qUSIbik8D3TL1q3ZJpkEbV+yLogDzCRAdOxJm4ndhtBNREsLA1/puRfWvzS9eioF2w43WT+hHgQ==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/to-lines@20.0.0':
-    resolution: {integrity: sha512-2l9gmwiCRqZNWgV+pX1X7z4yP0b3ex/86UmUFgoRt672Ez6cAM2lOQeHFRUTuE6sPpi8XBCGnd8Kh3bMoyHwJw==}
-    engines: {node: '>=v18'}
+  '@commitlint/to-lines@21.0.1':
+    resolution: {integrity: sha512-bd1BFII7p1EQZre9Kaj+kKaMFP3cFCdt21K7DItVux9XP5WjLgJ0/Uy1pJJh9aPwVJ6SKg62PxqlZaHI8hQAXw==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/top-level@20.4.3':
-    resolution: {integrity: sha512-qD9xfP6dFg5jQ3NMrOhG0/w5y3bBUsVGyJvXxdWEwBm8hyx4WOk3kKXw28T5czBYvyeCVJgJJ6aoJZUWDpaacQ==}
-    engines: {node: '>=v18'}
+  '@commitlint/top-level@21.0.2':
+    resolution: {integrity: sha512-s9KKM+e+mXgFeIh4n7KmOGAVT3mkJ3Fp1bBYHIK5pjeUwlEMzp/tZfb5u0Poa680AsQTXMEMRxZi1vQ9m2X5ug==}
+    engines: {node: '>=22.12.0'}
 
-  '@commitlint/types@20.5.0':
-    resolution: {integrity: sha512-ZJoS8oSq2CAZEpc/YI9SulLrdiIyXeHb/OGqGrkUP6Q7YV+0ouNAa7GjqRdXeQPncHQIDz/jbCTlHScvYvO/gA==}
-    engines: {node: '>=v18'}
+  '@commitlint/types@21.0.1':
+    resolution: {integrity: sha512-4u7w8jcoCUFWhjWnASYzZHAP34OqOtuFBN87nQmFvqda03YU0T6z+yB4w0gSAMpekiRqqGk5rt+qSlW+a2vSEg==}
+    engines: {node: '>=22.12.0'}
 
   '@conventional-changelog/git-client@2.7.0':
     resolution: {integrity: sha512-j7A8/LBEQ+3rugMzPXoKYzyUPpw/0CBQCyvtTR7Lmu4olG4yRC/Tfkq79Mr3yuPs0SUitlO2HwGP3gitMJnRFw==}
@@ -10424,36 +10406,36 @@ packages:
       conventional-commits-parser:
         optional: true
 
-  '@cspell/cspell-bundled-dicts@9.7.0':
-    resolution: {integrity: sha512-s7h1vo++Q3AsfQa3cs0u/KGwm3SYInuIlC4kjlCBWjQmb4KddiZB5O1u0+3TlA7GycHb5M4CR7MDfHUICgJf+w==}
+  '@cspell/cspell-bundled-dicts@9.8.0':
+    resolution: {integrity: sha512-MpXFpVyBPfJQ1YuVotljqUaGf6lWuf+fuWBBgs0PHFYTSjRPWuIxviAaCDnup/CJLLH60xQL4IlcQe4TOjzljw==}
     engines: {node: '>=20'}
 
-  '@cspell/cspell-json-reporter@9.7.0':
-    resolution: {integrity: sha512-6xpGXlMtQA3hV2BCAQcPkpx9eI12I0o01i9eRqSSEDKtxuAnnrejbcCpL+5OboAjTp3/BSeNYSnhuWYLkSITWQ==}
+  '@cspell/cspell-json-reporter@9.8.0':
+    resolution: {integrity: sha512-nqUaSo9T7l8KrE22gc7ZIs+zvP7ak1i7JqGdRs8sGvh2Ijqj43qYQLePgb1b/vm8a1bavnc51m+vf05hpd3g3Q==}
     engines: {node: '>=20'}
 
-  '@cspell/cspell-performance-monitor@9.7.0':
-    resolution: {integrity: sha512-w1PZIFXuvjnC6mQHyYAFnrsn5MzKnEcEkcK1bj4OG00bAt7WX2VUA/eNNt9c1iHozCQ+FcRYlfbGxuBmNyzSgw==}
+  '@cspell/cspell-performance-monitor@9.8.0':
+    resolution: {integrity: sha512-IsrXYzn23yJICIQ915ACdf+2lNEcFNTu5BIQt3khHOsGVvZ9/AZYpu9Dk825vUyZG7RHg2Oi6dYNiJtULG4ouQ==}
     engines: {node: '>=20.18'}
 
-  '@cspell/cspell-pipe@9.7.0':
-    resolution: {integrity: sha512-iiisyRpJciU9SOHNSi0ZEK0pqbEMFRatI/R4O+trVKb+W44p4MNGClLVRWPGUmsFbZKPJL3jDtz0wPlG0/JCZA==}
+  '@cspell/cspell-pipe@9.8.0':
+    resolution: {integrity: sha512-ISEUD8PHYkd2Ktafc6hFfIXdGKYUvthA09NbwwZsWmOqYyk4wWKHZKqyyxD+BcrFwOyMOJcD8OEvIjkRQp2SJw==}
     engines: {node: '>=20'}
 
-  '@cspell/cspell-resolver@9.7.0':
-    resolution: {integrity: sha512-uiEgS238mdabDnwavo6HXt8K98jlh/jpm7NONroM9NTr9rzck2VZKD2kXEj85wDNMtRsRXNoywTjwQ8WTB6/+w==}
+  '@cspell/cspell-resolver@9.8.0':
+    resolution: {integrity: sha512-PZJj56BZpKfMxOzWkyt7b+aIXObe+8Ku/zLI4xDXPSuQPENbHBFHfPIZx68CyGEkanKxZ1ewKVx/FT1FUy+wDA==}
     engines: {node: '>=20'}
 
-  '@cspell/cspell-service-bus@9.7.0':
-    resolution: {integrity: sha512-fkqtaCkg4jY/FotmzjhIavbXuH0AgUJxZk78Ktf4XlhqOZ4wDeUWrCf220bva4mh3TWiLx/ae9lIlpl59Vx6hA==}
+  '@cspell/cspell-service-bus@9.8.0':
+    resolution: {integrity: sha512-P45sd2nqwcqhulBBbQnZB/JNcobecTrP4Ky3vmEq0cprsvavc+ZoHF9U2Ql5ghMSUzjrF2n1aNzZ8cH4IlsnKg==}
     engines: {node: '>=20'}
 
-  '@cspell/cspell-types@9.7.0':
-    resolution: {integrity: sha512-Tdfx4eH2uS+gv9V9NCr3Rz+c7RSS6ntXp3Blliud18ibRUlRxO9dTaOjG4iv4x0nAmMeedP1ORkEpeXSkh2QiQ==}
+  '@cspell/cspell-types@9.8.0':
+    resolution: {integrity: sha512-7Ge4UD6SCA49Tcc3+GTlz3Xn4cqVUAXtDO0u9IeHvJgkN3Me2Rw2GB/CtGmhKST3YeEeZMX7ww09TdHMUJlehw==}
     engines: {node: '>=20'}
 
-  '@cspell/cspell-worker@9.7.0':
-    resolution: {integrity: sha512-cjEApFF0aOAa1vTUk+e7xP8ofK7iC7hsRzj1FmvvVQz8PoLWPRaq+1bT89ypPsZQvavqm5sIgb97S60/aW4TVg==}
+  '@cspell/cspell-worker@9.8.0':
+    resolution: {integrity: sha512-W8FLdE3MXPLbWtAXciILQhk9CHd6Mt+HRjZHM8m+dwE1Bc2TAjUai8kIxsdhHUq58p7gYY2ekr5sg1uYOUgTAA==}
     engines: {node: '>=20.18'}
 
   '@cspell/dict-ada@4.1.1':
@@ -10638,28 +10620,28 @@ packages:
   '@cspell/dict-zig@1.0.0':
     resolution: {integrity: sha512-XibBIxBlVosU06+M6uHWkFeT0/pW5WajDRYdXG2CgHnq85b0TI/Ks0FuBJykmsgi2CAD3Qtx8UHFEtl/DSFnAQ==}
 
-  '@cspell/dynamic-import@9.7.0':
-    resolution: {integrity: sha512-Ws36IYvtS/8IN3x6K9dPLvTmaArodRJmzTn2Rkf2NaTnIYWhRuFzsP3SVVO59NN3fXswAEbmz5DSbVUe8bPZHg==}
+  '@cspell/dynamic-import@9.8.0':
+    resolution: {integrity: sha512-wMgb32lqG9g6lCipUQsY9Bk5idXPDz7wvzOqEsU1M2HmNYmdE1wfPoRpfQfsVL965iG3+6h8QLr2+8FKpweFEQ==}
     engines: {node: '>=20'}
 
-  '@cspell/filetypes@9.7.0':
-    resolution: {integrity: sha512-Ln9e/8wGOyTeL3DCCs6kwd18TSpTw3kxsANjTrzLDASrX4cNmAdvc9J5dcIuBHPaqOAnRQxuZbzUlpRh73Y24w==}
+  '@cspell/filetypes@9.8.0':
+    resolution: {integrity: sha512-yHvtYn9qt6zykua77sNzTcf7HrG/dpo/+2pCMGSrfSrQypSNT6FUFvMS04W7kwhP86U1GkCjppNykXuoH3cqug==}
     engines: {node: '>=20'}
 
-  '@cspell/rpc@9.7.0':
-    resolution: {integrity: sha512-VnZ4ABgQeoS4RwofcePkDP7L6tf3Kh5D7LQKoyRM4R6XtfSsYefym6XKaRl3saGtthH5YyjgNJ0Tgdjen4wAAw==}
+  '@cspell/rpc@9.8.0':
+    resolution: {integrity: sha512-t4lHEa254W+PePXNQ1noW7QhQxz/mhsJ9X8LEt0ILzBbPWCJzN+JuaM7EiolIPiwxtfxpMwKx9482kt4eTja7A==}
     engines: {node: '>=20.18'}
 
-  '@cspell/strong-weak-map@9.7.0':
-    resolution: {integrity: sha512-5xbvDASjklrmy88O6gmGXgYhpByCXqOj5wIgyvwZe2l83T1bE+iOfGI4pGzZJ/mN+qTn1DNKq8BPBPtDgb7Q2Q==}
+  '@cspell/strong-weak-map@9.8.0':
+    resolution: {integrity: sha512-HocksAqZ0JcWA5oWO7TIlOCftXVGkPGzbeFlCRRrjJpZmYQH+4NdeEXyQC6T89NGocp45td/CgyBcAaFMy1N9w==}
     engines: {node: '>=20'}
 
-  '@cspell/url@9.7.0':
-    resolution: {integrity: sha512-ZaaBr0pTvNxmyUbIn+nVPXPr383VqJzfUDMWicgTjJIeo2+T2hOq2kNpgpvTIrWtZrsZnSP8oXms1+sKTjcvkw==}
+  '@cspell/url@9.8.0':
+    resolution: {integrity: sha512-LY1lFiZLTQF/ma1ilfKmRmFmEOw0RfYhyl0UMhY7/d93b+kiDMhxP/9Qir4+5LyiRncaE3++ZcWno9Hya+ssRg==}
     engines: {node: '>=20'}
 
-  '@cyclonedx/cyclonedx-library@10.0.0':
-    resolution: {integrity: sha512-xDXf2eqzeFHdjamj6oBV3duRSfrlmsJ5+2z9tXp7q5qxJP5Awmjf4ABSutS4qkVHHj7JzKFL/EM0V0Nihc7zPg==}
+  '@cyclonedx/cyclonedx-library@10.1.0':
+    resolution: {integrity: sha512-4yq0KTQIA32UHJwFMDeY5xj2asp3Mk5lzx4JRVXLOb0YE8w1KeR61c1m/gJ4sjMXpiiEDfaITVQu8BLUuy7t3A==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       ajv: '>=8.18.0'
@@ -10697,158 +10679,158 @@ packages:
   '@epic-web/invariant@1.0.0':
     resolution: {integrity: sha512-lrTPqgvfFQtR/eY/qkIzp98OGdNJu0m5ji3q/nJI8v3SXkRKEnWiOxMmbvcSoAIzv/cGiuvRy57k4suKQSAdwA==}
 
-  '@esbuild/aix-ppc64@0.27.7':
-    resolution: {integrity: sha512-EKX3Qwmhz1eMdEJokhALr0YiD0lhQNwDqkPYyPhiSwKrh7/4KRjQc04sZ8db+5DVVnZ1LmbNDI1uAMPEUBnQPg==}
+  '@esbuild/aix-ppc64@0.28.0':
+    resolution: {integrity: sha512-lhRUCeuOyJQURhTxl4WkpFTjIsbDayJHih5kZC1giwE+MhIzAb7mEsQMqMf18rHLsrb5qI1tafG20mLxEWcWlA==}
     engines: {node: '>=18'}
     cpu: [ppc64]
     os: [aix]
 
-  '@esbuild/android-arm64@0.27.7':
-    resolution: {integrity: sha512-62dPZHpIXzvChfvfLJow3q5dDtiNMkwiRzPylSCfriLvZeq0a1bWChrGx/BbUbPwOrsWKMn8idSllklzBy+dgQ==}
+  '@esbuild/android-arm64@0.28.0':
+    resolution: {integrity: sha512-+WzIXQOSaGs33tLEgYPYe/yQHf0WTU0X42Jca3y8NWMbUVhp7rUnw+vAsRC/QiDrdD31IszMrZy+qwPOPjd+rw==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [android]
 
-  '@esbuild/android-arm@0.27.7':
-    resolution: {integrity: sha512-jbPXvB4Yj2yBV7HUfE2KHe4GJX51QplCN1pGbYjvsyCZbQmies29EoJbkEc+vYuU5o45AfQn37vZlyXy4YJ8RQ==}
+  '@esbuild/android-arm@0.28.0':
+    resolution: {integrity: sha512-wqh0ByljabXLKHeWXYLqoJ5jKC4XBaw6Hk08OfMrCRd2nP2ZQ5eleDZC41XHyCNgktBGYMbqnrJKq/K/lzPMSQ==}
     engines: {node: '>=18'}
     cpu: [arm]
     os: [android]
 
-  '@esbuild/android-x64@0.27.7':
-    resolution: {integrity: sha512-x5VpMODneVDb70PYV2VQOmIUUiBtY3D3mPBG8NxVk5CogneYhkR7MmM3yR/uMdITLrC1ml/NV1rj4bMJuy9MCg==}
+  '@esbuild/android-x64@0.28.0':
+    resolution: {integrity: sha512-+VJggoaKhk2VNNqVL7f6S189UzShHC/mR9EE8rDdSkdpN0KflSwWY/gWjDrNxxisg8Fp1ZCD9jLMo4m0OUfeUA==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [android]
 
-  '@esbuild/darwin-arm64@0.27.7':
-    resolution: {integrity: sha512-5lckdqeuBPlKUwvoCXIgI2D9/ABmPq3Rdp7IfL70393YgaASt7tbju3Ac+ePVi3KDH6N2RqePfHnXkaDtY9fkw==}
+  '@esbuild/darwin-arm64@0.28.0':
+    resolution: {integrity: sha512-0T+A9WZm+bZ84nZBtk1ckYsOvyA3x7e2Acj1KdVfV4/2tdG4fzUp91YHx+GArWLtwqp77pBXVCPn2We7Letr0Q==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [darwin]
 
-  '@esbuild/darwin-x64@0.27.7':
-    resolution: {integrity: sha512-rYnXrKcXuT7Z+WL5K980jVFdvVKhCHhUwid+dDYQpH+qu+TefcomiMAJpIiC2EM3Rjtq0sO3StMV/+3w3MyyqQ==}
+  '@esbuild/darwin-x64@0.28.0':
+    resolution: {integrity: sha512-fyzLm/DLDl/84OCfp2f/XQ4flmORsjU7VKt8HLjvIXChJoFFOIL6pLJPH4Yhd1n1gGFF9mPwtlN5Wf82DZs+LQ==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [darwin]
 
-  '@esbuild/freebsd-arm64@0.27.7':
-    resolution: {integrity: sha512-B48PqeCsEgOtzME2GbNM2roU29AMTuOIN91dsMO30t+Ydis3z/3Ngoj5hhnsOSSwNzS+6JppqWsuhTp6E82l2w==}
+  '@esbuild/freebsd-arm64@0.28.0':
+    resolution: {integrity: sha512-l9GeW5UZBT9k9brBYI+0WDffcRxgHQD8ShN2Ur4xWq/NFzUKm3k5lsH4PdaRgb2w7mI9u61nr2gI2mLI27Nh3Q==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [freebsd]
 
-  '@esbuild/freebsd-x64@0.27.7':
-    resolution: {integrity: sha512-jOBDK5XEjA4m5IJK3bpAQF9/Lelu/Z9ZcdhTRLf4cajlB+8VEhFFRjWgfy3M1O4rO2GQ/b2dLwCUGpiF/eATNQ==}
+  '@esbuild/freebsd-x64@0.28.0':
+    resolution: {integrity: sha512-BXoQai/A0wPO6Es3yFJ7APCiKGc1tdAEOgeTNy3SsB491S3aHn4S4r3e976eUnPdU+NbdtmBuLncYir2tMU9Nw==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [freebsd]
 
-  '@esbuild/linux-arm64@0.27.7':
-    resolution: {integrity: sha512-RZPHBoxXuNnPQO9rvjh5jdkRmVizktkT7TCDkDmQ0W2SwHInKCAV95GRuvdSvA7w4VMwfCjUiPwDi0ZO6Nfe9A==}
+  '@esbuild/linux-arm64@0.28.0':
+    resolution: {integrity: sha512-RVyzfb3FWsGA55n6WY0MEIEPURL1FcbhFE6BffZEMEekfCzCIMtB5yyDcFnVbTnwk+CLAgTujmV/Lgvih56W+A==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [linux]
 
-  '@esbuild/linux-arm@0.27.7':
-    resolution: {integrity: sha512-RkT/YXYBTSULo3+af8Ib0ykH8u2MBh57o7q/DAs3lTJlyVQkgQvlrPTnjIzzRPQyavxtPtfg0EopvDyIt0j1rA==}
+  '@esbuild/linux-arm@0.28.0':
+    resolution: {integrity: sha512-CjaaREJagqJp7iTaNQjjidaNbCKYcd4IDkzbwwxtSvjI7NZm79qiHc8HqciMddQ6CKvJT6aBd8lO9kN/ZudLlw==}
     engines: {node: '>=18'}
     cpu: [arm]
     os: [linux]
 
-  '@esbuild/linux-ia32@0.27.7':
-    resolution: {integrity: sha512-GA48aKNkyQDbd3KtkplYWT102C5sn/EZTY4XROkxONgruHPU72l+gW+FfF8tf2cFjeHaRbWpOYa/uRBz/Xq1Pg==}
+  '@esbuild/linux-ia32@0.28.0':
+    resolution: {integrity: sha512-KBnSTt1kxl9x70q+ydterVdl+Cn0H18ngRMRCEQfrbqdUuntQQ0LoMZv47uB97NljZFzY6HcfqEZ2SAyIUTQBQ==}
     engines: {node: '>=18'}
     cpu: [ia32]
     os: [linux]
 
-  '@esbuild/linux-loong64@0.27.7':
-    resolution: {integrity: sha512-a4POruNM2oWsD4WKvBSEKGIiWQF8fZOAsycHOt6JBpZ+JN2n2JH9WAv56SOyu9X5IqAjqSIPTaJkqN8F7XOQ5Q==}
+  '@esbuild/linux-loong64@0.28.0':
+    resolution: {integrity: sha512-zpSlUce1mnxzgBADvxKXX5sl8aYQHo2ezvMNI8I0lbblJtp8V4odlm3Yzlj7gPyt3T8ReksE6bK+pT3WD+aJRg==}
     engines: {node: '>=18'}
     cpu: [loong64]
     os: [linux]
 
-  '@esbuild/linux-mips64el@0.27.7':
-    resolution: {integrity: sha512-KabT5I6StirGfIz0FMgl1I+R1H73Gp0ofL9A3nG3i/cYFJzKHhouBV5VWK1CSgKvVaG4q1RNpCTR2LuTVB3fIw==}
+  '@esbuild/linux-mips64el@0.28.0':
+    resolution: {integrity: sha512-2jIfP6mmjkdmeTlsX/9vmdmhBmKADrWqN7zcdtHIeNSCH1SqIoNI63cYsjQR8J+wGa4Y5izRcSHSm8K3QWmk3w==}
     engines: {node: '>=18'}
     cpu: [mips64el]
     os: [linux]
 
-  '@esbuild/linux-ppc64@0.27.7':
-    resolution: {integrity: sha512-gRsL4x6wsGHGRqhtI+ifpN/vpOFTQtnbsupUF5R5YTAg+y/lKelYR1hXbnBdzDjGbMYjVJLJTd2OFmMewAgwlQ==}
+  '@esbuild/linux-ppc64@0.28.0':
+    resolution: {integrity: sha512-bc0FE9wWeC0WBm49IQMPSPILRocGTQt3j5KPCA8os6VprfuJ7KD+5PzESSrJ6GmPIPJK965ZJHTUlSA6GNYEhg==}
     engines: {node: '>=18'}
     cpu: [ppc64]
     os: [linux]
 
-  '@esbuild/linux-riscv64@0.27.7':
-    resolution: {integrity: sha512-hL25LbxO1QOngGzu2U5xeXtxXcW+/GvMN3ejANqXkxZ/opySAZMrc+9LY/WyjAan41unrR3YrmtTsUpwT66InQ==}
+  '@esbuild/linux-riscv64@0.28.0':
+    resolution: {integrity: sha512-SQPZOwoTTT/HXFXQJG/vBX8sOFagGqvZyXcgLA3NhIqcBv1BJU1d46c0rGcrij2B56Z2rNiSLaZOYW5cUk7yLQ==}
     engines: {node: '>=18'}
     cpu: [riscv64]
     os: [linux]
 
-  '@esbuild/linux-s390x@0.27.7':
-    resolution: {integrity: sha512-2k8go8Ycu1Kb46vEelhu1vqEP+UeRVj2zY1pSuPdgvbd5ykAw82Lrro28vXUrRmzEsUV0NzCf54yARIK8r0fdw==}
+  '@esbuild/linux-s390x@0.28.0':
+    resolution: {integrity: sha512-SCfR0HN8CEEjnYnySJTd2cw0k9OHB/YFzt5zgJEwa+wL/T/raGWYMBqwDNAC6dqFKmJYZoQBRfHjgwLHGSrn3Q==}
     engines: {node: '>=18'}
     cpu: [s390x]
     os: [linux]
 
-  '@esbuild/linux-x64@0.27.7':
-    resolution: {integrity: sha512-hzznmADPt+OmsYzw1EE33ccA+HPdIqiCRq7cQeL1Jlq2gb1+OyWBkMCrYGBJ+sxVzve2ZJEVeePbLM2iEIZSxA==}
+  '@esbuild/linux-x64@0.28.0':
+    resolution: {integrity: sha512-us0dSb9iFxIi8srnpl931Nvs65it/Jd2a2K3qs7fz2WfGPHqzfzZTfec7oxZJRNPXPnNYZtanmRc4AL/JwVzHQ==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [linux]
 
-  '@esbuild/netbsd-arm64@0.27.7':
-    resolution: {integrity: sha512-b6pqtrQdigZBwZxAn1UpazEisvwaIDvdbMbmrly7cDTMFnw/+3lVxxCTGOrkPVnsYIosJJXAsILG9XcQS+Yu6w==}
+  '@esbuild/netbsd-arm64@0.28.0':
+    resolution: {integrity: sha512-CR/RYotgtCKwtftMwJlUU7xCVNg3lMYZ0RzTmAHSfLCXw3NtZtNpswLEj/Kkf6kEL3Gw+BpOekRX0BYCtklhUw==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [netbsd]
 
-  '@esbuild/netbsd-x64@0.27.7':
-    resolution: {integrity: sha512-OfatkLojr6U+WN5EDYuoQhtM+1xco+/6FSzJJnuWiUw5eVcicbyK3dq5EeV/QHT1uy6GoDhGbFpprUiHUYggrw==}
+  '@esbuild/netbsd-x64@0.28.0':
+    resolution: {integrity: sha512-nU1yhmYutL+fQ71Kxnhg8uEOdC0pwEW9entHykTgEbna2pw2dkbFSMeqjjyHZoCmt8SBkOSvV+yNmm94aUrrqw==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [netbsd]
 
-  '@esbuild/openbsd-arm64@0.27.7':
-    resolution: {integrity: sha512-AFuojMQTxAz75Fo8idVcqoQWEHIXFRbOc1TrVcFSgCZtQfSdc1RXgB3tjOn/krRHENUB4j00bfGjyl2mJrU37A==}
+  '@esbuild/openbsd-arm64@0.28.0':
+    resolution: {integrity: sha512-cXb5vApOsRsxsEl4mcZ1XY3D4DzcoMxR/nnc4IyqYs0rTI8ZKmW6kyyg+11Z8yvgMfAEldKzP7AdP64HnSC/6g==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [openbsd]
 
-  '@esbuild/openbsd-x64@0.27.7':
-    resolution: {integrity: sha512-+A1NJmfM8WNDv5CLVQYJ5PshuRm/4cI6WMZRg1by1GwPIQPCTs1GLEUHwiiQGT5zDdyLiRM/l1G0Pv54gvtKIg==}
+  '@esbuild/openbsd-x64@0.28.0':
+    resolution: {integrity: sha512-8wZM2qqtv9UP3mzy7HiGYNH/zjTA355mpeuA+859TyR+e+Tc08IHYpLJuMsfpDJwoLo1ikIJI8jC3GFjnRClzA==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [openbsd]
 
-  '@esbuild/openharmony-arm64@0.27.7':
-    resolution: {integrity: sha512-+KrvYb/C8zA9CU/g0sR6w2RBw7IGc5J2BPnc3dYc5VJxHCSF1yNMxTV5LQ7GuKteQXZtspjFbiuW5/dOj7H4Yw==}
+  '@esbuild/openharmony-arm64@0.28.0':
+    resolution: {integrity: sha512-FLGfyizszcef5C3YtoyQDACyg95+dndv79i2EekILBofh5wpCa1KuBqOWKrEHZg3zrL3t5ouE5jgr94vA+Wb2w==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [openharmony]
 
-  '@esbuild/sunos-x64@0.27.7':
-    resolution: {integrity: sha512-ikktIhFBzQNt/QDyOL580ti9+5mL/YZeUPKU2ivGtGjdTYoqz6jObj6nOMfhASpS4GU4Q/Clh1QtxWAvcYKamA==}
+  '@esbuild/sunos-x64@0.28.0':
+    resolution: {integrity: sha512-1ZgjUoEdHZZl/YlV76TSCz9Hqj9h9YmMGAgAPYd+q4SicWNX3G5GCyx9uhQWSLcbvPW8Ni7lj4gDa1T40akdlw==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [sunos]
 
-  '@esbuild/win32-arm64@0.27.7':
-    resolution: {integrity: sha512-7yRhbHvPqSpRUV7Q20VuDwbjW5kIMwTHpptuUzV+AA46kiPze5Z7qgt6CLCK3pWFrHeNfDd1VKgyP4O+ng17CA==}
+  '@esbuild/win32-arm64@0.28.0':
+    resolution: {integrity: sha512-Q9StnDmQ/enxnpxCCLSg0oo4+34B9TdXpuyPeTedN/6+iXBJ4J+zwfQI28u/Jl40nOYAxGoNi7mFP40RUtkmUA==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [win32]
 
-  '@esbuild/win32-ia32@0.27.7':
-    resolution: {integrity: sha512-SmwKXe6VHIyZYbBLJrhOoCJRB/Z1tckzmgTLfFYOfpMAx63BJEaL9ExI8x7v0oAO3Zh6D/Oi1gVxEYr5oUCFhw==}
+  '@esbuild/win32-ia32@0.28.0':
+    resolution: {integrity: sha512-zF3ag/gfiCe6U2iczcRzSYJKH1DCI+ByzSENHlM2FcDbEeo5Zd2C86Aq0tKUYAJJ1obRP84ymxIAksZUcdztHA==}
     engines: {node: '>=18'}
     cpu: [ia32]
     os: [win32]
 
-  '@esbuild/win32-x64@0.27.7':
-    resolution: {integrity: sha512-56hiAJPhwQ1R4i+21FVF7V8kSD5zZTdHcVuRFMW0hn753vVfQN8xlx4uOPT4xoGH0Z/oVATuR82AiqSTDIpaHg==}
+  '@esbuild/win32-x64@0.28.0':
+    resolution: {integrity: sha512-pEl1bO9mfAmIC+tW5btTmrKaujg3zGtUmWNdCw/xs70FBjwAL3o9OEKNHvNmnyylD6ubxUERiEhdsL0xBQ9efw==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
@@ -11096,40 +11078,20 @@ packages:
       node-notifier:
         optional: true
 
-  '@jest/diff-sequences@30.3.0':
-    resolution: {integrity: sha512-cG51MVnLq1ecVUaQ3fr6YuuAOitHK1S4WUJHnsPFE/quQr33ADUx1FfrTCpMCRxvy0Yr9BThKpDjSlcTi91tMA==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
   '@jest/diff-sequences@30.4.0':
     resolution: {integrity: sha512-zOpzlfUs45l6u7jm39qr87JCHUDsaeCtvL+kQe/Vn9jSnRB4/5IPXISm0h9I1vZW/o00Kn4UTJ2MOlhnUGwv3g==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
-  '@jest/environment@30.3.0':
-    resolution: {integrity: sha512-SlLSF4Be735yQXyh2+mctBOzNDx5s5uLv88/j8Qn1wH679PDcwy67+YdADn8NJnGjzlXtN62asGH/T4vWOkfaw==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
   '@jest/environment@30.4.1':
     resolution: {integrity: sha512-AK9yNRqgKxiabqMoe4oW+3/TSSeV8vkdC7BGaxZdU0AFXfOpofTLqdru2GXKZghP3sdgwE9XXpnVwfZ8JnFV4w==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
-  '@jest/expect-utils@30.3.0':
-    resolution: {integrity: sha512-j0+W5iQQ8hBh7tHZkTQv3q2Fh/M7Je72cIsYqC4OaktgtO7v1So9UTjp6uPBHIaB6beoF/RRsCgMJKvti0wADA==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
   '@jest/expect-utils@30.4.1':
     resolution: {integrity: sha512-ZBn5CglH8fBsQsvs4VWNzD4aWfUYks+IdOOQU3MEK71ol/BcVm+P+rtb1KpiFBpSWSCE27uOahyyf1vfqOVbcQ==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
-  '@jest/expect@30.3.0':
-    resolution: {integrity: sha512-76Nlh4xJxk2D/9URCn3wFi98d2hb19uWE1idLsTt2ywhvdOldbw3S570hBgn25P4ICUZ/cBjybrBex2g17IDbg==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
   '@jest/expect@30.4.1':
     resolution: {integrity: sha512-ginrj6TMgh2GshLUGCjO94Ptx9HhdZA/I6A9iUfyeLKFtdAjnKzHDgzgP9HYQgbxM1lbXScQ2eUBz2lGeVDPWA==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
-  '@jest/fake-timers@30.3.0':
-    resolution: {integrity: sha512-WUQDs8SOP9URStX1DzhD425CqbN/HxUYCTwVrT8sTVBfMvFqYt/s61EK5T05qnHu0po6RitXIvP9otZxYDzTGQ==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
   '@jest/fake-timers@30.4.1':
@@ -11140,16 +11102,8 @@ packages:
     resolution: {integrity: sha512-eMbZE2hUnx1WV0pmURZY9XoXPkUYjpc55mb0CrhtdWLtzMQPFvu/rZkTLZFTsdaVQa+Tr4eWAteqcUzoawq/uA==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
-  '@jest/globals@30.3.0':
-    resolution: {integrity: sha512-+owLCBBdfpgL3HU+BD5etr1SvbXpSitJK0is1kiYjJxAAJggYMRQz5hSdd5pq1sSggfxPbw2ld71pt4x5wwViA==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
   '@jest/globals@30.4.1':
     resolution: {integrity: sha512-ZbuY4cmXC8DkxYjfvT2DbcHWL2T6vmsMhXCDcmTB2T0y0gaezBI77ufq5ZAIdcRkYZ7NEQEDg1xFeKbxUJ5v5Q==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
-  '@jest/pattern@30.0.1':
-    resolution: {integrity: sha512-gWp7NfQW27LaBQz3TITS8L7ZCQ0TLvtmI//4OwlQRx4rnWxcPNIYjxZpDcN4+UlGxgm3jS5QPz8IPTCkb59wZA==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
   '@jest/pattern@30.4.0':
@@ -11169,16 +11123,8 @@ packages:
     resolution: {integrity: sha512-mo5j5X+jIZmJQveBKeS/clAueipV7KgiX1vMgCxam1RNYiqE1w62n0/tJJnHtjW8ZHcQco5gY85jA3mi0L+nSA==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
 
-  '@jest/schemas@30.0.5':
-    resolution: {integrity: sha512-DmdYgtezMkh3cpU8/1uyXakv3tJRcmcXxBOcO0tbaozPwpmh4YMsnWrQm9ZmZMfa5ocbxzbFk6O4bDPEc/iAnA==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
   '@jest/schemas@30.4.1':
     resolution: {integrity: sha512-i6b4qw5qnP8c5FEeBJg/uZQ4ddrkN6Ca8qISJh0pr7a5hfn3h3v5x60BEbOC7OYAGZNMs1LfFLwnW2CuK8F57Q==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
-  '@jest/snapshot-utils@30.3.0':
-    resolution: {integrity: sha512-ORbRN9sf5PP82v3FXNSwmO1OTDR2vzR2YTaR+E3VkSBZ8zadQE6IqYdYEeFH1NIkeB2HIGdF02dapb6K0Mj05g==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
   '@jest/snapshot-utils@30.4.1':
@@ -11197,10 +11143,6 @@ packages:
     resolution: {integrity: sha512-PeYE+4td5rKjoRPxztObrXU+H8hsjZfxKMXOcmrr34JerSyB/ROOxbbicz8B7A5j9R9VayDnVPvBmedqCsFCdw==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
-  '@jest/transform@30.3.0':
-    resolution: {integrity: sha512-TLKY33fSLVd/lKB2YI1pH69ijyUblO/BQvCj566YvnwuzoTNr648iE0j22vRvVNk2HsPwByPxATg3MleS3gf5A==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
   '@jest/transform@30.4.1':
     resolution: {integrity: sha512-Wz0LyktlTvRefoymh+n64hQ84KNXsRGcwdoZ8CSa0Ea+fgYcHZlnk+hDP7v2MS7il2bQ5uTEIxf4/NNfhMN4KQ==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
@@ -11208,10 +11150,6 @@ packages:
   '@jest/types@29.6.3':
     resolution: {integrity: sha512-u3UPsIilWKOM3F9CXtrG8LEJmNxwoCQC/XVj4IKYXvvpx7QIi/Kg1LI5uDmDpKlac62NUtX7eLjRh+jVZcLOzw==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
-
-  '@jest/types@30.3.0':
-    resolution: {integrity: sha512-JHm87k7bA33hpBngtU8h6UBub/fqqA9uXfw+21j5Hmk7ooPHlboRNxHq0JcMtC+n8VJGP1mcfnD3Mk+XKe1oSw==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
   '@jest/types@30.4.1':
     resolution: {integrity: sha512-f1x/vJXIfjOlEmejYpbkbgw1gOqpPECwMvMEtBqe47j7H2Hg8h8w3o3ikhSXq3MI15kg+oQ0exWO0uCtTNJLoQ==}
@@ -11411,6 +11349,10 @@ packages:
     resolution: {integrity: sha512-03d2l21gAyzGVr9SR6rS5pvCTnZ4HaNdi8jB2Y/UGvszzrNbA+AJVObVw6SulNQ1Eah3SHB9wCezJwtP+jYIcA==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/config.nerf-dart@2.0.1':
+    resolution: {integrity: sha512-4jAXyUB1PyY6eETXojxYrXL2NWtcZVxQx8nHTkJjyy0aEx1quMxlIqwnlh8YZRaXcfiqM6VCIEc+BLZWwQq6yg==}
+    engines: {node: '>=22.13'}
+
   '@pnpm/config@1004.11.0':
     resolution: {integrity: sha512-NuiUOC00Vjfy7oAbj2xBKwlTJysXVLjuT0FoCYtrvhf1z62xKZOWY+uSHUtvjdx7G73JDoShEAYd0tDLxvg1WQ==}
     engines: {node: '>=18.12'}
@@ -11608,13 +11550,17 @@ packages:
     resolution: {integrity: sha512-Oa9Fhwo4Ipodj3hyUPC5wUt5ucVkuttyct2DbFUkB79Fq5HL9MHHQ+JFYh03eajmLqWrN1t8+6DbmcKqRtNjNg==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/log.group@3.0.2':
-    resolution: {integrity: sha512-8TmkCqpbKf+OxdkfOwZ4OeOwyJJ/2nGi0osI44pZzxjXNNa4gywQrGsgtpdls+R2cAMoYHVahN9mi8VJ3cznaQ==}
-    engines: {node: '>=18.12'}
+  '@pnpm/log.group@4.0.1':
+    resolution: {integrity: sha512-MYlihBpKuwuo0sKJyX3MpJbVT5zQZ985BYQMpm4UKUZftXC3Kc4ATyAODeV4UkBBAaR53Ty+D5cXVd5JNEoDpg==}
+    engines: {node: '>=22.13'}
 
   '@pnpm/logger@1001.0.1':
     resolution: {integrity: sha512-gdwlAMXC4Wc0s7Dmg/4wNybMEd/4lSd9LsXQxeg/piWY0PPXjgz1IXJWnVScx6dZRaaodWP3c1ornrw8mZdFZw==}
     engines: {node: '>=18.12'}
+
+  '@pnpm/logger@1100.0.0':
+    resolution: {integrity: sha512-A3bRMTIZ5ptDPAE/KsDeY1J5UqqOiyo66+k/mUvaVjx++OJdMbp9If5kisEq9ljAV5r5TRpkxsJbSdrdJ5WtzQ==}
+    engines: {node: '>=22.13'}
 
   '@pnpm/manifest-utils@1002.0.5':
     resolution: {integrity: sha512-2DSwQ6pP73IuJS5mCCtPd5fibJwuAdufXKuSL/Oq1n6AggCqy8616Xea1X3RH3z5dL4mn7Z4EZ+vnX8jX3Wrfw==}
@@ -11911,6 +11857,10 @@ packages:
     resolution: {integrity: sha512-blFO4Ws97tWv/SNE6N39ZdGmZBrocXnBOfVp0ln4kELmns4pGPZizqyRtR8EjfOLMLstbmNCTReBoDvLz1isVg==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/util.lex-comparator@4.0.1':
+    resolution: {integrity: sha512-EZ3aWU7ThppE3Xgq7/ftxq8J/nit6z8I2/wZbC/acea2Zw7KJ1k/fLkGBgyyVAE37CULFsOSmPl3EjYM18cB2Q==}
+    engines: {node: '>=22.13'}
+
   '@pnpm/which@3.0.1':
     resolution: {integrity: sha512-4ivtS12Oni9axgGefaq+gTPD+7N0VPCFdxFH8izCaWfnxLQblX3iVxba+25ZoagStlzUs8sQg8OMKlCVhyGWTw==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
@@ -11984,8 +11934,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@rushstack/worker-pool@0.7.7':
-    resolution: {integrity: sha512-B8uRKeYvtUQkdno1TTvp86DWcV98JOy/qf0KPr9hKfzi/l4B0hM2ES/tR+ae9dX5z1vX9AEy60n7yyrsQh3YUA==}
+  '@rushstack/worker-pool@0.7.18':
+    resolution: {integrity: sha512-xUoOeQJ0wRVEAWbPPyBahXg+NQPjvhnWcytuksLXf0dVMazsyUzn0ctPAyLRXHsBS54ha5T1YrXzHE8gnPwOMw==}
     peerDependencies:
       '@types/node': '*'
     peerDependenciesMeta:
@@ -12164,8 +12114,8 @@ packages:
   '@types/keyv@3.1.4':
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
 
-  '@types/libnpmpublish@9.0.1':
-    resolution: {integrity: sha512-9XtssAlenc4sYO1Ftn8KfKIVRWivBYIjHJBdJeTLLVnDzVJ2mzWeR0i3eNak7ECK2tppMW/SonzOXnk/lEU03w==}
+  '@types/libnpmpublish@11.2.0':
+    resolution: {integrity: sha512-8ulbSO5uHMhkEVTkNWn6huL6feuvMYo1vugfB1kwyV3nGBPtrT3qmAfq7Wa18j5z4S5YUEOAv5neHfwFbDcvhA==}
 
   '@types/lodash.kebabcase@4.1.9':
     resolution: {integrity: sha512-kPrrmcVOhSsjAVRovN0lRfrbuidfg0wYsrQa5IYuoQO1fpHHGSme66oyiYA/5eQPVl8Z95OA3HG0+d2SvYC85w==}
@@ -12221,8 +12171,9 @@ packages:
   '@types/object-hash@3.0.6':
     resolution: {integrity: sha512-fOBV8C1FIu2ELinoILQ+ApxcUKz4ngq+IWUYrxSGjXzzjUALijilampwkMgEtJ+h2njAW3pi853QpzNVCHB73w==}
 
-  '@types/parse-json@4.0.2':
-    resolution: {integrity: sha512-dISoDXWWQwUquiKsyZ4Ng+HX2KsPL7LyHKHQwgGFEA3IaKac4Obd+h2a/a6waisAoepJlBcx9paWqjA8/HVjCw==}
+  '@types/parse-json@7.0.0':
+    resolution: {integrity: sha512-9+fI0h3lJpUhQCstbug7hnYgEc22rDZV1WIFVpOvp6/zlOWXk0IBfwUvQDoO5zgB6lZxjucjmQcgWT0ehPrEmA==}
+    deprecated: This is a stub types definition. parse-json provides its own type definitions, so you do not need this installed.
 
   '@types/picomatch@4.0.3':
     resolution: {integrity: sha512-iG0T6+nYJ9FAPmx9SsUlnwcq1ZVRuCXcVEvWnntoPlrOpwtSTKNDC9uVAxTsC3PUvJ+99n4RpAcNgBbHX3JSnQ==}
@@ -12254,15 +12205,12 @@ packages:
   '@types/stack-utils@2.0.3':
     resolution: {integrity: sha512-9aEbYZ3TbYMznPdcdr3SmIrLXwC/AKZXQeCf9Pgao5CKb8CyHuEX5jzWPTkvregvhRJHcpRO6BFoGW9ycaOkYw==}
 
-  '@types/table@6.0.0':
-    resolution: {integrity: sha512-RSmRiYetRzpcZcgNo4x6C1VSsPGBHCGGDO7Rbnz5esVLbGONxBP1CUcn8JhAkVzUVLO+AY8yOSkb27jvfauLyg==}
+  '@types/table@6.3.2':
+    resolution: {integrity: sha512-GJ82z3vQbx2BhiUo12w2A3lyBpXPJrGHjQ7iS5aH925098w8ojqiWBhgOUy97JS2PKLmRCTLT0sI+gJI4futig==}
+    deprecated: This is a stub types definition. table provides its own type definitions, so you do not need this installed.
 
   '@types/tar-stream@3.1.4':
     resolution: {integrity: sha512-921gW0+g29mCJX0fRvqeHzBlE/XclDaAG0Ousy1LCghsOhvaKacDeRGEVzQP9IPfKn8Vysy7FEXAIxycpc/CMg==}
-
-  '@types/tar@7.0.87':
-    resolution: {integrity: sha512-3IxNBV8LeY5oi2ZFpvAhOtW1+mHswkzM7BuisVrwJgPv67GBO2rkLPQlEKtzfHuLdhDDczhkCZeT+RuizMay4A==}
-    deprecated: This is a stub types definition. tar provides its own type definitions, so you do not need this installed.
 
   '@types/touch@3.1.5':
     resolution: {integrity: sha512-tnu5L7yEvstLAJCjEQRYTtFIqMgJ4fvlDlgJwemY0V6UbeJ8NQCUuj85tPcCm54q/hAlLXFStIEClNlp8mSlMA==}
@@ -12291,16 +12239,16 @@ packages:
   '@types/yarnpkg__lockfile@1.1.9':
     resolution: {integrity: sha512-GD4Fk15UoP5NLCNor51YdfL9MSdldKCqOC9EssrRw3HVfar9wUZ5y8Lfnp+qVD6hIinLr8ygklDYnmlnlQo12Q==}
 
-  '@typescript-eslint/eslint-plugin@8.60.1':
-    resolution: {integrity: sha512-JQ4S5GB0tfjO8BuJ4fcX+HodkzJjYBV+7OJ+wLygaX7OGQ7FudyHL4NSCA6ob+w3Yn+5MkKIozOwQhXeM7opVg==}
+  '@typescript-eslint/eslint-plugin@8.61.0':
+    resolution: {integrity: sha512-bFNvl9ZczlVb+wR2Akszf3gHfKVj/8WanXaGJ3UstTA7brNKg0cNdk6X1Psu5V7MZ2oQtzZKOEzIUehaoxbDGw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
-      '@typescript-eslint/parser': ^8.60.1
+      '@typescript-eslint/parser': ^8.61.0
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.1.0'
 
-  '@typescript-eslint/parser@8.60.1':
-    resolution: {integrity: sha512-A0M6ua6H252bVjPvvtSgl2QA4+ET9S5Mtkb2GDyTxIhH/C4qDItT7RQNO5PhMC6NXGYXOR9dIalcDDgBKT7oFA==}
+  '@typescript-eslint/parser@8.61.0':
+    resolution: {integrity: sha512-5B7PfA2e1NQGCnDHd/0lW7W3gvp3d59Ryw54FYO8Uswxo9f6ikw3AZV+Xj/TvpImmpsiYyUqAfhC6kJID1jF6w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
@@ -12312,8 +12260,18 @@ packages:
     peerDependencies:
       typescript: '>=4.8.4 <6.1.0'
 
+  '@typescript-eslint/project-service@8.61.0':
+    resolution: {integrity: sha512-DV42F7MLJO6Rax7SK1yg43tcnEfGUrurSpSxKuVX+a3RCTzBlH3fuxprrOJXKCJGAaw82xXocikJ0uQaqwXgGA==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    peerDependencies:
+      typescript: '>=4.8.4 <6.1.0'
+
   '@typescript-eslint/scope-manager@8.60.1':
     resolution: {integrity: sha512-gvI5OQoptnxQnchOirukCuQ55svJSTuD/4k5+pC267xyBtYry748R9/c3tYUzb/iE6RZfllRz2lVulLCHkTm4w==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@typescript-eslint/scope-manager@8.61.0':
+    resolution: {integrity: sha512-IWdXFHFSb6mlC3HPc7QsLDm5zYEbUla6trDEHf32D3/dnuUyXd87plScSNXSbm0/RxMvObpI17sv/EDTGrGZkA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@typescript-eslint/tsconfig-utils@8.60.1':
@@ -12322,8 +12280,14 @@ packages:
     peerDependencies:
       typescript: '>=4.8.4 <6.1.0'
 
-  '@typescript-eslint/type-utils@8.60.1':
-    resolution: {integrity: sha512-sdwTrpjosW7ANQYJ39ZBF1ZyEMEGVB2UsikrserVM/30a/F1dTLnu9bGxEdosugyu5caigjLrR2qiD11asjI1A==}
+  '@typescript-eslint/tsconfig-utils@8.61.0':
+    resolution: {integrity: sha512-O5Amvdv9ztMpxpf+vmFULGG78IE6Qwdr3bCGvqwG4nwc9H2qXkOYJJnRbRHyMkQTjv1d03olqwwwzHLMqpFePQ==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    peerDependencies:
+      typescript: '>=4.8.4 <6.1.0'
+
+  '@typescript-eslint/type-utils@8.61.0':
+    resolution: {integrity: sha512-TuBiQYIkd97yBfInHCTKVYMbX4kvEmpOEuixIuzCU9p8BGT1SfyyO0d0IfDMbPIHcjn/hWnusUX5e8v5Xg+X8A==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
@@ -12343,8 +12307,21 @@ packages:
     peerDependencies:
       typescript: '>=4.8.4 <6.1.0'
 
+  '@typescript-eslint/typescript-estree@8.61.0':
+    resolution: {integrity: sha512-42zatd5qSvvcV1JdDBCLxYRznvP4eIHpPoZXdkPFnAmanA4FuZ5dibSnCBggY8hQnqajPpoGjXFdZ7fIJKQnlA==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    peerDependencies:
+      typescript: '>=4.8.4 <6.1.0'
+
   '@typescript-eslint/utils@8.60.1':
     resolution: {integrity: sha512-h2MPBLoNtjc3qZWfY3Tl51yPorQ2McHn8pJfcMNTcIvrrZrr90Ykffit0yjrPFWQcRcUxzH20+6OcVdW4yHtUg==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    peerDependencies:
+      eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
+      typescript: '>=4.8.4 <6.1.0'
+
+  '@typescript-eslint/utils@8.61.0':
+    resolution: {integrity: sha512-3bzFt7ImFMW/jVYwJamDoe/dMOdFLSC6pom6rRjdh4SZJEYupyMzem8e7vKZLclLfpHjlwSAXOUxtKxGXUiLqA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
@@ -12354,43 +12331,55 @@ packages:
     resolution: {integrity: sha512-EbGRQg4FhrmwLodl+t3JNAnXHWVr9Vp+Zl1QBZVPY4ByfkzIT8cX3K6QWODHtkIZqqJVEWvhHSx3v5PDHsaQag==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260421.2':
-    resolution: {integrity: sha512-fHv1r3ZmVo6zxuAIFmuX3w9QxbcauoG0SsWhmDwm6VmRubLlOJIcmTtlmV3JAb9oOnq8LuzZljzT7Q39fSMQDw==}
+  '@typescript-eslint/visitor-keys@8.61.0':
+    resolution: {integrity: sha512-QVLZu3ZPQEE+HICQyAMZ2yLQhxf0meY/wx6Hx14YcTNj13JB3qHlX3lJ02L3fLGHgERRH71kvYDwiXIguT3AjQ==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260610.1':
+    resolution: {integrity: sha512-ClGuxEbvnqDoUYoe8PV+LmXSruS4GYwVgU+l4+S5667ynE3rvZrkQ/tZhS9Z2ew6CI3L16SNn5DFJiOUAI5oWw==}
+    engines: {node: '>=16.20.0'}
     cpu: [arm64]
     os: [darwin]
 
-  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260421.2':
-    resolution: {integrity: sha512-KWTR6xbW9t+JS7D5DQIzo75pqVXVWUxF9PMv/+S6xsnOjCVd6g0ixHcFpFMJMKSUQpGPr8Z5f7b8ks6LHW01jg==}
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260610.1':
+    resolution: {integrity: sha512-kDMqLXt2tS9zh1AozK0NVh3w2z3HlFFbUMJ4yYY3+yaTxr0WB0WtJzxFKyOiVRIMhhFoeJTauIwqh8aYRYNBdA==}
+    engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [darwin]
 
-  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260421.2':
-    resolution: {integrity: sha512-VLMEuml3BhUb+jaL0TXQ4xvVODxJF+RhkI+tBWvlynsJI4khTXEiwWh+wPOJrsfBRYFRMXEu28Odl/HXkYze8w==}
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260610.1':
+    resolution: {integrity: sha512-Au9raEQUR6eH/1+rURkclshEcgBeGwZR27TDqAhWsM1gLYrgZV0q44pyG8ykPkHFk3hrJlBdI3oAV6+l+HyFBg==}
+    engines: {node: '>=16.20.0'}
     cpu: [arm64]
     os: [linux]
 
-  '@typescript/native-preview-linux-arm@7.0.0-dev.20260421.2':
-    resolution: {integrity: sha512-BWLQO3nemLDSV5PoE5GPHe1dU9Dth77Kv8/cle9Ujcp4LhPo0KincdPqFH/qKeU/xvW25mgFueflZ1nc4rKuww==}
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260610.1':
+    resolution: {integrity: sha512-OofDm2YNn9txSsODHliCOp1InHFunzupga78FcA/DKQcG5A93gVeeI3iQYRTje4NWLQxmwETmSyZlvRURB3orA==}
+    engines: {node: '>=16.20.0'}
     cpu: [arm]
     os: [linux]
 
-  '@typescript/native-preview-linux-x64@7.0.0-dev.20260421.2':
-    resolution: {integrity: sha512-qUrJWTB5/wv4wnRG0TRXElAxc2kykNiRNyEIEqBbLmzDlrcvAW7RRy8MXoY1ZyTiKGMu14itZ3x9oW6+blFpRw==}
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260610.1':
+    resolution: {integrity: sha512-31mpOqJHqn+QhFqGEUxw0kUxLVM5V8dTP5CFmn/lgWb2ue4Qvqwmkew4Xb740neiEptcq/cx4Au1iVjEO3MHsQ==}
+    engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [linux]
 
-  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260421.2':
-    resolution: {integrity: sha512-Rc6NsWlZmCs5YUKVzKgwoBOoRUGsPzct4BDMRX0csD1devLBBc4AbUXWKsJRbpwIAnqMO1ld4sNHEb+wXgfNHQ==}
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260610.1':
+    resolution: {integrity: sha512-ohktGeyhd+7lwAVvhLKCjdoIWOE405YCCTEckdaXNFfKSjz7sj9Z9yt69IzuevEQrsR8nK23SwWibxDX9tOUlA==}
+    engines: {node: '>=16.20.0'}
     cpu: [arm64]
     os: [win32]
 
-  '@typescript/native-preview-win32-x64@7.0.0-dev.20260421.2':
-    resolution: {integrity: sha512-GQv1+dya1t6EqF2Cpsb+xoozovdX10JUSf6Kl/8xNkTapzmlHd+uMr+8ku3jIASTxoRGn0Mklgjj3MDKrOTuLg==}
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260610.1':
+    resolution: {integrity: sha512-yq1wzcKX84zCPpcMXpCbjJGpnhwP+4Q5y7xlWo3YCQ/qUz59t7QlnJrC+6XkauddNTgW0rxQfCRnNPc/Qp59Pg==}
+    engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [win32]
 
-  '@typescript/native-preview@7.0.0-dev.20260421.2':
-    resolution: {integrity: sha512-CmajHI25HpVWE9R1XFoxr+cphJPxoYD3eFioQtAvXYkMFKnLdICMS9pXre9Pybizb75ejRxjKD5/CVG055rEIg==}
+  '@typescript/native-preview@7.0.0-dev.20260610.1':
+    resolution: {integrity: sha512-AEeKaUMKVAPGOrSCn436P9YtAQtfZS+T99SYtHMjLtPuSVTcODvoUyyKhuW+7tLXY6NhlX+R+Z0pTRSjAIaq1g==}
+    engines: {node: '>=16.20.0'}
     hasBin: true
 
   '@ungap/structured-clone@1.3.1':
@@ -12515,10 +12504,6 @@ packages:
     resolution: {integrity: sha512-nAB74NfSNKknqQ1RrYj6uz8FcXEomu/MATJZxh/x+BArzN2U3JbOYC0APYzUIGhVY3m5hRxA8VPNdPBoG8txlA==}
     cpu: [x64]
     os: [win32]
-
-  '@yarnpkg/core@4.5.0':
-    resolution: {integrity: sha512-jZnEYfP05k3KpBIWlNkPEuJ3E0QLnYTNALQOH+7x8LAQyzhnN9yuLZx8Ze80Y7mlU1Hnv5wUGtzzUFn1wyBAlQ==}
-    engines: {node: '>=18.12.0'}
 
   '@yarnpkg/core@4.8.0':
     resolution: {integrity: sha512-knO69Rqtr5GkGwGOKKhX1gLv7i2SDujoe4TBODUUzY/NLRuNBHPtFoANGYrMsGSSbsnmLLbGEJGQQ6c/CJXF2w==}
@@ -12908,6 +12893,10 @@ packages:
   builtins@5.1.0:
     resolution: {integrity: sha512-SW9lzGTLvWTP1AY8xeAMZimqDrIaSdLQUcVr9DMef51niJ022Ri87SwRRKYm4A6iHfkPaiVUu/Duw2Wc4J7kKg==}
 
+  bundle-name@4.1.0:
+    resolution: {integrity: sha512-tjwM5exMg6BGRI+kNmTntNsvdZS1X8BFYS6tnJ2hdH0kVxM6/eVZ2xy+FqStSWvYmtfFMDLIxurorHwDKfDz5Q==}
+    engines: {node: '>=18'}
+
   bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
     engines: {node: '>= 0.8'}
@@ -13070,9 +13059,9 @@ packages:
     resolution: {integrity: sha512-n8fOixwDD6b/ObinzTrp1ZKFzbgvKZvuz/TvejnLn1aQfC6r52XEx85FmuC+3HI+JM7coBRXUvNqEU2PHVrHpg==}
     engines: {node: '>=8'}
 
-  cli-truncate@5.2.0:
-    resolution: {integrity: sha512-xRwvIOMGrfOAnM1JYtqQImuaNtDEv9v6oIYAs4LIHwTiKee8uwvIi363igssOC0O5U04i4AlENs79LQLu9tEMw==}
-    engines: {node: '>=20'}
+  cli-truncate@6.0.0:
+    resolution: {integrity: sha512-3+YKIUFsohD9MIoOFPFBldjAlnfCmCDcqe6aYGFqlDTRKg80p4wg35L+j83QQ63iOlKRccEkbn8IuM++HsgEjA==}
+    engines: {node: '>=22'}
 
   cli-width@4.1.0:
     resolution: {integrity: sha512-ouuZd4/dm2Sw5Gmqy6bGyNNNe1qt9RpmxveLSO7KcgsTnU7RXfsw+/bukWGo1abgBiMAic068rclZsO4IWmmxQ==}
@@ -13083,12 +13072,13 @@ packages:
     peerDependencies:
       typanion: '*'
 
-  cliui@7.0.4:
-    resolution: {integrity: sha512-OcRE68cOsVMXp1Yvonl/fzkQOyjLSu/8bhPDfQt0e0/Eb283TKP20Fs2MqoPsr9SwA595rRCA+QMzYc9nBP+JQ==}
-
   cliui@8.0.1:
     resolution: {integrity: sha512-BSeNnyus75C4//NQ9gQt1/csTXyo/8Sb+afLAkzAptFuMsod9HFokGNudZpi/oQV73hnVK+sR+5PVRMd+Dr7YQ==}
     engines: {node: '>=12'}
+
+  cliui@9.0.1:
+    resolution: {integrity: sha512-k7ndgKhwoQveBL+/1tqGJYNz097I7WOvwbmmU2AR5+magtbjPWQTS1C5vzGkBC8Ym8UWRzfKUzUUqFLypY4Q+w==}
+    engines: {node: '>=20'}
 
   clone-response@1.0.3:
     resolution: {integrity: sha512-ROoL94jJH2dUVML2Y/5PEDNaSHgeOdSDicUyS7izcF63G6sTc/FTjLub4b8Il9S8S0beOfYt0TaA5qvFK+w0wA==}
@@ -13165,9 +13155,9 @@ packages:
     resolution: {integrity: sha512-4pxiLt2bXHe5BDrolTJs9wfwwT0pPQPQxeUj+X6SKTCkpi8VwvOvgMzohTVVDLXHmAjrZuKEq+tyb0C5zzTSxw==}
     engines: {node: '>=22.13'}
 
-  concurrently@9.2.1:
-    resolution: {integrity: sha512-fsfrO0MxV64Znoy8/l1vVIjjHa29SZyyqPgQBwhiDcaW8wJc2W3XWVOGx4M3oJBnv/zdUZIIp1gDeS98GzP8Ng==}
-    engines: {node: '>=18'}
+  concurrently@10.0.3:
+    resolution: {integrity: sha512-hc3LH4UaKWd/bbyDK/IGVa4RB6PtQ3CUYwtrkzqHn+wIG3Hr5fhpRlk0L/gCa8ZE1L/Ufj50Zho69cI5w8SQBA==}
+    engines: {node: '>=22'}
     hasBin: true
 
   config-chain@1.1.13:
@@ -13242,44 +13232,44 @@ packages:
     resolution: {integrity: sha512-x8dy3RnvYdlUcPOjkEHqozhiwzKNSq7GcPuXFbnyMOCHxX8V3OgIg/pYuabl2sbUPfIJaeAQB7PMOK8DFIdoRA==}
     engines: {node: '>=12'}
 
-  cspell-config-lib@9.7.0:
-    resolution: {integrity: sha512-pguh8A3+bSJ1OOrKCiQan8bvaaY125de76OEFz7q1Pq309lIcDrkoL/W4aYbso/NjrXaIw6OjkgPMGRBI/IgGg==}
+  cspell-config-lib@9.8.0:
+    resolution: {integrity: sha512-gMJBAgYPvvO+uDFLUcGWaTu6/e+r8mm4GD4rQfWa/yV4F9fj+yOYLIMZqLWRvT1moHZX1FxyVvUbJcmZ1gfebg==}
     engines: {node: '>=20'}
 
-  cspell-dictionary@9.7.0:
-    resolution: {integrity: sha512-k/Wz0so32+0QEqQe21V9m4BNXM5ZN6lz3Ix/jLCbMxFIPl6wT711ftjOWIEMFhvUOP0TWXsbzcuE9mKtS5mTig==}
+  cspell-dictionary@9.8.0:
+    resolution: {integrity: sha512-QW4hdkWcrxZA1QNqi26U0S/U3/V+tKCm7JaaesEJW2F6Ao+23AbHVwidyAVtXaEhGkn6PxB+epKrrAa6nE69qA==}
     engines: {node: '>=20'}
 
-  cspell-gitignore@9.7.0:
-    resolution: {integrity: sha512-MtoYuH4ah4K6RrmaF834npMcRsTKw0658mC6yvmBacUQOmwB/olqyuxF3fxtbb55HDb7cXDQ35t1XuwwGEQeZw==}
-    engines: {node: '>=20'}
-    hasBin: true
-
-  cspell-glob@9.7.0:
-    resolution: {integrity: sha512-LUeAoEsoCJ+7E3TnUmWBscpVQOmdwBejMlFn0JkXy6LQzxrybxXBKf65RSdIv1o5QtrhQIMa358xXYQG0sv/tA==}
-    engines: {node: '>=20'}
-
-  cspell-grammar@9.7.0:
-    resolution: {integrity: sha512-oEYME+7MJztfVY1C06aGcJgEYyqBS/v/ETkQGPzf/c6ObSAPRcUbVtsXZgnR72Gru9aBckc70xJcD6bELdoWCA==}
+  cspell-gitignore@9.8.0:
+    resolution: {integrity: sha512-SDUa1DmSfT20+JH7XtyzcEL9KfurneoR/XbmlrtPQZP/LUHXh3yz4x/0vFIkEFXNWdSckY0QdWTz8DaxClCf4Q==}
     engines: {node: '>=20'}
     hasBin: true
 
-  cspell-io@9.7.0:
-    resolution: {integrity: sha512-V7x0JHAUCcJPRCH8c0MQkkaKmZD2yotxVyrNEx2SZTpvnKrYscLEnUUTWnGJIIf9znzISqw116PLnYu2c+zd6Q==}
+  cspell-glob@9.8.0:
+    resolution: {integrity: sha512-Uvj/iHXs+jpsJyIEnhEoJTWXb1GVyZ9T05L5JFtZfsQNXrh8SRDQPscjxbg4okKr63N7WevfioQum/snHNYvmw==}
     engines: {node: '>=20'}
 
-  cspell-lib@9.7.0:
-    resolution: {integrity: sha512-aTx/aLRpnuY1RJnYAu+A8PXfm1oIUdvAQ4W9E66bTgp1LWI+2G2++UtaPxRIgI0olxE9vcXqUnKpjOpO+5W9bQ==}
+  cspell-grammar@9.8.0:
+    resolution: {integrity: sha512-01XMq2vhPS0Gvxnfed9uvOwH+3cXddHYxW0PwCE+SZdcC6TN8yM6glByuLt1qFustAmQVE5GSr7uAY9o4pZQRg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  cspell-io@9.8.0:
+    resolution: {integrity: sha512-JINaEWQEzR4f2upwdZOFcft+nBvQgizJfrOLszxG3p+BIzljnGklqE/nUtLFZpBu0oMJvuM/Fd+GsWor0yP7Xw==}
     engines: {node: '>=20'}
 
-  cspell-trie-lib@9.7.0:
-    resolution: {integrity: sha512-a2YqmcraL3g6I/4gY7SYWEZfP73oLluUtxO7wxompk/kOG2K1FUXyQfZXaaR7HxVv10axT1+NrjhOmXpfbI6LA==}
+  cspell-lib@9.8.0:
+    resolution: {integrity: sha512-G2TtPcye5QE5ev3YgWq42UOJLpTZ6naO/47oIm+jmeSYbgnbcOSThnEE7uMycx+TTNOz/vJVFpZmQyt0bWCftw==}
+    engines: {node: '>=20'}
+
+  cspell-trie-lib@9.8.0:
+    resolution: {integrity: sha512-GXIyqxya8QLp6SjKsAN9w3apvt1Ww7GKcZvTBaP76OfLoyb1QC6unwmObY2cZs1manCntGwHrgU6vFNuXnTzpw==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@cspell/cspell-types': 9.7.0
+      '@cspell/cspell-types': 9.8.0
 
-  cspell@9.7.0:
-    resolution: {integrity: sha512-ftxOnkd+scAI7RZ1/ksgBZRr0ouC7QRKtPQhD/PbLTKwAM62sSvRhE1bFsuW3VKBn/GilWzTjkJ40WmnDqH5iQ==}
+  cspell@9.8.0:
+    resolution: {integrity: sha512-qL0VErMSn8BDxaPxcV+9uenffgjPS+5Jfz+m4rCsvYjzLwr7AaaJBWWSV2UiAe/4cturae8n8qzxiGnbbazkRw==}
     engines: {node: '>=20.18'}
     hasBin: true
 
@@ -13362,6 +13352,14 @@ packages:
     resolution: {integrity: sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==}
     engines: {node: '>=0.10.0'}
 
+  default-browser-id@5.0.1:
+    resolution: {integrity: sha512-x1VCxdX4t+8wVfd1so/9w+vQ4vx7lKd2Qp5tDRutErwmR85OgmfX7RlLRMWafRMY7hbEiXIbudNrjOAPa/hL8Q==}
+    engines: {node: '>=18'}
+
+  default-browser@5.5.0:
+    resolution: {integrity: sha512-H9LMLr5zwIbSxrmvikGuI/5KGhZ8E2zH3stkMgM5LpOWDutGM2JZaj460Udnf1a+946zc7YBgrqEWwbk7zHvGw==}
+    engines: {node: '>=18'}
+
   defaults@1.0.4:
     resolution: {integrity: sha512-eFuaLoy/Rxalv2kr+lqMlUnrDWV+3j4pljOIJgLIhI058IQfWJ7vXhyEIHu+HtC738klGALYxOKDO0bQP3tg8A==}
 
@@ -13372,6 +13370,10 @@ packages:
   define-data-property@1.1.4:
     resolution: {integrity: sha512-rBMvIzlpA8v6E+SJZoo++HAYqsLrkg7MSfIinMPFhmkorw7X+dOXVJQs+QT69zGkzMyfDnIMN2Wid1+NbL3T+A==}
     engines: {node: '>= 0.4'}
+
+  define-lazy-prop@3.0.0:
+    resolution: {integrity: sha512-N+MeXYoqr3pOgn8xfyRPREN7gHakLYjhsHhWGT3fWAiL4IkAt0iDw14QiiEm2bE30c5XX5q0FtAA3CK5f9/BUg==}
+    engines: {node: '>=12'}
 
   define-properties@1.2.1:
     resolution: {integrity: sha512-8QmQKqEASLd5nx0U1B1okLElbUuuttJ/AnYmRXbbbGDWh6uS208EjD4Xqq/I9wK7u0v6O08XhTWnt5XtEbR6Dg==}
@@ -13473,6 +13475,9 @@ packages:
     resolution: {integrity: sha512-DeWwawk6r5yR9jFgnDKYt4sLS0LmHJJi3ZOnb5/JdbYwj3nW+FxQnHIjhBKz8YLC7oRNPVM9NQ47I3CVx34eqQ==}
     engines: {node: '>=12'}
 
+  emoji-regex@10.6.0:
+    resolution: {integrity: sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A==}
+
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
 
@@ -13543,8 +13548,8 @@ packages:
   es-toolkit@1.47.0:
     resolution: {integrity: sha512-n1GuoD0WEQZMBk5tttoZSqwgyLx01oqa5XsBmCHwPyNe1S9jPBEmtR2pSgp2kJuWE3ciFZ6yRHmY4pM4C3OOkw==}
 
-  esbuild@0.27.7:
-    resolution: {integrity: sha512-IxpibTjyVnmrIQo5aqNpCgoACA/dTKLTlhMHihVHhdkxKyPO1uBBthumT0rdHmcsk9uMonIWS0m4FljWzILh3w==}
+  esbuild@0.28.0:
+    resolution: {integrity: sha512-sNR9MHpXSUV/XB4zmsFKN+QgVG82Cc7+/aaxJ8Adi8hyOac+EXptIp45QBPaVyX3N70664wRbTcLTOemCAnyqw==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -13617,11 +13622,18 @@ packages:
       typescript:
         optional: true
 
-  eslint-plugin-n@17.24.0:
-    resolution: {integrity: sha512-/gC7/KAYmfNnPNOb3eu8vw+TdVnV0zhdQwexsw6FLXbhzroVj20vRn2qL8lDWDGnAQ2J8DhdfvXxX9EoxvERvw==}
-    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+  eslint-plugin-n@18.1.0:
+    resolution: {integrity: sha512-hkUm9EtnFV2h2fE16jNVUfCVUqvPzI7fGLsFdun5lFt/pbmf2kCgDx6ymi9rx+NCUSggBmurJCZOfG20JBs/kg==}
+    engines: {node: ^20.19.0 || ^22.13.0 || >=24}
     peerDependencies:
-      eslint: '>=8.23.0'
+      eslint: '>=8.57.1'
+      ts-declaration-location: ^1.0.6
+      typescript: '>=5.0.0'
+    peerDependenciesMeta:
+      ts-declaration-location:
+        optional: true
+      typescript:
+        optional: true
 
   eslint-plugin-promise@7.3.0:
     resolution: {integrity: sha512-6uGiOR0INuujr6PEQmeSSP7GbIMJ/ebEXXiEzb/nOj68LknH5Pxzb/AbZivmr6VE6TkTE8rTjRK9zhKpK6HsRA==}
@@ -13635,8 +13647,8 @@ packages:
     peerDependencies:
       eslint: '>=9.38.0'
 
-  eslint-plugin-simple-import-sort@12.1.1:
-    resolution: {integrity: sha512-6nuzu4xwQtE3332Uz0to+TxDQYRLTKRESSc2hefVT48Zc8JthmN23Gx9lnYhu0FtkRSL1oxny3kJ2aveVhmOVA==}
+  eslint-plugin-simple-import-sort@13.0.0:
+    resolution: {integrity: sha512-McAc+/Nlvcg4byY/CABGH8kqnefWBj8s3JA2okEtz8ixbECQgU46p0HkTUKa4YS7wvgGceimlc34p1nXqbWqtA==}
     peerDependencies:
       eslint: '>=5.0.0'
 
@@ -13727,10 +13739,6 @@ packages:
   exit-x@0.2.2:
     resolution: {integrity: sha512-+I6B/IkJc1o/2tiURyz/ivu/O0nKNEArIUB5O7zBrlDVJr22SCLH3xTeEry428LvFhRzIA1g8izguxJ/gbNcVQ==}
     engines: {node: '>= 0.8.0'}
-
-  expect@30.3.0:
-    resolution: {integrity: sha512-1zQrciTiQfRdo7qJM1uG4navm8DayFa2TgCSRlzUyNkhcJ6XUZF3hjnpkyr3VhAqPH7i/9GkG7Tv5abz6fqz0Q==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
   expect@30.4.1:
     resolution: {integrity: sha512-PMARsyh/JtqC20HoGqlFcIlQAyqUtW4PlI1rup1uhYJtKuwAjbvWi3GQMAn+STdHum/dk8xrKfUM1+5SAwpolA==}
@@ -14381,6 +14389,11 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
+  is-docker@3.0.0:
+    resolution: {integrity: sha512-eljcgEDlEns/7AXFosB5K/2nCM4P7FQPkGc/DWLy5rmFEWvZayGrik1d9/QIY5nJ4f9YsVvBkA6kJpHn9rISdQ==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+    hasBin: true
+
   is-extglob@2.1.1:
     resolution: {integrity: sha512-SbKbANkN603Vi4jEZv49LeVJMn4yGwsbzZworEoyEiutsN3nJYdbO36zfhGJ6QEDpOZIFkDtnq5JRxmvl3jsoQ==}
     engines: {node: '>=0.10.0'}
@@ -14413,9 +14426,18 @@ packages:
     resolution: {integrity: sha512-jtO4Njg6q58zDo/Pu4027beSZ0VdsZlt8/5Moco6yAg+DIxb5BK/xUYqYG2+MD4+piKldXJNHxRkhEYI2fvrxA==}
     engines: {node: '>=4'}
 
+  is-in-ssh@1.0.0:
+    resolution: {integrity: sha512-jYa6Q9rH90kR1vKB6NM7qqd1mge3Fx4Dhw5TVlK1MUBqhEOuCagrEHMevNuCcbECmXZ0ThXkRm+Ymr51HwEPAw==}
+    engines: {node: '>=20'}
+
   is-inner-link@5.0.0:
     resolution: {integrity: sha512-aSlGGPZ+pe6q3DRU8GGdUeG1rZckcHnkBEtCdhWYkPKY44BuQYnHr1sFqcOZFAIV1E1socv8/rMvQ5vHBvAMeg==}
     engines: {node: '>=22.13'}
+
+  is-inside-container@1.0.0:
+    resolution: {integrity: sha512-KIYLCCJghfHZxqjYBE7rEy0OBuTd5xCHS7tHVgvCLkx7StIoaxwNW3hCALgEUjFfeRk+MG/Qxmp/vtETEF3tRA==}
+    engines: {node: '>=14.16'}
+    hasBin: true
 
   is-interactive@1.0.0:
     resolution: {integrity: sha512-2HvIEKRoqS62guEC+qBjpvRubdX910WCMuJTZ+I9yvqKU2/12eSL549HMwtabb4oupdj2sMP50k+XJfB/8JE6w==}
@@ -14551,6 +14573,10 @@ packages:
     resolution: {integrity: sha512-fKzAra0rGJUUBwGBgNkHZuToZcn+TtXHpeCgmkMJMMYx1sQDYaCSyjJBSCa2nH1DGm7s3n1oBnohoVTBaN7Lww==}
     engines: {node: '>=8'}
 
+  is-wsl@3.1.1:
+    resolution: {integrity: sha512-e6rvdUCiQCAuumZslxRJWR/Doq4VpPR82kqclvcS0efgt430SlGIk05vdCN58+VrzgtIcfNODjozVielycD4Sw==}
+    engines: {node: '>=16'}
+
   isarray@2.0.5:
     resolution: {integrity: sha512-xHjhDr3cNBK0BzdUJSPXZntQUx/mwMS5Rw4A7lPJ90XGAO6ISP/ePDNuo0vhqOZU+UD5JoodwCAAoZQd3FeAKw==}
 
@@ -14618,10 +14644,6 @@ packages:
       ts-node:
         optional: true
 
-  jest-diff@30.3.0:
-    resolution: {integrity: sha512-n3q4PDQjS4LrKxfWB3Z5KNk1XjXtZTBwQp71OP0Jo03Z6V60x++K5L8k6ZrW8MY8pOFylZvHM0zsjS1RqlHJZQ==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
   jest-diff@30.4.1:
     resolution: {integrity: sha512-CRpFK0RtLriVDGcPPAnR6HMVI8bSR2jnUIgralhauzYQZIb4RH9AtEInTuQr65LmmGggGcRT6HIASxwqsVsmlA==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
@@ -14646,10 +14668,6 @@ packages:
     resolution: {integrity: sha512-fP8u2pyfqx0K1rGn1R9pyE0/KTn+G7PxktWidOBTqFPLYX0b9ksaMFkhK5vrS3DVun09pckLdlx90QthlW7AmA==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
 
-  jest-haste-map@30.3.0:
-    resolution: {integrity: sha512-mMi2oqG4KRU0R9QEtscl87JzMXfUhbKaFqOxmjb2CKcbHcUGFrJCBWHmnTiUqi6JcnzoBlO4rWfpdl2k/RfLCA==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
   jest-haste-map@30.4.1:
     resolution: {integrity: sha512-rFrcONd8jeFsyw+Z9CrScJgglRf2+NFmNam8dKu7n+SoHqNYT47mn0DdEcVUZJpvh7Iz6/si7f7yUH7GJHVgnw==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
@@ -14658,24 +14676,12 @@ packages:
     resolution: {integrity: sha512-IpmyiioeHxiWDhesHnUFmOxcTzwCwKpgACgWajtAP+nYQXiY7DakTxB6Bx9JFiRMljr0AX1PvnQdaU1KFoz6NQ==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
-  jest-matcher-utils@30.3.0:
-    resolution: {integrity: sha512-HEtc9uFQgaUHkC7nLSlQL3Tph4Pjxt/yiPvkIrrDCt9jhoLIgxaubo1G+CFOnmHYMxHwwdaSN7mkIFs6ZK8OhA==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
   jest-matcher-utils@30.4.1:
     resolution: {integrity: sha512-zvYfX5CaeEkFrrLS9suWe9rvJrm9J1Iv3ua8kIBv9GEPzcnsfBf0bob37la7s67fs0nlBC3EuvkOLnXQKxtx4A==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
-  jest-message-util@30.3.0:
-    resolution: {integrity: sha512-Z/j4Bo+4ySJ+JPJN3b2Qbl9hDq3VrXmnjjGEWD/x0BCXeOXPTV1iZYYzl2X8c1MaCOL+ewMyNBcm88sboE6YWw==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
   jest-message-util@30.4.1:
     resolution: {integrity: sha512-kwCKIvq0MCW1HzLoGola9Te6JUdzgV0loyKJ3Qghrkz9i5/RRIHsL95BMQc2HBBhlBKC4j22K9p11TGHH8RBpQ==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
-  jest-mock@30.3.0:
-    resolution: {integrity: sha512-OTzICK8CpE+t4ndhKrwlIdbM6Pn8j00lvmSmq5ejiO+KxukbLjgOflKWMn3KE34EZdQm5RqTuKj+5RIEniYhog==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
   jest-mock@30.4.1:
@@ -14694,10 +14700,6 @@ packages:
   jest-regex-util@29.6.3:
     resolution: {integrity: sha512-KJJBsRCyyLNWCNBOvZyRDnAIfUiRJ8v+hOBQYGn8gDyF3UegwiP4gwRR3/SDa42g1YbVycTidUF3rKjyLFDWbg==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
-
-  jest-regex-util@30.0.1:
-    resolution: {integrity: sha512-jHEQgBXAgc+Gh4g0p3bCevgRCVRkB4VB70zhoAE48gxeSr1hfUOsM/C2WoJgVL7Eyg//hudYENbm3Ne+/dRVVA==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
   jest-regex-util@30.4.0:
     resolution: {integrity: sha512-mWlvLviKIgIQ8VCuM1xRdD0TWp3zlzionlmDBjuXVBs+VkmXq6FgW9T4Emr7oGz/Rk6feDCGyiugolcQEyp3mg==}
@@ -14723,10 +14725,6 @@ packages:
     resolution: {integrity: sha512-3/5e8iPz2k/VLqlr8DgTftYyLUv8Su3FkCAO2/Od81UsUTpSxOrS6O5x5KkoQwyUjmpYyDJKeyAvg2T2nvpNkQ==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
-  jest-snapshot@30.3.0:
-    resolution: {integrity: sha512-f14c7atpb4O2DeNhwcvS810Y63wEn8O1HqK/luJ4F6M4NjvxmAKQwBUWjbExUtMxWJQ0wVgmCKymeJK6NZMnfQ==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
-
   jest-snapshot@30.4.1:
     resolution: {integrity: sha512-tEOkkfOMppUyeiHwjZswOQ3lcnoTnws/q5FnGIaeIh/jmoU0ZlgMYRR8sTlTj+nNGCoJ0RDq6SfxGxCsyMTPmw==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
@@ -14734,10 +14732,6 @@ packages:
   jest-util@29.7.0:
     resolution: {integrity: sha512-z6EbKajIpqGKU56y5KBUgy1dt1ihhQJgWzUlZHArA/+X2ad7Cb5iF+AK1EWVL/Bo7Rz9uurpqw6SiBCefUbCGA==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
-
-  jest-util@30.3.0:
-    resolution: {integrity: sha512-/jZDa00a3Sz7rdyu55NLrQCIrbyIkbBxareejQI315f/i8HjYN+ZWsDLLpoQSiUIEIyZF/R8fDg3BmB8AtHttg==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
   jest-util@30.4.1:
     resolution: {integrity: sha512-vjQb1sACEiv13DKJMDToJpzVW0joCsIQrmbg0fi7CyOOt+g9jTuQl2A216pWRBYhOVt53XbL/2LbMKg1BECWOw==}
@@ -14758,10 +14752,6 @@ packages:
   jest-worker@29.7.0:
     resolution: {integrity: sha512-eIz2msL/EzL9UFTFFx7jBTkeZfku0yUAyZZZmJ93H2TYEiroIx2PQjEXcwYtYl8zXCxb+PAmA2hLIt/6ZEkPHw==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
-
-  jest-worker@30.3.0:
-    resolution: {integrity: sha512-DrCKkaQwHexjRUFTmPzs7sHQe0TSj9nvDALKGdwmK5mW9v7j90BudWirKAJHt3QQ9Dhrg1F7DogPzhChppkJpQ==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
   jest-worker@30.4.1:
     resolution: {integrity: sha512-SHynN/q/QD++iNyvMdy+WMmbCGk8jIsNcRxycXbWubSOhvo6T+j2afcfUSl+3hYsiBebOTo0cT7c2H7CXugu1g==}
@@ -14816,9 +14806,6 @@ packages:
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
 
-  json-stringify-safe@5.0.1:
-    resolution: {integrity: sha512-ZClg6AaYvamvYEE82d3Iyd3vSSIjQ+odgjaTzRuO3s7toCdFKczob2i0zCh7JE8kWn17yvAWhUVxvqGwUalsRA==}
-
   json5@2.2.3:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
@@ -14847,9 +14834,9 @@ packages:
   klaw-sync@6.0.0:
     resolution: {integrity: sha512-nIeuVSzdCCs6TDPTqI8w1Yre34sSq7AkZ4B3sfOBbI2CgVSB4Du4aLQijFU2+lhAFCwt9+42Hel6lQNIv6AntQ==}
 
-  lcov-result-merger@5.0.1:
-    resolution: {integrity: sha512-i53RjTYfqbHgerqGtuJjDfARDU340zNxXrJudQZU3o8ak9rrx8FDQUKf38Cjm6MtbqonqiDFmoKuUe++uZbvOg==}
-    engines: {node: '>=14'}
+  lcov-result-merger@6.0.0:
+    resolution: {integrity: sha512-RsXi/N4J9b37mu83d3L8WdCGU0jsftN6GlXaJySK6fu+zD48joHC579hpA3K4brPvwWOhbNX5NoT7mghxDi5qw==}
+    engines: {node: '>=20'}
     hasBin: true
 
   leven@3.1.0:
@@ -14933,9 +14920,6 @@ packages:
 
   lodash.truncate@4.4.2:
     resolution: {integrity: sha512-jttmRe7bRse52OsWIMDLaXxWqRAmtIUccAQ3garviCqJjafXOfNMO0yMfNpdD6zbGaTU0P5Nz7e7gAT6cKmJRw==}
-
-  lodash@4.18.1:
-    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
   log-symbols@4.1.0:
     resolution: {integrity: sha512-8XPvpAA8uyhfteu8pIvQxpJZ7SYYdpUivZpGy6sFsBuKRY/7rQGavedeB8aK+Zkyq6upMFVL/9AW6vOYzfRyLg==}
@@ -15044,9 +15028,9 @@ packages:
     resolution: {integrity: sha512-qFCFUDs7U3b8mBDPyz5EToEKoAkgCzqquIgi9nkkR9bixxOVOre+09lbuH7+9Kn2NFpm56M3GUWVbU2hQgdACA==}
     engines: {node: '>=10'}
 
-  memoize@10.2.0:
-    resolution: {integrity: sha512-DeC6b7QBrZsRs3Y02A6A7lQyzFbsQbqgjI6UW0GigGWV+u1s25TycMr0XHZE4cJce7rY/vyw2ctMQqfDkIhUEA==}
-    engines: {node: '>=18'}
+  memoize@11.0.0:
+    resolution: {integrity: sha512-cjsfZaC9b1clqPeIVMbb5dLHSXgdgGWGxdAU3oTUUkHiwWTKTBNnSmcqWJncNjYtBi3S8Rp0c5GIiyGztR8TRA==}
+    engines: {node: '>=22'}
 
   meow@11.0.0:
     resolution: {integrity: sha512-Cl0yeeIrko6d94KpUo1M+0X1sB14ikoaqlIGuTH1fW4I+E3+YljL54/hb/BWmVfrV9tTV9zU04+xjw08Fh2WkA==}
@@ -15258,8 +15242,8 @@ packages:
     resolution: {integrity: sha512-4kmO/MdyUIkLIvTPr8VHLil4AtoKIoniWPIEk5+CDy0xnWC84azhSFmuJ7PxZdsYtiP5kEeQsORAVIeMgxT+Hw==}
     hasBin: true
 
-  msgpackr@1.11.8:
-    resolution: {integrity: sha512-bC4UGzHhVvgDNS7kn9tV8fAucIYUBuGojcaLiz7v+P63Lmtm0Xeji8B/8tYKddALXxJLpwIeBmUN3u64C4YkRA==}
+  msgpackr@2.0.4:
+    resolution: {integrity: sha512-o1C5KRmuRt+apqMr1HuGSqWStZoRBUpEsCsl15uM9VdAF1qHLtvMOU2En747EnTyEl6c4pzPewRMFF31s1CNbA==}
 
   mute-stream@1.0.0:
     resolution: {integrity: sha512-avsJQhyd+680gKXyG/sQc0nXaC6rBkPOfyHYcFb9+hdkqQkR9bdnkJ0AMZhke0oesPqIO+mFFJ+IdBc7mst4IA==}
@@ -15299,10 +15283,6 @@ packages:
     resolution: {integrity: sha512-DjLCuKmAP5OEPOn7H/UyigDSj0DeUO6qcrrSo2Y5jPTYbdKXqNpLafEFGoNNhH9v+ChBLlmc5CRN1YVvZIQsOQ==}
     engines: {node: '>=10'}
     hasBin: true
-
-  nock@13.3.4:
-    resolution: {integrity: sha512-DDpmn5oLEdCTclEqweOT4U7bEpuoifBMFUXem9sA4turDAZ5tlbrEoWqCorwXey8CaAw44mst5JOQeVNiwtkhw==}
-    engines: {node: '>= 10.13'}
 
   node-gyp-build-optional-packages@5.2.2:
     resolution: {integrity: sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw==}
@@ -15582,6 +15562,10 @@ packages:
     resolution: {integrity: sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg==}
     engines: {node: '>=6'}
 
+  open@11.0.0:
+    resolution: {integrity: sha512-smsWv2LzFjP03xmvFoJ331ss6h+jixfA4UUV/Bsiyuu4YJPfN+FIQGOIiv4w9/+MoHkfkJ22UIaQWRVFRfH6Vw==}
+    engines: {node: '>=20'}
+
   open@7.4.2:
     resolution: {integrity: sha512-MVHddDVweXZF3awtlAS+6pgKLlm/JgxZ90+/NBurBoQctVOOB/zDdVjcyPzQ+0laDGbsWgrRkflI65sQeOgT9Q==}
     engines: {node: '>=8'}
@@ -15854,9 +15838,9 @@ packages:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
     engines: {node: '>=12'}
 
-  pidtree@0.6.0:
-    resolution: {integrity: sha512-eG2dWTVw5bzqGRztnHExczNxt5VGsE6OwTeCG3fdUf9KBsZzO3R5OIIIzWR+iZA0NtZ+RDVdaoE2dK1cn6jH4g==}
-    engines: {node: '>=0.10'}
+  pidtree@1.0.0:
+    resolution: {integrity: sha512-avfAvjB9Dd0wdj3rjJX//yS+G79OO0KrS5pJHFJENjYGX6N4SMgEDBBI/yFy0lloOYSaC6XQxzpOAMPfSYFV/Q==}
+    engines: {node: '>=18'}
     hasBin: true
 
   pify@4.0.1:
@@ -15883,6 +15867,10 @@ packages:
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
+
+  powershell-utils@0.1.0:
+    resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
+    engines: {node: '>=20'}
 
   preferred-pm@3.1.4:
     resolution: {integrity: sha512-lEHd+yEm22jXdCphDrkvIJQU66EuLojPPtvZkpKIkiD+l0DMThF/niqZKJSoU8Vl7iuvtmzyMhir9LdVy5WMnA==}
@@ -15916,10 +15904,6 @@ packages:
   pretty-format@29.7.0:
     resolution: {integrity: sha512-Pdlw/oPxN+aXdmM9R00JVC9WVFoCLTKJvDVLgmJ+qAffBMxsV85l/Lu7sNx4zSzPyoL2euImuEwHhOXdEgNFZQ==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
-
-  pretty-format@30.3.0:
-    resolution: {integrity: sha512-oG4T3wCbfeuvljnyAzhBvpN45E8iOTXCU/TD3zXW80HA3dQ4ahdqMkWGiPWZvjpQwlbyHrPTWUAqUzGzv4l1JQ==}
-    engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
   pretty-format@30.4.1:
     resolution: {integrity: sha512-K6KiKMHTL4jjX4u3Kir2EW07nRfcqVTXIImx50wbjHQTcZPgg+gjVeNTIT3l3L1Rd4UefxfogquC9J37SoFyyw==}
@@ -15962,10 +15946,6 @@ packages:
   promise-share@2.0.1:
     resolution: {integrity: sha512-FBa/tM0QQhNaCaUA9UnAgaa5VHh1qm5sUvsl+KZtf6B9Y/8AUow2uIbAoQd+bFKSDl5/418FW0sfVzfEdAEsBg==}
     engines: {node: '>=22.13'}
-
-  propagate@2.0.1:
-    resolution: {integrity: sha512-vGrhOavPSTz4QVNuBNdcNXePNdNMaO1xj9yBeH1ScQPjk/rhg9sSlCXPhMkFuaNNW/syTvYqsnbIJxMBfRbbag==}
-    engines: {node: '>= 8'}
 
   proto-list@1.2.4:
     resolution: {integrity: sha512-vtK/94akxsTMhe0/cbfpR+syPuszcuwhqVjJq26CuNDgFGj682oRBXOP5MJpv2r7JtE8MsiepGIqvvOTBwn2vA==}
@@ -16244,6 +16224,10 @@ packages:
     resolution: {integrity: sha512-G7689wvCM0szMFXUAhi3GfNGcSPlndg077cdRWoq7UegOAwfU2MJ0jD7s7jB+2ppKA75Kr/O0HwAP9+rRdBctg==}
     engines: {node: ^14.13.1 || >=16.0.0}
 
+  run-applescript@7.1.0:
+    resolution: {integrity: sha512-DPe5pVFaAsinSaV6QjQ6gdiedWDcRCbUuiQfQa2wmWV7+xC9bGulGI8+TdRmoFkAPaBXk8CrAbnlY2ISniJ47Q==}
+    engines: {node: '>=18'}
+
   run-async@3.0.0:
     resolution: {integrity: sha512-540WwVDOMxA6dN6We19EcT9sc3hkXPw5mzRNGM3FkdN/vtE9NFvj5lFAPNwUDmJjXidm3v7TC1cTE7t17Ulm1Q==}
     engines: {node: '>=0.12.0'}
@@ -16309,11 +16293,6 @@ packages:
 
   semver-utils@1.1.4:
     resolution: {integrity: sha512-EjnoLE5OGmDAVV/8YDoN5KiajNadjzIp9BAHOhYeQHt7j0UWxjmgsx4YD48wp4Ue1Qogq38F1GNUJNqF1kKKxA==}
-
-  semver@7.8.3:
-    resolution: {integrity: sha512-wnilbGyMxzbY7dNOl7jpKbLSjcfeweJWU5j4+u5qW+6/wuGD9KzIGOyZnQVSBM9E7DtWaaH3CyHkppYrKYoxwg==}
-    engines: {node: '>=10'}
-    hasBin: true
 
   semver@7.8.4:
     resolution: {integrity: sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==}
@@ -16421,9 +16400,9 @@ packages:
     resolution: {integrity: sha512-qMCMfhY040cVHT43K9BFygqYbUPFZKHOg7K73mtTWJRb8pyP3fzf4Ixd5SzdEJQ6MRUg/WBnOLxghZtKKurENQ==}
     engines: {node: '>=10'}
 
-  slice-ansi@8.0.0:
-    resolution: {integrity: sha512-stxByr12oeeOyY2BlviTNQlYV5xOj47GirPr4yA1hE9JCtxfQN0+tVbkxwCtYDQWhEKWFHsEK48ORg5jrouCAg==}
-    engines: {node: '>=20'}
+  slice-ansi@9.0.0:
+    resolution: {integrity: sha512-SO/3iYL5S3W57LLEniscOGPZgOqZUPCx6d3dB+52B80yJ0XstzsC/eV8gnA4tM3MHDrKz+OCFSLNjswdSC+/bA==}
+    engines: {node: '>=22'}
 
   slide@1.1.6:
     resolution: {integrity: sha512-NwrtjCg+lZoqhFU8fOwl4ay2ei8PaqCBOUV3/ektPY9trO1yQ1oXEfmHAhKArUVUr/hOHvy5f6AdP17dCM0zMw==}
@@ -16549,6 +16528,10 @@ packages:
   string-width@4.2.3:
     resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
     engines: {node: '>=8'}
+
+  string-width@7.2.0:
+    resolution: {integrity: sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ==}
+    engines: {node: '>=18'}
 
   string-width@8.2.1:
     resolution: {integrity: sha512-IIaP0g3iy9Cyy18w3M9YcaDudujEAVHKt3a3QJg1+sr/oX96TbaGUubG0hJyCjCBThFH+tFpcIyoUHUn1ogaLA==}
@@ -16879,15 +16862,15 @@ packages:
   types-ramda@0.31.0:
     resolution: {integrity: sha512-vaoC35CRC3xvL8Z6HkshDbi6KWM1ezK0LHN0YyxXWUn9HKzBNg/T3xSGlJZjCYspnOD3jE7bcizsp0bUXZDxnQ==}
 
-  typescript-eslint@8.60.1:
-    resolution: {integrity: sha512-6m5hkkRAp8lKvhVpcprAIn5KkehQEh+47oHH2VGnExEh7dhNxXlg6GPAOIu6TxbVQxhebrJDvjl3020ooiWCMA==}
+  typescript-eslint@8.61.0:
+    resolution: {integrity: sha512-8y31Rd0eGTrDKqhy6vT0HtzhN+YLjQizwX3aA3hPXP/ynSfnrBXcQY5IzsP9/DM7+klX4IUncZZjkchP0z+rUw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.1.0'
 
-  typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -17122,6 +17105,10 @@ packages:
     resolution: {integrity: sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==}
     engines: {node: '>=10'}
 
+  wrap-ansi@9.0.2:
+    resolution: {integrity: sha512-42AtmgqjV+X1VpdOfyTGOYRi0/zsoLqtXQckTmqTeybT+BDIbM/Guxo7x3pE2vtpr1ok6xRqM9OpBe+Jyoqyww==}
+    engines: {node: '>=18'}
+
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
@@ -17172,6 +17159,10 @@ packages:
     resolution: {integrity: sha512-WG6oDbTuNkiDr0sjYiuV715ZBUYOZVf838wu+7M0WAbkCmv5z2P7OW9gCfgEclXPwP08r5CvBtEyqV7vht070A==}
     engines: {node: '>=22.13'}
 
+  wsl-utils@0.3.1:
+    resolution: {integrity: sha512-g/eziiSUNBSsdDJtCLB8bdYEUMj4jR7AGeUo96p/3dTafgjHhpF4RiCFPiRILwjQoDXx5MqkBr4fwWtR3Ky4Wg==}
+    engines: {node: '>=20'}
+
   xdg-basedir@5.1.0:
     resolution: {integrity: sha512-GCPAHLvrIH13+c0SuacwvRYj2SxJXQ4kaVTT5xgL3kPrz56XxkF21IGhjSE1+W0aw7gpBWRGXLCPnPby6lSpmQ==}
     engines: {node: '>=12'}
@@ -17206,13 +17197,17 @@ packages:
     resolution: {integrity: sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw==}
     engines: {node: '>=12'}
 
-  yargs@16.2.0:
-    resolution: {integrity: sha512-D1mvvtDG0L5ft/jGWkLpG1+m0eQxOfaBvTNELraWj22wSVUMWxZUvYgJYcKh6jGGIkJFhH4IZPQhR4TKpc8mBw==}
-    engines: {node: '>=10'}
+  yargs-parser@22.0.0:
+    resolution: {integrity: sha512-rwu/ClNdSMpkSrUb+d6BRsSkLUq1fmfsY6TOpYzTwvwkg1/NRG85KBy3kq++A8LKQwX6lsu+aWad+2khvuXrqw==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=23}
 
   yargs@17.7.2:
     resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
     engines: {node: '>=12'}
+
+  yargs@18.0.0:
+    resolution: {integrity: sha512-4UEqdc2RYGHZc7Doyqkrqiln3p9X2DZVxaGbwhn2pi7MrRagKaOcIKe8L3OxYcbhXLgLFUS3zAYuQjKBQgmuNg==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=23}
 
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
@@ -17591,63 +17586,63 @@ snapshots:
       human-id: 4.2.0
       prettier: 2.8.8
 
-  '@commitlint/cli@20.5.3(@types/node@22.19.20)(conventional-commits-parser@6.4.0)(typescript@5.9.3)':
+  '@commitlint/cli@21.0.2(@types/node@22.19.20)(conventional-commits-parser@6.4.0)(typescript@6.0.3)':
     dependencies:
-      '@commitlint/format': 20.5.0
-      '@commitlint/lint': 20.5.3
-      '@commitlint/load': 20.5.3(@types/node@22.19.20)(typescript@5.9.3)
-      '@commitlint/read': 20.5.0(conventional-commits-parser@6.4.0)
-      '@commitlint/types': 20.5.0
+      '@commitlint/format': 21.0.1
+      '@commitlint/lint': 21.0.2
+      '@commitlint/load': 21.0.2(@types/node@22.19.20)(typescript@6.0.3)
+      '@commitlint/read': 21.0.2(conventional-commits-parser@6.4.0)
+      '@commitlint/types': 21.0.1
       tinyexec: 1.2.4
-      yargs: 17.7.2
+      yargs: 18.0.0
     transitivePeerDependencies:
       - '@types/node'
       - conventional-commits-filter
       - conventional-commits-parser
       - typescript
 
-  '@commitlint/config-conventional@20.5.3':
+  '@commitlint/config-conventional@21.0.2':
     dependencies:
-      '@commitlint/types': 20.5.0
+      '@commitlint/types': 21.0.1
       conventional-changelog-conventionalcommits: 9.3.1
 
-  '@commitlint/config-validator@20.5.0':
+  '@commitlint/config-validator@21.0.1':
     dependencies:
-      '@commitlint/types': 20.5.0
+      '@commitlint/types': 21.0.1
       ajv: 8.20.0
 
-  '@commitlint/ensure@20.5.3':
+  '@commitlint/ensure@21.0.1':
     dependencies:
-      '@commitlint/types': 20.5.0
+      '@commitlint/types': 21.0.1
       es-toolkit: 1.47.0
 
-  '@commitlint/execute-rule@20.0.0': {}
+  '@commitlint/execute-rule@21.0.1': {}
 
-  '@commitlint/format@20.5.0':
+  '@commitlint/format@21.0.1':
     dependencies:
-      '@commitlint/types': 20.5.0
+      '@commitlint/types': 21.0.1
       picocolors: 1.1.1
 
-  '@commitlint/is-ignored@20.5.0':
+  '@commitlint/is-ignored@21.0.2':
     dependencies:
-      '@commitlint/types': 20.5.0
+      '@commitlint/types': 21.0.1
       semver: 7.8.4
 
-  '@commitlint/lint@20.5.3':
+  '@commitlint/lint@21.0.2':
     dependencies:
-      '@commitlint/is-ignored': 20.5.0
-      '@commitlint/parse': 20.5.0
-      '@commitlint/rules': 20.5.3
-      '@commitlint/types': 20.5.0
+      '@commitlint/is-ignored': 21.0.2
+      '@commitlint/parse': 21.0.2
+      '@commitlint/rules': 21.0.2
+      '@commitlint/types': 21.0.1
 
-  '@commitlint/load@20.5.3(@types/node@22.19.20)(typescript@5.9.3)':
+  '@commitlint/load@21.0.2(@types/node@22.19.20)(typescript@6.0.3)':
     dependencies:
-      '@commitlint/config-validator': 20.5.0
-      '@commitlint/execute-rule': 20.0.0
-      '@commitlint/resolve-extends': 20.5.3
-      '@commitlint/types': 20.5.0
-      cosmiconfig: 9.0.2(typescript@5.9.3)
-      cosmiconfig-typescript-loader: 6.3.0(@types/node@22.19.20)(cosmiconfig@9.0.2(typescript@5.9.3))(typescript@5.9.3)
+      '@commitlint/config-validator': 21.0.1
+      '@commitlint/execute-rule': 21.0.1
+      '@commitlint/resolve-extends': 21.0.1
+      '@commitlint/types': 21.0.1
+      cosmiconfig: 9.0.2(typescript@6.0.3)
+      cosmiconfig-typescript-loader: 6.3.0(@types/node@22.19.20)(cosmiconfig@9.0.2(typescript@6.0.3))(typescript@6.0.3)
       es-toolkit: 1.47.0
       is-plain-obj: 4.1.0
       picocolors: 1.1.1
@@ -17655,68 +17650,66 @@ snapshots:
       - '@types/node'
       - typescript
 
-  '@commitlint/message@20.4.3': {}
+  '@commitlint/message@21.0.2': {}
 
-  '@commitlint/parse@20.5.0':
+  '@commitlint/parse@21.0.2':
     dependencies:
-      '@commitlint/types': 20.5.0
+      '@commitlint/types': 21.0.1
       conventional-changelog-angular: 8.3.1
       conventional-commits-parser: 6.4.0
 
-  '@commitlint/prompt-cli@20.5.3(@types/node@22.19.20)(typescript@5.9.3)':
+  '@commitlint/prompt-cli@21.0.2(@types/node@22.19.20)(typescript@6.0.3)':
     dependencies:
-      '@commitlint/prompt': 20.5.3(@types/node@22.19.20)(typescript@5.9.3)
+      '@commitlint/prompt': 21.0.2(@types/node@22.19.20)(typescript@6.0.3)
       inquirer: 9.3.8(@types/node@22.19.20)
       tinyexec: 1.2.4
     transitivePeerDependencies:
       - '@types/node'
       - typescript
 
-  '@commitlint/prompt@20.5.3(@types/node@22.19.20)(typescript@5.9.3)':
+  '@commitlint/prompt@21.0.2(@types/node@22.19.20)(typescript@6.0.3)':
     dependencies:
-      '@commitlint/ensure': 20.5.3
-      '@commitlint/load': 20.5.3(@types/node@22.19.20)(typescript@5.9.3)
-      '@commitlint/types': 20.5.0
+      '@commitlint/ensure': 21.0.1
+      '@commitlint/load': 21.0.2(@types/node@22.19.20)(typescript@6.0.3)
+      '@commitlint/types': 21.0.1
       inquirer: 9.3.8(@types/node@22.19.20)
       picocolors: 1.1.1
     transitivePeerDependencies:
       - '@types/node'
       - typescript
 
-  '@commitlint/read@20.5.0(conventional-commits-parser@6.4.0)':
+  '@commitlint/read@21.0.2(conventional-commits-parser@6.4.0)':
     dependencies:
-      '@commitlint/top-level': 20.4.3
-      '@commitlint/types': 20.5.0
+      '@commitlint/top-level': 21.0.2
+      '@commitlint/types': 21.0.1
       git-raw-commits: 5.0.1(conventional-commits-parser@6.4.0)
-      minimist: 1.2.8
       tinyexec: 1.2.4
     transitivePeerDependencies:
       - conventional-commits-filter
       - conventional-commits-parser
 
-  '@commitlint/resolve-extends@20.5.3':
+  '@commitlint/resolve-extends@21.0.1':
     dependencies:
-      '@commitlint/config-validator': 20.5.0
-      '@commitlint/types': 20.5.0
+      '@commitlint/config-validator': 21.0.1
+      '@commitlint/types': 21.0.1
       es-toolkit: 1.47.0
       global-directory: 5.0.0
-      import-meta-resolve: 4.2.0
       resolve-from: 5.0.0
 
-  '@commitlint/rules@20.5.3':
+  '@commitlint/rules@21.0.2':
     dependencies:
-      '@commitlint/ensure': 20.5.3
-      '@commitlint/message': 20.4.3
-      '@commitlint/to-lines': 20.0.0
-      '@commitlint/types': 20.5.0
+      '@commitlint/ensure': 21.0.1
+      '@commitlint/message': 21.0.2
+      '@commitlint/to-lines': 21.0.1
+      '@commitlint/types': 21.0.1
 
-  '@commitlint/to-lines@20.0.0': {}
+  '@commitlint/to-lines@21.0.1': {}
 
-  '@commitlint/top-level@20.4.3':
+  '@commitlint/top-level@21.0.2':
     dependencies:
       escalade: 3.2.0
 
-  '@commitlint/types@20.5.0':
+  '@commitlint/types@21.0.1':
     dependencies:
       conventional-commits-parser: 6.4.0
       picocolors: 1.1.1
@@ -17729,7 +17722,7 @@ snapshots:
     optionalDependencies:
       conventional-commits-parser: 6.4.0
 
-  '@cspell/cspell-bundled-dicts@9.7.0':
+  '@cspell/cspell-bundled-dicts@9.8.0':
     dependencies:
       '@cspell/dict-ada': 4.1.1
       '@cspell/dict-al': 1.1.1
@@ -17791,25 +17784,25 @@ snapshots:
       '@cspell/dict-vue': 3.0.5
       '@cspell/dict-zig': 1.0.0
 
-  '@cspell/cspell-json-reporter@9.7.0':
+  '@cspell/cspell-json-reporter@9.8.0':
     dependencies:
-      '@cspell/cspell-types': 9.7.0
+      '@cspell/cspell-types': 9.8.0
 
-  '@cspell/cspell-performance-monitor@9.7.0': {}
+  '@cspell/cspell-performance-monitor@9.8.0': {}
 
-  '@cspell/cspell-pipe@9.7.0': {}
+  '@cspell/cspell-pipe@9.8.0': {}
 
-  '@cspell/cspell-resolver@9.7.0':
+  '@cspell/cspell-resolver@9.8.0':
     dependencies:
       global-directory: 5.0.0
 
-  '@cspell/cspell-service-bus@9.7.0': {}
+  '@cspell/cspell-service-bus@9.8.0': {}
 
-  '@cspell/cspell-types@9.7.0': {}
+  '@cspell/cspell-types@9.8.0': {}
 
-  '@cspell/cspell-worker@9.7.0':
+  '@cspell/cspell-worker@9.8.0':
     dependencies:
-      cspell-lib: 9.7.0
+      cspell-lib: 9.8.0
 
   '@cspell/dict-ada@4.1.1': {}
 
@@ -17938,20 +17931,20 @@ snapshots:
 
   '@cspell/dict-zig@1.0.0': {}
 
-  '@cspell/dynamic-import@9.7.0':
+  '@cspell/dynamic-import@9.8.0':
     dependencies:
-      '@cspell/url': 9.7.0
+      '@cspell/url': 9.8.0
       import-meta-resolve: 4.2.0
 
-  '@cspell/filetypes@9.7.0': {}
+  '@cspell/filetypes@9.8.0': {}
 
-  '@cspell/rpc@9.7.0': {}
+  '@cspell/rpc@9.8.0': {}
 
-  '@cspell/strong-weak-map@9.7.0': {}
+  '@cspell/strong-weak-map@9.8.0': {}
 
-  '@cspell/url@9.7.0': {}
+  '@cspell/url@9.8.0': {}
 
-  '@cyclonedx/cyclonedx-library@10.0.0(ajv@8.20.0)(spdx-expression-parse@4.0.0)':
+  '@cyclonedx/cyclonedx-library@10.1.0(ajv@8.20.0)(spdx-expression-parse@4.0.0)':
     optionalDependencies:
       ajv: 8.20.0
       spdx-expression-parse: 4.0.0
@@ -17974,82 +17967,82 @@ snapshots:
 
   '@epic-web/invariant@1.0.0': {}
 
-  '@esbuild/aix-ppc64@0.27.7':
+  '@esbuild/aix-ppc64@0.28.0':
     optional: true
 
-  '@esbuild/android-arm64@0.27.7':
+  '@esbuild/android-arm64@0.28.0':
     optional: true
 
-  '@esbuild/android-arm@0.27.7':
+  '@esbuild/android-arm@0.28.0':
     optional: true
 
-  '@esbuild/android-x64@0.27.7':
+  '@esbuild/android-x64@0.28.0':
     optional: true
 
-  '@esbuild/darwin-arm64@0.27.7':
+  '@esbuild/darwin-arm64@0.28.0':
     optional: true
 
-  '@esbuild/darwin-x64@0.27.7':
+  '@esbuild/darwin-x64@0.28.0':
     optional: true
 
-  '@esbuild/freebsd-arm64@0.27.7':
+  '@esbuild/freebsd-arm64@0.28.0':
     optional: true
 
-  '@esbuild/freebsd-x64@0.27.7':
+  '@esbuild/freebsd-x64@0.28.0':
     optional: true
 
-  '@esbuild/linux-arm64@0.27.7':
+  '@esbuild/linux-arm64@0.28.0':
     optional: true
 
-  '@esbuild/linux-arm@0.27.7':
+  '@esbuild/linux-arm@0.28.0':
     optional: true
 
-  '@esbuild/linux-ia32@0.27.7':
+  '@esbuild/linux-ia32@0.28.0':
     optional: true
 
-  '@esbuild/linux-loong64@0.27.7':
+  '@esbuild/linux-loong64@0.28.0':
     optional: true
 
-  '@esbuild/linux-mips64el@0.27.7':
+  '@esbuild/linux-mips64el@0.28.0':
     optional: true
 
-  '@esbuild/linux-ppc64@0.27.7':
+  '@esbuild/linux-ppc64@0.28.0':
     optional: true
 
-  '@esbuild/linux-riscv64@0.27.7':
+  '@esbuild/linux-riscv64@0.28.0':
     optional: true
 
-  '@esbuild/linux-s390x@0.27.7':
+  '@esbuild/linux-s390x@0.28.0':
     optional: true
 
-  '@esbuild/linux-x64@0.27.7':
+  '@esbuild/linux-x64@0.28.0':
     optional: true
 
-  '@esbuild/netbsd-arm64@0.27.7':
+  '@esbuild/netbsd-arm64@0.28.0':
     optional: true
 
-  '@esbuild/netbsd-x64@0.27.7':
+  '@esbuild/netbsd-x64@0.28.0':
     optional: true
 
-  '@esbuild/openbsd-arm64@0.27.7':
+  '@esbuild/openbsd-arm64@0.28.0':
     optional: true
 
-  '@esbuild/openbsd-x64@0.27.7':
+  '@esbuild/openbsd-x64@0.28.0':
     optional: true
 
-  '@esbuild/openharmony-arm64@0.27.7':
+  '@esbuild/openharmony-arm64@0.28.0':
     optional: true
 
-  '@esbuild/sunos-x64@0.27.7':
+  '@esbuild/sunos-x64@0.28.0':
     optional: true
 
-  '@esbuild/win32-arm64@0.27.7':
+  '@esbuild/win32-arm64@0.28.0':
     optional: true
 
-  '@esbuild/win32-ia32@0.27.7':
+  '@esbuild/win32-ia32@0.28.0':
     optional: true
 
-  '@esbuild/win32-x64@0.27.7':
+  '@esbuild/win32-x64@0.28.0':
     optional: true
 
   '@eslint-community/eslint-utils@4.9.1(eslint@10.4.1(jiti@2.6.1))':
@@ -18296,38 +18289,18 @@ snapshots:
       - supports-color
       - ts-node
 
-  '@jest/diff-sequences@30.3.0': {}
-
   '@jest/diff-sequences@30.4.0': {}
-
-  '@jest/environment@30.3.0':
-    dependencies:
-      '@jest/fake-timers': 30.3.0
-      '@jest/types': 30.3.0
-      '@types/node': 22.19.20
-      jest-mock: 30.3.0
 
   '@jest/environment@30.4.1':
     dependencies:
       '@jest/fake-timers': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       jest-mock: 30.4.1
-
-  '@jest/expect-utils@30.3.0':
-    dependencies:
-      '@jest/get-type': 30.1.0
 
   '@jest/expect-utils@30.4.1':
     dependencies:
       '@jest/get-type': 30.1.0
-
-  '@jest/expect@30.3.0':
-    dependencies:
-      expect: 30.3.0
-      jest-snapshot: 30.3.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@jest/expect@30.4.1':
     dependencies:
@@ -18336,34 +18309,16 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@jest/fake-timers@30.3.0':
-    dependencies:
-      '@jest/types': 30.3.0
-      '@sinonjs/fake-timers': 15.4.0
-      '@types/node': 22.19.20
-      jest-message-util: 30.3.0
-      jest-mock: 30.3.0
-      jest-util: 30.3.0
-
   '@jest/fake-timers@30.4.1':
     dependencies:
       '@jest/types': 30.4.1
       '@sinonjs/fake-timers': 15.4.0
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       jest-message-util: 30.4.1
       jest-mock: 30.4.1
       jest-util: 30.4.1
 
   '@jest/get-type@30.1.0': {}
-
-  '@jest/globals@30.3.0':
-    dependencies:
-      '@jest/environment': 30.3.0
-      '@jest/expect': 30.3.0
-      '@jest/types': 30.3.0
-      jest-mock: 30.3.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@jest/globals@30.4.1':
     dependencies:
@@ -18374,14 +18329,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@jest/pattern@30.0.1':
-    dependencies:
-      '@types/node': 22.19.20
-      jest-regex-util: 30.0.1
-
   '@jest/pattern@30.4.0':
     dependencies:
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       jest-regex-util: 30.4.0
 
   '@jest/reporters@30.4.1(@babel/types@7.29.7)':
@@ -18417,20 +18367,9 @@ snapshots:
     dependencies:
       '@sinclair/typebox': 0.27.10
 
-  '@jest/schemas@30.0.5':
-    dependencies:
-      '@sinclair/typebox': 0.34.49
-
   '@jest/schemas@30.4.1':
     dependencies:
       '@sinclair/typebox': 0.34.49
-
-  '@jest/snapshot-utils@30.3.0':
-    dependencies:
-      '@jest/types': 30.3.0
-      chalk: 4.1.2
-      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      natural-compare: 1.4.0
 
   '@jest/snapshot-utils@30.4.1':
     dependencies:
@@ -18458,26 +18397,6 @@ snapshots:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       jest-haste-map: 30.4.1
       slash: 3.0.0
-
-  '@jest/transform@30.3.0(@babel/types@7.29.7)':
-    dependencies:
-      '@babel/core': 7.29.7
-      '@jest/types': 30.3.0
-      '@jridgewell/trace-mapping': 0.3.31
-      babel-plugin-istanbul: 7.0.1(@babel/types@7.29.7)
-      chalk: 4.1.2
-      convert-source-map: 2.0.0
-      fast-json-stable-stringify: 2.1.0
-      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      jest-haste-map: 30.3.0
-      jest-regex-util: 30.0.1
-      jest-util: 30.3.0
-      pirates: 4.0.7
-      slash: 3.0.0
-      write-file-atomic: 5.0.1
-    transitivePeerDependencies:
-      - '@babel/types'
-      - supports-color
 
   '@jest/transform@30.4.1(@babel/types@7.29.7)':
     dependencies:
@@ -18508,23 +18427,13 @@ snapshots:
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
-  '@jest/types@30.3.0':
-    dependencies:
-      '@jest/pattern': 30.0.1
-      '@jest/schemas': 30.0.5
-      '@types/istanbul-lib-coverage': 2.0.6
-      '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.19.20
-      '@types/yargs': 17.0.35
-      chalk: 4.1.2
-
   '@jest/types@30.4.1':
     dependencies:
       '@jest/pattern': 30.4.0
       '@jest/schemas': 30.4.1
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -18640,7 +18549,7 @@ snapshots:
 
   '@npmcli/fs@5.0.0':
     dependencies:
-      semver: 7.8.3
+      semver: 7.8.4
 
   '@npmcli/git@7.0.2':
     dependencies:
@@ -18650,7 +18559,7 @@ snapshots:
       lru-cache: 11.5.1
       npm-pick-manifest: 11.0.3
       proc-log: 6.1.0
-      semver: 7.8.3
+      semver: 7.8.4
       which: 6.0.1
 
   '@npmcli/package-json@7.0.5':
@@ -18660,7 +18569,7 @@ snapshots:
       hosted-git-info: 9.0.3
       json-parse-even-better-errors: 5.0.0
       proc-log: 6.1.0
-      semver: 7.8.3
+      semver: 7.8.4
       spdx-expression-parse: 4.0.0
 
   '@npmcli/promise-spawn@9.0.1':
@@ -18669,10 +18578,10 @@ snapshots:
 
   '@npmcli/redact@4.0.0': {}
 
-  '@openpgp/web-stream-tools@0.3.1(@types/node@25.9.3)(typescript@5.9.3)':
+  '@openpgp/web-stream-tools@0.3.1(@types/node@25.9.3)(typescript@6.0.3)':
     optionalDependencies:
       '@types/node': 25.9.3
-      typescript: 5.9.3
+      typescript: 6.0.3
 
   '@package-json/types@0.0.12': {}
 
@@ -18779,6 +18688,8 @@ snapshots:
   '@pnpm/config.env-replace@4.1.0': {}
 
   '@pnpm/config.nerf-dart@1.0.1': {}
+
+  '@pnpm/config.nerf-dart@2.0.1': {}
 
   '@pnpm/config@1004.11.0(@pnpm/logger@1001.0.1)':
     dependencies:
@@ -19157,11 +19068,16 @@ snapshots:
       '@pnpm/resolver-base': 1005.4.1
       '@pnpm/types': 1001.3.0
 
-  '@pnpm/log.group@3.0.2':
+  '@pnpm/log.group@4.0.1':
     dependencies:
       ci-info: 3.9.0
 
   '@pnpm/logger@1001.0.1':
+    dependencies:
+      bole: 5.0.29
+      split2: 4.2.0
+
+  '@pnpm/logger@1100.0.0':
     dependencies:
       bole: 5.0.29
       split2: 4.2.0
@@ -19310,7 +19226,7 @@ snapshots:
   '@pnpm/npm-package-arg@2.0.0':
     dependencies:
       hosted-git-info: 4.1.0
-      semver: 7.8.3
+      semver: 7.8.4
       validate-npm-package-name: 4.0.0
 
   '@pnpm/npm-resolver@1005.2.3(@pnpm/logger@1001.0.1)':
@@ -19749,6 +19665,8 @@ snapshots:
 
   '@pnpm/util.lex-comparator@3.0.2': {}
 
+  '@pnpm/util.lex-comparator@4.0.1': {}
+
   '@pnpm/which@3.0.1':
     dependencies:
       isexe: 2.0.0
@@ -19843,7 +19761,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.19.20
 
-  '@rushstack/worker-pool@0.7.7(@types/node@25.9.3)':
+  '@rushstack/worker-pool@0.7.18(@types/node@25.9.3)':
     optionalDependencies:
       '@types/node': 25.9.3
 
@@ -20039,7 +19957,7 @@ snapshots:
     dependencies:
       '@types/node': 25.9.3
 
-  '@types/libnpmpublish@9.0.1':
+  '@types/libnpmpublish@11.2.0':
     dependencies:
       '@npm/types': 1.0.2
       '@types/node-fetch': 2.6.13
@@ -20106,7 +20024,9 @@ snapshots:
 
   '@types/object-hash@3.0.6': {}
 
-  '@types/parse-json@4.0.2': {}
+  '@types/parse-json@7.0.0':
+    dependencies:
+      parse-json: 8.3.0
 
   '@types/picomatch@4.0.3': {}
 
@@ -20134,15 +20054,13 @@ snapshots:
 
   '@types/stack-utils@2.0.3': {}
 
-  '@types/table@6.0.0': {}
+  '@types/table@6.3.2':
+    dependencies:
+      table: 6.9.0
 
   '@types/tar-stream@3.1.4':
     dependencies:
       '@types/node': 25.9.3
-
-  '@types/tar@7.0.87':
-    dependencies:
-      tar: 7.5.16
 
   '@types/touch@3.1.5':
     dependencies:
@@ -20168,40 +20086,49 @@ snapshots:
 
   '@types/yarnpkg__lockfile@1.1.9': {}
 
-  '@typescript-eslint/eslint-plugin@8.60.1(@typescript-eslint/parser@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3))(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)':
+  '@typescript-eslint/eslint-plugin@8.61.0(@typescript-eslint/parser@8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3))(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)':
     dependencies:
       '@eslint-community/regexpp': 4.12.2
-      '@typescript-eslint/parser': 8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
-      '@typescript-eslint/scope-manager': 8.60.1
-      '@typescript-eslint/type-utils': 8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
-      '@typescript-eslint/utils': 8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
-      '@typescript-eslint/visitor-keys': 8.60.1
+      '@typescript-eslint/parser': 8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
+      '@typescript-eslint/scope-manager': 8.61.0
+      '@typescript-eslint/type-utils': 8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
+      '@typescript-eslint/utils': 8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
+      '@typescript-eslint/visitor-keys': 8.61.0
       eslint: 10.4.1(jiti@2.6.1)
       ignore: 7.0.5
       natural-compare: 1.4.0
-      ts-api-utils: 2.5.0(typescript@5.9.3)
-      typescript: 5.9.3
+      ts-api-utils: 2.5.0(typescript@6.0.3)
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/parser@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)':
+  '@typescript-eslint/parser@8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/scope-manager': 8.60.1
-      '@typescript-eslint/types': 8.60.1
-      '@typescript-eslint/typescript-estree': 8.60.1(typescript@5.9.3)
-      '@typescript-eslint/visitor-keys': 8.60.1
+      '@typescript-eslint/scope-manager': 8.61.0
+      '@typescript-eslint/types': 8.61.0
+      '@typescript-eslint/typescript-estree': 8.61.0(typescript@6.0.3)
+      '@typescript-eslint/visitor-keys': 8.61.0
       debug: 4.4.3
       eslint: 10.4.1(jiti@2.6.1)
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/project-service@8.60.1(typescript@5.9.3)':
+  '@typescript-eslint/project-service@8.60.1(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.60.1(typescript@5.9.3)
+      '@typescript-eslint/tsconfig-utils': 8.60.1(typescript@6.0.3)
       '@typescript-eslint/types': 8.60.1
       debug: 4.4.3
-      typescript: 5.9.3
+      typescript: 6.0.3
+    transitivePeerDependencies:
+      - supports-color
+
+  '@typescript-eslint/project-service@8.61.0(typescript@6.0.3)':
+    dependencies:
+      '@typescript-eslint/tsconfig-utils': 8.61.0(typescript@6.0.3)
+      '@typescript-eslint/types': 8.61.0
+      debug: 4.4.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -20210,19 +20137,28 @@ snapshots:
       '@typescript-eslint/types': 8.60.1
       '@typescript-eslint/visitor-keys': 8.60.1
 
-  '@typescript-eslint/tsconfig-utils@8.60.1(typescript@5.9.3)':
+  '@typescript-eslint/scope-manager@8.61.0':
     dependencies:
-      typescript: 5.9.3
+      '@typescript-eslint/types': 8.61.0
+      '@typescript-eslint/visitor-keys': 8.61.0
 
-  '@typescript-eslint/type-utils@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)':
+  '@typescript-eslint/tsconfig-utils@8.60.1(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/types': 8.60.1
-      '@typescript-eslint/typescript-estree': 8.60.1(typescript@5.9.3)
-      '@typescript-eslint/utils': 8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
+      typescript: 6.0.3
+
+  '@typescript-eslint/tsconfig-utils@8.61.0(typescript@6.0.3)':
+    dependencies:
+      typescript: 6.0.3
+
+  '@typescript-eslint/type-utils@8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)':
+    dependencies:
+      '@typescript-eslint/types': 8.61.0
+      '@typescript-eslint/typescript-estree': 8.61.0(typescript@6.0.3)
+      '@typescript-eslint/utils': 8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
       debug: 4.4.3
       eslint: 10.4.1(jiti@2.6.1)
-      ts-api-utils: 2.5.0(typescript@5.9.3)
-      typescript: 5.9.3
+      ts-api-utils: 2.5.0(typescript@6.0.3)
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -20230,29 +20166,55 @@ snapshots:
 
   '@typescript-eslint/types@8.61.0': {}
 
-  '@typescript-eslint/typescript-estree@8.60.1(typescript@5.9.3)':
+  '@typescript-eslint/typescript-estree@8.60.1(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/project-service': 8.60.1(typescript@5.9.3)
-      '@typescript-eslint/tsconfig-utils': 8.60.1(typescript@5.9.3)
+      '@typescript-eslint/project-service': 8.60.1(typescript@6.0.3)
+      '@typescript-eslint/tsconfig-utils': 8.60.1(typescript@6.0.3)
       '@typescript-eslint/types': 8.60.1
       '@typescript-eslint/visitor-keys': 8.60.1
       debug: 4.4.3
       minimatch: 10.2.5
       semver: 7.8.4
       tinyglobby: 0.2.17
-      ts-api-utils: 2.5.0(typescript@5.9.3)
-      typescript: 5.9.3
+      ts-api-utils: 2.5.0(typescript@6.0.3)
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/utils@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)':
+  '@typescript-eslint/typescript-estree@8.61.0(typescript@6.0.3)':
+    dependencies:
+      '@typescript-eslint/project-service': 8.61.0(typescript@6.0.3)
+      '@typescript-eslint/tsconfig-utils': 8.61.0(typescript@6.0.3)
+      '@typescript-eslint/types': 8.61.0
+      '@typescript-eslint/visitor-keys': 8.61.0
+      debug: 4.4.3
+      minimatch: 10.2.5
+      semver: 7.8.4
+      tinyglobby: 0.2.17
+      ts-api-utils: 2.5.0(typescript@6.0.3)
+      typescript: 6.0.3
+    transitivePeerDependencies:
+      - supports-color
+
+  '@typescript-eslint/utils@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)':
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1(eslint@10.4.1(jiti@2.6.1))
       '@typescript-eslint/scope-manager': 8.60.1
       '@typescript-eslint/types': 8.60.1
-      '@typescript-eslint/typescript-estree': 8.60.1(typescript@5.9.3)
+      '@typescript-eslint/typescript-estree': 8.60.1(typescript@6.0.3)
       eslint: 10.4.1(jiti@2.6.1)
-      typescript: 5.9.3
+      typescript: 6.0.3
+    transitivePeerDependencies:
+      - supports-color
+
+  '@typescript-eslint/utils@8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)':
+    dependencies:
+      '@eslint-community/eslint-utils': 4.9.1(eslint@10.4.1(jiti@2.6.1))
+      '@typescript-eslint/scope-manager': 8.61.0
+      '@typescript-eslint/types': 8.61.0
+      '@typescript-eslint/typescript-estree': 8.61.0(typescript@6.0.3)
+      eslint: 10.4.1(jiti@2.6.1)
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -20261,36 +20223,41 @@ snapshots:
       '@typescript-eslint/types': 8.60.1
       eslint-visitor-keys: 5.0.1
 
-  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260421.2':
+  '@typescript-eslint/visitor-keys@8.61.0':
+    dependencies:
+      '@typescript-eslint/types': 8.61.0
+      eslint-visitor-keys: 5.0.1
+
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260610.1':
     optional: true
 
-  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260421.2':
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260610.1':
     optional: true
 
-  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260421.2':
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260610.1':
     optional: true
 
-  '@typescript/native-preview-linux-arm@7.0.0-dev.20260421.2':
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260610.1':
     optional: true
 
-  '@typescript/native-preview-linux-x64@7.0.0-dev.20260421.2':
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260610.1':
     optional: true
 
-  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260421.2':
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260610.1':
     optional: true
 
-  '@typescript/native-preview-win32-x64@7.0.0-dev.20260421.2':
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260610.1':
     optional: true
 
-  '@typescript/native-preview@7.0.0-dev.20260421.2':
+  '@typescript/native-preview@7.0.0-dev.20260610.1':
     optionalDependencies:
-      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20260421.2
-      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20260421.2
-      '@typescript/native-preview-linux-arm': 7.0.0-dev.20260421.2
-      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20260421.2
-      '@typescript/native-preview-linux-x64': 7.0.0-dev.20260421.2
-      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260421.2
-      '@typescript/native-preview-win32-x64': 7.0.0-dev.20260421.2
+      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20260610.1
+      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20260610.1
+      '@typescript/native-preview-linux-arm': 7.0.0-dev.20260610.1
+      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20260610.1
+      '@typescript/native-preview-linux-x64': 7.0.0-dev.20260610.1
+      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260610.1
+      '@typescript/native-preview-win32-x64': 7.0.0-dev.20260610.1
 
   '@ungap/structured-clone@1.3.1': {}
 
@@ -20364,37 +20331,6 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
 
-  '@yarnpkg/core@4.5.0(typanion@3.14.0)':
-    dependencies:
-      '@arcanis/slice-ansi': 1.1.1
-      '@types/semver': 7.7.1
-      '@types/treeify': 1.0.3
-      '@yarnpkg/fslib': 3.1.5
-      '@yarnpkg/libzip': 3.2.2(@yarnpkg/fslib@3.1.5)
-      '@yarnpkg/parsers': 3.0.3
-      '@yarnpkg/shell': 4.1.3(typanion@3.14.0)
-      camelcase: 5.3.1
-      chalk: 4.1.2
-      ci-info: 4.4.0
-      clipanion: 3.2.0-rc.6(typanion@3.14.0)
-      cross-spawn: 7.0.6
-      diff: 8.0.4
-      dotenv: 16.6.1
-      es-toolkit: 1.47.0
-      fast-glob: 3.3.3
-      got: 11.8.6
-      hpagent: 1.2.0
-      micromatch: 4.0.8
-      p-limit: 2.3.0
-      semver: 7.8.3
-      strip-ansi: 6.0.1
-      tar: 7.5.16
-      tinylogic: 2.0.0
-      treeify: 1.1.0
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - typanion
-
   '@yarnpkg/core@4.8.0(typanion@3.14.0)':
     dependencies:
       '@arcanis/slice-ansi': 1.1.1
@@ -20426,9 +20362,9 @@ snapshots:
     transitivePeerDependencies:
       - typanion
 
-  '@yarnpkg/extensions@2.0.6(@yarnpkg/core@4.5.0(typanion@3.14.0))':
+  '@yarnpkg/extensions@2.0.6(@yarnpkg/core@4.8.0(typanion@3.14.0))':
     dependencies:
-      '@yarnpkg/core': 4.5.0(typanion@3.14.0)
+      '@yarnpkg/core': 4.8.0(typanion@3.14.0)
 
   '@yarnpkg/fslib@3.1.5':
     dependencies:
@@ -20851,7 +20787,11 @@ snapshots:
 
   builtins@5.1.0:
     dependencies:
-      semver: 7.8.3
+      semver: 7.8.4
+
+  bundle-name@4.1.0:
+    dependencies:
+      run-applescript: 7.1.0
 
   bytes@3.1.2: {}
 
@@ -21025,9 +20965,9 @@ snapshots:
       slice-ansi: 3.0.0
       string-width: 4.2.3
 
-  cli-truncate@5.2.0:
+  cli-truncate@6.0.0:
     dependencies:
-      slice-ansi: 8.0.0
+      slice-ansi: 9.0.0
       string-width: 8.2.1
 
   cli-width@4.1.0: {}
@@ -21036,17 +20976,17 @@ snapshots:
     dependencies:
       typanion: 3.14.0
 
-  cliui@7.0.4:
-    dependencies:
-      string-width: 4.2.3
-      strip-ansi: 6.0.1
-      wrap-ansi: 7.0.0
-
   cliui@8.0.1:
     dependencies:
       string-width: 4.2.3
       strip-ansi: 6.0.1
       wrap-ansi: 7.0.0
+
+  cliui@9.0.1:
+    dependencies:
+      string-width: 7.2.0
+      strip-ansi: 7.2.0
+      wrap-ansi: 9.0.2
 
   clone-response@1.0.3:
     dependencies:
@@ -21102,14 +21042,14 @@ snapshots:
 
   comver-to-semver@2.0.0: {}
 
-  concurrently@9.2.1:
+  concurrently@10.0.3:
     dependencies:
-      chalk: 4.1.2
+      chalk: 5.6.2
       rxjs: 7.8.2
       shell-quote: 1.8.4
-      supports-color: 8.1.1
+      supports-color: 10.2.2
       tree-kill: 1.2.2
-      yargs: 17.7.2
+      yargs: 18.0.0
 
   config-chain@1.1.13:
     dependencies:
@@ -21143,21 +21083,21 @@ snapshots:
 
   cookie@0.7.2: {}
 
-  cosmiconfig-typescript-loader@6.3.0(@types/node@22.19.20)(cosmiconfig@9.0.2(typescript@5.9.3))(typescript@5.9.3):
+  cosmiconfig-typescript-loader@6.3.0(@types/node@22.19.20)(cosmiconfig@9.0.2(typescript@6.0.3))(typescript@6.0.3):
     dependencies:
       '@types/node': 22.19.20
-      cosmiconfig: 9.0.2(typescript@5.9.3)
+      cosmiconfig: 9.0.2(typescript@6.0.3)
       jiti: 2.6.1
-      typescript: 5.9.3
+      typescript: 6.0.3
 
-  cosmiconfig@9.0.2(typescript@5.9.3):
+  cosmiconfig@9.0.2(typescript@6.0.3):
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.1
       js-yaml: '@zkochan/js-yaml@0.0.11'
       parse-json: 5.2.0
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
 
   cross-env@10.1.0:
     dependencies:
@@ -21176,61 +21116,61 @@ snapshots:
     dependencies:
       type-fest: 1.4.0
 
-  cspell-config-lib@9.7.0:
+  cspell-config-lib@9.8.0:
     dependencies:
-      '@cspell/cspell-types': 9.7.0
+      '@cspell/cspell-types': 9.8.0
       comment-json: 4.6.2
       smol-toml: 1.6.1
       yaml: 2.9.0
 
-  cspell-dictionary@9.7.0:
+  cspell-dictionary@9.8.0:
     dependencies:
-      '@cspell/cspell-performance-monitor': 9.7.0
-      '@cspell/cspell-pipe': 9.7.0
-      '@cspell/cspell-types': 9.7.0
-      cspell-trie-lib: 9.7.0(@cspell/cspell-types@9.7.0)
+      '@cspell/cspell-performance-monitor': 9.8.0
+      '@cspell/cspell-pipe': 9.8.0
+      '@cspell/cspell-types': 9.8.0
+      cspell-trie-lib: 9.8.0(@cspell/cspell-types@9.8.0)
       fast-equals: 6.0.0
 
-  cspell-gitignore@9.7.0:
+  cspell-gitignore@9.8.0:
     dependencies:
-      '@cspell/url': 9.7.0
-      cspell-glob: 9.7.0
-      cspell-io: 9.7.0
+      '@cspell/url': 9.8.0
+      cspell-glob: 9.8.0
+      cspell-io: 9.8.0
 
-  cspell-glob@9.7.0:
+  cspell-glob@9.8.0:
     dependencies:
-      '@cspell/url': 9.7.0
+      '@cspell/url': 9.8.0
       picomatch: 4.0.4
 
-  cspell-grammar@9.7.0:
+  cspell-grammar@9.8.0:
     dependencies:
-      '@cspell/cspell-pipe': 9.7.0
-      '@cspell/cspell-types': 9.7.0
+      '@cspell/cspell-pipe': 9.8.0
+      '@cspell/cspell-types': 9.8.0
 
-  cspell-io@9.7.0:
+  cspell-io@9.8.0:
     dependencies:
-      '@cspell/cspell-service-bus': 9.7.0
-      '@cspell/url': 9.7.0
+      '@cspell/cspell-service-bus': 9.8.0
+      '@cspell/url': 9.8.0
 
-  cspell-lib@9.7.0:
+  cspell-lib@9.8.0:
     dependencies:
-      '@cspell/cspell-bundled-dicts': 9.7.0
-      '@cspell/cspell-performance-monitor': 9.7.0
-      '@cspell/cspell-pipe': 9.7.0
-      '@cspell/cspell-resolver': 9.7.0
-      '@cspell/cspell-types': 9.7.0
-      '@cspell/dynamic-import': 9.7.0
-      '@cspell/filetypes': 9.7.0
-      '@cspell/rpc': 9.7.0
-      '@cspell/strong-weak-map': 9.7.0
-      '@cspell/url': 9.7.0
+      '@cspell/cspell-bundled-dicts': 9.8.0
+      '@cspell/cspell-performance-monitor': 9.8.0
+      '@cspell/cspell-pipe': 9.8.0
+      '@cspell/cspell-resolver': 9.8.0
+      '@cspell/cspell-types': 9.8.0
+      '@cspell/dynamic-import': 9.8.0
+      '@cspell/filetypes': 9.8.0
+      '@cspell/rpc': 9.8.0
+      '@cspell/strong-weak-map': 9.8.0
+      '@cspell/url': 9.8.0
       clear-module: 4.1.3
-      cspell-config-lib: 9.7.0
-      cspell-dictionary: 9.7.0
-      cspell-glob: 9.7.0
-      cspell-grammar: 9.7.0
-      cspell-io: 9.7.0
-      cspell-trie-lib: 9.7.0(@cspell/cspell-types@9.7.0)
+      cspell-config-lib: 9.8.0
+      cspell-dictionary: 9.8.0
+      cspell-glob: 9.8.0
+      cspell-grammar: 9.8.0
+      cspell-io: 9.8.0
+      cspell-trie-lib: 9.8.0(@cspell/cspell-types@9.8.0)
       env-paths: 4.0.0
       gensequence: 8.0.8
       import-fresh: 3.3.1
@@ -21239,29 +21179,29 @@ snapshots:
       vscode-uri: 3.1.0
       xdg-basedir: 5.1.0
 
-  cspell-trie-lib@9.7.0(@cspell/cspell-types@9.7.0):
+  cspell-trie-lib@9.8.0(@cspell/cspell-types@9.8.0):
     dependencies:
-      '@cspell/cspell-types': 9.7.0
+      '@cspell/cspell-types': 9.8.0
 
-  cspell@9.7.0:
+  cspell@9.8.0:
     dependencies:
-      '@cspell/cspell-json-reporter': 9.7.0
-      '@cspell/cspell-performance-monitor': 9.7.0
-      '@cspell/cspell-pipe': 9.7.0
-      '@cspell/cspell-types': 9.7.0
-      '@cspell/cspell-worker': 9.7.0
-      '@cspell/dynamic-import': 9.7.0
-      '@cspell/url': 9.7.0
+      '@cspell/cspell-json-reporter': 9.8.0
+      '@cspell/cspell-performance-monitor': 9.8.0
+      '@cspell/cspell-pipe': 9.8.0
+      '@cspell/cspell-types': 9.8.0
+      '@cspell/cspell-worker': 9.8.0
+      '@cspell/dynamic-import': 9.8.0
+      '@cspell/url': 9.8.0
       ansi-regex: 6.2.2
       chalk: 5.6.2
       chalk-template: 1.1.2
       commander: 14.0.3
-      cspell-config-lib: 9.7.0
-      cspell-dictionary: 9.7.0
-      cspell-gitignore: 9.7.0
-      cspell-glob: 9.7.0
-      cspell-io: 9.7.0
-      cspell-lib: 9.7.0
+      cspell-config-lib: 9.8.0
+      cspell-dictionary: 9.8.0
+      cspell-gitignore: 9.8.0
+      cspell-glob: 9.8.0
+      cspell-io: 9.8.0
+      cspell-lib: 9.8.0
       fast-json-stable-stringify: 2.1.0
       flatted: 3.4.2
       semver: 7.8.4
@@ -21334,6 +21274,13 @@ snapshots:
 
   deepmerge@4.3.1: {}
 
+  default-browser-id@5.0.1: {}
+
+  default-browser@5.5.0:
+    dependencies:
+      bundle-name: 4.1.0
+      default-browser-id: 5.0.1
+
   defaults@1.0.4:
     dependencies:
       clone: 1.0.4
@@ -21345,6 +21292,8 @@ snapshots:
       es-define-property: 1.0.1
       es-errors: 1.3.0
       gopd: 1.2.0
+
+  define-lazy-prop@3.0.0: {}
 
   define-properties@1.2.1:
     dependencies:
@@ -21435,6 +21384,8 @@ snapshots:
   electron-to-chromium@1.5.371: {}
 
   emittery@0.13.1: {}
+
+  emoji-regex@10.6.0: {}
 
   emoji-regex@8.0.0: {}
 
@@ -21557,34 +21508,34 @@ snapshots:
 
   es-toolkit@1.47.0: {}
 
-  esbuild@0.27.7:
+  esbuild@0.28.0:
     optionalDependencies:
-      '@esbuild/aix-ppc64': 0.27.7
-      '@esbuild/android-arm': 0.27.7
-      '@esbuild/android-arm64': 0.27.7
-      '@esbuild/android-x64': 0.27.7
-      '@esbuild/darwin-arm64': 0.27.7
-      '@esbuild/darwin-x64': 0.27.7
-      '@esbuild/freebsd-arm64': 0.27.7
-      '@esbuild/freebsd-x64': 0.27.7
-      '@esbuild/linux-arm': 0.27.7
-      '@esbuild/linux-arm64': 0.27.7
-      '@esbuild/linux-ia32': 0.27.7
-      '@esbuild/linux-loong64': 0.27.7
-      '@esbuild/linux-mips64el': 0.27.7
-      '@esbuild/linux-ppc64': 0.27.7
-      '@esbuild/linux-riscv64': 0.27.7
-      '@esbuild/linux-s390x': 0.27.7
-      '@esbuild/linux-x64': 0.27.7
-      '@esbuild/netbsd-arm64': 0.27.7
-      '@esbuild/netbsd-x64': 0.27.7
-      '@esbuild/openbsd-arm64': 0.27.7
-      '@esbuild/openbsd-x64': 0.27.7
-      '@esbuild/openharmony-arm64': 0.27.7
-      '@esbuild/sunos-x64': 0.27.7
-      '@esbuild/win32-arm64': 0.27.7
-      '@esbuild/win32-ia32': 0.27.7
-      '@esbuild/win32-x64': 0.27.7
+      '@esbuild/aix-ppc64': 0.28.0
+      '@esbuild/android-arm': 0.28.0
+      '@esbuild/android-arm64': 0.28.0
+      '@esbuild/android-x64': 0.28.0
+      '@esbuild/darwin-arm64': 0.28.0
+      '@esbuild/darwin-x64': 0.28.0
+      '@esbuild/freebsd-arm64': 0.28.0
+      '@esbuild/freebsd-x64': 0.28.0
+      '@esbuild/linux-arm': 0.28.0
+      '@esbuild/linux-arm64': 0.28.0
+      '@esbuild/linux-ia32': 0.28.0
+      '@esbuild/linux-loong64': 0.28.0
+      '@esbuild/linux-mips64el': 0.28.0
+      '@esbuild/linux-ppc64': 0.28.0
+      '@esbuild/linux-riscv64': 0.28.0
+      '@esbuild/linux-s390x': 0.28.0
+      '@esbuild/linux-x64': 0.28.0
+      '@esbuild/netbsd-arm64': 0.28.0
+      '@esbuild/netbsd-x64': 0.28.0
+      '@esbuild/openbsd-arm64': 0.28.0
+      '@esbuild/openbsd-x64': 0.28.0
+      '@esbuild/openharmony-arm64': 0.28.0
+      '@esbuild/sunos-x64': 0.28.0
+      '@esbuild/win32-arm64': 0.28.0
+      '@esbuild/win32-ia32': 0.28.0
+      '@esbuild/win32-x64': 0.28.0
 
   escalade@3.2.0: {}
 
@@ -21615,7 +21566,7 @@ snapshots:
       eslint: 10.4.1(jiti@2.6.1)
       eslint-compat-utils: 0.5.1(eslint@10.4.1(jiti@2.6.1))
 
-  eslint-plugin-import-x@4.16.2(@typescript-eslint/utils@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3))(eslint@10.4.1(jiti@2.6.1)):
+  eslint-plugin-import-x@4.16.2(@typescript-eslint/utils@8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3))(eslint@10.4.1(jiti@2.6.1)):
     dependencies:
       '@package-json/types': 0.0.12
       '@typescript-eslint/types': 8.61.0
@@ -21629,22 +21580,22 @@ snapshots:
       stable-hash-x: 0.2.0
       unrs-resolver: 1.12.2
     optionalDependencies:
-      '@typescript-eslint/utils': 8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
+      '@typescript-eslint/utils': 8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-jest@29.15.2(@typescript-eslint/eslint-plugin@8.60.1(@typescript-eslint/parser@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3))(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3))(eslint@10.4.1(jiti@2.6.1))(jest@30.4.2(@babel/types@7.29.7)(@types/node@22.19.20))(typescript@5.9.3):
+  eslint-plugin-jest@29.15.2(@typescript-eslint/eslint-plugin@8.61.0(@typescript-eslint/parser@8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3))(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3))(eslint@10.4.1(jiti@2.6.1))(jest@30.4.2(@babel/types@7.29.7)(@types/node@22.19.20))(typescript@6.0.3):
     dependencies:
-      '@typescript-eslint/utils': 8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
+      '@typescript-eslint/utils': 8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
       eslint: 10.4.1(jiti@2.6.1)
     optionalDependencies:
-      '@typescript-eslint/eslint-plugin': 8.60.1(@typescript-eslint/parser@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3))(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
+      '@typescript-eslint/eslint-plugin': 8.61.0(@typescript-eslint/parser@8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3))(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
       jest: 30.4.2(@babel/types@7.29.7)(@types/node@22.19.20)
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-n@17.24.0(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3):
+  eslint-plugin-n@18.1.0(eslint@10.4.1(jiti@2.6.1))(ts-declaration-location@1.0.7(typescript@6.0.3))(typescript@6.0.3):
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1(eslint@10.4.1(jiti@2.6.1))
       enhanced-resolve: 5.23.0
@@ -21655,9 +21606,9 @@ snapshots:
       globrex: 0.1.2
       ignore: 5.3.2
       semver: 7.8.4
-      ts-declaration-location: 1.0.7(typescript@5.9.3)
-    transitivePeerDependencies:
-      - typescript
+    optionalDependencies:
+      ts-declaration-location: 1.0.7(typescript@6.0.3)
+      typescript: 6.0.3
 
   eslint-plugin-promise@7.3.0(eslint@10.4.1(jiti@2.6.1)):
     dependencies:
@@ -21675,7 +21626,7 @@ snapshots:
       regexp-ast-analysis: 0.7.1
       scslre: 0.3.0
 
-  eslint-plugin-simple-import-sort@12.1.1(eslint@10.4.1(jiti@2.6.1)):
+  eslint-plugin-simple-import-sort@13.0.0(eslint@10.4.1(jiti@2.6.1)):
     dependencies:
       eslint: 10.4.1(jiti@2.6.1)
 
@@ -21807,15 +21758,6 @@ snapshots:
   exists-link@2.0.0: {}
 
   exit-x@0.2.2: {}
-
-  expect@30.3.0:
-    dependencies:
-      '@jest/expect-utils': 30.3.0
-      '@jest/get-type': 30.1.0
-      jest-matcher-utils: 30.3.0
-      jest-message-util: 30.3.0
-      jest-mock: 30.3.0
-      jest-util: 30.3.0
 
   expect@30.4.1:
     dependencies:
@@ -22546,6 +22488,8 @@ snapshots:
 
   is-docker@2.2.1: {}
 
+  is-docker@3.0.0: {}
+
   is-extglob@2.1.1: {}
 
   is-finalizationregistry@1.1.1:
@@ -22574,10 +22518,16 @@ snapshots:
 
   is-gzip@2.0.0: {}
 
+  is-in-ssh@1.0.0: {}
+
   is-inner-link@5.0.0:
     dependencies:
       is-subdir: 2.0.0
       resolve-link-target: 3.0.0
+
+  is-inside-container@1.0.0:
+    dependencies:
+      is-docker: 3.0.0
 
   is-interactive@1.0.0: {}
 
@@ -22677,6 +22627,10 @@ snapshots:
     dependencies:
       is-docker: 2.2.1
 
+  is-wsl@3.1.1:
+    dependencies:
+      is-inside-container: 1.0.0
+
   isarray@2.0.5: {}
 
   isexe@2.0.0: {}
@@ -22728,7 +22682,7 @@ snapshots:
       '@jest/expect': 30.4.1
       '@jest/test-result': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       chalk: 4.1.2
       co: 4.6.0
       dedent: 1.7.2
@@ -22801,13 +22755,6 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
-  jest-diff@30.3.0:
-    dependencies:
-      '@jest/diff-sequences': 30.3.0
-      '@jest/get-type': 30.1.0
-      chalk: 4.1.2
-      pretty-format: 30.3.0
-
   jest-diff@30.4.1:
     dependencies:
       '@jest/diff-sequences': 30.4.0
@@ -22832,7 +22779,7 @@ snapshots:
       '@jest/environment': 30.4.1
       '@jest/fake-timers': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       jest-mock: 30.4.1
       jest-util: 30.4.1
       jest-validate: 30.4.1
@@ -22851,21 +22798,6 @@ snapshots:
       jest-util: 29.7.0
       jest-worker: 29.7.0
       micromatch: 4.0.8
-      walker: 1.0.8
-    optionalDependencies:
-      fsevents: 2.3.3
-
-  jest-haste-map@30.3.0:
-    dependencies:
-      '@jest/types': 30.3.0
-      '@types/node': 22.19.20
-      anymatch: 3.1.3
-      fb-watchman: 2.0.2
-      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      jest-regex-util: 30.0.1
-      jest-util: 30.3.0
-      jest-worker: 30.3.0
-      picomatch: 4.0.4
       walker: 1.0.8
     optionalDependencies:
       fsevents: 2.3.3
@@ -22890,31 +22822,12 @@ snapshots:
       '@jest/get-type': 30.1.0
       pretty-format: 30.4.1
 
-  jest-matcher-utils@30.3.0:
-    dependencies:
-      '@jest/get-type': 30.1.0
-      chalk: 4.1.2
-      jest-diff: 30.3.0
-      pretty-format: 30.3.0
-
   jest-matcher-utils@30.4.1:
     dependencies:
       '@jest/get-type': 30.1.0
       chalk: 4.1.2
       jest-diff: 30.4.1
       pretty-format: 30.4.1
-
-  jest-message-util@30.3.0:
-    dependencies:
-      '@babel/code-frame': 7.29.7
-      '@jest/types': 30.3.0
-      '@types/stack-utils': 2.0.3
-      chalk: 4.1.2
-      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      picomatch: 4.0.4
-      pretty-format: 30.3.0
-      slash: 3.0.0
-      stack-utils: 2.0.6
 
   jest-message-util@30.4.1:
     dependencies:
@@ -22929,16 +22842,10 @@ snapshots:
       slash: 3.0.0
       stack-utils: 2.0.6
 
-  jest-mock@30.3.0:
-    dependencies:
-      '@jest/types': 30.3.0
-      '@types/node': 22.19.20
-      jest-util: 30.3.0
-
   jest-mock@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       jest-util: 30.4.1
 
   jest-pnp-resolver@1.2.3(jest-resolve@29.7.0):
@@ -22950,8 +22857,6 @@ snapshots:
       jest-resolve: 30.4.1
 
   jest-regex-util@29.6.3: {}
-
-  jest-regex-util@30.0.1: {}
 
   jest-regex-util@30.4.0: {}
 
@@ -23041,32 +22946,6 @@ snapshots:
       - '@babel/types'
       - supports-color
 
-  jest-snapshot@30.3.0:
-    dependencies:
-      '@babel/core': 7.29.7
-      '@babel/generator': 7.29.7
-      '@babel/plugin-syntax-jsx': 7.29.7(@babel/core@7.29.7)
-      '@babel/plugin-syntax-typescript': 7.29.7(@babel/core@7.29.7)
-      '@babel/types': 7.29.7
-      '@jest/expect-utils': 30.3.0
-      '@jest/get-type': 30.1.0
-      '@jest/snapshot-utils': 30.3.0
-      '@jest/transform': 30.3.0(@babel/types@7.29.7)
-      '@jest/types': 30.3.0
-      babel-preset-current-node-syntax: 1.2.0(@babel/core@7.29.7)
-      chalk: 4.1.2
-      expect: 30.3.0
-      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      jest-diff: 30.3.0
-      jest-matcher-utils: 30.3.0
-      jest-message-util: 30.3.0
-      jest-util: 30.3.0
-      pretty-format: 30.3.0
-      semver: 7.8.4
-      synckit: 0.11.13
-    transitivePeerDependencies:
-      - supports-color
-
   jest-snapshot@30.4.1:
     dependencies:
       '@babel/core': 7.29.7
@@ -23102,19 +22981,10 @@ snapshots:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       picomatch: 2.3.2
 
-  jest-util@30.3.0:
-    dependencies:
-      '@jest/types': 30.3.0
-      '@types/node': 22.19.20
-      chalk: 4.1.2
-      ci-info: 4.4.0
-      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      picomatch: 4.0.4
-
   jest-util@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -23156,17 +23026,9 @@ snapshots:
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
-  jest-worker@30.3.0:
-    dependencies:
-      '@types/node': 22.19.20
-      '@ungap/structured-clone': 1.3.1
-      jest-util: 30.3.0
-      merge-stream: 2.0.0
-      supports-color: 8.1.1
-
   jest-worker@30.4.1:
     dependencies:
-      '@types/node': 22.19.20
+      '@types/node': 25.9.3
       '@ungap/structured-clone': 1.3.1
       jest-util: 30.4.1
       merge-stream: 2.0.0
@@ -23211,8 +23073,6 @@ snapshots:
 
   json-stable-stringify-without-jsonify@1.0.1: {}
 
-  json-stringify-safe@5.0.1: {}
-
   json5@2.2.3: {}
 
   jsonfile@4.0.0:
@@ -23241,10 +23101,10 @@ snapshots:
     dependencies:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
 
-  lcov-result-merger@5.0.1:
+  lcov-result-merger@6.0.0:
     dependencies:
       fast-glob: 3.3.3
-      yargs: 16.2.0
+      yargs: 18.0.0
 
   leven@3.1.0: {}
 
@@ -23260,7 +23120,7 @@ snapshots:
       npm-package-arg: 13.0.2
       npm-registry-fetch: 19.1.1
       proc-log: 6.1.0
-      semver: 7.8.3
+      semver: 7.8.4
       sigstore: 4.1.1
       ssri: 13.0.1
     transitivePeerDependencies:
@@ -23329,8 +23189,6 @@ snapshots:
   lodash.throttle@4.1.1: {}
 
   lodash.truncate@4.4.2: {}
-
-  lodash@4.18.1: {}
 
   log-symbols@4.1.0:
     dependencies:
@@ -23475,7 +23333,7 @@ snapshots:
       map-age-cleaner: 0.1.3
       mimic-fn: 3.1.0
 
-  memoize@10.2.0:
+  memoize@11.0.0:
     dependencies:
       mimic-function: 5.0.1
 
@@ -23767,7 +23625,7 @@ snapshots:
       '@msgpackr-extract/msgpackr-extract-win32-x64': 3.0.4
     optional: true
 
-  msgpackr@1.11.8:
+  msgpackr@2.0.4:
     optionalDependencies:
       msgpackr-extract: 3.0.4
 
@@ -23802,15 +23660,6 @@ snapshots:
       pretty-bytes: 4.0.2
       walk-filtered: 0.9.3
 
-  nock@13.3.4:
-    dependencies:
-      debug: 4.4.3
-      json-stringify-safe: 5.0.1
-      lodash: 4.18.1
-      propagate: 2.0.1
-    transitivePeerDependencies:
-      - supports-color
-
   node-gyp-build-optional-packages@5.2.2:
     dependencies:
       detect-libc: 2.1.2
@@ -23841,7 +23690,7 @@ snapshots:
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       nopt: 9.0.0
       proc-log: 6.1.0
-      semver: 7.8.3
+      semver: 7.8.4
       tar: 7.5.16
       tinyglobby: 0.2.17
       undici: 6.26.0
@@ -23871,14 +23720,14 @@ snapshots:
     dependencies:
       hosted-git-info: 2.8.9
       resolve: 1.22.12
-      semver: 7.8.3
+      semver: 7.8.4
       validate-npm-package-license: 3.0.4
 
   normalize-package-data@3.0.3:
     dependencies:
       hosted-git-info: 4.1.0
       is-core-module: 2.16.2
-      semver: 7.8.3
+      semver: 7.8.4
       validate-npm-package-license: 3.0.4
 
   normalize-package-data@4.0.1:
@@ -23918,7 +23767,7 @@ snapshots:
 
   npm-install-checks@8.0.0:
     dependencies:
-      semver: 7.8.3
+      semver: 7.8.4
 
   npm-normalize-package-bin@2.0.0: {}
 
@@ -23930,7 +23779,7 @@ snapshots:
     dependencies:
       hosted-git-info: 9.0.3
       proc-log: 6.1.0
-      semver: 7.8.3
+      semver: 7.8.4
       validate-npm-package-name: 7.0.2
 
   npm-packlist@10.0.4:
@@ -23950,7 +23799,7 @@ snapshots:
       npm-install-checks: 8.0.0
       npm-normalize-package-bin: 5.0.0
       npm-package-arg: 13.0.2
-      semver: 7.8.3
+      semver: 7.8.4
 
   npm-registry-fetch@19.1.1:
     dependencies:
@@ -24005,14 +23854,23 @@ snapshots:
     dependencies:
       mimic-fn: 2.1.0
 
+  open@11.0.0:
+    dependencies:
+      default-browser: 5.5.0
+      define-lazy-prop: 3.0.0
+      is-in-ssh: 1.0.0
+      is-inside-container: 1.0.0
+      powershell-utils: 0.1.0
+      wsl-utils: 0.3.1
+
   open@7.4.2:
     dependencies:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openpgp@6.3.1(@openpgp/web-stream-tools@0.3.1(@types/node@25.9.3)(typescript@5.9.3)):
+  openpgp@6.3.1(@openpgp/web-stream-tools@0.3.1(@types/node@25.9.3)(typescript@6.0.3)):
     optionalDependencies:
-      '@openpgp/web-stream-tools': 0.3.1(@types/node@25.9.3)(typescript@5.9.3)
+      '@openpgp/web-stream-tools': 0.3.1(@types/node@25.9.3)(typescript@6.0.3)
 
   opt-cli@1.5.1:
     dependencies:
@@ -24181,7 +24039,7 @@ snapshots:
 
   parse-npm-tarball-url@5.0.0:
     dependencies:
-      semver: 7.8.3
+      semver: 7.8.4
 
   parseurl@1.3.3: {}
 
@@ -24242,7 +24100,7 @@ snapshots:
 
   picomatch@4.0.4: {}
 
-  pidtree@0.6.0: {}
+  pidtree@1.0.0: {}
 
   pify@4.0.1: {}
 
@@ -24259,6 +24117,8 @@ snapshots:
   pnpm@11.6.0: {}
 
   possible-typed-array-names@1.1.0: {}
+
+  powershell-utils@0.1.0: {}
 
   preferred-pm@3.1.4:
     dependencies:
@@ -24288,12 +24148,6 @@ snapshots:
   pretty-format@29.7.0:
     dependencies:
       '@jest/schemas': 29.6.3
-      ansi-styles: 5.2.0
-      react-is: 18.3.1
-
-  pretty-format@30.3.0:
-    dependencies:
-      '@jest/schemas': 30.0.5
       ansi-styles: 5.2.0
       react-is: 18.3.1
 
@@ -24336,8 +24190,6 @@ snapshots:
   promise-share@2.0.1:
     dependencies:
       p-reflect: 3.1.0
-
-  propagate@2.0.1: {}
 
   proto-list@1.2.4: {}
 
@@ -24626,6 +24478,8 @@ snapshots:
 
   rotated-array-set@3.0.0: {}
 
+  run-applescript@7.1.0: {}
+
   run-async@3.0.0: {}
 
   run-groups@3.0.1:
@@ -24702,11 +24556,9 @@ snapshots:
   semver-range-intersect@0.3.1:
     dependencies:
       '@types/semver': 6.2.7
-      semver: 7.8.3
+      semver: 7.8.4
 
   semver-utils@1.1.4: {}
-
-  semver@7.8.3: {}
 
   semver@7.8.4: {}
 
@@ -24853,7 +24705,7 @@ snapshots:
       astral-regex: 2.0.0
       is-fullwidth-code-point: 3.0.0
 
-  slice-ansi@8.0.0:
+  slice-ansi@9.0.0:
     dependencies:
       ansi-styles: 6.2.3
       is-fullwidth-code-point: 5.1.0
@@ -24989,6 +24841,12 @@ snapshots:
       emoji-regex: 8.0.0
       is-fullwidth-code-point: 3.0.0
       strip-ansi: 6.0.1
+
+  string-width@7.2.0:
+    dependencies:
+      emoji-regex: 10.6.0
+      get-east-asian-width: 1.6.0
+      strip-ansi: 7.2.0
 
   string-width@8.2.1:
     dependencies:
@@ -25219,14 +25077,15 @@ snapshots:
     dependencies:
       utf8-byte-length: 1.0.5
 
-  ts-api-utils@2.5.0(typescript@5.9.3):
+  ts-api-utils@2.5.0(typescript@6.0.3):
     dependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
 
-  ts-declaration-location@1.0.7(typescript@5.9.3):
+  ts-declaration-location@1.0.7(typescript@6.0.3):
     dependencies:
       picomatch: 4.0.4
-      typescript: 5.9.3
+      typescript: 6.0.3
+    optional: true
 
   ts-jest-resolver@2.0.1:
     dependencies:
@@ -25337,18 +25196,18 @@ snapshots:
     dependencies:
       ts-toolbelt: 9.6.0
 
-  typescript-eslint@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3):
+  typescript-eslint@8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3):
     dependencies:
-      '@typescript-eslint/eslint-plugin': 8.60.1(@typescript-eslint/parser@8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3))(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
-      '@typescript-eslint/parser': 8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
-      '@typescript-eslint/typescript-estree': 8.60.1(typescript@5.9.3)
-      '@typescript-eslint/utils': 8.60.1(eslint@10.4.1(jiti@2.6.1))(typescript@5.9.3)
+      '@typescript-eslint/eslint-plugin': 8.61.0(@typescript-eslint/parser@8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3))(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
+      '@typescript-eslint/parser': 8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
+      '@typescript-eslint/typescript-estree': 8.61.0(typescript@6.0.3)
+      '@typescript-eslint/utils': 8.61.0(eslint@10.4.1(jiti@2.6.1))(typescript@6.0.3)
       eslint: 10.4.1(jiti@2.6.1)
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
-  typescript@5.9.3: {}
+  typescript@6.0.3: {}
 
   uid-number@0.0.6: {}
 
@@ -25514,7 +25373,7 @@ snapshots:
 
   version-selector-type@3.0.0:
     dependencies:
-      semver: 7.8.3
+      semver: 7.8.4
 
   vfile-message@4.0.3:
     dependencies:
@@ -25630,6 +25489,12 @@ snapshots:
       string-width: 4.2.3
       strip-ansi: 6.0.1
 
+  wrap-ansi@9.0.2:
+    dependencies:
+      ansi-styles: 6.2.3
+      string-width: 7.2.0
+      strip-ansi: 7.2.0
+
   wrappy@1.0.2: {}
 
   write-file-atomic@3.0.3:
@@ -25703,6 +25568,11 @@ snapshots:
       js-yaml: '@zkochan/js-yaml@0.0.11'
       write-file-atomic: 7.0.1
 
+  wsl-utils@0.3.1:
+    dependencies:
+      is-wsl: 3.1.1
+      powershell-utils: 0.1.0
+
   xdg-basedir@5.1.0: {}
 
   y18n@5.0.8: {}
@@ -25723,15 +25593,7 @@ snapshots:
 
   yargs-parser@21.1.1: {}
 
-  yargs@16.2.0:
-    dependencies:
-      cliui: 7.0.4
-      escalade: 3.2.0
-      get-caller-file: 2.0.5
-      require-directory: 2.1.1
-      string-width: 4.2.3
-      y18n: 5.0.8
-      yargs-parser: 20.2.9
+  yargs-parser@22.0.0: {}
 
   yargs@17.7.2:
     dependencies:
@@ -25742,6 +25604,15 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
+
+  yargs@18.0.0:
+    dependencies:
+      cliui: 9.0.1
+      escalade: 3.2.0
+      get-caller-file: 2.0.5
+      string-width: 7.2.0
+      y18n: 5.0.8
+      yargs-parser: 22.0.0
 
   yocto-queue@0.1.0: {}
 

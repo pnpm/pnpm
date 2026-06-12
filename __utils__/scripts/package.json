@@ -23,7 +23,6 @@
     "@pnpm/logger": "catalog:",
     "@pnpm/scripts": "workspace:*",
     "@types/normalize-path": "catalog:",
-    "@types/tar": "catalog:",
     "cross-env": "catalog:"
   },
   "jest": {

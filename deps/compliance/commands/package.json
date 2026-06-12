@@ -85,7 +85,6 @@
     "@types/semver": "catalog:",
     "@types/zkochan__table": "catalog:",
     "load-json-file": "catalog:",
-    "nock": "catalog:",
     "read-yaml-file": "catalog:",
     "tempy": "catalog:"
   },
