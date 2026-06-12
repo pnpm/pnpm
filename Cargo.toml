@@ -229,35 +229,23 @@ collection_is_never_read            = "allow" # false positive: the flagged Vec 
 
 # restriction lints opted into individually — not part of any default group or
 # the nursery group, so these lines are what enable them (kept on purpose).
-clone_on_ref_ptr       = "warn"
-if_then_some_else_none = "warn"
-mod_module_files       = "warn" # forbids mod.rs, enforcing the flat module.rs layout (see CODE_STYLE_GUIDE.md)
-
-# unsafe hygiene (restriction): every `unsafe` block carries its own `// SAFETY:` comment
+clone_on_ref_ptr           = "warn"
+if_then_some_else_none     = "warn"
+mod_module_files           = "warn" # forbids mod.rs, enforcing the flat module.rs layout (see CODE_STYLE_GUIDE.md)
 undocumented_unsafe_blocks = "warn"
-unnecessary_safety_comment = "warn" # ...and `SAFETY:` prose never decorates safe code
+unnecessary_safety_comment = "warn"
+todo                       = "warn"
+unimplemented              = "warn"
+exit                       = "warn"
+infinite_loop              = "warn"
+mem_forget                 = "warn"
+unused_result_ok           = "warn"
+get_unwrap                 = "warn"
+pathbuf_init_then_push     = "warn"
+string_add                 = "warn"
+verbose_file_reads         = "warn"
 
-# leftover-marker guards (restriction). `dbg_macro` stays off on purpose:
-# CODE_STYLE_GUIDE.md prescribes `dbg!` for complex structures in tests.
-todo          = "warn"
-unimplemented = "warn"
-
-# explicit-intent guards (restriction): leaking, discarding, exiting, and
-# looping forever are all legal but must be spelled out at the use site.
-exit             = "warn" # deliberate exits carry #[expect] (e.g. dlx propagating the child's status)
-infinite_loop    = "warn"
-mem_forget       = "warn" # deliberate leaks carry #[expect] with the reason
-unused_result_ok = "warn" # discard with `let _ = ...`, not `.ok()`
-
-get_unwrap = "warn" # `x[i]` over `x.get(i).unwrap()`: same panic, clearer intent and message
-
-# perf-shaped restriction lints
-pathbuf_init_then_push = "warn"
-string_add             = "warn"
-verbose_file_reads     = "warn"
-
-# cargo-group lints opted into individually (`cargo_common_metadata` and
-# `multiple_crate_versions` stay off: unpublished crates / transitive-dep noise).
+# cargo-group lints opted into individually (the cargo group is otherwise off).
 negative_feature_names  = "warn"
 redundant_feature_names = "warn"
 wildcard_dependencies   = "warn"
