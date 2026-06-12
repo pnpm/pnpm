@@ -159,7 +159,7 @@ pub async fn resolve(
         http_client_arc: Arc::clone(client),
         config,
         manifest: &manifest,
-        lockfile: input_lockfile,
+        lockfile: pacquet_lockfile::MaybeLazyLockfile::Loaded(input_lockfile),
         lockfile_path: input_lockfile.map(|_| lockfile_path.as_path()),
         dependency_groups: vec![
             DependencyGroup::Prod,

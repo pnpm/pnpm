@@ -56,7 +56,7 @@ use std::{
 
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
-use pacquet_lockfile::{ImporterDepVersion, Lockfile, ProjectSnapshot};
+use pacquet_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_workspace_state::{
@@ -107,15 +107,16 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// the outer `try` converts into `upToDate: false` — and keys its
     /// comparisons off the lockfile mtimes instead.
     pub is_workspace_install: bool,
-    /// The wanted lockfile as loaded by the CLI (`None` when
-    /// `pnpm-lock.yaml` is absent or empty). Consulted only by the
-    /// modified-manifests content re-check; the pure-mtime fast path
-    /// never reads it. When `None` and `<virtual_store_dir>/lock.yaml`
-    /// exists, the current lockfile stands in as the wanted one — it
-    /// records exactly what the previous install materialized — and
-    /// `pnpm-lock.yaml` is regenerated from it before the check
-    /// reports up-to-date.
-    pub lockfile: Option<&'a Lockfile>,
+    /// The wanted lockfile (`None` once loaded when `pnpm-lock.yaml`
+    /// is absent or empty). Consulted only by the modified-manifests
+    /// content re-check; the pure-mtime fast path never reads it —
+    /// which is why it arrives lazily, so the common repeat-install
+    /// run skips the YAML parse entirely. When absent and
+    /// `<virtual_store_dir>/lock.yaml` exists, the current lockfile
+    /// stands in as the wanted one — it records exactly what the
+    /// previous install materialized — and `pnpm-lock.yaml` is
+    /// regenerated from it before the check reports up-to-date.
+    pub lockfile: MaybeLazyLockfile<'a>,
     /// Workspace catalogs, for resolving `catalog:` values inside
     /// `pnpm.overrides` before the lockfile settings comparison.
     pub catalogs: &'a Catalogs,
@@ -287,7 +288,7 @@ fn regenerate_wanted_lockfile_if_missing(
     check: &OptimisticRepeatInstallCheck<'_>,
     loaded_current: Option<Lockfile>,
 ) -> Result<(), &'static str> {
-    if check.lockfile.is_some() || !check.config.lockfile {
+    if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
         return Ok(());
     }
     let current = match loaded_current {
@@ -340,6 +341,7 @@ fn modified_manifests_match_lockfile(
     } = check;
     let mut loaded_current: Option<Lockfile> = None;
     let mut wanted_is_current = false;
+    let lockfile = lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?;
     let (wanted, wanted_mtime_ms): (&Lockfile, i64) = if let Some(wanted) = lockfile {
         let Some(mtime) = mtime_ms(&workspace_root.join(Lockfile::FILE_NAME)) else {
             return Err(

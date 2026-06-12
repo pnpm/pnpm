@@ -10,7 +10,7 @@ use pacquet_catalogs_config::{
 use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{CatalogMode, Config, matcher::create_matcher};
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::{PackageTag, PackageVersion};
@@ -492,7 +492,7 @@ impl Update<'_> {
             http_client_arc,
             config,
             manifest,
-            lockfile,
+            lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
             // `include` is always all-true for updates: the materialized
             // `node_modules` layout must not change just because the

@@ -72,6 +72,53 @@ test('use local cache when registry returns 304 Not Modified', async () => {
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
+test('a 304 Not Modified renews the metadata file mtime so the publishedBy freshness shortcut can fire again', async () => {
+  const cacheDir = temporaryDirectory()
+  const metaDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  fs.mkdirSync(metaDir, { recursive: true })
+  const metaPath = path.join(metaDir, 'is-positive.jsonl')
+  const headers = JSON.stringify({ etag: '"abc123"', modified: isPositiveMeta.modified })
+  fs.writeFileSync(metaPath, `${headers}\n${JSON.stringify(isPositiveMeta)}`, 'utf8')
+  // Age the mirror far past any maturity cutoff.
+  const aged = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+  fs.utimesSync(metaPath, aged, aged)
+
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: {
+        'if-none-match': '"abc123"',
+      },
+    })
+    .reply(304, '')
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registries,
+  })
+  const resolveResult = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '^3.0.0' },
+    {}
+  )
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+
+  // The touch is fire-and-forget, so poll briefly instead of asserting
+  // immediately.
+  const renewed = () => fs.statSync(metaPath).mtime.getTime() > aged.getTime() + 1000
+  await new Promise<void>((resolve) => {
+    const start = Date.now()
+    const timer = setInterval(() => {
+      if (renewed() || Date.now() - start > 5000) {
+        clearInterval(timer)
+        resolve()
+      }
+    }, 50)
+  })
+  expect(renewed()).toBe(true)
+})
+
 test('store etag from 200 response in cache', async () => {
   const cacheDir = temporaryDirectory()
   const responseHeaders = {

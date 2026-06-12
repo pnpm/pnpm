@@ -3,10 +3,10 @@ use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pacquet_config::NodeLinker;
-use pacquet_lockfile::{Lockfile, LockfileResolution};
+use pacquet_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
 use pacquet_package_manager::{
     Install, InstallFrozenLockfileError, LockfileVerificationOverride, TarballPrefetcher,
-    UpdateSeedPolicy,
+    UpToDateFastPathCheck, UpdateSeedPolicy, install_already_up_to_date,
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions, VerifyLockfileOptions};
@@ -255,6 +255,73 @@ pub struct InstallArgs {
 }
 
 impl InstallArgs {
+    /// Run the repeat-install fast path before any of the async install
+    /// machinery exists: when every gate below holds and
+    /// [`install_already_up_to_date`] confirms nothing changed since the
+    /// previous install, emit the same "Already up to date" + summary
+    /// events [`Install::run`] would and report the install as finished.
+    ///
+    /// The gates mirror the dispatch in [`crate::cli_args::CliArgs::run`]
+    /// (which checks `recursive` / `filter` before reaching here) plus
+    /// every input that would make [`Install::run`] skip its own
+    /// short-circuit or do extra pre-install work: an explicit
+    /// `--frozen-lockfile` / `--lockfile-only`, a configured pnpr
+    /// server (that path never runs the optimistic check), config
+    /// dependencies, and pnpmfile `updateConfig` hooks (both can
+    /// mutate the config the check compares against).
+    ///
+    /// `false` means "not decided" — the caller proceeds with the full
+    /// install path, which re-runs the same check cheaply and
+    /// reproduces any error with its established shape.
+    pub fn finished_via_up_to_date_fast_path(
+        &self,
+        dir: &std::path::Path,
+        config: &pacquet_config::Config,
+        emit: fn(&pacquet_reporter::LogEvent),
+    ) -> bool {
+        if self.frozen_lockfile || self.lockfile_only || self.pnpr_server.is_some() {
+            return false;
+        }
+        if config.pnpr_server.is_some() {
+            return false;
+        }
+        if config.config_dependencies.as_ref().is_some_and(|deps| !deps.is_empty()) {
+            return false;
+        }
+        let config_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        if pacquet_hooks::finder::find_pnpmfile(&config_root).is_some() {
+            return false;
+        }
+        let manifest_path = dir.join("package.json");
+        if !manifest_path.is_file() {
+            return false;
+        }
+        let Ok(manifest) = pacquet_package_manifest::PackageManifest::from_path(manifest_path)
+        else {
+            return false;
+        };
+        let node_linker = self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
+        let Some(workspace_root) = install_already_up_to_date(&UpToDateFastPathCheck {
+            config,
+            manifest: &manifest,
+            dependency_groups: self.dependency_options.dependency_groups().collect(),
+            node_linker,
+        }) else {
+            return false;
+        };
+        let prefix = workspace_root.to_string_lossy().into_owned();
+        emit(&pacquet_reporter::LogEvent::Pnpm(pacquet_reporter::PnpmLog {
+            level: pacquet_reporter::LogLevel::Info,
+            message: "Already up to date".to_string(),
+            prefix: prefix.clone(),
+        }));
+        emit(&pacquet_reporter::LogEvent::Summary(pacquet_reporter::SummaryLog {
+            level: pacquet_reporter::LogLevel::Debug,
+            prefix,
+        }));
+        true
+    }
+
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
@@ -362,7 +429,7 @@ impl InstallArgs {
             http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
-            lockfile: lockfile.as_ref(),
+            lockfile: MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: lockfile_path.as_deref(),
             dependency_groups: dependency_options.dependency_groups(),
             frozen_lockfile,
@@ -541,7 +608,11 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             .collect(),
         authorization: state.config.auth_headers.for_url(pnpr_server),
         overrides,
-        lockfile: state.lockfile.clone(),
+        lockfile: state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
+            .cloned(),
         frozen_lockfile: link.frozen_lockfile,
         prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
         ignore_manifest_check: link.ignore_manifest_check,
@@ -562,7 +633,10 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
 
     if link.frozen_lockfile
         && !link.lockfile_only
-        && let Some(lockfile) = state.lockfile.as_ref()
+        && let Some(lockfile) = state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
     {
         let prefetcher = TarballPrefetcher::new(
             state.config,
@@ -601,7 +675,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             http_client_arc: std::sync::Arc::clone(&state.http_client),
             config: state.config,
             manifest: &state.manifest,
-            lockfile: Some(lockfile),
+            lockfile: MaybeLazyLockfile::Loaded(Some(lockfile)),
             lockfile_path: link.lockfile_path,
             dependency_groups: link.dependency_groups,
             frozen_lockfile: true,
@@ -721,7 +795,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         http_client_arc: std::sync::Arc::clone(&state.http_client),
         config: state.config,
         manifest: &state.manifest,
-        lockfile: Some(&outcome.lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&outcome.lockfile)),
         lockfile_path: link.lockfile_path,
         dependency_groups: link.dependency_groups,
         frozen_lockfile: true,

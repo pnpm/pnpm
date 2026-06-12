@@ -17,7 +17,8 @@ use pacquet_executor::{
     ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
 };
 use pacquet_lockfile::{
-    LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
+    LazyLockfile, LoadLockfileError, Lockfile, MaybeLazyLockfile, SaveLockfileError,
+    StalenessReason, satisfies_package_manifest,
 };
 use pacquet_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, record_lockfile_verified,
@@ -41,7 +42,7 @@ use pacquet_workspace_state::{
 };
 use std::{
     collections::BTreeMap,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
     time::SystemTime,
 };
@@ -106,7 +107,7 @@ where
     pub http_client_arc: Arc<ThrottledClient>,
     pub config: &'static Config,
     pub manifest: &'a PackageManifest,
-    pub lockfile: Option<&'a Lockfile>,
+    pub lockfile: MaybeLazyLockfile<'a>,
     /// Absolute path of the loaded `pnpm-lock.yaml`. Threaded into
     /// the lockfile-verification gate so the per-path stat shortcut
     /// in `<cache_dir>/lockfile-verified.jsonl` can fire on repeat
@@ -284,6 +285,12 @@ pub enum InstallError {
     /// <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L226-L227>.
     #[diagnostic(transparent)]
     LoadCurrentLockfile(#[error(source)] LoadLockfileError),
+
+    /// Surfaces a `pnpm-lock.yaml` read or parse failure from the
+    /// deferred load that runs once the repeat-install fast path has
+    /// passed on the install (see [`MaybeLazyLockfile`]).
+    #[diagnostic(transparent)]
+    LoadWantedLockfile(#[error(source)] LoadLockfileError),
 
     /// Surfaces a failure to persist the current lockfile so the next
     /// install can diff against it. A best-effort warn would let
@@ -546,13 +553,20 @@ where
         // forcing the frozen path.
         let project_manifests =
             build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
-        // `pacquet update` must always re-resolve, so it bypasses the
-        // optimistic short-circuit: a compatible bump leaves the
-        // manifest byte-identical, which the repeat-install check would
-        // otherwise read as "nothing changed → already up to date" and
-        // skip the registry re-resolution entirely. Gating on
-        // `KeepAll` keeps `install` / `add` on the fast path.
-        if matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
+        // Only a full `pacquet install` may short-circuit. `add` and
+        // `remove` mutate the manifest in memory and persist it after
+        // this run returns, so the on-disk mtimes the check reads still
+        // describe the pre-mutation project — without this gate a fresh
+        // workspace state would read as "nothing changed → already up
+        // to date" and the mutation would never be resolved or
+        // materialized. Mirrors upstream `installDeps` calling
+        // `checkDepsStatus` only for the plain-install mutation, never
+        // for `installSome` / `uninstallSome`. `pacquet update` is
+        // excluded through its seed policy: a compatible bump leaves
+        // the manifest byte-identical, which the check would likewise
+        // read as up to date and skip the registry re-resolution.
+        let optimistic_decision = is_full_install
+            && matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !frozen_lockfile
             && check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
                 workspace_root: &workspace_root,
@@ -563,8 +577,8 @@ where
                 is_workspace_install: workspace_manifest.is_some(),
                 lockfile,
                 catalogs: &catalogs,
-            }) == OptimisticRepeatInstallDecision::UpToDate
-        {
+            }) == OptimisticRepeatInstallDecision::UpToDate;
+        if optimistic_decision {
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,
                 message: "Already up to date".to_string(),
@@ -573,6 +587,10 @@ where
             Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
             return Ok(());
         }
+
+        // Past the repeat-install fast path every install flavor needs
+        // the wanted lockfile's contents; force the deferred load here.
+        let lockfile = lockfile.get().map_err(InstallError::LoadWantedLockfile)?;
 
         // Register the project against the shared store for prune
         // tracking, once per install at the workspace root. Mirrors
@@ -1757,6 +1775,70 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
 ///
 /// `workspace_projects.is_none()` covers single-project installs (no
 /// `pnpm-workspace.yaml`) — the only manifest is the root one.
+/// Inputs for [`install_already_up_to_date`].
+pub struct UpToDateFastPathCheck<'a> {
+    pub config: &'a Config,
+    pub manifest: &'a PackageManifest,
+    pub dependency_groups: Vec<DependencyGroup>,
+    pub node_linker: NodeLinker,
+}
+
+/// Pre-runtime twin of the repeat-install short-circuit inside
+/// [`Install::run`]: same workspace discovery, same
+/// [`check_optimistic_repeat_install`] inputs, callable from a
+/// synchronous context so the CLI can finish an up-to-date install
+/// before paying for the async runtime, the HTTP client, and the
+/// state setup. Returns the workspace root — the reporter `prefix`
+/// for the "Already up to date" emission — when the install can
+/// short-circuit.
+///
+/// Failures deliberately collapse to `None`: the caller falls through
+/// to the full install path, which reproduces the failure with its
+/// established error shape.
+#[must_use]
+pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<PathBuf> {
+    let UpToDateFastPathCheck { config, manifest, dependency_groups, node_linker } = check;
+    let included = IncludedDependencies {
+        dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+        dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+        optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+    };
+    let manifest_dir = manifest.path().parent()?;
+    let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir).ok()?;
+    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
+    let workspace_manifest = match workspace_dir_opt.as_deref() {
+        Some(dir) => pacquet_workspace::read_workspace_manifest(dir).ok()?,
+        None => None,
+    };
+    let catalogs = match config.catalogs.clone() {
+        Some(catalogs) => catalogs,
+        None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
+    };
+    let workspace_projects =
+        load_workspace_projects(&workspace_root, workspace_manifest.as_ref()).ok()?;
+    let project_manifests =
+        build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
+    // Same lockfile source as `State::init`'s (the manifest's
+    // directory), so the pre-runtime check and the in-pipeline check
+    // reach their verdicts from the same file.
+    let lockfile = if config.lockfile {
+        LazyLockfile::deferred(manifest_dir.to_path_buf())
+    } else {
+        LazyLockfile::disabled()
+    };
+    (check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: &workspace_root,
+        config,
+        node_linker: *node_linker,
+        included,
+        project_manifests: &project_manifests,
+        is_workspace_install: workspace_manifest.is_some(),
+        lockfile: MaybeLazyLockfile::Lazy(&lockfile),
+        catalogs: &catalogs,
+    }) == OptimisticRepeatInstallDecision::UpToDate)
+        .then_some(workspace_root)
+}
+
 fn build_project_manifests_list<'a>(
     workspace_root: &std::path::Path,
     root_manifest: &'a PackageManifest,

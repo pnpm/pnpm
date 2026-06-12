@@ -112,6 +112,65 @@ async fn warm_cache_serves_from_mirror_on_304() {
     assert_eq!(second_pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
 }
 
+/// A 304 renews the mirror's mtime so the publishedBy freshness
+/// shortcut in `pick_package` can fire again on the next install —
+/// without the touch, a mirror older than `minimumReleaseAge`
+/// re-validates on every subsequent install forever.
+#[tokio::test]
+async fn a_304_renews_the_mirror_mtime() {
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("etag", r#"W/"v1""#)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", r#"W/"v1""#)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        retry_opts: no_retry_opts(),
+    };
+
+    fetch_full_metadata_cached("acme", &opts).await.expect("200 populates cache");
+    let mirror_path =
+        get_pkg_mirror_path(cache.path(), FULL_META_DIR, &registry, "acme").expect("path");
+
+    // Age the mirror far past any maturity cutoff.
+    let aged = std::time::SystemTime::now() - std::time::Duration::from_hours(365 * 24);
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(&mirror_path)
+        .expect("open mirror")
+        .set_modified(aged)
+        .expect("age mirror");
+
+    fetch_full_metadata_cached("acme", &opts).await.expect("304 reads from mirror");
+
+    let renewed = std::fs::metadata(&mirror_path).expect("stat mirror").modified().expect("mtime");
+    let age = std::time::SystemTime::now().duration_since(renewed).expect("mtime in the past");
+    assert!(
+        age < std::time::Duration::from_mins(1),
+        "mirror mtime must be renewed by the 304; still {age:?} old",
+    );
+}
+
 /// Warm cache + stale `If-None-Match` → 200 → mirror is overwritten
 /// with the new body + new etag.
 #[tokio::test]
