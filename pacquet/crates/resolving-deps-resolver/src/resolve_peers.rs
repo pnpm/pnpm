@@ -133,6 +133,54 @@ pub struct ResolvePeersOptions {
     /// to compose `<modules_dir>/<alias>` as the remap target.
     /// `None` disables the remap.
     pub modules_dir: Option<std::path::PathBuf>,
+
+    /// When `Some`, missing-peer issues declared inside a subtree
+    /// whose root package was first resolved under a *different*
+    /// importer are not emitted. The peer-hoist loop sets this so its
+    /// input matches upstream, where a revisited package's children
+    /// keep the missing-peer report computed under the first
+    /// resolver's alias chain
+    /// ([`missingPeersOfChildrenByPkgId`](https://github.com/pnpm/pnpm/blob/a751c7f27d/installing/deps-resolver/src/resolveDependencies.ts#L193)) —
+    /// only the package's *own* peers are re-evaluated per occurrence.
+    /// The final workspace-wide pass leaves this `None` so warnings
+    /// still cover every importer.
+    pub hoist_missing_scope: Option<HoistMissingScope>,
+}
+
+/// See [`ResolvePeersOptions::hoist_missing_scope`].
+#[derive(Debug, Clone)]
+pub struct HoistMissingScope {
+    /// The importer whose hoist input is being computed.
+    pub importer_id: String,
+    /// `pkg id → first-resolving importer id`, from
+    /// [`crate::WorkspaceTreeCtx::first_importer_by_pkg`].
+    pub first_importer_by_pkg: HashMap<String, String>,
+    /// Per package: the missing-peer names reported by the first walk
+    /// that visited it, from
+    /// [`crate::WorkspaceTreeCtx::first_walk_missing_by_pkg`]. A
+    /// missing peer inside a foreign-claimed subtree is suppressed
+    /// only when the claimer's walk did *not* report it missing —
+    /// i.e. that context satisfied it, which is what upstream's
+    /// shared children report filtered out at walk time. Misses the
+    /// first walker could not satisfy stay visible to every importer
+    /// (and each hoists its own copy).
+    pub first_walk_missing_by_pkg: HashMap<String, std::collections::HashSet<String>>,
+}
+
+impl HoistMissingScope {
+    /// `true` when a miss of `peer_name` declared under the given
+    /// ancestor chain is covered by another importer's shared walk.
+    fn suppresses(&self, ancestor_pkg_ids: &[String], peer_name: &str) -> bool {
+        ancestor_pkg_ids.iter().any(|pkg_id| {
+            self.first_importer_by_pkg.get(pkg_id).is_some_and(|owner| {
+                *owner != self.importer_id
+                    && self
+                        .first_walk_missing_by_pkg
+                        .get(pkg_id)
+                        .is_some_and(|missing| !missing.contains(peer_name))
+            })
+        })
+    }
 }
 
 impl Default for ResolvePeersOptions {
@@ -143,6 +191,7 @@ impl Default for ResolvePeersOptions {
             exclude_links_from_lockfile: false,
             lockfile_dir: None,
             modules_dir: None,
+            hoist_missing_scope: None,
         }
     }
 }
@@ -154,6 +203,12 @@ pub struct ResolvePeersResult {
     pub graph: DependenciesGraph,
     pub direct_dependencies_by_alias: BTreeMap<String, DepPath>,
     pub peer_dependency_issues: PeerDependencyIssues,
+    /// Per resolved package: the union of missing-peer names its
+    /// occurrences reported in this walk. The hoist loop persists the
+    /// first walk's map per package so later importers can tell which
+    /// misses the first resolver's context already satisfied. See
+    /// [`HoistMissingScope`].
+    pub missing_names_by_pkg: HashMap<String, std::collections::HashSet<String>>,
 }
 
 /// One importer's input to the multi-importer [`fn@resolve_peers_workspace`]
@@ -555,10 +610,20 @@ impl Walker<'_> {
                 .insert(dep.alias.clone(), self.final_dep_path_of(&dep.node_id, &final_dep_paths));
         }
         let graph = self.build_final_graph(&final_dep_paths);
+        let mut missing_names_by_pkg: HashMap<String, std::collections::HashSet<String>> =
+            HashMap::new();
+        for (node_id, missing) in &self.node_missing_peers {
+            let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else { continue };
+            missing_names_by_pkg
+                .entry(tree_node.resolved_package_id.clone())
+                .or_default()
+                .extend(missing.keys().cloned());
+        }
         ResolvePeersResult {
             graph,
             direct_dependencies_by_alias: direct_by_alias,
             peer_dependency_issues: self.issues,
+            missing_names_by_pkg,
         }
     }
 
@@ -814,14 +879,24 @@ impl Walker<'_> {
             // parent chain so each occurrence of the package shows up
             // in the diagnostic, mirroring upstream's behaviour at the
             // cache-hit branch. Without this, the first walk's parent
-            // chain would be the only one ever reported.
-            for (peer_name, info) in &missing {
-                self.issues.missing.entry(peer_name.clone()).or_default().push(MissingPeer {
-                    wanted_range: info.range.clone(),
-                    optional: info.optional,
-                    meta_only: info.meta_only,
-                    parents: parents_from_chain(parent_chain_names, &pkg_name),
-                });
+            // chain would be the only one ever reported. The cached
+            // summary blends the node's own peers with its subtree's,
+            // so under a hoist scope the foreignness of the node
+            // itself counts too.
+            {
+                let mut chain_with_self = parent_pkg_ids_chain.to_vec();
+                chain_with_self.push(pkg.id.clone());
+                for (peer_name, info) in &missing {
+                    if self.missing_issue_suppressed(&chain_with_self, peer_name) {
+                        continue;
+                    }
+                    self.issues.missing.entry(peer_name.clone()).or_default().push(MissingPeer {
+                        wanted_range: info.range.clone(),
+                        optional: info.optional,
+                        meta_only: info.meta_only,
+                        parents: parents_from_chain(parent_chain_names, &pkg_name),
+                    });
+                }
             }
             self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
             self.node_external_peers.insert(node_id.clone(), resolved.clone());
@@ -883,6 +958,7 @@ impl Walker<'_> {
                 peer_dep,
                 &child_parent_refs,
                 &child_chain_names,
+                parent_pkg_ids_chain,
                 &mut own_resolved_peers,
                 &mut own_missing_peers,
             );
@@ -1053,6 +1129,18 @@ impl Walker<'_> {
         clippy::too_many_arguments,
         reason = "splitting these into a struct would only obscure the call site"
     )]
+    /// `true` when a missing-peer issue for `peer_name` under the
+    /// given ancestor chain must not be emitted for the hoist input.
+    /// See [`ResolvePeersOptions::hoist_missing_scope`].
+    fn missing_issue_suppressed(&self, ancestor_pkg_ids: &[String], peer_name: &str) -> bool {
+        let Some(scope) = self.opts.hoist_missing_scope.as_ref() else { return false };
+        scope.suppresses(ancestor_pkg_ids, peer_name)
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "internal walker helper threading per-node context, mirrors the resolve_node parameter set"
+    )]
     fn resolve_one_peer(
         &mut self,
         pkg_name: &str,
@@ -1060,6 +1148,7 @@ impl Walker<'_> {
         peer_dep: &PeerDep,
         parent_refs: &ParentRefs,
         chain: &[String],
+        ancestor_pkg_ids: &[String],
         resolved: &mut HashMap<String, NodeId>,
         missing: &mut HashMap<String, MissingPeerInfo>,
     ) {
@@ -1074,12 +1163,16 @@ impl Walker<'_> {
                     peer_name.to_string(),
                     MissingPeerInfo { range: range_for_match.to_string(), optional, meta_only },
                 );
-                self.issues.missing.entry(peer_name.to_string()).or_default().push(MissingPeer {
-                    wanted_range: range_for_match.to_string(),
-                    optional,
-                    meta_only,
-                    parents: parents_from_chain(chain, pkg_name),
-                });
+                if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
+                    self.issues.missing.entry(peer_name.to_string()).or_default().push(
+                        MissingPeer {
+                            wanted_range: range_for_match.to_string(),
+                            optional,
+                            meta_only,
+                            parents: parents_from_chain(chain, pkg_name),
+                        },
+                    );
+                }
             }
             Some(parent) => {
                 if !satisfies_with_prereleases(&parent.version, range_for_match) {

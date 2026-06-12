@@ -2055,6 +2055,7 @@ mod peers {
                 exclude_links_from_lockfile: true,
                 lockfile_dir: Some(lockfile_dir),
                 modules_dir: Some(modules_dir),
+                hoist_missing_scope: None,
             },
         );
 
