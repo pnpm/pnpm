@@ -33,6 +33,7 @@ use pacquet_lockfile::Lockfile;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_registry::{Package, PackageVersion};
+use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use std::{collections::HashMap, io::Write};
 
 /// Which registry version a dependency is compared against to decide
@@ -125,10 +126,14 @@ pub async fn collect_outdated(
         .map(|(alias, group, bare_specifier, current)| async move {
             let (package_name, range) =
                 PackageManifest::resolve_registry_dependency(alias, bare_specifier);
+            let registries: HashMap<String, String> =
+                config.resolved_registries().into_iter().collect();
+            let registry =
+                pick_registry_for_package(&registries, package_name, Some(bare_specifier));
             let package = Package::fetch_from_registry(
                 package_name,
                 http_client,
-                &config.registry,
+                &registry,
                 &config.auth_headers,
             )
             .await

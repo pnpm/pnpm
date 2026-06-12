@@ -124,6 +124,7 @@ pub struct WorkspaceSettings {
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
     pub registry: Option<String>,
+    pub registries: Option<BTreeMap<String, String>>,
     pub pnpr_server: Option<String>,
 
     /// User-defined named-registry aliases. Outer key is the alias
@@ -660,6 +661,7 @@ impl WorkspaceSettings {
         self.substitute_env_scalars::<Sys>();
         substitute_optional_string::<Sys>(&mut self.pnpr_server);
         substitute_optional_string::<Sys>(&mut self.registry);
+        substitute_optional_string_map::<Sys>(&mut self.registries);
         substitute_optional_string_map::<Sys>(&mut self.named_registries);
     }
 
@@ -679,6 +681,9 @@ impl WorkspaceSettings {
 
         if self.registry.as_deref().is_some_and(has_env_placeholder) {
             self.registry = None;
+        }
+        if let Some(registries) = self.registries.as_mut() {
+            registries.retain(|_, value| !has_env_placeholder(value));
         }
         if let Some(named_registries) = self.named_registries.as_mut() {
             named_registries.retain(|_, value| !has_env_placeholder(value));
@@ -789,8 +794,18 @@ impl WorkspaceSettings {
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
         }
+        if let Some(registries) = self.registries {
+            for (scope, registry) in registries {
+                let registry = normalize_registry_url(&registry);
+                if scope == "default" {
+                    config.registry = registry;
+                } else {
+                    config.registries.insert(scope, registry);
+                }
+            }
+        }
         if let Some(v) = self.registry {
-            config.registry = if v.ends_with('/') { v } else { format!("{v}/") };
+            config.registry = normalize_registry_url(&v);
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
@@ -937,6 +952,10 @@ fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<Option<Strin
         let (substituted, _) = env_replace_lossy::<Sys>(value);
         *value = substituted;
     }
+}
+
+fn normalize_registry_url(registry: &str) -> String {
+    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 fn resolve(base: &Path, value: &str) -> PathBuf {

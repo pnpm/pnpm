@@ -90,12 +90,7 @@ pub fn build_resolution_verifiers(
         BuildVerifiersError::invalid_trust_policy_exclude,
     )?;
 
-    // Pacquet's `Config` carries a single registry URL; multi-scope
-    // routing lives in `.npmrc` parsing pacquet doesn't surface here
-    // yet. Build the minimal `{"default": registry}` map the verifier
-    // expects, so scope routing degrades to "always default".
-    let mut registries = HashMap::with_capacity(1);
-    registries.insert("default".to_string(), config.registry.clone());
+    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
 
     let opts = CreateNpmResolutionVerifierOptions {
         minimum_release_age: config.resolved_minimum_release_age(),

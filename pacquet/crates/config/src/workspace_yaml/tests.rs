@@ -166,6 +166,33 @@ namedRegistries:
     );
 }
 
+#[test]
+fn parses_registries_from_yaml_and_applies() {
+    let yaml = r"
+registries:
+  default: https://default.example.com/npm
+  '@private': https://private.example.com/npm
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let registries = settings.registries.as_ref().expect("registries present");
+    assert_eq!(
+        registries.get("default").map(String::as_str),
+        Some("https://default.example.com/npm"),
+    );
+    assert_eq!(
+        registries.get("@private").map(String::as_str),
+        Some("https://private.example.com/npm"),
+    );
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.registry, "https://default.example.com/npm/");
+    assert_eq!(
+        config.registries.get("@private").map(String::as_str),
+        Some("https://private.example.com/npm/"),
+    );
+}
+
 /// Env-var placeholders inside workspace request destinations are ignored so
 /// repository-controlled config cannot smuggle victim environment
 /// values into outbound requests.
@@ -181,6 +208,9 @@ fn ignores_env_vars_inside_workspace_request_destination_values() {
     let yaml = r"
 pnprServer: https://${WORK_HOST}/pnpr/
 registry: https://${WORK_HOST}/npm/
+registries:
+  '@safe': https://safe.example.com/npm/
+  '@work': https://${WORK_HOST}/scope/
 namedRegistries:
   literal: 'https://registry.example.com/${/npm/'
   stable: https://registry.example.com/npm/
@@ -192,6 +222,11 @@ namedRegistries:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.pnpr_server, None);
     assert_eq!(config.registry, "https://registry.npmjs.org/");
+    assert_eq!(
+        config.registries.get("@safe").map(String::as_str),
+        Some("https://safe.example.com/npm/"),
+    );
+    assert_eq!(config.registries.get("@work"), None);
     assert_eq!(
         config.named_registries.get("stable").map(String::as_str),
         Some("https://registry.example.com/npm/"),

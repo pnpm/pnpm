@@ -94,8 +94,7 @@ async fn resolve_and_install<Reporter: self::Reporter>(
         .wrap_err("create the network client for configurational dependencies")?,
     );
 
-    let mut registries = HashMap::new();
-    registries.insert("default".to_string(), config.registry.clone());
+    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
 
     let retry_opts = RetryOpts {
         retries: config.fetch_retries,

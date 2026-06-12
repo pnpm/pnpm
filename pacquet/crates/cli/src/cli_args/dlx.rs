@@ -365,8 +365,7 @@ fn run_bin(
 /// Build the `{ "default": registry, <alias>: url, … }` map pnpm feeds
 /// into the cache key. Mirrors `registries_map` in dlx.ts.
 fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
-    let mut map = BTreeMap::new();
-    map.insert("default".to_string(), config.registry.clone());
+    let mut map = config.resolved_registries();
     for (name, url) in &config.named_registries {
         map.insert(name.clone(), url.clone());
     }

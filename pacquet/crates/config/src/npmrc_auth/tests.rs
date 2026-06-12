@@ -54,6 +54,26 @@ fn preserves_existing_trailing_slash() {
 }
 
 #[test]
+fn parses_scoped_registry_and_applies() {
+    let auth = NpmrcAuth::from_ini::<NoEnv>(
+        "@private:registry=https://private.example/npm\n",
+        Path::new(""),
+    );
+
+    assert_eq!(
+        auth.scoped_registries.get("@private").map(String::as_str),
+        Some("https://private.example/npm/"),
+    );
+
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(
+        config.registries.get("@private").map(String::as_str),
+        Some("https://private.example/npm/"),
+    );
+}
+
+#[test]
 fn ignores_non_auth_keys() {
     // These are all project-structural settings that pnpm 11 only reads
     // from pnpm-workspace.yaml now. Writing them to .npmrc should be a
@@ -174,7 +194,7 @@ fn project_ini_ignores_env_placeholders_in_scoped_registry_urls() {
         Path::new(""),
     );
 
-    assert!(auth.creds_by_uri.is_empty());
+    assert!(auth.scoped_registries.is_empty());
     assert!(auth.warnings.iter().any(|warning| warning.contains("@scope:registry")));
 }
 

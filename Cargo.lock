@@ -3996,6 +3996,7 @@ dependencies = [
  "indexmap 2.14.0",
  "insta",
  "miette 7.6.0",
+ "mockito",
  "node-semver",
  "pacquet-catalogs-config",
  "pacquet-catalogs-protocol-parser",

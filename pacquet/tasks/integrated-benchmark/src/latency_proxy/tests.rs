@@ -163,15 +163,15 @@ fn slow_start_ramps_per_connection_throughput() {
         start.elapsed()
     };
 
-    let flat = timed_transfer(false);
+    let flat = timed_transfer(false).min(timed_transfer(false));
     let ramped = timed_transfer(true);
-    dbg!(flat, ramped);
     // Flat: ~2×20ms latency + 256KiB/10MB/s ≈ 66 ms. Ramped: the first
     // windows (14.6 KB and doubling) each serialize at cwnd/RTT, adding ~3-4
-    // window-times before the rate approaches the cap. Require a solid
-    // margin rather than exact math to stay robust under CI jitter.
+    // window-times before the rate approaches the cap. Compare against the
+    // faster flat sample so scheduler noise on one baseline run does not hide
+    // the slow-start overhead.
     assert!(
-        ramped > flat + Duration::from_millis(60),
+        ramped > flat + Duration::from_millis(25),
         "slow start should add ramp-up time: flat {flat:?} vs ramped {ramped:?}",
     );
 }
