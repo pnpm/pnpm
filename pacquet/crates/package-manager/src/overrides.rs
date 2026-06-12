@@ -267,13 +267,10 @@ impl VersionsOverrider {
                     peers.insert(name, Value::String(new_spec));
                 }
             } else {
-                if !value.get("dependencies").is_some_and(Value::is_object) {
-                    if let Some(root) = value.as_object_mut() {
-                        root.insert(
-                            "dependencies".to_string(),
-                            Value::Object(serde_json::Map::new()),
-                        );
-                    }
+                if !value.get("dependencies").is_some_and(Value::is_object)
+                    && let Some(root) = value.as_object_mut()
+                {
+                    root.insert("dependencies".to_string(), Value::Object(serde_json::Map::new()));
                 }
                 if let Some(deps) = value.get_mut("dependencies").and_then(Value::as_object_mut) {
                     deps.insert(name, Value::String(new_spec));

@@ -2549,6 +2549,10 @@ mod importer_wanted_specs {
     use crate::resolve_dependency_tree::importer_direct_wanted_specs;
     use pretty_assertions::assert_eq;
 
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "test helpers take owned literal fixtures by value to keep call sites clean"
+    )]
     fn manifest_with(groups: serde_json::Value) -> (tempfile::TempDir, PackageManifest) {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join("package.json");
