@@ -1,7 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
-use pacquet_lockfile::{LoadLockfileError, Lockfile};
+use pacquet_lockfile::LazyLockfile;
 use pacquet_network::{ForInstallsError, NetworkSettings, ThrottledClient};
 use pacquet_package_manager::ResolvedPackages;
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
@@ -28,8 +28,10 @@ pub struct State {
     pub config: &'static Config,
     /// Data from the `package.json` file.
     pub manifest: PackageManifest,
-    /// Data from the `pnpm-lock.yaml` file.
-    pub lockfile: Option<Lockfile>,
+    /// The `pnpm-lock.yaml` file, read + parsed on first access so the
+    /// repeat-install fast path (which never needs its contents) skips
+    /// the YAML parse.
+    pub lockfile: LazyLockfile,
     /// In-memory cache for packages that have started resolving dependencies.
     pub resolved_packages: ResolvedPackages,
 }
@@ -40,9 +42,6 @@ pub struct State {
 pub enum InitStateError {
     #[diagnostic(transparent)]
     Manifest(#[error(source)] PackageManifestError),
-
-    #[diagnostic(transparent)]
-    Lockfile(#[error(source)] LoadLockfileError),
 
     #[diagnostic(transparent)]
     Network(#[error(source)] ForInstallsError),
@@ -68,8 +67,7 @@ impl State {
             manifest: manifest_path
                 .pipe(PackageManifest::create_if_needed)
                 .map_err(InitStateError::Manifest)?,
-            lockfile: call_load_lockfile(should_load, Lockfile::load_from_current_dir)
-                .map_err(InitStateError::Lockfile)?,
+            lockfile: LazyLockfile::deferred(should_load),
             http_client: std::sync::Arc::new(
                 ThrottledClient::for_installs(
                     &config.proxy,
@@ -88,21 +86,3 @@ impl State {
         })
     }
 }
-
-/// Load the lockfile from the current directory when `should_load` is
-/// `true`. Callers compose `should_load` from `config.lockfile ||
-/// --frozen-lockfile` so the CLI flag is always honoured.
-///
-/// This function was extracted to be tested independently.
-fn call_load_lockfile<LoadLockfile, Lockfile, Error>(
-    should_load: bool,
-    load_lockfile: LoadLockfile,
-) -> Result<Option<Lockfile>, Error>
-where
-    LoadLockfile: FnOnce() -> Result<Option<Lockfile>, Error>,
-{
-    should_load.then(load_lockfile).transpose().map(Option::flatten)
-}
-
-#[cfg(test)]
-mod tests;

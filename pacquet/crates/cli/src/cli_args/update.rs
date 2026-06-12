@@ -131,6 +131,8 @@ impl UpdateArgs {
 
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &mut state;
+        let lockfile =
+            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
@@ -143,7 +145,7 @@ impl UpdateArgs {
         let packages = if self.interactive {
             match crate::cli_args::update_interactive::select_packages(
                 manifest,
-                lockfile.as_ref(),
+                lockfile,
                 config,
                 http_client,
                 self.latest,
@@ -168,7 +170,7 @@ impl UpdateArgs {
             http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
-            lockfile: lockfile.as_ref(),
+            lockfile,
             lockfile_path: lockfile_path.as_deref(),
             packages: &packages,
             latest: self.latest,

@@ -17,7 +17,8 @@ use pacquet_executor::{
     ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
 };
 use pacquet_lockfile::{
-    LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
+    LoadLockfileError, Lockfile, MaybeLazyLockfile, SaveLockfileError, StalenessReason,
+    satisfies_package_manifest,
 };
 use pacquet_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, record_lockfile_verified,
@@ -106,7 +107,7 @@ where
     pub http_client_arc: Arc<ThrottledClient>,
     pub config: &'static Config,
     pub manifest: &'a PackageManifest,
-    pub lockfile: Option<&'a Lockfile>,
+    pub lockfile: MaybeLazyLockfile<'a>,
     /// Absolute path of the loaded `pnpm-lock.yaml`. Threaded into
     /// the lockfile-verification gate so the per-path stat shortcut
     /// in `<cache_dir>/lockfile-verified.jsonl` can fire on repeat
@@ -284,6 +285,12 @@ pub enum InstallError {
     /// <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L226-L227>.
     #[diagnostic(transparent)]
     LoadCurrentLockfile(#[error(source)] LoadLockfileError),
+
+    /// Surfaces a `pnpm-lock.yaml` read or parse failure from the
+    /// deferred load that runs once the repeat-install fast path has
+    /// passed on the install (see [`MaybeLazyLockfile`]).
+    #[diagnostic(transparent)]
+    LoadWantedLockfile(#[error(source)] LoadLockfileError),
 
     /// Surfaces a failure to persist the current lockfile so the next
     /// install can diff against it. A best-effort warn would let
@@ -552,7 +559,7 @@ where
         // otherwise read as "nothing changed → already up to date" and
         // skip the registry re-resolution entirely. Gating on
         // `KeepAll` keeps `install` / `add` on the fast path.
-        if matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
+        let optimistic_decision = matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !frozen_lockfile
             && check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
                 workspace_root: &workspace_root,
@@ -563,8 +570,8 @@ where
                 is_workspace_install: workspace_manifest.is_some(),
                 lockfile,
                 catalogs: &catalogs,
-            }) == OptimisticRepeatInstallDecision::UpToDate
-        {
+            }) == OptimisticRepeatInstallDecision::UpToDate;
+        if optimistic_decision {
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,
                 message: "Already up to date".to_string(),
@@ -573,6 +580,10 @@ where
             Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
             return Ok(());
         }
+
+        // Past the repeat-install fast path every install flavor needs
+        // the wanted lockfile's contents; force the deferred load here.
+        let lockfile = lockfile.get().map_err(InstallError::LoadWantedLockfile)?;
 
         // Register the project against the shared store for prune
         // tracking, once per install at the workspace root. Mirrors

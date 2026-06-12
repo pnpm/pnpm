@@ -2,7 +2,7 @@ use crate::{Install, InstallError, ResolvedPackages, UpdateSeedPolicy};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
@@ -105,7 +105,7 @@ impl Remove<'_> {
             http_client_arc,
             config,
             manifest,
-            lockfile,
+            lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
             // `pnpm remove`'s `include` defaults to every dependency
             // group (`production`/`dev`/`optional` !== false), so the

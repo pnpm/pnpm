@@ -326,7 +326,10 @@ impl OutdatedArgs {
 
         let config = state.config;
         let manifest = &state.manifest;
-        let lockfile = &state.lockfile;
+        let lockfile = state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
         let http_client = &state.http_client;
 
         // A manifest with no dependencies at all is reported as up to date
@@ -361,7 +364,7 @@ impl OutdatedArgs {
             include_deprecated: true,
         };
         let mut outdated =
-            collect_outdated(manifest, lockfile.as_ref(), config, http_client, &query).await?;
+            collect_outdated(manifest, lockfile, config, http_client, &query).await?;
 
         sort_outdated(&mut outdated, self.sort_by);
 

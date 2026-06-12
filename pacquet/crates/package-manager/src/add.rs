@@ -10,7 +10,7 @@ use pacquet_catalogs_config::{
 use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::{PackageTag, PackageVersion};
@@ -216,7 +216,7 @@ where
             http_client_arc,
             config,
             manifest,
-            lockfile,
+            lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
             dependency_groups: list_dependency_groups(),
             frozen_lockfile: false,

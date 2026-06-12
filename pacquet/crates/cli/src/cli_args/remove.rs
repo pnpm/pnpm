@@ -60,6 +60,8 @@ impl RemoveArgs {
     ) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &mut state;
+        let lockfile =
+            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
         let lockfile_path = manifest
             .path()
@@ -71,7 +73,7 @@ impl RemoveArgs {
             http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
-            lockfile: lockfile.as_ref(),
+            lockfile,
             lockfile_path: lockfile_path.as_deref(),
             package_names: &self.package_names,
             save_type: self.dependency_options.save_type(),

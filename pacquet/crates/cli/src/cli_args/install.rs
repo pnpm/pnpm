@@ -3,7 +3,7 @@ use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pacquet_config::NodeLinker;
-use pacquet_lockfile::{Lockfile, LockfileResolution};
+use pacquet_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
 use pacquet_package_manager::{
     Install, InstallFrozenLockfileError, LockfileVerificationOverride, TarballPrefetcher,
     UpdateSeedPolicy,
@@ -362,7 +362,7 @@ impl InstallArgs {
             http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
-            lockfile: lockfile.as_ref(),
+            lockfile: MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: lockfile_path.as_deref(),
             dependency_groups: dependency_options.dependency_groups(),
             frozen_lockfile,
@@ -541,7 +541,11 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             .collect(),
         authorization: state.config.auth_headers.for_url(pnpr_server),
         overrides,
-        lockfile: state.lockfile.clone(),
+        lockfile: state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
+            .cloned(),
         frozen_lockfile: link.frozen_lockfile,
         prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
         ignore_manifest_check: link.ignore_manifest_check,
@@ -562,7 +566,10 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
 
     if link.frozen_lockfile
         && !link.lockfile_only
-        && let Some(lockfile) = state.lockfile.as_ref()
+        && let Some(lockfile) = state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
     {
         let prefetcher = TarballPrefetcher::new(
             state.config,
@@ -601,7 +608,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             http_client_arc: std::sync::Arc::clone(&state.http_client),
             config: state.config,
             manifest: &state.manifest,
-            lockfile: Some(lockfile),
+            lockfile: MaybeLazyLockfile::Loaded(Some(lockfile)),
             lockfile_path: link.lockfile_path,
             dependency_groups: link.dependency_groups,
             frozen_lockfile: true,
@@ -721,7 +728,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         http_client_arc: std::sync::Arc::clone(&state.http_client),
         config: state.config,
         manifest: &state.manifest,
-        lockfile: Some(&outcome.lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&outcome.lockfile)),
         lockfile_path: link.lockfile_path,
         dependency_groups: link.dependency_groups,
         frozen_lockfile: true,

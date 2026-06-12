@@ -2,7 +2,7 @@ use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install, current_settings,
 };
 use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_workspace_state::{
@@ -31,7 +31,7 @@ fn check(
         included: isolated_included(),
         project_manifests,
         is_workspace_install: false,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
     })
 }
@@ -1112,7 +1112,7 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
             (sibling_dir, &sibling_manifest),
         ],
         is_workspace_install: true,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
     });
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
@@ -1174,7 +1174,7 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
         included: isolated_included(),
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: true,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
     });
     assert_eq!(decision, Decision::UpToDate);
@@ -1249,7 +1249,7 @@ fn content_check_decision(
         included: isolated_included(),
         project_manifests,
         is_workspace_install,
-        lockfile: lockfile.as_ref(),
+        lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
         catalogs: &BTreeMap::default(),
     })
 }
@@ -1423,7 +1423,7 @@ importers:
             (sibling_dir, &sibling_manifest),
         ],
         is_workspace_install: true,
-        lockfile: lockfile.as_ref(),
+        lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
         catalogs: &BTreeMap::default(),
     })
 }

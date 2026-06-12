@@ -19,13 +19,7 @@ pub async fn main() -> miette::Result<()> {
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
     let (config_overrides, argv) = ConfigOverrides::extract(std::env::args_os());
-    // Run argument parsing *before* sizing the rayon pool so
-    // `pacquet --help` / `--version` (and any clap parse error) exit
-    // without spinning up worker threads. `clap::Parser::parse` calls
-    // `std::process::exit` on those paths, so we never reach
-    // `configure_rayon_pool` for them (Copilot review on <https://github.com/pnpm/pacquet/pull/292>).
     let args = CliArgs::parse_from(argv);
-    configure_rayon_pool();
     // Boxed for `clippy::large_futures`: the command future exceeds the
     // lint's stack-size threshold (the limit trips on Windows first).
     Box::pin(args.run(&config_overrides)).await
@@ -40,6 +34,14 @@ pub async fn main() -> miette::Result<()> {
 /// threads underutilize the journal, way more (100+) loses to context
 /// switching and per-thread fixed costs (`user` time scales linearly
 /// past 50 without any wall-time payoff).
+///
+/// The size is applied through the `RAYON_NUM_THREADS` environment
+/// variable rather than `ThreadPoolBuilder::build_global` so the pool
+/// itself spawns lazily on first rayon use: commands that never reach
+/// a parallel phase (`--help`, the repeat-install "Already up to
+/// date" short-circuit) skip the worker-thread spawn cost entirely.
+/// An explicit `RAYON_NUM_THREADS` from the caller is honoured by
+/// leaving it untouched.
 ///
 /// Use [`std::thread::available_parallelism`] rather than the
 /// workspace's existing `num_cpus::get()` so cgroup / CPU-quota
@@ -59,15 +61,14 @@ pub async fn main() -> miette::Result<()> {
 /// quota literally — Copilot's follow-up flagged the tension; we're
 /// keeping the floor and documenting it explicitly.
 ///
-/// Honours an explicit `RAYON_NUM_THREADS` env var by skipping our
-/// override (rayon's `build_global` errors if a pool is already set,
-/// but env vars don't pre-init it — so we just apply a smaller
-/// override only when nothing else has been configured). Best-effort:
-/// if another part of the binary already initialised the pool, leave
-/// it alone.
+/// # Safety contract
+///
+/// Mutates the process environment, so the caller must invoke it
+/// before any other thread exists — in practice: in `fn main`, before
+/// the tokio runtime is built.
 ///
 /// [#292]: https://github.com/pnpm/pacquet/pull/292
-fn configure_rayon_pool() {
+pub fn configure_rayon_pool() {
     if std::env::var_os("RAYON_NUM_THREADS").is_some() {
         return;
     }
@@ -79,5 +80,8 @@ fn configure_rayon_pool() {
         // "rayon worker stalls on `clonefile` while the next snapshot
         // can't start" regime. See the function-level doc.
         .max(4);
-    let _ = rayon::ThreadPoolBuilder::new().num_threads(n).build_global();
+    // SAFETY: called from `fn main` before the tokio runtime (or any
+    // other thread) is created, so no concurrent reader of the
+    // process environment can exist.
+    unsafe { std::env::set_var("RAYON_NUM_THREADS", n.to_string()) };
 }
