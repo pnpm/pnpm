@@ -244,6 +244,14 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
 
+    /// A custom resolver hook failed (loading the pnpmfile's resolvers
+    /// or running `shouldRefreshResolution`) while deciding whether the
+    /// frozen-path optimization may run. Mirrors pnpm, where a throwing
+    /// hook aborts the install.
+    #[display("{_0}")]
+    #[diagnostic(code(PNPMFILE_FAIL))]
+    CustomResolverForceResolve(#[error(not(source))] pacquet_hooks::HookError),
+
     /// `--no-runtime` (or `config.skip_runtimes`) is honored only on
     /// the frozen-lockfile path today, where the runtime filter runs
     /// against the loaded lockfile's `packages:` map. A non-frozen
@@ -823,7 +831,24 @@ where
                     &catalogs,
                     ignore_manifest_check,
                 ) {
-                    Ok(()) => true,
+                    // Even an up-to-date lockfile may not go frozen: a
+                    // custom resolver's `shouldRefreshResolution` can
+                    // force the fresh-resolve path. pnpm folds the
+                    // hook's verdict into `needsFullResolution`, which
+                    // blocks `isFrozenInstallPossible`. A lockfile
+                    // synthesized from the current snapshot skips the
+                    // check (upstream gates on
+                    // `existsNonEmptyWantedLockfile`). A throwing hook
+                    // aborts the install.
+                    Ok(()) => {
+                        lockfile_synthesized_from_current
+                            || !crate::check_custom_resolver_force_resolve::force_resolve_from_pnpmfile(
+                                lockfile,
+                                &workspace_root,
+                            )
+                            .await
+                            .map_err(InstallError::CustomResolverForceResolve)?
+                    }
                     Err(FreshnessCheckError::Stale(_) | FreshnessCheckError::NoImporter { .. }) => {
                         false
                     }
@@ -930,7 +955,13 @@ where
             }
             update_workspace_state(
                 &workspace_root,
-                &build_workspace_state(config, node_linker, included, &project_manifests),
+                &build_workspace_state(
+                    &workspace_root,
+                    config,
+                    node_linker,
+                    included,
+                    &project_manifests,
+                ),
             )
             .map_err(InstallError::WriteWorkspaceState)?;
             Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
@@ -1268,7 +1299,13 @@ where
         // committed install.
         update_workspace_state(
             &workspace_root,
-            &build_workspace_state(config, node_linker, included, &project_manifests),
+            &build_workspace_state(
+                &workspace_root,
+                config,
+                node_linker,
+                included,
+                &project_manifests,
+            ),
         )
         .map_err(InstallError::WriteWorkspaceState)?;
 
@@ -1806,6 +1843,7 @@ fn build_projects_map(
 /// only iterates fields present in the serialized object, so an
 /// absent key is silently skipped rather than treated as a drift.
 pub(crate) fn build_workspace_state(
+    workspace_root: &Path,
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
@@ -1814,10 +1852,7 @@ pub(crate) fn build_workspace_state(
     WorkspaceState {
         last_validated_timestamp: now_millis(),
         projects: build_projects_map(project_manifests),
-        // Pacquet doesn't run pnpmfiles yet; record the empty list so
-        // pnpm's `patchesOrHooksAreModified` doesn't trip on a missing
-        // field.
-        pnpmfiles: Vec::new(),
+        pnpmfiles: crate::optimistic_repeat_install::current_pnpmfiles(workspace_root),
         // Pacquet has no `--filter` yet (issue <https://github.com/pnpm/pacquet/issues/299> stage 2). Hard-code
         // `false` so pnpm doesn't treat the install as partial and
         // skip the cache.

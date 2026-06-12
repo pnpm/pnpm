@@ -729,9 +729,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.44"
+version = "0.4.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c673075a2e0e5f4a1dde27ce9dee1ea4558c7ffe648f576438a20ca1d2acc4b0"
+checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
 dependencies = [
  "iana-time-zone",
  "num-traits",
@@ -3835,6 +3835,9 @@ dependencies = [
  "async-trait",
  "derive_more",
  "pacquet-crypto-hash",
+ "pacquet-lockfile",
+ "pacquet-resolving-resolver-base",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",
@@ -3988,6 +3991,7 @@ name = "pacquet-package-manager"
 version = "0.0.1"
 dependencies = [
  "async-recursion",
+ "async-trait",
  "chrono",
  "dashmap",
  "derive_more",
@@ -4199,6 +4203,7 @@ dependencies = [
  "pacquet-lockfile",
  "pacquet-package-manifest",
  "pacquet-patching",
+ "pacquet-resolving-jsr-specifier-parser",
  "pacquet-resolving-parse-wanted-dependency",
  "pacquet-resolving-resolver-base",
  "pathdiff",
@@ -4362,6 +4367,7 @@ dependencies = [
  "pacquet-diagnostics",
  "pacquet-fs",
  "pacquet-network",
+ "pacquet-package-manifest",
  "pacquet-reporter",
  "pacquet-store-dir",
  "pipe-trait",
@@ -4487,9 +4493,9 @@ dependencies = [
 
 [[package]]
 name = "papergrid"
-version = "0.17.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6978128c8b51d8f4080631ceb2302ab51e32cc6e8615f735ee2f83fd269ae3f1"
+checksum = "d0984e668274d34691bc2b262ef0d115de5fa9973bcdee7ae32213f93099153e"
 dependencies = [
  "bytecount",
  "fnv",
@@ -6181,9 +6187,9 @@ dependencies = [
 
 [[package]]
 name = "tabled"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e39a2ee1fbcd360805a771e1b300f78cc88fec7b8d3e2f71cd37bbf23e725c7d"
+checksum = "b5dc662e6da844ad6e428ad16b57967c9d33c82e16bb1c258326c0c078605dff"
 dependencies = [
  "papergrid",
  "tabled_derive",

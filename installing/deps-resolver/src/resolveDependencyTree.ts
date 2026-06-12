@@ -23,9 +23,9 @@ import type {
 import { partition } from 'ramda'
 
 import type { WantedDependency } from './getNonDevWantedDependencies.js'
-import { nextNodeId, type NodeId } from './nextNodeId.js'
-import { parentIdsContainSequence } from './parentIdsContainSequence.js'
+import type { NodeId } from './nextNodeId.js'
 import {
+  buildTree,
   type ChildrenByParentId,
   type DependenciesTree,
   type ImporterToResolve,
@@ -226,6 +226,14 @@ export async function resolveDependencyTree<T> (
     allPeerDepNames: new Set(),
     maximumPublishedBy: publishedBy,
     publishedByExclude,
+    packageResolutionBarrier: {
+      activeByDepth: new Map(),
+      waiters: [],
+    },
+    childrenResolutionByPkgId: {},
+    childrenResolutionId: 0,
+    importerResolutionOrder: Object.fromEntries(importers.map(({ id }, index) => [id, index])),
+    nodeResolutionContextByNodeId: new Map(),
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude') : undefined,
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
@@ -358,51 +366,6 @@ export async function resolveDependencyTree<T> (
     allPeerDepNames: ctx.allPeerDepNames,
     resolutionPolicyViolations: ctx.resolutionPolicyViolations,
   }
-}
-
-function buildTree (
-  ctx: {
-    childrenByParentId: ChildrenByParentId
-    dependenciesTree: DependenciesTree<ResolvedPackage>
-    resolvedPkgsById: ResolvedPkgsById
-    skipped: Set<PkgResolutionId>
-  },
-  parentId: PkgResolutionId,
-  parentIds: PkgResolutionId[],
-  children: Array<{ alias: string, id: PkgResolutionId }>,
-  depth: number,
-  installable: boolean
-): Record<string, NodeId> {
-  const childrenNodeIds: Record<string, NodeId> = {}
-  for (const child of children) {
-    if (child.id.startsWith('link:')) {
-      childrenNodeIds[child.alias] = child.id as unknown as NodeId
-      continue
-    }
-    if (parentIdsContainSequence(parentIds, parentId, child.id) || parentId === child.id) {
-      continue
-    }
-    if (ctx.resolvedPkgsById[child.id].isLeaf) {
-      childrenNodeIds[child.alias] = child.id as unknown as NodeId
-      continue
-    }
-    const childNodeId = nextNodeId()
-    childrenNodeIds[child.alias] = childNodeId
-    installable = installable || !ctx.skipped.has(child.id)
-    ctx.dependenciesTree.set(childNodeId, {
-      children: () => buildTree(ctx,
-        child.id,
-        [...parentIds, child.id],
-        ctx.childrenByParentId[child.id],
-        depth + 1,
-        installable
-      ),
-      depth,
-      installable,
-      resolvedPackage: ctx.resolvedPkgsById[child.id],
-    })
-  }
-  return childrenNodeIds
 }
 
 /**

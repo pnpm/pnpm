@@ -365,9 +365,13 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         opts: &ResolveOptions,
         optional: bool,
     ) -> Result<Option<PickedFromRegistry>, ResolveError> {
+        let overlay_selectors =
+            crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
         let pick_opts = PickPackageOptions {
             registry,
-            preferred_version_selectors: opts.preferred_versions.get(&spec.name),
+            preferred_version_selectors: overlay_selectors
+                .as_ref()
+                .or_else(|| opts.preferred_versions.get(&spec.name)),
             published_by: opts.published_by,
             published_by_exclude: opts.published_by_exclude.as_ref(),
             pick_lowest_version: opts.pick_lowest_version,

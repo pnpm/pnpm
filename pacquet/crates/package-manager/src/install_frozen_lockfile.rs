@@ -696,6 +696,7 @@ where
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot,
+            requires_build_by_snapshot,
             fetch_failed,
             cas_paths_by_pkg_id,
         } = {
@@ -1064,6 +1065,7 @@ where
             importers,
             allow_build_policy: &allow_build_policy,
             side_effects_maps_by_snapshot: Some(&side_effects_maps_by_snapshot),
+            requires_build_by_snapshot: Some(&requires_build_by_snapshot),
             engine_name: engine_name.as_deref(),
             side_effects_cache: config.side_effects_cache_read(),
             side_effects_cache_write: config.side_effects_cache_write(),

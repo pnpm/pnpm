@@ -186,4 +186,79 @@ impl crate::PnpmfileHooks for NodeJsHooks {
     fn source_path(&self) -> Option<&std::path::Path> {
         Some(&self.file)
     }
+
+    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn crate::CustomResolver>>, HookError> {
+        let worker = self.worker().await?;
+        let capabilities = worker.get_resolver_capabilities().await?;
+        Ok(capabilities
+            .into_iter()
+            .enumerate()
+            .map(|(index, capabilities)| {
+                Arc::new(NodeJsCustomResolver { worker: Arc::clone(&worker), index, capabilities })
+                    as Arc<dyn crate::CustomResolver>
+            })
+            .collect())
+    }
+}
+
+pub struct NodeJsCustomResolver {
+    worker: Arc<NodeWorker>,
+    index: usize,
+    capabilities: crate::worker::ResolverCapabilities,
+}
+
+#[async_trait]
+impl crate::CustomResolver for NodeJsCustomResolver {
+    fn has_can_resolve(&self) -> bool {
+        self.capabilities.can_resolve
+    }
+
+    fn has_resolve(&self) -> bool {
+        self.capabilities.resolve
+    }
+
+    fn has_should_refresh_resolution(&self) -> bool {
+        self.capabilities.should_refresh_resolution
+    }
+
+    async fn can_resolve(&self, wanted_dependency: Value) -> Result<bool, HookError> {
+        let res = self
+            .worker
+            .call_resolver(
+                self.index,
+                "canResolve",
+                serde_json::json!([wanted_dependency]),
+                Arc::new(|_| {}),
+            )
+            .await?;
+        Ok(res.as_bool().unwrap_or(false))
+    }
+
+    async fn resolve(&self, wanted_dependency: Value, opts: Value) -> Result<Value, HookError> {
+        self.worker
+            .call_resolver(
+                self.index,
+                "resolve",
+                serde_json::json!([wanted_dependency, opts]),
+                Arc::new(|_| {}),
+            )
+            .await
+    }
+
+    async fn should_refresh_resolution(
+        &self,
+        dep_path: &pacquet_lockfile::PackageKey,
+        pkg_snapshot: Value,
+    ) -> Result<bool, HookError> {
+        let res = self
+            .worker
+            .call_resolver(
+                self.index,
+                "shouldRefreshResolution",
+                serde_json::json!([dep_path.to_string(), pkg_snapshot]),
+                Arc::new(|_| {}),
+            )
+            .await?;
+        Ok(res.as_bool().unwrap_or(false))
+    }
 }

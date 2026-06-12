@@ -543,3 +543,137 @@ async fn update_config_without_hook_returns_config_unchanged() {
 
     assert_eq!(updated, config, "a pnpmfile without updateConfig leaves config unchanged");
 }
+
+fn write_custom_resolvers_pnpmfile(dir: &std::path::Path) -> std::path::PathBuf {
+    let pnpmfile_path = dir.join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r"
+module.exports = {
+  resolvers: [
+    {
+      idPrefix: 'custom',
+      canResolve (wanted) {
+        return typeof wanted.bareSpecifier === 'string' && wanted.bareSpecifier.startsWith('custom:');
+      },
+      resolve (wanted, opts) {
+        return {
+          id: `${this.idPrefix}/${wanted.alias}@1.0.0`,
+          resolution: { tarball: `https://example.com/${wanted.alias}-1.0.0.tgz` },
+          lockfileDir: opts.lockfileDir,
+        };
+      },
+      shouldRefreshResolution (depPath, pkgSnapshot) {
+        return depPath.startsWith('refresh-me@') && pkgSnapshot.resolution != null;
+      },
+    },
+    {
+      shouldRefreshResolution () {
+        throw new Error('refresh check crashed');
+      },
+    },
+  ],
+}
+",
+    )
+    .expect("write pnpmfile");
+    pnpmfile_path
+}
+
+#[tokio::test]
+async fn get_custom_resolvers_reports_per_resolver_capabilities() {
+    let tmp = TempDir::new().expect("temp dir");
+    let hooks =
+        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
+
+    let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
+
+    assert_eq!(resolvers.len(), 2);
+    assert!(resolvers[0].has_can_resolve());
+    assert!(resolvers[0].has_resolve());
+    assert!(resolvers[0].has_should_refresh_resolution());
+    assert!(!resolvers[1].has_can_resolve());
+    assert!(!resolvers[1].has_resolve());
+    assert!(resolvers[1].has_should_refresh_resolution());
+}
+
+#[tokio::test]
+async fn get_custom_resolvers_is_empty_without_resolvers_export() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(&pnpmfile_path, "module.exports = { hooks: {} }").expect("write pnpmfile");
+    let hooks = pacquet_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+
+    let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
+
+    assert!(resolvers.is_empty());
+}
+
+#[tokio::test]
+async fn custom_resolver_round_trips_can_resolve_and_resolve() {
+    let tmp = TempDir::new().expect("temp dir");
+    let hooks =
+        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
+    let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
+    let wanted = serde_json::json!({ "alias": "foo", "bareSpecifier": "custom:foo" });
+
+    assert!(resolvers[0].can_resolve(wanted.clone()).await.expect("canResolve"));
+    assert!(
+        !resolvers[0]
+            .can_resolve(serde_json::json!({ "alias": "bar", "bareSpecifier": "^1.0.0" }))
+            .await
+            .expect("canResolve"),
+    );
+
+    let result = resolvers[0]
+        .resolve(wanted, serde_json::json!({ "lockfileDir": "/repo" }))
+        .await
+        .expect("resolve");
+    // `custom/` prefix comes from `this.idPrefix`: methods must be
+    // invoked with the resolver object as `this`, like pnpm does.
+    assert_eq!(result["id"], "custom/foo@1.0.0");
+    assert_eq!(result["resolution"]["tarball"], "https://example.com/foo-1.0.0.tgz");
+    assert_eq!(result["lockfileDir"], "/repo", "resolve opts reach the hook");
+}
+
+#[tokio::test]
+async fn custom_resolver_should_refresh_resolution_receives_dep_path_and_snapshot() {
+    let tmp = TempDir::new().expect("temp dir");
+    let hooks =
+        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
+    let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
+    let snapshot = serde_json::json!({ "resolution": { "integrity": "sha512-x" } });
+
+    let matching: pacquet_lockfile::PackageKey =
+        "refresh-me@1.0.0".parse().expect("valid dep path");
+    let other: pacquet_lockfile::PackageKey = "other@1.0.0".parse().expect("valid dep path");
+
+    assert!(
+        resolvers[0]
+            .should_refresh_resolution(&matching, snapshot.clone())
+            .await
+            .expect("shouldRefreshResolution"),
+    );
+    assert!(
+        !resolvers[0]
+            .should_refresh_resolution(&other, snapshot)
+            .await
+            .expect("shouldRefreshResolution"),
+    );
+}
+
+#[tokio::test]
+async fn custom_resolver_errors_propagate() {
+    let tmp = TempDir::new().expect("temp dir");
+    let hooks =
+        pacquet_hooks::node_runtime::NodeJsHooks::new(write_custom_resolvers_pnpmfile(tmp.path()));
+    let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
+    let dep_path: pacquet_lockfile::PackageKey = "any@1.0.0".parse().expect("valid dep path");
+
+    let err = resolvers[1]
+        .should_refresh_resolution(&dep_path, serde_json::json!({}))
+        .await
+        .expect_err("throwing hook must surface as an error");
+
+    assert!(err.to_string().contains("refresh check crashed"), "got: {err}");
+}

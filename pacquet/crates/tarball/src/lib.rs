@@ -12,6 +12,7 @@ use miette::Diagnostic;
 use pacquet_fs::file_mode;
 pub use pacquet_network::RetryOpts;
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
+use pacquet_package_manifest::{files_include_install_scripts, manifest_requires_build};
 use pacquet_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
     Reporter, RequestRetryError, RequestRetryLog,
@@ -565,6 +566,8 @@ fn extract_tarball_entries(
     // manifest is captured here too, off the raw payload slice.
     let mut pending: Vec<PendingFile<'_>> = Vec::with_capacity(capacity);
     let mut manifest = None;
+    let mut manifest_build_scripts = false;
+    let mut file_build_hooks = false;
 
     for entry in entries {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
@@ -651,6 +654,9 @@ fn extract_tarball_entries(
         {
             continue;
         }
+        if files_include_install_scripts([cleaned_entry_path.as_str()]) {
+            file_build_hooks = true;
+        }
         // Capture the parsed manifest whenever we see `package.json`.
         // Mirrors pnpm's `bundledManifest` pass-through at
         // [pnpm/pnpm@4750fd370c]: pnpm stuffs the narrowed manifest
@@ -678,12 +684,16 @@ fn extract_tarball_entries(
         // [`addFilesFromTarball`]: <https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/addFilesFromTarball.ts#L41-L43>
         if cleaned_entry_path == "package.json" {
             match serde_json::from_slice::<serde_json::Value>(entry_data) {
-                Ok(parsed) => manifest = normalize_bundled_manifest(&parsed),
+                Ok(parsed) => {
+                    manifest_build_scripts = manifest_requires_build(&parsed);
+                    manifest = normalize_bundled_manifest(&parsed);
+                }
                 Err(error) => {
                     tracing::debug!(
                         ?error,
                         "package.json in tarball failed to parse as JSON; bundled manifest cleared",
                     );
+                    manifest_build_scripts = false;
                     manifest = None;
                 }
             }
@@ -739,7 +749,7 @@ fn extract_tarball_entries(
 
     let pkg_files_idx = PackageFilesIndex {
         manifest,
-        requires_build: None,
+        requires_build: Some(manifest_build_scripts || file_build_hooks),
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -1020,17 +1030,27 @@ pub type PrefetchedManifests = HashMap<String, Arc<serde_json::Value>>;
 pub type PrefetchedSideEffectsMaps =
     HashMap<String, Arc<HashMap<String, HashMap<String, PathBuf>>>>;
 
+/// `requiresBuild` flags recovered from the same `index.db` rows as
+/// [`PrefetchedCasPaths`]. Missing values in old rows are recomputed
+/// from the bundled manifest plus verified file keys, mirroring
+/// pnpm's worker fallback when `pkgFilesIndex.requiresBuild` is absent.
+pub type PrefetchedRequiresBuild = HashMap<String, bool>;
+
+type DecodedPrefetchRow =
+    (String, Option<Arc<serde_json::Value>>, Option<bool>, pacquet_store_dir::VerifyResult);
+
 /// Output of [`prefetch_cas_paths`]: the warm-cache filesystem map
 /// plus any bundled manifests and side-effects overlays recovered
 /// from the same `index.db` rows. Bundled in a single struct so
-/// callers can destructure all three after one `await`, rather than
-/// the function having to thread three separate `spawn_blocking`
+/// callers can destructure all cached facts after one `await`, rather
+/// than the function having to thread several separate `spawn_blocking`
 /// round-trips through.
 #[derive(Default)]
 pub struct PrefetchResult {
     pub cas_paths: PrefetchedCasPaths,
     pub manifests: PrefetchedManifests,
     pub side_effects_maps: PrefetchedSideEffectsMaps,
+    pub requires_build: PrefetchedRequiresBuild,
 }
 
 /// Batch the entire warm-cache lookup phase into one `spawn_blocking`
@@ -1124,7 +1144,7 @@ pub async fn prefetch_cas_paths(
         // `Option::take` so it travels back to the caller without
         // an intermediate `Value::clone` of the JSON tree — the
         // verify function only inspects `files`, never `manifest`.
-        let decoded: Vec<(String, Option<Arc<serde_json::Value>>, pacquet_store_dir::VerifyResult)> = raw
+        let decoded: Vec<DecodedPrefetchRow> = raw
             .into_par_iter()
             .filter_map(|(cache_key, bytes)| {
                 let mut entry: PackageFilesIndex = match pacquet_store_dir::decode_package_files_index(&bytes) {
@@ -1139,6 +1159,7 @@ pub async fn prefetch_cas_paths(
                         return None;
                     }
                 };
+                let stored_requires_build = entry.requires_build;
                 let manifest = entry.manifest.take().map(Arc::new);
                 let verify_result = if verify_store_integrity {
                     pacquet_store_dir::check_pkg_files_integrity(
@@ -1149,15 +1170,20 @@ pub async fn prefetch_cas_paths(
                 } else {
                     pacquet_store_dir::build_file_maps_from_index(store_dir, entry)
                 };
-                Some((cache_key, manifest, verify_result))
+                Some((cache_key, manifest, stored_requires_build, verify_result))
             })
             .collect();
 
         let mut cas_paths = HashMap::with_capacity(decoded.len());
         let mut manifests = HashMap::new();
         let mut side_effects_maps = HashMap::new();
-        for (cache_key, manifest, verify_result) in decoded {
+        let mut requires_build = HashMap::with_capacity(decoded.len());
+        for (cache_key, manifest, stored_requires_build, verify_result) in decoded {
             if verify_result.passed {
+                let calculated_requires_build = stored_requires_build.unwrap_or_else(|| {
+                    manifest.as_deref().is_some_and(manifest_requires_build)
+                        || files_include_install_scripts(verify_result.files_map.keys())
+                });
                 if let Some(manifest) = manifest {
                     manifests.insert(cache_key.clone(), manifest);
                 }
@@ -1166,10 +1192,11 @@ pub async fn prefetch_cas_paths(
                 {
                     side_effects_maps.insert(cache_key.clone(), Arc::new(maps));
                 }
+                requires_build.insert(cache_key.clone(), calculated_requires_build);
                 cas_paths.insert(cache_key, Arc::new(verify_result.files_map));
             }
         }
-        PrefetchResult { cas_paths, manifests, side_effects_maps }
+        PrefetchResult { cas_paths, manifests, side_effects_maps, requires_build }
     })
     .await;
     result.unwrap_or_else(|error| {

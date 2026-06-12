@@ -28,12 +28,12 @@ mod verifier;
 
 pub use publish_time::parse_packument_timestamp;
 pub use resolve::{
-    DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT, LatestInfo,
-    LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, SharedDependencyManifest,
-    UpdateBehavior, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
-    VersionSelectors, WantedDependency, WorkspacePackage, WorkspacePackages,
-    WorkspacePackagesByVersion,
+    CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT,
+    LatestInfo, LatestQuery, PkgResolutionId, PreferredVersions, PreferredVersionsOverlay,
+    ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
+    SharedDependencyManifest, UpdateBehavior, VersionSelectorEntry, VersionSelectorType,
+    VersionSelectorWithWeight, VersionSelectors, WantedDependency, WorkspacePackage,
+    WorkspacePackages, WorkspacePackagesByVersion,
 };
 pub use verifier::{
     ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,

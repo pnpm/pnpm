@@ -423,16 +423,42 @@ pub fn safe_read_package_json_from_dir(dir: &Path) -> Result<Option<Value>, Pack
 /// directory. Missing manifests, IO errors, and parse errors all collapse to
 /// `false` — pacquet cannot meaningfully build a package whose extracted
 /// content cannot be inspected.
+#[must_use]
 pub fn pkg_requires_build(pkg_root: &Path) -> bool {
     if pkg_root.join("binding.gyp").exists() || pkg_root.join(".hooks").is_dir() {
         return true;
     }
     let Ok(Some(manifest)) = safe_read_package_json_from_dir(pkg_root) else { return false };
+    manifest_requires_build(&manifest)
+}
+
+/// Decide whether a parsed manifest declares lifecycle scripts that
+/// make its package a build candidate.
+#[must_use]
+pub fn manifest_requires_build(manifest: &Value) -> bool {
     manifest.get("scripts").and_then(Value::as_object).is_some_and(|scripts| {
         scripts.contains_key("preinstall")
             || scripts.contains_key("install")
             || scripts.contains_key("postinstall")
     })
+}
+
+/// Decide whether a store-index file key implies build hooks.
+#[must_use]
+pub fn file_path_requires_build(filename: &str) -> bool {
+    filename == "binding.gyp"
+        || filename
+            .strip_prefix(".hooks")
+            .is_some_and(|suffix| suffix.starts_with('/') || suffix.starts_with('\\'))
+}
+
+#[must_use]
+pub fn files_include_install_scripts<Filenames, Filename>(filenames: Filenames) -> bool
+where
+    Filenames: IntoIterator<Item = Filename>,
+    Filename: AsRef<str>,
+{
+    filenames.into_iter().any(|filename| file_path_requires_build(filename.as_ref()))
 }
 
 #[cfg(test)]

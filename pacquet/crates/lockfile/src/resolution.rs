@@ -2,7 +2,7 @@ use derive_more::{From, TryInto};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// For tarball hosted remotely or locally.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -333,6 +333,44 @@ pub fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
     };
     let version = version.split_once('+').map_or(version, |(base, _)| base);
     format!("{registry}{name}/-/{scopeless}-{version}.tgz")
+}
+
+/// Default-vs-scope routing for an npm package. Mirrors pnpm's
+/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/main/config/pick-registry-for-package/src/index.ts).
+///
+/// Routing rules:
+///
+/// 1. **`npm:` alias.** When `bare_specifier` is an `npm:` alias the
+///    *alias target* decides routing, not the local key:
+///    - `npm:@scope/name@<spec>` → `registries[@scope]`.
+///    - `npm:name@<spec>` (unscoped target) → `registries["default"]`,
+///      never the local alias's scope, because the fetched package is
+///      unscoped and doesn't live on a scoped registry.
+/// 2. **Plain spec.** Falls back to `pkg_name`'s scope when present;
+///    otherwise `registries["default"]`.
+#[must_use]
+pub fn pick_registry_for_package(
+    registries: &HashMap<String, String>,
+    pkg_name: &str,
+    bare_specifier: Option<&str>,
+) -> String {
+    let scope = match bare_specifier.and_then(|spec| spec.strip_prefix("npm:")) {
+        Some(target) => scope_of(target),
+        None => scope_of(pkg_name),
+    };
+    if let Some(scope) = scope
+        && let Some(url) = registries.get(scope)
+    {
+        return url.clone();
+    }
+    registries.get("default").cloned().unwrap_or_default()
+}
+
+fn scope_of(name: &str) -> Option<&str> {
+    if !name.starts_with('@') {
+        return None;
+    }
+    name.find('/').map(|sep| &name[..sep])
 }
 
 /// Strip the URL scheme (everything up to and including `://`). Port of pnpm's
