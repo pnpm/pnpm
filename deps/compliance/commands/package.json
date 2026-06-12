@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.commands",
-  "version": "1101.3.2",
+  "version": "1101.3.4",
   "description": "pnpm commands for audit, licenses, and sbom",
   "keywords": [
     "pnpm",
@@ -85,7 +85,6 @@
     "@types/semver": "catalog:",
     "@types/zkochan__table": "catalog:",
     "load-json-file": "catalog:",
-    "nock": "catalog:",
     "read-yaml-file": "catalog:",
     "tempy": "catalog:"
   },

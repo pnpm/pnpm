@@ -1,3 +1,8 @@
+#![expect(
+    clippy::default_trait_access,
+    reason = "struct-literal test fixtures; field types are evident from the literal and naming each would force ~20 imports"
+)]
+
 use super::{Install, InstallError};
 use pacquet_config::Config;
 use pacquet_lockfile::Lockfile;
@@ -7,9 +12,9 @@ use pacquet_modules_yaml::{
 };
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{
-    BrokenModulesLog, ContextLog, HookLog, IgnoredScriptsLog, LogEvent, PackageManifestLog,
-    PackageManifestMessage, ProgressLog, ProgressMessage, Reporter, SilentReporter, Stage,
-    StageLog, StatsLog, StatsMessage, SummaryLog,
+    BrokenModulesLog, ContextLog, HookLog, IgnoredScriptsLog, LockfileVerificationMessage,
+    LogEvent, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage, Reporter,
+    SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 use pacquet_store_dir::STORE_VERSION;
 use pacquet_testing_utils::{
@@ -23,6 +28,27 @@ use pipe_trait::Pipe;
 use std::sync::Mutex;
 use tempfile::tempdir;
 use text_block_macros::text_block;
+
+const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
+
+fn scoped_package_body(registry_url: &str) -> String {
+    format!(
+        r#"{{
+  "name": "@private/foo",
+  "dist-tags": {{ "latest": "1.0.0" }},
+  "versions": {{
+    "1.0.0": {{
+      "name": "@private/foo",
+      "version": "1.0.0",
+      "dist": {{
+        "integrity": "{SCOPED_TEST_INTEGRITY}",
+        "tarball": "{registry_url}@private/foo/-/foo-1.0.0.tgz"
+      }}
+    }}
+  }}
+}}"#,
+    )
+}
 
 #[tokio::test]
 async fn should_install_dependencies() {
@@ -46,8 +72,8 @@ async fn should_install_dependencies() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
-    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -108,6 +134,80 @@ async fn should_install_dependencies() {
 }
 
 #[tokio::test]
+async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    std::fs::create_dir_all(&project_root).unwrap();
+
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("@private/foo", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut default_registry = mockito::Server::new_async().await;
+    let default_packument = default_registry
+        .mock("GET", "/@private%2Ffoo")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let mut scoped_registry = mockito::Server::new_async().await;
+    let scoped_registry_url = format!("{}/", scoped_registry.url());
+    let scoped_packument = scoped_registry
+        .mock("GET", "/@private%2Ffoo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(scoped_package_body(&scoped_registry_url))
+        .expect_at_least(1)
+        .create_async()
+        .await;
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = format!("{}/", default_registry.url());
+    config.registries.insert("@private".to_string(), scoped_registry_url);
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: true,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("lockfile-only install should resolve scoped package through scoped registry");
+
+    default_packument.assert_async().await;
+    scoped_packument.assert_async().await;
+
+    drop(dir);
+}
+
+#[tokio::test]
 async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
     let dir = tempdir().unwrap();
     let store_dir = dir.path().join("pacquet-store");
@@ -121,7 +221,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
     let mut config = Config::new();
     config.lockfile = true;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
 
@@ -170,7 +270,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
     let mut config = Config::new();
     config.lockfile = true;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
 
@@ -234,7 +334,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
     // CLI flag must still take over.
     config.lockfile = false;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
 
@@ -318,8 +418,8 @@ async fn npm_alias_dependency_installs_under_alias_key() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
-    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -408,8 +508,8 @@ async fn unversioned_npm_alias_defaults_to_latest() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
-    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -482,7 +582,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
     let mut config = Config::new();
     config.lockfile = false;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
 
@@ -530,7 +630,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
 /// `pnpm:package-import-method` is emitted lazily by `link_file`
 /// the first time each method actually resolves (after `auto`'s
 /// fallback chain finishes), so an empty-lockfile install like this
-/// one has no link_file calls and no such event in the captured
+/// one has no `link_file` calls and no such event in the captured
 /// sequence. See `link_file::tests` for that channel's coverage.
 ///
 /// `pnpm:context` carries `currentLockfileExists`, `storeDir`,
@@ -563,8 +663,11 @@ async fn install_emits_pnpm_event_sequence() {
     let mut config = Config::new();
     config.lockfile = false;
     config.store_dir = store_dir.clone().into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
+    config
+        .registries
+        .insert("@private".to_string(), "https://private.example.com/npm/".to_string());
     let config = config.leak();
 
     // Empty v9 lockfile: `--frozen-lockfile` walks an empty snapshot
@@ -712,6 +815,9 @@ async fn install_writes_modules_yaml() {
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
+    config
+        .registries
+        .insert("@private".to_string(), "https://private.example.com/npm/".to_string());
     let config = config.leak();
 
     // Empty v9 lockfile drives the cheapest successful install path,
@@ -786,6 +892,10 @@ async fn install_writes_modules_yaml() {
     assert_eq!(
         registries.as_ref().and_then(|r| r.get("default")).map(String::as_str),
         Some(config.registry.as_str()),
+    );
+    assert_eq!(
+        registries.as_ref().and_then(|r| r.get("@private")).map(String::as_str),
+        Some("https://private.example.com/npm/"),
     );
     assert!(
         package_manager.starts_with("pacquet@"),
@@ -950,8 +1060,10 @@ mod build_workspace_state_tests {
     /// timestamp.
     #[test]
     fn empty_project_list_produces_empty_projects_map() {
+        let dir = tempdir().unwrap();
         let config = Config::new();
         let state = build_workspace_state(
+            dir.path(),
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
@@ -962,7 +1074,7 @@ mod build_workspace_state_tests {
     }
 
     /// Ports `createWorkspaceState() on non-empty list`: every project
-    /// in the list lands in `state.projects` keyed by its root_dir.
+    /// in the list lands in `state.projects` keyed by its `root_dir`.
     /// Regression catch for the bug where a workspace fresh install
     /// (no `pnpm-lock.yaml` on disk) recorded only the root importer.
     #[test]
@@ -983,6 +1095,7 @@ mod build_workspace_state_tests {
 
         let config = Config::new();
         let state = build_workspace_state(
+            dir.path(),
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
@@ -1014,7 +1127,9 @@ mod build_workspace_state_tests {
             "@pnpm/pacquet".to_string(),
             ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string()),
         )]));
+        let dir = tempdir().unwrap();
         let state = build_workspace_state(
+            dir.path(),
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
@@ -1059,8 +1174,8 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
-    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
 
@@ -1137,7 +1252,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -1238,7 +1353,7 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -1416,7 +1531,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
     let written = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("read written current lockfile")
         .expect("current lockfile should be written");
-    assert_eq!(written.snapshots.as_ref().map(|s| s.len()), Some(1));
+    assert_eq!(written.snapshots.as_ref().map(std::collections::HashMap::len), Some(1));
 
     drop(dir);
 }
@@ -3676,7 +3791,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 
@@ -3779,7 +3894,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 
@@ -4105,7 +4220,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4194,7 +4309,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4269,7 +4384,7 @@ async fn fresh_install_records_user_written_specifier() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4340,7 +4455,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4410,7 +4525,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
     let mut config = Config::new();
     config.lockfile = false;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4483,7 +4598,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4572,7 +4687,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
     let mut config = Config::new();
     config.lockfile = false;
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4639,7 +4754,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
     let config = config.leak();
@@ -4804,7 +4919,7 @@ async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
 
     let mut config = Config::new();
     config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir.to_path_buf();
+    config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 
@@ -5671,15 +5786,18 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     // absent so the polarity of the gate is clear.
 }
 
-/// Regression: a single-project install where `node_modules` is
-/// still on disk (so the workspace-state file survives) but
-/// `pnpm-lock.yaml` is gone must NOT short-circuit. This is the
-/// `cache+node_modules` and `node_modules`-only benchmark scenario
-/// pnpm finishes in ~5 s and pacquet was silently completing in
-/// ~35 ms before the single-project lockfile gate landed. Mirrors
-/// pnpm's [`throwLockfileNotFound`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401)
-/// converting into `upToDate: false`. Companion to the workspace-
-/// mode tolerance proved by
+/// Regression: a single-project install with NO lockfile anywhere —
+/// `pnpm-lock.yaml` is gone and the virtual store has no current
+/// `lock.yaml` to stand in for it — must NOT short-circuit, even when
+/// `node_modules` and the workspace-state file survive. There is
+/// nothing to content-check the manifests against and nothing to
+/// regenerate `pnpm-lock.yaml` from, so the full install must run.
+/// Mirrors pnpm's [`throwLockfileNotFound`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401)
+/// converting into `upToDate: false`. When the current lockfile IS
+/// present, the fast path instead treats it as the wanted lockfile —
+/// see `regenerates_missing_wanted_lockfile_from_current_when_manifests_unchanged`
+/// in the `optimistic_repeat_install` tests. Companion to the
+/// workspace-mode tolerance proved by
 /// [`returns_up_to_date_in_workspace_mode_without_lockfile`](crate::optimistic_repeat_install::tests::returns_up_to_date_in_workspace_mode_without_lockfile).
 #[tokio::test]
 async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing() {
@@ -5706,8 +5824,9 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    // Deliberately do NOT write `pnpm-lock.yaml` — that's the
-    // scenario under test.
+    // Deliberately do NOT write `pnpm-lock.yaml` and do NOT seed a
+    // current `lock.yaml` in the virtual store — that's the scenario
+    // under test.
 
     let mut config = Config::new();
     config.lockfile = false;
@@ -5715,19 +5834,6 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
-
-    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
-        "lockfileVersion: '9.0'"
-        "importers:"
-        "  .:"
-        "    dependencies:"
-        "      sibling:"
-        "        specifier: link:../sibling"
-        "        version: link:../sibling"
-        "packages: {}"
-        "snapshots: {}"
-    })
-    .expect("parse lockfile");
 
     let included = pacquet_modules_yaml::IncludedDependencies {
         dependencies: true,
@@ -5788,7 +5894,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: None,
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -5816,7 +5922,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
             LogEvent::Pnpm(log) if log.message == "Already up to date"
         )),
         "the optimistic 'Already up to date' log MUST NOT fire when \
-         `pnpm-lock.yaml` is missing in a single-project install; got events: {captured:#?}",
+         no lockfile exists in a single-project install; got events: {captured:#?}",
     );
 }
 
@@ -5975,6 +6081,551 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     );
 
     drop((dir, mock_instance));
+}
+
+/// A fresh install records its lockfile-verification verdict, so a
+/// repeat install that reaches the full path (the optimistic fast
+/// path is disabled here — it would otherwise absorb the touched
+/// manifest via the content re-check) hits the cache and never fans
+/// out to the registry.
+#[tokio::test]
+async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let cache_dir = dir.path().join("cache");
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.cache_dir = cache_dir.clone();
+    config.store_dir = store_dir.clone().into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("first install must succeed");
+
+    let lockfile_path = project_root.join(Lockfile::FILE_NAME);
+    let wanted_lockfile =
+        Lockfile::load_wanted_from_dir(&project_root).expect("load wanted lockfile").unwrap();
+
+    drop(mock_instance);
+
+    let manifest_text = std::fs::read_to_string(&manifest_path).expect("read package.json");
+    std::fs::write(&manifest_path, manifest_text).expect("refresh package.json mtime");
+    let forced_mtime = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&manifest_path)
+        .expect("open package.json")
+        .set_times(std::fs::FileTimes::new().set_modified(forced_mtime))
+        .expect("force package.json mtime");
+    let touched_manifest = PackageManifest::from_path(manifest_path).expect("reload manifest");
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let mut second_config = Config::new();
+    second_config.cache_dir = cache_dir;
+    second_config.store_dir = store_dir.into();
+    second_config.modules_dir = modules_dir;
+    second_config.virtual_store_dir = virtual_store_dir;
+    second_config.registry = "http://127.0.0.1:9/".to_string();
+    second_config.optimistic_repeat_install = false;
+    let second_config = second_config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config: second_config,
+        manifest: &touched_manifest,
+        lockfile: Some(&wanted_lockfile),
+        lockfile_path: Some(&lockfile_path),
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("second install must no-op without contacting the stopped registry");
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Pnpm(log)
+                if log.message == "Lockfile is up to date, resolution step is skipped"
+        )),
+        "second install must reach the modules/current-lockfile no-op path; got {captured:#?}",
+    );
+    let verification_messages: Vec<_> = captured
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::LockfileVerification(log) => Some(&log.message),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        matches!(verification_messages.as_slice(), [LockfileVerificationMessage::Cached { .. }]),
+        "verification cache hit must skip the fan-out and announce the reused verdict; got {captured:#?}",
+    );
+
+    drop(dir);
+}
+
+/// Shared setup for the offline repeat-install regression tests below:
+/// a real install against the mock registry, after which the registry
+/// is dropped and the packument cache is wiped. Any code path that
+/// falls off the optimistic fast path — the resolver, the
+/// lockfile-verification fan-out, a tarball fetch — would have to
+/// reach the dead `127.0.0.1:9` registry and fail the install, so the
+/// `expect` on the second run is the regression tripwire for the
+/// repeat-install optimizations (the benchmarks don't run in CI; these
+/// tests are what pins the "zero network, zero pipeline" property).
+async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, PackageManifest) {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let cache_dir = dir.path().join("cache");
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.cache_dir = cache_dir.clone();
+    config.store_dir = store_dir.clone().into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("first install must succeed");
+
+    drop(mock_instance);
+    // The benchmark harness wipes `~/.cache/pnpm` (packument cache +
+    // `lockfile-verified.jsonl`) before every run; do the same so a
+    // regression can't hide behind a cache hit.
+    std::fs::remove_dir_all(&cache_dir).expect("wipe the cache dir");
+
+    let mut offline_config = Config::new();
+    offline_config.cache_dir = cache_dir;
+    offline_config.store_dir = store_dir.into();
+    offline_config.modules_dir = modules_dir;
+    offline_config.virtual_store_dir = virtual_store_dir;
+    offline_config.registry = "http://127.0.0.1:9/".to_string();
+    let offline_config = offline_config.leak();
+
+    (dir, offline_config, manifest)
+}
+
+/// Rewrite `package.json` with identical content but a strictly newer
+/// mtime — the shape the vlt.sh benchmark prepare step (`npm pkg
+/// delete`, `touch`) produces before every timed run.
+fn touch_manifest(manifest: &PackageManifest) -> PackageManifest {
+    let manifest_path = manifest.path().to_path_buf();
+    let manifest_text = std::fs::read_to_string(&manifest_path).expect("read package.json");
+    std::fs::write(&manifest_path, manifest_text).expect("refresh package.json mtime");
+    let forced_mtime = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&manifest_path)
+        .expect("open package.json")
+        .set_times(std::fs::FileTimes::new().set_modified(forced_mtime))
+        .expect("force package.json mtime");
+    PackageManifest::from_path(manifest_path).expect("reload manifest")
+}
+
+/// A repeat install whose manifest was rewritten with identical
+/// content (newer mtime) must short-circuit offline: no resolver, no
+/// lockfile-verification fan-out, no install pipeline. Guards the
+/// modified-manifests content re-check end-to-end through
+/// `Install::run`'s dispatch ordering — the fast path has to run
+/// *before* the verification gate for this to pass with a dead
+/// registry and an empty packument/verdict cache.
+#[tokio::test]
+async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_is_unchanged() {
+    let (dir, offline_config, manifest) = install_then_go_offline().await;
+    let project_root = manifest.path().parent().unwrap().to_path_buf();
+    let touched_manifest = touch_manifest(&manifest);
+    let lockfile_path = project_root.join(Lockfile::FILE_NAME);
+    let wanted_lockfile =
+        Lockfile::load_wanted_from_dir(&project_root).expect("load wanted lockfile").unwrap();
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config: offline_config,
+        manifest: &touched_manifest,
+        lockfile: Some(&wanted_lockfile),
+        lockfile_path: Some(&lockfile_path),
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("repeat install with an unchanged-content manifest must not need the registry");
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Pnpm(log) if log.message == "Already up to date"
+        )),
+        "the touched-but-unchanged manifest must take the fast path; got {captured:#?}",
+    );
+    let pipeline_emits = captured
+        .iter()
+        .filter(|event| {
+            matches!(
+                event,
+                LogEvent::Context(_) | LogEvent::Stage(_) | LogEvent::LockfileVerification(_),
+            )
+        })
+        .count();
+    assert_eq!(
+        pipeline_emits, 0,
+        "the fast path must not run any install-setup step; got {captured:#?}",
+    );
+
+    drop(dir);
+}
+
+/// A repeat install with `pnpm-lock.yaml` deleted but `node_modules`
+/// intact must short-circuit offline by treating the current lockfile
+/// (`<virtual_store_dir>/lock.yaml`) as the wanted one, and must
+/// restore `pnpm-lock.yaml` byte-identically. Guards the
+/// current-as-wanted fallback end-to-end: a regression into the full
+/// pipeline (resolution or the verification fan-out against an empty
+/// cache) fails on the dead registry.
+#[tokio::test]
+async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
+    let (dir, offline_config, manifest) = install_then_go_offline().await;
+    let project_root = manifest.path().parent().unwrap().to_path_buf();
+    let lockfile_path = project_root.join(Lockfile::FILE_NAME);
+    let original_lockfile_bytes =
+        std::fs::read(&lockfile_path).expect("read pnpm-lock.yaml written by the first install");
+    std::fs::remove_file(&lockfile_path).expect("delete pnpm-lock.yaml");
+    let touched_manifest = touch_manifest(&manifest);
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config: offline_config,
+        manifest: &touched_manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("repeat install with a deleted pnpm-lock.yaml must not need the registry");
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Pnpm(log) if log.message == "Already up to date"
+        )),
+        "the deleted-lockfile repeat install must take the fast path; got {captured:#?}",
+    );
+    let pipeline_emits = captured
+        .iter()
+        .filter(|event| {
+            matches!(
+                event,
+                LogEvent::Context(_) | LogEvent::Stage(_) | LogEvent::LockfileVerification(_),
+            )
+        })
+        .count();
+    assert_eq!(
+        pipeline_emits, 0,
+        "the fast path must not run any install-setup step; got {captured:#?}",
+    );
+
+    let regenerated_bytes =
+        std::fs::read(&lockfile_path).expect("pnpm-lock.yaml must be regenerated");
+    assert_eq!(
+        regenerated_bytes, original_lockfile_bytes,
+        "the regenerated pnpm-lock.yaml must be byte-identical to the one the install wrote",
+    );
+
+    drop(dir);
+}
+
+#[tokio::test]
+async fn fresh_lockfile_applies_overrides_to_direct_dependencies() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+        &[("@pnpm.e2e/foo", "^100.0.0")],
+        &[("@pnpm.e2e/foo@^100.0.0", "100.0.0")],
+        None,
+    )
+    .await;
+
+    assert_package_present(&lockfile, "@pnpm.e2e/foo@100.0.0");
+    assert_package_absent(&lockfile, "@pnpm.e2e/foo@100.1.0");
+}
+
+#[tokio::test]
+async fn fresh_lockfile_applies_overrides_to_transitive_dependencies() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+        &[("@pnpm.e2e/has-foo-100.0.0-range-dep", "1.0.0")],
+        &[("@pnpm.e2e/foo@^100.0.0", "100.0.0")],
+        None,
+    )
+    .await;
+
+    assert_package_present(&lockfile, "@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0");
+    assert_package_present(&lockfile, "@pnpm.e2e/foo@100.0.0");
+    assert_package_absent(&lockfile, "@pnpm.e2e/foo@100.1.0");
+}
+
+#[tokio::test]
+async fn fresh_lockfile_resolves_catalog_protocol_in_overrides() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_overrides(
+        &[("@pnpm.e2e/foo", "^100.0.0")],
+        &[("@pnpm.e2e/foo@^100.0.0", "catalog:")],
+        Some("catalog:\n  '@pnpm.e2e/foo': '100.0.0'\n"),
+    )
+    .await;
+
+    assert_package_present(&lockfile, "@pnpm.e2e/foo@100.0.0");
+    assert_package_absent(&lockfile, "@pnpm.e2e/foo@100.1.0");
+    assert_eq!(
+        lockfile
+            .overrides
+            .as_ref()
+            .and_then(|overrides| overrides.get("@pnpm.e2e/foo@^100.0.0"))
+            .map(String::as_str),
+        Some("100.0.0"),
+    );
+}
+
+async fn fresh_lockfile_only_with_overrides(
+    dependencies: &[(&str, &str)],
+    overrides: &[(&str, &str)],
+    workspace_yaml: Option<&str>,
+) -> (tempfile::TempDir, Lockfile) {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    if let Some(workspace_yaml) = workspace_yaml {
+        std::fs::write(dir.path().join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    }
+    let store_dir = dir.path().join("pacquet-store");
+    let modules_dir = dir.path().join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    for (name, spec) in dependencies {
+        manifest.add_dependency(name, spec, DependencyGroup::Prod).unwrap();
+    }
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    if !overrides.is_empty() {
+        let mut map = indexmap::IndexMap::new();
+        for (selector, spec) in overrides {
+            map.insert((*selector).to_string(), (*spec).to_string());
+        }
+        config.overrides = Some(map);
+    }
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: true,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("lockfile-only install should succeed");
+
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let content = std::fs::read_to_string(lockfile_path).expect("read lockfile");
+    let lockfile = serde_saphyr::from_str(&content).expect("parse lockfile");
+    (dir, lockfile)
+}
+
+fn assert_package_present(lockfile: &Lockfile, key: &str) {
+    let key: pacquet_lockfile::PackageKey = key.parse().unwrap();
+    assert!(
+        lockfile.packages.as_ref().is_some_and(|packages| packages.contains_key(&key)),
+        "expected packages to contain {key}",
+    );
+}
+
+fn assert_package_absent(lockfile: &Lockfile, key: &str) {
+    let key: pacquet_lockfile::PackageKey = key.parse().unwrap();
+    assert!(
+        lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&key)),
+        "expected packages not to contain {key}",
+    );
 }
 
 /// `packageExtensions` adds entries to a dependency's manifest at
@@ -6257,12 +6908,12 @@ async fn read_package_hook_pins_transitive_dependency_version() {
         registry.url(),
         dir.path(),
         &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
-        r#"module.exports = { hooks: { readPackage (pkg) {
+        r"module.exports = { hooks: { readPackage (pkg) {
   if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
     pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0';
   }
   return pkg;
-} } }"#,
+} } }",
     )
     .await
     .expect("install should succeed");
@@ -6333,10 +6984,10 @@ async fn after_all_resolved_hook_modifies_written_lockfile() {
         registry.url(),
         dir.path(),
         &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
-        r#"module.exports = { hooks: { afterAllResolved (lockfile) {
+        r"module.exports = { hooks: { afterAllResolved (lockfile) {
   lockfile.foo = 'foo';
   return lockfile;
-} } }"#,
+} } }",
     )
     .await
     .expect("install should succeed");
@@ -6349,6 +7000,58 @@ async fn after_all_resolved_hook_modifies_written_lockfile() {
     );
     // The lockfile is still a valid lockfile carrying the resolved package.
     assert!(lockfile_text.contains("@pnpm.e2e/pkg-with-1-dep"));
+}
+
+// Ports pnpm's `adding or changing pnpmfile should change
+// pnpmfileChecksum` (pnpm/test/hooks.ts): a project pnpmfile that
+// exports hooks makes the install record its normalized-content hash as
+// `pnpmfileChecksum` in pnpm-lock.yaml.
+#[tokio::test]
+async fn pnpmfile_with_hooks_records_pnpmfile_checksum() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    let pnpmfile_src = r"module.exports = { hooks: { readPackage (pkg) { return pkg; } } }";
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        pnpmfile_src,
+    )
+    .await
+    .expect("install should succeed");
+
+    let lockfile_text = std::fs::read_to_string(dir.path().join("pnpm-lock.yaml")).unwrap();
+    eprintln!("{lockfile_text}");
+    let expected = pacquet_crypto_hash::create_hash(pnpmfile_src);
+    assert!(
+        lockfile_text.contains(&format!("pnpmfileChecksum: {expected}")),
+        "pnpm-lock.yaml must record the pnpmfile's checksum",
+    );
+}
+
+// A pnpmfile that exports no `hooks` object contributes no checksum,
+// matching pnpm's `entries.some(entry => entry.hooks != null)` gate.
+#[tokio::test]
+async fn pnpmfile_without_hooks_omits_pnpmfile_checksum() {
+    let registry = TestRegistry::start();
+    let dir = tempdir().unwrap();
+
+    install_with_pnpmfile(
+        registry.url(),
+        dir.path(),
+        &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+        "module.exports = {}",
+    )
+    .await
+    .expect("install should succeed");
+
+    let lockfile_text = std::fs::read_to_string(dir.path().join("pnpm-lock.yaml")).unwrap();
+    eprintln!("{lockfile_text}");
+    assert!(
+        !lockfile_text.contains("pnpmfileChecksum"),
+        "a pnpmfile without hooks must not record a checksum",
+    );
 }
 
 // A throwing afterAllResolved hook aborts the install, matching pnpm.
@@ -6402,13 +7105,13 @@ async fn read_package_hook_log_is_forwarded_to_pnpm_hook_channel() {
         registry.url(),
         dir.path(),
         &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
-        r#"module.exports = { hooks: { readPackage (pkg, context) {
+        r"module.exports = { hooks: { readPackage (pkg, context) {
   if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
     pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0';
     context.log('@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0');
   }
   return pkg;
-} } }"#,
+} } }",
     )
     .await
     .expect("install should succeed");
@@ -6444,10 +7147,10 @@ async fn after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
         registry.url(),
         dir.path(),
         &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
-        r#"module.exports = { hooks: { afterAllResolved (lockfile, context) {
+        r"module.exports = { hooks: { afterAllResolved (lockfile, context) {
   context.log('All resolved');
   return lockfile;
-} } }"#,
+} } }",
     )
     .await
     .expect("install should succeed");
@@ -6483,10 +7186,10 @@ async fn async_after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
         registry.url(),
         dir.path(),
         &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
-        r#"module.exports = { hooks: { async afterAllResolved (lockfile, context) {
+        r"module.exports = { hooks: { async afterAllResolved (lockfile, context) {
   context.log('All resolved');
   return lockfile;
-} } }"#,
+} } }",
     )
     .await
     .expect("install should succeed");

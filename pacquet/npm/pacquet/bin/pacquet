@@ -11,12 +11,18 @@ const PLATFORMS = {
     arm64: "@pacquet/darwin-arm64/pacquet",
   },
   linux: {
-    x64: "@pacquet/linux-x64/pacquet",
-    arm64: "@pacquet/linux-arm64/pacquet",
+    x64: {
+      glibc: "@pacquet/linux-x64/pacquet",
+      musl: "@pacquet/linux-x64-musl/pacquet",
+    },
+    arm64: {
+      glibc: "@pacquet/linux-arm64/pacquet",
+      musl: "@pacquet/linux-arm64-musl/pacquet",
+    },
   },
 };
 
-const binPath = PLATFORMS?.[platform]?.[arch];
+const binPath = getBinPath();
 if (binPath) {
   const result = require("child_process").spawnSync(
     require.resolve(binPath),
@@ -44,6 +50,24 @@ if (binPath) {
     "You can create an issue at https://github.com/pnpm/pacquet/issues for support."
   );
   process.exitCode = 1;
+}
+
+function getBinPath() {
+  const platformEntry = PLATFORMS?.[platform]?.[arch];
+
+  if (platformEntry == null || typeof platformEntry === "string") {
+    return platformEntry;
+  }
+
+  return platformEntry[detectLinuxLibc()];
+}
+
+function detectLinuxLibc() {
+  if (platform !== "linux") {
+    return null;
+  }
+
+  return process.report.getReport().header.glibcVersionRuntime ? "glibc" : "musl";
 }
 
 /**

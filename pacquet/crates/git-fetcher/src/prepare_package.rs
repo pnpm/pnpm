@@ -32,20 +32,20 @@ use std::{
 /// nor Yarn run it for git-hosted deps.
 const PREPUBLISH_SCRIPTS: &[&str] = &["prepublish", "prepack", "publish"];
 
-/// Closure shape used to ask the install policy whether a package
-/// (`name`, `version`) is allowed to run lifecycle scripts. Mirrors
-/// upstream's `opts.allowBuild?.(name, version)` at
-/// [`index.ts:36`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L36).
+/// Closure shape used to ask the install policy whether the package at
+/// a dep path is allowed to run lifecycle scripts.
 ///
 /// We pass a closure rather than `&AllowBuildPolicy` so the
 /// `pacquet-git-fetcher` crate stays free of a back-edge into
 /// `pacquet-package-manager`. The caller adapts whatever policy
 /// structure it has into this shape.
-pub type AllowBuildFn<'a> = Box<dyn Fn(&str, &str) -> bool + Send + Sync + 'a>;
+pub type AllowBuildFn<'a> = Box<dyn Fn(&str) -> bool + Send + Sync + 'a>;
+pub type AllowBuildRef<'a> = &'a (dyn Fn(&str) -> bool + Send + Sync);
 
 /// Caller-supplied context for [`prepare_package`].
 pub struct PreparePackageOptions<'a> {
     pub allow_build: AllowBuildFn<'a>,
+    pub dep_path: &'a str,
     pub ignore_scripts: bool,
     pub unsafe_perm: bool,
     pub user_agent: Option<&'a str>,
@@ -88,7 +88,9 @@ pub fn prepare_package<Reporter: self::Reporter>(
         return Ok(PreparedPackage { pkg_dir, should_be_built: false });
     };
     let scripts = manifest.get("scripts").and_then(Value::as_object);
-    if scripts.is_none_or(|s| s.is_empty()) || !package_should_be_built(&manifest, &pkg_dir) {
+    if scripts.is_none_or(serde_json::Map::is_empty)
+        || !package_should_be_built(&manifest, &pkg_dir)
+    {
         return Ok(PreparedPackage { pkg_dir, should_be_built: false });
     }
     if opts.ignore_scripts {
@@ -96,11 +98,13 @@ pub fn prepare_package<Reporter: self::Reporter>(
     }
 
     // `allowBuild` check before any spawn. Upstream throws when
-    // `opts.allowBuild?.(name, version)` is missing or false, with
-    // GIT_DEP_PREPARE_NOT_ALLOWED.
+    // `opts.allowBuild?.(depPath)` is missing or false, with
+    // GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes from the fetched
+    // artifact itself, so its name and version only feed the error
+    // message; the dep path is the gated identity.
     let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
     let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
-    if !(opts.allow_build)(name, version) {
+    if !(opts.allow_build)(opts.dep_path) {
         return Err(PreparePackageError::NotAllowed {
             name: name.to_string(),
             version: version.to_string(),
@@ -202,11 +206,8 @@ fn safe_join_path(root: &Path, sub: Option<&str>) -> Result<PathBuf, PreparePack
     let sub = sub.unwrap_or("");
     let joined = if sub.is_empty() { root.to_path_buf() } else { root.join(sub) };
     let canonical_root = root.canonicalize().map_err(PreparePackageError::Io)?;
-    let canonical_joined = match joined.canonicalize() {
-        Ok(p) => p,
-        Err(_) => {
-            return Err(PreparePackageError::InvalidPath { path: sub.to_string() });
-        }
+    let Ok(canonical_joined) = joined.canonicalize() else {
+        return Err(PreparePackageError::InvalidPath { path: sub.to_string() });
     };
     if !canonical_joined.starts_with(&canonical_root) {
         return Err(PreparePackageError::InvalidPath { path: sub.to_string() });

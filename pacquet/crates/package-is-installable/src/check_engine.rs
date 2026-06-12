@@ -42,13 +42,13 @@ pub struct UnsupportedEngineError {
 
 impl UnsupportedEngineError {
     fn new(package_id: String, wanted: WantedEngine, current: Engine) -> Self {
-        let wanted_json = engine_json(&wanted.node, &wanted.pnpm);
-        let current_json = engine_json(&Some(current.node.clone()), &current.pnpm);
+        let wanted_json = engine_json(wanted.node.as_deref(), wanted.pnpm.as_deref());
+        let current_json = engine_json(Some(current.node.as_str()), current.pnpm.as_deref());
         Self { package_id, wanted, current, wanted_json, current_json }
     }
 }
 
-fn engine_json(node: &Option<String>, pnpm: &Option<String>) -> String {
+fn engine_json(node: Option<&str>, pnpm: Option<&str>) -> String {
     let mut parts = Vec::new();
     if let Some(n) = node {
         parts.push(format!("\"node\":{n:?}"));

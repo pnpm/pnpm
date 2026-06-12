@@ -15,6 +15,7 @@ use pacquet_lockfile::{
 };
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
+use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter,
     git_hosted_store_index_key,
@@ -124,6 +125,9 @@ pub struct InstallPackageBySnapshot<'a> {
     /// once its tarball is in the store. No effect under
     /// [`NodeLinker::Hoisted`], which never writes virtual-store slots.
     pub defer_link: bool,
+    #[cfg(test)]
+    pub(crate) link_concurrency_probe:
+        Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
 }
 
 /// Error type of [`InstallPackageBySnapshot`].
@@ -221,7 +225,7 @@ pub enum InstallPackageBySnapshotError {
     },
 }
 
-impl<'a> InstallPackageBySnapshot<'a> {
+impl InstallPackageBySnapshot<'_> {
     /// Execute the subroutine. Returns the CAS file index for the
     /// fetched package — the map relative-archive-path →
     /// absolute-store-path that downstream consumers use to either
@@ -259,6 +263,8 @@ impl<'a> InstallPackageBySnapshot<'a> {
             workspace_root,
             node_linker,
             defer_link,
+            #[cfg(test)]
+            link_concurrency_probe,
         } = self;
 
         // TODO: skip when already exists in store?
@@ -275,7 +281,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
         // (`None → false`) matches pnpm v11's policy: build scripts
         // have to be explicitly opted in to run.
         let allow_build_closure =
-            |name: &str, version: &str| allow_build_policy.check(name, version).unwrap_or(false);
+            |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
         let scripts_prepend_node_path = match config.scripts_prepend_node_path {
             pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
             pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
@@ -297,6 +303,7 @@ impl<'a> InstallPackageBySnapshot<'a> {
                     verified_files_cache: Arc::clone(verified_files_cache),
                     package_integrity: integrity,
                     package_unpacked_size: None,
+                    package_file_count: None,
                     package_url: &tarball_url,
                     package_id: &package_id,
                     requester,
@@ -559,6 +566,8 @@ impl<'a> InstallPackageBySnapshot<'a> {
                 package_key,
                 snapshot,
                 skipped,
+                #[cfg(test)]
+                link_concurrency_probe,
             }
             .run::<Reporter>()
             .map_err(InstallPackageBySnapshotError::CreateVirtualDir)?;
@@ -571,8 +580,16 @@ impl<'a> InstallPackageBySnapshot<'a> {
 /// Resolve the tarball URL + integrity for tarball- and registry-shaped
 /// resolutions. Factored out so the per-resolution-type dispatch in
 /// [`InstallPackageBySnapshot::run`] reads top-down: each variant builds
-/// its own `cas_paths`.
-fn tarball_url_and_integrity<'a>(
+/// its own `cas_paths`. Public because the pnpr server derives the same
+/// URLs when it announces a verified frozen lockfile's tarballs to the
+/// client — both sides must derive byte-identical URLs so the client's
+/// prefetch mem-cache keys line up.
+///
+/// # Panics
+///
+/// On directory / git / binary / variations resolutions — callers gate
+/// on the tarball/registry shapes first.
+pub fn tarball_url_and_integrity<'a>(
     resolution: &'a LockfileResolution,
     package_key: &PackageKey,
     config: &'a Config,
@@ -587,10 +604,13 @@ fn tarball_url_and_integrity<'a>(
             Ok((tarball_resolution.tarball.as_str().pipe(Cow::Borrowed), integrity))
         }
         LockfileResolution::Registry(registry_resolution) => {
-            let registry = config.registry.strip_suffix('/').unwrap_or(&config.registry);
-            let name = &package_key.name;
+            let registries: HashMap<String, String> =
+                config.resolved_registries().into_iter().collect();
+            let name = package_key.name.to_string();
+            let registry = pick_registry_for_package(&registries, &name, None);
+            let registry = registry.strip_suffix('/').unwrap_or(&registry);
             let version = package_key.suffix.version();
-            let bare_name = name.bare.as_str();
+            let bare_name = package_key.name.bare.as_str();
             let tarball_url = format!("{registry}/{name}/-/{bare_name}-{version}.tgz");
             Ok((Cow::Owned(tarball_url), &registry_resolution.integrity))
         }
@@ -759,6 +779,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             verified_files_cache: Arc::clone(verified_files_cache),
             package_integrity: &binary.integrity,
             package_unpacked_size: None,
+            package_file_count: None,
             package_url: &binary.url,
             package_id: &package_id,
             requester,

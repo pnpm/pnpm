@@ -1,0 +1,34 @@
+[github_app]
+# Commands run automatically when a PR is opened.
+pr_commands = [
+    "/agentic_describe",
+    "/agentic_review",
+]
+
+# Re-run commands when new commits are pushed to the PR.
+handle_push_trigger = true
+
+# Commands run automatically on push (requires handle_push_trigger = true).
+push_commands = [
+    "/agentic_review",
+]
+
+[config]
+# Skip automated reviews on bot-authored PRs (e.g. dependency bumps).
+# Qodo auto-detects most bots; these are listed explicitly to be safe.
+ignore_pr_authors = [
+    "dependabot[bot]",
+    "renovate[bot]",
+]
+
+# Optional: also skip reviews on chore/ci PRs by title (regex list).
+# Left commented so maintainers can opt in. Note that bot dependency bumps
+# are already covered by ignore_pr_authors above.
+# ignore_pr_title = ["^chore", "^ci"]
+
+[review_agent]
+# Extra instructions for the Issues Agent (bug, security, performance detection).
+# issues_user_guidelines = "Flag unhandled rejections in async code and missing error handling around filesystem and network calls"
+
+# Extra instructions for the Compliance Agent (rule checking).
+# compliance_user_guidelines = "Ensure changes to dependency resolution and lockfile handling preserve backward compatibility"

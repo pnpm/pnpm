@@ -61,6 +61,10 @@ fn write_workspace_yaml(workspace: &Path, extra: &str) {
 }
 
 /// Write a one-dependency `package.json` and return the manifest path.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called many times with json!(...) literals; owned arg keeps call sites clean"
+)]
 fn write_manifest(workspace: &Path, deps: serde_json::Value) {
     let manifest = serde_json::json!({ "dependencies": deps });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
@@ -409,7 +413,7 @@ fn public_hoist_bin_is_linked_via_root_bin_dir() {
 }
 
 /// Workspace install (pnpm/pacquet#431) lands per-importer
-/// node_modules layouts; hoist must walk every importer's direct
+/// `node_modules` layouts; hoist must walk every importer's direct
 /// deps, not just the root, so transitives unique to a workspace
 /// project still reach the shared `<vs>/node_modules` private
 /// hoist. Sets up a two-importer workspace where the workspace
@@ -812,7 +816,7 @@ mod known_failures {
     }
 
     /// Upstream: [`hoist.ts:514` "should recreate node_modules with hoisting"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L514).
-    /// Removes node_modules and re-installs from the lockfile —
+    /// Removes `node_modules` and re-installs from the lockfile —
     /// needs partial-install state for the rehoist comparison.
     #[test]
     fn should_recreate_node_modules_with_hoisting() {

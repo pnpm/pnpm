@@ -120,6 +120,7 @@ impl PackageExtender {
 
     /// `true` when no extension entry matches any selector — callers
     /// can skip the per-resolve dispatch.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.by_pkg_name.is_empty()
     }
@@ -187,6 +188,7 @@ impl PackageExtender {
     /// `None` and skip the per-resolve dispatch entirely. The captured
     /// `Arc<PackageExtender>` keeps the grouped-by-name index alive
     /// across every concurrent resolve.
+    #[must_use]
     pub fn into_manifest_hook(self) -> Option<pacquet_resolving_deps_resolver::ManifestHook> {
         if self.is_empty() {
             return None;

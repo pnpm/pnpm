@@ -180,6 +180,50 @@ fn workspace_lockfile_with_link_dep_round_trips() {
     assert_eq!(original, reparsed);
 }
 
+/// The top-level `patchedDependencies:` block renders between
+/// `settings:` and `importers:` (its slot in pnpm's `sortLockfileKeys`
+/// root-key order), with each configured key mapped to its patch-file
+/// hash and the keys sorted lexically. Models the `graceful-fs@4.2.11`
+/// entry the pnpm monorepo's own lockfile carries.
+#[test]
+fn patched_dependencies_block_round_trips_and_renders_in_order() {
+    const PATCHED_YAML: &str = text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "settings:"
+        "  autoInstallPeers: true"
+        "  excludeLinksFromLockfile: false"
+        ""
+        "patchedDependencies:"
+        "  graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    dependencies:"
+        "      react:"
+        "        specifier: ^17.0.2"
+        "        version: 17.0.2"
+        ""
+        "snapshots:"
+        ""
+        "  react@17.0.2: {}"
+    };
+
+    let original: Lockfile = serde_saphyr::from_str(PATCHED_YAML).expect("parse fixture lockfile");
+    let patched = original.patched_dependencies.as_ref().expect("patchedDependencies parsed");
+    assert_eq!(
+        patched.get("graceful-fs@4.2.11").map(String::as_str),
+        Some("68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1"),
+    );
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    original.save_to_path(&path).expect("save lockfile");
+    let saved = std::fs::read_to_string(&path).expect("read saved lockfile");
+    assert_eq!(saved, format!("{PATCHED_YAML}\n"));
+}
+
 /// `peersSuffixMaxLength` is serialized into `settings:` only when set
 /// to a non-default value. Lockfiles written by the default install
 /// must round-trip without the field, matching pnpm's
@@ -202,8 +246,10 @@ fn peers_suffix_max_length_omitted_from_settings_when_unset() {
         catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
-        importers: Default::default(),
+        patched_dependencies: None,
+        importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
     };
@@ -239,8 +285,10 @@ fn peers_suffix_max_length_serialized_when_set() {
         catalogs: None,
         overrides: None,
         package_extensions_checksum: None,
+        pnpmfile_checksum: None,
         ignored_optional_dependencies: None,
-        importers: Default::default(),
+        patched_dependencies: None,
+        importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
     };

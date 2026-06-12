@@ -160,9 +160,21 @@ pub enum LogEvent {
     /// phases that haven't landed in pacquet yet.
     ///
     /// Upstream: <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/core/core-loggers/src/skippedOptionalDependencyLogger.ts>.
-    /// Emit site (build_failure): <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L218-L240>.
+    /// Emit site (`build_failure)`: <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L218-L240>.
     #[serde(rename = "pnpm:skipped-optional-dependency")]
     SkippedOptionalDependency(SkippedOptionalDependencyLog),
+
+    /// Bracketing events for the configurational-dependency install
+    /// (`pnpm:installing-config-deps`): a `started` before any
+    /// fetch/link work, then a single `done` carrying the installed
+    /// `{ name, version }` list. Both are suppressed entirely when an
+    /// install finds every config dependency already materialized, so a
+    /// no-op install emits nothing on this channel.
+    ///
+    /// Upstream: <https://github.com/pnpm/pnpm/blob/31858c544b/core/core-loggers/src/installingConfigDeps.ts>.
+    /// Emit site: <https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/installConfigDeps.ts#L43-L127>.
+    #[serde(rename = "pnpm:installing-config-deps")]
+    InstallingConfigDeps(InstallingConfigDepsLog),
 
     /// One per snapshot whose `<virtual_store_dir>/...` directory
     /// has gone missing on disk even though the current lockfile
@@ -671,6 +683,36 @@ pub enum SkippedOptionalReason {
     ResolutionFailure,
 }
 
+/// `pnpm:installing-config-deps` payload. `status` is `started` (no
+/// `deps`) or `done` (with the installed list). Mirrors upstream's
+/// `InstallingConfigDepsMessage` union at
+/// <https://github.com/pnpm/pnpm/blob/31858c544b/core/core-loggers/src/installingConfigDeps.ts#L8-L21>.
+#[derive(Debug, Clone, Serialize)]
+pub struct InstallingConfigDepsLog {
+    pub level: LogLevel,
+    pub status: InstallingConfigDepsStatus,
+    /// Empty (and omitted from the wire shape) on `started`; the
+    /// installed packages on `done`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub deps: Vec<InstalledConfigDep>,
+}
+
+/// `status` discriminator on a [`InstallingConfigDepsLog`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InstallingConfigDepsStatus {
+    Started,
+    Done,
+}
+
+/// One installed config dependency in a `done`
+/// [`InstallingConfigDepsLog`].
+#[derive(Debug, Clone, Serialize)]
+pub struct InstalledConfigDep {
+    pub name: String,
+    pub version: String,
+}
+
 /// `pnpm:_broken_node_modules` payload. `missing` is the absolute
 /// path to the snapshot's `node_modules/<pkg>` slot that the current-
 /// lockfile lookup expected on disk but didn't find. Mirrors the
@@ -698,7 +740,10 @@ pub struct LockfileVerificationLog {
 /// `pnpm:lockfile-verification` discriminated payload. `Started`
 /// fires once before the per-candidate fan-out begins; exactly one
 /// terminal `Done` or `Failed` fires after, with `elapsed_ms`
-/// measured against the matching `Started`.
+/// measured against the matching `Started`. `Cached` fires instead
+/// of the pair when the verification cache short-circuits the gate;
+/// it carries no `entries` count because the short-circuit happens
+/// before candidates are collected.
 ///
 /// `lockfile_path` is the absolute path of the lockfile being
 /// verified. It's `Option` because the runner is invoked without a
@@ -724,6 +769,15 @@ pub enum LockfileVerificationMessage {
         entries: u64,
         #[serde(rename = "elapsedMs")]
         elapsed_ms: u64,
+        #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
+        lockfile_path: Option<String>,
+    },
+    Cached {
+        /// ISO-8601 timestamp of the verification run the cached
+        /// verdict was recorded by. Omitted when the cache record
+        /// predates the field.
+        #[serde(rename = "verifiedAt", skip_serializing_if = "Option::is_none")]
+        verified_at: Option<String>,
         #[serde(rename = "lockfilePath", skip_serializing_if = "Option::is_none")]
         lockfile_path: Option<String>,
     },
@@ -844,7 +898,7 @@ struct Envelope<'a> {
 }
 
 fn now_millis() -> u128 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis())
 }
 
 /// Capability for obtaining the host name written into the [bunyan]-shaped

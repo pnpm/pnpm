@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.graph-hasher",
-  "version": "1100.2.3",
+  "version": "1100.2.4",
   "description": "Calculates the state of a dependency",
   "keywords": [
     "pnpm",

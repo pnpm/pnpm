@@ -35,6 +35,10 @@ async fn body_json(body: Body) -> Value {
     serde_json::from_slice(&body_bytes(body).await).expect("body parses as JSON")
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn put_json(path: &str, body: Value) -> Request<Body> {
     Request::put(path)
         .header("content-type", "application/json")
@@ -905,7 +909,7 @@ async fn search_augments_with_upstream_when_local_misses_exact_name() {
     let mut config = Config::proxy(listen, tmp.path().to_path_buf());
     config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.url();
     config.public_url = "http://example.test".to_string();
-    config.packument_ttl = Duration::from_secs(60);
+    config.packument_ttl = Duration::from_mins(1);
     let app = router(config);
 
     let response = app
@@ -950,7 +954,7 @@ async fn search_augment_skips_when_upstream_404s() {
     let mut config = Config::proxy(listen, tmp.path().to_path_buf());
     config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.url();
     config.public_url = "http://example.test".to_string();
-    config.packument_ttl = Duration::from_secs(60);
+    config.packument_ttl = Duration::from_mins(1);
     let app = router(config);
 
     let response = app

@@ -1,5 +1,38 @@
 # @pnpm/node.resolver
 
+## 1101.1.6
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [615c669]
+  - @pnpm/config.reader@1101.8.0
+
+## 1101.1.5
+
+### Patch Changes
+
+- 3d50680: Security: pnpm now verifies the OpenPGP signature of a downloaded Node.js runtime's `SHASUMS256.txt` before trusting its integrity hashes.
+
+  When a repository requests a Node.js runtime (e.g. via `devEngines.runtime` / `useNodeVersion`), the download mirror is repository-configurable through `node-mirror:<channel>`. The integrity of the downloaded binary was only checked against `SHASUMS256.txt` fetched from that same mirror — a circular check that a malicious mirror could satisfy by serving a tampered binary together with a matching `SHASUMS256.txt`. pnpm then executes the binary (for example to run lifecycle scripts).
+
+  pnpm now fetches `SHASUMS256.txt.sig` and verifies the detached OpenPGP signature against the Node.js release team's public keys, which ship embedded in the pnpm CLI. A mirror that serves a tampered binary cannot also produce a valid signature, so the download fails to verify. The embedded keys are kept current by a release-time check against the canonical `nodejs/release-keys` list.
+
+  The musl variants from the hardcoded `unofficial-builds.nodejs.org` mirror are not repository-configurable and are signed by a different key, so they continue to be trusted over TLS.
+
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [1017c36]
+- Updated dependencies [bf1b731]
+- Updated dependencies [3d50680]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/types@1101.3.1
+  - @pnpm/crypto.shasums-file@1100.1.0
+  - @pnpm/resolving.resolver-base@1100.4.1
+
 ## 1101.1.4
 
 ### Patch Changes

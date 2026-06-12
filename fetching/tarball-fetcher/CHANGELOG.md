@@ -1,5 +1,27 @@
 # @pnpm/tarball-fetcher
 
+## 1101.0.14
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/exec.prepare-package@1100.0.17
+  - @pnpm/worker@1100.1.11
+
+## 1101.0.13
+
+### Patch Changes
+
+- bf1b731: Require trusted package identity before package-name `allowBuilds` entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the `allowBuilds` key. Lockfile verification now rejects lockfiles where a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [089484a]
+- Updated dependencies [bf1b731]
+  - @pnpm/worker@1100.1.10
+  - @pnpm/exec.prepare-package@1100.0.16
+  - @pnpm/types@1101.3.1
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/fetching.fetcher-base@1100.1.8
+
 ## 1101.0.12
 
 ### Patch Changes

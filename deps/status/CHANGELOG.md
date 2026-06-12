@@ -1,5 +1,46 @@
 # @pnpm/deps.status
 
+## 1100.1.0
+
+### Minor Changes
+
+- d976edf: `pnpm install` completes without re-resolving when `pnpm-lock.yaml` was deleted but `node_modules` is intact: the up-to-date check now treats the current lockfile (`node_modules/.pnpm/lock.yaml`) — the record of what the previous install materialized — as the wanted lockfile, verifies the manifests still match it, restores `pnpm-lock.yaml` from it, and reports "Already up to date". Previously this scenario triggered a full resolution and a re-verification of every locked package against the registry.
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [615c669]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/workspace.state@1100.0.21
+  - @pnpm/installing.context@1100.0.17
+  - @pnpm/lockfile.verification@1100.0.17
+  - @pnpm/workspace.projects-reader@1101.0.11
+  - @pnpm/lockfile.settings-checker@1100.0.17
+
+## 1100.0.23
+
+### Patch Changes
+
+- 97e1982: Fix `pnpm install` ignoring `enableGlobalVirtualStore` toggle by including it in the workspace state settings check [#12142](https://github.com/pnpm/pnpm/issues/12142).
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [97e1982]
+- Updated dependencies [1017c36]
+- Updated dependencies [bf1b731]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/workspace.state@1100.0.20
+  - @pnpm/types@1101.3.1
+  - @pnpm/installing.context@1100.0.16
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.verification@1100.0.16
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/workspace.projects-reader@1101.0.10
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.7
+  - @pnpm/lockfile.settings-checker@1100.0.16
+
 ## 1100.0.22
 
 ### Patch Changes

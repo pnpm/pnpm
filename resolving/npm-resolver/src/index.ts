@@ -132,6 +132,7 @@ export { whichVersionIsPinned } from './whichVersionIsPinned.js'
 export interface ResolverFactoryOptions {
   cacheDir: string
   storeDir?: string
+  frozenStore?: boolean
   fullMetadata?: boolean
   filterMetadata?: boolean
   offline?: boolean
@@ -238,6 +239,7 @@ export function createNpmResolver (
         {
           storeDir,
           verifyStoreIntegrity: false,
+          frozenStore: opts.frozenStore,
         },
         filesIndexFile,
         {

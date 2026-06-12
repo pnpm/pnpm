@@ -144,9 +144,9 @@ pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =
 ///
 /// Returns `true` if any script was present and executed.
 pub fn run_postinstall_hooks<Reporter: self::Reporter>(
-    opts: RunPostinstallHooks<'_>,
+    opts: &RunPostinstallHooks<'_>,
 ) -> Result<bool, LifecycleScriptError> {
-    run_lifecycle_stages::<Reporter>(&opts, &DEPENDENCY_LIFECYCLE_STAGES)
+    run_lifecycle_stages::<Reporter>(opts, &DEPENDENCY_LIFECYCLE_STAGES)
 }
 
 /// Run a workspace project's own lifecycle scripts during
@@ -161,9 +161,9 @@ pub fn run_postinstall_hooks<Reporter: self::Reporter>(
 ///
 /// Returns `true` if any script was present and executed.
 pub fn run_project_lifecycle_scripts<Reporter: self::Reporter>(
-    opts: RunPostinstallHooks<'_>,
+    opts: &RunPostinstallHooks<'_>,
 ) -> Result<bool, LifecycleScriptError> {
-    run_lifecycle_stages::<Reporter>(&opts, &PROJECT_LIFECYCLE_STAGES)
+    run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES)
 }
 
 /// Read the manifest at `opts.pkg_root` and run each of `stages` whose

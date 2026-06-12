@@ -263,7 +263,7 @@ fn outdated_long_shows_deprecation_details() {
 }
 
 /// An npm-aliased dependency is reported under its real registry name,
-/// not the alias. Ports pnpm's "outdated() aliased dependency".
+/// not the alias. Ports pnpm's "`outdated()` aliased dependency".
 #[test]
 fn outdated_npm_alias_reports_real_name() {
     let (root, workspace, anchor) = setup();

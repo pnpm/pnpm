@@ -1,5 +1,23 @@
 # @pnpm/assert-project
 
+## 1100.0.15
+
+### Patch Changes
+
+- @pnpm/testing.registry-mock@1100.0.5
+- @pnpm/assert-store@1100.0.15
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/installing.modules-yaml@1100.0.8
+  - @pnpm/lockfile.types@1100.0.10
+  - @pnpm/testing.registry-mock@1100.0.4
+  - @pnpm/assert-store@1100.0.14
+
 ## 1100.0.13
 
 ### Patch Changes

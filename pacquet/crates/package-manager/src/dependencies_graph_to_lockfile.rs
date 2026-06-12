@@ -93,6 +93,12 @@ pub struct GraphToLockfileOptions<'a> {
     pub overrides: Option<IndexMap<String, String>>,
     /// `ignoredOptionalDependencies` recorded the same way.
     pub ignored_optional_dependencies: Option<Vec<String>>,
+    /// `patchedDependencies` recorded into the lockfile: each configured
+    /// key mapped to its patch file's SHA-256 hex digest. Mirrors
+    /// upstream's `lockfile.patchedDependencies` assignment, which
+    /// records [`calcPatchHashes(opts.patchedDependencies)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L547-L549).
+    /// `None` when no patches are configured.
+    pub patched_dependencies: Option<BTreeMap<String, String>>,
     /// `packageExtensionsChecksum` recorded the same way. Mirrors
     /// upstream's
     /// [`packageExtensionsChecksum`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L608)
@@ -100,6 +106,12 @@ pub struct GraphToLockfileOptions<'a> {
     /// pnpm's `hashObjectNullableWithPrefix` short-circuit on empty
     /// input).
     pub package_extensions_checksum: Option<String>,
+    /// `pnpmfileChecksum` recorded the same way. Mirrors upstream's
+    /// [`pnpmfileChecksum`](https://github.com/pnpm/pnpm/blob/1819226b51/installing/deps-installer/src/install/index.ts#L546)
+    /// assignment. `None` when the project has no `.pnpmfile.{cjs,mjs}`
+    /// — or one that exports no `hooks` — matching pnpm's
+    /// `calculatePnpmfileChecksum` gate.
+    pub pnpmfile_checksum: Option<String>,
     /// The workspace catalogs (with any `add` / `update` edits already
     /// merged in) used to render the lockfile's `catalogs:` snapshot —
     /// the resolved specifier + version for every `catalog:` direct
@@ -132,6 +144,7 @@ pub struct GraphToLockfileOptions<'a> {
 /// - `snapshots` carries one [`SnapshotEntry`] per *peer-suffixed*
 ///   depPath — peer variants of the same package each get their own
 ///   snapshot row.
+#[must_use]
 pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockfile {
     let GraphToLockfileOptions {
         importers: importer_inputs,
@@ -143,7 +156,9 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         peers_suffix_max_length,
         overrides,
         ignored_optional_dependencies,
+        patched_dependencies,
         package_extensions_checksum,
+        pnpmfile_checksum,
         catalogs,
         registry,
         lockfile_include_tarball_url,
@@ -178,8 +193,10 @@ pub fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> Lockf
         catalogs: catalog_snapshots,
         overrides: overrides.filter(|map| !map.is_empty()),
         package_extensions_checksum,
+        pnpmfile_checksum,
         ignored_optional_dependencies: ignored_optional_dependencies
             .filter(|list| !list.is_empty()),
+        patched_dependencies: patched_dependencies.filter(|map| !map.is_empty()),
         importers,
         packages: (!packages.is_empty()).then_some(packages),
         snapshots: (!snapshots.is_empty()).then_some(snapshots),
@@ -221,13 +238,19 @@ fn build_catalog_snapshots(
 /// The concrete version `alias` resolved to in `importer`, read from whichever
 /// dependency group carries it. Returns the peer-stripped version, matching
 /// pnpm's `dep.version` in a catalog snapshot.
+///
+/// Uses [`ImporterDepVersion::ver_peer`] rather than `as_regular` so a catalog
+/// entry resolved through an `npm:` alias (e.g. `js-yaml: npm:@zkochan/js-yaml@0.0.11`,
+/// stored as [`ImporterDepVersion::Alias`]) still records its version (`0.0.11`)
+/// — `as_regular` returns `None` for aliases, which silently dropped aliased
+/// catalog entries from the `catalogs:` snapshot.
 fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<String> {
     let key = PkgName::parse(alias).ok()?;
     [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
         .into_iter()
         .flatten()
         .find_map(|map| map.get(&key))
-        .and_then(|spec| spec.version.as_regular())
+        .and_then(|spec| spec.version.ver_peer())
         .map(|version| version.version().to_string())
 }
 
@@ -413,19 +436,25 @@ fn real_name(result: &ResolveResult) -> Option<String> {
     if let Some(name_ver) = result.name_ver.as_ref() {
         return Some(name_ver.name.to_string());
     }
-    // A remote (non-registry, non-git) http(s) tarball direct dep leaves
-    // `name_ver` unset and carries its name in the fetched manifest.
-    // Reading it lets `importer_dep_version` strip the `name@` prefix off
-    // the depPath so the importer records just the URL (`version: <url>`),
-    // matching pnpm's `depPathToRef`. Other manifest-only resolutions
-    // (`file:` / git) are deliberately left to the `None` path so their
-    // importer entries keep pacquet's current prefixed shape — bringing
-    // those in line with `depPathToRef` is separate from
+    // `name_ver` is unset for resolutions that learn the canonical name
+    // from the fetched manifest. Read it for the two shapes whose `name@`
+    // prefix pnpm's `depPathToRef` strips off the importer entry:
+    // - a remote (non-registry, non-git) http(s) tarball direct dep
+    //   (`<name>@<tarball-url>` -> `version: <url>`), and
+    // - a runtime dep (`<name>@runtime:<ver>`, a Variations resolution ->
+    //   `version: runtime:<ver>`).
+    // Other manifest-only resolutions (`file:` / git) are deliberately
+    // left to the `None` path so their importer entries keep pacquet's
+    // current prefixed shape — bringing those in line is separate from
     // <https://github.com/pnpm/pnpm/issues/12053>.
-    let LockfileResolution::Tarball(tarball) = &result.resolution else {
-        return None;
+    let reads_name_from_manifest = match &result.resolution {
+        LockfileResolution::Variations(_) => true,
+        LockfileResolution::Tarball(tarball) => {
+            tarball.git_hosted != Some(true) && is_remote_http_tarball(&tarball.tarball)
+        }
+        _ => false,
     };
-    if tarball.git_hosted == Some(true) || !is_remote_http_tarball(&tarball.tarball) {
+    if !reads_name_from_manifest {
         return None;
     }
     result.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
@@ -493,16 +522,29 @@ fn build_package_metadata(
 
     let engines = manifest
         .and_then(|m| m.get("engines"))
-        .and_then(Value::as_object)
-        .map(|map| {
-            map.iter()
-                .filter_map(|(name, value)| {
-                    let range = value.as_str()?;
-                    if range == "*" {
-                        return None;
-                    }
-                    Some((name.clone(), range.to_string()))
-                })
+        .and_then(|value| match value {
+            Value::Object(map) => Some(
+                map.iter()
+                    .filter_map(|(name, value)| Some((name.clone(), value.as_str()?)))
+                    .collect::<Vec<(String, &str)>>(),
+            ),
+            // Array-form `engines` (e.g. `["node >= 0.2.0"]`) records
+            // index-keyed entries, the shape upstream's
+            // `Object.entries(engines)` yields for an array.
+            Value::Array(items) => Some(
+                items
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, value)| Some((index.to_string(), value.as_str()?)))
+                    .collect(),
+            ),
+            _ => None,
+        })
+        .map(|entries| {
+            entries
+                .into_iter()
+                .filter(|(_, range)| *range != "*")
+                .map(|(name, range)| (name, range.to_string()))
                 .collect::<HashMap<String, String>>()
         })
         .filter(|map| !map.is_empty());
@@ -528,8 +570,20 @@ fn build_package_metadata(
         lockfile_include_tarball_url,
     );
 
+    // pnpm records `version` only for non-registry packages (depPath carries
+    // a `:`), and only when the manifest declares one and the resolution
+    // isn't a local directory — see `toLockfileDependency`. Registry packages
+    // omit it because their version is already the depPath suffix.
+    let version = (node.dep_path.as_str().contains(':')
+        && !matches!(resolution, LockfileResolution::Directory(_)))
+    .then(|| {
+        manifest.and_then(|m| m.get("version")).and_then(Value::as_str).map(ToString::to_string)
+    })
+    .flatten();
+
     PackageMetadata {
         resolution,
+        version,
         engines,
         cpu,
         os,

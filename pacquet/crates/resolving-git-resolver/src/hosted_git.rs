@@ -133,11 +133,13 @@ pub struct HostedOpts {
 
 impl HostedGit {
     /// Convenience: build options that omit the committish.
+    #[must_use]
     pub fn no_committish() -> HostedOpts {
         HostedOpts { no_committish: true, no_git_plus: false }
     }
 
     /// Convenience: drop both `#commit` and the `git+` prefix.
+    #[must_use]
     pub fn no_committish_no_git_plus() -> HostedOpts {
         HostedOpts { no_committish: true, no_git_plus: true }
     }
@@ -241,6 +243,7 @@ impl HostedGit {
 
     /// Shorthand `<type>:<user>/<project>[#committish]`. Mirrors
     /// upstream's `shortcuttemplate`.
+    #[must_use]
     pub fn shortcut(&self, opts: HostedOpts) -> String {
         let mut out =
             format!("{}:{}/{}", self.host_type.shortcut_prefix(), self.user, self.project);
@@ -256,6 +259,7 @@ impl HostedGit {
     /// `git+https://[auth@]<domain>/<user>/<project>.git[#committish]`,
     /// optionally stripped of `git+`. Mirrors upstream's
     /// `httpstemplate` (gitlab and github share the same shape).
+    #[must_use]
     pub fn https(&self, opts: HostedOpts) -> Option<String> {
         let auth = self.auth.as_deref().map(|a| format!("{a}@")).unwrap_or_default();
         let mut out = format!(
@@ -280,6 +284,7 @@ impl HostedGit {
 
     /// `git@<domain>:<user>/<project>.git[#committish]`. Mirrors
     /// upstream's `sshtemplate`.
+    #[must_use]
     pub fn ssh(&self, opts: HostedOpts) -> Option<String> {
         let mut out = format!(
             "git@{domain}:{user}/{project}.git",
@@ -298,6 +303,7 @@ impl HostedGit {
 
     /// `git+ssh://git@<domain>/<user>/<project>.git[#committish]`.
     /// Mirrors upstream's `sshurltemplate`.
+    #[must_use]
     pub fn sshurl(&self, opts: HostedOpts) -> Option<String> {
         let mut out = format!(
             "git+ssh://git@{domain}/{user}/{project}.git",
@@ -331,6 +337,7 @@ impl HostedGit {
     /// from upstream's template. Pacquet only ever invokes
     /// `tarball()` after [`crate::resolve_ref::resolve_ref`] has pinned
     /// the commit, so the `None` here is precautionary.
+    #[must_use]
     pub fn tarball(&self, opts: HostedOpts) -> Option<String> {
         // Upstream `tarball()` overrides `noCommittish: false`; even
         // when the caller asks to drop the committish elsewhere, the

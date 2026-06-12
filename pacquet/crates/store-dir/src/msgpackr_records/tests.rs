@@ -234,7 +234,7 @@ fn rejects_reference_to_unknown_slot() {
     assert!(matches!(err, DecodeError::UnknownSlot { slot: 0x41, .. }), "got {err:?}");
 }
 
-/// In plain MessagePack, a bare 0x40..=0x7f byte is a positive
+/// In plain `MessagePack`, a bare 0x40..=0x7f byte is a positive
 /// fixint (64..=127) — not a record slot reference. The transcoder
 /// must not touch it until a record definition has actually
 /// appeared in the stream.

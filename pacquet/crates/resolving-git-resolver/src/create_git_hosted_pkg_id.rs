@@ -12,6 +12,7 @@
 ///
 /// The output is the `PkgResolutionId` upstream stamps as `id` on a git
 /// `ResolveResult`.
+#[must_use]
 pub fn create_git_hosted_pkg_id(repo: &str, commit: &str, path: Option<&str>) -> String {
     let mut id = if repo.contains("://") {
         format!("{repo}#{commit}")

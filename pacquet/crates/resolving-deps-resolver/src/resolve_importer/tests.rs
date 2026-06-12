@@ -79,6 +79,10 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
     }
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn fake_manifest(root_deps: serde_json::Value) -> (tempfile::TempDir, PackageManifest) {
     fake_manifest_json(serde_json::json!({
         "name": "root",
@@ -87,6 +91,10 @@ fn fake_manifest(root_deps: serde_json::Value) -> (tempfile::TempDir, PackageMan
     }))
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn fake_manifest_json(json: serde_json::Value) -> (tempfile::TempDir, PackageManifest) {
     let tmp = tempfile::tempdir().expect("tempdir");
     let path = tmp.path().join("package.json");
@@ -715,6 +723,122 @@ async fn auto_install_does_not_hoist_when_root_already_has_dep() {
     );
 }
 
+/// An optional peer with a real `peerDependencies` entry whose
+/// provider is resolved anywhere in the tree (here: deep under a
+/// sibling) IS hoisted: upstream folds every run-resolved version into
+/// `ctx.allPreferredVersions` and `getHoistableOptionalPeers` resolves
+/// the peer against it after the wave (verified against pnpm 11.6.0 —
+/// the `eslint` + `cosmiconfig-typescript-loader` shape, where
+/// `eslint` gains `(jiti@x)`). For
+/// <https://github.com/pnpm/pnpm/issues/12266>.
+#[tokio::test]
+async fn optional_peer_with_real_entry_is_hoisted_from_resolved_tree() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("needs-opt".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "needs-opt",
+            "1.0.0",
+            serde_json::json!({
+                "name": "needs-opt",
+                "version": "1.0.0",
+                "peerDependencies": { "opt": "^1.0.0" },
+                "peerDependenciesMeta": { "opt": { "optional": true } },
+            }),
+        ),
+    );
+    table.insert(
+        ("provider".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "provider",
+            "1.0.0",
+            serde_json::json!({
+                "name": "provider",
+                "version": "1.0.0",
+                "dependencies": { "opt": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("opt".to_string(), "1.0.0".to_string()),
+        fake_result("opt", "1.0.0", serde_json::json!({ "name": "opt", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "needs-opt": "1.0.0",
+        "provider": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(direct.contains(&"opt"), "optional peer `opt` must be hoisted: {direct:?}");
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("needs-opt"),
+        Some(&DepPath::from("needs-opt@1.0.0(opt@1.0.0)".to_string())),
+    );
+}
+
+/// A peer declared only via `peerDependenciesMeta` (no
+/// `peerDependencies` entry — the `debug` / `supports-color` shape) is
+/// NOT hoisted even when a provider is resolved in the tree: upstream's
+/// `getMissingPeers` feeds the hoist from `peerDependencies` entries
+/// only (verified against pnpm 11.6.0 — `debug` + `concurrently` leaves
+/// `debug@4.4.3` bare). For
+/// <https://github.com/pnpm/pnpm/issues/12266>.
+#[tokio::test]
+async fn meta_only_optional_peer_is_not_hoisted() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("needs-opt".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "needs-opt",
+            "1.0.0",
+            serde_json::json!({
+                "name": "needs-opt",
+                "version": "1.0.0",
+                "peerDependenciesMeta": { "opt": { "optional": true } },
+            }),
+        ),
+    );
+    table.insert(
+        ("provider".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "provider",
+            "1.0.0",
+            serde_json::json!({
+                "name": "provider",
+                "version": "1.0.0",
+                "dependencies": { "opt": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("opt".to_string(), "1.0.0".to_string()),
+        fake_result("opt", "1.0.0", serde_json::json!({ "name": "opt", "version": "1.0.0" })),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({
+        "needs-opt": "1.0.0",
+        "provider": "1.0.0",
+    }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(!direct.contains(&"opt"), "meta-only peer `opt` must not be hoisted: {direct:?}");
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("needs-opt"),
+        Some(&DepPath::from("needs-opt@1.0.0".to_string())),
+    );
+}
+
 /// Port of "don't install the same missing peer dependency twice": a
 /// transitive chain where each layer adds the same peer must produce a
 /// single hoisted entry.
@@ -897,7 +1021,7 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
     let mut catalogs = pacquet_catalogs_types::Catalogs::new();
     catalogs.insert(
         "default".to_string(),
-        [("foo".to_string(), "^1.0.0".to_string())].into_iter().collect(),
+        std::iter::once(("foo".to_string(), "^1.0.0".to_string())).collect(),
     );
 
     let opts = ResolveImporterOptions { catalogs, ..default_opts() };
@@ -930,7 +1054,9 @@ async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
                 "No catalog entry 'foo' was found for catalog 'default'.",
             );
         }
-        other => panic!("expected CatalogMisconfiguration, got {other:?}"),
+        other @ ResolveImporterError::Resolve(_) => {
+            panic!("expected CatalogMisconfiguration, got {other:?}")
+        }
     }
 }
 

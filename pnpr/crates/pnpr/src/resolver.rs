@@ -17,6 +17,10 @@
 //!   ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)),
 //!   then fetches the rest in parallel like a normal install
 //!   ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
+//! * `POST /v1/verify-lockfile` — verify an already-fresh client
+//!   lockfile under the same policy without resolving. A frozen restore
+//!   can start local fetch/materialization immediately and only use this
+//!   endpoint as the trust verdict.
 //!
 //! pnpr is a stateless resolver: it stores no tarballs and serves no file
 //! content. The client fetches every tarball directly from the registry
@@ -55,11 +59,15 @@ use axum::{
 };
 use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, LockfileResolution};
 use pacquet_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_package_manager::build_resolution_verifiers;
-use pacquet_resolving_npm_resolver::{InMemoryPackageMetaCache, PackageMetaCache};
+use pacquet_package_manager::{
+    ResolvedPackageHint, build_resolution_verifiers, tarball_url_and_integrity,
+};
+use pacquet_resolving_npm_resolver::{
+    InMemoryPackageMetaCache, ObservedDistStats, PackageMetaCache, observed_dist_stats_sink,
+};
 use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::StoreDir;
 use sha2::{Digest, Sha256};
@@ -160,7 +168,7 @@ impl Resolver {
 
         let mut config = PacquetConfig::new();
         config.store_dir = self.store_dir.clone();
-        config.cache_dir = self.cache_dir.clone();
+        config.cache_dir.clone_from(&self.cache_dir);
         config.registry = registry;
         config.named_registries = request.named_registries.clone();
         config.overrides = overrides;
@@ -172,12 +180,12 @@ impl Resolver {
         // `trustPolicy` checks, so newly-resolved entries are held to the
         // same policy as the reused ones.
         config.minimum_release_age = request.minimum_release_age;
-        config.minimum_release_age_exclude = request.minimum_release_age_exclude.clone();
+        config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
         if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
             config.minimum_release_age_ignore_missing_time = ignore_missing_time;
         }
         config.trust_policy = request.trust_policy;
-        config.trust_policy_exclude = request.trust_policy_exclude.clone();
+        config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);
         config.trust_policy_ignore_after = request.trust_policy_ignore_after;
         let config: &'static PacquetConfig = config.leak();
         configs.insert(key, config);
@@ -224,23 +232,32 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     // opt-out (mirrors the local path's `--trust-lockfile`). Freshly-
     // resolved entries are held to the same policy by the resolver's
     // pick-time gate (the policy is wired into `config`).
+    let mut verified_dist_stats = None;
     if !request.trust_lockfile
         && let Some(input_lockfile) = request.lockfile.as_ref()
-        && let Err(failure) =
-            verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await
     {
-        return match failure {
-            VerifyFailure::Internal(response) => response,
-            VerifyFailure::Violations(violations) => {
-                ndjson_single_frame(&violations_frame(&violations))
+        match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
+            Ok(stats) => verified_dist_stats = stats,
+            Err(VerifyFailure::Internal(response)) => return response,
+            Err(VerifyFailure::Violations(violations)) => {
+                return ndjson_single_frame(&violations_frame(&violations));
             }
-        };
+        }
     }
 
     // Short-circuit paths that produce the whole lockfile without an
-    // incremental tree walk: nothing to stream, so emit only `done`.
+    // incremental tree walk. A verified frozen lockfile still announces
+    // its tarballs as `package` frames when the verification fan-out
+    // just fetched their metadata — the sizes let the client start the
+    // largest downloads first. On a verdict-cache hit no metadata was
+    // fetched, so there's nothing to add and the response is the bare
+    // `done` frame.
     if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
-        return ndjson_single_frame(&done_frame(&lockfile));
+        let mut frames = verified_dist_stats
+            .map(|sizes| frozen_package_frames(config, &lockfile, &sizes))
+            .unwrap_or_default();
+        frames.push(done_frame(&lockfile));
+        return ndjson_frames(&frames);
     }
     let resolution_cache_key = if request.auth_headers.is_empty() && request.lockfile.is_none() {
         resolution_cache_key(config, &request)
@@ -278,6 +295,42 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
         }
     });
     ndjson_stream_response(rx)
+}
+
+/// Handle `POST /v1/verify-lockfile`: verify the client's input
+/// lockfile under the client's policy, returning only a terminal NDJSON
+/// verdict frame. The client already knows the lockfile is fresh for
+/// the current manifests, so this endpoint deliberately does not
+/// resolve or echo the lockfile back.
+pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> Response {
+    let request: ResolveRequest = match serde_json::from_slice(&body) {
+        Ok(request) => request,
+        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
+    };
+
+    let Some(input_lockfile) = request.lockfile.as_ref() else {
+        return json_error(StatusCode::BAD_REQUEST, "`lockfile` is required");
+    };
+
+    if request.trust_lockfile {
+        return ndjson_single_frame(&verify_done_frame());
+    }
+
+    let config = runtime.config_for(&request);
+    let request_auth = Arc::new(AuthHeaders::from_map(
+        request.auth_headers.iter().map(|(uri, value)| (uri.clone(), value.clone())).collect(),
+    ));
+
+    match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
+        // The dist stats the verifier observed feed `/v1/resolve`'s sized
+        // `package` frames; this endpoint's client prefetches from its own
+        // lockfile before the verdict arrives, so only the verdict is sent.
+        Ok(_) => ndjson_single_frame(&verify_done_frame()),
+        Err(VerifyFailure::Internal(response)) => response,
+        Err(VerifyFailure::Violations(violations)) => {
+            ndjson_single_frame(&violations_frame(&violations))
+        }
+    }
 }
 
 const MAX_RESOLUTION_CACHE_ENTRIES: usize = 1024;
@@ -376,24 +429,96 @@ struct StreamObserver {
 
 impl pacquet_package_manager::ResolutionObserver for StreamObserver {
     fn on_resolved(&self, hint: pacquet_package_manager::ResolvedPackageHint<'_>) {
-        let frame = serde_json::json!({
-            "type": "package",
-            "id": hint.id,
-            "name": hint.name,
-            "version": hint.version,
-            "integrity": hint.integrity,
-            "tarball": hint.tarball_url,
-        });
-        if let Ok(line) = ndjson_line(&frame) {
+        if let Ok(line) = ndjson_line(&package_frame(&hint)) {
             let _ = self.tx.send(line);
         }
     }
 }
 
+/// One `package` NDJSON frame. `unpackedSize` is omitted (not null)
+/// when the registry never published a `dist.unpackedSize`, so older
+/// clients parse the frame unchanged.
+fn package_frame(hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
+    let mut frame = serde_json::json!({
+        "type": "package",
+        "id": hint.id,
+        "name": hint.name,
+        "version": hint.version,
+        "integrity": hint.integrity,
+        "tarball": hint.tarball_url,
+    });
+    if let Some(size) = hint.unpacked_size {
+        frame["unpackedSize"] = serde_json::Value::from(size);
+    }
+    if let Some(count) = hint.file_count {
+        frame["fileCount"] = serde_json::Value::from(count);
+    }
+    frame
+}
+
+/// `package` frames for every tarball-fetchable entry of a verified
+/// frozen lockfile, deduplicated by tarball URL. Mirrors what the
+/// streaming resolve's [`StreamObserver`] would have announced had the
+/// tree walk run: the client prefetches each tarball on arrival, with
+/// `unpackedSize` (from the verification fan-out's metadata, when the
+/// registry published one) prioritizing the largest downloads.
+///
+/// Tarball URLs are derived with the same
+/// [`tarball_url_and_integrity`] the client's frozen materialization
+/// uses, so the announced URLs match the client's mem-cache keys
+/// byte-for-byte. Non-tarball resolutions (git, directory, binary,
+/// variations) are skipped — the client fetches those through their
+/// own protocol paths.
+fn frozen_package_frames(
+    config: &PacquetConfig,
+    lockfile: &Lockfile,
+    dist_stats: &ObservedDistStats,
+) -> Vec<Vec<u8>> {
+    let Some(packages) = lockfile.packages.as_ref() else {
+        return Vec::new();
+    };
+    let mut seen_urls = std::collections::HashSet::new();
+    let mut frames = Vec::new();
+    for (package_key, snapshot) in packages {
+        if !matches!(
+            snapshot.resolution,
+            LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
+        ) {
+            continue;
+        }
+        let Ok((tarball_url, integrity)) =
+            tarball_url_and_integrity(&snapshot.resolution, package_key, config)
+        else {
+            continue;
+        };
+        if !seen_urls.insert(tarball_url.to_string()) {
+            continue;
+        }
+        let name = package_key.name.to_string();
+        let version = package_key.suffix.version().to_string();
+        let id = format!("{name}@{version}");
+        let integrity = integrity.to_string();
+        let stats = dist_stats.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
+        let frame = package_frame(&ResolvedPackageHint {
+            id: &id,
+            name: &name,
+            version: &version,
+            integrity: &integrity,
+            tarball_url: &tarball_url,
+            unpacked_size: stats.and_then(|stats| stats.unpacked_size),
+            file_count: stats.and_then(|stats| stats.file_count),
+        });
+        if let Ok(line) = ndjson_line(&frame) {
+            frames.push(line);
+        }
+    }
+    frames
+}
+
 /// Terminal `done` frame: the full resolved lockfile + stats. The client
 /// writes the lockfile and fetches every tarball itself.
 fn done_frame(lockfile: &Lockfile) -> Vec<u8> {
-    let total_packages = lockfile.packages.as_ref().map_or(0, |packages| packages.len());
+    let total_packages = lockfile.packages.as_ref().map_or(0, std::collections::HashMap::len);
     let frame = serde_json::json!({
         "type": "done",
         "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),
@@ -423,6 +548,11 @@ fn violations_frame(violations: &[serde_json::Value]) -> Vec<u8> {
         .unwrap_or_else(|_| br#"{"type":"error","message":"verification failed"}"#.to_vec())
 }
 
+fn verify_done_frame() -> Vec<u8> {
+    ndjson_line(&serde_json::json!({ "type": "done" }))
+        .unwrap_or_else(|_| br#"{"type":"error","message":"verification failed"}"#.to_vec())
+}
+
 /// Serialize one frame to a newline-terminated NDJSON line.
 fn ndjson_line(value: &serde_json::Value) -> Result<Vec<u8>, serde_json::Error> {
     let mut bytes = serde_json::to_vec(value)?;
@@ -438,6 +568,17 @@ fn ndjson_single_frame(frame: &[u8]) -> Response {
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
         .body(Body::from(frame.to_vec()))
+        .expect("binary response is always valid")
+}
+
+/// A 200 NDJSON response carrying several already-serialized frames in
+/// one fixed body. Used by the frozen fast path, where every frame is
+/// known up front — no channel to stream from.
+fn ndjson_frames(frames: &[Vec<u8>]) -> Response {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
+        .body(Body::from(frames.concat()))
         .expect("binary response is always valid")
 }
 
@@ -465,25 +606,29 @@ enum VerifyFailure {
 }
 
 /// Verify the client's input lockfile under the client's policy. On a
-/// clean pass returns `Ok(())`; on a policy violation returns the
-/// rendered violations so the caller can deliver them to the client. A
-/// build-verifiers failure (e.g. an invalid exclude pattern) returns a
-/// ready-made 500.
+/// clean pass returns the [`ObservedDistStats`] the verifier
+/// collected — `None` when the whole-lockfile verdict cache satisfied
+/// the check without a fan-out (no metadata was fetched, so no sizes
+/// exist). On a policy violation returns the rendered violations so
+/// the caller can deliver them to the client. A build-verifiers
+/// failure (e.g. an invalid exclude pattern) returns a ready-made 500.
 async fn verify_input_lockfile(
     runtime: &Resolver,
     config: &'static PacquetConfig,
     auth_headers: &Arc<AuthHeaders>,
     lockfile: &Lockfile,
-) -> Result<(), VerifyFailure> {
+) -> Result<Option<ObservedDistStats>, VerifyFailure> {
     // A fresh per-request packument cache shared with the verifier; the
     // on-disk metadata mirror under `<cache_dir>/v11/metadata-full` is
     // warm across requests and is the real verification cache.
     let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+    let dist_stats = observed_dist_stats_sink();
     let verifiers = build_resolution_verifiers(
         config,
         Arc::clone(&runtime.client),
         Some(meta_cache as Arc<dyn PackageMetaCache>),
         Some(Arc::clone(auth_headers)),
+        Some(Arc::clone(&dist_stats)),
     )
     .map_err(|err| {
         VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
@@ -499,7 +644,7 @@ async fn verify_input_lockfile(
             verifiers.iter().all(|verifier| verifier.can_trust_past_check(policy))
         })
     {
-        return Ok(());
+        return Ok(None);
     }
 
     let violations = collect_resolution_policy_violations(lockfile, &verifiers, None).await;
@@ -507,7 +652,7 @@ async fn verify_input_lockfile(
         if let Some(cache) = runtime.verdict_cache.as_ref() {
             cache.record(&hash, &merge_policies(&verifiers));
         }
-        return Ok(());
+        return Ok(Some(dist_stats));
     }
 
     let rendered: Vec<serde_json::Value> = violations

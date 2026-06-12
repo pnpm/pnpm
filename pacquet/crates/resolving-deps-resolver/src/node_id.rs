@@ -37,6 +37,7 @@ impl NodeId {
     /// Build a leaf `NodeId` from a package id. Every occurrence of a
     /// leaf shares the same `NodeId`, so the tree carries one node
     /// instead of one per parent edge.
+    #[must_use]
     pub fn leaf(id: &str) -> NodeId {
         NodeId::Leaf(Arc::from(id))
     }

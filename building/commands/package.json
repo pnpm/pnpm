@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.commands",
-  "version": "1100.1.2",
+  "version": "1100.1.4",
   "description": "Commands for rebuilding and managing dependency builds",
   "keywords": [
     "pnpm",
@@ -34,6 +34,7 @@
   "dependencies": {
     "@inquirer/prompts": "catalog:",
     "@pnpm/building.after-install": "workspace:*",
+    "@pnpm/building.policy": "workspace:*",
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",

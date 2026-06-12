@@ -147,6 +147,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("fetch-retry-maxtimeout", Int(cfg.fetch_retry_maxtimeout as i64)),
         ("fetch-retry-mintimeout", Int(cfg.fetch_retry_mintimeout as i64)),
         ("fetch-timeout", Int(cfg.fetch_timeout as i64)),
+        ("frozen-store", Bool(cfg.frozen_store)),
         (
             "minimum-release-age",
             Int(cfg.minimum_release_age.expect("pacquet defaults minimum-release-age to Some")
@@ -356,8 +357,10 @@ fn every_pnpm_default_is_classified() {
 
     let mapped: BTreeSet<String> =
         mapped_rows(&cfg).into_iter().map(|(key, _)| key.to_string()).collect();
-    let non_literal: BTreeSet<String> = NON_LITERAL.iter().map(|key| key.to_string()).collect();
-    let not_ported: BTreeSet<String> = NOT_PORTED.iter().map(|key| key.to_string()).collect();
+    let non_literal: BTreeSet<String> =
+        NON_LITERAL.iter().map(std::string::ToString::to_string).collect();
+    let not_ported: BTreeSet<String> =
+        NOT_PORTED.iter().map(std::string::ToString::to_string).collect();
 
     // The three buckets must be disjoint — a key can't be both mapped
     // and skipped.

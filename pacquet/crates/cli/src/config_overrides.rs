@@ -1,5 +1,8 @@
 use pacquet_config::Config;
-use std::ffi::{OsStr, OsString};
+use std::{
+    collections::BTreeMap,
+    ffi::{OsStr, OsString},
+};
 
 /// CLI overrides parsed from pnpm's `--config.<key>=<value>` dotted-key
 /// syntax. Upstream pnpm uses [`npm-conf`](https://github.com/npm/npm-conf)
@@ -18,6 +21,7 @@ use std::ffi::{OsStr, OsString};
 #[derive(Debug, Default)]
 pub struct ConfigOverrides {
     registry: Option<String>,
+    registries: BTreeMap<String, String>,
 }
 
 impl ConfigOverrides {
@@ -46,7 +50,11 @@ impl ConfigOverrides {
 
     fn set(&mut self, key: &str, value: &str) {
         if key == "registry" {
-            self.registry = Some(value.to_owned());
+            self.registry = Some(normalize_registry_url(value));
+            return;
+        }
+        if let Some(scope) = scoped_registry_key(key) {
+            self.registries.insert(scope.to_owned(), normalize_registry_url(value));
         }
     }
 
@@ -55,7 +63,10 @@ impl ConfigOverrides {
     /// Mirrors pnpm 11's "CLI > yaml > .npmrc > defaults" precedence.
     pub fn apply(&self, config: &mut Config) {
         if let Some(registry) = &self.registry {
-            config.registry = registry.clone();
+            config.registry.clone_from(registry);
+        }
+        for (scope, registry) in &self.registries {
+            config.registries.insert(scope.clone(), registry.clone());
         }
     }
 }
@@ -81,6 +92,15 @@ fn classify(arg: &OsStr) -> ConfigToken<'_> {
         return ConfigToken::Malformed;
     }
     ConfigToken::WellFormed { key, value }
+}
+
+fn scoped_registry_key(key: &str) -> Option<&str> {
+    key.strip_suffix(":registry")
+        .filter(|scope| scope.starts_with('@') && scope.len() > 1 && !scope.contains('/'))
+}
+
+fn normalize_registry_url(registry: &str) -> String {
+    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 #[cfg(test)]

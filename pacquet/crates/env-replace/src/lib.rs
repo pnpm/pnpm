@@ -44,6 +44,18 @@ pub trait EnvVar {
     /// as `None` to match `std::env::var`'s behaviour, which is what
     /// pnpm itself observes via Node's `process.env`.
     fn var(name: &str) -> Option<String>;
+
+    /// Enumerate every `(name, value)` environment variable pair.
+    ///
+    /// Used by consumers that must match env vars by prefix rather than
+    /// by exact name (e.g. URL-scoped `npm_config_//…` auth settings,
+    /// where the host is part of the variable name). Defaults to an
+    /// empty set so existing fakes that only implement [`EnvVar::var`]
+    /// keep compiling; production providers override it.
+    #[must_use]
+    fn vars() -> Vec<(String, String)> {
+        Vec::new()
+    }
 }
 
 /// Production [`EnvVar`] provider: reads the real process environment via
@@ -57,6 +69,16 @@ pub struct SystemEnv;
 impl EnvVar for SystemEnv {
     fn var(name: &str) -> Option<String> {
         std::env::var(name).ok()
+    }
+
+    fn vars() -> Vec<(String, String)> {
+        // `std::env::vars()` panics if any name/value is not valid UTF-8.
+        // Iterate the OsString form and drop non-UTF-8 entries instead,
+        // matching `var`'s `std::env::var(..).ok()` (which yields `None`
+        // for non-UTF-8).
+        std::env::vars_os()
+            .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
+            .collect()
     }
 }
 
@@ -75,6 +97,7 @@ impl EnvVar for SystemEnv {
 /// dropped to `""`.
 ///
 /// [`Sys::var`]: EnvVar::var
+#[must_use]
 pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
     let bytes = text.as_bytes();
     let mut output = String::with_capacity(text.len());

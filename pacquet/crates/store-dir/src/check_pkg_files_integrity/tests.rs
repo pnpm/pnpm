@@ -414,10 +414,10 @@ fn side_effects_overlay_added_shadows_base_on_collision() {
 }
 
 /// A malformed digest inside an `added` overlay drops the **whole**
-/// cache_key entry — not just the single bad file. Mismatched
+/// `cache_key` entry — not just the single bad file. Mismatched
 /// overlays would otherwise turn a future `is_built = true` decision
 /// into a silent corruption (build skipped, required artifact
-/// missing). Other cache_key entries on the same package survive.
+/// missing). Other `cache_key` entries on the same package survive.
 #[test]
 fn side_effects_overlay_malformed_added_digest_drops_cache_key_entry() {
     let tmp = tempdir().unwrap();

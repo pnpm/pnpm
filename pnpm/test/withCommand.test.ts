@@ -67,6 +67,21 @@ test('pnpm with forwards subsequent args to the child pnpm', () => {
   expect(stdout.toString().trim()).toMatch(/^\d+\.\d+\.\d+/)
 })
 
+test('pnpm with current dispatches the inner command after a global boolean flag', () => {
+  prepare()
+  writeJsonFileSync('package.json', {
+    name: 'project',
+    version: '1.0.0',
+  })
+
+  for (const flag of ['--color', '--yes']) {
+    const { status, stdout } = execPnpmSync([flag, 'with', 'current', '--version'])
+
+    expect(status).toBe(0)
+    expect(stdout.toString().trim()).toMatch(/^\d+\.\d+\.\d+/)
+  }
+})
+
 test('pnpm with fails when no spec is provided', () => {
   prepare()
 

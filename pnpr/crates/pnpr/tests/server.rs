@@ -22,7 +22,7 @@ fn config_for(upstream: &str, storage: std::path::PathBuf) -> Config {
     let mut config = Config::proxy(listen, storage);
     config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.to_string();
     config.public_url = "http://example.test".to_string();
-    config.packument_ttl = Duration::from_secs(60);
+    config.packument_ttl = Duration::from_mins(1);
     config
 }
 
@@ -321,6 +321,67 @@ async fn packument_is_refetched_after_ttl_expires() {
     mock.assert_async().await;
 }
 
+/// A stale cached packument is revalidated with a conditional GET: the
+/// upstream's `ETag` is replayed as `If-None-Match`, and a `304` lets
+/// the server serve its cached copy without re-downloading the body. The
+/// `304` also refreshes the entry, so a third request inside the TTL is
+/// served straight from cache with no upstream call at all.
+#[tokio::test]
+async fn stale_packument_is_revalidated_with_conditional_get() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({ "name": "foo", "dist-tags": { "latest": "1.0.0" }, "versions": {} });
+    // First request (no validator yet): full body plus an ETag to store.
+    let full = upstream
+        .mock("GET", "/foo")
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("etag", r#""v1""#)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    // Revalidation: the stored ETag comes back as If-None-Match; upstream
+    // confirms it's unchanged with a bodyless 304.
+    let revalidate = upstream
+        .mock("GET", "/foo")
+        .match_header("if-none-match", r#""v1""#)
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    // A generous TTL: r2's `304` refresh rewrites the cache file, and r3 must
+    // see that entry as fresh. The margin has to comfortably exceed the wall
+    // time between r2's refresh-write and r3's freshness check, which can spike
+    // on a contended CI runner (and is subject to coarse filesystem mtime
+    // granularity on Windows). The r1->r2 sleep stays longer than the TTL so r2
+    // is still stale.
+    config.packument_ttl = Duration::from_millis(500);
+    let app = router(config);
+
+    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r1.status(), StatusCode::OK);
+    let _ = body_bytes(r1.into_body()).await;
+
+    // Wait past the TTL so the cached packument is stale and gets revalidated.
+    tokio::time::sleep(Duration::from_millis(700)).await;
+
+    let r2 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r2.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&body_bytes(r2.into_body()).await).unwrap();
+    assert_eq!(body["dist-tags"]["latest"], "1.0.0", "304 must serve the cached body");
+
+    // The 304 refreshed the entry, so this request is within the TTL and
+    // never reaches the upstream — both mocks asserting exactly one call.
+    let r3 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r3.status(), StatusCode::OK);
+
+    full.assert_async().await;
+    revalidate.assert_async().await;
+}
+
 /// A hosted packument is authoritative: even with a proxy upstream
 /// configured, a divergent upstream packument, and an expired TTL, the
 /// hosted copy is served verbatim and the upstream is never contacted.
@@ -613,15 +674,12 @@ async fn client_disconnect_mid_stream_clears_cache() {
 async fn await_no_tgz(dir: &std::path::Path, budget: Duration) -> bool {
     let deadline = std::time::Instant::now() + budget;
     loop {
-        let still_present = dir
-            .read_dir()
-            .map(|iter| {
-                iter.filter_map(Result::ok).any(|entry| {
-                    let name = entry.file_name().to_string_lossy().into_owned();
-                    name.ends_with(".tgz") || name.contains(".tmp.")
-                })
+        let still_present = dir.read_dir().is_ok_and(|iter| {
+            iter.filter_map(Result::ok).any(|entry| {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                name.ends_with(".tgz") || name.contains(".tmp.")
             })
-            .unwrap_or(false);
+        });
         if !still_present {
             return true;
         }

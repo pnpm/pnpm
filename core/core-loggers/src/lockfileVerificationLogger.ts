@@ -6,7 +6,7 @@ import {
 export const lockfileVerificationLogger = logger<LockfileVerificationMessage>('lockfile-verification')
 
 export interface LockfileVerificationMessageBase {
-  status: 'started' | 'done' | 'failed'
+  status: 'started' | 'done' | 'failed' | 'cached'
   /**
    * Absolute path of the lockfile being verified. Omitted only when
    * the verifier is invoked without a path (today only in unit tests
@@ -45,10 +45,27 @@ export interface LockfileVerificationFailedMessage extends LockfileVerificationM
   elapsedMs: number
 }
 
+/**
+ * Emitted instead of a `started`/`done` pair when the verification
+ * cache already holds a passing verdict for this lockfile content
+ * under the same (or stricter) policy, so the gate short-circuited
+ * without contacting the registry. Carries no `entries` count — the
+ * short-circuit happens before candidates are collected.
+ */
+export interface LockfileVerificationCachedMessage extends LockfileVerificationMessageBase {
+  status: 'cached'
+  /**
+   * ISO-8601 timestamp of the verification run the cached verdict was
+   * recorded by. Omitted when the cache record predates the field.
+   */
+  verifiedAt?: string
+}
+
 export type LockfileVerificationMessage =
   | LockfileVerificationStartedMessage
   | LockfileVerificationDoneMessage
   | LockfileVerificationFailedMessage
+  | LockfileVerificationCachedMessage
 
 export type LockfileVerificationLog =
   & { name: 'pnpm:lockfile-verification' }

@@ -74,7 +74,7 @@ fn should_execute_a_command() {
     }
     "#;
     let tmp = NamedTempFile::new().unwrap();
-    write!(tmp.as_file(), "{}", data).unwrap();
+    write!(tmp.as_file(), "{data}").unwrap();
     let manifest = PackageManifest::create_if_needed(tmp.path().to_path_buf()).unwrap();
     assert_eq!(manifest.script("test", false).unwrap(), Some("echo"));
     manifest.script("invalid", false).expect_err("invalid command should not exist");
@@ -94,7 +94,7 @@ fn get_dependencies_should_return_peers() {
     }
     "#;
     let tmp = NamedTempFile::new().unwrap();
-    write!(tmp.as_file(), "{}", data).unwrap();
+    write!(tmp.as_file(), "{data}").unwrap();
     let manifest = PackageManifest::create_if_needed(tmp.path().to_path_buf()).unwrap();
     let dependencies = |groups| manifest.dependencies(groups).collect::<HashMap<_, _>>();
     let peer = dependencies([DependencyGroup::Peer]);
@@ -133,7 +133,7 @@ fn bundle_dependencies() {
     case!(r#"{ "bundledDependencies": false }"# => false.pipe(BundleDependencies::Boolean).pipe(Some));
     case!(r#"{ "bundleDependencies": true }"# => true.pipe(BundleDependencies::Boolean).pipe(Some));
     case!(r#"{ "bundledDependencies": true }"# => true.pipe(BundleDependencies::Boolean).pipe(Some));
-    case!(r#"{}"# => None);
+    case!(r"{}" => None);
 }
 
 #[test]
@@ -369,10 +369,7 @@ fn from_path_errors_no_importer_when_missing() {
     let dir = tempdir().unwrap();
     let missing = dir.path().join("does-not-exist").join("package.json");
     let result = PackageManifest::from_path(missing);
-    let err = match result {
-        Err(err) => err,
-        Ok(_) => panic!("missing package.json should not parse"),
-    };
+    let Err(err) = result else { panic!("missing package.json should not parse") };
     assert!(
         matches!(err, PackageManifestError::NoImporterManifestFound(_)),
         "expected NoImporterManifestFound, got {err:?}",
@@ -407,6 +404,10 @@ fn add_dependency_errors_when_field_is_not_an_object() {
     }
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
+)]
 fn manifest_from_json(value: serde_json::Value) -> (PackageManifest, tempfile::TempDir) {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json");

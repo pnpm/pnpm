@@ -12,6 +12,7 @@ use pacquet_resolving_resolver_base::VersionSelectorType;
 
 /// Classify a manifest spec the same way upstream's loose
 /// `getVersionSelectorType` does.
+#[must_use]
 pub fn get_version_selector_type(spec: &str) -> Option<VersionSelectorType> {
     if spec.parse::<Version>().is_ok() {
         return Some(VersionSelectorType::Version);

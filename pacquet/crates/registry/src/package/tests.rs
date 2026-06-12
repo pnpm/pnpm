@@ -13,7 +13,7 @@ pub fn package_version_should_include_peers() {
     let mut peer_dependencies = HashMap::<String, String>::new();
     peer_dependencies.insert("fast-querystring".to_string(), "1.0.0".to_string());
     let version = PackageVersion {
-        name: "".to_string(),
+        name: String::new(),
         version: Version::parse("1.0.0").unwrap(),
         dist: PackageDistribution::default(),
         dependencies: Some(dependencies),
@@ -21,7 +21,7 @@ pub fn package_version_should_include_peers() {
         peer_dependencies: Some(peer_dependencies),
         optional_dependencies: None,
         peer_dependencies_meta: None,
-        other: Default::default(),
+        other: HashMap::default(),
         npm_user: None,
         deprecated: None,
     };
@@ -37,7 +37,7 @@ pub fn package_version_should_include_peers() {
 #[test]
 pub fn serialized_according_to_params() {
     let version = PackageVersion {
-        name: "".to_string(),
+        name: String::new(),
         version: Version { major: 3, minor: 2, patch: 1, build: vec![], pre_release: vec![] },
         dist: PackageDistribution::default(),
         dependencies: None,
@@ -45,7 +45,7 @@ pub fn serialized_according_to_params() {
         peer_dependencies: None,
         optional_dependencies: None,
         peer_dependencies_meta: None,
-        other: Default::default(),
+        other: HashMap::default(),
         npm_user: None,
         deprecated: None,
     };
@@ -103,7 +103,7 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
                     peer_dependencies: None,
                     optional_dependencies: None,
                     peer_dependencies_meta: None,
-                    other: Default::default(),
+                    other: HashMap::default(),
                     npm_user: None,
                     deprecated: None,
                 },
@@ -120,12 +120,12 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
         modified: None,
         etag: None,
         homepage: None,
-        mutex: Default::default(),
+        mutex: std::sync::Arc::default(),
     }
 }
 
 /// `Package` equality is by `name` only; the mutex and versions
-/// HashMap (whose iteration order is non-deterministic) are
+/// `HashMap` (whose iteration order is non-deterministic) are
 /// excluded. Two packages with the same name compare equal even
 /// when their `versions` maps differ — this lets call sites
 /// dedupe in-flight metadata fetches against the package name.
@@ -145,7 +145,7 @@ fn package_equality_compares_by_name_only() {
 fn latest_returns_version_pointed_to_by_dist_tag() {
     let pkg = package_with_versions("acme", &["1.0.0", "2.0.0", "3.0.0"], "2.0.0");
     let latest = pkg.latest();
-    assert_eq!(latest.version.to_string(), "2.0.0");
+    assert_eq!(latest.expect("latest manifest decodes").version.to_string(), "2.0.0");
 }
 
 /// `pinned_version` picks the highest version inside the given

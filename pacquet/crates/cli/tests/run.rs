@@ -45,9 +45,9 @@ fn run_executes_declared_script() {
 }
 
 /// Positional arguments after the script name flow through to the
-/// spawned shell verbatim, joined by spaces. Mirrors `pnpm run
-/// <script> -- <args>` minus the npm `--` separator (pacquet does
-/// not require it).
+/// spawned shell verbatim, joined by spaces. Mirrors
+/// `pnpm run <script> -- <args>` minus the npm `--` separator
+/// (pacquet does not require it).
 #[cfg(unix)]
 #[test]
 fn run_passes_extra_arguments_to_the_script() {
@@ -103,7 +103,7 @@ fn run_errors_on_missing_script_without_if_present() {
 }
 
 /// `pnpm run start` with no `start` script and no `server.js` file fails
-/// with NO_SCRIPT_OR_SERVER, matching pnpm's runLifecycleHook guard. (A
+/// with `NO_SCRIPT_OR_SERVER`, matching pnpm's runLifecycleHook guard. (A
 /// bare `node server.js` fallback would instead surface node's
 /// "Cannot find module" error, so the assertion pins the pnpm message.)
 #[test]
@@ -132,7 +132,7 @@ fn run_start_without_script_or_server_errors() {
 /// An empty `start` script (`"start": ""`) is falsy in pnpm
 /// (`!m.scripts.start`), so it falls back to the `node server.js` path
 /// like a missing one — and with no `server.js` it must raise
-/// NO_SCRIPT_OR_SERVER rather than silently exit 0.
+/// `NO_SCRIPT_OR_SERVER` rather than silently exit 0.
 #[test]
 fn run_empty_start_script_hits_server_js_guard() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

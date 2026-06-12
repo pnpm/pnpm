@@ -29,6 +29,7 @@ import type {
   Config,
   ConfigContext,
   ConfigWithDeprecatedSettings,
+  PackageManagerNetworkConfig,
   ProjectConfig,
   UniversalOptions,
   VerifyDepsBeforeRun,
@@ -36,7 +37,7 @@ import type {
 } from './Config.js'
 import { isConfigFileKey } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
-import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
+import { getCacheDir, getConfigDir, getDataDir, getGlobalConfigPath, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
@@ -52,6 +53,7 @@ import { types } from './types.js'
 export { types }
 
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
+export { getGlobalConfigPath } from './dirs.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
 export { getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 export type { Creds } from './parseCreds.js'
@@ -205,6 +207,7 @@ export async function getConfig (opts: {
     userconfig: npmDefaults.userconfig,
     'verify-deps-before-run': 'install',
     'verify-store-integrity': true,
+    'frozen-store': false,
     'workspace-concurrency': getDefaultWorkspaceConcurrency(),
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
@@ -305,11 +308,12 @@ export async function getConfig (opts: {
       }
     }
     if (ignoredKeys.length > 0) {
-      const globalYamlConfigPath = path.join(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+      const globalYamlConfigPath = getGlobalConfigPath(configDir)
       warnings.push(`The following settings cannot be set in the global config file ("${globalYamlConfigPath}") and were ignored: ${ignoredKeys.map(k => `"${k}"`).join(', ')}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies`)
     }
     addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
       configFromCliOpts,
+      expandRequestDestinationEnv: true,
       projectManifest: undefined,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
@@ -320,7 +324,21 @@ export async function getConfig (opts: {
     default: normalizeRegistryUrl(pnpmConfig.authConfig.registry),
     ...networkConfigs.registries,
   }
+  const trustedAuthConfig = pickIniConfig(npmrcResult.trustedConfig)
+  const trustedNetworkConfigs = getNetworkConfigs(trustedAuthConfig)
   pnpmConfig.registries = { ...registriesFromNpmrc }
+  if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
+    pnpmConfig.registries.default = normalizeRegistryUrl(pnpmConfig.registry)
+  }
+  pnpmConfig.packageManagerRegistries = {
+    default: normalizeRegistryUrl(trustedAuthConfig.registry as string),
+    ...trustedNetworkConfigs.registries,
+  }
+  pnpmConfig.packageManagerNetworkConfig = createPackageManagerNetworkConfig(
+    npmrcResult.trustedConfig,
+    trustedNetworkConfigs.configByUri ?? {},
+    env
+  )
   pnpmConfig.configByUri = { ...networkConfigs.configByUri }
 
   // tokenHelper must only come from user-level config (~/.npmrc or global auth.ini),
@@ -491,6 +509,7 @@ export async function getConfig (opts: {
         throw new TypeError(`Unexpected type of registry, expecting a string but received ${JSON.stringify(value)}`)
       }
       pnpmConfig.registries.default = normalizeRegistryUrl(value)
+      pnpmConfig.packageManagerRegistries.default = normalizeRegistryUrl(value)
     }
   }
 
@@ -711,6 +730,42 @@ function getProcessEnv (env: string): string | undefined {
     process.env[env.toLowerCase()]
 }
 
+function createPackageManagerNetworkConfig (
+  trustedConfig: Record<string, unknown>,
+  configByUri: PackageManagerNetworkConfig['configByUri'],
+  env: Record<string, string | undefined>
+): PackageManagerNetworkConfig {
+  const httpsProxy = getProxyValue(
+    trustedConfig['https-proxy'] ?? trustedConfig.proxy,
+    getEnvValue(env, 'https_proxy')
+  )
+  const httpProxy = getProxyValue(
+    trustedConfig['http-proxy'],
+    httpsProxy ?? getEnvValue(env, 'http_proxy') ?? getEnvValue(env, 'proxy')
+  )
+  return {
+    ca: trustedConfig.ca as string | string[] | undefined,
+    cert: trustedConfig.cert as string | string[] | undefined,
+    configByUri,
+    httpProxy,
+    httpsProxy,
+    key: trustedConfig.key as string | undefined,
+    localAddress: trustedConfig['local-address'] as string | undefined,
+    noProxy: (trustedConfig['no-proxy'] ?? trustedConfig.noproxy ?? getEnvValue(env, 'no_proxy')) as string | boolean | undefined,
+    strictSsl: trustedConfig['strict-ssl'] as boolean | undefined,
+  }
+}
+
+function getEnvValue (env: Record<string, string | undefined>, key: string): string | undefined {
+  return env[key] ?? env[key.toUpperCase()] ?? env[key.toLowerCase()]
+}
+
+function getProxyValue (value: unknown, fallback: string | undefined): string | undefined {
+  if (value === false || value === null) return undefined
+  if (typeof value === 'string' && value.length > 0) return value
+  return fallback
+}
+
 // Look up a `pnpm_config_<key>` env var, accepting both lowercase and
 // uppercase forms. Used for env vars that need to be read before the
 // general parseEnvVars pass, such as those that affect which .npmrc file
@@ -806,6 +861,21 @@ export function parsePackageManager (packageManager: string): { name: string, ve
   }
 }
 
+/**
+ * Decides whether the resolved pnpm integrity info should be written to
+ * `pnpm-lock.yaml` under the project's `packageManagerDependencies` section.
+ *
+ * `onFail: ignore` means pnpm should not enforce or record the package manager
+ * policy. Otherwise, `devEngines.packageManager` persists because it may use
+ * ranges, while the legacy `packageManager` field only persists for pnpm v12+.
+ */
+export function shouldPersistLockfile (pm: Pick<WantedPackageManager, 'version' | 'fromDevEngines' | 'onFail'>): boolean {
+  if (pm.onFail === 'ignore') return false
+  if (pm.fromDevEngines === true) return true
+  if (pm.version == null || semver.valid(pm.version) == null) return false
+  return semver.major(pm.version) >= 12
+}
+
 function parseDevEnginesPackageManager (devEngines?: DevEngines): EngineDependency | undefined {
   if (!devEngines?.packageManager) return undefined
   let pmEngine: EngineDependency | undefined
@@ -858,16 +928,18 @@ function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | 
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   configFromCliOpts,
+  expandRequestDestinationEnv,
   projectManifest,
   workspaceManifest,
   workspaceDir,
 }: {
   configFromCliOpts: Record<string, unknown>
+  expandRequestDestinationEnv?: boolean
   projectManifest: ProjectManifest | undefined
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
-  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, projectManifest), configFromCliOpts)
+  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
 

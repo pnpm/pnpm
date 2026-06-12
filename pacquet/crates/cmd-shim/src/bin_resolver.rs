@@ -33,6 +33,7 @@ const BIN_OWNER_OVERRIDES: &[(&str, &[&str])] = &[
 /// Whether `pkg_name` is a legitimate owner of the given `bin_name`. The
 /// default rule is "the package named `X` owns the `X` bin"; overrides cover
 /// cases like `npx` shipping inside `npm`. Mirrors `pkgOwnsBin`.
+#[must_use]
 pub fn pkg_owns_bin(bin_name: &str, pkg_name: &str) -> bool {
     if bin_name == pkg_name {
         return true;
@@ -171,11 +172,15 @@ fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Ve
 ///
 /// `encodeURIComponent` leaves the following bytes unescaped:
 /// `A-Z a-z 0-9 - _ . ! ~ * ' ( )`.
+///
+/// `.` and `..` survive `encodeURIComponent` unchanged but resolve to the bin
+/// directory itself or its parent when joined to a target dir, so they are
+/// rejected explicitly.
 fn is_safe_bin_name(name: &str) -> bool {
     if name == "$" {
         return true;
     }
-    if name.is_empty() {
+    if name.is_empty() || name == "." || name == ".." {
         return false;
     }
     name.bytes().all(|byte| {

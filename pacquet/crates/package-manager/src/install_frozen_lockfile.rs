@@ -18,6 +18,9 @@ use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_lockfile::{
     Lockfile, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
 };
+use pacquet_lockfile_verification::{
+    VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
+};
 use pacquet_modules_yaml::{Host, read_modules_manifest};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
@@ -25,14 +28,20 @@ use pacquet_patching::{
     ExtendedPatchInfo, PatchKeyConflictError, ResolvePatchedDependenciesError, get_patch_info,
 };
 use pacquet_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pacquet_resolving_resolver_base::ResolutionVerifier;
 use pacquet_store_dir::StoreIndexWriter;
 use pacquet_tarball::{MemCache, SharedReportedProgressKeys};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ffi::OsStr,
+    future::Future,
     path::{Path, PathBuf},
+    pin::Pin,
     sync::{Arc, atomic::AtomicU8},
 };
+
+pub type LockfileVerificationOverride<'a> =
+    Pin<Box<dyn Future<Output = Result<(), InstallFrozenLockfileError>> + Send + 'a>>;
 
 /// This subroutine installs dependencies from a frozen lockfile.
 ///
@@ -62,6 +71,22 @@ where
     /// direct deps plus the full `packages` / `snapshots` maps in
     /// one borrow). Isolated installs ignore the field.
     pub lockfile: &'a Lockfile,
+    /// Resolution verifiers to re-apply to every lockfile entry. Run
+    /// concurrently with the fetch phase ([`crate::CreateVirtualStore`])
+    /// and awaited before any dependency lifecycle script executes, so a
+    /// rejected lockfile aborts before [`crate::BuildModules`] runs. Empty
+    /// when verification is disabled (`trustLockfile`), in which case the
+    /// gate is a no-op. The non-blocking sequencing mirrors pnpm's
+    /// concurrent `verifyLockfileResolutions` + `verifyLockfile` build gate.
+    pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
+    /// When set, replaces the local `resolution_verifiers` fan-out as the
+    /// trust verdict — used by the pnpr client to delegate verification to
+    /// the server's `/v1/verify-lockfile` while the fetch runs locally. The
+    /// same concurrent sequencing and build gate apply.
+    pub lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
+    /// Absolute path of the lockfile being verified, for the on-disk
+    /// verification cache. `None` disables the cache.
+    pub lockfile_path: Option<&'a Path>,
     /// The previous install's persisted current lockfile, threaded
     /// through to the hoisted walker for `prev_graph` (orphan
     /// diff). Mirrors upstream's
@@ -137,7 +162,7 @@ where
     ///
     /// Pacquet's [`NodeLinker::Pnp`] is a config / serde
     /// placeholder today; an install request with `Pnp` reaches
-    /// the isolated linker in this branch (no PnP code path
+    /// the isolated linker in this branch (no `PnP` code path
     /// exists yet). Upstream's `nodeLinker: 'pnp'` is also
     /// out-of-scope for [#438](https://github.com/pnpm/pacquet/issues/438); tracked separately.
     pub node_linker: NodeLinker,
@@ -154,6 +179,13 @@ where
 /// Error type of [`InstallFrozenLockfile`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallFrozenLockfileError {
+    #[diagnostic(transparent)]
+    LockfileVerification(#[error(source)] VerifyError),
+
+    #[display("external lockfile verification failed: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::external_lockfile_verification))]
+    ExternalLockfileVerification(#[error(not(source))] String),
+
     #[diagnostic(transparent)]
     CreateVirtualStore(#[error(source)] CreateVirtualStoreError),
 
@@ -251,7 +283,7 @@ pub enum InstallFrozenLockfileError {
     LinkHoistedModules(#[error(source)] LinkHoistedModulesError),
 }
 
-impl<'a, DependencyGroupList> InstallFrozenLockfile<'a, DependencyGroupList>
+impl<DependencyGroupList> InstallFrozenLockfile<'_, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
@@ -275,6 +307,9 @@ where
             packages,
             snapshots,
             lockfile,
+            resolution_verifiers,
+            lockfile_verification_override,
+            lockfile_path,
             current_lockfile,
             current_snapshots,
             current_packages,
@@ -312,7 +347,14 @@ where
         // been processed. A writer open / task failure is degraded
         // to a `warn!` and the install still succeeds — pacquet's
         // existing best-effort stance on cache writes.
-        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
+        // Under `frozenStore` the store is opened read-only, so the
+        // writer is replaced with a drain-and-drop stub that never opens
+        // `index.db` (no WAL / SHM sidecar under the read-only root).
+        let (store_index_writer, writer_task) = if config.frozen_store {
+            StoreIndexWriter::spawn_disabled()
+        } else {
+            StoreIndexWriter::spawn(&config.store_dir)
+        };
 
         // Caller-side fast-path for the installability check. The
         // common case (no lockfile metadata row declares an
@@ -329,7 +371,9 @@ where
         // extraction (so `CreateVirtualStore` can suppress slots for
         // skipped snapshots), and the spawn cost is unavoidable.
         let needs_installability_check = match (snapshots, packages) {
-            (Some(snaps), Some(pkgs)) if !snaps.is_empty() => any_installability_constraint(pkgs),
+            (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
+                any_installability_constraint(snaps, pkgs)
+            }
             _ => false,
         };
 
@@ -590,32 +634,90 @@ where
         // leaves every warm package reported as `found_in_store`.
         let progress_reported = SharedReportedProgressKeys::default();
 
+        // Run lockfile verification concurrently with the fetch instead of
+        // blocking the install on it: the per-entry registry round trips
+        // overlap `CreateVirtualStore`'s downloads. A rejected lockfile
+        // aborts the fetch in flight, and a verdict is always reached
+        // before linking and the build phase below — no dependency
+        // lifecycle script runs on an unverified lockfile. A no-op when
+        // `resolution_verifiers` is empty (`trustLockfile`).
+        let verify_fut = async {
+            if let Some(lockfile_verification_override) = lockfile_verification_override {
+                return lockfile_verification_override.await;
+            }
+            if resolution_verifiers.is_empty() {
+                return Ok(());
+            }
+            verify_lockfile_resolutions::<Reporter>(
+                lockfile,
+                resolution_verifiers,
+                &VerifyLockfileResolutionsOptions {
+                    concurrency: None,
+                    lockfile_path,
+                    cache_dir: Some(&config.cache_dir),
+                },
+            )
+            .await
+            .map_err(InstallFrozenLockfileError::LockfileVerification)
+        };
+        let create_virtual_store_fut = async {
+            CreateVirtualStore {
+                http_client,
+                config,
+                packages,
+                snapshots,
+                current_snapshots,
+                current_packages,
+                layout: &layout,
+                logged_methods,
+                requester,
+                store_index_writer: &store_index_writer,
+                allow_build_policy: &allow_build_policy,
+                skipped: &skipped,
+                workspace_root,
+                node_linker,
+                progress_reported: &progress_reported,
+                tarball_mem_cache,
+                #[cfg(test)]
+                link_concurrency_probe: None,
+            }
+            .run::<Reporter>()
+            .await
+            .map_err(InstallFrozenLockfileError::CreateVirtualStore)
+        };
+        let phase_start = std::time::Instant::now();
+        // The verification verdict takes precedence over a concurrent fetch
+        // error — a plain `try_join!` would surface whichever error lands
+        // first, letting an unrelated fetch failure mask a rejected
+        // lockfile. A verification failure still aborts the fetch in
+        // flight (the select drops `create_virtual_store_fut`); a fetch
+        // failure waits for the verdict and only surfaces once the
+        // lockfile is known trusted. Mirrors pnpm's `settleInstall`.
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot,
             fetch_failed,
             cas_paths_by_pkg_id,
-        } = CreateVirtualStore {
-            http_client,
-            config,
-            packages,
-            snapshots,
-            current_snapshots,
-            current_packages,
-            layout: &layout,
-            logged_methods,
-            requester,
-            store_index_writer: &store_index_writer,
-            allow_build_policy: &allow_build_policy,
-            skipped: &skipped,
-            workspace_root,
-            node_linker,
-            progress_reported: &progress_reported,
-            tarball_mem_cache,
-        }
-        .run::<Reporter>()
-        .await
-        .map_err(InstallFrozenLockfileError::CreateVirtualStore)?;
+        } = {
+            let mut verify_fut = std::pin::pin!(verify_fut);
+            let mut create_virtual_store_fut = std::pin::pin!(create_virtual_store_fut);
+            tokio::select! {
+                verify = &mut verify_fut => {
+                    verify?;
+                    create_virtual_store_fut.await?
+                }
+                output = &mut create_virtual_store_fut => {
+                    verify_fut.await?;
+                    output?
+                }
+            }
+        };
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "create_virtual_store",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Fold fetch-failure swallows into the live skip set so
         // downstream consumers (`SymlinkDirectDependencies`,
@@ -974,6 +1076,7 @@ where
             skipped: &skipped,
             pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
             gather_ancestor_bin_paths: is_hoisted,
+            frozen_store: config.frozen_store,
         }
         .run::<Reporter>()
         .map_err(InstallFrozenLockfileError::BuildModules)?;
@@ -1228,7 +1331,8 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
     // pass. When `host_node` is `None` no per-snapshot constraint
     // exists, so the host triple values pass through as defaults the
     // walker won't actually consult.
-    let walker_skipped: BTreeSet<String> = skipped.iter().map(|key| key.to_string()).collect();
+    let walker_skipped: BTreeSet<String> =
+        skipped.iter().map(std::string::ToString::to_string).collect();
     let walker_opts = LockfileToHoistedDepGraphOptions {
         lockfile_dir: walker_lockfile_dir.to_path_buf(),
         auto_install_peers: config.auto_install_peers,
@@ -1359,10 +1463,7 @@ pub(crate) fn compute_hoist_plan(
     if config.hoist_pattern.is_none() && config.public_hoist_pattern.is_none() {
         return None;
     }
-    let (snaps, pkgs) = match (snapshots, packages) {
-        (Some(snaps), Some(pkgs)) => (snaps, pkgs),
-        _ => return None,
-    };
+    let (Some(snaps), Some(pkgs)) = (snapshots, packages) else { return None };
     let private_pattern = create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
     let public_pattern = create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
     // Static fast-path: when both compiled matchers come from empty

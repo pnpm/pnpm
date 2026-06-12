@@ -89,6 +89,7 @@ pub fn build_package_snapshot(
 
     let metadata = PackageMetadata {
         resolution: LockfileResolution::Registry(RegistryResolution { integrity }),
+        version: None,
         engines: None,
         cpu: None,
         os: None,

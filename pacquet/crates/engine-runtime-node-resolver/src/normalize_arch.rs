@@ -14,6 +14,7 @@
 /// `node_version` is optional because the macOS Apple-Silicon rule
 /// only matters when a concrete version is in hand; callers that
 /// haven't picked one yet pass `None` and accept the default mapping.
+#[must_use]
 pub fn get_normalized_arch(platform: &str, arch: &str, node_version: Option<&str>) -> String {
     if let Some(version) = node_version
         && let Some(major) = node_major(version)

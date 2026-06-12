@@ -20,7 +20,7 @@ use tempfile::tempdir;
 /// module pin specific config-cascade behaviours, none of which
 /// turn on cross-volume detection, so the test fakes return
 /// `false` for every probe. The probe failing collapses to the
-/// pre-existing SmartDefault `store_dir` value, which is what the
+/// pre-existing `SmartDefault` `store_dir` value, which is what the
 /// pre-port assertions already assume.
 ///
 /// `inert_link_probe!(Name)` wires the impl onto a local test
@@ -194,6 +194,9 @@ impl EnvVar for FakeEnv {
     fn var(name: &str) -> Option<String> {
         FAKE_ENV.with(|map| map.borrow().get(name).cloned())
     }
+    fn vars() -> Vec<(String, String)> {
+        FAKE_ENV.with(|map| map.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+    }
 }
 impl EnvVarOs for FakeEnv {
     fn var_os(_: &str) -> Option<OsString> {
@@ -334,6 +337,76 @@ pub fn npmrc_auth_file_npm_config_userconfig_is_compat_fallback() {
     );
 }
 
+#[test]
+pub fn global_config_npmrc_auth_file_expands_env() {
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+
+    let auth = tempdir().expect("auth tempdir");
+    let auth_file = auth.path().join("global-npmrc");
+    write_registry_auth_file(&auth_file, "https://global-auth.example.com/", "global-token");
+    fs::write(config_dir.join("config.yaml"), "npmrcAuthFile: ${AUTH_FILE}\n")
+        .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[
+        ("AUTH_FILE", auth_file.to_str().unwrap()),
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.auth_headers.for_url("https://global-auth.example.com/pkg").as_deref(),
+        Some("Bearer global-token"),
+    );
+}
+
+#[test]
+pub fn global_config_yaml_request_destination_values_expand_env() {
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        r"
+registry: https://${REGISTRY_HOST}/npm/
+pnprServer: https://${REGISTRY_HOST}/pnpr/
+namedRegistries:
+  work: https://${REGISTRY_HOST}/work/
+",
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[
+        ("REGISTRY_HOST", "trusted.example.com"),
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://trusted.example.com/npm/");
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://trusted.example.com/pnpr/"));
+    assert_eq!(
+        config.named_registries.get("work").map(String::as_str),
+        Some("https://trusted.example.com/work/"),
+    );
+}
+
+#[test]
+pub fn pnpm_config_request_destinations_expand_env() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[
+        ("PNPM_CONFIG_PNPR_SERVER", "https://${REGISTRY_HOST}/pnpr/"),
+        ("PNPM_CONFIG_REGISTRY", "https://${REGISTRY_HOST}/npm/"),
+        ("REGISTRY_HOST", "env.example.com"),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://env.example.com/pnpr/"));
+    assert_eq!(config.registry, "https://env.example.com/npm/");
+}
+
 fn write_file(path: &Path, contents: &str) {
     fs::write(path, contents).expect("write file");
 }
@@ -368,6 +441,38 @@ pub fn user_auth_token_pins_to_its_own_file_registry() {
         Some("Bearer user-secret"),
     );
     assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+}
+
+/// End-to-end: a `npm_config_//…` env var is picked up by a full config
+/// load and outranks a literal token for the same host in the project
+/// `.npmrc` — the trusted, host-scoped env layer wins.
+#[test]
+pub fn url_scoped_env_auth_is_used_and_outranks_project_npmrc() {
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "//env2e.example.com/:_authToken=project-token\n");
+    set_fake_env(&[("npm_config_//env2e.example.com/:_authToken", "env-token")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.auth_headers.for_url("https://env2e.example.com/pkg").as_deref(),
+        Some("Bearer env-token"),
+    );
+}
+
+/// End-to-end: the `npm_config_//…` / `pnpm_config_//…` prefix is matched
+/// case-insensitively through the full load path.
+#[test]
+pub fn url_scoped_env_auth_prefix_is_case_insensitive_end_to_end() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("NPM_CONFIG_//env2e.example.com/:_authToken", "upper-token")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.auth_headers.for_url("https://env2e.example.com/pkg").as_deref(),
+        Some("Bearer upper-token"),
+    );
 }
 
 /// `_auth` (basic) is pinned the same way.
@@ -679,6 +784,21 @@ pub fn pnpm_workspace_yaml_found_by_walking_up() {
     // the yaml should still be applied.
     let config = Config::new().current::<HostNoHome>(&nested).expect("yaml is valid");
     assert!(!config.symlink);
+}
+
+#[test]
+pub fn workspace_subdir_reads_workspace_root_npmrc() {
+    let tmp = tempdir().unwrap();
+    let nested = tmp.path().join("packages/web");
+    fs::create_dir_all(&nested).unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write to pnpm-workspace.yaml");
+    fs::write(tmp.path().join(".npmrc"), "registry=https://workspace-npmrc.example/\n")
+        .expect("write to .npmrc");
+
+    let config = Config::new().current::<HostNoHome>(&nested).expect("config loads");
+
+    assert_eq!(config.registry, "https://workspace-npmrc.example/");
 }
 
 #[test]
@@ -1130,7 +1250,7 @@ pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
 /// `!virtual_store_dir_explicit` guard on the re-anchor, the
 /// workspace-root default (`<workspace>/node_modules/.pnpm`)
 /// would overwrite the global value any time a `pnpm-workspace.yaml`
-/// is present. Regression test for a CodeRabbit review finding on
+/// is present. Regression test for a `CodeRabbit` review finding on
 /// pnpm/pnpm#11752.
 #[test]
 pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
@@ -1500,6 +1620,31 @@ pub fn peers_suffix_max_length_env_var_overrides_yaml() {
 
     let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
     assert_eq!(config.peers_suffix_max_length, 25, "env var must win over pnpm-workspace.yaml");
+}
+
+/// `Config::patched_dependency_hashes` resolves each relative patch
+/// path against `workspace_dir`, hashes the file, and returns the
+/// verbatim key → hash map the lockfile records. Mirrors pnpm's
+/// `calcPatchHashes(opts.patchedDependencies)`.
+#[test]
+fn patched_dependency_hashes_resolves_and_hashes_each_patch() {
+    let workspace = tempdir().expect("workspace tempdir");
+    let patch_path = workspace.path().join("patches").join("graceful-fs@4.2.11.patch");
+    std::fs::create_dir_all(patch_path.parent().unwrap()).expect("create patches dir");
+    std::fs::write(&patch_path, "--- a/index.js\n+++ b/index.js\n").expect("write patch");
+    let expected =
+        pacquet_patching::create_hex_hash_from_file(&patch_path).expect("hash patch file");
+
+    let mut config = Config::new();
+    assert!(config.patched_dependency_hashes().expect("no error").is_none(), "unset → None");
+
+    config.workspace_dir = Some(workspace.path().to_path_buf());
+    config.patched_dependencies = Some(indexmap::IndexMap::from([(
+        "graceful-fs@4.2.11".to_string(),
+        "patches/graceful-fs@4.2.11.patch".to_string(),
+    )]));
+    let hashes = config.patched_dependency_hashes().expect("hash").expect("present");
+    assert_eq!(hashes.get("graceful-fs@4.2.11"), Some(&expected));
 }
 
 /// `minimumReleaseAge: 0` disables the maturity cutoff (returns

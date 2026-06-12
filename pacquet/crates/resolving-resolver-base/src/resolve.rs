@@ -35,10 +35,12 @@ use crate::verifier::ResolutionPolicyViolation;
 pub struct PkgResolutionId(String);
 
 impl PkgResolutionId {
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
 
+    #[must_use]
     pub fn into_inner(self) -> String {
         self.0
     }
@@ -188,12 +190,33 @@ pub enum UpdateBehavior {
     Latest,
 }
 
+/// Previously-resolved entry from the lockfile, threaded so resolvers
+/// can short-circuit when the install is not requesting an update. Mirrors
+/// upstream's
+/// [`currentPkg`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L303-L309)
+/// field of `ResolveOptions`; the serialized form is the `currentPkg`
+/// payload custom resolvers receive.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrentPkg {
+    pub id: PkgResolutionId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    pub resolution: LockfileResolution,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub published_at: Option<String>,
+}
+
 /// Options the dispatcher hands a resolver per-resolve. Mirrors pnpm's
 /// [`ResolveOptions`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L277-L302).
 #[derive(Debug, Default, Clone)]
 pub struct ResolveOptions {
     pub project_dir: PathBuf,
     pub lockfile_dir: PathBuf,
+    /// Previously-resolved lockfile entry. Mirrors upstream's `currentPkg` field.
+    pub current_pkg: Option<CurrentPkg>,
     /// Lockfile + manifest preferred-versions seed the npm picker biases
     /// toward (so pins that still satisfy their range survive a
     /// re-resolve). Held behind [`Arc`] because the tree walker clones

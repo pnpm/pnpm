@@ -10,7 +10,7 @@
 //! [`AuthState::load`]:
 //!
 //! * [`UserStore`] / [`TokenStore`] — the local default. Users are an
-//!   Apache-style htpasswd file; tokens a SQLite database. Each keeps
+//!   Apache-style htpasswd file; tokens a `SQLite` database. Each keeps
 //!   a full mirror of its state in a `Mutex<...>` and persists on
 //!   every write, so reads (the hot path for `enforce_access`) never
 //!   touch disk. With no file configured both fall back to a pure
@@ -36,6 +36,7 @@ use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
+    fmt::Write as _,
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -67,6 +68,7 @@ impl AuthState {
     /// configured and neither `auth.htpasswd.file` nor
     /// `auth.tokens.file` are set, and by tests that don't care about
     /// persistence.
+    #[must_use]
     pub fn in_memory() -> Self {
         Self { users: Arc::new(UserStore::in_memory()), tokens: Arc::new(TokenStore::in_memory()) }
     }
@@ -75,7 +77,7 @@ impl AuthState {
     /// [`BackendConfig::Libsql`] backs both stores with one shared
     /// database; otherwise each local store is in-memory when its file
     /// path is unset and file-backed otherwise. The fallible step (open
-    /// the htpasswd / SQLite file, or connect to the networked DB and
+    /// the htpasswd / `SQLite` file, or connect to the networked DB and
     /// ensure its schema) runs here so a malformed file or an
     /// unreachable database surfaces as a startup error before the
     /// socket is bound.
@@ -179,6 +181,7 @@ impl UserStore {
     /// `auth.htpasswd.file` is unset and by the existing
     /// `@pnpm/registry-mock` integration where every restart is a
     /// fresh process.
+    #[must_use]
     pub fn in_memory() -> Self {
         Self {
             users: Mutex::new(HashMap::new()),
@@ -307,11 +310,11 @@ pub enum UpsertOutcome {
     LoggedIn,
 }
 
-/// SHA-256-hashed (token_hash → username) map, optionally backed by
-/// a SQLite database for cross-restart durability.
+/// SHA-256-hashed (`token_hash` → username) map, optionally backed by
+/// a `SQLite` database for cross-restart durability.
 ///
-/// Token records carry the verdaccio shape (created_at, last_used_at,
-/// readonly, cidr_whitelist) so they can be surfaced by future
+/// Token records carry the verdaccio shape (`created_at`, `last_used_at`,
+/// readonly, `cidr_whitelist`) so they can be surfaced by future
 /// `/-/npm/v1/tokens` endpoints without a schema migration.
 #[derive(Debug)]
 pub struct TokenStore {
@@ -338,6 +341,7 @@ pub struct TokenRecord {
 
 impl TokenStore {
     /// Pure in-memory store. Tokens vanish on restart.
+    #[must_use]
     pub fn in_memory() -> Self {
         Self {
             inner: Mutex::new(TokenInner { tokens: HashMap::new() }),
@@ -421,7 +425,7 @@ impl TokenBackend for TokenStore {
             .collect())
     }
 
-    /// SQLite gets the `DELETE` *before* the in-memory map is mutated.
+    /// `SQLite` gets the `DELETE` *before* the in-memory map is mutated.
     /// If the disk write fails, both views still hold the token and
     /// the caller sees a 5xx — the opposite ordering would leave a
     /// "revoked in memory but resurrected on restart" hole.
@@ -588,7 +592,7 @@ fn unique_tmp_path(base: &Path) -> PathBuf {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
-    let mut name = base.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    let mut name = base.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
     name.push(format!(".tmp.{pid}.{counter}"));
     match base.parent() {
         Some(parent) => parent.join(name),
@@ -718,7 +722,7 @@ fn upsert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Re
             record.username,
             record.created_at as i64,
             record.last_used_at as i64,
-            record.readonly as i64,
+            i64::from(record.readonly),
             cidr_json,
         ],
     )?;
@@ -761,13 +765,13 @@ fn sha256_hex(bytes: &[u8]) -> String {
 fn hex_encode(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
-        out.push_str(&format!("{byte:02x}"));
+        write!(out, "{byte:02x}").unwrap();
     }
     out
 }
 
 fn unix_seconds() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|duration| duration.as_secs()).unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_secs())
 }
 
 #[cfg(test)]

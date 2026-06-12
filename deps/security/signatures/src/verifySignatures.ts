@@ -7,6 +7,8 @@ import type { GetAuthHeader } from '@pnpm/fetching.types'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type RetryTimeoutOptions } from '@pnpm/network.fetch'
 import pLimit from 'p-limit'
 
+import { NPM_SIGNING_KEYS } from './npmSigningKeys.js'
+
 export interface SignaturePackage {
   name: string
   registry: string
@@ -257,37 +259,62 @@ function verifyPackageSignatures (
   const message = `${pkg.name}@${pkg.version}:${pkg.integrity}`
   const publishedTime = pkg.publishedAt ? Date.parse(pkg.publishedAt) : undefined
 
+  // A package is accepted as soon as ONE signature made by a trusted key
+  // validates. Signatures from unknown/expired/invalid keys are recorded but do
+  // not on their own fail the package — otherwise a key rotation (a packument
+  // carrying multiple signatures) breaks, and a mirror could force a failure
+  // just by appending a junk signature. We fail only when no signature validates
+  // against a trusted key.
+  const failures: string[] = []
   for (const signature of pkg.signatures) {
     const key = keys.find(({ keyid }) => keyid === signature.keyid)
     if (!key) {
-      const reason = `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but no corresponding public key can be found`
-      return toSignatureIssue(pkg, reason)
+      failures.push(`${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but no corresponding public key can be found`)
+      continue
     }
-    // Without publish time metadata we cannot safely compare against key expiry,
-    // so keep verifying with the key instead of failing closed on incomplete metadata.
+    // Key expiry is a consistency check, not a security boundary: the publish
+    // time comes from the same unauthenticated packument as the signatures, so
+    // a forger holding an expired trusted key could backdate it anyway. The
+    // signature verification below is what gates acceptance. That is why a
+    // missing publish time keeps the key usable instead of failing closed —
+    // the same trade-off npm's pacote makes by substituting a pre-expiry date.
     if (key.expires && publishedTime != null && publishedTime >= Date.parse(key.expires)) {
-      const reason = `${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but the corresponding public key has expired ${key.expires}`
-      return toSignatureIssue(pkg, reason)
+      failures.push(`${pkg.name}@${pkg.version} has a registry signature with keyid ${signature.keyid} but the corresponding public key has expired ${key.expires}`)
+      continue
     }
-    const verifier = crypto.createVerify('SHA256')
-    verifier.write(message)
-    verifier.end()
     const pem = `-----BEGIN PUBLIC KEY-----\n${key.key}\n-----END PUBLIC KEY-----`
     // crypto.verify can throw on malformed PEM key material or signature bytes
     // returned by the registry; treat any failure as an invalid signature so
     // one bad key doesn't crash the whole audit.
     let verified: boolean
     try {
+      const verifier = crypto.createVerify('SHA256')
+      verifier.write(message)
+      verifier.end()
       verified = verifier.verify(pem, signature.sig, 'base64')
     } catch {
       verified = false
     }
-    if (!verified) {
-      const reason = `${pkg.name}@${pkg.version} has an invalid registry signature with keyid ${signature.keyid}`
-      return toSignatureIssue(pkg, reason)
-    }
+    if (verified) return undefined
+    failures.push(`${pkg.name}@${pkg.version} has an invalid registry signature with keyid ${signature.keyid}`)
   }
-  return undefined
+  return toSignatureIssue(pkg, pickMostTellingFailure(pkg, failures))
+}
+
+/**
+ * The reason to surface when no signature validated against a trusted key.
+ * Prefer an invalid signature from a known key (a tamper signal) over an
+ * unknown-key or expiry reason, since unknown keys may just be junk a mirror
+ * appended.
+ */
+function pickMostTellingFailure (
+  pkg: SignaturePackage,
+  failures: string[]
+): string {
+  if (failures.length === 0) {
+    return `${pkg.name}@${pkg.version} has no registry signature from a trusted key`
+  }
+  return failures.find((reason) => reason.includes('invalid registry signature')) ?? failures[0]
 }
 
 function toSignatureIssue (
@@ -351,4 +378,129 @@ function isPackageSignature (signature: unknown): signature is PackageSignature 
 
 function sortIssue (a: SignatureIssue, b: SignatureIssue): number {
   return `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`)
+}
+
+export type { RegistryKey }
+
+/**
+ * The trusted npm signing keys used to verify package-manager binaries before
+ * pnpm spawns them — npm's public keys embedded in the CLI. There is
+ * deliberately no way to override or disable them at runtime: a verification
+ * off-switch would be a footgun, and npm mirrors work without one (they proxy
+ * the same signed packument, which is verified against these keys). The keys
+ * are refreshed at release time by the update-npm-signing-keys script.
+ */
+export function getNpmSigningKeys (): RegistryKey[] {
+  return NPM_SIGNING_KEYS.map((k) => ({ ...k }))
+}
+
+export interface InstalledPackageToVerify {
+  name: string
+  /** The registry the package was installed from — the packument (and its signatures) is fetched from here. */
+  registry: string
+  version: string
+  /** Integrity of the bytes actually installed on disk (from the lockfile). */
+  integrity: string
+}
+
+/**
+ * Why a package failed signature verification:
+ * - `invalid`: a registry signature is present but does not validate over the
+ *   installed bytes — a strong tamper signal.
+ * - `absent`: the package/version is not on the (canonical) registry, or carries
+ *   no signature — suspicious for a package that is expected to be signed.
+ * - `unreachable`: the trust root could not be consulted (registry advertised no
+ *   signing keys, or the network request failed) — typically transient/offline,
+ *   not evidence of tampering.
+ */
+export type SignatureFailureCategory = 'invalid' | 'absent' | 'unreachable'
+
+export interface InstalledSignatureFailure {
+  name: string
+  version: string
+  reason: string
+  category: SignatureFailureCategory
+}
+
+export interface InstalledSignatureVerificationResult {
+  verified: boolean
+  failures: InstalledSignatureFailure[]
+}
+
+/**
+ * Verifies that the bytes installed on disk are exactly what the registry
+ * signed for `name@version`. The signed message is built from the
+ * caller-supplied installed {@link InstalledPackageToVerify.integrity}, not
+ * from the integrity in the freshly-fetched packument — so if the integrity
+ * on disk was tampered with (or fetched from a different registry), the
+ * registry's signature will not validate over it.
+ *
+ * Signatures are verified against the caller-supplied `trustedKeys` (npm's
+ * embedded public keys, see {@link getNpmSigningKeys}) rather than keys fetched
+ * from a registry — so a registry the caller cannot vouch for cannot answer with
+ * its own key pair. The packument (which carries the signatures) is fetched from
+ * each package's own registry; an npm mirror works transparently because it
+ * proxies the same signed packument.
+ *
+ * A package counts as a failure when the package is unsigned/unpublished, or
+ * when a signature is present but does not validate over the installed bytes.
+ */
+export async function verifyInstalledPackageSignatures (
+  packages: InstalledPackageToVerify[],
+  trustedKeys: RegistryKey[],
+  getAuthHeader: GetAuthHeader,
+  opts: VerifySignaturesOptions
+): Promise<InstalledSignatureVerificationResult> {
+  const packumentCache = new Map<string, Promise<Packument | undefined>>()
+  const limit = pLimit(opts.networkConcurrency ?? 16)
+
+  const failures: InstalledSignatureFailure[] = []
+  await Promise.all(packages.map((pkg) => limit(async () => {
+    const failure = await findSignatureFailure(pkg, trustedKeys, getAuthHeader, opts, packumentCache)
+    if (failure != null) {
+      failures.push({ name: pkg.name, version: pkg.version, ...failure })
+    }
+  })))
+
+  failures.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`))
+  return { verified: failures.length === 0, failures }
+}
+
+async function findSignatureFailure (
+  pkg: InstalledPackageToVerify,
+  trustedKeys: RegistryKey[],
+  getAuthHeader: GetAuthHeader,
+  opts: VerifySignaturesOptions,
+  packumentCache: Map<string, Promise<Packument | undefined>>
+): Promise<{ reason: string, category: SignatureFailureCategory } | undefined> {
+  let packument: Packument | undefined
+  try {
+    packument = await getPackument(pkg, getAuthHeader, opts, packumentCache)
+  } catch (err: unknown) {
+    return { reason: util.types.isNativeError(err) ? err.message : String(err), category: 'unreachable' }
+  }
+  if (!packument) return { reason: `${pkg.name} is not published on ${pkg.registry}`, category: 'absent' }
+
+  const version = packument.versions?.[pkg.version]
+  if (!version) return { reason: `${pkg.name}@${pkg.version} was not found on ${pkg.registry}`, category: 'absent' }
+
+  const rawSignatures = version.dist?.signatures
+  if (rawSignatures != null && !Array.isArray(rawSignatures)) {
+    return { reason: `malformed registry signatures metadata for ${pkg.name}@${pkg.version}`, category: 'absent' }
+  }
+  const signatures = rawSignatures ?? []
+  if (!signatures.every(isPackageSignature)) {
+    return { reason: `malformed registry signatures metadata for ${pkg.name}@${pkg.version}`, category: 'absent' }
+  }
+  if (signatures.length === 0) {
+    return { reason: `${pkg.name}@${pkg.version} has no registry signature`, category: 'absent' }
+  }
+
+  // The message is built from the installed integrity, so a signature only
+  // validates when the installed bytes match what the registry signed.
+  const issue = verifyPackageSignatures(
+    { ...pkg, integrity: pkg.integrity, publishedAt: packument.time?.[pkg.version], signatures },
+    trustedKeys
+  )
+  return issue == null ? undefined : { reason: issue.reason ?? 'invalid registry signature', category: 'invalid' }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1100.7.2",
+  "version": "1100.8.0",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -34,6 +34,7 @@
   "dependencies": {
     "@inquirer/prompts": "catalog:",
     "@pnpm/building.after-install": "workspace:*",
+    "@pnpm/building.policy": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
@@ -46,6 +47,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.inspection.outdated": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/deps.security.signatures": "workspace:*",
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
@@ -56,7 +58,10 @@
     "@pnpm/installing.dedupe.check": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/installing.env-installer": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
@@ -83,6 +88,7 @@
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
     "ci-info": "catalog:",
+    "detect-libc": "catalog:",
     "get-npm-tarball-url": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",

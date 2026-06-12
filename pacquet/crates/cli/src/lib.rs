@@ -1,4 +1,5 @@
 mod cli_args;
+mod config_deps;
 mod config_overrides;
 mod state;
 
@@ -25,7 +26,9 @@ pub async fn main() -> miette::Result<()> {
     // `configure_rayon_pool` for them (Copilot review on <https://github.com/pnpm/pacquet/pull/292>).
     let args = CliArgs::parse_from(argv);
     configure_rayon_pool();
-    args.run(&config_overrides).await
+    // Boxed for `clippy::large_futures`: the command future exceeds the
+    // lint's stack-size threshold (the limit trips on Windows first).
+    Box::pin(args.run(&config_overrides)).await
 }
 
 /// Size rayon's global pool at `2 × available_parallelism`. The link
@@ -69,8 +72,7 @@ fn configure_rayon_pool() {
         return;
     }
     let n = std::thread::available_parallelism()
-        .map(std::num::NonZeroUsize::get)
-        .unwrap_or(1)
+        .map_or(1, std::num::NonZeroUsize::get)
         .saturating_mul(2)
         // `.max(4)` is an intentional minimum: even on quota-limited
         // 1-2-CPU runners, dropping below 4 puts us back into the

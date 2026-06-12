@@ -1,5 +1,31 @@
 # @pnpm/npm-resolver
 
+## 1101.5.2
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/worker@1100.1.11
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1101.5.1
+
+### Patch Changes
+
+- Updated dependencies [089484a]
+- Updated dependencies [bf1b731]
+  - @pnpm/worker@1100.1.10
+  - @pnpm/types@1101.3.1
+  - @pnpm/config.pick-registry-for-package@1100.0.8
+  - @pnpm/config.version-policy@1100.1.4
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/resolving.registry.types@1100.1.2
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/store.cafs@1100.1.9
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/resolving.registry.pkg-metadata-filter@1100.0.8
+
 ## 1101.5.0
 
 ### Minor Changes

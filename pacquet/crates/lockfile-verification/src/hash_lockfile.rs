@@ -26,6 +26,7 @@ use sha2::{Digest, Sha256};
 /// any two `Lockfile`s that compare equal (deserialized from the
 /// same YAML, or from two YAMLs that parse to the same shape)
 /// produce the same hash.
+#[must_use]
 pub fn hash_lockfile(lockfile: &Lockfile) -> String {
     let value = serde_json::to_value(lockfile)
         .expect("Lockfile serializes; serde_json::Value supports all JSON-shape variants");

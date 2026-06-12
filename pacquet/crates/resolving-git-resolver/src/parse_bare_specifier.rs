@@ -148,8 +148,7 @@ fn url_to_fetch_spec(parsed: &reqwest::Url) -> String {
 /// `ssh://user@host:path` shape into a standard `ssh://user@host/path`
 /// so `Url::parse` will accept it.
 fn correct_url(input: &str) -> String {
-    let mut url =
-        input.strip_prefix("git+").map(str::to_string).unwrap_or_else(|| input.to_string());
+    let mut url = input.strip_prefix("git+").map_or_else(|| input.to_string(), str::to_string);
     if !url.starts_with("ssh://") {
         let mut out = String::with_capacity(url.len() + 4);
         if input.starts_with("git+") {
@@ -175,7 +174,7 @@ fn correct_url(input: &str) -> String {
     // After the `@`, the host portion may carry an SCP-style colon
     // that the URL parser cannot consume. Convert the last colon in
     // the host into a `/`, unless it's followed by a numeric port.
-    let host = auth.rsplit_once('@').map(|(_, host)| host).unwrap_or(auth);
+    let host = auth.rsplit_once('@').map_or(auth, |(_, host)| host);
     let port_pattern_present = host.rfind(':').is_some_and(|idx| {
         host[idx + 1..].chars().all(|byte| byte.is_ascii_digit()) && !host[idx + 1..].is_empty()
     });

@@ -185,6 +185,13 @@ export interface HeadlessOptions {
   supportedArchitectures?: SupportedArchitectures
   hoistWorkspacePackages?: boolean
   modulesFile?: Modules | null
+  /**
+   * Awaited right before dependency lifecycle scripts run. Lets the caller
+   * overlap lockfile verification with fetching and linking while still
+   * guaranteeing no dependency script executes on an unverified lockfile:
+   * the returned promise rejects when verification failed.
+   */
+  verifyLockfile?: () => Promise<void>
 }
 
 export interface InstallationResultStats {
@@ -573,6 +580,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
       }
     }
+    // Dependency lifecycle scripts must not run on an unverified lockfile.
+    await opts.verifyLockfile?.()
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       allowBuild,
       childConcurrency: opts.childConcurrency,
@@ -706,6 +715,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   summaryLogger.debug({ prefix: lockfileDir })
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest && !skipPostImportLinking) {
+    // The projects' own lifecycle scripts import dependency code linked from
+    // the lockfile, so they are held to the same gate as dependency builds —
+    // also on the `enableModulesDir: false` path that skips buildModules.
+    await opts.verifyLockfile?.()
     await runLifecycleHooksConcurrently(
       ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
       projectsToBeBuilt,
@@ -932,7 +945,7 @@ async function linkAllPkgs (
       depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
-        if (opts.allowBuild?.(depNode.name, depNode.version) === true) {
+        if (opts.allowBuild?.(depNode.depPath) === true) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.hash,

@@ -1,5 +1,5 @@
 //! End-to-end test of the S3-backed hosted store, driven through the
-//! real HTTP handlers. Uses object_store's in-memory backend in place
+//! real HTTP handlers. Uses `object_store`'s in-memory backend in place
 //! of a real bucket, so it exercises the full publish (stage → upload)
 //! and serve (stream-from-bucket) wiring without a network.
 
@@ -148,7 +148,7 @@ async fn bucket_keys(store: &Arc<dyn ObjectStore>, prefix: &str) -> Vec<String> 
 /// under `storage`).
 fn staging_file_count(storage: &Path) -> usize {
     let dir = storage.join(".pnpr-cache").join("pnpr-hosted-staging");
-    std::fs::read_dir(dir).map(|rd| rd.count()).unwrap_or(0)
+    std::fs::read_dir(dir).map_or(0, std::iter::Iterator::count)
 }
 
 async fn body_bytes(body: Body) -> Vec<u8> {

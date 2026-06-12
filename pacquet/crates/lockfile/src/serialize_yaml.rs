@@ -52,6 +52,7 @@ where
 /// unreachable in practice — every call site pairs this with
 /// `skip_serializing_if = "Option::is_none"` — but is handled so the helper
 /// is a drop-in `serialize_with` for optional maps.
+#[expect(clippy::ref_option, reason = "serde serialize_with is invoked as f(&field, serializer)")]
 pub(crate) fn sorted_map_opt<Key, Value, Ser>(
     map: &Option<HashMap<Key, Value>>,
     serializer: Ser,

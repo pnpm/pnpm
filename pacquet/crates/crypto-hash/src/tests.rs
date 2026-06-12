@@ -1,4 +1,29 @@
-use super::{create_short_hash, shorten_virtual_store_name};
+use super::{create_hash, create_hash_from_file, create_short_hash, shorten_virtual_store_name};
+
+/// Pinned vector against the shell oracle:
+///
+/// ```sh
+/// printf pacquet | openssl dgst -sha256 -binary | base64
+/// # => Z4Te8BkaDdaBA6BatwCzHAp8RNp/i/+GfuqATZ6KrPA=
+/// ```
+#[test]
+fn hash_is_sha256_base64_with_prefix() {
+    assert_eq!(create_hash("pacquet"), "sha256-Z4Te8BkaDdaBA6BatwCzHAp8RNp/i/+GfuqATZ6KrPA=");
+    assert_ne!(create_hash("pacquet"), create_hash("pacquet "));
+}
+
+/// CRLF line endings are normalized to LF before hashing, so a file
+/// checked out on Windows hashes the same as its LF copy.
+#[test]
+fn hash_from_file_normalizes_crlf() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let crlf = dir.path().join("crlf.txt");
+    let lf = dir.path().join("lf.txt");
+    std::fs::write(&crlf, "a\r\nb\r\n").unwrap();
+    std::fs::write(&lf, "a\nb\n").unwrap();
+    assert_eq!(create_hash_from_file(&crlf).unwrap(), create_hash_from_file(&lf).unwrap());
+    assert_eq!(create_hash_from_file(&lf).unwrap(), create_hash("a\nb\n"));
+}
 
 /// Pinned vector against the shell oracle:
 ///

@@ -17,6 +17,7 @@ use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, Snaps
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    fmt::Write as _,
     rc::Rc,
 };
 
@@ -525,6 +526,7 @@ fn collect_snapshot_deps(
 /// `node_modules` directory parsing) and pass the rest through; if a
 /// richer set ever shows up the function can switch to a full
 /// encoder without touching call sites.
+#[must_use]
 pub fn percent_encode_path(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for ch in text.chars() {
@@ -548,7 +550,7 @@ pub fn percent_encode_path(text: &str) -> String {
                 // verbatim — pacquet's lockfile doesn't currently
                 // hand the wrapper non-ASCII paths.
                 if (other as u32) < 0x80 {
-                    out.push_str(&format!("%{:02X}", other as u32));
+                    write!(out, "%{:02X}", other as u32).unwrap();
                 } else {
                     out.push(other);
                 }
@@ -943,40 +945,36 @@ fn would_shadow_peer(
                 .find(|dep| dep.0.name == *peer_name)
                 .map(|dep| Rc::clone(&dep.0));
 
-            match provider_rc {
-                Some(provider) => {
-                    // Found a concrete provider in the ancestor
-                    // chain. Compare its identity against root's
-                    // current slot for the same name.
-                    match root_index.get(peer_name) {
-                        Some(at_root) if Rc::ptr_eq(&at_root.0, &provider) => {
-                            // Root already carries this exact
-                            // provider — promoting the candidate
-                            // doesn't change resolution. Move to
-                            // the next peer.
-                            continue 'peer_loop;
-                        }
-                        _ => {
-                            // Root either has a different ident
-                            // for this peer or doesn't have one
-                            // at all. Either way, hoisting would
-                            // shadow.
-                            return true;
-                        }
+            if let Some(provider) = provider_rc {
+                // Found a concrete provider in the ancestor
+                // chain. Compare its identity against root's
+                // current slot for the same name.
+                match root_index.get(peer_name) {
+                    Some(at_root) if Rc::ptr_eq(&at_root.0, &provider) => {
+                        // Root already carries this exact
+                        // provider — promoting the candidate
+                        // doesn't change resolution. Move to
+                        // the next peer.
+                        continue 'peer_loop;
+                    }
+                    _ => {
+                        // Root either has a different ident
+                        // for this peer or doesn't have one
+                        // at all. Either way, hoisting would
+                        // shadow.
+                        return true;
                     }
                 }
-                None => {
-                    // This ancestor doesn't supply the peer.
-                    // Walk further up — the actual provider may
-                    // be a parent of this ancestor (the common
-                    // shape is `ancestor` peer-passes the name
-                    // through to its own parent). If we exhaust
-                    // the path without finding any provider,
-                    // there's no ancestor-bound peer to shadow
-                    // and the candidate may hoist freely for
-                    // this peer.
-                }
             }
+            // This ancestor doesn't supply the peer.
+            // Walk further up — the actual provider may
+            // be a parent of this ancestor (the common
+            // shape is `ancestor` peer-passes the name
+            // through to its own parent). If we exhaust
+            // the path without finding any provider,
+            // there's no ancestor-bound peer to shadow
+            // and the candidate may hoist freely for
+            // this peer.
         }
         // No ancestor (excluding root) provides the peer; the
         // candidate either resolves it at root or leaves it
@@ -989,7 +987,7 @@ fn convert(
     tree: &HoisterTree,
     memo: &mut HashMap<*const HoisterTree, Rc<HoisterResult>>,
 ) -> Rc<HoisterResult> {
-    let ptr = tree as *const HoisterTree;
+    let ptr = std::ptr::from_ref::<HoisterTree>(tree);
     if let Some(existing) = memo.get(&ptr) {
         return Rc::clone(existing);
     }

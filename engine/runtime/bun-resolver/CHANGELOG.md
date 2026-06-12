@@ -1,5 +1,27 @@
 # @pnpm/resolving.bun-resolver
 
+## 1101.1.7
+
+### Patch Changes
+
+- @pnpm/resolving.npm-resolver@1101.5.2
+- @pnpm/worker@1100.1.11
+
+## 1101.1.6
+
+### Patch Changes
+
+- Updated dependencies [089484a]
+- Updated dependencies [bf1b731]
+- Updated dependencies [3d50680]
+  - @pnpm/worker@1100.1.10
+  - @pnpm/types@1101.3.1
+  - @pnpm/crypto.shasums-file@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.8
+  - @pnpm/resolving.npm-resolver@1101.5.1
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/fetching.binary-fetcher@1101.0.10
+
 ## 1101.1.5
 
 ### Patch Changes

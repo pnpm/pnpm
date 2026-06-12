@@ -12,6 +12,7 @@ use std::path::Path;
 /// the key into `Lockfile::importers` so both the lockfile writer and
 /// `symlink_direct_dependencies::importer_root_dir` (the reverse
 /// direction) agree on the spelling.
+#[must_use]
 pub fn importer_id_from_root_dir(lockfile_dir: &Path, project_dir: &Path) -> String {
     if project_dir == lockfile_dir {
         return ".".to_string();

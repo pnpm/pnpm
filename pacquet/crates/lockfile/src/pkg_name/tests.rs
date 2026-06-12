@@ -1,3 +1,8 @@
+#![allow(
+    clippy::needless_pass_by_value,
+    reason = "nested test helpers take owned fixture values; by-value keeps call sites and assert ergonomics simple"
+)]
+
 use super::{ParsePkgNameError, PkgName};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
@@ -33,7 +38,7 @@ fn deserialize_decodes_escape_sequences() {
     // to `@`, yielding `@foo/bar`. The deserializer must allocate a
     // fresh buffer to apply the escape, so a borrowed `&'de str`
     // source would reject this input.
-    let input = r##""\u0040foo/bar""##;
+    let input = r#""\u0040foo/bar""#;
     eprintln!("CASE: {input:?}");
     let actual: PkgName = serde_saphyr::from_str(input).unwrap();
     dbg!(&actual);

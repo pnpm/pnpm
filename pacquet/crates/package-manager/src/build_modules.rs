@@ -6,6 +6,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
+use pacquet_deps_path::remove_suffix;
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_postinstall_hooks,
 };
@@ -48,7 +49,7 @@ pub enum BuildModulesError {
 
     /// `ThreadPoolBuilder::build()` failed — most likely the OS
     /// refused to spawn the requested number of worker threads
-    /// (`EAGAIN` / RLIMIT_NPROC). Surfaced as a structured error
+    /// (`EAGAIN` / `RLIMIT_NPROC`). Surfaced as a structured error
     /// rather than a panic so the install path can return cleanly.
     #[display("Failed to build the per-install rayon thread pool: {source}")]
     #[diagnostic(
@@ -61,6 +62,25 @@ pub enum BuildModulesError {
         #[error(source)]
         source: rayon::ThreadPoolBuildError,
     },
+
+    /// Under the global virtual store a package's directory lives
+    /// inside the store, so applying a patch or running an approved
+    /// lifecycle script writes into the store. `frozen_store` promises
+    /// the store is complete and read-only, so the build cannot run.
+    /// A complete seed never reaches here — patched and built packages
+    /// are imported from the side-effects cache and skipped by the
+    /// `is_built` gate — so this means the seed is missing build
+    /// output. Mirrors the TS `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD`
+    /// thrown from
+    /// [`building/during-install`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts).
+    #[display("Cannot build {package} because the store is read-only (frozenStore is enabled)")]
+    #[diagnostic(
+        code(ERR_PNPM_FROZEN_STORE_NEEDS_BUILD),
+        help(
+            "This read-only store was not seeded with this package's build output. Rebuild the seed with its scripts enabled so the side-effects cache is populated, or remove it from onlyBuiltDependencies."
+        )
+    )]
+    FrozenStoreNeedsBuild { package: String },
 }
 
 /// Build policy derived from `allowBuilds` and
@@ -84,6 +104,8 @@ pub enum BuildModulesError {
 pub struct AllowBuildPolicy {
     expanded_allowed: HashSet<String>,
     expanded_disallowed: HashSet<String>,
+    allowed_dep_paths: HashSet<String>,
+    disallowed_dep_paths: HashSet<String>,
     dangerously_allow_all: bool,
 }
 
@@ -94,12 +116,36 @@ impl AllowBuildPolicy {
     /// directly with in-memory inputs (mirrors upstream's
     /// `createAllowBuildFunction(opts)` in
     /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts>).
+    #[must_use]
     pub fn new(
         expanded_allowed: HashSet<String>,
         expanded_disallowed: HashSet<String>,
         dangerously_allow_all: bool,
     ) -> Self {
-        Self { expanded_allowed, expanded_disallowed, dangerously_allow_all }
+        Self {
+            expanded_allowed,
+            expanded_disallowed,
+            allowed_dep_paths: HashSet::new(),
+            disallowed_dep_paths: HashSet::new(),
+            dangerously_allow_all,
+        }
+    }
+
+    #[must_use]
+    pub fn new_with_dep_paths(
+        expanded_allowed: HashSet<String>,
+        expanded_disallowed: HashSet<String>,
+        allowed_dep_paths: HashSet<String>,
+        disallowed_dep_paths: HashSet<String>,
+        dangerously_allow_all: bool,
+    ) -> Self {
+        Self {
+            expanded_allowed,
+            expanded_disallowed,
+            allowed_dep_paths,
+            disallowed_dep_paths,
+            dangerously_allow_all,
+        }
     }
 
     /// Build the policy from a resolved [`Config`]. Reads
@@ -120,16 +166,32 @@ impl AllowBuildPolicy {
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
         let mut allowed_specs: Vec<&str> = Vec::new();
         let mut disallowed_specs: Vec<&str> = Vec::new();
+        let mut allowed_dep_paths = HashSet::new();
+        let mut disallowed_dep_paths = HashSet::new();
         for (spec, &value) in &config.allow_builds {
-            if value {
-                allowed_specs.push(spec);
+            if is_dep_path_allow_build_key(spec) {
+                if value {
+                    allowed_dep_paths.insert(normalize_build_dep_path(spec));
+                } else {
+                    disallowed_dep_paths.insert(normalize_build_dep_path(spec));
+                }
             } else {
-                disallowed_specs.push(spec);
+                if value {
+                    allowed_specs.push(spec);
+                } else {
+                    disallowed_specs.push(spec);
+                }
             }
         }
         let expanded_allowed = expand_package_version_specs(allowed_specs)?;
         let expanded_disallowed = expand_package_version_specs(disallowed_specs)?;
-        Ok(Self::new(expanded_allowed, expanded_disallowed, config.dangerously_allow_all_builds))
+        Ok(Self::new_with_dep_paths(
+            expanded_allowed,
+            expanded_disallowed,
+            allowed_dep_paths,
+            disallowed_dep_paths,
+            config.dangerously_allow_all_builds,
+        ))
     }
 
     /// Check whether a package is allowed to run build scripts.
@@ -146,24 +208,68 @@ impl AllowBuildPolicy {
     /// lookup means `*` wildcards in specs do NOT match real
     /// package names — see [`expand_package_version_specs`] for
     /// the rationale.
-    pub fn check(&self, name: &str, version: &str) -> Option<bool> {
+    #[must_use]
+    pub fn check(&self, dep_path: &str) -> Option<bool> {
         if self.dangerously_allow_all {
             return Some(true);
         }
 
+        let normalized_dep_path = normalize_build_dep_path(dep_path);
+        if self.disallowed_dep_paths.contains(&normalized_dep_path) {
+            return Some(false);
+        }
+        let (name, version) = parse_name_version_from_key(&normalized_dep_path);
         let name_at_version = format!("{name}@{version}");
-        if self.expanded_disallowed.contains(name)
+        if self.expanded_disallowed.contains(&name)
             || self.expanded_disallowed.contains(&name_at_version)
         {
             return Some(false);
         }
-        if self.expanded_allowed.contains(name) || self.expanded_allowed.contains(&name_at_version)
+        if self.allowed_dep_paths.contains(&normalized_dep_path) {
+            return Some(true);
+        }
+        // Package-name rules require a trusted package identity. A
+        // registry-style dep path (`name@semver`) is the trust signal: the
+        // lockfile verification gate rejects lockfiles where such a key is
+        // backed by a non-registry resolution, so by the time scripts can
+        // run, the shape proves the artifact came from a registry.
+        if node_semver::Version::parse(&version).is_err() {
+            return None;
+        }
+        if self.expanded_allowed.contains(&name) || self.expanded_allowed.contains(&name_at_version)
         {
             return Some(true);
         }
 
         None
     }
+}
+
+/// Strips the peer suffix (and, matching [`PkgVerPeer::without_peer`]'s
+/// lumped suffix handling, the patch hash) so config keys compare equal
+/// to the `metadata_key.to_string()` form used at the runtime call sites.
+///
+/// [`PkgVerPeer::without_peer`]: pacquet_lockfile::PkgVerPeer::without_peer
+pub(crate) fn normalize_build_dep_path(dep_path: &str) -> String {
+    remove_suffix(dep_path).to_string()
+}
+
+fn is_dep_path_allow_build_key(spec: &str) -> bool {
+    if normalize_build_dep_path(spec) != spec {
+        return true;
+    }
+    if spec.contains("||") {
+        return false;
+    }
+    let (_, version) = parse_name_version_from_key(spec);
+    if version.is_empty() {
+        return !spec.starts_with('@') && (spec.contains('/') || spec.contains(':'));
+    }
+    node_semver::Version::parse(&version).is_err() && is_source_like_dep_path_version(&version)
+}
+
+fn is_source_like_dep_path_version(version: &str) -> bool {
+    version.contains(':') || version.contains('/') || version.contains('#')
 }
 
 /// Run lifecycle scripts for all packages that require a build.
@@ -287,9 +393,18 @@ pub struct BuildModules<'a> {
     /// front by [`crate::LinkVirtualStoreBins`], and the script
     /// executor adds that path itself.
     pub gather_ancestor_bin_paths: bool,
+
+    /// Mirrors `config.frozen_store`. When `true` together with the
+    /// global virtual store, a snapshot that would apply a patch or
+    /// run an approved lifecycle script is refused with
+    /// [`BuildModulesError::FrozenStoreNeedsBuild`] before the write
+    /// is attempted — the store is read-only, so the build cannot run.
+    /// Has no effect under the isolated linker, whose slot directories
+    /// live in the writable project store.
+    pub frozen_store: bool,
 }
 
-impl<'a> BuildModules<'a> {
+impl BuildModules<'_> {
     /// Run the build, returning the sorted set of `name@version` keys whose
     /// scripts were skipped because the package was not in `allowBuilds`.
     ///
@@ -318,6 +433,7 @@ impl<'a> BuildModules<'a> {
             skipped,
             pkg_root_by_key,
             gather_ancestor_bin_paths,
+            frozen_store,
         } = self;
 
         let Some(snapshots) = snapshots else { return Ok(Vec::new()) };
@@ -348,8 +464,7 @@ impl<'a> BuildModules<'a> {
                 // isolated path's `pkg_dir.exists() == false` skip.
                 let requires = pkg_root_for_key(layout, pkg_root_by_key, key)
                     .as_deref()
-                    .map(pkg_requires_build)
-                    .unwrap_or(false);
+                    .is_some_and(pkg_requires_build);
                 (key.clone(), requires)
             })
             .collect();
@@ -466,6 +581,7 @@ impl<'a> BuildModules<'a> {
                         &extra_env,
                         scripts_prepend_node_path,
                         unsafe_perm,
+                        frozen_store,
                     )
                 })
             })?;
@@ -478,7 +594,8 @@ impl<'a> BuildModules<'a> {
         // mid-insertion. A `BTreeSet::insert` is one atomic
         // operation from the data-structure's POV (no torn writes),
         // so the canonical poison-recovery pattern is safe.
-        let ignored_builds = ignored_builds.into_inner().unwrap_or_else(|e| e.into_inner());
+        let ignored_builds =
+            ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
         Ok(ignored_builds.into_iter().collect())
     }
 }
@@ -516,6 +633,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     extra_env: &HashMap<String, String>,
     scripts_prepend_node_path: ScriptsPrependNodePath,
     unsafe_perm: bool,
+    frozen_store: bool,
 ) -> Result<(), BuildModulesError> {
     let metadata_key = snapshot_key.without_peer();
     // Look up against the peer-stripped key because patches are
@@ -547,7 +665,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // `ignoreScripts = true; break` pattern.
     let mut should_run_scripts = requires_build;
     if requires_build {
-        match allow_build_policy.check(&name, &version) {
+        let dep_path = metadata_key.to_string();
+        match allow_build_policy.check(&dep_path) {
             Some(false) => {
                 should_run_scripts = false;
             }
@@ -562,8 +681,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                 // data-structure's POV).
                 ignored_builds
                     .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .insert(metadata_key.to_string());
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .insert(dep_path);
                 should_run_scripts = false;
             }
             Some(true) => {}
@@ -591,7 +710,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         // insert atomic from `HashMap`'s POV. A panic mid-walk
         // leaves the map in a usable state — the worst case is
         // an unfinished sub-walk that the next caller will redo.
-        let mut cache_guard = deps_state_cache.lock().unwrap_or_else(|e| e.into_inner());
+        let mut cache_guard =
+            deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         pacquet_graph_hasher::calc_dep_state(
             graph,
             &mut cache_guard,
@@ -638,6 +758,47 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         return Ok(());
     }
 
+    let optional = snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
+
+    // Frozen-store backstop. Under the global virtual store the slot
+    // directory lives inside the read-only store, so applying a patch
+    // or running an approved lifecycle script (the two writes below)
+    // would fail with a raw `EROFS`. Refuse up front with guidance.
+    // We're past the `is_built` gate, so a cached build has already
+    // returned — reaching here means the seed is genuinely missing
+    // this package's build output. Mirrors the TS backstop in
+    // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts>.
+    // Bin-linking (the other write) reuses existing symlinks
+    // write-free on a complete seed, so only patch/script writes gate.
+    if frozen_store && layout.enable_global_virtual_store() && (has_patch || should_run_scripts) {
+        if optional {
+            // A build/patch failure on an optional dependency is non-fatal
+            // (see the lifecycle-script arm below), so a seed missing an
+            // optional package's build output skips that build instead of
+            // blocking the install.
+            Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+                level: LogLevel::Debug,
+                details: Some(format!(
+                    "The read-only store (frozenStore) is missing the build output of {name}@{version}.",
+                )),
+                package: SkippedOptionalPackage::Installed {
+                    id: pkg_root_for_key(layout, pkg_root_by_key, snapshot_key).map_or_else(
+                        || snapshot_key.to_string(),
+                        |dir| dir.to_string_lossy().into_owned(),
+                    ),
+                    name,
+                    version,
+                },
+                prefix: lockfile_dir.to_string_lossy().into_owned(),
+                reason: SkippedOptionalReason::BuildFailure,
+            }));
+            return Ok(());
+        }
+        return Err(BuildModulesError::FrozenStoreNeedsBuild {
+            package: format!("{name}@{version}"),
+        });
+    }
+
     // Hoisted snapshots without a recorded `pkgRoot` (the walker
     // dropped them — pre-skipped, optional skip, etc.) take the
     // same exit as the isolated path's `!pkg_dir.exists()` skip.
@@ -657,8 +818,6 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     } else {
         Vec::new()
     };
-
-    let optional = snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
 
     // Apply the patch before running postinstall hooks. Mirrors
     // upstream at
@@ -683,7 +842,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     };
 
     let has_side_effects = if should_run_scripts {
-        let result = run_postinstall_hooks::<Reporter>(RunPostinstallHooks {
+        let result = run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
             dep_path: &snapshot_key.to_string(),
             pkg_root: &pkg_dir,
             root_modules_dir: modules_dir,

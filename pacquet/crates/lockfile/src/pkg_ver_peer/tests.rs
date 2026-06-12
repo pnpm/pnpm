@@ -111,7 +111,7 @@ fn deserialize_serialize() {
             input,
             |input| serde_saphyr::from_str(input).unwrap(),
             |ver_peer| serde_saphyr::to_string(&ver_peer).unwrap().trim().to_string(),
-        )
+        );
     };
     case("1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)");
     case("1.21.3(react@17.0.2)");

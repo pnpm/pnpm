@@ -24,6 +24,7 @@ pub struct ParsedKey<'a> {
 /// `@` separator at index ≥ 1 — matching upstream where `dp.parse`
 /// returns the empty object `{}`. Callers handle that case by treating
 /// the entire key as a bare package name (wildcard match).
+#[must_use]
 pub fn parse_key(input: &str) -> ParsedKey<'_> {
     // `indexOf('@', 1)` upstream — skip a leading `@` so scoped names
     // (`@scope/foo`) match on the *second* `@`.

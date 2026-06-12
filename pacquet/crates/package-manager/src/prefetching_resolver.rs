@@ -24,7 +24,7 @@
 //! path as `TarballError::SiblingFetchFailed`.
 
 use crate::{
-    install_package_from_registry::{extract_tarball, manifest_unpacked_size},
+    install_package_from_registry::{extract_tarball, manifest_file_count, manifest_unpacked_size},
     retry_config::retry_opts_from_config,
 };
 use dashmap::DashSet;
@@ -116,6 +116,11 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// references. Clones the necessary `Arc`s up front so the
     /// per-`resolve` spawn has all the data it needs without
     /// re-borrowing the install scope.
+    #[must_use]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "destructures PrefetchContext and clones its Arc fields out by value"
+    )]
     pub fn new(inner: Box<dyn Resolver>, prefetch_ctx: PrefetchContext<'_>) -> Self {
         let PrefetchContext {
             http_client,
@@ -198,6 +203,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let package_id = format!("{}@{}", name_ver.name, name_ver.suffix);
         let package_url = package_url.to_string();
         let package_unpacked_size = manifest_unpacked_size(result.manifest.as_deref());
+        let package_file_count = manifest_file_count(result.manifest.as_deref());
 
         let http_client = Arc::clone(&self.ctx.http_client);
         let mem_cache = Arc::clone(&self.ctx.mem_cache);
@@ -233,6 +239,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 verified_files_cache,
                 package_integrity: &integrity,
                 package_unpacked_size,
+                package_file_count,
                 package_url: &package_url,
                 package_id: &package_id,
                 requester: &requester,

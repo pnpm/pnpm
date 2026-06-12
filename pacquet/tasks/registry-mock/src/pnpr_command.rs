@@ -32,8 +32,7 @@ fn pnpr_binary() -> PathBuf {
         return PathBuf::from(path);
     }
     let target_dir = env::var_os("CARGO_TARGET_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| workspace_root().join("target"));
+        .map_or_else(|| workspace_root().join("target"), PathBuf::from);
     let exe = format!("pnpr{}", env::consts::EXE_SUFFIX);
     let release = target_dir.join("release").join(&exe);
     if release.is_file() {
@@ -58,11 +57,14 @@ fn pnpr_binary() -> PathBuf {
 ///
 /// `pnpr` is a workspace crate; run
 /// `cargo build -p pnpr` once before invoking the mock if
-/// it isn't already built. `--public-url` is pinned to
-/// `http://localhost:<port>` so the tarball URLs the registry
-/// rewrites match the URL pacquet's tests expect via
-/// `port_to_url`.
-pub fn pnpr_command(port: u16) -> Command {
+/// it isn't already built. `--public-url` defaults to
+/// `http://localhost:<port>` so the tarball URLs the registry rewrites
+/// match the URL pacquet's tests expect via `port_to_url`. The
+/// integrated benchmark can override it when a proxy fronts the registry
+/// port: packuments served by pnpr must advertise the proxy URL, or
+/// tarball downloads bypass the emulated registry link.
+#[must_use]
+pub fn pnpr_command(port: u16, public_url: Option<&str>) -> Command {
     let bin = pnpr_binary();
     assert!(
         bin.is_file(),
@@ -78,6 +80,13 @@ pub fn pnpr_command(port: u16) -> Command {
     if seeded > 0 {
         eprintln!("info: seeded {seeded} fixture file(s) into runtime storage");
     }
+    let default_public_url;
+    let public_url = if let Some(public_url) = public_url {
+        public_url.trim_end_matches('/')
+    } else {
+        default_public_url = port_to_url(port);
+        default_public_url.trim_end_matches('/')
+    };
     let mut cmd = Command::new(bin);
     // `pnpr` defaults to its bundled verdaccio-shaped config
     // (npmjs uplink + `**` proxy rule), which matches what the mock
@@ -90,6 +99,6 @@ pub fn pnpr_command(port: u16) -> Command {
         .arg("--listen")
         .arg(format!("127.0.0.1:{port}"))
         .arg("--public-url")
-        .arg(port_to_url(port).trim_end_matches('/'));
+        .arg(public_url);
     cmd
 }

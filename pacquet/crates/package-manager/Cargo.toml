@@ -75,9 +75,11 @@ miette          = { workspace = true }
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }
 
+async-trait       = { workspace = true }
 node-semver       = { workspace = true }
 dunce             = { workspace = true }
 insta             = { workspace = true }
+mockito           = { workspace = true }
 pathdiff          = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr      = { workspace = true }

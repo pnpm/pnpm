@@ -52,7 +52,7 @@ pub struct InstallPackageFromRegistry<'a> {
     /// Arc<cas_paths>`. When `Some`, the
     /// `DownloadTarballToStore::run_without_mem_cache` cache-lookup
     /// branch reads from here before falling back to the per-snapshot
-    /// SQLite lookup, avoiding `Arc<Mutex<StoreIndex>>` contention on
+    /// `SQLite` lookup, avoiding `Arc<Mutex<StoreIndex>>` contention on
     /// the resolve hot path.
     pub prefetched_cas_paths: Option<&'a pacquet_tarball::PrefetchedCasPaths>,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
@@ -103,7 +103,7 @@ pub enum InstallPackageFromRegistryError {
     },
 }
 
-impl<'a> InstallPackageFromRegistry<'a> {
+impl InstallPackageFromRegistry<'_> {
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter>(
         self,
@@ -147,6 +147,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
         if first_visit {
             let (tarball_url, integrity) = extract_tarball(&resolution.resolution)?;
             let unpacked_size = manifest_unpacked_size(resolution.manifest.as_deref());
+            let file_count = manifest_file_count(resolution.manifest.as_deref());
 
             // `pnpm:progress resolved` mirrors pnpm's emit at
             // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-resolver/src/resolveDependencies.ts#L1586>:
@@ -172,6 +173,7 @@ impl<'a> InstallPackageFromRegistry<'a> {
                 verified_files_cache: SharedVerifiedFilesCache::clone(verified_files_cache),
                 package_integrity: &integrity,
                 package_unpacked_size: unpacked_size,
+                package_file_count: file_count,
                 package_url: tarball_url,
                 package_id: &package_id,
                 requester,
@@ -272,14 +274,21 @@ pub(crate) fn extract_tarball(
 /// `None` when missing or non-numeric — the tarball extractor treats it
 /// as a hint, not a hard requirement.
 pub(crate) fn manifest_unpacked_size(manifest: Option<&Value>) -> Option<usize> {
+    manifest_dist_field(manifest, "unpackedSize")
+}
+
+/// Read `dist.fileCount` off the resolver-fetched manifest. Feeds the
+/// download priority's per-file pipeline-cost term; `None` when the
+/// registry never published one.
+pub(crate) fn manifest_file_count(manifest: Option<&Value>) -> Option<usize> {
+    manifest_dist_field(manifest, "fileCount")
+}
+
+fn manifest_dist_field(manifest: Option<&Value>, field: &str) -> Option<usize> {
     // `usize::try_from` so a `u64` value larger than the host's
     // `usize` (32-bit targets) degrades to "no hint" rather than
     // truncating silently and producing an undersized pre-allocation.
-    manifest?
-        .get("dist")?
-        .get("unpackedSize")?
-        .as_u64()
-        .and_then(|value| usize::try_from(value).ok())
+    manifest?.get("dist")?.get(field)?.as_u64().and_then(|value| usize::try_from(value).ok())
 }
 
 #[cfg(test)]

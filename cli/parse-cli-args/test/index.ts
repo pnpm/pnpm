@@ -263,6 +263,40 @@ test('use command-specific shorthands', async () => {
   expect(options).toHaveProperty(['dev'])
 })
 
+test('bare --color does not consume a following command-specific shorthand', async () => {
+  const { cmd, options, params } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'run') {
+        return {
+          recursive: Boolean,
+          sort: Boolean,
+          stream: Boolean,
+          'workspace-concurrency': Number,
+        }
+      }
+      return {}
+    },
+    shorthandsByCommandName: {
+      run: {
+        parallel: ['--workspace-concurrency=Infinity', '--no-sort', '--stream', '--recursive'],
+      },
+    },
+    universalOptionsTypes: {
+      color: [Boolean, 'always', 'auto', 'never'],
+      recursive: Boolean,
+    },
+  }, ['--recursive', '--color', '--parallel', 'run', 'dev'])
+
+  expect(cmd).toBe('run')
+  expect(params).toStrictEqual(['dev'])
+  expect(options.color).toBe(true)
+  expect(options.recursive).toBe(true)
+  expect(options['workspace-concurrency']).toBe(Infinity)
+  expect(options.sort).toBe(false)
+  expect(options.stream).toBe(true)
+})
+
 test('command-specific shorthands override universal shorthands', async () => {
   const { options } = await parseCliArgs({
     ...DEFAULT_OPTS,

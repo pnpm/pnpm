@@ -1,11 +1,12 @@
 use super::{
     archive_filter_for, emit_progress_resolved, host_platform_selector, node_extras_filter,
-    render_variant_targets, synthesize_runtime_manifest_bytes,
+    render_variant_targets, synthesize_runtime_manifest_bytes, tarball_url_and_integrity,
 };
+use pacquet_config::Config;
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use pacquet_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey,
-    PlatformAssetResolution, PlatformAssetTarget,
+    PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
 };
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
 use pretty_assertions::assert_eq;
@@ -40,6 +41,22 @@ fn emits_resolved_with_supplied_identifiers() {
         ),
         "expected a single Resolved event with matching identifiers; got {captured:?}",
     );
+}
+
+#[test]
+fn registry_resolution_uses_scoped_registry_tarball_base() {
+    let mut config = Config::new();
+    config.registry = "https://default.example/npm/".to_string();
+    config.registries.insert("@private".to_string(), "https://private.example/npm/".to_string());
+
+    let integrity = DUMMY_SHA512.parse().expect("parse integrity");
+    let resolution = LockfileResolution::Registry(RegistryResolution { integrity });
+    let package_key: PackageKey = "@private/foo@1.0.0".parse().expect("parse package key");
+
+    let (tarball_url, _) =
+        tarball_url_and_integrity(&resolution, &package_key, &config).expect("registry tarball");
+
+    assert_eq!(tarball_url.as_ref(), "https://private.example/npm/@private/foo/-/foo-1.0.0.tgz");
 }
 
 /// `host_platform_selector` builds the selector that drives runtime-
@@ -307,6 +324,7 @@ fn registry_metadata() -> pacquet_lockfile::PackageMetadata {
         resolution: LockfileResolution::Registry(pacquet_lockfile::RegistryResolution {
             integrity: DUMMY_SHA512.parse().expect("parse integrity"),
         }),
+        version: None,
         engines: None,
         cpu: None,
         os: None,
@@ -371,8 +389,11 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
-    let allow_build_policy =
-        crate::AllowBuildPolicy::new(Default::default(), Default::default(), false);
+    let allow_build_policy = crate::AllowBuildPolicy::new(
+        std::collections::HashSet::default(),
+        std::collections::HashSet::default(),
+        false,
+    );
     let skipped = crate::SkippedSnapshots::new();
     let logged_methods = AtomicU8::new(0);
     let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
@@ -380,7 +401,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     let snapshot = pacquet_lockfile::SnapshotEntry::default();
 
     let cas_paths = super::InstallPackageBySnapshot {
-        http_client: &Default::default(),
+        http_client: &pacquet_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: None,
@@ -402,6 +423,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
         // back directly.
         node_linker: pacquet_config::NodeLinker::Hoisted,
         defer_link: false,
+        link_concurrency_probe: None,
     }
     .run::<pacquet_reporter::SilentReporter>()
     .await
@@ -443,8 +465,11 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
-    let allow_build_policy =
-        crate::AllowBuildPolicy::new(Default::default(), Default::default(), false);
+    let allow_build_policy = crate::AllowBuildPolicy::new(
+        std::collections::HashSet::default(),
+        std::collections::HashSet::default(),
+        false,
+    );
     let skipped = crate::SkippedSnapshots::new();
     let logged_methods = AtomicU8::new(0);
     let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
@@ -452,7 +477,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
     let snapshot = pacquet_lockfile::SnapshotEntry::default();
 
     let err = super::InstallPackageBySnapshot {
-        http_client: &Default::default(),
+        http_client: &pacquet_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: None,
@@ -471,6 +496,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
         defer_link: false,
+        link_concurrency_probe: None,
     }
     .run::<pacquet_reporter::SilentReporter>()
     .await
@@ -512,8 +538,11 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
-    let allow_build_policy =
-        crate::AllowBuildPolicy::new(Default::default(), Default::default(), false);
+    let allow_build_policy = crate::AllowBuildPolicy::new(
+        std::collections::HashSet::default(),
+        std::collections::HashSet::default(),
+        false,
+    );
     let skipped = crate::SkippedSnapshots::new();
     let logged_methods = AtomicU8::new(0);
     let verified_files_cache = pacquet_store_dir::SharedVerifiedFilesCache::default();
@@ -521,7 +550,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
     let snapshot = pacquet_lockfile::SnapshotEntry::default();
 
     let err = super::InstallPackageBySnapshot {
-        http_client: &Default::default(),
+        http_client: &pacquet_network::ThrottledClient::default(),
         config,
         layout: &layout,
         store_index: None,
@@ -540,6 +569,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
         workspace_root: store_tmp.path(),
         node_linker: pacquet_config::NodeLinker::Hoisted,
         defer_link: false,
+        link_concurrency_probe: None,
     }
     .run::<pacquet_reporter::SilentReporter>()
     .await

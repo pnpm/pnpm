@@ -35,6 +35,7 @@ pub struct PnprClient {
 }
 
 /// Inputs for a single-project resolution.
+#[derive(Clone)]
 pub struct ResolveOptions {
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
@@ -81,6 +82,46 @@ pub struct ResolveOptions {
     pub trust_policy_ignore_after: Option<u64>,
 }
 
+/// Inputs for `/v1/verify-lockfile`, the resolution-free trust verdict
+/// used by frozen restores that already know the local lockfile is fresh.
+#[derive(Clone)]
+pub struct VerifyLockfileOptions {
+    pub registry: String,
+    pub named_registries: DepMap,
+    pub auth_headers: DepMap,
+    pub authorization: Option<String>,
+    pub overrides: Option<serde_json::Value>,
+    pub lockfile: Lockfile,
+    pub trust_lockfile: bool,
+    pub minimum_release_age: Option<u64>,
+    pub minimum_release_age_exclude: Option<Vec<String>>,
+    pub minimum_release_age_ignore_missing_time: bool,
+    pub trust_policy: TrustPolicy,
+    pub trust_policy_exclude: Option<Vec<String>>,
+    pub trust_policy_ignore_after: Option<u64>,
+}
+
+impl VerifyLockfileOptions {
+    #[must_use]
+    pub fn from_resolve_options(opts: &ResolveOptions) -> Option<Self> {
+        Some(Self {
+            registry: opts.registry.clone(),
+            named_registries: opts.named_registries.clone(),
+            auth_headers: opts.auth_headers.clone(),
+            authorization: opts.authorization.clone(),
+            overrides: opts.overrides.clone(),
+            lockfile: opts.lockfile.clone()?,
+            trust_lockfile: opts.trust_lockfile,
+            minimum_release_age: opts.minimum_release_age,
+            minimum_release_age_exclude: opts.minimum_release_age_exclude.clone(),
+            minimum_release_age_ignore_missing_time: opts.minimum_release_age_ignore_missing_time,
+            trust_policy: opts.trust_policy,
+            trust_policy_exclude: opts.trust_policy_exclude.clone(),
+            trust_policy_ignore_after: opts.trust_policy_ignore_after,
+        })
+    }
+}
+
 /// Result of [`PnprClient::resolve`].
 #[must_use]
 pub struct ResolveOutcome {
@@ -111,6 +152,15 @@ pub struct ResolvedPackage {
     pub integrity: String,
     /// The resolver's `dist.tarball` URL.
     pub tarball: String,
+    /// `dist.unpackedSize` from the server-side resolve, when the
+    /// registry published one. Sizes the decompression buffer exactly
+    /// and prioritizes the largest pending downloads when the
+    /// connection pool is saturated.
+    pub unpacked_size: Option<usize>,
+    /// `dist.fileCount` from the server-side resolve, when the registry
+    /// published one. The per-file term of the download priority's
+    /// pipeline-work estimate.
+    pub file_count: Option<usize>,
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -193,6 +243,69 @@ impl PnprClient {
         self.resolve_streaming(opts, |_| {}).await
     }
 
+    /// Ask the server to verify a lockfile under the client's registry
+    /// and policy settings, without resolving or echoing the lockfile
+    /// back.
+    pub async fn verify_lockfile(
+        &self,
+        opts: VerifyLockfileOptions,
+    ) -> Result<(), PnprClientError> {
+        let request = serde_json::json!({
+            "registry": opts.registry,
+            "namedRegistries": opts.named_registries,
+            "authHeaders": opts.auth_headers,
+            "overrides": opts.overrides,
+            "lockfile": opts.lockfile,
+            "trustLockfile": opts.trust_lockfile,
+            "minimumReleaseAge": opts.minimum_release_age,
+            "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
+            "minimumReleaseAgeIgnoreMissingTime": opts.minimum_release_age_ignore_missing_time,
+            "trustPolicy": opts.trust_policy,
+            "trustPolicyExclude": opts.trust_policy_exclude,
+            "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
+        });
+
+        let mut post =
+            self.http.post(format!("{}v1/verify-lockfile", self.base_url)).json(&request);
+        if let Some(authorization) = opts.authorization.as_deref() {
+            post = post.header("authorization", authorization);
+        }
+        let response = post.send().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(PnprClientError::Server(format!(
+                "/v1/verify-lockfile returned {status}: {body}",
+            )));
+        }
+
+        let mut stream = response.bytes_stream();
+        let mut buf: Vec<u8> = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            buf.extend_from_slice(&chunk?);
+            while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
+                let line: Vec<u8> = buf.drain(..=newline).collect();
+                let line = &line[..line.len() - 1];
+                if line.is_empty() {
+                    continue;
+                }
+                match parse_verify_frame(line)? {
+                    VerifyFrame::Done => return Ok(()),
+                    VerifyFrame::Error { message } => {
+                        return Err(PnprClientError::Server(message));
+                    }
+                    VerifyFrame::Violations { violations } => {
+                        return Err(PnprClientError::Verification(build_verify_error(violations)));
+                    }
+                }
+            }
+        }
+
+        Err(PnprClientError::Protocol(
+            "/v1/verify-lockfile stream ended without a terminal frame".to_string(),
+        ))
+    }
+
     /// Resolve a single project, invoking `on_package` once per resolved
     /// tarball as its `package` frame streams in — *before* the full
     /// lockfile arrives — so the caller can begin fetching each tarball
@@ -254,8 +367,24 @@ impl PnprClient {
                     continue;
                 }
                 match parse_frame(line)? {
-                    Frame::Package { id, name, version, integrity, tarball } => {
-                        on_package(ResolvedPackage { id, name, version, integrity, tarball });
+                    Frame::Package {
+                        id,
+                        name,
+                        version,
+                        integrity,
+                        tarball,
+                        unpacked_size,
+                        file_count,
+                    } => {
+                        on_package(ResolvedPackage {
+                            id,
+                            name,
+                            version,
+                            integrity,
+                            tarball,
+                            unpacked_size,
+                            file_count,
+                        });
                     }
                     Frame::Done { lockfile, stats } => {
                         return Ok(ResolveOutcome { lockfile: *lockfile, stats });
@@ -277,6 +406,10 @@ fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {
     serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
 }
 
+fn parse_verify_frame(line: &[u8]) -> Result<VerifyFrame, PnprClientError> {
+    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
+}
+
 /// One NDJSON frame from `/v1/resolve`. `package` frames stream as the
 /// server resolves; exactly one terminal frame (`done` / `error` /
 /// `violations`) closes the response.
@@ -289,6 +422,13 @@ enum Frame {
         version: String,
         integrity: String,
         tarball: String,
+        /// Absent from frames sent by servers that predate the field
+        /// and for packages whose registry never published a
+        /// `dist.unpackedSize`.
+        #[serde(rename = "unpackedSize", default)]
+        unpacked_size: Option<usize>,
+        #[serde(rename = "fileCount", default)]
+        file_count: Option<usize>,
     },
     /// Boxed: the lockfile dwarfs the other variants, so keeping it
     /// behind a pointer keeps the enum small.
@@ -303,6 +443,14 @@ enum Frame {
     Violations {
         violations: Vec<WireViolation>,
     },
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum VerifyFrame {
+    Done,
+    Error { message: String },
+    Violations { violations: Vec<WireViolation> },
 }
 
 #[derive(Deserialize)]
@@ -321,7 +469,7 @@ fn build_verify_error(mut violations: Vec<WireViolation>) -> VerifyError {
     violations.sort_by(|left, right| {
         format!("{}@{}", left.name, left.version).cmp(&format!("{}@{}", right.name, right.version))
     });
-    let rendered = violations
+    let rendered: Vec<RenderedViolation> = violations
         .into_iter()
         .map(|violation| RenderedViolation {
             name: violation.name,
@@ -330,7 +478,7 @@ fn build_verify_error(mut violations: Vec<WireViolation>) -> VerifyError {
             reason: violation.reason,
         })
         .collect();
-    VerifyError::from_rendered(rendered)
+    VerifyError::from_rendered(&rendered)
 }
 
 /// Map a wire violation code back to the `&'static str` constant

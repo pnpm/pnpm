@@ -9,6 +9,7 @@
 //!
 //! Protocol — one JSON object per line:
 //! - request:  `{"id": N, "hook": "readPackage", "payload": <value>}`
+//! - query:    `{"id": N, "query": "hasHooks"}`     (does the module export `hooks`?)
 //! - log:      `{"id": N, "log": "message"}`        (a `context.log(...)` call)
 //! - success:  `{"id": N, "ok": <value>}`
 //! - failure:  `{"id": N, "err": "message"}`
@@ -20,7 +21,7 @@ use std::{
     path::Path,
     process::Stdio,
     sync::{
-        Arc,
+        Arc, Mutex as StdMutex,
         atomic::{AtomicU64, Ordering},
     },
 };
@@ -36,12 +37,42 @@ const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
 /// Callback invoked for each `context.log(...)` a hook emits while it runs.
 pub type LogFn = Arc<dyn Fn(String) + Send + Sync>;
 
+/// Which optional methods one custom resolver in the pnpmfile's
+/// `resolvers` array implements. Mirrors the optional methods of pnpm's
+/// `CustomResolver` interface (`hooks/types/src/index.ts`).
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolverCapabilities {
+    pub can_resolve: bool,
+    pub resolve: bool,
+    pub should_refresh_resolution: bool,
+}
+
 struct Pending {
     log: LogFn,
     done: oneshot::Sender<Result<Value, String>>,
 }
 
-type PendingMap = Arc<Mutex<HashMap<u64, Pending>>>;
+/// Pending requests keyed by id. A `std` mutex (never held across an
+/// await) so [`PendingEntryGuard::drop`] can clean up synchronously
+/// when a caller's future is cancelled.
+type PendingMap = Arc<StdMutex<HashMap<u64, Pending>>>;
+
+/// Removes the pending entry on drop. Covers every exit from
+/// [`NodeWorker::request`] — send failure, timeout, and cancellation of
+/// the caller's future — so a request the worker never answers cannot
+/// leak its entry. Removal is idempotent: a delivered reply has already
+/// removed the entry in [`dispatch_line`].
+struct PendingEntryGuard {
+    pending: PendingMap,
+    id: u64,
+}
+
+impl Drop for PendingEntryGuard {
+    fn drop(&mut self) {
+        self.pending.lock().unwrap().remove(&self.id);
+    }
+}
 
 /// A handle to a running Node worker process loaded with one pnpmfile.
 pub struct NodeWorker {
@@ -82,16 +113,16 @@ impl NodeWorker {
         let stdin = child.stdin.take().expect("worker stdin is piped");
         let stdout = child.stdout.take().expect("worker stdout is piped");
 
-        let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
+        let pending: PendingMap = Arc::new(StdMutex::new(HashMap::new()));
         let pending_reader = Arc::clone(&pending);
         tokio::spawn(async move {
             let mut lines = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                dispatch_line(&pending_reader, &line).await;
+                dispatch_line(&pending_reader, &line);
             }
             // The worker exited: fail every still-pending request so callers
             // don't hang waiting for a response that will never arrive.
-            for (_, pending) in pending_reader.lock().await.drain() {
+            for (_, pending) in pending_reader.lock().unwrap().drain() {
                 let _ = pending.done.send(Err("pnpmfile worker exited".to_string()));
             }
         });
@@ -111,13 +142,67 @@ impl NodeWorker {
 
     /// Run `hook` with `payload`, forwarding any `context.log(...)` to `log`.
     pub async fn call(&self, hook: &str, payload: Value, log: LogFn) -> Result<Value, HookError> {
+        self.request(hook, serde_json::json!({ "hook": hook, "payload": payload }), log).await
+    }
+
+    /// Whether the loaded pnpmfile exports a `hooks` object. Mirrors
+    /// pnpm's `entry.hooks != null` gate for `pnpmfileChecksum`.
+    pub async fn has_hooks(&self) -> bool {
+        self.request("hasHooks", serde_json::json!({ "query": "hasHooks" }), Arc::new(|_| {}))
+            .await
+            .ok()
+            .as_ref()
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    }
+
+    /// Call `method` on the custom resolver at `index` in the pnpmfile's
+    /// `resolvers` array, forwarding any `context.log(...)` to `log`.
+    pub async fn call_resolver(
+        &self,
+        index: usize,
+        method: &str,
+        payload: Value,
+        log: LogFn,
+    ) -> Result<Value, HookError> {
+        self.request(
+            method,
+            serde_json::json!({
+                "target": "resolver",
+                "index": index,
+                "method": method,
+                "payload": payload,
+            }),
+            log,
+        )
+        .await
+    }
+
+    /// Get the capabilities of every custom resolver exported by the
+    /// pnpmfile's `resolvers` array, in array order. Lets callers skip
+    /// per-dependency IPC round trips for methods a resolver does not
+    /// implement, mirroring pnpm's optional-method checks
+    /// (`if (!customResolver.canResolve || !customResolver.resolve) continue`).
+    pub async fn get_resolver_capabilities(&self) -> Result<Vec<ResolverCapabilities>, HookError> {
+        let value = self
+            .request("resolvers", serde_json::json!({ "target": "resolvers" }), Arc::new(|_| {}))
+            .await?;
+        serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
+    }
+
+    /// Send one request `body` (an object the worker dispatches on) and
+    /// await its reply, stamping in the request id and routing any
+    /// `context.log(...)` lines to `log`. `label` names the request in a
+    /// timeout error.
+    async fn request(&self, label: &str, mut body: Value, log: LogFn) -> Result<Value, HookError> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (done, rx) = oneshot::channel();
-        self.pending.lock().await.insert(id, Pending { log, done });
+        self.pending.lock().unwrap().insert(id, Pending { log, done });
+        let _pending_guard = PendingEntryGuard { pending: Arc::clone(&self.pending), id };
 
-        let request = serde_json::json!({ "id": id, "hook": hook, "payload": payload });
+        body["id"] = serde_json::json!(id);
         let mut line =
-            serde_json::to_string(&request).map_err(|err| self.exec_err(err.to_string()))?;
+            serde_json::to_string(&body).map_err(|err| self.exec_err(err.to_string()))?;
         line.push('\n');
         {
             let mut stdin = self.stdin.lock().await;
@@ -129,10 +214,7 @@ impl NodeWorker {
             Ok(Ok(Ok(value))) => Ok(value),
             Ok(Ok(Err(message))) => Err(self.exec_err(message)),
             Ok(Err(_)) => Err(self.exec_err("pnpmfile worker dropped the response")),
-            Err(_) => {
-                self.pending.lock().await.remove(&id);
-                Err(HookError::Timeout(hook.to_string(), HOOK_TIMEOUT.as_secs()))
-            }
+            Err(_) => Err(HookError::Timeout(label.to_string(), HOOK_TIMEOUT.as_secs())),
         }
     }
 }
@@ -140,18 +222,19 @@ impl NodeWorker {
 /// Route one line from the worker to its pending request: forward `log` lines
 /// to the call's logger (the entry stays until the result arrives) and resolve
 /// the call on `ok`/`err`.
-async fn dispatch_line(pending: &PendingMap, line: &str) {
+fn dispatch_line(pending: &PendingMap, line: &str) {
     let Ok(message) = serde_json::from_str::<Value>(line) else { return };
     let Some(id) = message.get("id").and_then(Value::as_u64) else { return };
 
     if let Some(log) = message.get("log").and_then(Value::as_str) {
-        if let Some(entry) = pending.lock().await.get(&id) {
-            (entry.log)(log.to_string());
+        let log_fn = pending.lock().unwrap().get(&id).map(|entry| Arc::clone(&entry.log));
+        if let Some(log_fn) = log_fn {
+            log_fn(log.to_string());
         }
         return;
     }
 
-    let Some(entry) = pending.lock().await.remove(&id) else { return };
+    let Some(entry) = pending.lock().unwrap().remove(&id) else { return };
     let result = match message.get("err").and_then(Value::as_str) {
         Some(err) => Err(err.to_string()),
         None => Ok(message.get("ok").cloned().unwrap_or(Value::Null)),
@@ -185,9 +268,31 @@ async function handle(line) {{
   const send = (obj) => process.stdout.write(JSON.stringify(Object.assign({{ id }}, obj)) + '\n');
   await ensureLoaded();
   if (loadErr !== null) {{ send({{ err: loadErr }}); return; }}
+  if (req.query === 'hasHooks') {{ send({{ ok: mod != null && mod.hooks != null }}); return; }}
   try {{
     const fn = mod && mod.hooks && mod.hooks[req.hook];
     const context = {{ log: (m) => send({{ log: String(m) }}) }};
+    if (req.target === 'resolvers') {{
+      const resolvers = mod && mod.resolvers;
+      send({{ ok: (Array.isArray(resolvers) ? resolvers.map((resolver) => ({{
+        canResolve: typeof resolver.canResolve === 'function',
+        resolve: typeof resolver.resolve === 'function',
+        shouldRefreshResolution: typeof resolver.shouldRefreshResolution === 'function',
+      }})) : []) }});
+      return;
+    }}
+    if (req.target === 'resolver') {{
+      const resolvers = mod && mod.resolvers;
+      const resolver = Array.isArray(resolvers) ? resolvers[req.index] : null;
+      if (!resolver || typeof resolver[req.method] !== 'function') {{
+        send({{ ok: null }});
+        return;
+      }}
+      const args = req.payload || [];
+      const res = await resolver[req.method](...args);
+      send({{ ok: res === undefined ? null : res }});
+      return;
+    }}
     if (req.hook === 'readPackage') {{
       const pkg = req.payload;
       if (typeof fn !== 'function') {{ send({{ ok: pkg }}); return; }}
@@ -220,3 +325,6 @@ async function handle(line) {{
 "#,
     )
 }
+
+#[cfg(test)]
+mod tests;

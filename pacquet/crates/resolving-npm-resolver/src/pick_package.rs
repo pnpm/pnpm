@@ -51,7 +51,6 @@
 //! 3-5× behind pnpm on the `alotta-files` benchmark.
 
 use std::{
-    collections::HashMap,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -71,7 +70,7 @@ use crate::{
     FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
         ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta_async,
-        prepare_json_for_disk, save_meta,
+        save_meta_indexed,
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
@@ -138,6 +137,7 @@ pub type PackumentFetchLocker = Arc<DashMap<String, Arc<Semaphore>>>;
 /// Construct a fresh [`PackumentFetchLocker`] for a new install.
 /// Equivalent to `Default::default()`; named for symmetry with
 /// [`shared_in_memory_cache`].
+#[must_use]
 pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
     Arc::new(DashMap::new())
 }
@@ -166,31 +166,31 @@ pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
 pub type PickedManifestCache = Arc<DashMap<String, Arc<serde_json::Value>>>;
 
 /// Construct a fresh [`PickedManifestCache`] for a new install.
+#[must_use]
 pub fn shared_picked_manifest_cache() -> PickedManifestCache {
     Arc::new(DashMap::new())
 }
 
-/// Default thread-safe [`PackageMetaCache`] backed by a [`Mutex`]
-/// guarding a [`HashMap`]. A consumer that already has its own
-/// shared map can implement the trait directly instead of using
-/// this.
+/// Default thread-safe [`PackageMetaCache`] backed by a sharded
+/// [`DashMap`]. A consumer that already has its own shared map can
+/// implement the trait directly instead of using this.
+///
+/// Every resolve edge consults the cache before anything else, so on
+/// a large graph the map takes tens of thousands of lookups from all
+/// runtime workers at once — a single `Mutex<HashMap>` here was the
+/// top contention point of a warm-resolve time profile.
 #[derive(Debug, Default)]
 pub struct InMemoryPackageMetaCache {
-    inner: Mutex<HashMap<String, Arc<Package>>>,
+    inner: DashMap<String, Arc<Package>>,
 }
 
 impl PackageMetaCache for InMemoryPackageMetaCache {
     fn get(&self, key: &str) -> Option<Arc<Package>> {
-        // Mirror the rest of the codebase (e.g. `build_modules.rs`):
-        // recover from poisoning instead of escalating an unrelated
-        // panic into a hard install-wide failure. The cache is a
-        // plain HashMap of `Arc<Package>` — no broken invariants
-        // can survive across a poisoned lock.
-        self.inner.lock().unwrap_or_else(|err| err.into_inner()).get(key).map(Arc::clone)
+        self.inner.get(key).map(|entry| Arc::clone(entry.value()))
     }
 
     fn set(&self, key: String, meta: Arc<Package>) {
-        self.inner.lock().unwrap_or_else(|err| err.into_inner()).insert(key, meta);
+        self.inner.insert(key, meta);
     }
 }
 
@@ -298,7 +298,7 @@ pub struct PickPackageOptions<'a> {
 #[derive(Debug)]
 pub struct PickPackageResult {
     pub meta: Arc<Package>,
-    pub picked_package: Option<PackageVersion>,
+    pub picked_package: Option<Arc<PackageVersion>>,
 }
 
 /// Failure modes for [`pick_package`]. Distinguishes the pure-pick
@@ -715,7 +715,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
 /// Internal mirror of upstream's
 /// [`PickerOptions`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L75-L79).
 /// Same fields as [`PickPackageOptions`] minus the dispatcher-only
-/// ones (registry, dry_run); plus the `ignore_missing_time_field`
+/// ones (registry, `dry_run`); plus the `ignore_missing_time_field`
 /// pull-up from the context.
 struct PickerOpts<'a> {
     preferred_version_selectors: Option<&'a VersionSelectors>,
@@ -737,7 +737,7 @@ fn pick_matching_version_fast(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError> {
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
     if picker_opts.published_by.is_some() {
         pick_respecting_min_release_age(picker_opts, spec, meta)
     } else {
@@ -755,7 +755,7 @@ fn pick_matching_version_final(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError> {
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
     match pick_matching_version_fast(picker_opts, spec, meta) {
         Ok(picked) => Ok(picked),
         Err(PickPackageFromMetaError::MissingTime { pkg_name })
@@ -785,7 +785,7 @@ fn pick_respecting_min_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError> {
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
     run_picker(picker_opts, spec, |target_spec| {
         let highest = pick_package_from_meta(
             pick_version_by_version_range,
@@ -822,7 +822,7 @@ fn pick_ignoring_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     meta: &Package,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError> {
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
     run_picker(picker_opts, spec, |target_spec| {
         if picker_opts.pick_lowest_version {
             pick_package_from_meta(
@@ -850,9 +850,10 @@ fn run_picker<PickOne>(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
     pick_one: PickOne,
-) -> Result<Option<PackageVersion>, PickPackageFromMetaError>
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>
 where
-    PickOne: Fn(&RegistryPackageSpec) -> Result<Option<PackageVersion>, PickPackageFromMetaError>,
+    PickOne:
+        Fn(&RegistryPackageSpec) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>,
 {
     let current = pick_one(spec)?;
     if !picker_opts.include_latest_tag {
@@ -872,7 +873,10 @@ where
 /// as "no pick" so a single satisfying option wins by default.
 /// Mirrors upstream's
 /// [`pickMax`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L95-L102).
-fn pick_max(lhs: Option<PackageVersion>, rhs: Option<PackageVersion>) -> Option<PackageVersion> {
+fn pick_max(
+    lhs: Option<Arc<PackageVersion>>,
+    rhs: Option<Arc<PackageVersion>>,
+) -> Option<Arc<PackageVersion>> {
     match (lhs, rhs) {
         (None, rhs) => rhs,
         (lhs, None) => lhs,
@@ -925,7 +929,7 @@ static WARNED_MISSING_TIME: std::sync::OnceLock<Mutex<indexmap::IndexSet<String>
 
 fn warn_missing_time_once(pkg_name: &str) {
     let lock = WARNED_MISSING_TIME.get_or_init(|| Mutex::new(indexmap::IndexSet::new()));
-    let mut warned = lock.lock().unwrap_or_else(|err| err.into_inner());
+    let mut warned = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if warned.contains(pkg_name) {
         return;
     }
@@ -960,9 +964,8 @@ pub fn persist_meta_to_mirror(
 ) -> Result<(), MirrorPersistError> {
     let path = get_pkg_mirror_path(cache_dir, meta_dir, registry, &meta.name)
         .map_err(|error| MirrorPersistError::EncodePath { error: error.to_string() })?;
-    let json = prepare_json_for_disk(meta, meta.etag.as_deref(), None)
-        .map_err(|error| MirrorPersistError::Serialize { error: error.to_string() })?;
-    save_meta(&path, &json).map_err(|error| MirrorPersistError::Write { error: error.to_string() })
+    save_meta_indexed(&path, meta, meta.etag.as_deref())
+        .map_err(|error| MirrorPersistError::Write { error: error.to_string() })
 }
 
 /// Failure modes for [`persist_meta_to_mirror`]. Each variant
@@ -995,6 +998,7 @@ pub enum MirrorPersistError {
 /// Shared-state helper that lets a long-running install build one
 /// [`PackageMetaCache`] and pass it (by [`Arc`]) to every
 /// `pick_package` call.
+#[must_use]
 pub fn shared_in_memory_cache() -> Arc<InMemoryPackageMetaCache> {
     Arc::new(InMemoryPackageMetaCache::default())
 }
@@ -1111,19 +1115,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
 /// the upgrade fetch. Mirrors upstream's
 /// [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
 fn persist_upgraded_to_mirror(pkg_mirror: &Path, meta: &Package) {
-    let json = match prepare_json_for_disk(meta, meta.etag.as_deref(), None) {
-        Ok(json) => json,
-        Err(error) => {
-            tracing::debug!(
-                target: "pacquet_resolving_npm_resolver::pick_package",
-                ?error,
-                path = %pkg_mirror.display(),
-                "could not serialize upgraded meta; skipping persist",
-            );
-            return;
-        }
-    };
-    if let Err(error) = save_meta(pkg_mirror, &json) {
+    if let Err(error) = save_meta_indexed(pkg_mirror, meta, meta.etag.as_deref()) {
         tracing::debug!(
             target: "pacquet_resolving_npm_resolver::pick_package",
             ?error,

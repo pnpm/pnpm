@@ -50,6 +50,20 @@ jobs:
         git fetch origin "$TARGET"
         git checkout -B "release-pr/$TARGET" FETCH_HEAD
 
+    # Fail the release if the npm registry signing keys embedded in
+    # @pnpm/deps.security.signatures have drifted from what npm advertises. pnpm
+    # verifies package-manager binaries (pacquet, the version-switch pnpm) against
+    # these keys, so a stale set could break verification after a key rotation.
+    - name: Check embedded npm signing keys are up to date
+      run: node deps/security/signatures/scripts/update-npm-signing-keys.mjs
+
+    # Fail the release if the embedded Node.js release keys (used to verify the
+    # signature of a downloaded runtime's SHASUMS256.txt) have drifted from the
+    # canonical nodejs/release-keys list, so a new release signer cannot silently
+    # break Node.js runtime verification.
+    - name: Check embedded Node.js release keys are up to date
+      run: node crypto/shasums-file/scripts/update-node-release-keys.mjs
+
     # Consumes the pending changesets: bumps versions, writes changelogs, updates
     # the ledger, and syncs manifests. A no-op (no pending changesets) leaves the
     # tree clean and the steps below skip.

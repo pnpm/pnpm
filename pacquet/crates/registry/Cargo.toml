@@ -20,6 +20,7 @@ node-semver = { workspace = true }
 pipe-trait  = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
+tracing     = { workspace = true }
 ssri        = { workspace = true }
 tokio       = { workspace = true }
 miette      = { workspace = true }

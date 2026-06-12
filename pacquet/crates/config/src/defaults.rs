@@ -13,6 +13,7 @@ pub fn default_hoist_pattern() -> Vec<String> {
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L155-L162>,
 /// which follows
 /// <https://github.com/npm/git/blob/1e1dbd26bd/lib/clone.js#L13-L19>.
+#[must_use]
 pub fn default_git_shallow_hosts() -> Vec<String> {
     vec![
         "github.com".to_string(),
@@ -174,9 +175,10 @@ where
     let home_dir = Sys::home_dir().expect("Home directory is not available");
     match env::consts::OS {
         "macos" => home_dir.join("Library/Caches/pnpm"),
-        "windows" => Sys::var("LOCALAPPDATA")
-            .map(|local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"))
-            .unwrap_or_else(|| home_dir.join(".pnpm-cache")),
+        "windows" => Sys::var("LOCALAPPDATA").map_or_else(
+            || home_dir.join(".pnpm-cache"),
+            |local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"),
+        ),
         _ => home_dir.join(".cache/pnpm"),
     }
 }
@@ -223,6 +225,7 @@ pub fn default_modules_cache_max_age() -> u64 {
 /// `pacquet-config` doesn't pull in the modules-yaml crate just for one
 /// integer. Both copies must agree; the modules-yaml side carries the
 /// same upstream link.
+#[must_use]
 pub fn default_virtual_store_dir_max_length() -> u64 {
     120
 }
@@ -236,6 +239,7 @@ pub fn default_virtual_store_dir_max_length() -> u64 {
 /// `pacquet-config` doesn't pull in the lockfile crate just for one
 /// integer. Both copies must agree; the lockfile side carries the
 /// same upstream link.
+#[must_use]
 pub fn default_peers_suffix_max_length() -> u64 {
     1000
 }
@@ -309,6 +313,7 @@ pub fn default_child_concurrency_with_parallelism(parallelism: u32) -> u32 {
 /// — but exposed under its own name so the
 /// [`crate::Config::workspace_concurrency`] field default reads at its
 /// own call site.
+#[must_use]
 pub fn default_workspace_concurrency() -> u32 {
     default_child_concurrency()
 }
@@ -316,8 +321,9 @@ pub fn default_workspace_concurrency() -> u32 {
 /// Available CPU parallelism, mirroring upstream's
 /// [`getAvailableParallelism`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L5-L13).
 /// Floors at 1.
+#[must_use]
 pub fn available_parallelism() -> u32 {
-    std::thread::available_parallelism().map(|count| count.get() as u32).unwrap_or(1).max(1)
+    std::thread::available_parallelism().map_or(1, |count| count.get() as u32).max(1)
 }
 
 /// Resolve `childConcurrency` from a possibly-negative yaml value
@@ -330,6 +336,7 @@ pub fn available_parallelism() -> u32 {
 ///
 /// The negative-offset semantics let users say "use all cores minus
 /// N" without hardcoding the core count.
+#[must_use]
 pub fn resolve_child_concurrency(option: Option<i32>) -> u32 {
     resolve_child_concurrency_with_parallelism(option, available_parallelism())
 }
@@ -389,6 +396,7 @@ pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, paralleli
 /// where `setgid` doesn't exist; it doesn't translate to Rust
 /// (libc's `setgid` is always available on POSIX hosts where libc
 /// compiles).
+#[must_use]
 pub fn default_unsafe_perm() -> bool {
     platform_unsafe_perm_default()
 }
@@ -419,6 +427,7 @@ fn platform_unsafe_perm_default() -> bool {
 /// Pure-logic helper exposed for tests so the POSIX branch can be
 /// exercised under both root and non-root uids without root
 /// privileges. Mirrors the POSIX half of [`default_unsafe_perm`].
+#[must_use]
 pub fn is_unsafe_perm_posix(uid: u32) -> bool {
     // `unsafe_perm = true` means "do NOT drop privileges". Drop
     // only when we *are* root (uid == 0).

@@ -20,6 +20,7 @@ impl PeerId {
     /// `name@version`; depPaths are passed through with a single
     /// leading `/` stripped (mirrors upstream's `peerId[0] === '/'`
     /// fast path for the absolute / relative depPath distinction).
+    #[must_use]
     pub fn as_segment(&self) -> String {
         match self {
             PeerId::Pair { name, version } => format!("{name}@{version}"),

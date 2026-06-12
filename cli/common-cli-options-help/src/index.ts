@@ -24,7 +24,7 @@ export const OPTIONS = {
     name: '--prefer-offline',
   },
   storeDir: {
-    description: 'The directory in which all the packages are saved on the disk',
+    description: 'The directory in which all packages are saved on disk. Use a shared store only with trusted users and jobs',
     name: '--store-dir <dir>',
   },
   virtualStoreDir: {

@@ -1,8 +1,8 @@
 import { checkbox, confirm } from '@inquirer/prompts'
+import { allowBuildKeyFromIgnoredBuild } from '@pnpm/building.policy'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
-import { parse } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { type StrictModules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -195,7 +195,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     if (params.length) {
       const decided = new Set([...approved, ...denied])
       for (const depPath of Array.from(modulesManifest.ignoredBuilds)) {
-        const name = parse(depPath).name ?? depPath
+        const name = allowBuildKeyFromIgnoredBuild(depPath)
         if (decided.has(name)) {
           modulesManifest.ignoredBuilds.delete(depPath)
         }

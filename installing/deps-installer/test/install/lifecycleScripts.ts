@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import * as path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
@@ -10,16 +11,25 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/installing.deps-installer'
+import { streamParser } from '@pnpm/logger'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { restartWorkerPool } from '@pnpm/worker'
 import { rimrafSync } from '@zkochan/rimraf'
+import { safeExeca as execa } from 'execa'
 import isWindows from 'is-windows'
 import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
 
 import { testDefaults } from '../utils/index.js'
+
+// Until a first `data` listener appears, the paused log stream buffers
+// every event, and the first test to attach a reporter receives the
+// whole backlog from earlier installs that ran without a reporter. Keep
+// the stream flowing so each reporter only sees its own installs' events.
+streamParser.on('data', () => {})
 
 const testOnNonWindows = isWindows() ? test.skip : test
 
@@ -310,10 +320,11 @@ test('run lifecycle scripts of dependent packages after running scripts of their
 
 test('run prepare script for git-hosted dependencies', async () => {
   const project = prepareEmpty()
+  const gitDependency = await createGitPreparePackage()
 
-  await addDependenciesToPackage({}, ['pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf'], testDefaults({
+  await addDependenciesToPackage({}, [gitDependency], testDefaults({
     fastUnpack: false,
-    allowBuilds: { 'test-git-fetch': true },
+    allowBuilds: { [`test-git-fetch@${gitDependency}`]: true },
   }))
 
   const scripts = project.requireModule('test-git-fetch/output.json')
@@ -326,6 +337,112 @@ test('run prepare script for git-hosted dependencies', async () => {
     'install',
     'postinstall',
   ])
+})
+
+async function createGitPreparePackage (): Promise<string> {
+  const repoDir = path.resolve('test-git-fetch-src')
+  fs.mkdirSync(repoDir)
+  fs.writeFileSync(path.join(repoDir, 'append.js'), [
+    'const fs = require(\'fs\')',
+    'const file = \'output.json\'',
+    'let scripts = []',
+    'try { scripts = JSON.parse(fs.readFileSync(file, \'utf8\')) } catch {}',
+    'scripts.push(process.argv[2])',
+    'fs.writeFileSync(file, JSON.stringify(scripts))',
+    '',
+  ].join('\n'))
+  fs.writeFileSync(path.join(repoDir, 'index.js'), "module.exports = 'ok'\n")
+  fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({
+    name: 'test-git-fetch',
+    version: '1.0.0',
+    main: 'index.js',
+    scripts: {
+      prepare: 'node append prepare',
+      preinstall: 'node append preinstall',
+      install: 'node append install',
+      postinstall: 'node append postinstall',
+    },
+  }))
+  fs.writeFileSync(path.join(repoDir, 'package-lock.json'), JSON.stringify({
+    name: 'test-git-fetch',
+    version: '1.0.0',
+    lockfileVersion: 3,
+    requires: true,
+    packages: {
+      '': {
+        name: 'test-git-fetch',
+        version: '1.0.0',
+      },
+    },
+  }))
+  await execa('git', ['init', '-q', '-b', 'main'], { cwd: repoDir })
+  await execa('git', ['config', 'user.email', 'test@example.invalid'], { cwd: repoDir })
+  await execa('git', ['config', 'user.name', 'Test'], { cwd: repoDir })
+  await execa('git', ['add', '-A'], { cwd: repoDir })
+  await execa('git', ['-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'init'], { cwd: repoDir })
+  const commit = String((await execa('git', ['rev-parse', 'HEAD'], { cwd: repoDir })).stdout).trim()
+  return `git+${pathToFileURL(repoDir).href}#${commit}`
+}
+
+test('allowBuilds does not run lifecycle scripts for direct tarball identities', async () => {
+  prepareEmpty()
+  const registries = {
+    default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/`,
+  }
+  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
+  const depPath = `@pnpm.e2e/pre-and-postinstall-scripts-example@${tarball}`
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [tarball], testDefaults({
+    fastUnpack: false,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+    registries,
+  }, { registries }))
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBe(false)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(false)
+
+  rimrafSync('node_modules')
+
+  await install(manifest, testDefaults({
+    fastUnpack: false,
+    allowBuilds: { [depPath]: true },
+    registries,
+  }, { registries }))
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBe(true)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
+})
+
+test('surfaces a tarball artifact as an ignored build when its depPath approval is revoked', async () => {
+  prepareEmpty()
+  const registries = {
+    default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/`,
+  }
+  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
+  const depPath = `@pnpm.e2e/pre-and-postinstall-scripts-example@${tarball}`
+
+  // First install approves the artifact by its depPath, so the build runs and
+  // the approval is recorded in .modules.yaml.
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [tarball], testDefaults({
+    fastUnpack: false,
+    allowBuilds: { [depPath]: true },
+    registries,
+  }, { registries }))
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
+
+  // Reinstalling with the approval removed must surface the artifact as an
+  // ignored build. This is the revocation path that iterates the lockfile by
+  // snapshot name/version, so it reaches non-semver artifact depPaths.
+  const { ignoredBuilds } = await install(manifest, testDefaults({
+    fastUnpack: false,
+    frozenLockfile: true,
+    allowBuilds: {},
+    registries,
+  }, { registries }))
+
+  expect(Array.from(ignoredBuilds ?? [])).toContain(depPath)
 })
 
 test('lifecycle scripts run before linking bins', async () => {

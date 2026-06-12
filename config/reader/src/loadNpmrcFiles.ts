@@ -13,11 +13,13 @@ import { npmDefaults } from './npmDefaults.js'
 export interface NpmrcConfigResult {
   /**
    * Merged auth/registry config from all sources.
-   * Priority (lowest to highest): builtin < defaults < user < auth.ini < workspace < CLI
+   * Priority (lowest to highest): builtin < defaults < user < auth.ini < workspace < env (//-scoped) < CLI
    */
   mergedConfig: Record<string, unknown>
   /** Raw config suitable for pnpmConfig.authConfig (filtered through pickIniConfig by consumer) */
   rawConfig: Record<string, unknown>
+  /** Non-project npmrc config used for package-manager bootstrap */
+  trustedConfig: Record<string, unknown>
   /** Workspace .npmrc data */
   workspaceNpmrc: Record<string, unknown>
   /** User ~/.npmrc data (for token helpers) */
@@ -44,6 +46,11 @@ export interface LoadNpmrcConfigOpts {
   env?: Record<string, string | undefined>
 }
 
+interface ReadAndFilterNpmrcOptions {
+  expandAuthValueEnv?: boolean
+  expandRequestDestinationEnv?: boolean
+}
+
 export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   const warnings: string[] = []
   const env = opts.env ?? process.env as Record<string, string | undefined>
@@ -59,7 +66,8 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   const workspaceNpmrc = readAndFilterNpmrc(
     path.resolve(workspaceNpmrcDir, '.npmrc'),
     warnings,
-    env
+    env,
+    { expandAuthValueEnv: false, expandRequestDestinationEnv: false }
   )
 
   // Read user .npmrc (from npmrcAuthFile setting or ~/.npmrc)
@@ -76,6 +84,13 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // `--_authToken` follows the same trust rule as one written into an .npmrc.
   // We clone first to avoid mutating the caller's cliOptions object.
   const cliOptions = rescopeUnscopedCreds({ ...opts.cliOptions }, '<command line>', warnings)
+
+  // URL-scoped auth/registry settings supplied via `npm_config_//…` and
+  // `pnpm_config_//…` environment variables. The registry a credential is
+  // bound to is encoded in the (trusted) variable name, so unlike a project
+  // `.npmrc` these cannot be redirected to another host by the repository —
+  // making them a safe, file-free way to configure registry authentication.
+  const envScopedConfig = readUrlScopedEnvConfig(env)
 
   // Read pnpm builtin rc + inline defaults
   const pnpmBuiltinConfig: Record<string, unknown> = {
@@ -99,12 +114,23 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   ])
 
   // Merge all sources (lowest to highest priority):
-  // builtin < defaults < user < auth.ini < workspace < CLI
+  // builtin < defaults < user < auth.ini < workspace < env (//-scoped) < CLI
   const mergedConfig: Record<string, unknown> = {}
-  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, workspaceNpmrc, cliOptions]) {
+  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, workspaceNpmrc, envScopedConfig, cliOptions]) {
     for (const [key, value] of Object.entries(source)) {
       if (isNpmrcReadableKey(key)) {
         mergedConfig[key] = value
+      }
+    }
+  }
+
+  // The env-scoped config is trusted (it comes from the environment, not the
+  // repository), so it is included here while the workspace .npmrc is not.
+  const trustedConfig: Record<string, unknown> = {}
+  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, envScopedConfig, cliOptions]) {
+    for (const [key, value] of Object.entries(source)) {
+      if (isNpmrcReadableKey(key)) {
+        trustedConfig[key] = value
       }
     }
   }
@@ -116,17 +142,54 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     ...userConfig,
     ...pnpmAuthConfig,
     ...workspaceNpmrc,
+    ...envScopedConfig,
     ...cliOptions,
   }
 
   return {
     mergedConfig,
     rawConfig,
+    trustedConfig,
     workspaceNpmrc,
     userConfig,
     localPrefix,
     warnings,
   }
+}
+
+// Matches `npm_config_//…` and `pnpm_config_//…` env var names. The prefix is
+// matched case-insensitively (as npm does), but the captured key keeps its
+// original case because URL-scoped keys are case-sensitive (e.g. `:_authToken`).
+const URL_SCOPED_ENV_RE = /^p?npm_config_(\/\/.+)$/i
+
+// Collect URL-scoped settings (keys beginning with `//host…`, such as
+// `//registry.npmjs.org/:_authToken`) from `npm_config_//…` and `pnpm_config_//…`
+// environment variables. These are host-scoped by construction — the registry
+// the value applies to is part of the variable name — so they are safe to honor
+// from the trusted environment without a config file. When the same key is set
+// through both prefixes, `pnpm_config_` wins.
+//
+// An empty value is treated as unset, matching how pnpm reads its other env
+// config (`readEnvVar`'s `!== ''` filter) and npm's own `npm_config_*` handling.
+function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Record<string, unknown> {
+  const npmScoped: Record<string, string> = {}
+  const pnpmScoped: Record<string, string> = {}
+  for (const envKey of Object.keys(env)) {
+    const value = env[envKey]
+    if (value == null || value === '') continue
+    const match = URL_SCOPED_ENV_RE.exec(envKey)
+    if (match == null) continue
+    const key = match[1]
+    // `tokenHelper` names an executable pnpm runs. It is only allowed from a
+    // user-level config file (enforced by the TOKEN_HELPER_IN_PROJECT_CONFIG
+    // check in index.ts, which validates against the user `.npmrc`). The env
+    // layer isn't that file, so honoring `//host/:tokenHelper` here would
+    // trip that guard — never admit it.
+    if (key.endsWith(':tokenHelper')) continue
+    const target = envKey.slice(0, 5).toLowerCase() === 'pnpm_' ? pnpmScoped : npmScoped
+    target[key] = value
+  }
+  return { ...npmScoped, ...pnpmScoped }
 }
 
 // Per-registry rc keys that, when written without a `//host/` prefix, fall
@@ -161,7 +224,8 @@ const UNSCOPED_RESCOPABLE_KEYS = [
 function readAndFilterNpmrc (
   filePath: string,
   warnings: string[],
-  env: Record<string, string | undefined>
+  env: Record<string, string | undefined>,
+  opts: ReadAndFilterNpmrcOptions = {}
 ): Record<string, unknown> {
   let raw: Record<string, unknown>
   try {
@@ -176,12 +240,38 @@ function readAndFilterNpmrc (
 
   const npmrcDir = path.dirname(filePath)
   const result: Record<string, unknown> = {}
+  const expandAuthValueEnv = opts.expandAuthValueEnv ?? true
+  const expandRequestDestinationEnv = opts.expandRequestDestinationEnv ?? true
   for (const [rawKey, rawValue] of Object.entries(raw)) {
-    // Apply ${VAR} substitution to both keys and values
+    if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawKey) && isRequestDestinationKey(rawKey)) {
+      warnIgnoredRequestDestinationEnv(filePath, rawKey, warnings)
+      continue
+    }
+    if (!expandAuthValueEnv && hasEnvPlaceholder(rawKey) && isAuthValueKey(rawKey)) {
+      warnIgnoredAuthValueEnv(filePath, rawKey, warnings)
+      continue
+    }
     const key = substituteEnv(rawKey, env, warnings)
-    let value: unknown = typeof rawValue === 'string'
-      ? substituteEnv(rawValue, env, warnings)
-      : rawValue
+    if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawKey) && isRequestDestinationKey(key)) {
+      warnIgnoredRequestDestinationEnv(filePath, rawKey, warnings)
+      continue
+    }
+    if (!expandAuthValueEnv && hasEnvPlaceholder(rawKey) && isAuthValueKey(key)) {
+      warnIgnoredAuthValueEnv(filePath, rawKey, warnings)
+      continue
+    }
+    let value: unknown = rawValue
+    if (typeof rawValue === 'string') {
+      if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawValue) && isRequestDestinationValueKey(key)) {
+        warnIgnoredRequestDestinationEnv(filePath, key, warnings)
+        continue
+      }
+      if (!expandAuthValueEnv && hasEnvPlaceholder(rawValue) && isAuthValueKey(key)) {
+        warnIgnoredAuthValueEnv(filePath, key, warnings)
+        continue
+      }
+      value = substituteEnv(rawValue, env, warnings)
+    }
 
     // Only keep auth/registry related keys
     if (isNpmrcReadableKey(key)) {
@@ -195,6 +285,61 @@ function readAndFilterNpmrc (
     }
   }
   return rescopeUnscopedCreds(result, filePath, warnings)
+}
+
+function isRequestDestinationKey (key: string): boolean {
+  return isRegistryKey(key) || key.startsWith('//')
+}
+
+function isRequestDestinationValueKey (key: string): boolean {
+  return isRegistryKey(key) || key === 'https-proxy' || key === 'http-proxy' || key === 'proxy'
+}
+
+function isRegistryKey (key: string): boolean {
+  return key === 'registry' || (key.startsWith('@') && key.endsWith(':registry'))
+}
+
+const AUTH_VALUE_KEYS = ['_authToken', '_auth', '_password', 'username', 'tokenHelper', 'cert', 'key'] as const
+const AUTH_VALUE_KEY_SUFFIXES = AUTH_VALUE_KEYS.map(key => `:${key}`)
+
+function isAuthValueKey (key: string): boolean {
+  return (AUTH_VALUE_KEYS as readonly string[]).includes(key) || AUTH_VALUE_KEY_SUFFIXES.some(suffix => key.endsWith(suffix))
+}
+
+function hasEnvPlaceholder (value: string): boolean {
+  return /\$\{[^}]+\}/.test(value)
+}
+
+const DOCS_URL = 'https://pnpm.io/npmrc'
+
+// The key embedded in the suggested `pnpm config set` command comes from a
+// repository-controlled .npmrc. A shell expands `$(...)`, backticks and `$VAR`
+// even inside double quotes, so suggesting a runnable command built from an
+// arbitrary key would turn this warning into a copy-paste command-injection
+// vector. Only emit the runnable example for keys made up entirely of
+// shell-inert characters — which covers every real registry/auth key
+// (`//host/:_authToken`, `@scope:registry`, `registry`, `https-proxy`, …).
+const SHELL_SAFE_KEY = /^[\w@.:/-]+$/
+
+function configSetExample (key: string): string {
+  return SHELL_SAFE_KEY.test(key) ? ` (for example, run: pnpm config set "${key}" <value>)` : ''
+}
+
+function warnIgnoredRequestDestinationEnv (filePath: string, key: string, warnings: string[]): void {
+  warnings.push(`Ignored project-level request destination "${key}" in "${filePath}": ` +
+    'environment variables are not expanded in registry or proxy URLs that come from a project .npmrc, ' +
+    'because that file is committed to the repository and a malicious value could redirect requests or leak secrets. ' +
+    'Move this setting to a trusted source that pnpm still expands — put it in your user-level ~/.npmrc, ' +
+    `or set it with pnpm config set${configSetExample(key)}. ` +
+    `If the value is not secret, you can also write it literally in the project .npmrc. See ${DOCS_URL}`)
+}
+
+function warnIgnoredAuthValueEnv (filePath: string, key: string, warnings: string[]): void {
+  warnings.push(`Ignored project-level auth setting "${key}" in "${filePath}": ` +
+    'environment variables are not expanded in registry credentials that come from a project .npmrc, ' +
+    'because that file is committed to the repository and could leak the secret to an attacker-controlled registry. ' +
+    'Move this credential to a trusted source that pnpm still expands — put the line in your user-level ~/.npmrc, ' +
+    `or set it with pnpm config set${configSetExample(key)}. See ${DOCS_URL}`)
 }
 
 // Rewrite any unscoped per-registry keys in `source` to their URL-scoped

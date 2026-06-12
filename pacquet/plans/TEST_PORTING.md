@@ -567,6 +567,15 @@ Rust port notes:
 
 ## Installation Of Runtimes
 
+The runtime lockfile *format* (importer `version: runtime:<ver>`, the
+`packages[node@runtime:<ver>].version: <ver>` field, and the
+`variants[].resolution.bin: { node: … }` map asserted in
+`nodeRuntime.ts:236-269`) is covered at pacquet's adapter/resolver layer by
+`dependencies_graph_to_lockfile::tests::runtime_dependency_strips_importer_prefix_and_records_package_version`
+and `node_resolver::tests::bin_spec_is_a_named_map`. The full
+install-and-reinstall integration tests below are still unported (they
+download real runtime artifacts).
+
 Node runtime tests:
 
 - [ ] `TypeScript repo: installing/deps-installer/test/install/nodeRuntime.ts:209` `installing Node.js runtime` includes frozen/offline reinstall after deleting `node_modules`.
@@ -825,10 +834,12 @@ Tracks pnpm/pnpm#12196. The `catalogMode` mismatch gate landed earlier (pnpm#117
 - [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:1840` `update --latest works on named catalog dependency with catalogMode=prefer` — `pacquet-cli::catalog::update_latest_named_catalog_bumps_the_entry`.
 - [x] `TypeScript repo: workspace/workspace-manifest-writer/test/addCatalogs.test.ts` and `updateWorkspaceManifest.test.ts` (catalog cases) — ported as byte-for-byte unit tests in `pacquet-workspace-manifest-writer::tests` (comment/blank-line/quote-style/sorted-insert/named-catalog preservation).
 - [x] Decision-core branches (gate strict/prefer/manual, named-catalog resolution, `--save-catalog-name`, runtime skip) — `pacquet-package-manager::catalog_mode::tests`.
+- [x] `TypeScript repo: installing/deps-installer/test/catalogs.ts:789` `catalog entry using npm alias can be reused` — the `catalogs:` snapshot assertion (`{ specifier: npm:…, version: … }` for an `npm:`-aliased catalog entry) is ported as `dependencies_graph_to_lockfile::tests::aliased_catalog_dependency_records_catalog_snapshot`. The reuse half is covered at the single-importer level by `catalog_mode::tests::reinstalling_a_catalog_dependency_reuses_the_existing_entry` (aliased reuse verified stable manually); the test's two-project shape needs workspaces (pacquet/pacquet#431).
 
 ### Not yet ported / known divergences
 
 - [ ] `TypeScript repo: installing/commands/test/saveCatalog.ts` — the `--save-catalog` / `--save-catalog-name` CLI surface is wired and unit-tested via `catalog_mode::tests::save_catalog_name_*`, but the command-level `saveCatalog.ts` flows (e.g. interaction with `--save-dev`, recursive installs) are not yet ported as CLI integration tests.
+- [ ] `TypeScript repo: installing/deps-installer/test/catalogs.ts` general integration cases (`:58` `installing with "catalog:" should work`, `:176` `lockfile contains catalog snapshots`, `:849` snapshot-pruning, the multi-project `--filter` cases) — pacquet covers the catalog-snapshot *emission* via unit tests but hasn't ported these install-level / workspace integration flows.
 - [ ] `cleanupUnusedCatalogs` (the `removePackagesFromWorkspaceCatalog` half of the writer) is not ported — pacquet's writer only adds/updates catalog entries.
 - [ ] Manual-mode `update --latest` of a `catalog:` dependency: pacquet's catalog handling is gated on `catalogMode != manual`, so under the default manual mode such an update still rewrites the manifest to the version (pre-existing pacquet behavior). The strict/prefer paths match pnpm.
 
@@ -836,3 +847,32 @@ Tracks pnpm/pnpm#12196. The `catalogMode` mismatch gate landed earlier (pnpm#117
 
 - Settings drift comparison is field-by-field on `WorkspaceStateSettings::PartialEq` rather than the upstream `Object.entries` walk. Equivalent in behavior: any field present in the cached state but `None` in today's `current_settings` (or vice versa) trips the check.
 - The settings construction is shared between the writer (`build_workspace_state` in `install.rs`) and the reader (`current_settings` in `optimistic_repeat_install.rs`) so adding a tracked field on one side automatically updates the other.
+
+## Peer Resolution (`installing/deps-resolver/test/resolvePeers.ts`, `hoistPeers.test.ts`)
+
+Status of the upstream peer-resolution suites, audited while landing the
+lockfile-parity peer fixes (pnpm/pnpm#12266, pnpm/pnpm#12267).
+
+### `hoistPeers.test.ts` — fully ported
+
+- [x] All 11 cases (`hoistPeers` × 8 + `getHoistableOptionalPeers` × 3) are ported in `hoist_peers/tests.rs`, plus two prerelease siblings pacquet adds.
+
+### `resolvePeers.ts` — ported / covered
+
+- [x] `transitive peers use version-only suffixes` — `dedupe_peers_propagates_transitive_peer_to_parent`.
+- [x] `uses version-only peer suffixes without nested dep paths` — `dedupe_peers_collapses_nested_peer_suffixes` / `no_dedupe_peers_keeps_nested_peer_suffixes`.
+- [x] `resolve peer dependencies of cyclic dependencies` — `cyclic_peer_dependencies_resolve_cleanly`.
+- [x] `when a package is referenced twice … still try to resolve it in the other occurrence` — `revisit_resolves_peer_in_one_occurrence_misses_in_other`.
+- [x] `should return from where the bad peer dependency is resolved` — `bad_peer_inside_subtree_records_resolved_from_parent`.
+- [x] `should find peer dependency conflicts` — covered by `bad_peer_version_is_reported`.
+- [x] `a peer's own peer is shared with a sibling that peer-depends both` — ported as `peers_own_peer_shared_with_sibling_that_peer_depends_both`.
+- [x] Walk-ancestor suffix propagation (no direct upstream case — pacquet-specific manifestation of the deferred `calculateDepPath`) — `ancestor_peer_carries_its_own_suffix`.
+- [x] Optional peer not hoisted from the run-resolved tree (resolveRootDependencies behavior behind `getHoistableOptionalPeers`) — `optional_peer_only_in_resolved_tree_is_not_hoisted`.
+- [x] `build_final_graph` min-depth tie-break across `pure_pkgs`/`find_hit` revisits (pacquet-specific) — `shallower_pure_pkgs_revisit_lowers_graph_depth`.
+
+### `resolvePeers.ts` — not yet ported
+
+- [ ] `multi-project: different peer versions produce different instances` — needs the multi-importer `resolve_peers_workspace` harness; general workspace peer-separation, partially covered by `dedupes_when_the_same_package_appears_in_two_subtrees`.
+- [ ] `resolve peer dependencies with npm aliases` — npm-alias peer suffixes.
+- [ ] `should find peer dependency conflicts when the peer is an optional peer of one of the dependencies`, `should ignore conflicts between missing optional peer dependencies`, `should pick the single wanted peer dependency range`, `should return the intersection of two compatible ranges`, the two prerelease-warning cases — peer-issue reporting edge cases.
+- [ ] The `lockedPeerContext` / `resolvedPeerProviderPaths` series (`prefers a compatible locked provider …`, the six `does not replace …` cases, `does not reuse a locked provider outside the current peer range`) — pacquet hasn't ported `lockedPeerContext`/`resolvedPeerProviderPaths`, so these gate on that feature, not on the lockfile-parity peer fixes.

@@ -8,6 +8,7 @@ import type {
   LockfileToDepGraphResult,
 } from '@pnpm/deps.graph-builder'
 import * as dp from '@pnpm/deps.path'
+import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { hoist, type HoisterResult, type HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type {
@@ -218,7 +219,7 @@ async function fetchDeps (
       return
     }
 
-    const dir = path.join(modules, dep.name)
+    const dir = safeJoinModulesDir(modules, dep.name)
     const depLocation = path.relative(opts.lockfileDir, dir)
     const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>

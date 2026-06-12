@@ -34,6 +34,7 @@ pub struct GetNodeArtifactAddressOptions<'a> {
 }
 
 /// Compose the archive URL pieces for a single Node.js platform variant.
+#[must_use]
 pub fn get_node_artifact_address(opts: GetNodeArtifactAddressOptions<'_>) -> NodeArtifactAddress {
     let is_windows = opts.platform == "win32";
     let normalized_platform = if is_windows { "win" } else { opts.platform };

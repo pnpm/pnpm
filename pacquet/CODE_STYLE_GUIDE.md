@@ -46,7 +46,7 @@ Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/nami
 
 ### Module Organization
 
-- Use the flat file pattern (`module.rs`) rather than `module/mod.rs` for submodules. Enforced by [`perfectionist::flat_module_pattern`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/flat_module_pattern.md).
+- Use the flat file pattern (`module.rs`) rather than `module/mod.rs` for submodules. Enforced by [`clippy::mod_module_files`](https://rust-lang.github.io/rust-clippy/master/index.html#mod_module_files), which bans `mod.rs` files. (`perfectionist::flat_module_pattern` covered this previously and is being retired in favor of the Clippy rule.)
 - List `pub mod` declarations first, then `pub use` re-exports, then private imports and items.
 - Use `pub use` to re-export key types at the module level for convenience.
 

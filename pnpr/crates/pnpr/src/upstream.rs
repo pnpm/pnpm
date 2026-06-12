@@ -5,7 +5,11 @@ use crate::{
 };
 use chrono::{DateTime, Duration, Timelike, Utc};
 use pacquet_network::ThrottledClient;
-use reqwest::{StatusCode, header::HeaderMap};
+use reqwest::{
+    StatusCode,
+    header::{self, HeaderMap, HeaderValue},
+};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{fmt, sync::Arc};
 
@@ -42,14 +46,106 @@ pub enum FetchOutcome<Payload> {
     NotFound,
 }
 
+/// Conditional-GET validators captured from an upstream packument
+/// response (its `ETag` / `Last-Modified`) and replayed on the next
+/// refresh as `If-None-Match` / `If-Modified-Since`. An upstream that
+/// emits neither leaves both `None`, and the refresh falls back to an
+/// unconditional GET.
+///
+/// Persisted verbatim in a sidecar next to the cached packument (see
+/// [`crate::storage`]); the field names double as the on-disk JSON keys.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct CacheValidators {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub etag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub last_modified: Option<String>,
+}
+
+impl CacheValidators {
+    pub fn is_empty(&self) -> bool {
+        self.etag.is_none() && self.last_modified.is_none()
+    }
+
+    fn from_headers(headers: &HeaderMap) -> Self {
+        let get =
+            |name| headers.get(name).and_then(|value| value.to_str().ok()).map(str::to_string);
+        Self { etag: get(header::ETAG), last_modified: get(header::LAST_MODIFIED) }
+    }
+}
+
+/// A packument fetched (or revalidated) against an upstream.
+#[derive(Debug)]
+pub struct FetchedPackument {
+    pub bytes: Vec<u8>,
+    pub validators: CacheValidators,
+}
+
+/// Outcome of a (possibly conditional) packument fetch.
+#[derive(Debug)]
+pub enum PackumentFetch {
+    /// Upstream returned a fresh body, along with its cache validators.
+    Modified(FetchedPackument),
+    /// Upstream answered `304 Not Modified`: the validators we sent are
+    /// still current, so the caller should keep serving its cached copy.
+    NotModified,
+    /// Upstream returned 404.
+    NotFound,
+}
+
 impl Upstream {
     pub fn new(base: String, headers: HeaderMap) -> Self {
         Self { client: Arc::new(ThrottledClient::new_for_installs()), base, headers }
     }
 
-    pub async fn fetch_packument(&self, name: &PackageName) -> Result<FetchOutcome<Vec<u8>>> {
+    /// Fetch a package's packument, conditionally when `validators`
+    /// carries an `ETag`/`Last-Modified`. A `304 Not Modified` short-
+    /// circuits to [`PackumentFetch::NotModified`] without a body, so the
+    /// caller can keep serving its cached copy — the bandwidth win on a
+    /// stale-but-current packument.
+    pub async fn fetch_packument(
+        &self,
+        name: &PackageName,
+        validators: &CacheValidators,
+    ) -> Result<PackumentFetch> {
         let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
-        self.fetch(&url).await
+        let client = self.client.acquire_for_url(&url).await;
+        let mut request = client.get(&url).headers(self.headers.clone());
+        let mut sent_conditional = false;
+        if let Some(etag) = &validators.etag
+            && let Ok(value) = HeaderValue::from_str(etag)
+        {
+            request = request.header(header::IF_NONE_MATCH, value);
+            sent_conditional = true;
+        }
+        if let Some(last_modified) = &validators.last_modified
+            && let Ok(value) = HeaderValue::from_str(last_modified)
+        {
+            request = request.header(header::IF_MODIFIED_SINCE, value);
+            sent_conditional = true;
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(PackumentFetch::NotFound);
+        }
+        // Only honor a `304` if we actually sent a conditional header. A
+        // `304` to an unconditional request is a misbehaving upstream and
+        // carries no body to serve, so let it fall through to
+        // `check_status` and surface as an upstream status error rather
+        // than reusing a (possibly nonexistent) cached copy.
+        if sent_conditional && response.status() == StatusCode::NOT_MODIFIED {
+            return Ok(PackumentFetch::NotModified);
+        }
+        let response = check_status(response, &url).await?;
+        let validators = CacheValidators::from_headers(response.headers());
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
+        Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec(), validators }))
     }
 
     /// Send the tarball request and return the streaming
@@ -74,25 +170,6 @@ impl Upstream {
         }
         let response = check_status(response, &url).await?;
         Ok(FetchOutcome::Ok(response))
-    }
-
-    async fn fetch(&self, url: &str) -> Result<FetchOutcome<Vec<u8>>> {
-        let client = self.client.acquire_for_url(url).await;
-        let response = client
-            .get(url)
-            .headers(self.headers.clone())
-            .send()
-            .await
-            .map_err(|source| RegistryError::Upstream { url: url.to_string(), source })?;
-        if response.status() == StatusCode::NOT_FOUND {
-            return Ok(FetchOutcome::NotFound);
-        }
-        let response = check_status(response, url).await?;
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|source| RegistryError::Upstream { url: url.to_string(), source })?;
-        Ok(FetchOutcome::Ok(bytes.to_vec()))
     }
 }
 
@@ -254,11 +331,6 @@ pub fn abbreviate_packument(packument: &Value, now: DateTime<Utc>) -> Value {
 /// * `npm-signature` — the legacy PGP detached signature. npm stopped
 ///   populating it years ago in favour of the ECDSA `signatures`, and
 ///   nothing in pnpm or pacquet reads it.
-/// * `fileCount` — read nowhere in pnpm or pacquet.
-/// * `unpackedSize` — only `pnpm view` reads it, and that command
-///   fetches the *full* metadata document (`fullMetadata: true`) which
-///   pnpr serves unstripped, so dropping it from the abbreviated form
-///   is safe.
 /// * `shasum` — the legacy sha1 hash, redundant once `integrity` (SRI)
 ///   is present. "Present" mirrors pnpm's `getIntegrity` truthiness
 ///   check (`if (dist.integrity)`): a non-empty string. An absent,
@@ -269,13 +341,17 @@ pub fn abbreviate_packument(packument: &Value, now: DateTime<Utc>) -> Value {
 /// preserved: it binds `name@version:integrity` to the upstream
 /// registry's key and is the input to a potential client-side
 /// install-time verification on the pnpr path.
+///
+/// `unpackedSize` and `fileCount` are preserved: pacquet reads both
+/// off the resolver-fetched manifest — `unpackedSize` sizes the
+/// decompression buffer, and together they form the download's
+/// queueing priority (the estimated pipeline work that starts the
+/// most expensive tarballs first).
 fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
     let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
     dist.remove("npm-signature");
-    dist.remove("fileCount");
-    dist.remove("unpackedSize");
     if dist.get("integrity").and_then(Value::as_str).is_some_and(|integrity| !integrity.is_empty())
     {
         dist.remove("shasum");

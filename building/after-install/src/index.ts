@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -33,10 +34,11 @@ import npa from '@pnpm/npm-package-arg'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { createStoreController } from '@pnpm/store.connection-manager'
-import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
+import { pickStoreIndexKey, ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
 import type {
   DepPath,
   IgnoredBuilds,
+  PkgIdWithPatchHash,
   ProjectId,
   ProjectManifest,
   ProjectRootDir,
@@ -78,18 +80,22 @@ function findPackages (
         })
         return false
       }
-      return matches(searched, pkgInfo)
+      return matches(searched, pkgInfo, dp.getPkgIdWithPatchHash(relativeDepPath))
     })
 }
 
 // TODO: move this logic to separate package as this is also used in tree-builder
 function matches (
   searched: PackageSelector[],
-  manifest: { name: string, version?: string }
+  manifest: { name: string, version?: string },
+  pkgIdWithPatchHash: PkgIdWithPatchHash
 ): boolean {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
       return manifest.name === searchedPkg
+    }
+    if ('pkgIdWithPatchHash' in searchedPkg) {
+      return searchedPkg.pkgIdWithPatchHash === pkgIdWithPatchHash
     }
     return searchedPkg.name === manifest.name && !!manifest.version &&
       semver.satisfies(manifest.version, searchedPkg.range)
@@ -99,6 +105,9 @@ function matches (
 type PackageSelector = string | {
   name: string
   range: string
+} | {
+  /** A user-written depPath spec, normalized with the peer suffix stripped. */
+  pkgIdWithPatchHash: string
 }
 
 export async function buildSelectedPkgs (
@@ -117,6 +126,9 @@ export async function buildSelectedPkgs (
   const packages = ctx.currentLockfile.packages
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {
+    if (matchesDepPath(packages, arg)) {
+      return { pkgIdWithPatchHash: dp.removePeersSuffix(arg) }
+    }
     const { fetchSpec, name, raw, type } = npa(arg)
     if (raw === name) {
       return name
@@ -166,6 +178,11 @@ export async function buildSelectedPkgs (
   return {
     ignoredBuilds: ignoredPkgs,
   }
+}
+
+function matchesDepPath (packages: PackageSnapshots, pkgSpec: string): boolean {
+  const normalizedPkgSpec = dp.removePeersSuffix(pkgSpec)
+  return Object.keys(packages).some((depPath) => dp.removePeersSuffix(depPath) === normalizedPkgSpec)
 }
 
 export async function buildProjects (
@@ -330,8 +347,8 @@ async function _rebuild (
 
   const ignoredPkgs = new Set<DepPath>()
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => undefined)
-  const allowBuild = (pkgName: string, version: string, depPath: DepPath) => {
-    switch (_allowBuild(pkgName, version)) {
+  const allowBuild = (depPath: DepPath) => {
+    switch (_allowBuild(depPath)) {
       case true: return true
       case undefined: {
         ignoredPkgs.add(depPath)
@@ -341,7 +358,16 @@ async function _rebuild (
     return false
   }
   const builtDepPaths = new Set<string>()
-  const storeIndex = opts.skipIfHasSideEffectsCache ? new StoreIndex(opts.storeDir) : undefined
+  // This handle is read-only in practice (only `.get()` below); the
+  // side-effects upload writes through `storeController`, not here. Open it
+  // immutable under `frozenStore` so the read works against a read-only store
+  // — a writable open would fail creating the WAL/`-shm` sidecar there. The
+  // immutable open is gated on `frozenStore` because on a normal install the
+  // concurrent side-effects uploads mutate `index.db`, which immutable reads
+  // would not see.
+  const storeIndex = opts.skipIfHasSideEffectsCache
+    ? (opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir))
+    : undefined
 
   // Under GVS, packages live at `<globalVirtualStoreDir>/<hash>/node_modules/<name>`,
   // not the classic virtualStoreDir layout. The hash is computed with the same inputs
@@ -356,7 +382,10 @@ async function _rebuild (
       opts.supportedArchitectures,
       nodeVersion
     )) {
-      gvsDirByDepPath.set(pkgMeta.depPath, path.join(globalVirtualStoreDir, hash))
+      const preferredGvsDir = path.join(globalVirtualStoreDir, hash)
+      gvsDirByDepPath.set(pkgMeta.depPath, fs.existsSync(preferredGvsDir)
+        ? preferredGvsDir
+        : findLinkedGvsDir(pkgMeta.name, Object.values(ctx.projects), globalVirtualStoreDir) ?? preferredGvsDir)
     }
   }
   const pkgModulesDir = (depPath: DepPath): string =>
@@ -438,7 +467,7 @@ async function _rebuild (
           requiresBuild = pkgRequiresBuild(pgkManifest, new Map())
         }
 
-        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version, depPath) && await runPostinstallHooks({
+        const hasSideEffects = requiresBuild && allowBuild(depPath) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,
@@ -528,6 +557,38 @@ async function _rebuild (
   }
 
   return { pkgsThatWereRebuilt, ignoredPkgs }
+}
+
+// TODO: delete once rebuild relocates GVS projections to the newly computed
+// hash instead of building in place (https://github.com/pnpm/pnpm/issues/12302).
+function findLinkedGvsDir (
+  pkgName: string,
+  projects: Array<{ rootDir: ProjectRootDir }>,
+  globalVirtualStoreDir: string
+): string | undefined {
+  const normalizedGvsRoot = `${path.resolve(globalVirtualStoreDir)}${path.sep}`
+  for (const { rootDir } of projects) {
+    const pkgLink = path.join(rootDir, 'node_modules', pkgName)
+    try {
+      const target = fs.readlinkSync(pkgLink)
+      const pkgRoot = path.resolve(path.dirname(pkgLink), target)
+      if (!pkgRoot.startsWith(normalizedGvsRoot)) continue
+      return nthAncestorDir(pkgRoot, pkgName.split('/').length + 1)
+    } catch (err: unknown) {
+      // EINVAL: pkgLink exists but is not a symlink.
+      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EINVAL' || err.code === 'ENOENT')) continue
+      throw err
+    }
+  }
+  return undefined
+}
+
+function nthAncestorDir (dir: string, levels: number): string {
+  let result = dir
+  for (let i = 0; i < levels; i++) {
+    result = path.dirname(result)
+  }
+  return result
 }
 
 function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[] {

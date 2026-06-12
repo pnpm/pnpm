@@ -14,7 +14,7 @@ use std::{
     time::Duration,
 };
 
-use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions};
+use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions, VerifyLockfileOptions};
 use pacquet_testing_utils::registry::TestRegistry;
 use tempfile::TempDir;
 use tokio::net::TcpListener;
@@ -302,6 +302,100 @@ async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
     assert!(
         verify_err.to_string().contains("minimumReleaseAge"),
         "expected a minimumReleaseAge breakdown, got: {verify_err}",
+    );
+}
+
+#[tokio::test]
+async fn verify_lockfile_endpoint_accepts_a_clean_input_lockfile() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client = PnprClient::new(pnpr_url);
+
+    let first = client
+        .resolve(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .await
+        .expect("first install");
+
+    let mut opts = options(&registry.url(), deps([("@foo/no-deps", "1.0.0")]));
+    opts.lockfile = Some(first.lockfile);
+    let verify_opts =
+        VerifyLockfileOptions::from_resolve_options(&opts).expect("lockfile is present");
+
+    client.verify_lockfile(verify_opts).await.expect("lockfile should verify");
+}
+
+#[tokio::test]
+async fn verify_lockfile_endpoint_rejects_policy_violation() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, _storage) = start_pnpr().await;
+
+    let client = PnprClient::new(pnpr_url);
+
+    let first = client
+        .resolve(options(&registry.url(), deps([("@foo/no-deps", "1.0.0")])))
+        .await
+        .expect("first install");
+
+    let mut opts = options(&registry.url(), deps([("@foo/no-deps", "1.0.0")]));
+    opts.lockfile = Some(first.lockfile);
+    opts.minimum_release_age = Some(60 * 24 * 365 * 100);
+    opts.minimum_release_age_ignore_missing_time = false;
+    let verify_opts =
+        VerifyLockfileOptions::from_resolve_options(&opts).expect("lockfile is present");
+
+    let Err(PnprClientError::Verification(verify_err)) = client.verify_lockfile(verify_opts).await
+    else {
+        panic!("expected a verification error rejecting the input lockfile");
+    };
+    assert!(
+        verify_err.to_string().contains("minimumReleaseAge"),
+        "expected a minimumReleaseAge breakdown, got: {verify_err}",
+    );
+}
+
+/// The verification fan-out fetches each entry's packument, so a gated
+/// package verifies only when `/v1/verify-lockfile` forwards the
+/// client's credential map — and fails closed when it doesn't. Each
+/// verify call targets a fresh pnpr so neither the whole-lockfile
+/// verdict cache nor the metadata mirror warmed by an earlier call can
+/// satisfy it without exercising the forwarded credential.
+#[tokio::test]
+async fn verify_lockfile_endpoint_forwards_credentials() {
+    let registry = TestRegistry::start();
+    let token = register_token(&registry.url(), "needs-auth-verifier").await;
+    let (resolve_pnpr_url, _resolve_storage) = start_pnpr().await;
+
+    let mut resolve_opts = options(&registry.url(), deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let mut auth = BTreeMap::new();
+    auth.insert(nerf_key(&registry.url()), format!("Bearer {token}"));
+    resolve_opts.auth_headers = auth;
+    let first = PnprClient::new(resolve_pnpr_url)
+        .resolve(resolve_opts.clone())
+        .await
+        .expect("authed install");
+
+    // An active policy makes the verifier fetch the gated packument.
+    resolve_opts.lockfile = Some(first.lockfile);
+    resolve_opts.minimum_release_age = Some(1);
+    resolve_opts.minimum_release_age_ignore_missing_time = false;
+    let verify_opts =
+        VerifyLockfileOptions::from_resolve_options(&resolve_opts).expect("lockfile is present");
+
+    let (authed_pnpr_url, _authed_storage) = start_pnpr().await;
+    PnprClient::new(authed_pnpr_url)
+        .verify_lockfile(verify_opts)
+        .await
+        .expect("forwarded credential should let the gated entry verify");
+
+    let mut anonymous_opts = resolve_opts.clone();
+    anonymous_opts.auth_headers = BTreeMap::new();
+    let anonymous_verify_opts =
+        VerifyLockfileOptions::from_resolve_options(&anonymous_opts).expect("lockfile is present");
+    let (anonymous_pnpr_url, _anonymous_storage) = start_pnpr().await;
+    assert!(
+        PnprClient::new(anonymous_pnpr_url).verify_lockfile(anonymous_verify_opts).await.is_err(),
+        "without the credential the gated entry's metadata fetch must fail closed",
     );
 }
 

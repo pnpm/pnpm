@@ -106,7 +106,9 @@ test('dlx install from git', async () => {
     dir: process.cwd(),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
-    allowBuild: ['shx'],
+    // A git-hosted artifact has an untrusted package identity, so it has to
+    // be approved by its depPath, not by package name.
+    allowBuild: ['shx@https://codeload.github.com/shelljs/shx/tar.gz/0dcbb9d1022037268959f8b706e0f06a6fd43fde'],
   }, ['shelljs/shx#0dcbb9d1022037268959f8b706e0f06a6fd43fde', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()

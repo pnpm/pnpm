@@ -11,10 +11,11 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-diagnostics             = { workspace = true }
-pacquet-lockfile                = { workspace = true }
-pacquet-reporter                = { workspace = true }
-pacquet-resolving-resolver-base = { workspace = true }
+pacquet-diagnostics                       = { workspace = true }
+pacquet-lockfile                          = { workspace = true }
+pacquet-reporter                          = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pacquet-resolving-resolver-base           = { workspace = true }
 
 chrono       = { workspace = true }
 derive_more  = { workspace = true }

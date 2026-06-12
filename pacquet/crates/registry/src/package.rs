@@ -7,14 +7,16 @@ use pacquet_network::{AuthHeaders, ThrottledClient};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 
-use crate::{NetworkError, RegistryError, package_version::PackageVersion};
+use crate::{
+    NetworkError, RegistryError, package_version::PackageVersion, package_versions::PackageVersions,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Package {
     pub name: String,
     #[serde(rename = "dist-tags")]
     pub dist_tags: HashMap<String, String>,
-    pub versions: HashMap<String, PackageVersion>,
+    pub versions: PackageVersions,
 
     /// Per-version publish timestamps as the npm registry reports
     /// them. Each key is either a version string (value: ISO-8601
@@ -75,6 +77,7 @@ impl Package {
     /// registry didn't report one for that pin. Filters out the
     /// reserved `unpublished` key (which is an object, not a string)
     /// and any version slot whose value isn't a string.
+    #[must_use]
     pub fn published_at(&self, version: &str) -> Option<&str> {
         self.time.as_ref()?.get(version)?.as_str()
     }
@@ -89,7 +92,7 @@ impl Package {
 
     /// Iterator over all `dist-tags` entries. Used by the picker's
     /// publishedBy filter which rewrites tags after dropping versions
-    /// past the cutoff. Iteration order is undefined (HashMap), as it
+    /// past the cutoff. Iteration order is undefined (`HashMap`), as it
     /// is in upstream's JS where `Object.entries(distTags)` walks
     /// insertion order — neither stack guarantees a particular order
     /// to callers, so callers that need a stable rewrite are expected
@@ -139,25 +142,35 @@ impl Package {
             .pipe(Ok)
     }
 
-    pub fn pinned_version(&self, version_range: &str) -> Option<&PackageVersion> {
+    #[must_use]
+    pub fn pinned_version(&self, version_range: &str) -> Option<Arc<PackageVersion>> {
         let range: node_semver::Range = version_range.parse().unwrap(); // TODO: this step should have happened in PackageManifest
-        let mut satisfied_versions = self
+        // Match on the version *strings* so only winning manifests
+        // hydrate from their raw fragments. Walk the candidates from
+        // highest to lowest: an undecodable fragment behaves as if
+        // the version were absent, so the next-best match wins
+        // instead of the lookup reporting no match at all.
+        let mut satisfying = self
             .versions
-            .values()
-            .filter(|version| version.version.satisfies(&range))
-            .collect::<Vec<&PackageVersion>>();
-
-        satisfied_versions.sort_by(|a, b| a.version.partial_cmp(&b.version).unwrap());
-
-        // Optimization opportunity:
-        // We can store this in a cache to remove filter operation and make this a O(1) operation.
-        satisfied_versions.last().copied()
+            .keys()
+            .filter_map(|key| {
+                key.parse::<node_semver::Version>()
+                    .ok()
+                    .filter(|version| version.satisfies(&range))
+                    .map(|version| (version, key))
+            })
+            .collect::<Vec<_>>();
+        satisfying.sort_by(|(left, _), (right, _)| right.partial_cmp(left).unwrap());
+        satisfying.into_iter().find_map(|(_, key)| self.versions.get(key))
     }
 
-    pub fn latest(&self) -> &PackageVersion {
-        let version =
-            self.dist_tags.get("latest").expect("latest tag is expected but not found for package");
-        self.versions.get(version).unwrap()
+    /// Manifest under `dist-tags.latest`. `None` when the tag is
+    /// absent, names a version the packument doesn't carry, or the
+    /// version's fragment fails to decode — registry-served data must
+    /// not be able to panic the process.
+    #[must_use]
+    pub fn latest(&self) -> Option<Arc<PackageVersion>> {
+        self.versions.get(self.dist_tags.get("latest")?)
     }
 }
 

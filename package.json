@@ -26,6 +26,10 @@
     "lint:meta": "pn meta-updater --test",
     "copy-artifacts": "node __utils__/scripts/src/copy-artifacts.ts",
     "make-release-description": "pn --filter=@pnpm/get-release-text run write-release-text",
+    "check:npm-signing-keys": "node deps/security/signatures/scripts/update-npm-signing-keys.mjs",
+    "update:npm-signing-keys": "node deps/security/signatures/scripts/update-npm-signing-keys.mjs --update",
+    "check:node-release-keys": "node crypto/shasums-file/scripts/update-node-release-keys.mjs",
+    "update:node-release-keys": "node crypto/shasums-file/scripts/update-node-release-keys.mjs --update",
     "release": "pn --filter=@pnpm/exe run build-artifacts && pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance && pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm --tag=next-11 --access=public --provenance",
     "dev-setup": "pn -C=./pnpm/dev link -g"
   },
@@ -57,11 +61,11 @@
     "shx": "catalog:",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@11.5.2",
+  "packageManager": "pnpm@11.6.0",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "11.5.2",
+      "version": "11.6.0",
       "onFail": "download"
     },
     "runtime": {

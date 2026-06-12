@@ -70,6 +70,17 @@ jobs:
         with:
           persist-credentials: false
 
+      # The clippy --all-targets pass plus the nextest build hold two
+      # full sets of debug artifacts in target/, which no longer fits
+      # in the hosted runner's free disk — the linker dies with ENOSPC
+      # / SIGBUS mid-build. Drop the preinstalled toolchains this job
+      # never uses (~25 GB) before compiling anything.
+      - name: Free up runner disk space
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Install Rust Toolchain
         uses: ./.github/actions/rustup
         with:

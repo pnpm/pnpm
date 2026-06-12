@@ -7,9 +7,83 @@ use pacquet_reporter::{
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{Mutex, atomic::AtomicU8},
+    sync::{
+        Condvar, Mutex,
+        atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
+    },
+    time::Duration,
 };
 use tempfile::tempdir;
+
+pub(crate) struct LinkConcurrencyProbe {
+    current: AtomicUsize,
+    max: AtomicUsize,
+    wait_for_overlap: bool,
+    wait_started: AtomicBool,
+    mutex: Mutex<()>,
+    condvar: Condvar,
+}
+
+impl LinkConcurrencyProbe {
+    pub(crate) fn waiting_for_overlap() -> Self {
+        Self { wait_for_overlap: true, ..Self::default() }
+    }
+
+    pub(crate) fn max_concurrent(&self) -> usize {
+        self.max.load(Ordering::SeqCst)
+    }
+
+    pub(super) fn enter(&self) -> LinkConcurrencyGuard<'_> {
+        let current = self.current.fetch_add(1, Ordering::SeqCst) + 1;
+        let mut max = self.max.load(Ordering::SeqCst);
+        while current > max {
+            match self.max.compare_exchange_weak(max, current, Ordering::SeqCst, Ordering::SeqCst) {
+                Ok(_) => {
+                    self.condvar.notify_all();
+                    break;
+                }
+                Err(next) => max = next,
+            }
+        }
+
+        if self.wait_for_overlap && current == 1 && !self.wait_started.swap(true, Ordering::SeqCst)
+        {
+            let guard = self.mutex.lock().expect("lock link-concurrency probe");
+            let _ = self
+                .condvar
+                .wait_timeout_while(guard, Duration::from_secs(2), |()| {
+                    self.max.load(Ordering::SeqCst) < 2
+                })
+                .expect("wait for overlapping link");
+        }
+
+        LinkConcurrencyGuard { probe: self }
+    }
+}
+
+impl Default for LinkConcurrencyProbe {
+    fn default() -> Self {
+        Self {
+            current: AtomicUsize::new(0),
+            max: AtomicUsize::new(0),
+            wait_for_overlap: false,
+            wait_started: AtomicBool::new(false),
+            mutex: Mutex::new(()),
+            condvar: Condvar::new(),
+        }
+    }
+}
+
+pub(super) struct LinkConcurrencyGuard<'a> {
+    probe: &'a LinkConcurrencyProbe,
+}
+
+impl Drop for LinkConcurrencyGuard<'_> {
+    fn drop(&mut self) {
+        self.probe.current.fetch_sub(1, Ordering::SeqCst);
+        self.probe.condvar.notify_all();
+    }
+}
 
 /// `optimistic_wire_method` is the source of truth for the
 /// configured-method → wire-method mapping the `imported` event
@@ -75,6 +149,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
         package_key: &package_key,
         snapshot: &snapshot,
         skipped: &skipped,
+        link_concurrency_probe: None,
     }
     .run::<RecordingReporter>()
     .expect("empty-cas-paths run should succeed");

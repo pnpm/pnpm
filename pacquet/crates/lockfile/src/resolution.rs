@@ -214,6 +214,7 @@ pub struct PlatformSelector {
 /// scanned linearly — `targets[]` is typically 1–3 entries (one per
 /// architecture combo that shares an artifact), so the nested-loop
 /// cost is negligible.
+#[must_use]
 pub fn select_platform_variant<'a>(
     variants: &'a [PlatformAssetResolution],
     selector: &PlatformSelector,
@@ -257,6 +258,7 @@ pub enum LockfileResolution {
 
 impl LockfileResolution {
     /// Get the integrity field if available.
+    #[must_use]
     pub fn integrity(&self) -> Option<&'_ Integrity> {
         match self {
             LockfileResolution::Tarball(resolution) => resolution.integrity.as_ref(),
@@ -284,6 +286,7 @@ impl LockfileResolution {
     ///
     /// Port of pnpm's
     /// [`toLockfileResolution`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/utils/src/toLockfileResolution.ts).
+    #[must_use]
     pub fn to_lockfile_form(
         &self,
         name: &str,
@@ -320,7 +323,8 @@ impl LockfileResolution {
 /// Derive the canonical npm registry tarball URL for `name@version`. Port of
 /// the [`get-npm-tarball-url`](https://www.npmjs.com/package/get-npm-tarball-url)
 /// package pnpm uses.
-fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
+#[must_use]
+pub fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
     let registry =
         if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
     let scopeless = match name.strip_prefix('@') {
@@ -380,14 +384,20 @@ impl From<ResolutionSerde> for LockfileResolution {
 }
 
 /// Best-effort URL-prefix check used to back-fill `gitHosted` on tarball
-/// resolutions written by older pnpm versions. Mirrors upstream's
-/// `isGitHostedTarballUrl` at
+/// resolutions written by older pnpm versions, and to gate trust on the
+/// tarball URL rather than the (tamper-prone) `gitHosted` flag. Mirrors
+/// upstream's `isGitHostedTarballUrl` at
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/lockfileFormatConverters.ts#L23-L29>.
-fn is_git_hosted_tarball_url(url: &str) -> bool {
-    (url.starts_with("https://codeload.github.com/")
-        || url.starts_with("https://bitbucket.org/")
-        || url.starts_with("https://gitlab.com/"))
-        && url.contains("tar.gz")
+#[must_use]
+pub fn is_git_hosted_tarball_url(url: &str) -> bool {
+    // Schemes and hostnames are case-insensitive, so match against a lowercased
+    // copy: a tampered `https://CODELOAD.GITHUB.COM/...` must not slip past as a
+    // non-git-hosted (and therefore registry-trusted) tarball.
+    let lower = url.to_ascii_lowercase();
+    (lower.starts_with("https://codeload.github.com/")
+        || lower.starts_with("https://bitbucket.org/")
+        || lower.starts_with("https://gitlab.com/"))
+        && lower.contains("tar.gz")
 }
 
 impl From<LockfileResolution> for ResolutionSerde {

@@ -127,8 +127,8 @@ pub fn build_env(
 }
 
 /// Keep PATH (handled by the caller) and everything that does not
-/// start with `npm_`; drop NODE / TMPDIR / INIT_CWD /
-/// PNPM_SCRIPT_SRC_DIR because we re-derive them.
+/// start with `npm_`; drop NODE / TMPDIR / `INIT_CWD` /
+/// `PNPM_SCRIPT_SRC_DIR` because we re-derive them.
 ///
 /// On Windows the comparison is case-insensitive because Rust's
 /// `Command::env` treats env keys case-insensitively on that

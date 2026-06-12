@@ -109,7 +109,7 @@ pub async fn fetch_full_metadata(
     // path segment, not two.
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    let (_client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
+    let (client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
         let mut request = client.get(&url).header(header::ACCEPT, accept);
         if let Some(value) = opts.auth_headers.for_url(&url) {
             request = request.header(header::AUTHORIZATION, value);
@@ -139,8 +139,19 @@ pub async fn fetch_full_metadata(
         .text()
         .await
         .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-    let meta: Package = serde_json::from_str(&raw_body)
-        .map_err(|error| FetchMetadataError::Decode { url: url.clone(), error })?;
+    // Body fully buffered — release the connection and its
+    // network-concurrency permit, then parse off the reactor: a
+    // multi-MB packument parse would otherwise pin a tokio worker
+    // and stall every socket it pumps (see
+    // `fetch_full_metadata_cached` for the cold-install numbers).
+    drop(client);
+    let task_url = url.clone();
+    let meta = tokio::task::spawn_blocking(move || {
+        serde_json::from_str::<Package>(&raw_body)
+            .map_err(|error| FetchMetadataError::Decode { url: task_url, error })
+    })
+    .await
+    .map_err(|error| FetchMetadataError::ParseTask { url, error })??;
     Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
 }
 

@@ -37,6 +37,7 @@ pub use version_selector_type::get_version_selector_type;
 /// Pass `snapshots = None` when the wanted lockfile is absent (e.g.
 /// the `install-without-lockfile` path); only manifest-derived entries
 /// are produced.
+#[must_use]
 pub fn get_preferred_versions_from_lockfile_and_manifests(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     manifests: &[&PackageManifest],

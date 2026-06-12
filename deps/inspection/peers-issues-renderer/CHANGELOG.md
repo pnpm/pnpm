@@ -1,5 +1,12 @@
 # @pnpm/deps.inspection.peers-issues-renderer
 
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+
 ## 1100.0.4
 
 ### Patch Changes

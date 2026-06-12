@@ -113,10 +113,10 @@ fn init_logging(logs: &LogConfig) {
 fn log_config_source(source: &ConfigSource) {
     match source {
         ConfigSource::Cli(path) => {
-            tracing::info!(path = %path.display(), "loaded config from --config")
+            tracing::info!(path = %path.display(), "loaded config from --config");
         }
         ConfigSource::DefaultPath(path) => {
-            tracing::info!(path = %path.display(), "loaded config from default path")
+            tracing::info!(path = %path.display(), "loaded config from default path");
         }
         ConfigSource::Bundled => tracing::info!("loaded bundled default config"),
     }

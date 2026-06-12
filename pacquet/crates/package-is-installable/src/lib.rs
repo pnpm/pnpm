@@ -18,6 +18,7 @@
 
 mod check_engine;
 mod check_platform;
+mod infer_platform_from_package_name;
 mod package_is_installable;
 
 #[cfg(test)]
@@ -30,6 +31,7 @@ pub use check_platform::{
     Platform, SupportedArchitectures, UnsupportedPlatformError, WantedPlatform, WantedPlatformRef,
     check_platform,
 };
+pub use infer_platform_from_package_name::{infer_platform_from_package_name, inferred_platform};
 pub use package_is_installable::{
     InstallabilityError, InstallabilityOptions, InstallabilityVerdict,
     PackageInstallabilityManifest, SkipReason, check_package, package_is_installable,

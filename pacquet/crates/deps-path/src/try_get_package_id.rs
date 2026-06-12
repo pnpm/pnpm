@@ -18,6 +18,7 @@ use crate::suffix_index::index_of_dep_path_suffix;
 /// applies, or an owned [`String`] when the second transform (name
 /// prefix strip) runs. Callers that always need ownership can
 /// `.to_string()`.
+#[must_use]
 pub fn try_get_package_id(dep_path: &str) -> std::borrow::Cow<'_, str> {
     let suffix_index = index_of_dep_path_suffix(dep_path);
     let sep_index = suffix_index.patch_hash_index.or(suffix_index.peers_index);

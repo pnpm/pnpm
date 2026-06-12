@@ -20,7 +20,7 @@ fn key(name_text: &str, version: &str) -> PackageKey {
     PackageKey::new(name(name_text), ver(version))
 }
 
-/// Build a `requires_build` map for tests from a list of (key, requires_build)
+/// Build a `requires_build` map for tests from a list of (key, `requires_build`)
 /// pairs. Mirrors the per-snapshot map the runtime computes from each
 /// extracted package's `pkg_requires_build`.
 fn requires<const LEN: usize>(entries: [(PackageKey, bool); LEN]) -> HashMap<PackageKey, bool> {
@@ -184,7 +184,7 @@ fn parallel_build_leaves_share_chunk() {
         build_sequence(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
     assert_eq!(chunks.len(), 2);
     let mut leaves = chunks[0].clone();
-    leaves.sort_by_key(|k| k.to_string());
+    leaves.sort_by_key(std::string::ToString::to_string);
     assert_eq!(leaves, vec![key("a", "1.0.0"), key("b", "1.0.0")]);
     assert_eq!(chunks[1], vec![key("root", "1.0.0")]);
 }
@@ -270,7 +270,7 @@ fn skipped_patched_snapshot_does_not_enter_build_queue() {
 /// entirely, so descendants reachable only via that edge are
 /// effectively orphans in the build phase.
 ///
-/// Setup: root → S (skipped) → C (requires_build). Without the
+/// Setup: root → S (skipped) → C (`requires_build`). Without the
 /// skip-before-recurse gate, the walk would step through S into C,
 /// see C as buildable, and queue both C and ancestors that look like
 /// they need to be sequenced before C. With the gate, S's subtree
@@ -307,7 +307,7 @@ fn skipped_parent_does_not_drag_descendants_into_build_queue() {
 /// skip-before-recurse gate doesn't accidentally poison `walked` for
 /// the alternate branch.
 ///
-/// Setup: root → {S (skipped), B}, both S and B → C (requires_build).
+/// Setup: root → {S (skipped), B}, both S and B → C (`requires_build`).
 /// Even though S is skipped, B still pulls C into the build graph.
 #[test]
 fn descendant_with_non_skipped_parent_still_builds() {
