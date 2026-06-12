@@ -126,6 +126,96 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
   ])
 })
 
+test('transitive pending peer uses provider final suffix', async () => {
+  const aPkg = {
+    name: 'a',
+    pkgIdWithPatchHash: 'a@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      c: { version: '1.0.0' },
+    },
+    id: '' as PkgResolutionId,
+  }
+  const bPkg = {
+    name: 'b',
+    pkgIdWithPatchHash: 'b@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      a: { version: '1.0.0' },
+    },
+    id: '' as PkgResolutionId,
+  }
+  const cPkg = {
+    name: 'c',
+    pkgIdWithPatchHash: 'c@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {} as PeerDependencies,
+    id: '' as PkgResolutionId,
+  }
+  const xPkg = {
+    name: 'x',
+    pkgIdWithPatchHash: 'x@1.0.0' as PkgIdWithPatchHash,
+    version: '1.0.0',
+    peerDependencies: {
+      b: { version: '1.0.0' },
+    },
+    id: '' as PkgResolutionId,
+  }
+
+  const { dependenciesGraph } = await resolvePeers({
+    allPeerDepNames: new Set(['a', 'b', 'c']),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['a', '>a@1.0.0>' as NodeId],
+          ['c', '>c@1.0.0>' as NodeId],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: '',
+      },
+    ],
+    resolvedImporters: {},
+    dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>a@1.0.0>' as NodeId, {
+        children: {
+          b: '>a@1.0.0>b@1.0.0>' as NodeId,
+          x: '>a@1.0.0>x@1.0.0>' as NodeId,
+        },
+        installable: true,
+        resolvedPackage: aPkg,
+        depth: 0,
+      }],
+      ['>a@1.0.0>b@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: bPkg,
+        depth: 1,
+      }],
+      ['>a@1.0.0>x@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: xPkg,
+        depth: 1,
+      }],
+      ['>c@1.0.0>' as NodeId, {
+        children: {},
+        installable: true,
+        resolvedPackage: cPkg,
+        depth: 0,
+      }],
+    ]),
+    virtualStoreDir: '',
+    lockfileDir: '',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
+  })
+
+  expect(Object.keys(dependenciesGraph)).toContain('x@1.0.0(b@1.0.0(a@1.0.0(c@1.0.0)))')
+  expect(Object.keys(dependenciesGraph)).not.toContain('x@1.0.0(b@1.0.0(a@1.0.0))')
+})
+
 test('when a package is referenced twice in the dependencies graph and one of the times it cannot resolve its peers, still try to resolve it in the other occurrence', async () => {
   const fooPkg = {
     name: 'foo',

@@ -609,9 +609,61 @@ fn cached_range(range: &str) -> Option<Arc<Range>> {
         // not on the guard.
         return entry.value().clone();
     }
-    let parsed = Range::parse(range).ok().map(Arc::new);
+    let normalized = normalize_partial_lte_comparators(range);
+    let parsed = Range::parse(&normalized).ok().map(Arc::new);
     RANGE_CACHE.insert(range.to_string(), parsed.clone());
     parsed
+}
+
+fn normalize_partial_lte_comparators(range: &str) -> String {
+    let tokens: Vec<&str> = range.split_whitespace().collect();
+    let mut normalized = Vec::with_capacity(tokens.len());
+    let mut cursor = 0;
+    while cursor < tokens.len() {
+        let token = tokens[cursor];
+        if token == "<="
+            && let Some(version) = tokens.get(cursor + 1)
+            && let Some(comparator) = partial_lte_upper_bound(version)
+        {
+            normalized.push(comparator);
+            cursor += 2;
+            continue;
+        }
+        if let Some(version) = token.strip_prefix("<=")
+            && let Some(comparator) = partial_lte_upper_bound(version)
+        {
+            normalized.push(comparator);
+            cursor += 1;
+            continue;
+        }
+        normalized.push(token.to_string());
+        cursor += 1;
+    }
+    normalized.join(" ")
+}
+
+fn partial_lte_upper_bound(version: &str) -> Option<String> {
+    if version.contains('-') || version.contains('+') || version.contains('*') {
+        return None;
+    }
+    let parts: Vec<&str> = version.split('.').collect();
+    match parts.as_slice() {
+        [major] if is_digits(major) => {
+            let major: u64 = major.parse().ok()?;
+            let next_major = major.checked_add(1)?;
+            Some(format!("<{next_major}.0.0-0"))
+        }
+        [major, minor] if is_digits(major) && is_digits(minor) => {
+            let minor: u64 = minor.parse().ok()?;
+            let next_minor = minor.checked_add(1)?;
+            Some(format!("<{major}.{next_minor}.0-0"))
+        }
+        _ => None,
+    }
+}
+
+fn is_digits(value: &str) -> bool {
+    !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// Check whether `version` satisfies `range` under node-semver's

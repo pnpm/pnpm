@@ -4282,6 +4282,75 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     drop((dir, mock_instance));
 }
 
+#[tokio::test]
+async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest.add_dependency("@pnpm.e2e/final-peer-a", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.add_dependency("@pnpm.e2e/final-peer-c", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    let content =
+        std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
+    let expected = "@pnpm.e2e/final-peer-x@1.0.0(@pnpm.e2e/final-peer-b@1.0.0(@pnpm.e2e/final-peer-a@1.0.0(@pnpm.e2e/final-peer-c@1.0.0)))";
+    let provisional =
+        "@pnpm.e2e/final-peer-x@1.0.0(@pnpm.e2e/final-peer-b@1.0.0(@pnpm.e2e/final-peer-a@1.0.0))";
+
+    assert!(
+        content.contains(expected),
+        "transitive peer must use the provider's final peer suffix; lockfile:\n{content}",
+    );
+    assert!(
+        !content.contains(provisional),
+        "lockfile must not keep the provider's provisional peer suffix; lockfile:\n{content}",
+    );
+
+    drop((dir, mock_instance));
+}
+
 /// Manifest-declared dependency groups land in the matching importer
 /// section in the lockfile. Mirrors upstream's
 /// ["packages are placed in devDependencies even if they are present as
@@ -6848,6 +6917,94 @@ fn assert_package_absent(lockfile: &Lockfile, key: &str) {
         lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&key)),
         "expected packages not to contain {key}",
     );
+}
+
+#[tokio::test]
+async fn fresh_install_applies_builtin_compatibility_db_to_dependency_manifest() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_compatibility_db(false).await;
+    let metadata = lockfile
+        .packages
+        .as_ref()
+        .and_then(|packages| packages.get(&"debug@4.0.0".parse().unwrap()))
+        .expect("debug package metadata recorded");
+    assert_eq!(
+        metadata
+            .peer_dependencies_meta
+            .as_ref()
+            .and_then(|meta| meta.get("supports-color"))
+            .map(|meta| meta.optional),
+        Some(true),
+    );
+    assert_eq!(lockfile.package_extensions_checksum, None);
+}
+
+#[tokio::test]
+async fn fresh_install_skips_builtin_compatibility_db_when_ignored() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_compatibility_db(true).await;
+    let metadata = lockfile
+        .packages
+        .as_ref()
+        .and_then(|packages| packages.get(&"debug@4.0.0".parse().unwrap()))
+        .expect("debug package metadata recorded");
+    assert!(metadata.peer_dependencies_meta.is_none());
+    assert_eq!(lockfile.package_extensions_checksum, None);
+}
+
+async fn fresh_lockfile_only_with_compatibility_db(
+    ignore_compatibility_db: bool,
+) -> (tempfile::TempDir, Lockfile) {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let modules_dir = dir.path().join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("debug", "4.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    config.ignore_compatibility_db = ignore_compatibility_db;
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: true,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("lockfile-only install should succeed");
+
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let content = std::fs::read_to_string(lockfile_path).expect("read lockfile");
+    let lockfile = serde_saphyr::from_str(&content).expect("parse lockfile");
+    (dir, lockfile)
 }
 
 /// `packageExtensions` adds entries to a dependency's manifest at

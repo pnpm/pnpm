@@ -11,6 +11,34 @@ import { createOptionalDependenciesRemover } from './createOptionalDependenciesR
 import { createPackageExtender } from './createPackageExtender.js'
 import { createVersionsOverrider, type VersionOverrideWithoutRawSelector } from './createVersionsOverrider.js'
 
+type PackageExtensionField = 'dependencies' | 'optionalDependencies' | 'peerDependencies' | 'peerDependenciesMeta'
+
+const PACKAGE_EXTENSION_FIELDS: PackageExtensionField[] = [
+  'dependencies',
+  'optionalDependencies',
+  'peerDependencies',
+  'peerDependenciesMeta',
+]
+
+export function getEffectivePackageExtensions (
+  {
+    ignoreCompatibilityDb,
+    packageExtensions,
+  }: {
+    ignoreCompatibilityDb?: boolean
+    packageExtensions?: Record<string, PackageExtension>
+  }
+): Record<string, PackageExtension> | undefined {
+  const effectivePackageExtensions: Record<string, PackageExtension> = {}
+  if (!ignoreCompatibilityDb) {
+    mergePackageExtensions(effectivePackageExtensions, compatPackageExtensions)
+  }
+  if (!isEmpty(packageExtensions ?? {})) {
+    mergePackageExtensions(effectivePackageExtensions, Object.entries(packageExtensions!))
+  }
+  return isEmpty(effectivePackageExtensions) ? undefined : effectivePackageExtensions
+}
+
 export function createReadPackageHook (
   {
     ignoreCompatibilityDb,
@@ -29,11 +57,12 @@ export function createReadPackageHook (
   }
 ): ReadPackageHook | undefined {
   const hooks: ReadPackageHook[] = []
-  if (!ignoreCompatibilityDb) {
-    hooks.push(createPackageExtender(Object.fromEntries(compatPackageExtensions)))
-  }
-  if (!isEmpty(packageExtensions ?? {})) {
-    hooks.push(createPackageExtender(packageExtensions!))
+  const effectivePackageExtensions = getEffectivePackageExtensions({
+    ignoreCompatibilityDb,
+    packageExtensions,
+  })
+  if (effectivePackageExtensions != null) {
+    hooks.push(createPackageExtender(effectivePackageExtensions))
   }
   if (Array.isArray(readPackageHook)) {
     hooks.push(...readPackageHook)
@@ -54,4 +83,38 @@ export function createReadPackageHook (
     ? hooks[0]
     : ((pkg: PackageManifest | ProjectManifest, dir: string) => pipeWith(async (f, res) => f(await res, dir), hooks as any)(pkg, dir)) as ReadPackageHook // eslint-disable-line @typescript-eslint/no-explicit-any
   return readPackageAndExtend
+}
+
+function mergePackageExtensions (
+  target: Record<string, PackageExtension>,
+  entries: Iterable<[string, PackageExtension]>
+): void {
+  for (const [selector, packageExtension] of entries) {
+    target[selector] = mergePackageExtension(target[selector], packageExtension)
+  }
+}
+
+function mergePackageExtension (
+  previous: PackageExtension | undefined,
+  next: PackageExtension
+): PackageExtension {
+  if (previous == null) return clonePackageExtension(next)
+  const merged = clonePackageExtension(previous)
+  for (const field of PACKAGE_EXTENSION_FIELDS) {
+    if (next[field] == null) continue
+    merged[field] = {
+      ...next[field],
+      ...merged[field],
+    } as never
+  }
+  return merged
+}
+
+function clonePackageExtension (packageExtension: PackageExtension): PackageExtension {
+  const cloned: PackageExtension = {}
+  for (const field of PACKAGE_EXTENSION_FIELDS) {
+    if (packageExtension[field] == null) continue
+    cloned[field] = { ...packageExtension[field] } as never
+  }
+  return cloned
 }

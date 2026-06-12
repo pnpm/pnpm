@@ -1,1 +1,1 @@
-export { createReadPackageHook } from './createReadPackageHook.js'
+export { createReadPackageHook, getEffectivePackageExtensions } from './createReadPackageHook.js'

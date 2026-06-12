@@ -33,6 +33,18 @@ packages:
 }
 
 #[test]
+fn parses_ignore_compatibility_db_from_yaml_and_applies() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("ignoreCompatibilityDb: true\n").unwrap();
+    assert_eq!(settings.ignore_compatibility_db, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.ignore_compatibility_db);
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.ignore_compatibility_db);
+}
+
+#[test]
 fn swallows_unknown_top_level_keys() {
     let yaml = r#"
 catalog:

@@ -2111,6 +2111,25 @@ test('dedupePeers: version-only peer suffixes without nested dep paths', async (
   expect(lockfile.settings.dedupePeers).toBe(true)
 })
 
+test('transitive pending peer uses provider final suffix in lockfile', async () => {
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/final-peer-a': '1.0.0',
+      '@pnpm.e2e/final-peer-c': '1.0.0',
+    },
+  }, testDefaults())
+
+  const lockfile = project.readLockfile()
+  const snapshots = Object.keys(lockfile.snapshots)
+  const expected = '@pnpm.e2e/final-peer-x@1.0.0(@pnpm.e2e/final-peer-b@1.0.0(@pnpm.e2e/final-peer-a@1.0.0(@pnpm.e2e/final-peer-c@1.0.0)))'
+  const provisional = '@pnpm.e2e/final-peer-x@1.0.0(@pnpm.e2e/final-peer-b@1.0.0(@pnpm.e2e/final-peer-a@1.0.0))'
+
+  expect(snapshots).toContain(expected)
+  expect(snapshots).not.toContain(provisional)
+})
+
 test('a newly added top-level peer provider wins over a locked context', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
