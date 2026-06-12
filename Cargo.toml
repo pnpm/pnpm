@@ -266,6 +266,7 @@ allow_attributes_without_reason = "warn" # every suppression states why it exist
 # `multiple_crate_versions` stay off: unpublished crates / transitive-dep noise).
 negative_feature_names  = "warn"
 redundant_feature_names = "warn"
+wildcard_dependencies   = "warn"
 
 [profile.release]
 opt-level     = 3
