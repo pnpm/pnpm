@@ -62,6 +62,20 @@ impl Lockfile {
         Self::load_from_path(&dir.join(Lockfile::FILE_NAME))
     }
 
+    /// Whether `<dir>/pnpm-lock.yaml` would load as `Some`: the file
+    /// exists and its main document is non-empty. The same absence
+    /// rules as [`Self::load_wanted_from_dir`] (a missing file, an
+    /// empty file, and an env-only combined document all count as
+    /// absent) without paying for the YAML parse — only the read and
+    /// the document split.
+    #[must_use]
+    pub fn wanted_exists_in_dir(dir: &Path) -> bool {
+        match fs::read_to_string(dir.join(Lockfile::FILE_NAME)) {
+            Ok(content) => !extract_main_document(&content).trim().is_empty(),
+            Err(_) => false,
+        }
+    }
+
     fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let content = match fs::read_to_string(file_path) {
             Ok(content) => content,

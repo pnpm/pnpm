@@ -62,15 +62,17 @@ impl LazyLockfile {
     }
 
     /// Whether a wanted lockfile is known to be available: the parsed
-    /// document when already loaded, otherwise a filesystem existence
-    /// probe — deliberately not a parse, so the repeat-install fast
-    /// path stays mtime-cheap.
+    /// document when already loaded, otherwise
+    /// [`Lockfile::wanted_exists_in_dir`]'s semantic-presence probe —
+    /// the same absence rules as the loader (an empty or env-only
+    /// file counts as absent), without paying for the YAML parse on
+    /// the repeat-install fast path.
     #[must_use]
     pub fn is_loaded_or_on_disk(&self) -> bool {
         if let Some(lockfile) = self.cell.get() {
             return lockfile.is_some();
         }
-        self.dir.as_deref().is_some_and(|dir| dir.join(Lockfile::FILE_NAME).exists())
+        self.dir.as_deref().is_some_and(Lockfile::wanted_exists_in_dir)
     }
 }
 

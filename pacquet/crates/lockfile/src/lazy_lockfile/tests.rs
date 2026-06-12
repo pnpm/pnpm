@@ -45,6 +45,21 @@ fn deferred_loads_from_the_given_dir_not_the_process_cwd() {
 }
 
 #[test]
+fn empty_and_env_only_files_count_as_absent() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join(Lockfile::FILE_NAME);
+
+    fs::write(&path, "").expect("write empty lockfile");
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf());
+    assert!(!lazy.is_loaded_or_on_disk(), "an empty file must count as absent");
+
+    fs::write(&path, "---\nenvDependencies:\n  node: '22.0.0'\n").expect("write env-only lockfile");
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf());
+    assert!(!lazy.is_loaded_or_on_disk(), "an env-only document must count as absent");
+    assert!(lazy.get().expect("env-only lockfile loads as None").is_none());
+}
+
+#[test]
 fn loaded_variant_passes_through() {
     let lockfile = minimal_lockfile();
     let maybe = MaybeLazyLockfile::Loaded(Some(&lockfile));
