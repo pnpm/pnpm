@@ -189,7 +189,7 @@ catalog:
   dint: ^5.1.0
   dir-is-case-sensitive: ^3.0.0
   encode-registry: ^3.0.1
-  esbuild: ^0.28.0
+  esbuild: ^0.28.1
   escape-string-regexp: ^5.0.0
   eslint: ^10.4.0
   eslint-plugin-import-x: ^4.16.2
@@ -375,6 +375,8 @@ minimumReleaseAgeExclude:
   - cmd-extension
   - comver-to-semver
   - dir-is-case-sensitive
+  - esbuild@0.28.1
+  - '@esbuild/*'
   - express@4.22.1
   - glob@11.1.0
   - graceful-git
