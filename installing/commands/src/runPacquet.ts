@@ -8,6 +8,7 @@ import type { Writable } from 'node:stream'
 import { PnpmError } from '@pnpm/error'
 import { logger, streamParser } from '@pnpm/logger'
 import chalk from 'chalk'
+import { familySync as getLibcFamilySync, MUSL } from 'detect-libc'
 
 // The runtime `streamParser` is a `Transform` stream (split2 + JSON.parse).
 // Its public typing only exposes `on`/`removeListener`, so we narrow to the
@@ -178,7 +179,18 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacque
 function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm/pacquet'): string {
   const ext = process.platform === 'win32' ? '.exe' : ''
   const pacquetPkg = fs.realpathSync(path.join(lockfileDir, 'node_modules/.pnpm-config', packageName, 'package.json'))
-  return createRequire(pacquetPkg).resolve(`@pacquet/${process.platform}-${process.arch}/pacquet${ext}`)
+  return createRequire(pacquetPkg).resolve(`${pacquetPlatformPkgName()}/pacquet${ext}`)
+}
+
+/**
+ * Name of the `@pacquet/<platform>-<arch>[-musl]` package that holds the
+ * native pacquet binary for the host. On linux the binary packages are
+ * split by libc and only the matching one is installed, so spawning and
+ * signature verification must agree on this exact name.
+ */
+export function pacquetPlatformPkgName (): string {
+  const libc = process.platform === 'linux' && getLibcFamilySync() === MUSL ? '-musl' : ''
+  return `@pacquet/${process.platform}-${process.arch}${libc}`
 }
 
 /**

@@ -11,6 +11,8 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import type { CreateFetchFromRegistryOptions, RetryTimeoutOptions } from '@pnpm/network.fetch'
 import type { Registries, RegistryConfig } from '@pnpm/types'
 
+import { pacquetPlatformPkgName } from './runPacquet.js'
+
 export interface VerifyPacquetIdentityOptions extends CreateFetchFromRegistryOptions {
   lockfileDir: string
   rootDir: string
@@ -93,7 +95,7 @@ async function collectPacquetPackagesToVerify (
 
   // Only the host's platform binary is ever spawned, so that's the one whose
   // identity matters. If it isn't in the lockfile, pacquet couldn't run here.
-  const platformPkgName = `@pacquet/${process.platform}-${process.arch}`
+  const platformPkgName = pacquetPlatformPkgName()
   const platformVersion = envLockfile.snapshots[shimKey]?.optionalDependencies?.[platformPkgName]
   if (platformVersion == null) return undefined
   const platformKey = `${platformPkgName}@${platformVersion}`
