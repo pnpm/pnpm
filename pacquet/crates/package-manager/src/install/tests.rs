@@ -815,6 +815,9 @@ async fn install_writes_modules_yaml() {
     config.store_dir = store_dir.clone().into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
+    config
+        .registries
+        .insert("@private".to_string(), "https://private.example.com/npm/".to_string());
     let config = config.leak();
 
     // Empty v9 lockfile drives the cheapest successful install path,
