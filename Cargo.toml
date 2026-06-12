@@ -246,6 +246,7 @@ unimplemented = "warn"
 # looping forever are all legal but must be spelled out at the use site.
 exit          = "warn" # deliberate exits carry #[expect] (e.g. dlx propagating the child's status)
 infinite_loop = "warn"
+mem_forget    = "warn" # deliberate leaks carry #[expect] with the reason
 
 [profile.release]
 opt-level     = 3
