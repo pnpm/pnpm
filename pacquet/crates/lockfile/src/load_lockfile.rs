@@ -68,11 +68,18 @@ impl Lockfile {
     /// empty file, and an env-only combined document all count as
     /// absent) without paying for the YAML parse — only the read and
     /// the document split.
+    ///
+    /// Any read failure other than `NotFound` (permissions, invalid
+    /// UTF-8, I/O) reports the file as present: an existing-but-
+    /// unreadable lockfile must not be mistaken for a missing one —
+    /// the regenerate-on-missing path would overwrite it — and the
+    /// real load surfaces the underlying error when the contents are
+    /// actually needed.
     #[must_use]
     pub fn wanted_exists_in_dir(dir: &Path) -> bool {
         match fs::read_to_string(dir.join(Lockfile::FILE_NAME)) {
             Ok(content) => !extract_main_document(&content).trim().is_empty(),
-            Err(_) => false,
+            Err(error) => error.kind() != ErrorKind::NotFound,
         }
     }
 

@@ -59,6 +59,22 @@ fn empty_and_env_only_files_count_as_absent() {
     assert!(lazy.get().expect("env-only lockfile loads as None").is_none());
 }
 
+#[cfg(unix)]
+#[test]
+fn unreadable_lockfile_counts_as_present() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    fs::write(&path, "lockfileVersion: '9.0'\n").expect("write pnpm-lock.yaml");
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).expect("drop permissions");
+
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf());
+    let present = lazy.is_loaded_or_on_disk();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("restore permissions");
+    assert!(present, "an unreadable lockfile must not be mistaken for a missing one");
+}
+
 #[test]
 fn loaded_variant_passes_through() {
     let lockfile = minimal_lockfile();
