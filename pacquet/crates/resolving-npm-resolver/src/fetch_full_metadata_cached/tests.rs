@@ -153,7 +153,7 @@ async fn a_304_renews_the_mirror_mtime() {
         get_pkg_mirror_path(cache.path(), FULL_META_DIR, &registry, "acme").expect("path");
 
     // Age the mirror far past any maturity cutoff.
-    let aged = std::time::SystemTime::now() - std::time::Duration::from_secs(365 * 24 * 60 * 60);
+    let aged = std::time::SystemTime::now() - std::time::Duration::from_hours(365 * 24);
     std::fs::OpenOptions::new()
         .append(true)
         .open(&mirror_path)
@@ -166,7 +166,7 @@ async fn a_304_renews_the_mirror_mtime() {
     let renewed = std::fs::metadata(&mirror_path).expect("stat mirror").modified().expect("mtime");
     let age = std::time::SystemTime::now().duration_since(renewed).expect("mtime in the past");
     assert!(
-        age < std::time::Duration::from_secs(60),
+        age < std::time::Duration::from_mins(1),
         "mirror mtime must be renewed by the 304; still {age:?} old",
     );
 }
