@@ -1,0 +1,102 @@
+---
+"@pnpm/auth.commands": patch
+"@pnpm/bins.linker": patch
+"@pnpm/bins.remover": patch
+"@pnpm/building.after-install": patch
+"@pnpm/building.commands": patch
+"@pnpm/building.during-install": patch
+"@pnpm/cache.api": patch
+"@pnpm/cache.commands": patch
+"@pnpm/cli.commands": patch
+"@pnpm/cli.default-reporter": patch
+"@pnpm/cli.utils": patch
+"@pnpm/config.commands": patch
+"@pnpm/config.package-is-installable": patch
+"@pnpm/config.reader": patch
+"@pnpm/config.version-policy": patch
+"@pnpm/core-loggers": patch
+"@pnpm/deps.compliance.audit": patch
+"@pnpm/deps.compliance.commands": patch
+"@pnpm/deps.compliance.license-scanner": patch
+"@pnpm/deps.compliance.sbom": patch
+"@pnpm/deps.graph-builder": patch
+"@pnpm/deps.inspection.commands": patch
+"@pnpm/deps.inspection.list": patch
+"@pnpm/deps.inspection.outdated": patch
+"@pnpm/deps.inspection.peers-checker": patch
+"@pnpm/deps.inspection.tree-builder": patch
+"@pnpm/deps.path": patch
+"@pnpm/deps.peer-range": patch
+"@pnpm/deps.security.signatures": patch
+"@pnpm/deps.status": patch
+"@pnpm/engine.pm.commands": patch
+"@pnpm/engine.runtime.bun-resolver": patch
+"@pnpm/engine.runtime.commands": patch
+"@pnpm/engine.runtime.deno-resolver": patch
+"@pnpm/engine.runtime.node-resolver": patch
+"@pnpm/engine.runtime.system-version": patch
+"@pnpm/exec.commands": patch
+"@pnpm/exec.lifecycle": patch
+"@pnpm/fetching.directory-fetcher": patch
+"@pnpm/fetching.git-fetcher": patch
+"@pnpm/fetching.tarball-fetcher": patch
+"@pnpm/fs.hard-link-dir": patch
+"@pnpm/fs.indexed-pkg-importer": patch
+"@pnpm/fs.symlink-dependency": patch
+"@pnpm/global.commands": patch
+"@pnpm/global.packages": patch
+"@pnpm/hooks.pnpmfile": patch
+"@pnpm/hooks.read-package-hook": patch
+"@pnpm/installing.commands": patch
+"@pnpm/installing.context": patch
+"@pnpm/installing.deps-installer": patch
+"@pnpm/installing.deps-resolver": patch
+"@pnpm/installing.deps-restorer": patch
+"@pnpm/installing.env-installer": patch
+"@pnpm/installing.linking.direct-dep-linker": patch
+"@pnpm/installing.linking.hoist": patch
+"@pnpm/installing.linking.modules-cleaner": patch
+"@pnpm/installing.package-requester": patch
+"@pnpm/installing.read-projects-context": patch
+"@pnpm/lockfile.filtering": patch
+"@pnpm/lockfile.fs": patch
+"@pnpm/lockfile.merger": patch
+"@pnpm/lockfile.to-pnp": patch
+"@pnpm/lockfile.verification": patch
+"@pnpm/modules-mounter.daemon": patch
+"@pnpm/network.auth-header": patch
+"@pnpm/network.fetch": patch
+"@pnpm/network.web-auth": patch
+"@pnpm/object.key-sorting": patch
+"@pnpm/patching.apply-patch": patch
+"@pnpm/patching.commands": patch
+"@pnpm/patching.config": patch
+"@pnpm/pkg-manifest.utils": patch
+"@pnpm/registry-access.commands": patch
+"@pnpm/releasing.commands": patch
+"@pnpm/resolving.git-resolver": patch
+"@pnpm/resolving.local-resolver": patch
+"@pnpm/resolving.npm-resolver": patch
+"@pnpm/resolving.registry.pkg-metadata-filter": patch
+"@pnpm/store.cafs": patch
+"@pnpm/store.commands": patch
+"@pnpm/store.connection-manager": patch
+"@pnpm/store.controller": patch
+"@pnpm/store.create-cafs-store": patch
+"@pnpm/store.index": patch
+"@pnpm/worker": patch
+"@pnpm/workspace.injected-deps-syncer": patch
+"@pnpm/workspace.project-manifest-reader": patch
+"@pnpm/workspace.projects-reader": patch
+"@pnpm/workspace.range-resolver": patch
+"@pnpm/workspace.state": patch
+"@pnpm/workspace.workspace-manifest-writer": patch
+"pnpm": patch
+---
+
+Updated dependency ranges. Notably:
+
+- `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+- `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+- `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+- `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
