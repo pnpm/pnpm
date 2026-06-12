@@ -1777,7 +1777,7 @@ where
         return;
     }
     let NodeSeed::Pending(pending) = seed else { return };
-    if pending.is_link || pending.is_revisit {
+    if pending.is_link || !pending.children_owner.owns_children {
         return;
     }
     let Ok(specs) = extract_children(&pending.result) else { return };
