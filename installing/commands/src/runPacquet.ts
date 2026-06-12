@@ -8,7 +8,7 @@ import type { Writable } from 'node:stream'
 import { PnpmError } from '@pnpm/error'
 import { logger, streamParser } from '@pnpm/logger'
 import chalk from 'chalk'
-import { MUSL, familySync as getLibcFamilySync } from 'detect-libc'
+import { familySync as getLibcFamilySync, MUSL } from 'detect-libc'
 
 // The runtime `streamParser` is a `Transform` stream (split2 + JSON.parse).
 // Its public typing only exposes `on`/`removeListener`, so we narrow to the
