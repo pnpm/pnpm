@@ -663,7 +663,8 @@ async fn fetch_timeout_allows_steady_body_progress_past_total_timeout() {
     let server = thread::spawn(move || {
         let (mut stream, _) = listener.accept().expect("accept test request");
         let mut request = [0_u8; 1024];
-        stream.read(&mut request).expect("read test request");
+        let bytes_read = stream.read(&mut request).expect("read test request");
+        assert!(bytes_read > 0, "test request should not be empty");
         stream
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\n")
             .expect("write response headers");
