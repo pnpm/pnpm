@@ -4,7 +4,7 @@ use miette::Diagnostic;
 use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -644,6 +644,32 @@ impl StoreIndex {
             for row in rows {
                 let row = row.map_err(|source| StoreIndexError::Read { source })?;
                 out.push(row);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Batched existence probe: the subset of `keys` that have a row in
+    /// `package_index`. Same chunked `WHERE key IN` shape (and SQL-injection
+    /// posture) as [`Self::get_many_raw`], but selects only the key column,
+    /// so no row data is copied — for callers that decide *whether* to do
+    /// work per key and leave reading the row to a later pass.
+    pub fn contains_many(&self, keys: &[String]) -> Result<HashSet<String>, StoreIndexError> {
+        let mut out = HashSet::with_capacity(keys.len());
+        if keys.is_empty() {
+            return Ok(out);
+        }
+        for chunk in keys.chunks(GET_MANY_CHUNK) {
+            let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
+            let sql = format!("SELECT key FROM package_index WHERE key IN ({placeholders})");
+            let mut stmt =
+                self.conn.prepare(&sql).map_err(|source| StoreIndexError::Read { source })?;
+            let params = rusqlite::params_from_iter(chunk.iter().map(String::as_str));
+            let rows = stmt
+                .query_map(params, |row| row.get::<_, String>(0))
+                .map_err(|source| StoreIndexError::Read { source })?;
+            for key in rows {
+                out.insert(key.map_err(|source| StoreIndexError::Read { source })?);
             }
         }
         Ok(out)

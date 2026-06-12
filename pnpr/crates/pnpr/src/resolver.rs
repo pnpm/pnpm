@@ -17,6 +17,10 @@
 //!   ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)),
 //!   then fetches the rest in parallel like a normal install
 //!   ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
+//! * `POST /v1/verify-lockfile` — verify an already-fresh client
+//!   lockfile under the same policy without resolving. A frozen restore
+//!   can start local fetch/materialization immediately and only use this
+//!   endpoint as the trust verdict.
 //!
 //! pnpr is a stateless resolver: it stores no tarballs and serves no file
 //! content. The client fetches every tarball directly from the registry
@@ -293,6 +297,42 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     ndjson_stream_response(rx)
 }
 
+/// Handle `POST /v1/verify-lockfile`: verify the client's input
+/// lockfile under the client's policy, returning only a terminal NDJSON
+/// verdict frame. The client already knows the lockfile is fresh for
+/// the current manifests, so this endpoint deliberately does not
+/// resolve or echo the lockfile back.
+pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> Response {
+    let request: ResolveRequest = match serde_json::from_slice(&body) {
+        Ok(request) => request,
+        Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
+    };
+
+    let Some(input_lockfile) = request.lockfile.as_ref() else {
+        return json_error(StatusCode::BAD_REQUEST, "`lockfile` is required");
+    };
+
+    if request.trust_lockfile {
+        return ndjson_single_frame(&verify_done_frame());
+    }
+
+    let config = runtime.config_for(&request);
+    let request_auth = Arc::new(AuthHeaders::from_map(
+        request.auth_headers.iter().map(|(uri, value)| (uri.clone(), value.clone())).collect(),
+    ));
+
+    match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
+        // The dist stats the verifier observed feed `/v1/resolve`'s sized
+        // `package` frames; this endpoint's client prefetches from its own
+        // lockfile before the verdict arrives, so only the verdict is sent.
+        Ok(_) => ndjson_single_frame(&verify_done_frame()),
+        Err(VerifyFailure::Internal(response)) => response,
+        Err(VerifyFailure::Violations(violations)) => {
+            ndjson_single_frame(&violations_frame(&violations))
+        }
+    }
+}
+
 const MAX_RESOLUTION_CACHE_ENTRIES: usize = 1024;
 
 fn cached_resolution(
@@ -505,6 +545,11 @@ fn error_frame(message: &str) -> Vec<u8> {
 fn violations_frame(violations: &[serde_json::Value]) -> Vec<u8> {
     let frame = serde_json::json!({ "type": "violations", "violations": violations });
     ndjson_line(&frame)
+        .unwrap_or_else(|_| br#"{"type":"error","message":"verification failed"}"#.to_vec())
+}
+
+fn verify_done_frame() -> Vec<u8> {
+    ndjson_line(&serde_json::json!({ "type": "done" }))
         .unwrap_or_else(|_| br#"{"type":"error","message":"verification failed"}"#.to_vec())
 }
 

@@ -288,6 +288,49 @@ fn get_many_mixed_hit_and_miss_returns_only_hits() {
     }
 }
 
+#[test]
+fn contains_many_returns_only_present_keys() {
+    let dir = tempdir().unwrap();
+    let idx = StoreIndex::open(dir.path()).unwrap();
+    let payload = sample_index();
+    let hit_keys: Vec<String> =
+        (0..3).map(|index| store_index_key("sha512-h", &format!("hit{index}@1.0.0"))).collect();
+    let miss_keys: Vec<String> =
+        (0..3).map(|index| store_index_key("sha512-m", &format!("miss{index}@1.0.0"))).collect();
+    for key in &hit_keys {
+        idx.set(key, &payload).unwrap();
+    }
+
+    let mut all_keys = hit_keys.clone();
+    all_keys.extend(miss_keys.clone());
+    let out = idx.contains_many(&all_keys).unwrap();
+
+    assert_eq!(out.len(), hit_keys.len());
+    for key in &hit_keys {
+        assert!(out.contains(key), "hit key missing from result: {key}");
+    }
+    for key in &miss_keys {
+        assert!(!out.contains(key), "miss key present in result: {key}");
+    }
+}
+
+#[test]
+fn contains_many_handles_empty_input_and_more_keys_than_chunk_size() {
+    let dir = tempdir().unwrap();
+    let idx = StoreIndex::open(dir.path()).unwrap();
+    assert!(idx.contains_many(&[]).unwrap().is_empty());
+
+    let payload = sample_index();
+    let keys: Vec<String> = (0..(GET_MANY_CHUNK + 7))
+        .map(|index| store_index_key("sha512-x", &format!("pkg{index}@1.0.0")))
+        .collect();
+    for key in &keys {
+        idx.set(key, &payload).unwrap();
+    }
+    let out = idx.contains_many(&keys).unwrap();
+    assert_eq!(out.len(), keys.len());
+}
+
 /// A row whose bytes don't decode (corruption, foreign writer) must
 /// be skipped without failing the batch. `load_cached_cas_paths`
 /// already does `.ok()?` on the per-key path, treating decode

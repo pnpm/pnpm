@@ -15,18 +15,54 @@
 //! `CacheValue::Available` hit, or a brief park on the per-URL `Notify`
 //! while the prefetch finishes).
 
-use crate::retry_config::retry_opts_from_config;
+use crate::{
+    install_package_by_snapshot::tarball_url_and_integrity, retry_config::retry_opts_from_config,
+};
 use dashmap::DashSet;
 use pacquet_config::Config;
+use pacquet_lockfile::{Lockfile, LockfileResolution};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_reporter::SilentReporter;
 use pacquet_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexError,
-    StoreIndexWriter,
+    StoreIndexWriter, store_index_key,
 };
 use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts};
 use ssri::Integrity;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
+
+/// One registry lockfile entry [`TarballPrefetcher::prefetch_lockfile`]
+/// may spawn a download for, staged so the whole batch can be filtered
+/// through a single store-index existence probe first.
+struct PendingPrefetch {
+    store_key: String,
+    package_id: String,
+    package_url: String,
+    integrity: String,
+}
+
+/// Drop every pending entry whose `(integrity, package_id)` row already
+/// exists in `index.db`, with one batched existence probe. Best-effort:
+/// no readable index keeps every entry pending, so the store stays the
+/// only authority over what actually downloads.
+async fn without_store_hits(
+    index: Option<SharedReadonlyStoreIndex>,
+    pending: Vec<PendingPrefetch>,
+) -> Vec<PendingPrefetch> {
+    let Some(index) = index else {
+        return pending;
+    };
+    let keys: Vec<String> = pending.iter().map(|entry| entry.store_key.clone()).collect();
+    let hits = tokio::task::spawn_blocking(move || {
+        let Ok(guard) = index.lock() else {
+            return HashSet::new();
+        };
+        guard.contains_many(&keys).unwrap_or_default()
+    })
+    .await
+    .unwrap_or_default();
+    pending.into_iter().filter(|entry| !hits.contains(&entry.store_key)).collect()
+}
 
 /// One background tarball download. Every field is owned (an `Arc`
 /// clone or a `Copy` scalar) so the spawned task captures an
@@ -240,6 +276,50 @@ impl TarballPrefetcher {
         });
     }
 
+    /// Fire a background download for every registry-resolved entry of a
+    /// frozen lockfile that isn't already in the store, so the fetch
+    /// starts before the trust verdict arrives. Registry resolutions
+    /// only: they are the one shape the materialization pass reuses from
+    /// the shared mem cache (see the dispatch in
+    /// [`crate::InstallPackageBySnapshot`]).
+    ///
+    /// Entries with an `index.db` row are filtered out with one batched
+    /// existence probe rather than spawned: the materialization pass
+    /// already covers warm entries with its own batched verified lookup
+    /// ([`pacquet_tarball::prefetch_cas_paths`]), so spawning them here
+    /// would only duplicate that work per key — on a fully warm store it
+    /// turns the whole prefetch into a no-op. A row whose CAS files have
+    /// gone missing is skipped here too; the materialization pass's
+    /// per-snapshot cache-miss fallback re-downloads it.
+    pub async fn prefetch_lockfile(&self, lockfile: &Lockfile, config: &Config) {
+        let Some(packages) = lockfile.packages.as_ref() else {
+            return;
+        };
+        let mut pending = Vec::with_capacity(packages.len());
+        for (package_key, metadata) in packages {
+            if !matches!(&metadata.resolution, LockfileResolution::Registry(_)) {
+                continue;
+            }
+            let (tarball_url, integrity) =
+                tarball_url_and_integrity(&metadata.resolution, package_key, config)
+                    .expect("registry resolutions always carry an integrity");
+            let package_id = package_key.without_peer().to_string();
+            let integrity = integrity.to_string();
+            pending.push(PendingPrefetch {
+                store_key: store_index_key(&integrity, &package_id),
+                package_id,
+                package_url: tarball_url.into_owned(),
+                integrity,
+            });
+        }
+        for entry in without_store_hits(self.store_index.clone(), pending).await {
+            let PendingPrefetch { package_id, package_url, integrity, .. } = entry;
+            // The lockfile records no dist size hints, so the downloads
+            // queue without a work estimate.
+            self.prefetch(package_id, package_url, &integrity, None, None);
+        }
+    }
+
     /// Drain the store-index writer. Call after the materialization
     /// install has returned: by then every prefetch download has
     /// finished (the install awaited each tarball's mem-cache slot) and
@@ -264,3 +344,6 @@ impl TarballPrefetcher {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

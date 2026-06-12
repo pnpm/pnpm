@@ -4,9 +4,12 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pacquet_config::NodeLinker;
 use pacquet_lockfile::{Lockfile, LockfileResolution};
-use pacquet_package_manager::{Install, TarballPrefetcher, UpdateSeedPolicy};
+use pacquet_package_manager::{
+    Install, InstallFrozenLockfileError, LockfileVerificationOverride, TarballPrefetcher,
+    UpdateSeedPolicy,
+};
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions};
+use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions, VerifyLockfileOptions};
 use pacquet_reporter::Reporter;
 
 const BENCHMARK_PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
@@ -556,6 +559,86 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     let client = PnprClient::new(pnpr_server);
     let lockfile_dir =
         state.manifest.path().parent().expect("manifest path always has a parent dir");
+
+    if link.frozen_lockfile
+        && !link.lockfile_only
+        && let Some(lockfile) = state.lockfile.as_ref()
+    {
+        let prefetcher = TarballPrefetcher::new(
+            state.config,
+            &state.http_client,
+            &state.tarball_mem_cache,
+            None,
+            &lockfile_dir.to_string_lossy(),
+        )
+        .await;
+        prefetcher.prefetch_lockfile(lockfile, state.config).await;
+        tokio::task::yield_now().await;
+
+        let lockfile_verification_override: Option<LockfileVerificationOverride<'_>> =
+            if link.trust_lockfile {
+                None
+            } else {
+                let verify_opts = VerifyLockfileOptions::from_resolve_options(&opts)
+                    .expect("frozen pnpr verification requires the loaded lockfile");
+                let verify_client = PnprClient::new(pnpr_server);
+                Some(Box::pin(async move {
+                    match verify_client.verify_lockfile(verify_opts).await {
+                        Ok(()) => Ok(()),
+                        Err(PnprClientError::Verification(verify_err)) => {
+                            Err(InstallFrozenLockfileError::LockfileVerification(verify_err))
+                        }
+                        Err(err) => Err(InstallFrozenLockfileError::ExternalLockfileVerification(
+                            err.to_string(),
+                        )),
+                    }
+                }) as LockfileVerificationOverride<'_>)
+            };
+
+        let install = Install {
+            tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
+            http_client: &state.http_client,
+            http_client_arc: std::sync::Arc::clone(&state.http_client),
+            config: state.config,
+            manifest: &state.manifest,
+            lockfile: Some(lockfile),
+            lockfile_path: link.lockfile_path,
+            dependency_groups: link.dependency_groups,
+            frozen_lockfile: true,
+            prefer_frozen_lockfile: None,
+            ignore_manifest_check: link.ignore_manifest_check,
+            skip_runtimes: link.skip_runtimes,
+            trust_lockfile: true,
+            update_checksums: false,
+            is_full_install: true,
+            resolved_packages: &state.resolved_packages,
+            supported_architectures: link.supported_architectures,
+            node_linker: link.node_linker,
+            lockfile_only: false,
+            update_seed_policy: UpdateSeedPolicy::KeepAll,
+            auth_override: None,
+            resolution_observer: None,
+        };
+
+        let result = match lockfile_verification_override {
+            Some(lockfile_verification_override) => {
+                install
+                    .run_with_lockfile_verification::<Reporter>(lockfile_verification_override)
+                    .await
+            }
+            None => install.run::<Reporter>().await,
+        };
+        // On failure the prefetcher is dropped, not shut down: shutdown
+        // waits for every in-flight prefetch download (each task holds a
+        // store-index writer handle), which would hold the fail-fast
+        // abort hostage to the remaining transfers. The index rows are
+        // best-effort — a dropped row only costs a later re-download.
+        result.wrap_err("restoring dependencies from the local lockfile via pnpr verification")?;
+
+        prefetcher.shutdown().await;
+
+        return Ok(());
+    }
 
     // Under `--lockfile-only` nothing is materialized, so skip the
     // prefetcher entirely and consume the stream with a no-op callback.
