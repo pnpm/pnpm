@@ -20,14 +20,12 @@ pub fn main() -> miette::Result<()> {
     // token is layered onto `Config` after `.npmrc` / yaml run.
     let (config_overrides, argv) = ConfigOverrides::extract(std::env::args_os());
     let args = CliArgs::parse_from(argv);
-    // Still single-threaded here — required by `configure_rayon_pool`'s
-    // environment write.
-    configure_rayon_pool();
     // An up-to-date `pacquet install` finishes here, without paying for
     // the runtime, the HTTP client, or any worker threads.
     if args.finished_via_install_fast_path(&config_overrides) {
         return Ok(());
     }
+    configure_rayon_pool();
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -48,13 +46,15 @@ pub fn main() -> miette::Result<()> {
 /// switching and per-thread fixed costs (`user` time scales linearly
 /// past 50 without any wall-time payoff).
 ///
-/// The size is applied through the `RAYON_NUM_THREADS` environment
-/// variable rather than `ThreadPoolBuilder::build_global` so the pool
-/// itself spawns lazily on first rayon use: commands that never reach
-/// a parallel phase (`--help`, the repeat-install "Already up to
+/// Runs after the repeat-install fast path has declined, so commands
+/// that never reach a parallel phase (`--help`, the "Already up to
 /// date" short-circuit) skip the worker-thread spawn cost entirely.
-/// An explicit `RAYON_NUM_THREADS` from the caller is honoured by
-/// leaving it untouched.
+/// Deliberately NOT communicated via the `RAYON_NUM_THREADS`
+/// environment variable: a process-env write would leak into every
+/// child the install spawns (lifecycle scripts, `node --version`,
+/// git), and pnpm exposes no such variable to scripts. An explicit
+/// `RAYON_NUM_THREADS` from the caller is honoured by skipping the
+/// override.
 ///
 /// Use [`std::thread::available_parallelism`] rather than the
 /// workspace's existing `num_cpus::get()` so cgroup / CPU-quota
@@ -74,11 +74,8 @@ pub fn main() -> miette::Result<()> {
 /// quota literally — Copilot's follow-up flagged the tension; we're
 /// keeping the floor and documenting it explicitly.
 ///
-/// # Safety contract
-///
-/// Mutates the process environment, so the caller must invoke it
-/// before any other thread exists — in practice: in [`main`], before
-/// the tokio runtime is built.
+/// Best-effort: if another part of the binary already initialised the
+/// pool, leave it alone.
 ///
 /// [#292]: https://github.com/pnpm/pacquet/pull/292
 fn configure_rayon_pool() {
@@ -93,8 +90,5 @@ fn configure_rayon_pool() {
         // "rayon worker stalls on `clonefile` while the next snapshot
         // can't start" regime. See the function-level doc.
         .max(4);
-    // SAFETY: called from `fn main` before the tokio runtime (or any
-    // other thread) is created, so no concurrent reader of the
-    // process environment can exist.
-    unsafe { std::env::set_var("RAYON_NUM_THREADS", n.to_string()) };
+    let _ = rayon::ThreadPoolBuilder::new().num_threads(n).build_global();
 }
