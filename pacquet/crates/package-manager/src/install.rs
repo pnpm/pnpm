@@ -1109,7 +1109,11 @@ where
             if fresh_result.can_record_lockfile_verification
                 && let Some(lockfile) = fresh_result.wanted_lockfile.as_ref()
             {
-                let lockfile_path = workspace_root.join(Lockfile::FILE_NAME);
+                // Record under the same path the verification gates key
+                // their cache on, so the next install's stat shortcut hits.
+                let lockfile_path = derived_lockfile_path
+                    .clone()
+                    .unwrap_or_else(|| workspace_root.join(Lockfile::FILE_NAME));
                 record_lockfile_verified(
                     Some(&config.cache_dir),
                     &lockfile_path,
