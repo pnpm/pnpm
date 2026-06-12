@@ -666,18 +666,18 @@ async fn fetch_timeout_allows_steady_body_progress_past_total_timeout() {
         let bytes_read = stream.read(&mut request).expect("read test request");
         assert!(bytes_read > 0, "test request should not be empty");
         stream
-            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\n")
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n")
             .expect("write response headers");
         stream.flush().expect("flush response headers");
-        for chunk in [b"a", b"b", b"c"] {
-            thread::sleep(StdDuration::from_millis(50));
+        for chunk in [b"a", b"b", b"c", b"d", b"e"] {
+            thread::sleep(StdDuration::from_millis(100));
             stream.write_all(chunk).expect("write response chunk");
             stream.flush().expect("flush response chunk");
         }
     });
 
     let settings =
-        NetworkSettings { fetch_timeout: Duration::from_millis(80), ..NetworkSettings::default() };
+        NetworkSettings { fetch_timeout: Duration::from_millis(300), ..NetworkSettings::default() };
     let client = ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &TlsConfig::default(),
@@ -692,8 +692,8 @@ async fn fetch_timeout_allows_steady_body_progress_past_total_timeout() {
     let body = resp.text().await.expect("read response body");
     server.join().expect("test server exits cleanly");
 
-    assert!(started_at.elapsed() >= Duration::from_millis(120), "request completed too quickly");
-    assert_eq!(body, "abc");
+    assert!(started_at.elapsed() >= Duration::from_millis(400), "request completed too quickly");
+    assert_eq!(body, "abcde");
 }
 
 #[test]

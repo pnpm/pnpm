@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import type { TlsConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import { SocksClient } from 'socks'
-import { Agent, type Dispatcher, getGlobalDispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
+import { Agent, type Dispatcher, getGlobalDispatcher, MockAgent, ProxyAgent, setGlobalDispatcher } from 'undici'
 
 const DEFAULT_MAX_SOCKETS = 50
 const KEEP_ALIVE_TIMEOUT = 30_000 // 30 seconds
@@ -128,6 +128,11 @@ export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher
     return undefined
   }
 
+  const globalMockDispatcher = getGlobalMockDispatcherForTimeoutOnly(opts)
+  if (globalMockDispatcher) {
+    return globalMockDispatcher
+  }
+
   const parsedUri = new URL(uri)
 
   if ((opts.httpProxy || opts.httpsProxy) && !checkNoProxy(parsedUri, opts)) {
@@ -158,6 +163,28 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
     opts.strictSsl === false ||
     hasClientCertificates(opts.clientCertificates) ||
     opts.maxSockets
+  )
+}
+
+function getGlobalMockDispatcherForTimeoutOnly (opts: DispatcherOptions): Dispatcher | undefined {
+  if (!hasOnlyTimeoutCustomization(opts)) return undefined
+  const globalDispatcher = getGlobalDispatcher()
+  return globalDispatcher instanceof MockAgent ? globalDispatcher : undefined
+}
+
+function hasOnlyTimeoutCustomization (opts: DispatcherOptions): boolean {
+  return Boolean(
+    typeof opts.timeout === 'number' &&
+    opts.timeout > 0 &&
+    !opts.httpProxy &&
+    !opts.httpsProxy &&
+    !opts.ca &&
+    !opts.cert &&
+    !opts.key &&
+    !opts.localAddress &&
+    opts.strictSsl !== false &&
+    !hasClientCertificates(opts.clientCertificates) &&
+    !opts.maxSockets
   )
 }
 

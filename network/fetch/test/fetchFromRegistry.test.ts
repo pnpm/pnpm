@@ -92,6 +92,24 @@ test('authorization headers are removed before redirection if the target is on a
   }
 })
 
+test('default timeout still allows MockAgent to intercept requests', async () => {
+  setupMockAgent()
+  try {
+    const mockPool = getMockAgent().get('http://registry.pnpm.io')
+    mockPool.intercept({
+      path: '/is-positive',
+      method: 'GET',
+    }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
+
+    const fetchFromRegistry = createFetchFromRegistry({})
+    const res = await fetchFromRegistry('http://registry.pnpm.io/is-positive')
+
+    expect(await res.json()).toStrictEqual({ ok: true })
+  } finally {
+    await teardownMockAgent()
+  }
+})
+
 test('authorization headers are not removed before redirection if the target is on the same host', async () => {
   setupMockAgent()
   try {
