@@ -702,14 +702,18 @@ where
         } = {
             let mut verify_fut = std::pin::pin!(verify_fut);
             let mut create_virtual_store_fut = std::pin::pin!(create_virtual_store_fut);
+            // `select!` randomizes branch polling by default. Poll the
+            // materialization side first so the verifier's metadata fan-out
+            // does not nondeterministically win the first network permits.
             tokio::select! {
-                verify = &mut verify_fut => {
-                    verify?;
-                    create_virtual_store_fut.await?
-                }
+                biased;
                 output = &mut create_virtual_store_fut => {
                     verify_fut.await?;
                     output?
+                }
+                verify = &mut verify_fut => {
+                    verify?;
+                    create_virtual_store_fut.await?
                 }
             }
         };
