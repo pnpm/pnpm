@@ -342,12 +342,12 @@ async fn run_checked<Output>(
     let Some(pending) = check.as_mut() else { return work.await };
     let mut work = std::pin::pin!(work);
     // `select!` randomizes branch polling by default. Poll the
-    // materialization side first so the verifier's metadata fan-out
-    // does not nondeterministically win the first network permits.
+    // verifier first so cold frozen restores do not leave the
+    // verification fan-out as a nondeterministic tail after fetches.
     let verdict = tokio::select! {
         biased;
-        output = &mut work => return output,
         verdict = pending => verdict,
+        output = &mut work => return output,
     };
     *check = None;
     match verdict {
