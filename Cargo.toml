@@ -237,6 +237,10 @@ mod_module_files       = "warn" # forbids mod.rs, enforcing the flat module.rs l
 undocumented_unsafe_blocks = "warn"
 unnecessary_safety_comment = "warn" # ...and `SAFETY:` prose never decorates safe code
 
+# leftover-marker guards (restriction). `dbg_macro` stays off on purpose:
+# CODE_STYLE_GUIDE.md prescribes `dbg!` for complex structures in tests.
+todo = "warn"
+
 [profile.release]
 opt-level     = 3
 lto           = "fat"
