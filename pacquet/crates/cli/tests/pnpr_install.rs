@@ -96,10 +96,10 @@ fn install_via_pnpr_links_node_modules() {
 }
 
 #[test]
-fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving() {
+fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redownloading() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
 
     let pnpr_url = start_pnpr();
 
@@ -121,6 +121,27 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving() {
         .expect(1)
         .create();
 
+    // The first install warmed the store, so the frozen restore must not
+    // fetch a single tarball: point the registry at a server that rejects
+    // every request. Registry resolutions derive their tarball URLs from
+    // the configured registry at install time, so the swap is transparent
+    // to the lockfile.
+    let mut silent_registry = mockito::Server::new();
+    let no_downloads = silent_registry.mock("GET", mockito::Matcher::Any).expect(0).create();
+    let npmrc = fs::read_to_string(&npmrc_path)
+        .expect("read .npmrc")
+        .lines()
+        .map(|line| {
+            if line.starts_with("registry=") {
+                format!("registry={}/", silent_registry.url())
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&npmrc_path, npmrc).expect("rewrite .npmrc");
+
     pacquet_at(&workspace)
         .with_arg("install")
         .with_arg("--frozen-lockfile")
@@ -130,6 +151,7 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving() {
         .success();
 
     verify_mock.assert();
+    no_downloads.assert();
     let symlink_path = workspace.join("node_modules/@foo/no-deps");
     assert!(is_symlink_or_junction(&symlink_path).unwrap(), "direct dep should be symlinked");
 

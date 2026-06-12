@@ -530,7 +530,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             &lockfile_dir.to_string_lossy(),
         )
         .await;
-        prefetcher.prefetch_lockfile(lockfile, state.config);
+        prefetcher.prefetch_lockfile(lockfile, state.config).await;
         tokio::task::yield_now().await;
 
         let lockfile_verification_override: Option<LockfileVerificationOverride<'_>> =
@@ -586,6 +586,11 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             }
             None => install.run::<Reporter>().await,
         };
+        // On failure the prefetcher is dropped, not shut down: shutdown
+        // waits for every in-flight prefetch download (each task holds a
+        // store-index writer handle), which would hold the fail-fast
+        // abort hostage to the remaining transfers. The index rows are
+        // best-effort — a dropped row only costs a later re-download.
         result.wrap_err("restoring dependencies from the local lockfile via pnpr verification")?;
 
         prefetcher.shutdown().await;
