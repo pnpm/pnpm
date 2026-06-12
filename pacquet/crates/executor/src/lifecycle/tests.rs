@@ -346,17 +346,19 @@ fn missing_manifest_returns_false() {
 fn child_sees_stamped_npm_package_and_no_leaked_npm_config() {
     /// RAII guard that removes a process env var on drop, so an
     /// assertion failure can't leak the seed into sibling tests.
-    /// Stdlib `set_var`/`remove_var` are `unsafe` in current Rust;
-    /// SAFETY: nextest runs each test in its own thread, so the
-    /// only risk is sibling tests calling `env::vars()`
-    /// concurrently — the guard's `Drop` still runs on panic.
     struct EnvGuard(&'static str);
     impl Drop for EnvGuard {
         fn drop(&mut self) {
+            // SAFETY: nextest runs each test in its own thread, so the
+            // only risk is sibling tests calling `env::vars()`
+            // concurrently — this `Drop` still runs on panic.
             unsafe { std::env::remove_var(self.0) }
         }
     }
     let _guard = EnvGuard("npm_config_should_be_stripped");
+    // SAFETY: nextest runs each test in its own thread, so the only
+    // risk is sibling tests calling `env::vars()` concurrently — the
+    // guard's `Drop` removes the var even on panic.
     unsafe { std::env::set_var("npm_config_should_be_stripped", "leak") };
 
     let dir = tempdir().expect("create temp dir");
