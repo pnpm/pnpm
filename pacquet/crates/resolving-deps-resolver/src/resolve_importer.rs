@@ -427,10 +427,7 @@ impl ImporterHoistState {
                     Some(Arc::new(crate::resolve_peers::HoistMissingScope {
                         importer_id: self.importer_id.clone(),
                         first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
-                        first_walk_missing_by_pkg: self
-                            .ctx
-                            .workspace()
-                            .first_walk_missing_by_pkg(),
+                        first_walk_missing_by_pkg: self.ctx.workspace().first_walk_missing_by_pkg(),
                     }));
                 resolve_peers(&mut snapshot, opts)
             };
