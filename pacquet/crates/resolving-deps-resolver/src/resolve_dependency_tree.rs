@@ -33,7 +33,9 @@ fn lock_recoverable<Inner>(mutex: &Mutex<Inner>) -> MutexGuard<'_, Inner> {
 }
 
 use crate::{
-    lockfile_reuse::{reusable_importer_dep, synthesize_reused_result},
+    lockfile_reuse::{
+        current_pkg_from_lockfile, prior_child_key, reusable_importer_dep, synthesize_reused_result,
+    },
     node_id::NodeId,
     resolved_tree::{DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree},
 };
@@ -75,8 +77,42 @@ enum ReuseSource {
     /// ancestor discarded its child-refs, forcing this subtree to
     /// re-resolve (pnpm's `parentPkg.updated ? undefined : refs`).
     Transitive { key: Option<PkgNameVerPeer> },
+    /// A child of a freshly-resolved parent: subtree reuse stays
+    /// disabled, but when the parent re-resolved to its previously
+    /// recorded version the child's prior snapshot ref is still
+    /// meaningful — it feeds the `currentPkg` payload of the child's
+    /// own re-resolution. Mirrors pnpm, where a non-`updated` parent
+    /// keeps `resolvedDependencies` references alive.
+    PriorOnly { key: Option<PkgNameVerPeer> },
     /// Reuse disabled for this node (no prior lockfile).
     Off,
+}
+
+impl ReuseSource {
+    /// The prior lockfile snapshot key recorded for this edge, if any —
+    /// the basis of both subtree reuse and the `currentPkg` payload.
+    /// The `Importer` arm applies the semver-satisfies gate
+    /// ([`reusable_importer_dep`]), mirroring pnpm's
+    /// `referenceSatisfiesWantedSpec` guard on lockfile references.
+    fn prior_key(&self, ctx: &TreeCtx, wanted: &WantedDependency) -> Option<PkgNameVerPeer> {
+        let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
+        match self {
+            ReuseSource::Importer { importer_id } => reusable_importer_dep(
+                &lockfile.importers,
+                importer_id,
+                wanted.alias.as_deref()?,
+                wanted.bare_specifier.as_deref()?,
+            ),
+            ReuseSource::Transitive { key } | ReuseSource::PriorOnly { key } => key.clone(),
+            ReuseSource::Off => None,
+        }
+    }
+
+    /// Whether this edge may reuse the prior lockfile's subtree.
+    /// `PriorOnly` keeps the key for `currentPkg` but never reuses.
+    fn allows_reuse(&self) -> bool {
+        matches!(self, ReuseSource::Importer { .. } | ReuseSource::Transitive { .. })
+    }
 }
 
 /// Options threaded into [`fn@resolve_dependency_tree`].
@@ -423,6 +459,7 @@ type WantedKey = (
     bool,
     Option<DateTime<Utc>>,
     Option<PathBuf>,
+    Option<PkgNameVerPeer>,
 );
 
 /// Whether a wanted dep's resolution is computed relative to the
@@ -510,6 +547,12 @@ pub struct WorkspaceTreeCtx {
     /// peer edge supplies the package instead. See
     /// [`omit_peer_shadowed_dependencies`].
     auto_install_peers: bool,
+    /// Resolved registry map (`"default"` + per-scope) used to
+    /// materialize a prior `Registry` lockfile resolution back into its
+    /// tarball URL for the `currentPkg` payload. Empty when the entry
+    /// point doesn't thread registries (then `currentPkg` is withheld
+    /// for `Registry`-shaped entries rather than sent without a URL).
+    registries: HashMap<String, String>,
     /// `pkg id → importer id` of the importer whose walk first resolved
     /// each package. Mirrors the ownership implied by upstream's
     /// per-`pkgId` shared subtree records
@@ -544,6 +587,7 @@ impl Default for WorkspaceTreeCtx {
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers: false,
+            registries: HashMap::new(),
             first_importer_by_pkg: Mutex::new(HashMap::new()),
             first_walk_missing_by_pkg: Mutex::new(HashMap::new()),
         }
@@ -646,6 +690,13 @@ impl WorkspaceTreeCtx {
     #[must_use]
     pub fn with_auto_install_peers(mut self, auto_install_peers: bool) -> Self {
         self.auto_install_peers = auto_install_peers;
+        self
+    }
+
+    /// Attach the resolved registry map. See the `registries` field.
+    #[must_use]
+    pub fn with_registries(mut self, registries: HashMap<String, String>) -> Self {
+        self.registries = registries;
         self
     }
 
@@ -994,6 +1045,11 @@ where
 {
     let current_is_optional = wanted.optional.unwrap_or(false) || parent_optional;
 
+    // The edge's recorded snapshot key in the prior lockfile, if any.
+    // Feeds both subtree reuse (below) and — when the edge re-resolves
+    // anyway — the `currentPkg` payload custom resolvers receive.
+    let prior_key = reuse.prior_key(ctx, &wanted);
+
     // **Lockfile-resolution reuse.** When the prior lockfile already
     // resolved this edge (and the recorded version still satisfies the
     // manifest range, for a direct dep), synthesize the resolution from
@@ -1003,7 +1059,9 @@ where
     // `synthesize_reused_result` is conservative: any shape it can't
     // faithfully reproduce (non-registry resolutions, missing metadata)
     // yields `None` here and the node falls through to a fresh resolve.
-    if let Some(reused) = try_reuse_node(ctx, &wanted, reuse) {
+    if reuse.allows_reuse()
+        && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref())
+    {
         return resolve_reused_node(
             ctx,
             resolver,
@@ -1032,9 +1090,29 @@ where
     // a direct (`depth == 0`) or transitive dep, so the cache key and
     // the resolver call both key off the depth-specific options.
     let opts = ctx.opts_for_depth(depth);
+    // The prior lockfile entry rides along as `currentPkg`, mirroring
+    // pnpm's `currentPkg: extendedWantedDep.infoFromLockfile` hand-off
+    // to the resolver. Only custom resolvers read it today; the clone
+    // of the shared per-depth options is paid only when a prior entry
+    // exists for a freshly resolving edge.
+    let current_pkg = prior_key.as_ref().and_then(|key| {
+        let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
+        current_pkg_from_lockfile(lockfile, key, &ctx.workspace.registries)
+    });
+    let opts_with_current_pkg;
+    let opts = match current_pkg {
+        Some(current_pkg) => {
+            opts_with_current_pkg =
+                ResolveOptions { current_pkg: Some(current_pkg), ..opts.clone() };
+            &opts_with_current_pkg
+        }
+        None => opts,
+    };
     // Project-relative resolutions (`link:`/`file:`/`workspace:`) are
     // keyed by the consuming importer so one importer's relative path
-    // is never reused by another. See [`WantedKey`].
+    // is never reused by another. See [`WantedKey`]. The prior key
+    // joins so two edges that share a specifier but recorded different
+    // versions never share a `currentPkg`-dependent result.
     let project_scope = is_project_relative_specifier(wanted.bare_specifier.as_deref())
         .then(|| ctx.base_opts.project_dir.clone());
     let cache_key: WantedKey = (
@@ -1045,6 +1123,7 @@ where
         opts.pick_lowest_version,
         opts.published_by,
         project_scope,
+        prior_key.clone(),
     );
     let cached =
         lock_recoverable(&ctx.workspace.resolved_by_wanted).get(&cache_key).map(Arc::clone);
@@ -1249,6 +1328,17 @@ where
                 .or_insert_with(|| Arc::clone(&specs));
             specs
         };
+        // A freshly-resolved node forces its whole subtree to
+        // re-resolve — pnpm's `resolvedDependencies = parentPkg.updated
+        // ? undefined`. But when the parent landed back on its
+        // previously recorded version, pnpm keeps the prior child refs
+        // (the non-`updated` arm), so each child's re-resolution still
+        // receives its `currentPkg`. `PriorOnly` is that arm: the key
+        // rides along for `currentPkg` while reuse stays disabled.
+        let prior_children_snapshot = prior_key
+            .as_ref()
+            .filter(|key| landed_on_prior_entry(key, &id))
+            .and_then(|key| ctx.workspace.wanted_lockfile.as_ref()?.snapshots.as_ref()?.get(key));
         let child_results = child_specs
             .iter()
             .map(|(child_name, child_range, child_optional)| {
@@ -1258,12 +1348,10 @@ where
                     optional: Some(*child_optional),
                     ..WantedDependency::default()
                 };
+                let child_prior = prior_children_snapshot
+                    .and_then(|snapshot| prior_child_key(snapshot, child_name, child_range));
                 let next_ancestors = next_ancestors.clone();
                 async move {
-                    // A freshly-resolved node forces its whole subtree
-                    // to re-resolve — pnpm's `resolvedDependencies =
-                    // parentPkg.updated ? undefined`. `ReuseSource::Off`
-                    // is the `undefined` arm.
                     resolve_node(
                         ctx,
                         resolver,
@@ -1271,7 +1359,7 @@ where
                         &next_ancestors,
                         depth + 1,
                         current_is_optional,
-                        ReuseSource::Off,
+                        ReuseSource::PriorOnly { key: child_prior },
                     )
                     .await
                 }
@@ -1331,6 +1419,18 @@ where
     Ok(Some(DirectDep { alias, node_id, id }))
 }
 
+/// Whether a freshly resolved node landed back on its previously
+/// recorded lockfile entry — pnpm's `parentPkg.updated == false` arm,
+/// which keeps the prior child refs alive. Compares suffix-stripped
+/// forms on both sides: `resolved_pkg_id` is the canonical dep-path id
+/// ([`build_pkg_id_with_patch_hash`]'s output, which may carry a
+/// `(patch_hash=…)` suffix and `name@`-prefixes `file:`/git/tarball
+/// ids), and the recorded key may carry peer and patch-hash suffixes —
+/// none of which change *which package version* the parent is.
+fn landed_on_prior_entry(prior_key: &PkgNameVerPeer, resolved_pkg_id: &str) -> bool {
+    prior_key.without_peer().to_string() == pacquet_deps_path::remove_suffix(resolved_pkg_id)
+}
+
 /// One reusable node: its prior-lockfile snapshot key plus the
 /// `ResolveResult` synthesized from the lockfile metadata.
 struct ReusedNode {
@@ -1339,36 +1439,31 @@ struct ReusedNode {
 }
 
 /// Decide whether the current edge can reuse the prior lockfile's
-/// resolution. Returns the synthesized node when the edge's whole
-/// transitive subtree is reusable; `None` (fresh resolve) otherwise.
+/// resolution. `prior_key` is the edge's recorded snapshot key (see
+/// [`ReuseSource::prior_key`]). Returns the synthesized node when the
+/// edge's whole transitive subtree is reusable; `None` (fresh resolve)
+/// otherwise.
 ///
-/// Conservative on every axis: no prior lockfile, an unsatisfied direct
-/// range, a `link:` / non-registry shape anywhere in the subtree, or a
-/// missing snapshot entry all yield `None`. See
-/// [`fn@subtree_fully_reusable`] for the recursive subtree check.
+/// Conservative on every axis: no prior lockfile, no recorded key, a
+/// `link:` / non-registry shape anywhere in the subtree, or a missing
+/// snapshot entry all yield `None`. See [`fn@subtree_fully_reusable`]
+/// for the recursive subtree check.
 fn try_reuse_node(
     ctx: &TreeCtx,
     wanted: &WantedDependency,
-    reuse: ReuseSource,
+    prior_key: Option<&PkgNameVerPeer>,
 ) -> Option<ReusedNode> {
     let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
     if matches!(ctx.workspace.update_reuse_scope, UpdateReuseScope::None) {
         return None;
     }
     let alias = wanted.alias.as_deref()?;
-    let key = match reuse {
-        ReuseSource::Importer { importer_id } => {
-            let bare_specifier = wanted.bare_specifier.as_deref()?;
-            reusable_importer_dep(&lockfile.importers, &importer_id, alias, bare_specifier)?
-        }
-        ReuseSource::Transitive { key } => key?,
-        ReuseSource::Off => return None,
-    };
-    if !subtree_fully_reusable(ctx, lockfile, &key) {
+    let key = prior_key?;
+    if !subtree_fully_reusable(ctx, lockfile, key) {
         return None;
     }
-    let result = synthesize_reused_result(lockfile, &key, alias)?;
-    Some(ReusedNode { key, result })
+    let result = synthesize_reused_result(lockfile, key, alias)?;
+    Some(ReusedNode { key: key.clone(), result })
 }
 
 /// `true` when `name` is a `pacquet update` target excluded from reuse.
@@ -1491,6 +1586,7 @@ where
         opts.pick_lowest_version,
         opts.published_by,
         project_scope,
+        Some(key.clone()),
     );
     lock_recoverable(&ctx.workspace.resolved_by_wanted)
         .entry(cache_key)
@@ -2006,3 +2102,6 @@ const NON_EXOTIC_RESOLVED_VIA: &[&str] = &[
 fn is_exotic_resolved_via(resolved_via: &str) -> bool {
     !NON_EXOTIC_RESOLVED_VIA.contains(&resolved_via)
 }
+
+#[cfg(test)]
+mod tests;

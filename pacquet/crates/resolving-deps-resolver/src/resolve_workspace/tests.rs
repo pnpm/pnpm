@@ -143,6 +143,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         wanted_lockfile: None,
         update_reuse_scope: crate::UpdateReuseScope::All,
         auto_install_peers: false,
+        registries: HashMap::new(),
     }
 }
 
