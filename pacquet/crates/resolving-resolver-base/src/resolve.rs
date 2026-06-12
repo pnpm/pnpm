@@ -193,13 +193,20 @@ pub enum UpdateBehavior {
 /// Previously-resolved entry from the lockfile, threaded so resolvers
 /// can short-circuit when the install is not requesting an update. Mirrors
 /// upstream's
-/// [`CurrentPkg`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L274-L275).
-#[derive(Debug, Default, Clone, Serialize)]
+/// [`currentPkg`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L303-L309)
+/// field of `ResolveOptions`; the serialized form is the `currentPkg`
+/// payload custom resolvers receive.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CurrentPkg {
-    pub name: String,
-    pub version: String,
+    pub id: PkgResolutionId,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub peer_dependencies: Option<BTreeMap<String, String>>,
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    pub resolution: LockfileResolution,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub published_at: Option<String>,
 }
 
 /// Options the dispatcher hands a resolver per-resolve. Mirrors pnpm's

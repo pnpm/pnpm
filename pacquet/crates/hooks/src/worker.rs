@@ -37,6 +37,17 @@ const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
 /// Callback invoked for each `context.log(...)` a hook emits while it runs.
 pub type LogFn = Arc<dyn Fn(String) + Send + Sync>;
 
+/// Which optional methods one custom resolver in the pnpmfile's
+/// `resolvers` array implements. Mirrors the optional methods of pnpm's
+/// `CustomResolver` interface (`hooks/types/src/index.ts`).
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolverCapabilities {
+    pub can_resolve: bool,
+    pub resolve: bool,
+    pub should_refresh_resolution: bool,
+}
+
 struct Pending {
     log: LogFn,
     done: oneshot::Sender<Result<Value, String>>,
@@ -148,15 +159,16 @@ impl NodeWorker {
         .await
     }
 
-    /// Get the number of custom resolvers exported by the pnpmfile.
-    pub async fn get_resolver_count(&self) -> Result<usize, HookError> {
-        self.request(
-            "resolverCount",
-            serde_json::json!({ "target": "resolverCount" }),
-            Arc::new(|_| {}),
-        )
-        .await
-        .map(|value| value.as_u64().unwrap_or(0) as usize)
+    /// Get the capabilities of every custom resolver exported by the
+    /// pnpmfile's `resolvers` array, in array order. Lets callers skip
+    /// per-dependency IPC round trips for methods a resolver does not
+    /// implement, mirroring pnpm's optional-method checks
+    /// (`if (!customResolver.canResolve || !customResolver.resolve) continue`).
+    pub async fn get_resolver_capabilities(&self) -> Result<Vec<ResolverCapabilities>, HookError> {
+        let value = self
+            .request("resolvers", serde_json::json!({ "target": "resolvers" }), Arc::new(|_| {}))
+            .await?;
+        serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
     /// Send one request `body` (an object the worker dispatches on) and
@@ -169,13 +181,19 @@ impl NodeWorker {
         self.pending.lock().await.insert(id, Pending { log, done });
 
         body["id"] = serde_json::json!(id);
-        let mut line =
-            serde_json::to_string(&body).map_err(|err| self.exec_err(err.to_string()))?;
-        line.push('\n');
-        {
+        let send_result = async {
+            let mut line = serde_json::to_string(&body).map_err(|err| err.to_string())?;
+            line.push('\n');
             let mut stdin = self.stdin.lock().await;
-            stdin.write_all(line.as_bytes()).await.map_err(|err| self.exec_err(err.to_string()))?;
-            stdin.flush().await.map_err(|err| self.exec_err(err.to_string()))?;
+            stdin.write_all(line.as_bytes()).await.map_err(|err| err.to_string())?;
+            stdin.flush().await.map_err(|err| err.to_string())
+        }
+        .await;
+        if let Err(message) = send_result {
+            // The reader task can never answer a request that was not
+            // sent, so drop the entry here or it leaks until shutdown.
+            self.pending.lock().await.remove(&id);
+            return Err(self.exec_err(message));
         }
 
         match timeout(HOOK_TIMEOUT, rx).await {
@@ -242,21 +260,24 @@ async function handle(line) {{
   try {{
     const fn = mod && mod.hooks && mod.hooks[req.hook];
     const context = {{ log: (m) => send({{ log: String(m) }}) }};
-    if (req.target === 'resolverCount') {{
+    if (req.target === 'resolvers') {{
       const resolvers = mod && mod.resolvers;
-      send({{ ok: (Array.isArray(resolvers) ? resolvers.length : 0) }});
+      send({{ ok: (Array.isArray(resolvers) ? resolvers.map((resolver) => ({{
+        canResolve: typeof resolver.canResolve === 'function',
+        resolve: typeof resolver.resolve === 'function',
+        shouldRefreshResolution: typeof resolver.shouldRefreshResolution === 'function',
+      }})) : []) }});
       return;
     }}
     if (req.target === 'resolver') {{
       const resolvers = mod && mod.resolvers;
       const resolver = Array.isArray(resolvers) ? resolvers[req.index] : null;
-      const fn = resolver && resolver[req.method];
-      if (typeof fn !== 'function') {{
+      if (!resolver || typeof resolver[req.method] !== 'function') {{
         send({{ ok: null }});
         return;
       }}
       const args = req.payload || [];
-      const res = await fn(...args);
+      const res = await resolver[req.method](...args);
       send({{ ok: res === undefined ? null : res }});
       return;
     }}

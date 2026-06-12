@@ -696,18 +696,45 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             full_metadata,
             retry_opts: crate::retry_config::retry_opts_from_config(config),
         };
+        let pnpmfile_hook = finder::load_pnpmfile(lockfile_dir);
+        let custom_resolvers_raw: Vec<Arc<dyn pacquet_hooks::CustomResolver>> =
+            if let Some(ref hook) = pnpmfile_hook {
+                hook.get_custom_resolvers().await.map_err(|err| {
+                    tracing::error!(
+                        target: "pacquet::install",
+                        "Failed to get custom resolvers from pnpmfile: {err}",
+                    );
+                    InstallWithFreshLockfileError::CustomResolverHook(err)
+                })?
+            } else {
+                vec![]
+            };
+
         // Order mirrors upstream's chain at
         // <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L128-L147>:
-        // npm → jsr (folded into npm) → git → tarball → localScheme →
-        // node → deno → bun → namedRegistry → localPath. The
-        // local-resolver split is required by named-registry: a
+        // custom resolvers → npm → jsr (folded into npm) → git →
+        // tarball → localScheme → node → deno → bun → namedRegistry →
+        // localPath. Custom resolvers join only when they implement
+        // both `canResolve` and `resolve` (upstream skips the others).
+        // The local-resolver split is required by named-registry: a
         // `<alias>:@scope/pkg` specifier carries an embedded `/`,
         // which the path-shape detector
         // (`contains_path_sep` in `parse_bare_specifier.rs`) would
         // otherwise claim and prevent the named-registry resolver
         // from running.
-        let inner_resolver: Box<dyn Resolver> = Box::new(DefaultResolver::new(vec![
-            Box::new(ArcResolver(Arc::clone(&npm_resolver))),
+        let mut chain: Vec<Box<dyn Resolver>> = Vec::with_capacity(custom_resolvers_raw.len() + 9);
+        chain.extend(
+            custom_resolvers_raw
+                .iter()
+                .filter(|custom| custom.has_can_resolve() && custom.has_resolve())
+                .map(|custom| {
+                    Box::new(pacquet_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
+                        Arc::clone(custom),
+                    )) as Box<dyn Resolver>
+                }),
+        );
+        chain.extend([
+            Box::new(ArcResolver(Arc::clone(&npm_resolver))) as Box<dyn Resolver>,
             Box::new(git_resolver),
             Box::new(tarball_resolver),
             Box::new(local_scheme_resolver),
@@ -716,7 +743,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             Box::new(bun_resolver),
             Box::new(named_registry_resolver),
             Box::new(local_path_resolver),
-        ]));
+        ]);
+        let inner_resolver: Box<dyn Resolver> = Box::new(DefaultResolver::new(chain));
 
         // Wrap the resolver chain so each tarball-shaped result fires a
         // background download into `tarball_mem_cache` while the
@@ -962,7 +990,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 .collect();
         let peers_suffix_max_length =
             usize::try_from(config.peers_suffix_max_length).unwrap_or(usize::MAX);
-        let pnpmfile_hook = finder::load_pnpmfile(lockfile_dir);
         // Kept past the resolver hand-off (which consumes `pnpmfile_hook`) so
         // the `afterAllResolved` hook can transform the lockfile before it is
         // written.
@@ -979,37 +1006,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let after_all_resolved_log = pnpmfile_path
             .as_ref()
             .map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, "afterAllResolved"));
-
-        // Upstream chain priority:
-        // <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L128-L134>.
-        let custom_resolvers_raw: Vec<Arc<dyn pacquet_hooks::CustomResolver>> =
-            if let Some(ref hook) = pnpmfile_hook {
-                hook.get_custom_resolvers().await.map_err(|err| {
-                    tracing::error!(
-                        target: "pacquet::install",
-                        "Failed to get custom resolvers from pnpmfile: {err}",
-                    );
-                    InstallWithFreshLockfileError::CustomResolverHook(err)
-                })?
-            } else {
-                vec![]
-            };
-
-        let resolver: Box<dyn Resolver> = if custom_resolvers_raw.is_empty() {
-            resolver
-        } else {
-            let mut chain: Vec<Box<dyn Resolver>> =
-                Vec::with_capacity(custom_resolvers_raw.len() + 1);
-            for cr in &custom_resolvers_raw {
-                chain.push(Box::new(
-                    pacquet_hooks::custom_resolver_adapter::CustomResolverAdapter::new(Arc::clone(
-                        cr,
-                    )),
-                ));
-            }
-            chain.push(resolver);
-            Box::new(DefaultResolver::new(chain))
-        };
 
         // Call preResolution hook before resolution starts (mirrors pnpm's behavior in install/index.ts)
         if let Some(ref hook) = pnpmfile_hook {
@@ -1060,10 +1056,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         };
 
         // A throwing hook propagates and aborts.
-        if let Some(snapshots) = wanted_lockfile.as_ref().and_then(|lf| lf.snapshots.as_ref())
-            && should_refresh_resolution(&custom_resolvers_raw, snapshots)
-                .await
-                .map_err(InstallWithFreshLockfileError::CustomResolverForceResolve)?
+        if let Some(lockfile) = wanted_lockfile
+            && crate::check_custom_resolver_force_resolve::check_custom_resolver_force_resolve(
+                &custom_resolvers_raw,
+                lockfile,
+            )
+            .await
+            .map_err(InstallWithFreshLockfileError::CustomResolverForceResolve)?
         {
             update_reuse_scope = pacquet_resolving_deps_resolver::UpdateReuseScope::None;
         }
@@ -1996,22 +1995,6 @@ fn compute_package_extensions_checksum(config: &Config) -> Option<String> {
         config.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())?;
     let value = serde_json::to_value(extensions).ok()?;
     pacquet_graph_hasher::hash_object_nullable_with_prefix(&value)
-}
-
-/// A throwing hook propagates and aborts.
-async fn should_refresh_resolution(
-    custom_resolvers: &[Arc<dyn pacquet_hooks::CustomResolver>],
-    snapshots: &HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::SnapshotEntry>,
-) -> Result<bool, pacquet_hooks::HookError> {
-    for resolver in custom_resolvers {
-        for (dep_path, snapshot) in snapshots.iter() {
-            let snapshot_val = serde_json::to_value(snapshot).unwrap_or_default();
-            if resolver.should_refresh_resolution(dep_path.to_string(), snapshot_val).await? {
-                return Ok(true);
-            }
-        }
-    }
-    Ok(false)
 }
 
 /// [`Resolver`] adapter that delegates to a shared `Arc<dyn Resolver>`.

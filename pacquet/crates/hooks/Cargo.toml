@@ -12,8 +12,9 @@ repository.workspace  = true
 
 [dependencies]
 pacquet-crypto-hash             = { workspace = true }
+serde                           = { workspace = true }
 serde_json                      = { workspace = true }
-async-trait                     = "0.1"
+async-trait                     = { workspace = true }
 tokio                           = { workspace = true, features = ["rt", "process", "time", "io-util", "sync"] }
 derive_more                     = { workspace = true }
 pacquet-resolving-resolver-base = { workspace = true }

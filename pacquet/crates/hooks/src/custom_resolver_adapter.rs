@@ -85,22 +85,16 @@ impl Resolver for CustomResolverAdapter {
         Box::pin(async move {
             let key = Self::cache_key(wanted_dependency);
 
-            let can = {
-                let cache = self.can_resolve_cache.lock().unwrap();
-                cache.get(&key).copied()
-            };
-
-            let can = match can {
-                Some(val) => val,
-                None => {
-                    let wanted_val = Self::wanted_to_value(wanted_dependency);
-                    let result = self.resolver.can_resolve(wanted_val).await.map_err(|err| {
-                        Box::new(std::io::Error::other(err.to_string())) as ResolveError
-                    })?;
-                    let mut cache = self.can_resolve_cache.lock().unwrap();
-                    cache.insert(key.clone(), result);
-                    result
-                }
+            let cached = self.can_resolve_cache.lock().unwrap().get(&key).copied();
+            let can = if let Some(cached) = cached {
+                cached
+            } else {
+                let wanted_val = Self::wanted_to_value(wanted_dependency);
+                let result = self.resolver.can_resolve(wanted_val).await.map_err(|err| {
+                    Box::new(std::io::Error::other(err.to_string())) as ResolveError
+                })?;
+                self.can_resolve_cache.lock().unwrap().insert(key, result);
+                result
             };
 
             if !can {
@@ -139,12 +133,29 @@ impl Resolver for CustomResolverAdapter {
                 resolve_err
             })?;
 
+            // pnpm spreads the hook's whole result (`{ ...result,
+            // resolvedVia: 'custom-resolver' }`), so a manifest the
+            // resolver returns must survive — without it the installer
+            // would re-fetch the tarball just to read `package.json`.
+            let manifest = match result.get("manifest") {
+                Some(manifest_val) => {
+                    Some(Arc::new(serde_json::from_value(manifest_val.clone()).map_err(|err| {
+                        let resolve_err: ResolveError = Box::new(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!("Custom resolver returned invalid manifest: {err}"),
+                        ));
+                        resolve_err
+                    })?))
+                }
+                None => None,
+            };
+
             Ok(Some(ResolveResult {
                 id: PkgResolutionId::from(id.to_string()),
                 name_ver: None,
                 latest: None,
                 published_at: None,
-                manifest: None,
+                manifest,
                 resolution,
                 resolved_via: "custom-resolver".to_string(),
                 normalized_bare_specifier: None,
@@ -162,3 +173,6 @@ impl Resolver for CustomResolverAdapter {
         Box::pin(async move { Ok(None) })
     }
 }
+
+#[cfg(test)]
+mod tests;
