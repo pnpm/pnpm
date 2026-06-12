@@ -244,7 +244,8 @@ unimplemented = "warn"
 
 # explicit-intent guards (restriction): leaking, discarding, exiting, and
 # looping forever are all legal but must be spelled out at the use site.
-exit = "warn" # deliberate exits carry #[expect] (e.g. dlx propagating the child's status)
+exit          = "warn" # deliberate exits carry #[expect] (e.g. dlx propagating the child's status)
+infinite_loop = "warn"
 
 [profile.release]
 opt-level     = 3
