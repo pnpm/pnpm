@@ -80,3 +80,41 @@ test('dependency lifecycle scripts do not run when lockfile verification fails',
   // build phase was gated behind the (failed) verification.
   expect(fs.existsSync(`node_modules/${pkgName}/generated-by-postinstall.js`)).toBeFalsy()
 })
+
+test('project lifecycle scripts do not run when lockfile verification fails even without a modules dir', async () => {
+  prepareEmpty()
+
+  // Rejects only after the install has had ample time to reach the project
+  // lifecycle hooks: an instantly-rejecting verifier would abort the install
+  // before the hooks are even attempted, hiding a missing gate.
+  const slowRejectingVerifier: ResolutionVerifier = {
+    ...rejectingVerifier,
+    verify: async (resolution, pkg) => {
+      await new Promise((resolve) => setTimeout(resolve, 4000))
+      return rejectingVerifier.verify(resolution, pkg)
+    },
+  }
+
+  const manifest = {
+    dependencies: { 'is-positive': '1.0.0' },
+    scripts: {
+      postinstall: 'node -e "require(\'fs\').writeFileSync(\'created-by-project-postinstall\', \'\')"',
+    },
+  }
+  await install(manifest, testDefaults())
+  rimrafSync('node_modules')
+  rimrafSync('created-by-project-postinstall')
+
+  // `enableModulesDir: false` skips the dependency build phase entirely, so
+  // the project's own hooks are the only script-execution path left — they
+  // must still wait for the verification verdict.
+  await expect(
+    install(manifest, testDefaults({
+      frozenLockfile: true,
+      enableModulesDir: false,
+      resolutionVerifiers: [slowRejectingVerifier],
+    }))
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_TEST_REJECT' })
+
+  expect(fs.existsSync('created-by-project-postinstall')).toBeFalsy()
+})

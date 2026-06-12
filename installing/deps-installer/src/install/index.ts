@@ -1825,6 +1825,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
       }
       const projectsToBeBuilt = projectsWithTargetDirs.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]
+      // The projects' own lifecycle scripts import dependency code linked
+      // from the lockfile, so they are held to the same gate as dependency
+      // builds — also when no new dep paths made the buildModules branch run.
+      await opts.verifyLockfile?.()
       await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
         projectsToBeBuilt,
         opts.childConcurrency,

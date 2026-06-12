@@ -715,6 +715,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   summaryLogger.debug({ prefix: lockfileDir })
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest && !skipPostImportLinking) {
+    // The projects' own lifecycle scripts import dependency code linked from
+    // the lockfile, so they are held to the same gate as dependency builds —
+    // also on the `enableModulesDir: false` path that skips buildModules.
+    await opts.verifyLockfile?.()
     await runLifecycleHooksConcurrently(
       ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
       projectsToBeBuilt,
