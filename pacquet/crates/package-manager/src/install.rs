@@ -17,8 +17,8 @@ use pacquet_executor::{
     ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
 };
 use pacquet_lockfile::{
-    LoadLockfileError, Lockfile, MaybeLazyLockfile, SaveLockfileError, StalenessReason,
-    satisfies_package_manifest,
+    LazyLockfile, LoadLockfileError, Lockfile, MaybeLazyLockfile, SaveLockfileError,
+    StalenessReason, satisfies_package_manifest,
 };
 use pacquet_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, record_lockfile_verified,
@@ -42,7 +42,7 @@ use pacquet_workspace_state::{
 };
 use std::{
     collections::BTreeMap,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
     time::SystemTime,
 };
@@ -1768,6 +1768,63 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
 ///
 /// `workspace_projects.is_none()` covers single-project installs (no
 /// `pnpm-workspace.yaml`) — the only manifest is the root one.
+/// Inputs for [`install_already_up_to_date`].
+pub struct UpToDateFastPathCheck<'a> {
+    pub config: &'a Config,
+    pub manifest: &'a PackageManifest,
+    pub dependency_groups: Vec<DependencyGroup>,
+    pub node_linker: NodeLinker,
+}
+
+/// Pre-runtime twin of the repeat-install short-circuit inside
+/// [`Install::run`]: same workspace discovery, same
+/// [`check_optimistic_repeat_install`] inputs, callable from a
+/// synchronous context so the CLI can finish an up-to-date install
+/// before paying for the async runtime, the HTTP client, and the
+/// state setup. Returns the workspace root — the reporter `prefix`
+/// for the "Already up to date" emission — when the install can
+/// short-circuit.
+///
+/// Failures deliberately collapse to `None`: the caller falls through
+/// to the full install path, which reproduces the failure with its
+/// established error shape.
+#[must_use]
+pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<PathBuf> {
+    let UpToDateFastPathCheck { config, manifest, dependency_groups, node_linker } = check;
+    let included = IncludedDependencies {
+        dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+        dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+        optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+    };
+    let manifest_dir = manifest.path().parent()?;
+    let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir).ok()?;
+    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
+    let workspace_manifest = match workspace_dir_opt.as_deref() {
+        Some(dir) => pacquet_workspace::read_workspace_manifest(dir).ok()?,
+        None => None,
+    };
+    let catalogs = match config.catalogs.clone() {
+        Some(catalogs) => catalogs,
+        None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
+    };
+    let workspace_projects =
+        load_workspace_projects(&workspace_root, workspace_manifest.as_ref()).ok()?;
+    let project_manifests =
+        build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
+    let lockfile = LazyLockfile::deferred(config.lockfile);
+    (check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: &workspace_root,
+        config,
+        node_linker: *node_linker,
+        included,
+        project_manifests: &project_manifests,
+        is_workspace_install: workspace_manifest.is_some(),
+        lockfile: MaybeLazyLockfile::Lazy(&lockfile),
+        catalogs: &catalogs,
+    }) == OptimisticRepeatInstallDecision::UpToDate)
+        .then_some(workspace_root)
+}
+
 fn build_project_manifests_list<'a>(
     workspace_root: &std::path::Path,
     root_manifest: &'a PackageManifest,

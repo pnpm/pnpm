@@ -3,7 +3,7 @@
     reason = "struct-literal test fixtures; field types are evident from the literal and naming each would force ~20 imports"
 )]
 
-use super::{Install, InstallError};
+use super::{Install, InstallError, UpToDateFastPathCheck, install_already_up_to_date};
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_modules_yaml::{
@@ -5642,6 +5642,89 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         install_emits, 0,
         "no install-setup events must fire on the optimistic short-circuit; got events: {captured:#?}",
     );
+}
+
+/// The synchronous pre-runtime twin of the short-circuit
+/// ([`install_already_up_to_date`]) must reach the same verdict from
+/// the same on-disk state — and flip to `None` (fall through to the
+/// full install) as soon as a manifest outdates the recorded
+/// validation timestamp.
+#[test]
+fn sync_fast_path_matches_optimistic_short_circuit() {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+
+    std::fs::create_dir_all(&modules_dir).expect("create modules dir so the deps gate passes");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+    std::fs::write(project_root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
+        .expect("seed pnpm-lock.yaml");
+
+    let mut config = Config::new();
+    config.lockfile = false;
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let included = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+    let mut projects = std::collections::BTreeMap::new();
+    projects.insert(
+        project_root.to_string_lossy().into_owned(),
+        workspace_state::ProjectEntry {
+            name: Some("project".to_string()),
+            version: Some("1.0.0".to_string()),
+        },
+    );
+    let settings = crate::optimistic_repeat_install::current_settings(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        included,
+    );
+    workspace_state::update_workspace_state(
+        &project_root,
+        &pacquet_workspace_state::WorkspaceState {
+            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+            projects,
+            pnpmfiles: Vec::new(),
+            filtered_install: false,
+            config_dependencies: None,
+            settings,
+        },
+    )
+    .expect("seed workspace state");
+
+    let check = UpToDateFastPathCheck {
+        config,
+        manifest: &manifest,
+        dependency_groups: vec![DependencyGroup::Prod],
+        node_linker: pacquet_config::NodeLinker::Isolated,
+    };
+    let root = install_already_up_to_date(&check);
+    assert_eq!(root.as_deref(), Some(&*project_root), "fresh state must short-circuit");
+
+    // Outdate the manifest relative to the recorded timestamp: the
+    // fast path must decline and leave the decision to the full
+    // install. The far-future mtime defeats filesystem mtime
+    // resolution without sleeping.
+    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(120);
+    let file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&manifest_path)
+        .expect("open manifest for mtime bump");
+    file.set_modified(future).expect("bump manifest mtime");
+    drop(file);
+    // The manifest content still matches no lockfile (config.lockfile
+    // is off and no current lockfile exists), so the content re-check
+    // cannot vouch for it either.
+    assert_eq!(install_already_up_to_date(&check), None, "modified manifest must fall through");
 }
 
 /// `--frozen-lockfile` disables the optimistic short-circuit because

@@ -10,7 +10,7 @@ use miette::set_panic_hook;
 use pacquet_diagnostics::enable_tracing_by_env;
 use state::State;
 
-pub async fn main() -> miette::Result<()> {
+pub fn main() -> miette::Result<()> {
     enable_tracing_by_env();
     set_panic_hook();
     // Extract pnpm's `--config.<key>=<value>` tokens before clap sees
@@ -20,9 +20,22 @@ pub async fn main() -> miette::Result<()> {
     // token is layered onto `Config` after `.npmrc` / yaml run.
     let (config_overrides, argv) = ConfigOverrides::extract(std::env::args_os());
     let args = CliArgs::parse_from(argv);
-    // Boxed for `clippy::large_futures`: the command future exceeds the
-    // lint's stack-size threshold (the limit trips on Windows first).
-    Box::pin(args.run(&config_overrides)).await
+    // Still single-threaded here — required by `configure_rayon_pool`'s
+    // environment write.
+    configure_rayon_pool();
+    // An up-to-date `pacquet install` finishes here, without paying for
+    // the runtime, the HTTP client, or any worker threads.
+    if args.finished_via_install_fast_path(&config_overrides) {
+        return Ok(());
+    }
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("build the tokio runtime")
+        // Boxed for `clippy::large_futures`: the command future exceeds
+        // the lint's stack-size threshold (the limit trips on Windows
+        // first).
+        .block_on(Box::pin(args.run(&config_overrides)))
 }
 
 /// Size rayon's global pool at `2 × available_parallelism`. The link
@@ -64,11 +77,11 @@ pub async fn main() -> miette::Result<()> {
 /// # Safety contract
 ///
 /// Mutates the process environment, so the caller must invoke it
-/// before any other thread exists — in practice: in `fn main`, before
+/// before any other thread exists — in practice: in [`main`], before
 /// the tokio runtime is built.
 ///
 /// [#292]: https://github.com/pnpm/pacquet/pull/292
-pub fn configure_rayon_pool() {
+fn configure_rayon_pool() {
     if std::env::var_os("RAYON_NUM_THREADS").is_some() {
         return;
     }

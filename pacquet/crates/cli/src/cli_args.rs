@@ -22,7 +22,7 @@ use outdated::{OutdatedArgs, OutdatedOutcome};
 use pacquet_config::{Config, Host};
 use pacquet_executor::execute_shell;
 use pacquet_package_manifest::PackageManifest;
-use pacquet_reporter::{NdjsonReporter, SilentReporter};
+use pacquet_reporter::{NdjsonReporter, Reporter, SilentReporter};
 use remove::RemoveArgs;
 use run::RunArgs;
 use std::path::PathBuf;
@@ -137,6 +137,40 @@ pub enum CliCommand {
 }
 
 impl CliArgs {
+    /// Try to finish `pacquet install` synchronously through the
+    /// repeat-install fast path, before the caller builds the async
+    /// runtime. `true` means the install completed (the "Already up to
+    /// date" events were emitted); `false` means undecided — proceed
+    /// with [`Self::run`], which loads its own config and re-runs the
+    /// same check.
+    ///
+    /// Mirrors the install arm of [`Self::run`]'s dispatch: the same
+    /// canonicalized `--dir`, the same config layering (`.npmrc` auth
+    /// file seed + `--config.<key>` overrides). Workspace-filtered and
+    /// recursive installs always take the full path.
+    pub fn finished_via_install_fast_path(&self, config_overrides: &ConfigOverrides) -> bool {
+        let CliCommand::Install(install_args) = &self.command else {
+            return false;
+        };
+        if self.recursive || !self.filter.is_empty() || !self.filter_prod.is_empty() {
+            return false;
+        }
+        let Ok(dir) = dunce::canonicalize(&self.dir) else {
+            return false;
+        };
+        let loaded = Config { npmrc_auth_file: self.npmrc_auth_file.clone(), ..Config::default() }
+            .current::<Host>(&dir);
+        let Ok(mut config) = loaded else {
+            return false;
+        };
+        config_overrides.apply(&mut config);
+        let emit = match self.reporter {
+            ReporterType::Ndjson => NdjsonReporter::emit as fn(&pacquet_reporter::LogEvent),
+            ReporterType::Silent => SilentReporter::emit as fn(&pacquet_reporter::LogEvent),
+        };
+        install_args.finished_via_up_to_date_fast_path(&dir, &config, emit)
+    }
+
     /// Execute the command. `config_overrides` carries `--config.<key>=<value>`
     /// tokens already stripped from argv by [`ConfigOverrides::extract`];
     /// they're layered on top of `.npmrc` / `pnpm-workspace.yaml` whenever

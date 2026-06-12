@@ -23,12 +23,14 @@ impl LazyLockfile {
     /// A lockfile that will be loaded from the current directory (the
     /// same source as [`Lockfile::load_from_current_dir`]) on first
     /// [`Self::get`]. `enabled: false` skips the load entirely.
+    #[must_use]
     pub fn deferred(enabled: bool) -> Self {
         LazyLockfile { enabled, cell: OnceLock::new() }
     }
 
     /// A lockfile that is already in memory; [`Self::get`] returns it
     /// without touching the filesystem.
+    #[must_use]
     pub fn preloaded(lockfile: Option<Lockfile>) -> Self {
         let cell = OnceLock::new();
         cell.set(lockfile).expect("a fresh OnceLock accepts the first set");
@@ -51,6 +53,7 @@ impl LazyLockfile {
     /// document when already loaded, otherwise a filesystem existence
     /// probe — deliberately not a parse, so the repeat-install fast
     /// path stays mtime-cheap.
+    #[must_use]
     pub fn is_loaded_or_on_disk(&self) -> bool {
         if let Some(lockfile) = self.cell.get() {
             return lockfile.is_some();
@@ -81,6 +84,7 @@ impl<'a> MaybeLazyLockfile<'a> {
 
     /// Whether a wanted lockfile is available, without forcing a parse
     /// in the lazy case. See [`LazyLockfile::is_loaded_or_on_disk`].
+    #[must_use]
     pub fn is_loaded_or_on_disk(self) -> bool {
         match self {
             MaybeLazyLockfile::Loaded(lockfile) => lockfile.is_some(),
