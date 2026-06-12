@@ -254,6 +254,7 @@ get_unwrap = "warn" # `x[i]` over `x.get(i).unwrap()`: same panic, clearer inten
 # perf-shaped restriction lints
 pathbuf_init_then_push = "warn"
 string_add             = "warn"
+verbose_file_reads     = "warn"
 
 [profile.release]
 opt-level     = 3
