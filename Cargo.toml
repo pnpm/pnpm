@@ -242,6 +242,10 @@ unnecessary_safety_comment = "warn" # ...and `SAFETY:` prose never decorates saf
 todo          = "warn"
 unimplemented = "warn"
 
+# explicit-intent guards (restriction): leaking, discarding, exiting, and
+# looping forever are all legal but must be spelled out at the use site.
+exit = "warn" # deliberate exits carry #[expect] (e.g. dlx propagating the child's status)
+
 [profile.release]
 opt-level     = 3
 lto           = "fat"
