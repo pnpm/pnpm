@@ -5,7 +5,6 @@ import { audit } from '@pnpm/deps.compliance.commands'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
-import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { DepPath } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -317,19 +316,18 @@ The remaining vulnerabilities are:
   })
 
   test('vulnerable package with multiple versions is updated', async () => {
-    await addDistTag({ package: 'form-data', version: '4.0.4', distTag: 'latest' })
-
     const tmp = f.prepare('update-multiple')
 
-    const originalPkgId1 = 'form-data@3.0.1' as DepPath
-    const originalPkgId2 = 'form-data@4.0.0' as DepPath
-    const expectedPkgId1 = 'form-data@3.0.4' as DepPath
-    const expectedPkgId2 = 'form-data@4.0.4' as DepPath
+    const auditedPkg = '@pnpm.e2e/audit-multi-version'
+    const originalPkgId1 = `${auditedPkg}@1.0.0` as DepPath
+    const originalPkgId2 = `${auditedPkg}@2.0.0` as DepPath
+    const expectedPkgId1 = `${auditedPkg}@1.0.1` as DepPath
+    const expectedPkgId2 = `${auditedPkg}@2.0.1` as DepPath
 
     const { manifest: originalManifest } = await readProjectManifest(tmp)
     expect(originalManifest).toBeTruthy()
     expect(originalManifest.dependencies).toBeDefined()
-    expect(originalManifest.dependencies?.['form-data']).toBe('^3.0.1')
+    expect(originalManifest.dependencies?.[auditedPkg]).toBe('^1.0.0')
 
     const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
     expect(originalLockfile).toBeTruthy()
@@ -339,7 +337,7 @@ The remaining vulnerabilities are:
     expect(originalLockfile!.packages![expectedPkgId1]).toBeUndefined()
     expect(originalLockfile!.packages![expectedPkgId2]).toBeUndefined()
 
-    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'form-data-vulnerability.json'))
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'audit-multi-version-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
     getMockAgent().get(MOCK_REGISTRY)
@@ -358,15 +356,15 @@ The remaining vulnerabilities are:
     expect(output).toBe(`${chalk.green(2)} vulnerabilities were fixed, ${chalk.red(0)} vulnerabilities remain.
 
 The fixed vulnerabilities are:
-- (${chalk.green('critical')}) "${chalk.green('form-data uses unsafe random function in form-data for choosing boundary')}" ${chalk.blue('form-data')}
-- (${chalk.green('critical')}) "${chalk.green('form-data uses unsafe random function in form-data for choosing boundary')}" ${chalk.blue('form-data')}
+- (${chalk.green('critical')}) "${chalk.green(`Title: mock vulnerability in ${auditedPkg}`)}" ${chalk.blue(auditedPkg)}
+- (${chalk.green('critical')}) "${chalk.green(`Title: mock vulnerability in ${auditedPkg}`)}" ${chalk.blue(auditedPkg)}
 `)
     expect(exitCode).toBe(0)
 
     const { manifest } = await readProjectManifest(tmp)
     expect(manifest).toBeTruthy()
     expect(manifest.dependencies).toBeDefined()
-    expect(manifest.dependencies?.['form-data']).toBe('^3.0.4')
+    expect(manifest.dependencies?.[auditedPkg]).toBe('^1.0.1')
 
     const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
     expect(lockfile).toBeTruthy()
