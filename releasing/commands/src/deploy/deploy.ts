@@ -132,9 +132,16 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     }
   }
 
-  const deployedProject = opts.allProjects?.find(({ rootDir }) => rootDir === selectedProject.rootDir)
-  if (deployedProject) {
-    deployedProject.modulesDir = path.relative(selectedProject.rootDir, path.join(deployDir, 'node_modules'))
+  const deployNodeModules = path.join(deployDir, 'node_modules')
+  // Set modulesDir for ALL workspace projects to point to the deploy directory's
+  // node_modules. Without this, non-deployed projects fall back to the relative
+  // modulesDir from opts, which gets incorrectly joined with each project's
+  // rootDir, creating extraneous directories (e.g., project-2/foo/node_modules
+  // when deploying to ./foo).
+  if (opts.allProjects) {
+    for (const project of opts.allProjects) {
+      project.modulesDir = path.relative(project.rootDir, deployNodeModules)
+    }
   }
   await install.handler({
     ...opts,

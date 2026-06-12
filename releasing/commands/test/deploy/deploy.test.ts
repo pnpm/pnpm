@@ -251,6 +251,69 @@ test('deploy with node-linker=hoisted', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/10981
+// pnpm deploy should not create extra directories inside the deploy target
+// or inside other workspace project directories.
+test('deploy with node-linker=hoisted does not create extra directories', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-2': 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'is-odd': '1.0.0',
+      },
+    },
+  ])
+
+  ;['project-1', 'project-2'].forEach(name => {
+    fs.writeFileSync(`${name}/index.js`, '', 'utf8')
+  })
+
+  const { allProjects, selectedProjectsGraph } = await filterPkgsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    nodeLinker: 'hoisted',
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['some/nested/path'])
+
+  const project = assertProject(path.resolve('some/nested/path'))
+  project.has('project-2')
+  project.has('is-positive')
+  expect(fs.existsSync('some/nested/path/index.js')).toBeTruthy()
+  expect(fs.existsSync('some/nested/path/node_modules/.modules.yaml')).toBeTruthy()
+
+  // The deploy should NOT create extra directories inside the deploy target
+  expect(fs.existsSync('some/nested/path/some')).toBeFalsy()
+  // The deploy should NOT create directories inside other workspace projects
+  expect(fs.existsSync('project-1/some')).toBeFalsy()
+  expect(fs.existsSync('project-2/some')).toBeFalsy()
+})
+
 // Similar to the test above making sure pnpm deploy works with
 // node-linker=hoisted, but we should also make sure not to link projects not in
 // the dependency graph of the deployed package.
