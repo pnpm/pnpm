@@ -296,6 +296,14 @@ pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> 
 /// `peerDependencies`) tagged with the right `optional` / `injected`
 /// flags and with `catalog:` specifiers resolved.
 ///
+/// An alias declared in several groups yields one spec, merged the way
+/// pnpm spreads the groups in
+/// [`getWantedDependencies`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/getWantedDependencies.ts#L32-L43):
+/// `peerDependencies` first (when `auto_install_peers`), then
+/// `dependencies` < `devDependencies` < `optionalDependencies`, a later
+/// group's range replacing an earlier one — so an importer's own regular
+/// dep (e.g. a `workspace:*` devDependency) wins over its peer range.
+///
 /// Shared by [`fn@crate::resolve_importer`] (which walks them) and the
 /// `time-based` cutoff pre-pass in [`fn@crate::resolve_workspace`]
 /// (which only needs the resolved direct-dep publish dates), so both
@@ -312,13 +320,20 @@ pub(crate) fn importer_direct_wanted_specs<DependencyGroupList>(
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    let mut groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
-    if auto_install_peers && !groups.contains(&DependencyGroup::Peer) {
+    let included: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
+    let mut groups: Vec<DependencyGroup> = Vec::new();
+    if auto_install_peers || included.contains(&DependencyGroup::Peer) {
         groups.push(DependencyGroup::Peer);
     }
+    groups.extend(
+        [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
+            .into_iter()
+            .filter(|group| included.contains(group)),
+    );
     let optional_names = importer_optional_dependency_names(manifest);
     let injected_names = importer_injected_dependency_names(manifest);
-    let mut wanted: Vec<WantedSpec> = Vec::new();
+    let mut order: Vec<&str> = Vec::new();
+    let mut ranges: HashMap<&str, &str> = HashMap::new();
     for (name, range) in manifest.dependencies(groups) {
         if !crate::is_valid_dependency_alias(name) {
             return Err(ResolveDependencyTreeError::InvalidDependencyName {
@@ -326,10 +341,21 @@ where
                 alias: name.to_string(),
             });
         }
-        let optional = optional_names.contains(name);
-        let injected = injected_names.contains(name);
-        wanted.push((name.to_string(), range.to_string(), optional, injected));
+        if ranges.insert(name, range).is_none() {
+            order.push(name);
+        }
     }
+    let wanted: Vec<WantedSpec> = order
+        .into_iter()
+        .map(|name| {
+            (
+                name.to_string(),
+                ranges[name].to_string(),
+                optional_names.contains(name),
+                injected_names.contains(name),
+            )
+        })
+        .collect();
     resolve_catalog_specifiers(wanted, catalogs)
 }
 
