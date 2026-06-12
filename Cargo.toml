@@ -251,6 +251,9 @@ unused_result_ok = "warn" # discard with `let _ = ...`, not `.ok()`
 
 get_unwrap = "warn" # `x[i]` over `x.get(i).unwrap()`: same panic, clearer intent and message
 
+# perf-shaped restriction lints
+pathbuf_init_then_push = "warn"
+
 [profile.release]
 opt-level     = 3
 lto           = "fat"
