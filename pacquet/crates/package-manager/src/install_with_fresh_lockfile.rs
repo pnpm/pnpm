@@ -1315,6 +1315,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             cas_paths: prefetched_cas_paths,
             manifests: prefetched_manifests,
             side_effects_maps: _,
+            requires_build: _,
         } = prefetch;
         tracing::info!(
             target: "pacquet::install::phase",
@@ -1429,6 +1430,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot: _,
+            requires_build_by_snapshot: _,
             fetch_failed: _,
             // Populated only under `node_linker == Hoisted`; consumed by
             // the hoisted-linker pass below to materialize the on-disk

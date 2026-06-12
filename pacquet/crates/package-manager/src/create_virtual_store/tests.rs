@@ -83,8 +83,14 @@ async fn cold_batch_links_slots_in_parallel() {
         let source_dir = workspace_root.join("prefetched").join(package_name);
         fs::create_dir_all(&source_dir).expect("create prefetched package dir");
         let manifest_path = source_dir.join("package.json");
-        fs::write(&manifest_path, format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#))
-            .expect("write package manifest");
+        let manifest = if package_name == "cold-a" {
+            format!(
+                r#"{{"name":"{package_name}","version":"1.0.0","scripts":{{"postinstall":"node build.js"}}}}"#,
+            )
+        } else {
+            format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#)
+        };
+        fs::write(&manifest_path, manifest).expect("write package manifest");
         let index_path = source_dir.join("index.js");
         fs::write(&index_path, "module.exports = true\n").expect("write package body");
 
@@ -117,7 +123,7 @@ async fn cold_batch_links_slots_in_parallel() {
     let probe =
         crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::waiting_for_overlap();
 
-    CreateVirtualStore {
+    let output = CreateVirtualStore {
         http_client: &pacquet_network::ThrottledClient::default(),
         config,
         packages: Some(&packages),
@@ -149,6 +155,10 @@ async fn cold_batch_links_slots_in_parallel() {
         probe.max_concurrent(),
         rayon::current_num_threads(),
     );
+    let cold_a = key("cold-a", "1.0.0");
+    let cold_b = key("cold-b", "1.0.0");
+    assert_eq!(output.requires_build_by_snapshot.get(&cold_a), Some(&true));
+    assert_eq!(output.requires_build_by_snapshot.get(&cold_b), Some(&false));
 }
 
 const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";

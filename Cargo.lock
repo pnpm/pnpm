@@ -4366,6 +4366,7 @@ dependencies = [
  "pacquet-diagnostics",
  "pacquet-fs",
  "pacquet-network",
+ "pacquet-package-manifest",
  "pacquet-reporter",
  "pacquet-store-dir",
  "pipe-trait",
