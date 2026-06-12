@@ -5714,7 +5714,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     // fast path must decline and leave the decision to the full
     // install. The far-future mtime defeats filesystem mtime
     // resolution without sleeping.
-    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(120);
+    let future = std::time::SystemTime::now() + std::time::Duration::from_mins(2);
     let file = std::fs::OpenOptions::new()
         .append(true)
         .open(&manifest_path)
