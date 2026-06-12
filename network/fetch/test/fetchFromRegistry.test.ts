@@ -330,9 +330,9 @@ test('fetch timeout allows steady body progress past the timeout window', async 
         retry: { retries: 0 },
         timeout: 80,
       }).then(
-        (res) => res.text(),
+        async (res) => resolve(await res.text()),
         reject
-      ).then(resolve, reject).finally(() => server.close())
+      ).finally(() => server.close())
     })
   })
 
