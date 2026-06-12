@@ -11,11 +11,12 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-diagnostics = { workspace = true }
-pacquet-fs          = { workspace = true }
-pacquet-network     = { workspace = true }
-pacquet-reporter    = { workspace = true }
-pacquet-store-dir   = { workspace = true }
+pacquet-diagnostics      = { workspace = true }
+pacquet-fs               = { workspace = true }
+pacquet-network          = { workspace = true }
+pacquet-package-manifest = { workspace = true }
+pacquet-reporter         = { workspace = true }
+pacquet-store-dir        = { workspace = true }
 
 dashmap      = { workspace = true }
 derive_more  = { workspace = true }

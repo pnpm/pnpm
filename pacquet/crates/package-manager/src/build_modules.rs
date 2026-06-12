@@ -300,6 +300,10 @@ pub struct BuildModules<'a> {
     /// disabled or no rows were prefetched; the gate falls through
     /// to "rebuild" for every snapshot.
     pub side_effects_maps_by_snapshot: Option<&'a crate::SideEffectsMapsBySnapshot>,
+    /// Per-snapshot `requiresBuild` values from the warm-cache
+    /// prefetch. Missing entries fall back to inspecting the
+    /// materialized package directory.
+    pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
     /// `<platform>;<arch>;node<major>` — the prefix part of
     /// upstream's dep-state cache key. Computed once at install
     /// start by [`pacquet_graph_hasher::detect_node_major`] +
@@ -421,6 +425,7 @@ impl BuildModules<'_> {
             importers,
             allow_build_policy,
             side_effects_maps_by_snapshot,
+            requires_build_by_snapshot,
             engine_name,
             side_effects_cache,
             side_effects_cache_write,
@@ -440,14 +445,9 @@ impl BuildModules<'_> {
 
         let extra_env = HashMap::new();
 
-        // Compute requires_build per snapshot from each extracted package
-        // directory. Mirrors upstream where the worker computes
-        // `node.requiresBuild` from the package's manifest scripts and the
-        // presence of `binding.gyp` / `.hooks/` after extraction
-        // (`https://github.com/pnpm/pnpm/blob/80037699fb/building/pkg-requires-build/src/index.ts`).
-        // Pacquet does this here rather than in a worker because the worker
-        // does not exist yet — it is the same per-package on-disk inspection,
-        // moved to the build entry point.
+        // Compute `requiresBuild` per snapshot. Warm store-index rows
+        // already carry the upstream worker's answer, so only misses
+        // need to inspect the materialized package directory.
         let requires_build_map: HashMap<PackageKey, bool> = snapshots
             .keys()
             // Skip snapshots that never landed on disk. `pkg_requires_build`
@@ -457,14 +457,15 @@ impl BuildModules<'_> {
             // optional fan-out.
             .filter(|key| !skipped.contains(key))
             .map(|key| {
-                // Hoisted snapshots without a recorded `pkgRoot` (the
-                // walker dropped them) get `requires_build = false`
-                // so they fall through both the script-runner and the
-                // patch-apply gates without a syscall, matching the
-                // isolated path's `pkg_dir.exists() == false` skip.
-                let requires = pkg_root_for_key(layout, pkg_root_by_key, key)
-                    .as_deref()
-                    .is_some_and(pkg_requires_build);
+                let pkg_root = pkg_root_for_key(layout, pkg_root_by_key, key);
+                let requires = match (
+                    pkg_root.as_deref(),
+                    requires_build_by_snapshot.and_then(|map| map.get(key).copied()),
+                ) {
+                    (None, _) => false,
+                    (_, Some(requires)) => requires,
+                    (Some(pkg_root), None) => pkg_requires_build(pkg_root),
+                };
                 (key.clone(), requires)
             })
             .collect();

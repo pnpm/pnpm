@@ -1,5 +1,5 @@
 use super::{AllowBuildPolicy, BuildModules, parse_name_version_from_key};
-use crate::{SkippedSnapshots, VirtualStoreLayout};
+use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
 use pacquet_config::Config;
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_lockfile::{
@@ -332,6 +332,7 @@ fn build_modules_collects_ignored_builds() {
         packages: None,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
@@ -356,6 +357,54 @@ fn build_modules_collects_ignored_builds() {
         vec!["aaa@2.0.0".to_string(), "zzz@1.0.0".to_string()],
         "ignored set must be sorted lexicographically: {ignored:?}",
     );
+}
+
+#[test]
+fn cached_requires_build_false_skips_package_dir_probe() {
+    let pkg_key = key("aaa", "1.0.0");
+    let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
+    let importers = root_importers(&[("aaa", "1.0.0")]);
+    let policy = AllowBuildPolicy::default();
+
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    let modules_dir = tempdir().expect("create temp dir");
+    let lockfile_dir = tempdir().expect("create temp dir");
+
+    create_buildable_pkg(virtual_store_dir.path(), &pkg_key);
+    let requires_build_by_snapshot = RequiresBuildBySnapshot::from([(pkg_key, false)]);
+
+    let ignored = BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        importers: &importers,
+        packages: None,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: Some(&requires_build_by_snapshot),
+        engine_name: None,
+        side_effects_cache: true,
+        side_effects_cache_write: false,
+        store_dir: None,
+        store_index_writer: None,
+        patches: None,
+
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_root_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: false,
+    }
+    .run::<SilentReporter>()
+    .expect("run BuildModules");
+
+    assert!(ignored.is_empty());
 }
 
 /// Parallel-path variant of [`build_modules_collects_ignored_builds`]
@@ -405,6 +454,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         packages: None,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
@@ -466,6 +516,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         packages: None,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
@@ -550,6 +601,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         packages: None,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
@@ -689,6 +741,7 @@ fn using_side_effects_cache_skips_rebuild() {
         importers: &importers,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: Some(&side_effects_maps),
+        requires_build_by_snapshot: None,
         engine_name: Some(engine),
         side_effects_cache: true,
         side_effects_cache_write: false,
@@ -757,6 +810,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         importers: &importers,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: Some(&side_effects_maps),
+        requires_build_by_snapshot: None,
         engine_name: Some("darwin;arm64;node20"),
         side_effects_cache: false,
         side_effects_cache_write: false,
@@ -818,6 +872,7 @@ fn fail_when_failing_postinstall_is_required() {
         packages: None,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
@@ -901,6 +956,7 @@ fn frozen_backstop_run(
         importers: &importers,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: None,
         side_effects_cache: false,
         side_effects_cache_write: false,
@@ -1219,6 +1275,7 @@ async fn write_path_populates_side_effects_row() {
         importers: &importers,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: Some(engine),
         side_effects_cache: true,
         side_effects_cache_write: true,
@@ -1334,6 +1391,7 @@ async fn write_path_disabled_skips_upload() {
         importers: &importers,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: Some("darwin;arm64;node20"),
         side_effects_cache: true,
         side_effects_cache_write: false,
@@ -1457,6 +1515,7 @@ async fn upload_error_does_not_interrupt_install() {
         importers: &importers,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: Some("darwin;arm64;node20"),
         side_effects_cache: true,
         side_effects_cache_write: true,
@@ -1691,6 +1750,7 @@ new file mode 100644
         importers: &importers,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: Some(engine),
         side_effects_cache: true,
         side_effects_cache_write: true,
@@ -1801,6 +1861,7 @@ new file mode 100644
         importers: &importers,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: None,
         side_effects_cache: false,
         side_effects_cache_write: false,
@@ -1882,6 +1943,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         importers: &importers,
         allow_build_policy: &policy,
         side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
         engine_name: None,
         side_effects_cache: false,
         side_effects_cache_write: false,
