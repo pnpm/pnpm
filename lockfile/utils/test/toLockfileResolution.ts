@@ -105,6 +105,37 @@ test('keeps git-hosted tarballs when lockfileIncludeTarballUrl is false', () => 
   })
 })
 
+test('keeps the path of a git-hosted tarball pointing to a subdirectory', () => {
+  // The path selects the subdirectory to extract from a monorepo tarball
+  // (`repo#commit&path:/sub/dir`). Dropping it makes later installs silently
+  // unpack the repository root. See https://github.com/pnpm/pnpm/issues/12304.
+  expect(toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    { integrity: 'sha512-AAAA', tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef', gitHosted: true, path: '/packages/foo' },
+    REGISTRY,
+    false
+  )).toEqual({
+    integrity: 'sha512-AAAA',
+    tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef',
+    gitHosted: true,
+    path: '/packages/foo',
+  })
+})
+
+test('keeps the path of a git-hosted tarball when lockfileIncludeTarballUrl is true', () => {
+  expect(toLockfileResolution(
+    { name: 'foo', version: '1.0.0' },
+    { integrity: 'sha512-AAAA', tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef', gitHosted: true, path: '/packages/foo' },
+    REGISTRY,
+    true
+  )).toEqual({
+    integrity: 'sha512-AAAA',
+    tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef',
+    gitHosted: true,
+    path: '/packages/foo',
+  })
+})
+
 test('records gitHosted on the lockfile entry when set on the resolution', () => {
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },

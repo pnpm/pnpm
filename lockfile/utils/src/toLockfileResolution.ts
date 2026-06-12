@@ -26,21 +26,28 @@ export function toLockfileResolution (
   // legacy lockfiles read by callers that don't enrich the field).
   const gitHosted = (resolution as TarballResolution).gitHosted === true ||
     isGitHostedTarballUrl(tarball)
-  if (lockfileIncludeTarballUrl) {
+  // The kept-URL form must carry every field the fetcher needs to re-fetch
+  // and unpack the tarball. `path` selects the subdirectory to extract from
+  // a git-hosted monorepo tarball (`repo#commit&path:/sub/dir`); dropping
+  // it makes later installs silently unpack the repository root instead.
+  // See https://github.com/pnpm/pnpm/issues/12304.
+  const keepTarballUrl = (): LockfileResolution => {
+    const path = (resolution as TarballResolution).path
     return preservingGitHosted({
-      integrity: resolution['integrity'],
+      integrity: resolution['integrity'] as string,
       tarball,
+      ...(path == null ? {} : { path }),
     }, gitHosted)
+  }
+  if (lockfileIncludeTarballUrl) {
+    return keepTarballUrl()
   }
   // Tarball URLs that cannot be reconstructed from the package name, version,
   // and registry must always stay in the lockfile, otherwise the package can
   // no longer be re-fetched. This covers local `file:` tarballs and tarballs
   // served by git providers (GitHub, GitLab, Bitbucket).
   if (tarball.startsWith('file:') || gitHosted) {
-    return preservingGitHosted({
-      integrity: resolution['integrity'],
-      tarball,
-    }, gitHosted)
+    return keepTarballUrl()
   }
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
@@ -54,10 +61,7 @@ export function toLockfileResolution (
   const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
   const actualTarball = tarball.replaceAll('%2f', '/')
   if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
-    return preservingGitHosted({
-      integrity: resolution['integrity'],
-      tarball,
-    }, gitHosted)
+    return keepTarballUrl()
   }
   return {
     integrity: resolution['integrity'],
