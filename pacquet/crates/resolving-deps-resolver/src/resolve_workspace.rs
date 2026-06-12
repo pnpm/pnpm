@@ -34,7 +34,7 @@ use crate::{
 use chrono::{DateTime, Duration, Utc};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 /// One importer's input to [`fn@resolve_workspace`].
 pub struct WorkspaceImporter<'a> {
@@ -113,6 +113,11 @@ pub struct WorkspaceResolveOptions {
     /// [`crate::ResolveImporterOptions::auto_install_peers`] — the
     /// setting is workspace-wide, like pnpm's `autoInstallPeers`.
     pub auto_install_peers: bool,
+    /// Resolved registry map (`"default"` + per-scope), for
+    /// materializing a prior `Registry` lockfile resolution back into
+    /// its tarball URL when building the `currentPkg` payload custom
+    /// resolvers receive.
+    pub registries: HashMap<String, String>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -160,6 +165,7 @@ where
         wanted_lockfile,
         update_reuse_scope,
         auto_install_peers,
+        registries,
     } = opts;
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
@@ -168,7 +174,8 @@ where
             .with_update_reuse_scope(update_reuse_scope)
             .with_pnpmfile_hook(pnpmfile_hook)
             .with_read_package_log(read_package_log)
-            .with_auto_install_peers(auto_install_peers),
+            .with_auto_install_peers(auto_install_peers)
+            .with_registries(registries),
     );
 
     // Build every importer's options up front so the `time-based`

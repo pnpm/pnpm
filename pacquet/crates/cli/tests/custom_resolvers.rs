@@ -146,3 +146,79 @@ fn failing_should_refresh_resolution_aborts_the_install() {
 
     drop((root, mock_instance)); // cleanup
 }
+
+/// Port of upstream's `'custom resolver receives currentPkg on
+/// subsequent installs'` (`installing/deps-installer/test/install/customResolvers.ts`).
+///
+/// The first install records the npm resolver's pick — a `Registry`
+/// (`{integrity}`-only) lockfile entry. The second install is forced to
+/// re-resolve via `shouldRefreshResolution`; the resolver must receive
+/// that entry as `currentPkg` with the tarball URL re-derived from the
+/// registry, and echoing it back must keep the pinned version.
+#[test]
+fn custom_resolver_receives_current_pkg_on_subsequent_installs() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace);
+    // First install: the resolver claims nothing, so the npm resolver
+    // pins 100.0.0 and the lockfile compacts it to `{integrity}`.
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { resolvers: [{ shouldRefreshResolution: () => false }] }\n",
+    )
+    .expect("write pnpmfile");
+    pacquet.with_arg("install").assert().success();
+    assert_eq!(installed_version(&workspace), "100.0.0");
+
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"const fs = require('node:fs');
+const path = require('node:path');
+module.exports = {
+  resolvers: [
+    {
+      canResolve (wanted) {
+        return wanted.alias === '@pnpm.e2e/dep-of-pkg-with-1-dep';
+      },
+      resolve (wanted, opts) {
+        fs.writeFileSync(path.join(opts.lockfileDir, 'resolver-opts.json'), JSON.stringify(opts));
+        if (!opts.currentPkg) {
+          throw new Error('expected currentPkg on the second install');
+        }
+        return { id: opts.currentPkg.id, resolution: opts.currentPkg.resolution };
+      },
+      shouldRefreshResolution: () => true,
+    },
+  ],
+}
+",
+    )
+    .expect("rewrite pnpmfile");
+    pacquet_at(&workspace).with_arg("install").assert().success();
+
+    assert_eq!(installed_version(&workspace), "100.0.0", "echoing currentPkg keeps the pin");
+    let opts: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("resolver-opts.json")).expect("resolver dumped opts"),
+    )
+    .expect("parse dumped opts");
+    let current_pkg = &opts["currentPkg"];
+    assert_eq!(current_pkg["id"], "@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0");
+    assert_eq!(current_pkg["name"], "@pnpm.e2e/dep-of-pkg-with-1-dep");
+    assert_eq!(current_pkg["version"], "100.0.0");
+    // The on-disk entry is `{integrity}`-only; the payload must carry
+    // the tarball URL re-derived from the registry, like pnpm's
+    // `pkgSnapshotToResolution`.
+    let tarball = current_pkg["resolution"]["tarball"].as_str().expect("derived tarball URL");
+    assert!(
+        tarball.ends_with("/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz"),
+        "got: {tarball}",
+    );
+    assert!(
+        current_pkg["resolution"]["integrity"].is_string(),
+        "the recorded integrity carries over: {current_pkg}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}

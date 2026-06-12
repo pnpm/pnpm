@@ -593,7 +593,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let progress_reported = SharedReportedProgressKeys::default();
 
         let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
-            registries,
+            registries: registries.clone(),
             named_registries: merged_named_registries.clone(),
             http_client: Arc::clone(&http_client_arc),
             auth_headers: Arc::clone(&auth_headers),
@@ -1096,6 +1096,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 .map(Arc::new),
             update_reuse_scope,
             auto_install_peers: config.auto_install_peers,
+            registries,
         };
         let modules_basename = config.modules_dir.file_name().map_or_else(
             || std::ffi::OsString::from("node_modules"),
