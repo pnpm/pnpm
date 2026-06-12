@@ -61,6 +61,8 @@ export function reportLockfileVerification (
 }
 
 function formatProgress (log: LockfileVerificationLog): string {
+  // The `cached` branch is handled before calling this function.
+  if (log.status === 'cached') return ''
   const checked = log.status === 'started' ? 0 : log.checked
   return `${checked}/${log.entries} ${log.entries === 1 ? 'entry' : 'entries'}`
 }
