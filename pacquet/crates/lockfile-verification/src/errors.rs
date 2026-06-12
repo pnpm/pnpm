@@ -31,6 +31,13 @@ run \"pnpm clean --lockfile\" and then \"pnpm install\" to rebuild from \
 a fresh resolution. Alternatively, relax the policy that flagged \
 them.";
 
+const INVALID_ALIAS_HINT: &str = "A dependency alias becomes a directory under node_modules, \
+so it must be a valid npm package name — a single `name` or `@scope/name` with no leading \
+`.` or `_`, and not a reserved name such as `node_modules`. An alias containing path-traversal \
+segments or a reserved name such as `.bin` or `.pnpm` could make an install write outside the \
+intended directory or overwrite pnpm-owned layout. This usually means the lockfile was tampered \
+with — inspect recent changes to pnpm-lock.yaml before trusting it.";
+
 /// One verifier rejection rendered for the error breakdown.
 /// Internal-only data shape — the runner builds these from
 /// `ResolutionPolicyViolation` after sorting.
@@ -91,9 +98,47 @@ pub enum VerifyError {
         count: usize,
         breakdown: String,
     },
+
+    /// One or more dependency aliases in the lockfile are not valid
+    /// npm package names, so joining them under `node_modules` would
+    /// escape the install root or overwrite pnpm-owned layout. Mirrors
+    /// the sink-level guards' `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
+    #[display("{count} dependency {plural} in the lockfile {verb} not valid package names:\n{breakdown}", plural = if *count == 1 { "alias" } else { "aliases" }, verb = if *count == 1 { "is" } else { "are" })]
+    #[diagnostic(code(ERR_PNPM_INVALID_DEPENDENCY_NAME), help("{INVALID_ALIAS_HINT}"))]
+    InvalidDependencyAlias {
+        #[error(not(source))]
+        count: usize,
+        breakdown: String,
+    },
 }
 
 impl VerifyError {
+    /// Build the [`VerifyError::InvalidDependencyAlias`] variant from a
+    /// list of offending aliases. Sorts for determinism and caps the
+    /// printed breakdown at `MAX_VIOLATIONS_TO_PRINT`. Empty input is
+    /// a logic error — callers must check before constructing.
+    #[must_use]
+    pub fn invalid_dependency_aliases(aliases: &[String]) -> Self {
+        debug_assert!(!aliases.is_empty(), "no invalid aliases → no error");
+        let mut sorted: Vec<&String> = aliases.iter().collect();
+        sorted.sort();
+        let count = sorted.len();
+        let visible_count = count.min(MAX_VIOLATIONS_TO_PRINT);
+        let omitted = count.saturating_sub(visible_count);
+
+        let mut breakdown = String::new();
+        for alias in sorted.iter().take(visible_count) {
+            writeln!(breakdown, "  {alias:?}").unwrap();
+        }
+        if omitted > 0 {
+            write!(breakdown, "  …and {omitted} more").unwrap();
+        } else if breakdown.ends_with('\n') {
+            breakdown.pop();
+        }
+
+        VerifyError::InvalidDependencyAlias { count, breakdown }
+    }
+
     /// Build the appropriate variant from a list of rendered
     /// violations. The list is **already sorted** by `name@version`
     /// (the runner sorts before calling). Empty input is a logic

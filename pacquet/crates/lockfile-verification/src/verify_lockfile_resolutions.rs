@@ -23,6 +23,7 @@ use pacquet_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarb
 use pacquet_reporter::{
     LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
 };
+use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use pacquet_resolving_resolver_base::{
     ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
@@ -84,6 +85,23 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
+    // Offline, policy-independent structural check. Runs before the
+    // cache lookup so a record written by a pacquet version that
+    // predates this rule can't fast-path around it, and before the
+    // `packages` guard so a tampered importer alias is caught even when
+    // nothing is installed. A dependency alias becomes a
+    // `node_modules/<alias>` directory at link time, so an alias that
+    // isn't a valid package name (path-traversal, absolute, or a
+    // reserved name such as `.bin` / `.pnpm` / `node_modules`) can
+    // escape the install root or overwrite pnpm-owned layout. The
+    // hoisted linker rejects such aliases at its own sink too; this gate
+    // fails the whole install early, before any fetch or filesystem
+    // work. Mirrors upstream's check in `verifyLockfileResolutions.ts`.
+    let invalid_aliases = collect_invalid_dependency_aliases(lockfile);
+    if !invalid_aliases.is_empty() {
+        return Err(VerifyError::invalid_dependency_aliases(&invalid_aliases));
+    }
+
     if lockfile.packages.is_none() {
         return Ok(());
     }
@@ -302,6 +320,46 @@ fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
 fn is_http_tarball_url(url: &str) -> bool {
     let lower = url.to_ascii_lowercase();
     lower.starts_with("https://") || lower.starts_with("http://")
+}
+
+/// Scan every dependency alias the lockfile would turn into a
+/// `node_modules/<alias>` directory — each importer's
+/// `dependencies` / `dev_dependencies` / `optional_dependencies` and
+/// each snapshot's `dependencies` / `optional_dependencies` — and
+/// return the deduplicated, sorted set of aliases that are not valid
+/// npm package names. `is_valid_old_npm_package_name` is the same
+/// `validForOldPackages` rule pnpm's `isValidDependencyAlias` applies.
+///
+/// Other name-keyed maps (`overrides`, `patched_dependencies`, peer
+/// dependencies) are deliberately excluded: they don't become
+/// directories, so the package-name rule doesn't apply to them.
+fn collect_invalid_dependency_aliases(lockfile: &Lockfile) -> Vec<String> {
+    let mut invalid: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut check = |alias: &PkgName| {
+        let alias = alias.to_string();
+        if !is_valid_old_npm_package_name(&alias) {
+            invalid.insert(alias);
+        }
+    };
+    for importer in lockfile.importers.values() {
+        for deps in
+            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+        {
+            for alias in deps.iter().flatten().map(|(alias, _)| alias) {
+                check(alias);
+            }
+        }
+    }
+    if let Some(snapshots) = lockfile.snapshots.as_ref() {
+        for snapshot in snapshots.values() {
+            for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
+                for alias in deps.iter().flatten().map(|(alias, _)| alias) {
+                    check(alias);
+                }
+            }
+        }
+    }
+    invalid.into_iter().collect()
 }
 
 /// One `(name, version, resolution)` tuple deduplicated from

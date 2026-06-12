@@ -805,3 +805,99 @@ snapshots:
     .expect_err("uppercased git-host tarball must be rejected");
     assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
 }
+
+#[tokio::test]
+async fn rejects_invalid_importer_alias_even_with_no_verifiers() {
+    for alias in ["../../../escape", "@scope/../../escape", ".bin", ".pnpm", "node_modules"] {
+        let yaml = format!(
+            "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      '{alias}':\n        specifier: ^1.0.0\n        version: 1.0.0\n\npackages:\n\n  real@1.0.0:\n    resolution: {{integrity: sha512-deadbeef}}\n\nsnapshots:\n\n  real@1.0.0: {{}}\n",
+        );
+        let lockfile = parse(&yaml);
+        let err = verify_lockfile_resolutions::<SilentReporter>(
+            &lockfile,
+            &[],
+            &VerifyLockfileResolutionsOptions::default(),
+        )
+        .await
+        .expect_err("invalid importer alias must be rejected");
+        let VerifyError::InvalidDependencyAlias { count, breakdown } = err else {
+            panic!("expected InvalidDependencyAlias for {alias:?}, got {err:?}");
+        };
+        assert_eq!(count, 1);
+        assert!(breakdown.contains(alias), "breakdown {breakdown:?} should mention {alias:?}");
+    }
+}
+
+#[tokio::test]
+async fn rejects_invalid_alias_nested_in_snapshot() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      real:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  real@1.0.0:
+    resolution: {integrity: sha512-deadbeef}
+
+snapshots:
+
+  real@1.0.0:
+    dependencies:
+      '../../../escape': 1.0.0
+",
+    );
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("invalid alias nested in a snapshot must be rejected");
+    assert!(matches!(err, VerifyError::InvalidDependencyAlias { .. }), "got {err:?}");
+}
+
+#[tokio::test]
+async fn accepts_valid_scoped_and_unscoped_aliases() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+      '@scope/bar':
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-deadbeef}
+
+  '@scope/bar@1.0.0':
+    resolution: {integrity: sha512-deadbeef}
+
+snapshots:
+
+  foo@1.0.0: {}
+  '@scope/bar@1.0.0': {}
+",
+    );
+    verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect("valid scoped and unscoped aliases pass");
+}

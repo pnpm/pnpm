@@ -1,6 +1,7 @@
 import { lockfileVerificationLogger } from '@pnpm/core-loggers'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
+import { isValidDependencyAlias } from '@pnpm/installing.deps-resolver'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { isGitHostedTarballUrl, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type {
@@ -33,6 +34,10 @@ const MAX_VIOLATIONS_TO_PRINT = 20
 const DEFAULT_CONCURRENCY = 64
 
 export const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE = 'RESOLUTION_SHAPE_MISMATCH'
+
+// Mirrors the sink-level guards (`safeJoinModulesDir`) so the verifier and
+// the linkers throw the same code for the same tampering.
+export const INVALID_DEPENDENCY_ALIAS_CODE = 'INVALID_DEPENDENCY_NAME'
 
 const RESOLUTION_SHAPE_CACHE_IDENTITY: VerifierCacheIdentity = {
   policy: { resolutionShapeCheck: true },
@@ -98,6 +103,22 @@ export async function verifyLockfileResolutions (
   verifiers: ResolutionVerifier[],
   options?: VerifyLockfileResolutionsOptions
 ): Promise<void> {
+  // Offline, policy-independent structural check. Runs before the cache
+  // lookup so a record written by a pnpm version that predates this rule
+  // can't fast-path around it, and before the `packages` guard so a
+  // tampered importer alias is caught even when nothing is installed. A
+  // dependency alias becomes a `node_modules/<alias>` directory at link
+  // time, so an alias that isn't a valid package name (path-traversal,
+  // absolute, or a reserved name such as `.bin` / `.pnpm` /
+  // `node_modules`) can escape the install root or overwrite pnpm-owned
+  // layout. The linkers reject such aliases at their own sinks too; this
+  // gate fails the whole install early, before any filesystem work, for
+  // every linker at once.
+  const invalidAliases = collectInvalidDependencyAliases(lockfile)
+  if (invalidAliases.length > 0) {
+    throw buildInvalidAliasError(invalidAliases)
+  }
+
   if (!lockfile.packages) return
 
   // Caching kicks in only when the caller surfaced both a writable
@@ -206,6 +227,55 @@ export async function verifyLockfileResolutions (
       lockfilePath: options?.lockfilePath,
     })
   }
+}
+
+/**
+ * Scan every dependency alias the lockfile would turn into a
+ * `node_modules/<alias>` directory — each importer's
+ * `dependencies` / `devDependencies` / `optionalDependencies` and each
+ * package snapshot's `dependencies` / `optionalDependencies` — and
+ * return the deduplicated set of aliases that are not valid npm package
+ * names. Other name-keyed maps (`overrides` with `foo>bar` selectors,
+ * `patchedDependencies` keyed by `name@version`, peer dependencies) are
+ * deliberately excluded: they don't become directories, so the package
+ * name rule doesn't apply to them.
+ */
+function collectInvalidDependencyAliases (lockfile: LockfileObject): string[] {
+  const invalid = new Set<string>()
+  const check = (deps: Record<string, string> | undefined): void => {
+    if (deps == null) return
+    for (const alias of Object.keys(deps)) {
+      if (!isValidDependencyAlias(alias)) invalid.add(alias)
+    }
+  }
+  for (const importer of Object.values(lockfile.importers ?? {})) {
+    check(importer.dependencies)
+    check(importer.devDependencies)
+    check(importer.optionalDependencies)
+  }
+  for (const snapshot of Object.values(lockfile.packages ?? {})) {
+    check(snapshot.dependencies)
+    check(snapshot.optionalDependencies)
+  }
+  return Array.from(invalid)
+}
+
+function buildInvalidAliasError (aliases: string[]): PnpmError {
+  const sorted = [...aliases].sort()
+  const visible = sorted.slice(0, MAX_VIOLATIONS_TO_PRINT)
+  const omitted = sorted.length - visible.length
+  const breakdown = visible.map((alias) => `  ${JSON.stringify(alias)}`).join('\n')
+  const details = omitted > 0 ? `${breakdown}\n  …and ${omitted} more` : breakdown
+  const plural = aliases.length === 1 ? 'alias' : 'aliases'
+  return new PnpmError(
+    INVALID_DEPENDENCY_ALIAS_CODE,
+    `The lockfile contains ${aliases.length} dependency ${plural} that are not valid package names:\n${details}`,
+    {
+      hint: 'A dependency alias becomes a directory under node_modules, so it must be a valid npm package name — a single `name` or `@scope/name` with no leading `.` or `_`, and not a reserved name such as `node_modules`. ' +
+        'An alias containing path-traversal segments or a reserved name such as `.bin` or `.pnpm` could make an install write outside the intended directory or overwrite pnpm-owned layout. ' +
+        'This usually means the lockfile was tampered with — inspect recent changes to pnpm-lock.yaml before trusting it.',
+    }
+  )
 }
 
 function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmError {

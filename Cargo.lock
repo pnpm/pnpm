@@ -3904,6 +3904,7 @@ dependencies = [
  "pacquet-diagnostics",
  "pacquet-lockfile",
  "pacquet-reporter",
+ "pacquet-resolving-parse-wanted-dependency",
  "pacquet-resolving-resolver-base",
  "pretty_assertions",
  "serde",

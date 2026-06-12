@@ -70,6 +70,7 @@ export {
   type UpdateMatchingFunction,
   type WantedDependency,
 }
+export { assertValidDependencyAliases, isValidDependencyAlias } from './validateDependencyAlias.js'
 
 interface ProjectToLink {
   binsDir: string
