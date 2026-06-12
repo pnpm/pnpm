@@ -64,13 +64,13 @@ fn decodes_two_file_fixture_with_record_reuse() {
     let decoded = decode(&bytes);
     assert_eq!(decoded.files.len(), 2);
 
-    let pkg_json = decoded.files.get("package.json").unwrap();
+    let pkg_json = &decoded.files["package.json"];
     assert_eq!(pkg_json.digest, "abc");
     assert_eq!(pkg_json.mode, 0o644);
     assert_eq!(pkg_json.size, 17);
     assert_eq!(pkg_json.checked_at, Some(1_700_000_000_000));
 
-    let index_js = decoded.files.get("index.js").unwrap();
+    let index_js = &decoded.files["index.js"];
     assert_eq!(index_js.digest, "def");
     assert_eq!(index_js.mode, 0o755);
     assert_eq!(index_js.size, 42);
@@ -104,7 +104,7 @@ fn decodes_file_without_checked_at() {
         0x73, 0x69, 0x7a, 0x65, 0xa3, 0x61, 0x61, 0x61, 0xcd, 0x01, 0xa4, 0x01,
     ];
     let decoded = decode(&bytes);
-    let info = decoded.files.get("a.js").unwrap();
+    let info = &decoded.files["a.js"];
     assert_eq!(info.checked_at, None);
 }
 
@@ -358,7 +358,7 @@ fn encode_handles_fixint_in_slot_range_safely() {
         files,
         side_effects: None,
     };
-    assert_eq!(roundtrip(&original).files.get("f").unwrap().size, 0x7b);
+    assert_eq!(roundtrip(&original).files["f"].size, 0x7b);
 }
 
 #[test]
@@ -387,7 +387,7 @@ fn encode_omits_checked_at_when_none() {
         bytes.windows(needle.len()).all(|window| window != needle),
         "checkedAt leaked into output when the field was None: {bytes:02x?}",
     );
-    assert_eq!(roundtrip(&original).files.get("f").unwrap().checked_at, None);
+    assert_eq!(roundtrip(&original).files["f"].checked_at, None);
 }
 
 #[test]

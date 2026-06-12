@@ -471,8 +471,8 @@ fn per_importer_prefix_in_pnpm_root_events() {
     let alpha_prefix = workspace_root.join("packages/alpha").to_string_lossy().into_owned();
     let beta_prefix = workspace_root.join("packages/beta").to_string_lossy().into_owned();
     let by_prefix: HashMap<&str, &AddedRoot> = added.iter().copied().collect();
-    assert_eq!(by_prefix.get(alpha_prefix.as_str()).unwrap().name, "fastify");
-    assert_eq!(by_prefix.get(beta_prefix.as_str()).unwrap().name, "react");
+    assert_eq!(by_prefix[alpha_prefix.as_str()].name, "fastify");
+    assert_eq!(by_prefix[beta_prefix.as_str()].name, "react");
 
     drop(dir);
 }

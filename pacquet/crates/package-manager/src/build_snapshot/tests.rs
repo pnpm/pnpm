@@ -72,7 +72,7 @@ fn builds_snapshot_with_resolved_dependencies() {
     let deps = built.snapshot.dependencies.expect("dependencies should be populated");
     assert_eq!(deps.len(), 1);
     let react_key = PkgName::parse("react").unwrap();
-    assert_eq!(deps.get(&react_key).unwrap().to_string(), "17.0.2");
+    assert_eq!(deps[&react_key].to_string(), "17.0.2");
 }
 
 #[test]

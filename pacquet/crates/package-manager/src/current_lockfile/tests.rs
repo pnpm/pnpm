@@ -102,7 +102,7 @@ fn skipped_snapshot_pruned_from_snapshots_and_importer_optional() {
     assert!(snaps.contains_key(&key("keep", "1.0.0")));
     assert!(!snaps.contains_key(&key("drop", "1.0.0")), "skipped snapshot must be pruned");
 
-    let imp = filtered.importers.get(".").unwrap();
+    let imp = &filtered.importers["."];
     assert!(
         imp.optional_dependencies.as_ref().unwrap().is_empty(),
         "importer optional_dependencies entry pointing at a pruned snapshot must be removed",
@@ -147,7 +147,7 @@ fn include_optional_false_clears_importer_section() {
 
     let filtered = super::filter_lockfile_for_current(&lockfile, include, &skipped);
 
-    assert!(filtered.importers.get(".").unwrap().optional_dependencies.is_none());
+    assert!(filtered.importers["."].optional_dependencies.is_none());
     assert!(!filtered.snapshots.as_ref().unwrap().contains_key(&key("opt", "1.0.0")));
     assert!(filtered.snapshots.as_ref().unwrap().contains_key(&key("keep", "1.0.0")));
 }
@@ -318,7 +318,7 @@ fn link_optional_entries_survive_post_filter() {
     let filtered =
         super::filter_lockfile_for_current(&lockfile, include_all(), &SkippedSnapshots::new());
 
-    let opt = filtered.importers.get(".").unwrap().optional_dependencies.as_ref().unwrap();
+    let opt = filtered.importers["."].optional_dependencies.as_ref().unwrap();
     assert!(
         opt.contains_key(&pkg("workspace-pkg")),
         "link: importer entries must survive the optional-deps post-filter",
@@ -354,7 +354,7 @@ fn empty_skipped_and_full_include_is_identity_for_reachables() {
     assert!(snaps.contains_key(&key("a", "1.0.0")));
     assert!(snaps.contains_key(&key("b", "1.0.0")));
 
-    let imp = filtered.importers.get(".").unwrap();
+    let imp = &filtered.importers["."];
     assert!(imp.dependencies.as_ref().unwrap().contains_key(&pkg("a")));
 }
 

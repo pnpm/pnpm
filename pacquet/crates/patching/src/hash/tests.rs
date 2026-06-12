@@ -45,9 +45,9 @@ fn maps_keys_to_hashes() {
         calc_patch_hashes(vec![("foo@1.0.0".to_string(), patch_a), ("bar".to_string(), patch_b)])
             .unwrap();
 
-    assert_eq!(hashes.get("foo@1.0.0").unwrap(), HELLO_SHA256_HEX);
+    assert_eq!(&hashes["foo@1.0.0"], HELLO_SHA256_HEX);
     assert_eq!(
-        hashes.get("bar").unwrap(),
+        &hashes["bar"],
         // sha256 of "world\n"
         "e258d248fda94c63753607f7c4494ee0fcbe92f1a76bfdac795c9d84101eb317",
     );

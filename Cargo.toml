@@ -248,6 +248,8 @@ exit          = "warn" # deliberate exits carry #[expect] (e.g. dlx propagating 
 infinite_loop = "warn"
 mem_forget    = "warn" # deliberate leaks carry #[expect] with the reason
 
+get_unwrap = "warn" # `x[i]` over `x.get(i).unwrap()`: same panic, clearer intent and message
+
 [profile.release]
 opt-level     = 3
 lto           = "fat"

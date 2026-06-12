@@ -49,7 +49,7 @@ fn should_add_dependency() {
     let dependencies: HashMap<_, _> = manifest.dependencies([DependencyGroup::Prod]).collect();
     dbg!(&dependencies);
     assert!(dependencies.contains_key("fastify"));
-    assert_eq!(dependencies.get("fastify").unwrap(), &"1.0.0");
+    assert_eq!(&dependencies["fastify"], &"1.0.0");
     manifest.save().unwrap();
     let saved = read_to_string(tmp).unwrap();
     eprintln!("SAVED:\n{saved}");
