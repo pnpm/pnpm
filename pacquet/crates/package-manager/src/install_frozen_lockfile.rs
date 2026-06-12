@@ -79,10 +79,13 @@ where
     /// gate is a no-op. The non-blocking sequencing mirrors pnpm's
     /// concurrent `verifyLockfileResolutions` + `verifyLockfile` build gate.
     pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
+    /// When set, replaces the local `resolution_verifiers` fan-out as the
+    /// trust verdict — used by the pnpr client to delegate verification to
+    /// the server's `/v1/verify-lockfile` while the fetch runs locally. The
+    /// same concurrent sequencing and build gate apply.
     pub lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
     /// Absolute path of the lockfile being verified, for the on-disk
-    /// verification cache. `None` disables the cache (and is set when
-    /// there are no verifiers to run).
+    /// verification cache. `None` disables the cache.
     pub lockfile_path: Option<&'a Path>,
     /// The previous install's persisted current lockfile, threaded
     /// through to the hoisted walker for `prev_graph` (orphan

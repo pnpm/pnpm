@@ -671,23 +671,6 @@ where
         let lockfile_synthesized_from_current = synthesized_lockfile.is_some();
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
 
-        // Lockfile-verification gate: re-apply `minimumReleaseAge` /
-        // `trustPolicy='no-downgrade'` to every entry in the loaded
-        // `pnpm-lock.yaml` before any resolver or fetcher runs.
-        // Mirrors upstream's wiring at
-        // <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/index.ts#L355-L383>.
-        // `lockfile.is_none()` (writable-lockfile path) skips the
-        // gate entirely — fresh local resolution is already filtered
-        // by the resolver's per-version gate (`minimumReleaseAge` via
-        // `ResolveResult::policy_violation`, `trustPolicy='no-downgrade'`
-        // via the npm resolver's `fail_if_trust_downgraded_for_pick`).
-        // `trust_lockfile` (the OR of yaml's
-        // `trustLockfile` and the `--trust-lockfile` CLI flag,
-        // resolved in [`crate::cli_args::install::InstallArgs::run`])
-        // is the opt-out for environments where the install can
-        // treat the on-disk lockfile as already-trusted (see [#11860]).
-        //
-        // [#11860]: <https://github.com/pnpm/pnpm/issues/11860>
         // One per-install packument cache shared with both the
         // lockfile-verifier (below) and the resolver in
         // `install_with_fresh_lockfile` (further down). The
@@ -704,11 +687,17 @@ where
         // so the per-entry registry round trips overlap the download;
         // every other path (fresh resolve, the lockfile-only / up-to-date
         // short-circuits) verifies eagerly via [`verify_lockfile_eagerly`]
-        // before it proceeds. `trust_lockfile` (or no active resolution
-        // policy) leaves the list empty, making every gate a no-op — fresh
-        // local resolution is already filtered by the resolver's own
-        // per-version gate. The list is built whenever a policy could
-        // apply, independent of whether a lockfile is loaded, so the
+        // before it proceeds. `trust_lockfile` (the OR of yaml's
+        // `trustLockfile` and the `--trust-lockfile` CLI flag, resolved in
+        // [`crate::cli_args::install::InstallArgs::run`]; the opt-out for
+        // environments that treat the on-disk lockfile as already-trusted,
+        // see [#11860]) or no active resolution policy leaves the list
+        // empty, making every gate a no-op — fresh local resolution is
+        // already filtered by the resolver's own per-version gate
+        // (`minimumReleaseAge` via `ResolveResult::policy_violation`,
+        // `trustPolicy='no-downgrade'` via the npm resolver's
+        // `fail_if_trust_downgraded_for_pick`). The list is built whenever
+        // a policy could apply, independent of whether a lockfile is loaded, so the
         // fresh-resolve path can record the freshly written lockfile as
         // already-verified (see `record_lockfile_verified` below). Mirrors
         // pnpm's wiring at
