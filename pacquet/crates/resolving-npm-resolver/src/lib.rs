@@ -31,6 +31,7 @@ mod npm_resolver;
 mod parse_bare_specifier;
 mod pick_package;
 mod pick_package_from_meta;
+mod preferred_overlay;
 mod registry_url;
 mod resolve_from_workspace;
 mod trust_checks;
