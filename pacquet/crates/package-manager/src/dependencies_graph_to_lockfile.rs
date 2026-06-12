@@ -522,16 +522,29 @@ fn build_package_metadata(
 
     let engines = manifest
         .and_then(|m| m.get("engines"))
-        .and_then(Value::as_object)
-        .map(|map| {
-            map.iter()
-                .filter_map(|(name, value)| {
-                    let range = value.as_str()?;
-                    if range == "*" {
-                        return None;
-                    }
-                    Some((name.clone(), range.to_string()))
-                })
+        .and_then(|value| match value {
+            Value::Object(map) => Some(
+                map.iter()
+                    .filter_map(|(name, value)| Some((name.clone(), value.as_str()?)))
+                    .collect::<Vec<(String, &str)>>(),
+            ),
+            // Array-form `engines` (e.g. `["node >= 0.2.0"]`) records
+            // index-keyed entries, the shape upstream's
+            // `Object.entries(engines)` yields for an array.
+            Value::Array(items) => Some(
+                items
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, value)| Some((index.to_string(), value.as_str()?)))
+                    .collect(),
+            ),
+            _ => None,
+        })
+        .map(|entries| {
+            entries
+                .into_iter()
+                .filter(|(_, range)| *range != "*")
+                .map(|(name, range)| (name, range.to_string()))
                 .collect::<HashMap<String, String>>()
         })
         .filter(|map| !map.is_empty());
