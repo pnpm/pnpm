@@ -276,3 +276,73 @@ fn override_for_missing_dep_does_not_add_entry() {
     assert!(manifest.value().get("dependencies").unwrap().get("foo").is_none());
     assert_eq!(dep_spec(&manifest, "dependencies", "bar"), Some("^1"));
 }
+
+#[test]
+fn override_with_valid_peer_range_rewrites_peer_dependencies() {
+    let overrides = parsed(&[("ajv@>=7.0.0-alpha.0 <8.18.0", ">=8.18.0")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "schema-validator",
+        "version": "1.0.0",
+        "peerDependencies": { "ajv": "^8.12.0" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "ajv"), Some(">=8.18.0"));
+    assert_eq!(dep_spec(&manifest, "dependencies", "ajv"), None);
+}
+
+#[test]
+fn override_with_non_peer_range_lands_in_dependencies_and_keeps_the_peer() {
+    let overrides = parsed(&[("istanbul-reports", "npm:@zkochan/istanbul-reports")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "reporter-host",
+        "version": "1.0.0",
+        "peerDependencies": { "istanbul-reports": "^3.0.0" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(
+        dep_spec(&manifest, "dependencies", "istanbul-reports"),
+        Some("npm:@zkochan/istanbul-reports"),
+    );
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "istanbul-reports"), Some("^3.0.0"));
+}
+
+#[test]
+fn dash_override_deletes_the_peer_dependency() {
+    let overrides = parsed(&[("unwanted-peer", "-")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "peerDependencies": { "unwanted-peer": "^1.0.0", "kept": "^2.0.0" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "unwanted-peer"), None);
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "kept"), Some("^2.0.0"));
+}
+
+#[test]
+fn apply_to_arc_clones_when_only_a_peer_matches() {
+    let overrides = parsed(&[("ajv@<8.18.0", ">=8.18.0")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let original = std::sync::Arc::new(json!({
+        "name": "schema-validator",
+        "version": "1.0.0",
+        "peerDependencies": { "ajv": "^8.12.0" },
+    }));
+    let updated = overrider.apply_to_arc(std::sync::Arc::clone(&original), None);
+
+    assert!(!std::sync::Arc::ptr_eq(&original, &updated), "peer-only match must clone");
+    assert_eq!(
+        updated.get("peerDependencies").and_then(|peers| peers.get("ajv")).and_then(Value::as_str),
+        Some(">=8.18.0"),
+    );
+}

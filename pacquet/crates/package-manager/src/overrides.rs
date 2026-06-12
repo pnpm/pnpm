@@ -12,16 +12,6 @@
 //! resolved dependency graph and lockfile match pnpm's post-override
 //! manifest view.
 //!
-//! What's intentionally **not** ported yet:
-//! - `peerDependencies` mutation. Upstream promotes a peer to
-//!   `dependencies` when the new specifier isn't a valid peer range,
-//!   and writes a valid peer-range spec back to `peerDependencies`.
-//!   Pacquet's freshness check doesn't read `peerDependencies` and
-//!   pacquet has no peer install yet, so a frozen install on a repo
-//!   with peer overrides doesn't need the rewrite to stay correct
-//!   today. When peer install lands, the peer arm gets ported with
-//!   it.
-//!
 //! The hook never touches the on-disk `package.json` — mutation
 //! happens through [`pacquet_package_manifest::PackageManifest::value_mut`]
 //! on the in-memory `Value` only.
@@ -121,16 +111,12 @@ impl VersionsOverrider {
     pub fn apply_to_value(&self, manifest: &mut Value, manifest_dir: Option<&Path>) {
         let applicable_parent_scoped = self.applicable_parent_scoped(manifest);
 
-        // Upstream's `overrideDepsOfPkg` mutates the four dep buckets
-        // (`dependencies`, `optionalDependencies`, `devDependencies`,
-        // and the `peerDependencies → dependencies` migration).
-        // Pacquet today skips the peer arm — see the module-level doc
-        // for why.
         for group in
             [DependencyGroup::Prod, DependencyGroup::Optional, DependencyGroup::Dev].iter().copied()
         {
             self.override_group(manifest, group, &applicable_parent_scoped, manifest_dir);
         }
+        self.override_peer_group(manifest, &applicable_parent_scoped, manifest_dir);
     }
 
     /// Apply overrides to the resolver's shared manifest value,
@@ -167,10 +153,15 @@ impl VersionsOverrider {
 
     fn has_applicable_override(&self, value: &Value) -> bool {
         let applicable_parent_scoped = self.applicable_parent_scoped(value);
-        [DependencyGroup::Prod, DependencyGroup::Optional, DependencyGroup::Dev]
-            .iter()
-            .copied()
-            .any(|group| self.group_has_override(value, group, &applicable_parent_scoped))
+        [
+            DependencyGroup::Prod,
+            DependencyGroup::Optional,
+            DependencyGroup::Dev,
+            DependencyGroup::Peer,
+        ]
+        .iter()
+        .copied()
+        .any(|group| self.group_has_override(value, group, &applicable_parent_scoped))
     }
 
     fn group_has_override(
@@ -225,6 +216,70 @@ impl VersionsOverrider {
         }
     }
 
+    /// The `peerDependencies` arm of upstream's
+    /// [`overrideDepsOfPkg`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/hooks/read-package-hook/src/createVersionsOverrider.ts#L68-L129):
+    /// a matched peer is deleted on `-`, rewritten in place when the
+    /// override value is a valid peer range, and otherwise written
+    /// into `dependencies` (the peer entry stays as declared, and the
+    /// concrete `link:` / `file:` / alias spec is installed as a
+    /// regular dependency).
+    fn override_peer_group(
+        &self,
+        value: &mut Value,
+        applicable_parent_scoped: &[&ResolvedOverride],
+        manifest_dir: Option<&Path>,
+    ) {
+        let entries: Vec<(String, String)> = value
+            .get("peerDependencies")
+            .and_then(Value::as_object)
+            .map(|map| {
+                map.iter()
+                    .filter_map(|(name, spec)| {
+                        spec.as_str().map(|spec_str| (name.clone(), spec_str.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        for (name, spec) in entries {
+            let Some(chosen) = self.choose_override(applicable_parent_scoped, &name, &spec) else {
+                continue;
+            };
+
+            if chosen.inner.new_bare_specifier == "-" {
+                if let Some(peers) = value.get_mut("peerDependencies").and_then(Value::as_object_mut)
+                {
+                    peers.remove(&name);
+                }
+                continue;
+            }
+
+            let new_spec = chosen.local_target.as_ref().map_or_else(
+                || chosen.inner.new_bare_specifier.clone(),
+                |target| resolve_local_override_spec(target, manifest_dir),
+            );
+
+            if is_valid_peer_range(&new_spec) {
+                if let Some(peers) = value.get_mut("peerDependencies").and_then(Value::as_object_mut)
+                {
+                    peers.insert(name, Value::String(new_spec));
+                }
+            } else {
+                if !value.get("dependencies").is_some_and(Value::is_object) {
+                    if let Some(root) = value.as_object_mut() {
+                        root.insert(
+                            "dependencies".to_string(),
+                            Value::Object(serde_json::Map::new()),
+                        );
+                    }
+                }
+                if let Some(deps) = value.get_mut("dependencies").and_then(Value::as_object_mut) {
+                    deps.insert(name, Value::String(new_spec));
+                }
+            }
+        }
+    }
+
     fn choose_override<'b>(
         &'b self,
         applicable_parent_scoped: &[&'b ResolvedOverride],
@@ -262,6 +317,14 @@ impl VersionsOverrider {
         sort_by_specificity(&mut matching);
         matching.into_iter().next()
     }
+}
+
+/// Mirrors upstream's
+/// [`isValidPeerRange`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/deps/peer-range/src/index.ts):
+/// a parseable semver range, or any expression containing a
+/// `workspace:` / `catalog:` segment.
+fn is_valid_peer_range(spec: &str) -> bool {
+    Range::parse(spec).is_ok() || spec.contains("workspace:") || spec.contains("catalog:")
 }
 
 /// Mirrors upstream's `targetPkg.name === name && isIntersectingRange(targetPkg.bareSpecifier, bareSpecifier)`.
