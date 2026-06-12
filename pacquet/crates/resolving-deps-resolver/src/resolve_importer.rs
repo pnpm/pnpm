@@ -290,9 +290,11 @@ where
         exclude_links_from_lockfile,
         lockfile_dir: lockfile_dir.clone(),
         modules_dir: modules_dir.clone(),
+        hoist_missing_scope: None,
     };
 
     let ctx = TreeCtx::with_workspace(workspace, base_opts)
+        .with_importer_id(importer_id)
         .with_patched_dependencies(patched_dependencies)
         .with_resolution_mode(pick_lowest_direct, subdep_published_by);
 
@@ -313,10 +315,30 @@ where
         direct.iter().map(|dep| dep.alias.clone()).collect();
     let mut all_missing_optional_peers: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
+    // The hoist input must not see missing peers declared inside a
+    // subtree first resolved under an earlier importer — upstream
+    // reuses the first walk's children report there, so those peers
+    // never reach a later importer's hoist. The final per-importer
+    // pass below keeps the unscoped options so warnings stay complete.
+    // Snapshotted once per importer: suppression only consults entries
+    // recorded by earlier importers (everything this importer's own
+    // loop adds is self-claimed and exempt), so the maps cannot change
+    // in a way the loop observes.
+    let hoist_missing_scope = Arc::new(crate::resolve_peers::HoistMissingScope {
+        importer_id: importer_id.to_string(),
+        first_importer_by_pkg: ctx.workspace().first_importer_by_pkg(),
+        first_walk_missing_by_pkg: ctx.workspace().first_walk_missing_by_pkg(),
+    });
+    let hoist_peers_opts = || {
+        let mut opts = peers_opts();
+        opts.hoist_missing_scope = Some(Arc::clone(&hoist_missing_scope));
+        opts
+    };
     loop {
         loop {
             let mut snapshot = ctx.snapshot(direct.clone());
-            let peers_result = resolve_peers(&mut snapshot, peers_opts());
+            let peers_result = resolve_peers(&mut snapshot, hoist_peers_opts());
+            ctx.workspace().record_first_walk_missing(&peers_result.missing_names_by_pkg);
 
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &peers_result.peer_dependency_issues.missing,

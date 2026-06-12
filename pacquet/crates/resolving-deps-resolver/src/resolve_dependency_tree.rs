@@ -510,6 +510,20 @@ pub struct WorkspaceTreeCtx {
     /// peer edge supplies the package instead. See
     /// [`omit_peer_shadowed_dependencies`].
     auto_install_peers: bool,
+    /// `pkg id → importer id` of the importer whose walk first resolved
+    /// each package. Mirrors the ownership implied by upstream's
+    /// per-`pkgId` shared subtree records
+    /// ([`missingPeersOfChildrenByPkgId`](https://github.com/pnpm/pnpm/blob/a751c7f27d/installing/deps-resolver/src/resolveDependencies.ts#L193)):
+    /// a package revisited under a later importer does not recompute
+    /// its children's missing-peer report, so that importer's
+    /// peer-hoist must not see missing peers declared inside a
+    /// subtree first resolved elsewhere. Consumed via
+    /// [`crate::HoistMissingScope`].
+    first_importer_by_pkg: Mutex<HashMap<String, String>>,
+    /// Per package: the missing-peer names reported by the first
+    /// peer-walk that visited it (the walk of the importer that
+    /// claimed the package). Consumed via [`crate::HoistMissingScope`].
+    first_walk_missing_by_pkg: Mutex<HashMap<String, HashSet<String>>>,
 }
 
 impl Default for WorkspaceTreeCtx {
@@ -530,6 +544,8 @@ impl Default for WorkspaceTreeCtx {
             pnpmfile_hook: None,
             read_package_log: None,
             auto_install_peers: false,
+            first_importer_by_pkg: Mutex::new(HashMap::new()),
+            first_walk_missing_by_pkg: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -576,6 +592,30 @@ impl WorkspaceTreeCtx {
     /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
     pub fn wanted_lockfile(&self) -> Option<&Arc<pacquet_lockfile::Lockfile>> {
         self.wanted_lockfile.as_ref()
+    }
+
+    /// Snapshot of `pkg id → first-resolving importer id`. See the
+    /// field doc.
+    #[must_use]
+    pub fn first_importer_by_pkg(&self) -> HashMap<String, String> {
+        lock_recoverable(&self.first_importer_by_pkg).clone()
+    }
+
+    /// Record a walk's per-package missing-peer names; the first walk
+    /// to visit a package wins. See the `first_walk_missing_by_pkg`
+    /// field doc.
+    pub fn record_first_walk_missing(&self, missing_by_pkg: &HashMap<String, HashSet<String>>) {
+        let mut record = lock_recoverable(&self.first_walk_missing_by_pkg);
+        for (pkg_id, names) in missing_by_pkg {
+            record.entry(pkg_id.clone()).or_insert_with(|| names.clone());
+        }
+    }
+
+    /// Snapshot of the per-package first-walk missing-peer names. See
+    /// the `first_walk_missing_by_pkg` field doc.
+    #[must_use]
+    pub fn first_walk_missing_by_pkg(&self) -> HashMap<String, HashSet<String>> {
+        lock_recoverable(&self.first_walk_missing_by_pkg).clone()
     }
 
     /// Set which dependencies `pacquet update` excludes from reuse. See
@@ -672,6 +712,10 @@ pub struct TreeCtx {
     /// recursive call. `None` when no patches are configured for this
     /// install.
     patched_dependencies: Option<Arc<PatchGroupRecord>>,
+    /// The importer this per-importer context walks for. Recorded into
+    /// [`WorkspaceTreeCtx`]'s `first_importer_by_pkg` when a package is
+    /// first resolved.
+    importer_id: String,
 }
 
 impl TreeCtx {
@@ -687,6 +731,7 @@ impl TreeCtx {
             base_opts,
             workspace: Arc::new(WorkspaceTreeCtx::default()),
             patched_dependencies: None,
+            importer_id: pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
         }
     }
 
@@ -701,6 +746,7 @@ impl TreeCtx {
             base_opts,
             workspace,
             patched_dependencies: None,
+            importer_id: pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY.to_string(),
         }
     }
 
@@ -744,6 +790,14 @@ impl TreeCtx {
     #[must_use]
     pub fn workspace(&self) -> &Arc<WorkspaceTreeCtx> {
         &self.workspace
+    }
+
+    /// Set the importer this context walks for. See [`TreeCtx`]'s
+    /// `importer_id` field.
+    #[must_use]
+    pub fn with_importer_id(mut self, importer_id: &str) -> Self {
+        self.importer_id = importer_id.to_string();
+        self
     }
 
     /// Attach the install's `patchedDependencies` map. When `Some`,
@@ -1145,6 +1199,9 @@ where
                     is_leaf,
                 },
             );
+            lock_recoverable(&ctx.workspace.first_importer_by_pkg)
+                .entry(id.clone())
+                .or_insert_with(|| ctx.importer_id.clone());
             is_revisit = false;
         }
     }
@@ -1491,6 +1548,9 @@ where
                     is_leaf,
                 },
             );
+            lock_recoverable(&ctx.workspace.first_importer_by_pkg)
+                .entry(id.clone())
+                .or_insert_with(|| ctx.importer_id.clone());
             is_revisit = false;
         }
     }

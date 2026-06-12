@@ -291,3 +291,197 @@ async fn lowest_direct_applies_no_publish_cutoff() {
         "no time-based cutoff in lowest-direct mode",
     );
 }
+
+/// A package shared across importers keeps the peer context of the
+/// importer that resolved it first: pnpm reuses the first walk's
+/// children missing-peer report, so a later importer never hoists an
+/// optional peer declared inside that shared subtree, and the
+/// workspace-wide peer pass shares the first importer's variant
+/// (verified against pnpm 11.6.0 — root + pkg-a both depending on
+/// `@pnpm/meta-updater` keep root's `@types/node` context while a
+/// third importer pins a higher version).
+#[tokio::test]
+async fn shared_subtree_keeps_first_importers_optional_peer_context() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("shared".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "shared",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "shared",
+                "version": "1.0.0",
+                "dependencies": { "mid": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("mid".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "mid",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "mid",
+                "version": "1.0.0",
+                "peerDependencies": { "opt": "*" },
+                "peerDependenciesMeta": { "opt": { "optional": true } },
+            }),
+        ),
+    );
+    for version in ["18.0.0", "25.0.0"] {
+        table.insert(
+            ("opt".to_string(), version.to_string()),
+            fake_result(
+                "opt",
+                version,
+                None,
+                serde_json::json!({ "name": "opt", "version": version }),
+            ),
+        );
+    }
+    // `carrier` puts `opt@25.0.0` into the run-resolved preferred
+    // versions during the root importer's walk — deep enough that it
+    // is not in any peer scope — so a later hoist would pick it as the
+    // max satisfying version.
+    table.insert(
+        ("carrier".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "carrier",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "carrier",
+                "version": "1.0.0",
+                "dependencies": { "opt": "25.0.0" },
+            }),
+        ),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let (tmp_root, root_manifest) = fake_manifest(
+        serde_json::json!({ "shared": "1.0.0", "opt": "18.0.0", "carrier": "1.0.0" }),
+    );
+    let (tmp_a, a_manifest) = fake_manifest(serde_json::json!({ "shared": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+    ];
+    let dirs = [tmp_root.path(), tmp_a.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.auto_install_peers = true;
+        opts
+    })
+    .await
+    .unwrap();
+
+    let root_direct = result.peers.direct_dependencies_by_importer.get(".").expect("root importer");
+    assert_eq!(
+        root_direct.get("shared").map(std::string::ToString::to_string),
+        Some("shared@1.0.0(opt@18.0.0)".to_string()),
+    );
+    let a_direct =
+        result.peers.direct_dependencies_by_importer.get("pkg-a").expect("pkg-a importer");
+    assert_eq!(
+        a_direct.get("shared").map(std::string::ToString::to_string),
+        Some("shared@1.0.0(opt@18.0.0)".to_string()),
+        "pkg-a shares the first importer's variant instead of hoisting the higher version",
+    );
+}
+
+/// The reverse of the sharing case above: when the first importer's
+/// walk could NOT satisfy the optional peer either (it only hoisted it
+/// later), the miss stays visible to every importer — each hoists its
+/// own copy, so the shared subtree carries the peer suffix under both
+/// (pnpm 11.6.0 behaviour for e.g. `clipanion`'s `typanion` under
+/// importers that share `@yarnpkg/*` chains with the root).
+#[tokio::test]
+async fn shared_subtree_miss_unsatisfied_by_first_importer_still_hoists() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("top".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "top",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "top",
+                "version": "1.0.0",
+                "dependencies": { "mid": "1.0.0", "carrier": "1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("mid".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "mid",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "mid",
+                "version": "1.0.0",
+                "peerDependencies": { "opt": "*" },
+                "peerDependenciesMeta": { "opt": { "optional": true } },
+            }),
+        ),
+    );
+    table.insert(
+        ("carrier".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "carrier",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "carrier",
+                "version": "1.0.0",
+                "dependencies": { "opt": "25.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("opt".to_string(), "25.0.0".to_string()),
+        fake_result(
+            "opt",
+            "25.0.0",
+            None,
+            serde_json::json!({ "name": "opt", "version": "25.0.0" }),
+        ),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "top": "1.0.0" }));
+    let (tmp_a, a_manifest) = fake_manifest(serde_json::json!({ "top": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+    ];
+    let dirs = [tmp_root.path(), tmp_a.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.auto_install_peers = true;
+        opts
+    })
+    .await
+    .unwrap();
+
+    for importer in [".", "pkg-a"] {
+        let direct = result.peers.direct_dependencies_by_importer.get(importer).expect("importer");
+        assert_eq!(
+            direct.get("top").map(std::string::ToString::to_string),
+            Some("top@1.0.0(opt@25.0.0)".to_string()),
+            "{importer} hoists the peer the first walk could not satisfy",
+        );
+    }
+}

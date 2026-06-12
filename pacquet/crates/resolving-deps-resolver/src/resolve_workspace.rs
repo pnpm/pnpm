@@ -248,6 +248,7 @@ where
         // ImporterPeerInput's modules_dir into walker.opts before each
         // importer's walk.
         modules_dir: None,
+        hoist_missing_scope: None,
     };
     let peers = resolve_peers_workspace(
         &mut merged_tree,

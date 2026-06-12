@@ -95,8 +95,8 @@ pub use resolve_importer::{
     resolve_importer_with_workspace,
 };
 pub use resolve_peers::{
-    ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult, WorkspaceResolvePeersResult,
-    resolve_peers, resolve_peers_workspace,
+    HoistMissingScope, ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult,
+    WorkspaceResolvePeersResult, resolve_peers, resolve_peers_workspace,
 };
 pub use resolve_workspace::{
     ResolveWorkspaceResult, WorkspaceImporter, WorkspaceResolveOptions, resolve_workspace,
