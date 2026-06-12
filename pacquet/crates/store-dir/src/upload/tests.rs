@@ -69,7 +69,7 @@ fn digest_change_appears_in_added() {
     let diff = calculate_diff(&base, &current);
     assert_eq!(diff.deleted, None);
     let added = diff.added.expect("added present");
-    assert_eq!(added["f.txt"].digest, "d-new");
+    assert_eq!(added.get("f.txt").unwrap().digest, "d-new");
 }
 
 /// Mode change at the same path (and same digest) appears under
@@ -82,7 +82,7 @@ fn mode_change_appears_in_added() {
     let diff = calculate_diff(&base, &current);
     assert_eq!(diff.deleted, None);
     let added = diff.added.expect("added present");
-    assert_eq!(added["f.sh"].mode, 0o755);
+    assert_eq!(added.get("f.sh").unwrap().mode, 0o755);
 }
 
 /// Mixed: one delete, one add, one mod, one unchanged.

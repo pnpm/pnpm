@@ -53,10 +53,10 @@ fn seeds_from_manifest_only_when_no_lockfile_snapshots() {
     assert_eq!(selector_type_of(foo_entry), VersionSelectorType::Range);
     assert_eq!(weight_of(foo_entry), DIRECT_DEP_SELECTOR_WEIGHT);
 
-    let bar_entry = &preferred["bar"]["2.3.4"];
+    let bar_entry = preferred.get("bar").unwrap().get("2.3.4").unwrap();
     assert_eq!(selector_type_of(bar_entry), VersionSelectorType::Version);
 
-    let baz_entry = &preferred["baz"]["latest"];
+    let baz_entry = preferred.get("baz").unwrap().get("latest").unwrap();
     assert_eq!(selector_type_of(baz_entry), VersionSelectorType::Tag);
 }
 
@@ -87,7 +87,7 @@ fn lockfile_snapshots_seed_existing_version_selectors() {
 
     let preferred = get_preferred_versions_from_lockfile_and_manifests(Some(&snapshots), &[&empty]);
 
-    let entry = &preferred["foo"]["1.0.0"];
+    let entry = preferred.get("foo").unwrap().get("1.0.0").unwrap();
     assert_eq!(selector_type_of(entry), VersionSelectorType::Version);
     assert_eq!(weight_of(entry), EXISTING_VERSION_SELECTOR_WEIGHT);
 }
@@ -109,7 +109,7 @@ fn dual_source_match_bumps_weight() {
     let preferred =
         get_preferred_versions_from_lockfile_and_manifests(Some(&snapshots), &[&manifest]);
 
-    let entry = &preferred["foo"]["1.0.0"];
+    let entry = preferred.get("foo").unwrap().get("1.0.0").unwrap();
     assert_eq!(selector_type_of(entry), VersionSelectorType::Version);
     assert_eq!(weight_of(entry), DIRECT_DEP_SELECTOR_WEIGHT + EXISTING_VERSION_SELECTOR_WEIGHT);
 }
@@ -126,6 +126,6 @@ fn duplicate_peer_suffix_snapshots_do_not_inflate_weight() {
 
     let preferred = get_preferred_versions_from_lockfile_and_manifests(Some(&snapshots), &[&empty]);
 
-    let entry = &preferred["foo"]["1.0.0"];
+    let entry = preferred.get("foo").unwrap().get("1.0.0").unwrap();
     assert_eq!(weight_of(entry), EXISTING_VERSION_SELECTOR_WEIGHT);
 }

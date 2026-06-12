@@ -213,7 +213,7 @@ fn get_decodes_msgpackr_records_rows() {
 
     let loaded = idx.get(key).unwrap().expect("row must decode");
     assert_eq!(loaded.algo, "sha512");
-    let info = &loaded.files["package.json"];
+    let info = loaded.files.get("package.json").unwrap();
     assert_eq!(info.digest, "abc");
     assert_eq!(info.mode, 0o644);
     assert_eq!(info.size, 17);

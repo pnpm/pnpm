@@ -486,8 +486,8 @@ fn side_effects_overlay_keys_are_independent() {
     };
     let result = build_file_maps_from_index(&store_dir, entry);
     let maps = result.side_effects_maps.unwrap();
-    let k1 = &maps["k1"];
-    let k2 = &maps["k2"];
+    let k1 = maps.get("k1").unwrap();
+    let k2 = maps.get("k2").unwrap();
     assert!(k1.contains_key("a.js") && !k1.contains_key("b.js"), "k1: {k1:?}");
     assert!(k2.contains_key("b.js") && !k2.contains_key("a.js"), "k2: {k2:?}");
     // Both share base.js.

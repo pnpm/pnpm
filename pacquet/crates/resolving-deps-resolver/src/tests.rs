@@ -135,10 +135,10 @@ async fn walks_dependencies_and_builds_flat_tree() {
     assert_eq!(tree.packages.len(), 2);
     assert!(tree.packages.contains_key("foo@1.2.0"));
     let foo_node_id = &tree.direct[0].node_id;
-    let foo_tree_node = &tree.dependencies_tree[foo_node_id];
+    let foo_tree_node = tree.dependencies_tree.get(foo_node_id).unwrap();
     assert_eq!(foo_tree_node.children.realized().len(), 1);
     let bar_node_id = foo_tree_node.children.realized().get("bar").unwrap();
-    let bar_tree_node = &tree.dependencies_tree[bar_node_id];
+    let bar_tree_node = tree.dependencies_tree.get(bar_node_id).unwrap();
     assert_eq!(bar_tree_node.resolved_package_id, "bar@2.3.0");
     assert!(tree.policy_violations.is_empty());
 }
@@ -209,8 +209,8 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
     // point at the same `NodeId` and the tree must carry exactly one
     // `shared` entry. Mirrors upstream's
     // [`pkgIsLeaf` reuse](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1580).
-    let a_tree = &tree.dependencies_tree[&tree.direct[0].node_id];
-    let b_tree = &tree.dependencies_tree[&tree.direct[1].node_id];
+    let a_tree = tree.dependencies_tree.get(&tree.direct[0].node_id).unwrap();
+    let b_tree = tree.dependencies_tree.get(&tree.direct[1].node_id).unwrap();
     let shared_via_a = a_tree.children.realized().get("shared").unwrap();
     let shared_via_b = b_tree.children.realized().get("shared").unwrap();
     assert_eq!(shared_via_a, shared_via_b);

@@ -61,7 +61,7 @@ fn rewrites_childless_injected_dep_to_link() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = &direct["project-2"]["project-1"];
+    let after = direct.get("project-2").unwrap().get("project-1").unwrap();
     assert_eq!(after.as_str(), "link:../project-1");
     assert!(graph.is_empty(), "unreachable file: snapshot should be pruned");
 }
@@ -98,7 +98,7 @@ fn leaves_injected_dep_when_children_differ() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = &direct["project-2"]["project-1"];
+    let after = direct.get("project-2").unwrap().get("project-1").unwrap();
     assert_eq!(after.as_str(), "file:project-1");
 }
 
@@ -135,7 +135,7 @@ fn rewrites_when_children_subset_of_target_direct_deps() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = &direct["project-2"]["project-1"];
+    let after = direct.get("project-2").unwrap().get("project-1").unwrap();
     assert_eq!(after.as_str(), "link:../project-1");
     // `lib` is still reachable through project-1's direct deps.
     assert!(graph.contains_key(&lib));
@@ -160,6 +160,6 @@ fn ignores_non_workspace_file_deps() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = &direct["."]["some-tarball"];
+    let after = direct.get(".").unwrap().get("some-tarball").unwrap();
     assert_eq!(after.as_str(), "file:vendor/some-tarball.tgz");
 }

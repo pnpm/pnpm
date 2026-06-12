@@ -36,7 +36,7 @@ fn captures_top_level_files() {
     keys.sort();
     assert_eq!(keys, vec!["index.js".to_string(), "package.json".to_string()]);
 
-    let pkg = &added.files["package.json"];
+    let pkg = added.files.get("package.json").unwrap();
     assert_eq!(pkg.size, b"{\"name\":\"x\"}\n".len() as u64);
 }
 
