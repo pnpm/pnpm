@@ -100,7 +100,15 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
       if (indexWrites) {
         // Write immediately so that subsequent worker reads (e.g. side effects)
         // see the committed data without waiting for nextTick.
-        opts.storeIndex.setRawMany(indexWrites)
+        // A throw must reject rather than escape the message callback, where it
+        // would surface as an uncaughtException and leave this promise pending —
+        // e.g. ReadOnlyStoreIndex refusing the write under frozenStore.
+        try {
+          opts.storeIndex.setRawMany(indexWrites)
+        } catch (err: unknown) {
+          reject(err as Error)
+          return
+        }
       }
       resolve(value)
     })
@@ -181,7 +189,13 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
         return
       }
       if (indexWrites) {
-        opts.storeIndex.queueWrites(indexWrites)
+        // See addFilesFromDir: a throw must reject, not escape the callback.
+        try {
+          opts.storeIndex.queueWrites(indexWrites)
+        } catch (err: unknown) {
+          reject(err as Error)
+          return
+        }
       }
       resolve(value)
     })
@@ -204,6 +218,7 @@ export interface ReadPkgFromCafsContext {
   storeDir: string
   verifyStoreIntegrity: boolean
   strictStorePkgContentCheck?: boolean
+  frozenStore?: boolean
 }
 
 export interface ReadPkgFromCafsOptions {

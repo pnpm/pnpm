@@ -72,6 +72,7 @@ export interface ReadPkgFromCafsMessage {
   verifyStoreIntegrity: boolean
   expectedPkg?: PkgNameVersion
   strictStorePkgContentCheck?: boolean
+  frozenStore?: boolean
 }
 
 export interface HardLinkDirMessage {

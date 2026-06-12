@@ -9304,6 +9304,9 @@ importers:
 
   store/index:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       msgpackr:
         specifier: 'catalog:'
         version: 2.0.4

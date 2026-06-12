@@ -828,6 +828,25 @@ pub struct Config {
     #[default = true]
     pub verify_store_integrity: bool,
 
+    /// Opt-in assertion that the package store is complete and will not
+    /// be written during this install — for running against a store on a
+    /// read-only filesystem (a Nix store, a read-only bind mount, an OCI
+    /// layer). When `true`, pacquet opens `index.db` through the
+    /// `immutable=1` URI (see `StoreIndex::open_immutable`) and suppresses
+    /// every store-write path: the batched `index.db` writer is replaced
+    /// with a drain-and-drop stub that never opens the DB, and
+    /// `init_store_dir_best_effort` is skipped so no directory creation is
+    /// attempted under the store root. Pair with `--offline
+    /// --frozen-lockfile` against a fully-populated store.
+    ///
+    /// pnpm rejects `frozenStore` combined with `force` (force re-imports
+    /// packages into the store, which a read-only store cannot accept).
+    /// pacquet has no `force` flow yet, so there is no conflict to guard;
+    /// the guard ports alongside `force`.
+    ///
+    /// Matches pnpm's `frozenStore` / `--frozen-store` (default `false`).
+    pub frozen_store: bool,
+
     /// Whether to consult the side-effects cache
     /// (`PackageFilesIndex.sideEffects`) when importing a package
     /// and whether to populate it after a successful postinstall.

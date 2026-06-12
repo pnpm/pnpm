@@ -171,6 +171,12 @@ pub struct WorkspaceSettings {
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
     pub verify_store_integrity: Option<bool>,
+    /// `frozenStore` from `pnpm-workspace.yaml`. Opens the store
+    /// read-only and suppresses every store write — see
+    /// [`Config::frozen_store`]. Default `false`.
+    ///
+    /// [`Config::frozen_store`]: crate::Config::frozen_store
+    pub frozen_store: Option<bool>,
     pub side_effects_cache: Option<bool>,
     pub side_effects_cache_readonly: Option<bool>,
     pub fetch_retries: Option<u32>,
@@ -722,7 +728,7 @@ impl WorkspaceSettings {
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, dedupe_peers, dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies,
-            resolve_peers_from_workspace_root, verify_store_integrity,
+            resolve_peers_from_workspace_root, verify_store_integrity, frozen_store,
             block_exotic_subdeps,
             link_workspace_packages,
             inject_workspace_packages,

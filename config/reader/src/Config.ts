@@ -176,6 +176,7 @@ export interface Config extends OptionsFromRootManifest {
   virtualStoreOnly?: boolean
   enableGlobalVirtualStore?: boolean
   verifyStoreIntegrity?: boolean
+  frozenStore?: boolean
   maxSockets?: number
   networkConcurrency?: number
   fetchingConcurrency?: number

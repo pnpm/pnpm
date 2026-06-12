@@ -86,6 +86,7 @@ export function createPackageRequester (
     virtualStoreDirMaxLength: number
     strictStorePkgContentCheck?: boolean
     customFetchers?: CustomFetcher[]
+    frozenStore?: boolean
   }
 ): RequestPackageFunction & {
   fetchPackageToStore: FetchPackageToStoreFunction
@@ -108,6 +109,7 @@ export function createPackageRequester (
     storeDir: opts.storeDir,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
     strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
+    frozenStore: opts.frozenStore,
   })
   const fetchPackageToStore = fetchToStore.bind(null, {
     readPkgFromCafs,

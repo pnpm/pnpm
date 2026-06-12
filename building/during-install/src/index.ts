@@ -53,6 +53,7 @@ export async function buildModules<T extends string> (
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
     enableGlobalVirtualStore?: boolean
+    frozenStore?: boolean
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
@@ -76,6 +77,22 @@ export async function buildModules<T extends string> (
   if (!chunks.length) return {}
   const ignoredBuilds = new Set<DepPath>()
   const allowBuild = opts.allowBuild ?? (() => undefined)
+  // Under the global virtual store a package's directory lives inside the store
+  // (`{storeDir}/links/...`), so applying a patch or running an allowlisted
+  // lifecycle script writes into it. On a read-only `frozenStore` that write
+  // would crash mid-build with a raw `EROFS`. A complete seed never reaches the
+  // build step — built and patched packages are imported from the side-effects
+  // cache with `isBuilt` set and filtered out just below — so any package still
+  // wanting to write means the seed is missing its build output. We collect
+  // those off the same filtered chunk and refuse up front (see
+  // `throwFrozenStoreNeedsBuild`) instead of failing cryptically once a script
+  // starts. Bin-linking reuses existing symlinks write-free, and non-allowlisted
+  // scripts never run, so neither counts as a blocking write. Optional
+  // dependencies don't block either — their build failures are non-fatal at
+  // runtime, so their builds are skipped instead.
+  const frozenStoreBlocked = (opts.frozenStore && opts.enableGlobalVirtualStore)
+    ? new Set<string>()
+    : undefined
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
@@ -83,6 +100,36 @@ export async function buildModules<T extends string> (
     })
     if (opts.depsToBuild != null) {
       chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
+    }
+    if (frozenStoreBlocked != null) {
+      chunk = chunk.filter((depPath) => {
+        const node = depGraph[depPath]
+        // A patch is applied even under `ignoreScripts`, but a lifecycle script
+        // is not — so only the patch write counts as blocking when scripts are
+        // suppressed.
+        const willPatch = node.patch != null
+        const willRunScripts = !opts.ignoreScripts && Boolean(node.requiresBuild) && allowBuild(node.depPath) === true
+        if (!willPatch && !willRunScripts) return true
+        if (node.optional) {
+          // A build/patch failure on an optional dependency is non-fatal at
+          // runtime (see the catch in `buildDependency`), so a seed missing an
+          // optional package's build output skips that build instead of
+          // blocking the install.
+          skippedOptionalDependencyLogger.debug({
+            details: `The read-only store (frozenStore) is missing the build output of ${node.name}@${node.version}.`,
+            package: {
+              id: node.dir,
+              name: node.name,
+              version: node.version,
+            },
+            prefix: opts.lockfileDir,
+            reason: 'build_failure',
+          })
+          return false
+        }
+        frozenStoreBlocked.add(`${node.name}@${node.version}`)
+        return true
+      })
     }
 
     return chunk.map((depPath) =>
@@ -113,6 +160,9 @@ export async function buildModules<T extends string> (
       }
     )
   })
+  if (frozenStoreBlocked?.size) {
+    throwFrozenStoreNeedsBuild(frozenStoreBlocked)
+  }
   const patchErrors: Error[] = []
   const groupsWithPatchErrors = groups.map((group) =>
     group.map((task) => async () => {
@@ -132,6 +182,18 @@ export async function buildModules<T extends string> (
     throw patchErrors[0]
   }
   return { ignoredBuilds }
+}
+
+/** Refuse a build under a read-only global virtual store. See the call site. */
+function throwFrozenStoreNeedsBuild (blocked: Set<string>): never {
+  const list = Array.from(blocked).sort()
+  throw new PnpmError(
+    'FROZEN_STORE_NEEDS_BUILD',
+    `Cannot build the following ${list.length === 1 ? 'package' : 'packages'} because the store is read-only (frozenStore is enabled): ${list.join(', ')}`,
+    {
+      hint: 'This read-only store was not seeded with these packages\' build output. Rebuild the seed with their scripts enabled so the side-effects cache is populated, or remove them from onlyBuiltDependencies.',
+    }
+  )
 }
 
 async function buildDependency<T extends string> (
@@ -157,6 +219,7 @@ async function buildDependency<T extends string> (
     hoistedLocations?: Record<string, string[]>
     builtHoistedDeps?: Record<string, DeferredPromise<void>>
     enableGlobalVirtualStore?: boolean
+    frozenStore?: boolean
     /** Resolved `engines.runtime` Node version — see [`buildModules`]. */
     nodeVersion?: string
     warn: (message: string) => void
@@ -203,7 +266,11 @@ async function buildDependency<T extends string> (
     if (opts.enableGlobalVirtualStore) {
       await fs.unlink(path.join(depNode.dir, '.pnpm-needs-build')).catch(() => {})
     }
-    if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite) {
+    // frozenStore opens the store read-only, so the side-effects cache (which
+    // lives in the store) cannot be written. extendInstallOptions already forces
+    // sideEffectsCacheWrite off under frozenStore; this guards callers that
+    // bypass it.
+    if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite && !opts.frozenStore) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
           patchFileHash: depNode.patch?.hash,

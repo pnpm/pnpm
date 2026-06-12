@@ -312,7 +312,14 @@ where
         // been processed. A writer open / task failure is degraded
         // to a `warn!` and the install still succeeds — pacquet's
         // existing best-effort stance on cache writes.
-        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
+        // Under `frozenStore` the store is opened read-only, so the
+        // writer is replaced with a drain-and-drop stub that never opens
+        // `index.db` (no WAL / SHM sidecar under the read-only root).
+        let (store_index_writer, writer_task) = if config.frozen_store {
+            StoreIndexWriter::spawn_disabled()
+        } else {
+            StoreIndexWriter::spawn(&config.store_dir)
+        };
 
         // Caller-side fast-path for the installability check. The
         // common case (no lockfile metadata row declares an
@@ -985,6 +992,7 @@ where
             skipped: &skipped,
             pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
             gather_ancestor_bin_paths: is_hoisted,
+            frozen_store: config.frozen_store,
         }
         .run::<Reporter>()
         .map_err(InstallFrozenLockfileError::BuildModules)?;

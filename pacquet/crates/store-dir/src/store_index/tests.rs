@@ -1,11 +1,39 @@
 use super::{
     CafsFileInfo, GET_MANY_CHUNK, PackageFilesIndex, StoreIndex, git_hosted_store_index_key,
-    pick_store_index_key, store_index_key,
+    immutable_sqlite_uri, pick_store_index_key, store_index_key,
 };
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 use tempfile::tempdir;
+
+// `Url::from_file_path` only accepts a platform-absolute path: a POSIX
+// `/store/...` path is not a valid Windows file path, so these construct
+// Unix paths and are gated to Unix.
+#[cfg(unix)]
+#[test]
+fn immutable_uri_percent_encodes_sqlite_path_delimiters() {
+    // `/` stays literal; `?`, `#`, and `%` (the escape introducer) are
+    // percent-encoded so they cannot truncate the path or inject a query.
+    assert_eq!(
+        immutable_sqlite_uri(Path::new("/store/index.db")).unwrap(),
+        "file:///store/index.db?immutable=1",
+    );
+    assert_eq!(
+        immutable_sqlite_uri(Path::new("/a?b/c#d/100%/index.db")).unwrap(),
+        "file:///a%3Fb/c%23d/100%25/index.db?immutable=1",
+    );
+}
+
+/// A relative store path is absolutized against the current directory
+/// instead of failing — the resolution Node's `pathToFileURL` applies on
+/// the pnpm side.
+#[test]
+fn immutable_uri_absolutizes_a_relative_path() {
+    let uri = immutable_sqlite_uri(Path::new("relative-store/index.db")).unwrap();
+    assert!(uri.starts_with("file:///"), "{uri}");
+    assert!(uri.ends_with("/relative-store/index.db?immutable=1"), "{uri}");
+}
 
 fn sample_index() -> PackageFilesIndex {
     let mut files = HashMap::new();
@@ -126,6 +154,24 @@ fn reopening_the_same_db_sees_prior_writes() {
     }
 
     let idx = StoreIndex::open(dir.path()).unwrap();
+    assert_eq!(idx.get(&key).unwrap().unwrap(), payload);
+}
+
+/// `?` is a legal filename byte on Unix but a `SQLite` URI delimiter, so a raw
+/// `file:{path}?immutable=1` would truncate the path here. (`?` is illegal in
+/// Windows filenames, so this case cannot arise there.)
+#[cfg(unix)]
+#[test]
+fn open_immutable_handles_a_store_path_containing_a_question_mark() {
+    let root = tempdir().unwrap();
+    let store_dir = root.path().join("weird?store");
+    std::fs::create_dir_all(&store_dir).unwrap();
+    let key = store_index_key("sha512-q", "q-pkg@1.0.0");
+    let payload = sample_index();
+
+    StoreIndex::open(&store_dir).unwrap().set(&key, &payload).unwrap();
+
+    let idx = StoreIndex::open_immutable(&store_dir).unwrap();
     assert_eq!(idx.get(&key).unwrap().unwrap(), payload);
 }
 
@@ -292,5 +338,59 @@ fn get_many_handles_more_keys_than_chunk_size() {
     assert_eq!(out.len(), total);
     for key in &keys {
         assert_eq!(out.get(key), Some(&payload));
+    }
+}
+
+/// `open_immutable` must read a WAL-mode `index.db` that lives on a
+/// read-only *directory* — the `frozenStore` / read-only-store
+/// scenario (a Nix store, a read-only bind mount, an OCI layer).
+///
+/// This is the regression guard for the `immutable=1` open: a plain
+/// `SQLITE_OPEN_READ_ONLY` open of a WAL database still tries to create
+/// the `-shm` sidecar in the directory, which fails with "attempt to
+/// write a readonly database" when the directory is not writable.
+/// Revert `open_immutable` to plain `SQLITE_OPEN_READ_ONLY` and this
+/// test fails — confirming the URI is load-bearing.
+#[cfg(unix)]
+#[test]
+fn open_immutable_reads_wal_db_on_readonly_directory() {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let key = store_index_key("sha512-ro", "frozen@1.0.0");
+    let payload = sample_index();
+
+    // Seed the WAL db while the directory is still writable, then close
+    // the writer connection so the on-disk file is a settled WAL db —
+    // exactly what a Nix seed-build would leave behind.
+    {
+        let idx = StoreIndex::open(dir.path()).unwrap();
+        idx.set(&key, &payload).unwrap();
+    }
+
+    // Drop the directory to read + execute only: no writes permitted,
+    // so SQLite cannot create any `-shm` / `-wal` / `-journal` sidecar.
+    let original = fs::metadata(dir.path()).unwrap().permissions();
+    fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o555)).unwrap();
+
+    let read_result = StoreIndex::open_immutable(dir.path()).map(|idx| idx.get(&key));
+
+    // Restore write permission before assertions so the tempdir can be
+    // cleaned up regardless of the outcome.
+    fs::set_permissions(dir.path(), original).unwrap();
+
+    let loaded = read_result
+        .expect("open_immutable must succeed on a read-only directory")
+        .expect("get must not error")
+        .expect("the seeded row must be readable");
+    assert_eq!(loaded, payload);
+
+    // No sidecar may have been created under the read-only directory.
+    for sidecar in ["index.db-shm", "index.db-wal", "index.db-journal"] {
+        assert!(
+            !dir.path().join(sidecar).exists(),
+            "immutable open must not create the {sidecar} sidecar",
+        );
     }
 }

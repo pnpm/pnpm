@@ -34,7 +34,7 @@ import npa from '@pnpm/npm-package-arg'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { createStoreController } from '@pnpm/store.connection-manager'
-import { pickStoreIndexKey, StoreIndex } from '@pnpm/store.index'
+import { pickStoreIndexKey, ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
 import type {
   DepPath,
   IgnoredBuilds,
@@ -358,7 +358,16 @@ async function _rebuild (
     return false
   }
   const builtDepPaths = new Set<string>()
-  const storeIndex = opts.skipIfHasSideEffectsCache ? new StoreIndex(opts.storeDir) : undefined
+  // This handle is read-only in practice (only `.get()` below); the
+  // side-effects upload writes through `storeController`, not here. Open it
+  // immutable under `frozenStore` so the read works against a read-only store
+  // — a writable open would fail creating the WAL/`-shm` sidecar there. The
+  // immutable open is gated on `frozenStore` because on a normal install the
+  // concurrent side-effects uploads mutate `index.db`, which immutable reads
+  // would not see.
+  const storeIndex = opts.skipIfHasSideEffectsCache
+    ? (opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir))
+    : undefined
 
   // Under GVS, packages live at `<globalVirtualStoreDir>/<hash>/node_modules/<name>`,
   // not the classic virtualStoreDir layout. The hash is computed with the same inputs

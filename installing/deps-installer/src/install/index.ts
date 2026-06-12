@@ -1648,6 +1648,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
           enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+          frozenStore: opts.frozenStore,
         })).ignoredBuilds
         if (ctx.modulesFile?.ignoredBuilds?.size) {
           ignoredBuilds ??= new Set()
@@ -2335,6 +2336,19 @@ async function installViaPnprServer (
   opts: Opts,
   allInstallProjects?: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>
 ): Promise<InstallResult & { stats: InstallationResultStats, lockfile: LockfileObject }> {
+  // The pnpr server path re-resolves and persists new `index.db` entries plus a
+  // freshly written lockfile, so it inherently writes the store. `frozenStore`
+  // promises the store is complete and read-only, so the two are mutually
+  // exclusive — and the unconditional pnpr gate means this path runs even under
+  // `--offline --frozen-lockfile`, so refuse up front with guidance instead of
+  // crashing later on the read-only `index.db` open.
+  if (opts.frozenStore) {
+    throw new PnpmError(
+      'FROZEN_STORE_INCOMPATIBLE_WITH_PNPR',
+      'The pnpr server resolves dependencies and writes new entries into the store, which is opened read-only when frozenStore is enabled.',
+      { hint: 'Disable the pnpr server (unset `--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) so the install reads from the existing store, or unset `frozenStore` to allow store writes.' }
+    )
+  }
   // The pnpr server path skips client-side resolution, so resolver-side policies
   // can't be enforced locally. `minimumReleaseAge` is forwarded to the
   // pnpr server and enforced server-side. `trustPolicy` has no server-side

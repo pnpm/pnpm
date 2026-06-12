@@ -22,6 +22,7 @@ export const pnpmConfigFileKeys = [
   'fetch-warn-timeout-ms',
   'fetch-min-speed-ki-bps',
   'fetching-concurrency',
+  'frozen-store',
   'git-checks',
   'git-shallow-hosts',
   'global-bin-dir',
