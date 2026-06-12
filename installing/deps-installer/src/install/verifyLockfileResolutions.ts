@@ -44,16 +44,24 @@ const RESOLUTION_SHAPE_CACHE_IDENTITY: VerifierCacheIdentity = {
   canTrustPastCheck: (cached) => cached.resolutionShapeCheck === true,
 }
 
+const DEPENDENCY_ALIAS_CACHE_IDENTITY: VerifierCacheIdentity = {
+  policy: { dependencyAliasCheck: true },
+  canTrustPastCheck: (cached) => cached.dependencyAliasCheck === true,
+}
+
 /**
  * Every verifier list that flows into the verification cache must carry
- * the resolution-shape identity, so records written before the shape rule
- * existed cannot stat-fast-path around it. Used by the gate itself and by
- * {@link recordLockfileVerified}, whose freshly-resolved lockfile satisfies
- * the shape invariant by construction (the writer derives every key from
- * the resolution it just produced).
+ * the always-on offline structural checks' identities, so a record
+ * written before one of those rules existed cannot stat-fast-path around
+ * it — its missing flag fails `canTrustPastCheck`, forcing a
+ * re-verification that runs the new check. Used by the gate itself and by
+ * {@link recordLockfileVerified}, whose freshly-resolved lockfile
+ * satisfies these invariants by construction (the resolver validates
+ * aliases at manifest-read time and derives every resolution key from the
+ * resolution it just produced).
  */
-export function withResolutionShapeCacheIdentity (verifiers: readonly VerifierCacheIdentity[]): VerifierCacheIdentity[] {
-  return [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY]
+export function withOfflineCheckCacheIdentities (verifiers: readonly VerifierCacheIdentity[]): VerifierCacheIdentity[] {
+  return [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY, DEPENDENCY_ALIAS_CACHE_IDENTITY]
 }
 
 export interface VerifyLockfileResolutionsOptions {
@@ -103,22 +111,6 @@ export async function verifyLockfileResolutions (
   verifiers: ResolutionVerifier[],
   options?: VerifyLockfileResolutionsOptions
 ): Promise<void> {
-  // Offline, policy-independent structural check. Runs before the cache
-  // lookup so a record written by a pnpm version that predates this rule
-  // can't fast-path around it, and before the `packages` guard so a
-  // tampered importer alias is caught even when nothing is installed. A
-  // dependency alias becomes a `node_modules/<alias>` directory at link
-  // time, so an alias that isn't a valid package name (path-traversal,
-  // absolute, or a reserved name such as `.bin` / `.pnpm` /
-  // `node_modules`) can escape the install root or overwrite pnpm-owned
-  // layout. The linkers reject such aliases at their own sinks too; this
-  // gate fails the whole install early, before any filesystem work, for
-  // every linker at once.
-  const invalidAliases = collectInvalidDependencyAliases(lockfile)
-  if (invalidAliases.length > 0) {
-    throw buildInvalidAliasError(invalidAliases)
-  }
-
   if (!lockfile.packages) return
 
   // Caching kicks in only when the caller surfaced both a writable
@@ -129,7 +121,7 @@ export async function verifyLockfileResolutions (
     ? { cacheDir: options.cacheDir, lockfilePath: options.lockfilePath }
     : undefined
 
-  const cacheVerifiers = withResolutionShapeCacheIdentity(verifiers)
+  const cacheVerifiers = withOfflineCheckCacheIdentities(verifiers)
 
   // Cache lookup runs before any registry I/O — the fast path is a
   // single stat() of the lockfile when the previous install already
@@ -176,7 +168,10 @@ export async function verifyLockfileResolutions (
   // A degenerate lockfile where every snapshot fails the
   // name/version extraction (so candidates is empty) skips emission
   // entirely — no work, no noise.
-  const { candidates, shapeViolations } = collectCandidates(lockfile)
+  const { candidates, shapeViolations, invalidAliases } = collectCandidates(lockfile)
+  if (invalidAliases.length > 0) {
+    throw buildInvalidAliasError(invalidAliases)
+  }
   if (shapeViolations.length > 0) {
     throw buildVerificationError(shapeViolations)
   }
@@ -230,34 +225,23 @@ export async function verifyLockfileResolutions (
 }
 
 /**
- * Scan every dependency alias the lockfile would turn into a
- * `node_modules/<alias>` directory — each importer's
- * `dependencies` / `devDependencies` / `optionalDependencies` and each
- * package snapshot's `dependencies` / `optionalDependencies` — and
- * return the deduplicated set of aliases that are not valid npm package
- * names. Other name-keyed maps (`overrides` with `foo>bar` selectors,
- * `patchedDependencies` keyed by `name@version`, peer dependencies) are
- * deliberately excluded: they don't become directories, so the package
- * name rule doesn't apply to them.
+/**
+ * Add every key of `deps` that is not a valid npm package name to
+ * `invalid`. A dependency alias becomes a `node_modules/<alias>`
+ * directory, so an invalid one (path-traversal, absolute, or a reserved
+ * name such as `.bin` / `.pnpm` / `node_modules`) could escape the
+ * install root or overwrite pnpm-owned layout. Folded into
+ * {@link collectCandidates}'s single pass over the lockfile rather than
+ * run as its own traversal. Other name-keyed maps (`overrides` with
+ * `foo>bar` selectors, `patchedDependencies` keyed by `name@version`,
+ * peer dependencies) are deliberately not passed here — they don't
+ * become directories, so the package-name rule doesn't apply.
  */
-function collectInvalidDependencyAliases (lockfile: LockfileObject): string[] {
-  const invalid = new Set<string>()
-  const check = (deps: Record<string, string> | undefined): void => {
-    if (deps == null) return
-    for (const alias of Object.keys(deps)) {
-      if (!isValidDependencyAlias(alias)) invalid.add(alias)
-    }
+function pushInvalidAliases (deps: Record<string, string> | undefined, invalid: Set<string>): void {
+  if (deps == null) return
+  for (const alias of Object.keys(deps)) {
+    if (!isValidDependencyAlias(alias)) invalid.add(alias)
   }
-  for (const importer of Object.values(lockfile.importers ?? {})) {
-    check(importer.dependencies)
-    check(importer.devDependencies)
-    check(importer.optionalDependencies)
-  }
-  for (const snapshot of Object.values(lockfile.packages ?? {})) {
-    check(snapshot.dependencies)
-    check(snapshot.optionalDependencies)
-  }
-  return Array.from(invalid)
 }
 
 function buildInvalidAliasError (aliases: string[]): PnpmError {
@@ -399,10 +383,21 @@ interface Candidate {
 // skips the tarball/policy checks, so if the wrong shape wins the dedup the
 // surviving entry is verified under the wrong rules and the real one is
 // never checked.
-function collectCandidates (lockfile: LockfileObject): { candidates: Map<string, Candidate>, shapeViolations: ResolutionPolicyViolation[] } {
+function collectCandidates (lockfile: LockfileObject): { candidates: Map<string, Candidate>, shapeViolations: ResolutionPolicyViolation[], invalidAliases: string[] } {
   const candidates = new Map<string, Candidate>()
   const shapeViolations: ResolutionPolicyViolation[] = []
+  // Validate every dependency alias the lockfile would turn into a
+  // `node_modules/<alias>` directory in the same pass. The importer
+  // alias maps are the one source not reached by the package loop below.
+  const invalidAliases = new Set<string>()
+  for (const importer of Object.values(lockfile.importers ?? {})) {
+    pushInvalidAliases(importer.dependencies, invalidAliases)
+    pushInvalidAliases(importer.devDependencies, invalidAliases)
+    pushInvalidAliases(importer.optionalDependencies, invalidAliases)
+  }
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
+    pushInvalidAliases(snapshot.dependencies, invalidAliases)
+    pushInvalidAliases(snapshot.optionalDependencies, invalidAliases)
     const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
     if (!name || !version) continue
     // A registry-style depPath (name@semver) must be backed by a
@@ -427,7 +422,7 @@ function collectCandidates (lockfile: LockfileObject): { candidates: Map<string,
       resolution: snapshot.resolution as Resolution,
     })
   }
-  return { candidates, shapeViolations }
+  return { candidates, shapeViolations, invalidAliases: Array.from(invalidAliases) }
 }
 
 async function iterateLockfileViolations (

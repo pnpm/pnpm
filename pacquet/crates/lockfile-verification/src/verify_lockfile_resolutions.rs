@@ -85,23 +85,6 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
-    // Offline, policy-independent structural check. Runs before the
-    // cache lookup so a record written by a pacquet version that
-    // predates this rule can't fast-path around it, and before the
-    // `packages` guard so a tampered importer alias is caught even when
-    // nothing is installed. A dependency alias becomes a
-    // `node_modules/<alias>` directory at link time, so an alias that
-    // isn't a valid package name (path-traversal, absolute, or a
-    // reserved name such as `.bin` / `.pnpm` / `node_modules`) can
-    // escape the install root or overwrite pnpm-owned layout. The
-    // hoisted linker rejects such aliases at its own sink too; this gate
-    // fails the whole install early, before any fetch or filesystem
-    // work. Mirrors upstream's check in `verifyLockfileResolutions.ts`.
-    let invalid_aliases = collect_invalid_dependency_aliases(lockfile);
-    if !invalid_aliases.is_empty() {
-        return Err(VerifyError::invalid_dependency_aliases(&invalid_aliases));
-    }
-
     if lockfile.packages.is_none() {
         return Ok(());
     }
@@ -113,7 +96,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     // logic via the same code path).
     let cache_inputs = opts.cache_dir.zip(opts.lockfile_path);
 
-    let cache_verifiers = with_resolution_shape_cache_identity(verifiers);
+    let cache_verifiers = with_offline_check_cache_identities(verifiers);
 
     // Memoised content hash. Used by both the lookup (when the
     // stat-shortcut doesn't apply) and the recorder (after the
@@ -158,7 +141,10 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         cache_precomputed = result.precomputed;
     }
 
-    let (candidates, shape_violations) = collect_candidates(lockfile);
+    let (candidates, shape_violations, invalid_aliases) = collect_candidates(lockfile);
+    if !invalid_aliases.is_empty() {
+        return Err(VerifyError::invalid_dependency_aliases(&invalid_aliases));
+    }
     if !shape_violations.is_empty() {
         return Err(build_verification_error(shape_violations));
     }
@@ -230,44 +216,59 @@ pub async fn collect_resolution_policy_violations(
     if verifiers.is_empty() || lockfile.packages.is_none() {
         return Vec::new();
     }
-    // Shape violations are deliberately not collected here: they are
-    // hard tampering failures, not policy picks a caller may
-    // auto-exclude.
-    let (candidates, _shape_violations) = collect_candidates(lockfile);
+    // Shape violations and invalid aliases are deliberately not
+    // collected here: they are hard tampering failures, not policy
+    // picks a caller may auto-exclude.
+    let (candidates, _shape_violations, _invalid_aliases) = collect_candidates(lockfile);
     run_fan_out(candidates, verifiers, concurrency).await
 }
 
 pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MISMATCH";
 
-/// Cache-key participant for the offline resolution-shape pass: a
-/// record written before the rule existed lacks the flag, so
-/// `can_trust_past_check` rejects it and forces a re-verification.
-/// `verify` is never invoked — the identity is appended only to the
-/// verifier lists handed to the cache lookup and recorder.
-struct ResolutionShapeCacheIdentity {
+/// Cache-key participant for an always-on offline structural check
+/// (resolution-shape, dependency-alias): a record written before the
+/// check's rule existed lacks its `flag`, so `can_trust_past_check`
+/// rejects it and forces a re-verification. `verify` is never invoked —
+/// the identity is appended only to the verifier lists handed to the
+/// cache lookup and recorder.
+struct OfflineCheckCacheIdentity {
     policy: serde_json::Map<String, serde_json::Value>,
+    flag: &'static str,
 }
 
 fn resolution_shape_cache_identity() -> Arc<dyn ResolutionVerifier> {
     let mut policy = serde_json::Map::new();
     policy.insert("resolutionShapeCheck".to_string(), serde_json::Value::Bool(true));
-    Arc::new(ResolutionShapeCacheIdentity { policy })
+    Arc::new(OfflineCheckCacheIdentity { policy, flag: "resolutionShapeCheck" })
+}
+
+fn dependency_alias_cache_identity() -> Arc<dyn ResolutionVerifier> {
+    let mut policy = serde_json::Map::new();
+    policy.insert("dependencyAliasCheck".to_string(), serde_json::Value::Bool(true));
+    Arc::new(OfflineCheckCacheIdentity { policy, flag: "dependencyAliasCheck" })
 }
 
 /// Every verifier list that flows into the verification cache must
-/// carry the resolution-shape identity, so records written before the
-/// shape rule existed cannot stat-fast-path around it. Used by the
-/// gate itself and by [`crate::record_lockfile_verified()`], whose
-/// freshly-resolved lockfile satisfies the shape invariant by
-/// construction (the writer derives every key from the resolution it
-/// just produced).
-pub(crate) fn with_resolution_shape_cache_identity(
+/// carry the always-on offline structural checks' identities, so a
+/// record written before one of those rules existed cannot
+/// stat-fast-path around it — its missing flag fails
+/// `can_trust_past_check`, forcing a re-verification that runs the new
+/// check. Used by the gate itself and by
+/// [`crate::record_lockfile_verified()`], whose freshly-resolved
+/// lockfile satisfies these invariants by construction (the resolver
+/// validates aliases at manifest-read time and derives every resolution
+/// key from the resolution it just produced).
+pub(crate) fn with_offline_check_cache_identities(
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> Vec<Arc<dyn ResolutionVerifier>> {
-    verifiers.iter().cloned().chain(std::iter::once(resolution_shape_cache_identity())).collect()
+    verifiers
+        .iter()
+        .cloned()
+        .chain([resolution_shape_cache_identity(), dependency_alias_cache_identity()])
+        .collect()
 }
 
-impl ResolutionVerifier for ResolutionShapeCacheIdentity {
+impl ResolutionVerifier for OfflineCheckCacheIdentity {
     fn verify<'a>(
         &'a self,
         _resolution: &'a LockfileResolution,
@@ -281,7 +282,7 @@ impl ResolutionVerifier for ResolutionShapeCacheIdentity {
     }
 
     fn can_trust_past_check(&self, cached: &serde_json::Map<String, serde_json::Value>) -> bool {
-        cached.get("resolutionShapeCheck") == Some(&serde_json::Value::Bool(true))
+        cached.get(self.flag) == Some(&serde_json::Value::Bool(true))
     }
 }
 
@@ -322,44 +323,26 @@ fn is_http_tarball_url(url: &str) -> bool {
     lower.starts_with("https://") || lower.starts_with("http://")
 }
 
-/// Scan every dependency alias the lockfile would turn into a
-/// `node_modules/<alias>` directory — each importer's
-/// `dependencies` / `dev_dependencies` / `optional_dependencies` and
-/// each snapshot's `dependencies` / `optional_dependencies` — and
-/// return the deduplicated, sorted set of aliases that are not valid
-/// npm package names. `is_valid_old_npm_package_name` is the same
-/// `validForOldPackages` rule pnpm's `isValidDependencyAlias` applies.
-///
-/// Other name-keyed maps (`overrides`, `patched_dependencies`, peer
-/// dependencies) are deliberately excluded: they don't become
-/// directories, so the package-name rule doesn't apply to them.
-fn collect_invalid_dependency_aliases(lockfile: &Lockfile) -> Vec<String> {
-    let mut invalid: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    let mut check = |alias: &PkgName| {
+/// Add every alias in `aliases` that is not a valid npm package name to
+/// `invalid`. A dependency alias becomes a `node_modules/<alias>`
+/// directory, so an invalid one (path-traversal, absolute, or a
+/// reserved name such as `.bin` / `.pnpm` / `node_modules`) could escape
+/// the install root or overwrite pnpm-owned layout.
+/// `is_valid_old_npm_package_name` is the same `validForOldPackages`
+/// rule pnpm's `isValidDependencyAlias` applies. Folded into
+/// [`collect_candidates`]'s single pass; other name-keyed maps
+/// (`overrides`, `patched_dependencies`, peer dependencies) are
+/// deliberately not passed here — they don't become directories.
+fn push_invalid_aliases<'alias>(
+    aliases: impl Iterator<Item = &'alias PkgName>,
+    invalid: &mut std::collections::BTreeSet<String>,
+) {
+    for alias in aliases {
         let alias = alias.to_string();
         if !is_valid_old_npm_package_name(&alias) {
             invalid.insert(alias);
         }
-    };
-    for importer in lockfile.importers.values() {
-        for deps in
-            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
-        {
-            for alias in deps.iter().flatten().map(|(alias, _)| alias) {
-                check(alias);
-            }
-        }
     }
-    if let Some(snapshots) = lockfile.snapshots.as_ref() {
-        for snapshot in snapshots.values() {
-            for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
-                for alias in deps.iter().flatten().map(|(alias, _)| alias) {
-                    check(alias);
-                }
-            }
-        }
-    }
-    invalid.into_iter().collect()
 }
 
 /// One `(name, version, resolution)` tuple deduplicated from
@@ -381,10 +364,38 @@ struct Candidate {
 /// `BTreeMap` over a serialized key gives deterministic iteration
 /// order for tests; the fan-out runs across the value iter so order
 /// doesn't affect correctness, only the reproducibility of failures.
-fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPolicyViolation>) {
+fn collect_candidates(
+    lockfile: &Lockfile,
+) -> (Vec<Candidate>, Vec<ResolutionPolicyViolation>, Vec<String>) {
     let Some(packages) = lockfile.packages.as_ref() else {
-        return (Vec::new(), Vec::new());
+        return (Vec::new(), Vec::new(), Vec::new());
     };
+    // Validate every dependency alias the lockfile would turn into a
+    // `node_modules/<alias>` directory in the same pass. The importer
+    // and snapshot alias maps are the sources not reached by the package
+    // loop below (pacquet keeps metadata in `packages` and the dep maps
+    // in `importers` / `snapshots`).
+    let mut invalid_aliases: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for importer in lockfile.importers.values() {
+        for deps in
+            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+        {
+            push_invalid_aliases(
+                deps.iter().flatten().map(|(alias, _)| alias),
+                &mut invalid_aliases,
+            );
+        }
+    }
+    if let Some(snapshots) = lockfile.snapshots.as_ref() {
+        for snapshot in snapshots.values() {
+            for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
+                push_invalid_aliases(
+                    deps.iter().flatten().map(|(alias, _)| alias),
+                    &mut invalid_aliases,
+                );
+            }
+        }
+    }
     let mut deduped: BTreeMap<String, Candidate> = BTreeMap::new();
     let mut shape_violations = Vec::new();
     for (key, metadata) in packages {
@@ -424,7 +435,7 @@ fn collect_candidates(lockfile: &Lockfile) -> (Vec<Candidate>, Vec<ResolutionPol
             resolution: metadata.resolution.clone(),
         });
     }
-    (deduped.into_values().collect(), shape_violations)
+    (deduped.into_values().collect(), shape_violations, invalid_aliases.into_iter().collect())
 }
 
 /// Run every active verifier against every candidate with a
