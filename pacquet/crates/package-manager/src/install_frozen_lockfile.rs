@@ -629,11 +629,11 @@ where
 
         // Run lockfile verification concurrently with the fetch instead of
         // blocking the install on it: the per-entry registry round trips
-        // overlap `CreateVirtualStore`'s downloads. `try_join!` fails fast,
-        // so a rejected lockfile aborts the fetch in flight, and a verdict
-        // is always reached before linking and the build phase below — no
-        // dependency lifecycle script runs on an unverified lockfile. A
-        // no-op when `resolution_verifiers` is empty (`trustLockfile`).
+        // overlap `CreateVirtualStore`'s downloads. A rejected lockfile
+        // aborts the fetch in flight, and a verdict is always reached
+        // before linking and the build phase below — no dependency
+        // lifecycle script runs on an unverified lockfile. A no-op when
+        // `resolution_verifiers` is empty (`trustLockfile`).
         let verify_fut = async {
             if let Some(lockfile_verification_override) = lockfile_verification_override {
                 return lockfile_verification_override.await;
@@ -679,15 +679,32 @@ where
             .map_err(InstallFrozenLockfileError::CreateVirtualStore)
         };
         let phase_start = std::time::Instant::now();
-        let (
-            (),
-            CreateVirtualStoreOutput {
-                package_manifests,
-                side_effects_maps_by_snapshot,
-                fetch_failed,
-                cas_paths_by_pkg_id,
-            },
-        ) = tokio::try_join!(verify_fut, create_virtual_store_fut)?;
+        // The verification verdict takes precedence over a concurrent fetch
+        // error — a plain `try_join!` would surface whichever error lands
+        // first, letting an unrelated fetch failure mask a rejected
+        // lockfile. A verification failure still aborts the fetch in
+        // flight (the select drops `create_virtual_store_fut`); a fetch
+        // failure waits for the verdict and only surfaces once the
+        // lockfile is known trusted. Mirrors pnpm's `settleInstall`.
+        let CreateVirtualStoreOutput {
+            package_manifests,
+            side_effects_maps_by_snapshot,
+            fetch_failed,
+            cas_paths_by_pkg_id,
+        } = {
+            let mut verify_fut = std::pin::pin!(verify_fut);
+            let mut create_virtual_store_fut = std::pin::pin!(create_virtual_store_fut);
+            tokio::select! {
+                verify = &mut verify_fut => {
+                    verify?;
+                    create_virtual_store_fut.await?
+                }
+                output = &mut create_virtual_store_fut => {
+                    verify_fut.await?;
+                    output?
+                }
+            }
+        };
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "create_virtual_store",
