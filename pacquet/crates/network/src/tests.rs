@@ -20,6 +20,7 @@ use super::{
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
 use reqwest::Url;
+use std::time::Duration;
 
 fn list(entries: &[&str]) -> NoProxySetting {
     NoProxySetting::List(entries.iter().map(|s| (*s).to_string()).collect())
@@ -635,7 +636,7 @@ fn for_installs_honors_custom_network_settings() {
     // builder rather than being ignored.
     let settings = NetworkSettings {
         network_concurrency: 4,
-        fetch_timeout: std::time::Duration::from_secs(5),
+        fetch_timeout: Duration::from_secs(5),
         user_agent: "pnpm/9.9.9 npm/? node/? darwin arm64".to_string(),
     };
     let client = ThrottledClient::for_installs(
@@ -646,6 +647,52 @@ fn for_installs_honors_custom_network_settings() {
     )
     .expect("custom network settings build");
     assert_eq!(client.semaphore.available_permits(), 4);
+}
+
+#[tokio::test]
+async fn fetch_timeout_allows_steady_body_progress_past_total_timeout() {
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+        thread,
+        time::{Duration as StdDuration, Instant},
+    };
+
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind local test server");
+    let addr = listener.local_addr().expect("read local test server address");
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept test request");
+        let mut request = [0_u8; 1024];
+        stream.read(&mut request).expect("read test request");
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\n")
+            .expect("write response headers");
+        stream.flush().expect("flush response headers");
+        for chunk in [b"a", b"b", b"c"] {
+            thread::sleep(StdDuration::from_millis(50));
+            stream.write_all(chunk).expect("write response chunk");
+            stream.flush().expect("flush response chunk");
+        }
+    });
+
+    let settings =
+        NetworkSettings { fetch_timeout: Duration::from_millis(80), ..NetworkSettings::default() };
+    let client = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &settings,
+    )
+    .expect("custom network settings build");
+    let guard = client.acquire().await;
+    let started_at = Instant::now();
+    let resp =
+        guard.get(format!("http://{addr}/slow")).send().await.expect("receive response headers");
+    let body = resp.text().await.expect("read response body");
+    server.join().expect("test server exits cleanly");
+
+    assert!(started_at.elapsed() >= Duration::from_millis(120), "request completed too quickly");
+    assert_eq!(body, "abc");
 }
 
 #[test]

@@ -148,6 +148,7 @@ function hasClientCertificates (certs?: ClientCertificates): boolean {
 
 function needsCustomDispatcher (opts: DispatcherOptions): boolean {
   return Boolean(
+    (typeof opts.timeout === 'number' && opts.timeout > 0) ||
     opts.httpProxy ||
     opts.httpsProxy ||
     opts.ca ||
@@ -158,6 +159,21 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
     hasClientCertificates(opts.clientCertificates) ||
     opts.maxSockets
   )
+}
+
+function getTimeoutKey (opts: DispatcherOptions): string {
+  return typeof opts.timeout === 'number' && opts.timeout > 0 ? opts.timeout.toString() : '>no-timeout<'
+}
+
+function getAgentTimeoutOptions (opts: DispatcherOptions): Pick<Agent.Options, 'bodyTimeout' | 'connectTimeout' | 'headersTimeout'> {
+  if (typeof opts.timeout !== 'number' || opts.timeout <= 0) {
+    return {}
+  }
+  return {
+    bodyTimeout: opts.timeout,
+    connectTimeout: opts.timeout + 1,
+    headersTimeout: opts.timeout,
+  }
 }
 
 function parseProxyUrl (proxy: string, protocol: string): URL {
@@ -204,6 +220,7 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
     `https:${isHttps.toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
+    `timeout:${getTimeoutKey(opts)}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
     `ca:${(isHttps && ca?.toString()) || '-'}`,
     `cert:${(isHttps && cert?.toString()) || '-'}`,
@@ -238,6 +255,7 @@ function createHttpProxyDispatcher (
     token: proxyUrl.username
       ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
       : undefined,
+    ...getAgentTimeoutOptions(opts),
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
@@ -269,6 +287,7 @@ function createSocksDispatcher (
   const proxyPort = parseInt(proxyUrl.port, 10) || (socksType === 4 ? 1080 : 1080)
 
   return new Agent({
+    ...getAgentTimeoutOptions(opts),
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
@@ -325,6 +344,7 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
     `https:${isHttps.toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
+    `timeout:${getTimeoutKey(opts)}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
     `ca:${(isHttps && ca?.toString()) || '-'}`,
     `cert:${(isHttps && cert?.toString()) || '-'}`,
@@ -335,13 +355,9 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
     return DISPATCHER_CACHE.get(key)!
   }
 
-  const connectTimeout = typeof opts.timeout !== 'number' || opts.timeout === 0
-    ? 0
-    : opts.timeout + 1
-
   const agent = new Agent({
+    ...getAgentTimeoutOptions(opts),
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
-    connectTimeout,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     connect: isHttps

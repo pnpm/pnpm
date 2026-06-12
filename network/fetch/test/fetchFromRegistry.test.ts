@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { afterEach, expect, test } from '@jest/globals'
 import { clearDispatcherCache, createDispatchedFetch, createFetchFromRegistry } from '@pnpm/network.fetch'
 import { ProxyServer } from 'https-proxy-server-express'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
@@ -42,6 +42,10 @@ function getMockAgent (): MockAgent {
 
 const CERTS_DIR = path.join(import.meta.dirname, '__certs__')
 
+afterEach(() => {
+  clearDispatcherCache()
+})
+
 test('fetchFromRegistry', async () => {
   // This test uses real network - no mock needed
   const fetchFromRegistry = createFetchFromRegistry({})
@@ -76,7 +80,7 @@ test('authorization headers are removed before redirection if the target is on a
       method: 'GET',
     }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
 
-    const fetchFromRegistry = createFetchFromRegistry({})
+    const fetchFromRegistry = createFetchFromRegistry({ timeout: 0 })
     const res = await fetchFromRegistry(
       'http://registry.pnpm.io/is-positive',
       { authHeaderValue: 'Bearer 123' }
@@ -104,7 +108,7 @@ test('authorization headers are not removed before redirection if the target is 
       headers: { authorization: 'Bearer 123' },
     }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
 
-    const fetchFromRegistry = createFetchFromRegistry({})
+    const fetchFromRegistry = createFetchFromRegistry({ timeout: 0 })
     const res = await fetchFromRegistry(
       'http://registry.pnpm.io/is-positive',
       { authHeaderValue: 'Bearer 123' }
@@ -210,7 +214,7 @@ test('redirect to protocol-relative URL', async () => {
       method: 'GET',
     }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
 
-    const fetchFromRegistry = createFetchFromRegistry({})
+    const fetchFromRegistry = createFetchFromRegistry({ timeout: 0 })
     const res = await fetchFromRegistry(
       'http://registry.pnpm.io/foo'
     )
@@ -235,7 +239,7 @@ test('redirect to relative URL', async () => {
       method: 'GET',
     }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
 
-    const fetchFromRegistry = createFetchFromRegistry({})
+    const fetchFromRegistry = createFetchFromRegistry({ timeout: 0 })
     const res = await fetchFromRegistry(
       'http://registry.pnpm.io/bar/baz'
     )
@@ -265,7 +269,7 @@ test('redirect to relative URL when request pkg.pr.new link', async () => {
       method: 'GET',
     }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
 
-    const fetchFromRegistry = createFetchFromRegistry({})
+    const fetchFromRegistry = createFetchFromRegistry({ timeout: 0 })
     const res = await fetchFromRegistry(
       'https://pkg.pr.new/vue@14175'
     )
@@ -285,7 +289,7 @@ test('redirect without location header throws error', async () => {
       method: 'GET',
     }).reply(302, 'found')
 
-    const fetchFromRegistry = createFetchFromRegistry({})
+    const fetchFromRegistry = createFetchFromRegistry({ timeout: 0 })
     await expect(fetchFromRegistry(
       'http://registry.pnpm.io/missing-location'
     )).rejects.toThrow(/Redirect location header missing/)
@@ -309,6 +313,30 @@ test('createDispatchedFetch returns a fetch bound to the given dispatcher option
   } finally {
     await teardownMockAgent()
   }
+})
+
+test('fetch timeout allows steady body progress past the timeout window', async () => {
+  const body = await new Promise<string>((resolve, reject) => {
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/plain' })
+      res.write('a')
+      setTimeout(() => res.write('b'), 50)
+      setTimeout(() => res.end('c'), 100)
+    })
+    server.listen(0, () => {
+      const { port } = server.address() as { port: number }
+      const fetchFromRegistry = createFetchFromRegistry({})
+      fetchFromRegistry(`http://127.0.0.1:${port}/slow`, {
+        retry: { retries: 0 },
+        timeout: 80,
+      }).then(
+        (res) => res.text(),
+        reject
+      ).then(resolve, reject).finally(() => server.close())
+    })
+  })
+
+  expect(body).toBe('abc')
 })
 
 test('abbreviated metadata Accept header is not sent on write requests', async () => {

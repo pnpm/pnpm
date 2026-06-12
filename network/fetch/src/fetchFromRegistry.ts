@@ -21,12 +21,14 @@ export interface FetchWithDispatcherOptions extends RequestInit {
 }
 
 export function fetchWithDispatcher (url: string | URL, opts: FetchWithDispatcherOptions): Promise<Response> {
+  const { dispatcherOptions, ...fetchOpts } = opts
   const dispatcher = getDispatcher(url.toString(), {
-    ...opts.dispatcherOptions,
-    strictSsl: opts.dispatcherOptions.strictSsl ?? true,
+    ...dispatcherOptions,
+    timeout: opts.timeout ?? dispatcherOptions.timeout,
+    strictSsl: dispatcherOptions.strictSsl ?? true,
   })
   return fetch(url, {
-    ...opts,
+    ...fetchOpts,
     dispatcher,
   })
 }
@@ -108,7 +110,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
         method: opts?.method,
         redirect: 'manual',
         retry: opts?.retry,
-        timeout: opts?.timeout ?? 60000,
+        timeout: opts?.timeout ?? defaultOpts.timeout ?? 60000,
       })
       if (!isRedirect(response.status) || redirects >= MAX_FOLLOWED_REDIRECTS) {
         return response
