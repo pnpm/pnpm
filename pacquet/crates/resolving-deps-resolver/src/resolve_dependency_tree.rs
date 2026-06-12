@@ -1854,7 +1854,7 @@ fn extract_peer_dependencies(
             if let Some(range_str) = range.as_str() {
                 peers.insert(
                     name.clone(),
-                    PeerDep { version: range_str.to_string(), optional: false },
+                    PeerDep { version: range_str.to_string(), optional: false, meta_only: false },
                 );
             }
         }
@@ -1870,7 +1870,11 @@ fn extract_peer_dependencies(
             peers
                 .entry(name.clone())
                 .and_modify(|entry| entry.optional = true)
-                .or_insert_with(|| PeerDep { version: "*".to_string(), optional: true });
+                .or_insert_with(|| PeerDep {
+                    version: "*".to_string(),
+                    optional: true,
+                    meta_only: true,
+                });
         }
     }
 
