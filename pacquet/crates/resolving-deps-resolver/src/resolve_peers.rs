@@ -143,8 +143,12 @@ pub struct ResolvePeersOptions {
     /// ([`missingPeersOfChildrenByPkgId`](https://github.com/pnpm/pnpm/blob/a751c7f27d/installing/deps-resolver/src/resolveDependencies.ts#L193)) —
     /// only the package's *own* peers are re-evaluated per occurrence.
     /// The final workspace-wide pass leaves this `None` so warnings
-    /// still cover every importer.
-    pub hoist_missing_scope: Option<HoistMissingScope>,
+    /// still cover every importer. Held by `Arc`: the maps inside are
+    /// per-importer snapshots shared across every hoist-loop
+    /// iteration — the entries relevant to suppression (those of
+    /// earlier importers) cannot change while one importer's loop
+    /// runs.
+    pub hoist_missing_scope: Option<std::sync::Arc<HoistMissingScope>>,
 }
 
 /// See [`ResolvePeersOptions::hoist_missing_scope`].

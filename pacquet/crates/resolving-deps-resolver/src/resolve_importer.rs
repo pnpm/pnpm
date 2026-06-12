@@ -320,13 +320,18 @@ where
     // reuses the first walk's children report there, so those peers
     // never reach a later importer's hoist. The final per-importer
     // pass below keeps the unscoped options so warnings stay complete.
+    // Snapshotted once per importer: suppression only consults entries
+    // recorded by earlier importers (everything this importer's own
+    // loop adds is self-claimed and exempt), so the maps cannot change
+    // in a way the loop observes.
+    let hoist_missing_scope = Arc::new(crate::resolve_peers::HoistMissingScope {
+        importer_id: importer_id.to_string(),
+        first_importer_by_pkg: ctx.workspace().first_importer_by_pkg(),
+        first_walk_missing_by_pkg: ctx.workspace().first_walk_missing_by_pkg(),
+    });
     let hoist_peers_opts = || {
         let mut opts = peers_opts();
-        opts.hoist_missing_scope = Some(crate::resolve_peers::HoistMissingScope {
-            importer_id: importer_id.to_string(),
-            first_importer_by_pkg: ctx.workspace().first_importer_by_pkg(),
-            first_walk_missing_by_pkg: ctx.workspace().first_walk_missing_by_pkg(),
-        });
+        opts.hoist_missing_scope = Some(Arc::clone(&hoist_missing_scope));
         opts
     };
     loop {
