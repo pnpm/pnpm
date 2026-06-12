@@ -151,9 +151,11 @@ pub async fn fetch_full_metadata_cached(
                 pkg_name: pkg_name.to_string(),
             });
         };
-        return load_meta_async(Some(&path)).await.ok_or_else(|| {
+        let meta = load_meta_async(Some(&path)).await.ok_or_else(|| {
             FetchMetadataError::CacheMissingAfter304 { pkg_name: pkg_name.to_string() }
-        });
+        })?;
+        renew_mirror_freshness(&path);
+        return Ok(meta);
     }
 
     let response = response
@@ -212,6 +214,31 @@ pub async fn fetch_full_metadata_cached(
     .map_err(|error| FetchMetadataError::ParseTask { url, error })??;
 
     meta.pipe(Ok)
+}
+
+/// Bump the mirror file's mtime to "now" after a `304 Not Modified`.
+///
+/// The publishedBy mtime shortcut in [`crate::pick_package()`] treats
+/// a mirror younger than the maturity cutoff as authoritative. A 304
+/// proves the cached packument equals the registry's current one, so
+/// the validation clock legitimately restarts here — without the
+/// touch, a mirror older than `minimumReleaseAge` re-validates every
+/// package on every subsequent install, because a 304 never rewrites
+/// the file. Best-effort: a read-only cache dir only costs the next
+/// install another conditional request.
+fn renew_mirror_freshness(path: &Path) {
+    let touched = std::fs::OpenOptions::new()
+        .append(true)
+        .open(path)
+        .and_then(|file| file.set_modified(std::time::SystemTime::now()));
+    if let Err(error) = touched {
+        tracing::debug!(
+            target: "pacquet_resolving_npm_resolver::cache",
+            ?error,
+            path = %path.display(),
+            "could not renew mirror freshness after 304",
+        );
+    }
 }
 
 #[cfg(test)]
