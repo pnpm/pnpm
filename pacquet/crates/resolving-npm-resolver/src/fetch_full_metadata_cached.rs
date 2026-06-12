@@ -226,14 +226,18 @@ pub async fn fetch_full_metadata_cached(
 /// package on every subsequent install, because a 304 never rewrites
 /// the file.
 ///
-/// The file is opened read-only: `set_modified` goes through
-/// `futimens`-style timestamp syscalls that require ownership, not
-/// write access, so the touch also works on mirrors whose mode
-/// dropped write permission. Best-effort: a failure only costs the
-/// next install another conditional request.
+/// The append-mode open carries the write-attributes access Windows'
+/// `set_modified` needs (a read-only handle cannot set file times
+/// there). The read-only fallback covers Unix mirrors whose mode
+/// dropped write permission: `futimens`-style timestamp syscalls
+/// require ownership, not write access. Best-effort: a failure only
+/// costs the next install another conditional request.
 fn renew_mirror_freshness(path: &Path) {
-    let touched =
-        std::fs::File::open(path).and_then(|file| file.set_modified(std::time::SystemTime::now()));
+    let touched = std::fs::OpenOptions::new()
+        .append(true)
+        .open(path)
+        .or_else(|_| std::fs::File::open(path))
+        .and_then(|file| file.set_modified(std::time::SystemTime::now()));
     if let Err(error) = touched {
         tracing::debug!(
             target: "pacquet_resolving_npm_resolver::cache",
