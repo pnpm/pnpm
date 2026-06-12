@@ -326,11 +326,8 @@ pub enum HoistedDepGraphError {
     #[display("{_0}")]
     #[diagnostic(transparent)]
     Installability(#[error(source)] Box<InstallabilityError>),
-    /// A hoisted node's alias is not a valid npm package name, so
-    /// joining it under `node_modules` would escape the directory
-    /// (`../../../escape`) or overwrite pnpm-owned layout (`.bin`,
-    /// `.pnpm`, `node_modules`). Mirrors pnpm's
-    /// `ERR_PNPM_INVALID_DEPENDENCY_NAME` at the hoisted graph sink.
+    /// A hoisted node's alias was rejected by `safe_join_modules_dir`
+    /// before the join. Surfaces `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
     #[display("{_0}")]
     #[diagnostic(transparent)]
     InvalidDependencyAlias(#[error(source)] InvalidDependencyAliasError),

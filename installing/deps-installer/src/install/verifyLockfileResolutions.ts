@@ -35,8 +35,7 @@ const DEFAULT_CONCURRENCY = 64
 
 export const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE = 'RESOLUTION_SHAPE_MISMATCH'
 
-// Mirrors the sink-level guards (`safeJoinModulesDir`) so the verifier and
-// the linkers throw the same code for the same tampering.
+// Same code the sink-level guards (`safeJoinModulesDir`) throw.
 export const INVALID_DEPENDENCY_ALIAS_CODE = 'INVALID_DEPENDENCY_NAME'
 
 const RESOLUTION_SHAPE_CACHE_IDENTITY: VerifierCacheIdentity = {
@@ -224,26 +223,6 @@ export async function verifyLockfileResolutions (
   }
 }
 
-/**
-/**
- * Add every key of `deps` that is not a valid npm package name to
- * `invalid`. A dependency alias becomes a `node_modules/<alias>`
- * directory, so an invalid one (path-traversal, absolute, or a reserved
- * name such as `.bin` / `.pnpm` / `node_modules`) could escape the
- * install root or overwrite pnpm-owned layout. Folded into
- * {@link collectCandidates}'s single pass over the lockfile rather than
- * run as its own traversal. Other name-keyed maps (`overrides` with
- * `foo>bar` selectors, `patchedDependencies` keyed by `name@version`,
- * peer dependencies) are deliberately not passed here — they don't
- * become directories, so the package-name rule doesn't apply.
- */
-function pushInvalidAliases (deps: Record<string, string> | undefined, invalid: Set<string>): void {
-  if (deps == null) return
-  for (const alias of Object.keys(deps)) {
-    if (!isValidDependencyAlias(alias)) invalid.add(alias)
-  }
-}
-
 function buildInvalidAliasError (aliases: string[]): PnpmError {
   const sorted = [...aliases].sort()
   const visible = sorted.slice(0, MAX_VIOLATIONS_TO_PRINT)
@@ -386,9 +365,8 @@ interface Candidate {
 function collectCandidates (lockfile: LockfileObject): { candidates: Map<string, Candidate>, shapeViolations: ResolutionPolicyViolation[], invalidAliases: string[] } {
   const candidates = new Map<string, Candidate>()
   const shapeViolations: ResolutionPolicyViolation[] = []
-  // Validate every dependency alias the lockfile would turn into a
-  // `node_modules/<alias>` directory in the same pass. The importer
-  // alias maps are the one source not reached by the package loop below.
+  // The importer alias maps are the one source not reached by the
+  // package loop below, so they're scanned here.
   const invalidAliases = new Set<string>()
   for (const importer of Object.values(lockfile.importers ?? {})) {
     pushInvalidAliases(importer.dependencies, invalidAliases)
@@ -423,6 +401,19 @@ function collectCandidates (lockfile: LockfileObject): { candidates: Map<string,
     })
   }
   return { candidates, shapeViolations, invalidAliases: Array.from(invalidAliases) }
+}
+
+/**
+ * Add every key of `deps` that is not a valid {@link isValidDependencyAlias}
+ * to `invalid`. Only pass maps whose keys become `node_modules/<alias>`
+ * directories — not `overrides` (`foo>bar` selectors) or
+ * `patchedDependencies` (`name@version` keys).
+ */
+function pushInvalidAliases (deps: Record<string, string> | undefined, invalid: Set<string>): void {
+  if (deps == null) return
+  for (const alias of Object.keys(deps)) {
+    if (!isValidDependencyAlias(alias)) invalid.add(alias)
+  }
 }
 
 async function iterateLockfileViolations (

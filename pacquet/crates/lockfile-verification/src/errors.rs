@@ -99,10 +99,9 @@ pub enum VerifyError {
         breakdown: String,
     },
 
-    /// One or more dependency aliases in the lockfile are not valid
-    /// npm package names, so joining them under `node_modules` would
-    /// escape the install root or overwrite pnpm-owned layout. Mirrors
-    /// the sink-level guards' `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
+    /// One or more dependency aliases in the lockfile are not valid npm
+    /// package names. Surfaces `ERR_PNPM_INVALID_DEPENDENCY_NAME`, the
+    /// same code the sink-level guards raise.
     #[display("{count} dependency {plural} in the lockfile {verb} not valid package names:\n{breakdown}", plural = if *count == 1 { "alias" } else { "aliases" }, verb = if *count == 1 { "is" } else { "are" })]
     #[diagnostic(code(ERR_PNPM_INVALID_DEPENDENCY_NAME), help("{INVALID_ALIAS_HINT}"))]
     InvalidDependencyAlias {

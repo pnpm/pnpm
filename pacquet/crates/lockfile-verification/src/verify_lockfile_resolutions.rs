@@ -323,16 +323,11 @@ fn is_http_tarball_url(url: &str) -> bool {
     lower.starts_with("https://") || lower.starts_with("http://")
 }
 
-/// Add every alias in `aliases` that is not a valid npm package name to
-/// `invalid`. A dependency alias becomes a `node_modules/<alias>`
-/// directory, so an invalid one (path-traversal, absolute, or a
-/// reserved name such as `.bin` / `.pnpm` / `node_modules`) could escape
-/// the install root or overwrite pnpm-owned layout.
-/// `is_valid_old_npm_package_name` is the same `validForOldPackages`
-/// rule pnpm's `isValidDependencyAlias` applies. Folded into
-/// [`collect_candidates`]'s single pass; other name-keyed maps
-/// (`overrides`, `patched_dependencies`, peer dependencies) are
-/// deliberately not passed here — they don't become directories.
+/// Add every alias in `aliases` that fails
+/// `is_valid_old_npm_package_name` (the `validForOldPackages` rule
+/// pnpm's `isValidDependencyAlias` applies) to `invalid`. Only pass maps
+/// whose keys become `node_modules/<alias>` directories — not
+/// `overrides`, `patched_dependencies`, or peer dependencies.
 fn push_invalid_aliases<'alias>(
     aliases: impl Iterator<Item = &'alias PkgName>,
     invalid: &mut std::collections::BTreeSet<String>,
@@ -370,11 +365,9 @@ fn collect_candidates(
     let Some(packages) = lockfile.packages.as_ref() else {
         return (Vec::new(), Vec::new(), Vec::new());
     };
-    // Validate every dependency alias the lockfile would turn into a
-    // `node_modules/<alias>` directory in the same pass. The importer
-    // and snapshot alias maps are the sources not reached by the package
-    // loop below (pacquet keeps metadata in `packages` and the dep maps
-    // in `importers` / `snapshots`).
+    // Pacquet keeps the alias-bearing maps in `importers` / `snapshots`,
+    // separate from the `packages` metadata the loop below walks, so
+    // they're scanned here in the same pass.
     let mut invalid_aliases: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     for importer in lockfile.importers.values() {
         for deps in
