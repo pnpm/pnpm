@@ -21,7 +21,7 @@ use std::{
     path::Path,
     process::Stdio,
     sync::{
-        Arc,
+        Arc, Mutex as StdMutex,
         atomic::{AtomicU64, Ordering},
     },
 };
@@ -53,7 +53,26 @@ struct Pending {
     done: oneshot::Sender<Result<Value, String>>,
 }
 
-type PendingMap = Arc<Mutex<HashMap<u64, Pending>>>;
+/// Pending requests keyed by id. A `std` mutex (never held across an
+/// await) so [`PendingEntryGuard::drop`] can clean up synchronously
+/// when a caller's future is cancelled.
+type PendingMap = Arc<StdMutex<HashMap<u64, Pending>>>;
+
+/// Removes the pending entry on drop. Covers every exit from
+/// [`NodeWorker::request`] — send failure, timeout, and cancellation of
+/// the caller's future — so a request the worker never answers cannot
+/// leak its entry. Removal is idempotent: a delivered reply has already
+/// removed the entry in [`dispatch_line`].
+struct PendingEntryGuard {
+    pending: PendingMap,
+    id: u64,
+}
+
+impl Drop for PendingEntryGuard {
+    fn drop(&mut self) {
+        self.pending.lock().unwrap().remove(&self.id);
+    }
+}
 
 /// A handle to a running Node worker process loaded with one pnpmfile.
 pub struct NodeWorker {
@@ -94,16 +113,16 @@ impl NodeWorker {
         let stdin = child.stdin.take().expect("worker stdin is piped");
         let stdout = child.stdout.take().expect("worker stdout is piped");
 
-        let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
+        let pending: PendingMap = Arc::new(StdMutex::new(HashMap::new()));
         let pending_reader = Arc::clone(&pending);
         tokio::spawn(async move {
             let mut lines = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                dispatch_line(&pending_reader, &line).await;
+                dispatch_line(&pending_reader, &line);
             }
             // The worker exited: fail every still-pending request so callers
             // don't hang waiting for a response that will never arrive.
-            for (_, pending) in pending_reader.lock().await.drain() {
+            for (_, pending) in pending_reader.lock().unwrap().drain() {
                 let _ = pending.done.send(Err("pnpmfile worker exited".to_string()));
             }
         });
@@ -178,32 +197,24 @@ impl NodeWorker {
     async fn request(&self, label: &str, mut body: Value, log: LogFn) -> Result<Value, HookError> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (done, rx) = oneshot::channel();
-        self.pending.lock().await.insert(id, Pending { log, done });
+        self.pending.lock().unwrap().insert(id, Pending { log, done });
+        let _pending_guard = PendingEntryGuard { pending: Arc::clone(&self.pending), id };
 
         body["id"] = serde_json::json!(id);
-        let send_result = async {
-            let mut line = serde_json::to_string(&body).map_err(|err| err.to_string())?;
-            line.push('\n');
+        let mut line =
+            serde_json::to_string(&body).map_err(|err| self.exec_err(err.to_string()))?;
+        line.push('\n');
+        {
             let mut stdin = self.stdin.lock().await;
-            stdin.write_all(line.as_bytes()).await.map_err(|err| err.to_string())?;
-            stdin.flush().await.map_err(|err| err.to_string())
-        }
-        .await;
-        if let Err(message) = send_result {
-            // The reader task can never answer a request that was not
-            // sent, so drop the entry here or it leaks until shutdown.
-            self.pending.lock().await.remove(&id);
-            return Err(self.exec_err(message));
+            stdin.write_all(line.as_bytes()).await.map_err(|err| self.exec_err(err.to_string()))?;
+            stdin.flush().await.map_err(|err| self.exec_err(err.to_string()))?;
         }
 
         match timeout(HOOK_TIMEOUT, rx).await {
             Ok(Ok(Ok(value))) => Ok(value),
             Ok(Ok(Err(message))) => Err(self.exec_err(message)),
             Ok(Err(_)) => Err(self.exec_err("pnpmfile worker dropped the response")),
-            Err(_) => {
-                self.pending.lock().await.remove(&id);
-                Err(HookError::Timeout(label.to_string(), HOOK_TIMEOUT.as_secs()))
-            }
+            Err(_) => Err(HookError::Timeout(label.to_string(), HOOK_TIMEOUT.as_secs())),
         }
     }
 }
@@ -211,18 +222,19 @@ impl NodeWorker {
 /// Route one line from the worker to its pending request: forward `log` lines
 /// to the call's logger (the entry stays until the result arrives) and resolve
 /// the call on `ok`/`err`.
-async fn dispatch_line(pending: &PendingMap, line: &str) {
+fn dispatch_line(pending: &PendingMap, line: &str) {
     let Ok(message) = serde_json::from_str::<Value>(line) else { return };
     let Some(id) = message.get("id").and_then(Value::as_u64) else { return };
 
     if let Some(log) = message.get("log").and_then(Value::as_str) {
-        if let Some(entry) = pending.lock().await.get(&id) {
-            (entry.log)(log.to_string());
+        let log_fn = pending.lock().unwrap().get(&id).map(|entry| Arc::clone(&entry.log));
+        if let Some(log_fn) = log_fn {
+            log_fn(log.to_string());
         }
         return;
     }
 
-    let Some(entry) = pending.lock().await.remove(&id) else { return };
+    let Some(entry) = pending.lock().unwrap().remove(&id) else { return };
     let result = match message.get("err").and_then(Value::as_str) {
         Some(err) => Err(err.to_string()),
         None => Ok(message.get("ok").cloned().unwrap_or(Value::Null)),
@@ -313,3 +325,6 @@ async function handle(line) {{
 "#,
     )
 }
+
+#[cfg(test)]
+mod tests;
