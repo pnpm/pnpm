@@ -22,17 +22,17 @@ pacquet-patching                          = { workspace = true }
 pacquet-resolving-parse-wanted-dependency = { workspace = true }
 pacquet-resolving-resolver-base           = { workspace = true }
 
-async-recursion = { workspace = true }
-chrono          = { workspace = true }
-derive_more     = { workspace = true }
-futures-util    = { workspace = true }
-miette          = { workspace = true }
-node-semver     = { workspace = true }
+async-recursion                        = { workspace = true }
+chrono                                 = { workspace = true }
+derive_more                            = { workspace = true }
+futures-util                           = { workspace = true }
+miette                                 = { workspace = true }
+node-semver                            = { workspace = true }
 pacquet-resolving-jsr-specifier-parser = { workspace = true }
-pathdiff        = { workspace = true }
-pipe-trait      = { workspace = true }
-serde_json      = { workspace = true }
-tokio           = { workspace = true, features = ["sync"] }
+pathdiff                               = { workspace = true }
+pipe-trait                             = { workspace = true }
+serde_json                             = { workspace = true }
+tokio                                  = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 node-semver       = { workspace = true }
