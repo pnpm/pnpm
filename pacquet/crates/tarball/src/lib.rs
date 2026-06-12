@@ -1036,6 +1036,9 @@ pub type PrefetchedSideEffectsMaps =
 /// pnpm's worker fallback when `pkgFilesIndex.requiresBuild` is absent.
 pub type PrefetchedRequiresBuild = HashMap<String, bool>;
 
+type DecodedPrefetchRow =
+    (String, Option<Arc<serde_json::Value>>, Option<bool>, pacquet_store_dir::VerifyResult);
+
 /// Output of [`prefetch_cas_paths`]: the warm-cache filesystem map
 /// plus any bundled manifests and side-effects overlays recovered
 /// from the same `index.db` rows. Bundled in a single struct so
@@ -1141,12 +1144,7 @@ pub async fn prefetch_cas_paths(
         // `Option::take` so it travels back to the caller without
         // an intermediate `Value::clone` of the JSON tree — the
         // verify function only inspects `files`, never `manifest`.
-        let decoded: Vec<(
-            String,
-            Option<Arc<serde_json::Value>>,
-            Option<bool>,
-            pacquet_store_dir::VerifyResult,
-        )> = raw
+        let decoded: Vec<DecodedPrefetchRow> = raw
             .into_par_iter()
             .filter_map(|(cache_key, bytes)| {
                 let mut entry: PackageFilesIndex = match pacquet_store_dir::decode_package_files_index(&bytes) {
