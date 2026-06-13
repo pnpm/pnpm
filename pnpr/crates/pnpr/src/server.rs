@@ -1221,17 +1221,32 @@ async fn commit_publishes(
             return Err(err);
         }
     };
-    // Past the seal, failures must NOT clean up the staged files: the
-    // transaction is committed, and startup recovery finishes the
-    // apply from exactly this on-disk state.
-    for stage in staged {
-        for slot in stage.slots {
-            state.inner.storage.finalize_tarball_slot(slot).await?;
+    // Past the seal the transaction is committed: the apply below is pure
+    // roll-forward, and failures must NOT clean up the staged files. If
+    // the apply fails partway, complete it immediately via the same
+    // idempotent recovery path so a running server never leaves the batch
+    // partially visible; startup recovery is the final backstop if even
+    // that fails.
+    let apply_result = async {
+        for stage in staged {
+            for slot in stage.slots {
+                state.inner.storage.finalize_tarball_slot(slot).await?;
+            }
+            state.inner.storage.write_hosted_packument(&stage.name, &stage.merged_bytes).await?;
         }
-        state.inner.storage.write_hosted_packument(&stage.name, &stage.merged_bytes).await?;
+        Ok::<(), RegistryError>(())
     }
-    txn.finish().await;
-    Ok(())
+    .await;
+    match apply_result {
+        Ok(()) => {
+            txn.finish().await;
+            Ok(())
+        }
+        Err(apply_err) => {
+            tracing::warn!(error = %apply_err, "publish apply failed after seal; rolling forward");
+            txn.roll_forward(&state.inner.storage).await.map_err(|_| apply_err)
+        }
+    }
 }
 
 fn publish_created_response() -> Response {

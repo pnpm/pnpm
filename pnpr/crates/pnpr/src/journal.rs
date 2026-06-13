@@ -159,7 +159,11 @@ impl PublishJournal {
         // timestamp, so the lexical order is the seal order.
         txn_dirs.sort();
         for dir in txn_dirs {
-            if fs::try_exists(dir.join(COMMIT_MARKER)).await.unwrap_or(false) {
+            // Never treat "can't tell" as unsealed: an I/O error probing
+            // the marker must not send a possibly-sealed transaction to
+            // rollback, which would delete an already-committed publish.
+            // Abort recovery so startup fails loudly instead.
+            if fs::try_exists(dir.join(COMMIT_MARKER)).await? {
                 roll_forward(storage, &dir).await?;
                 tracing::info!(txn = %dir.display(), "rolled publish journal entry forward");
             } else {
@@ -172,6 +176,16 @@ impl PublishJournal {
 }
 
 impl SealedTxn {
+    /// Apply the sealed transaction now, completing any apply steps that
+    /// have not run yet, and remove the journal entry. This is the same
+    /// idempotent roll-forward startup recovery performs; commit calls it
+    /// to self-heal when the inline apply fails partway, so a running
+    /// server never leaves a sealed batch partially visible until the
+    /// next restart.
+    pub async fn roll_forward(self, storage: &Storage) -> Result<()> {
+        roll_forward(storage, &self.dir).await
+    }
+
     /// Remove the journal entry once the publish is fully applied.
     /// Best-effort: a leftover sealed entry is simply re-applied
     /// (idempotently) by the next startup recovery.
