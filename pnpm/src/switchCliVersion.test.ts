@@ -106,9 +106,7 @@ test('switchCliVersion uses trusted package-manager registries instead of projec
   }
   const packageManagerNetworkConfig = {
     configByUri: {
-      '//trusted.example.com/': {
-        creds: { authToken: 'trusted-token' },
-      },
+      '//trusted.example.com/': { '@': { authToken: 'trusted-token' } },
     },
     httpProxy: 'http://trusted-http-proxy.example.com:8080',
     httpsProxy: 'http://trusted-https-proxy.example.com:8080',
@@ -117,9 +115,7 @@ test('switchCliVersion uses trusted package-manager registries instead of projec
   }
   const config = {
     configByUri: {
-      '//project.example.com/': {
-        creds: { authToken: 'project-token' },
-      },
+      '//project.example.com/': { '@': { authToken: 'project-token' } },
     },
     httpProxy: 'http://project-http-proxy.example.com:8080',
     httpsProxy: 'http://project-https-proxy.example.com:8080',
@@ -172,9 +168,7 @@ test('switchCliVersion defaults package-manager registries to npmjs instead of p
   }
   const config = {
     configByUri: {
-      '//project.example.com/': {
-        creds: { authToken: 'project-token' },
-      },
+      '//project.example.com/': { '@': { authToken: 'project-token' } },
     },
     httpProxy: 'http://project-http-proxy.example.com:8080',
     httpsProxy: 'http://project-https-proxy.example.com:8080',

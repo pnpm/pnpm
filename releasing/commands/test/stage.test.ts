@@ -117,6 +117,30 @@ describe('stage command', () => {
       .rejects.toThrow('Version specifiers are not supported for listing staged packages')
   })
 
+  test('stage list uses package-scoped auth for package filters', async () => {
+    const registry = await createRegistry((request) => {
+      expect(headerValue(request.headers.authorization)).toBe('Bearer scoped-token')
+      return { body: { items: [], page: 0, perPage: 100, total: 0 } }
+    })
+    try {
+      const registryUrl = new URL(registry.url)
+      const result = await stage.handler({
+        ...stageOpts(registry.url),
+        argv: { original: ['stage', 'list'] },
+        configByUri: {
+          [`//${registryUrl.host}/`]: {
+            '@': { authToken: 'default-token' },
+            '@scope': { authToken: 'scoped-token' },
+          },
+        },
+      }, ['list', '@scope/example-package'])
+
+      expect(result).toBe('No staged versions of package name "@scope/example-package".')
+    } finally {
+      await registry.close()
+    }
+  })
+
   test('stage approve and reject send configured OTP', async () => {
     const seen: Array<{ authType: string | undefined, method: string, npmCommand: string | undefined, otp: string | undefined, pathname: string }> = []
     const registry = await createRegistry((request) => {

@@ -17,24 +17,36 @@
 //! key at that host or prefix in `.npmrc`; if it redirects across
 //! hosts, no header is attached, matching upstream.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+
+pub const DEFAULT_REGISTRY_SCOPE: &str = "@";
+
+pub type AuthHeadersByScope = BTreeMap<String, BTreeMap<String, String>>;
 
 /// Bag of `Authorization` header values keyed by the nerf-darted form
 /// of each registry URL. Pacquet builds one of these from the parsed
 /// `.npmrc` and shares it across every HTTP call made during install.
 ///
-/// Construct via [`AuthHeaders::from_creds_map`], [`AuthHeaders::from_map`],
-/// or [`AuthHeaders::default`] (empty). Look up via [`AuthHeaders::for_url`].
+/// Construct via [`AuthHeaders::from_parts`], [`AuthHeaders::from_creds_map`],
+/// [`AuthHeaders::from_map`], or [`AuthHeaders::default`] (empty). Look up via
+/// [`AuthHeaders::for_url`].
 #[derive(Debug, Default, Clone)]
 pub struct AuthHeaders {
     /// Keys are the nerf-darted form (`//host[:port]/path/`). Values
     /// are ready-to-send header values like `Bearer abc123` or
     /// `Basic Zm9vOmJhcg==`.
     by_uri: HashMap<String, String>,
+    /// Package-scope credentials keyed as
+    /// `scoped_by_scope[scope][registry_uri]`, where `registry_uri` is
+    /// the nerf-darted registry URL without the trailing scope segment.
+    scoped_by_scope: HashMap<String, HashMap<String, String>>,
     /// The longest key in `by_uri` measured in `/`-separated parts. The
     /// lookup walks from this depth down to 3 (the `//host/` floor),
     /// matching pnpm's `getMaxParts` precomputation.
     max_parts: usize,
+    /// The longest registry key per package scope, measured the same
+    /// way as `max_parts`.
+    max_scoped_parts_by_scope: HashMap<String, usize>,
 }
 
 impl AuthHeaders {
@@ -70,7 +82,7 @@ impl AuthHeaders {
             if raw_uri.is_empty() {
                 default_header = Some(header_value);
             } else {
-                by_uri.insert(raw_uri, header_value);
+                by_uri.insert(normalize_auth_key(raw_uri), header_value);
             }
         }
         if let Some(header) = default_header {
@@ -83,16 +95,89 @@ impl AuthHeaders {
     /// Each key must already be in nerf-darted form
     /// (`//host[:port]/path/`).
     #[must_use]
-    pub fn from_map(by_uri: HashMap<String, String>) -> Self {
-        let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
-        AuthHeaders { by_uri, max_parts }
+    pub fn from_map(headers: HashMap<String, String>) -> Self {
+        let mut by_uri = HashMap::new();
+        let mut scoped_by_uri: HashMap<String, HashMap<String, String>> = HashMap::new();
+        for (uri, value) in headers {
+            let uri = normalize_auth_key(uri);
+            if let Some((registry_uri, scope)) = split_scoped_auth_key(&uri) {
+                scoped_by_uri
+                    .entry(registry_uri.to_owned())
+                    .or_default()
+                    .insert(scope.to_owned(), value);
+            } else {
+                by_uri.insert(uri, value);
+            }
+        }
+        Self::from_parts(by_uri, scoped_by_uri)
     }
 
-    /// The `(nerf_darted_uri, header_value)` pairs backing this lookup, so
-    /// a caller can forward the whole set to another process (the pnpr
-    /// resolver) and rebuild it with [`Self::from_map`].
-    pub fn entries(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.by_uri.iter().map(|(uri, value)| (uri.as_str(), value.as_str()))
+    /// Build an [`AuthHeaders`] from already-structured registry and
+    /// package-scope header maps.
+    #[must_use]
+    pub fn from_parts(
+        by_uri: HashMap<String, String>,
+        scoped_by_uri: HashMap<String, HashMap<String, String>>,
+    ) -> Self {
+        let by_uri: HashMap<String, String> =
+            by_uri.into_iter().map(|(uri, value)| (normalize_auth_key(uri), value)).collect();
+        let mut scoped_by_scope: HashMap<String, HashMap<String, String>> = HashMap::new();
+        let mut max_scoped_parts_by_scope: HashMap<String, usize> = HashMap::new();
+        for (uri, scoped) in scoped_by_uri {
+            let uri = normalize_auth_key(uri);
+            let parts = uri.split('/').count();
+            for (scope, value) in scoped {
+                max_scoped_parts_by_scope
+                    .entry(scope.clone())
+                    .and_modify(|max| *max = (*max).max(parts))
+                    .or_insert(parts);
+                scoped_by_scope.entry(scope).or_default().insert(uri.clone(), value);
+            }
+        }
+        let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
+        AuthHeaders { by_uri, scoped_by_scope, max_parts, max_scoped_parts_by_scope }
+    }
+
+    /// Build an [`AuthHeaders`] from the structured pnpr wire shape:
+    /// `auth_headers[registry_uri][scope]`. The `@` scope stores
+    /// registry-wide auth.
+    #[must_use]
+    pub fn from_by_scope(headers: AuthHeadersByScope) -> Self {
+        let mut by_uri = HashMap::new();
+        let mut scoped_by_uri: HashMap<String, HashMap<String, String>> = HashMap::new();
+        for (uri, headers_by_scope) in headers {
+            let uri = normalize_auth_key(uri);
+            for (scope, value) in headers_by_scope {
+                if scope == DEFAULT_REGISTRY_SCOPE {
+                    by_uri.insert(uri.clone(), value);
+                } else {
+                    scoped_by_uri.entry(uri.clone()).or_default().insert(scope, value);
+                }
+            }
+        }
+        Self::from_parts(by_uri, scoped_by_uri)
+    }
+
+    /// The structured `auth_headers[registry_uri][scope]` map backing
+    /// this lookup, suitable for forwarding to a pnpr resolver.
+    #[must_use]
+    pub fn to_by_scope(&self) -> AuthHeadersByScope {
+        let mut result = AuthHeadersByScope::new();
+        for (uri, value) in &self.by_uri {
+            result
+                .entry(uri.clone())
+                .or_default()
+                .insert(DEFAULT_REGISTRY_SCOPE.to_owned(), value.clone());
+        }
+        for (scope, scoped_by_uri) in &self.scoped_by_scope {
+            for (registry_uri, value) in scoped_by_uri {
+                result
+                    .entry(registry_uri.clone())
+                    .or_default()
+                    .insert(scope.clone(), value.clone());
+            }
+        }
+        result
     }
 
     /// Resolve an `Authorization` header for `url`, mirroring pnpm's
@@ -107,7 +192,15 @@ impl AuthHeaders {
     ///    [`removePort`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/helpers/removePort.ts),
     ///    which strips *any* port (not just protocol defaults) and
     ///    retries iff the URL changed.
+    #[must_use]
     pub fn for_url(&self, url: &str) -> Option<String> {
+        self.for_url_with_package(url, None)
+    }
+
+    /// Resolve an `Authorization` header for `url`, preferring
+    /// package-scope credentials when `pkg_name` is scoped.
+    #[must_use]
+    pub fn for_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
         // Append a trailing `/` first, matching pnpm's lookup which
         // does the same before parsing. Without this, a URL like
         // `https://npm.pkg.github.com/pnpm` (registry without
@@ -126,12 +219,38 @@ impl AuthHeaders {
         if let Some(basic) = parsed.basic_auth_header() {
             return Some(basic);
         }
+        if let Some(scope) = package_scope(pkg_name) {
+            if let Some(value) = self.lookup_scope_by_nerf(&parsed, scope) {
+                return Some(value.to_owned());
+            }
+            if parsed.port.is_some() {
+                let stripped = parsed.with_port_stripped();
+                if let Some(value) = self.lookup_scope_by_nerf(&stripped, scope) {
+                    return Some(value.to_owned());
+                }
+            }
+        }
         if let Some(value) = self.lookup_by_nerf(&parsed) {
             return Some(value.to_owned());
         }
         if parsed.port.is_some() {
             let stripped = parsed.with_port_stripped();
             return self.lookup_by_nerf(&stripped).map(str::to_owned);
+        }
+        None
+    }
+
+    fn lookup_scope_by_nerf(&self, parsed: &ParsedUrl<'_>, scope: &str) -> Option<&str> {
+        let scoped_by_uri = self.scoped_by_scope.get(scope)?;
+        let max_scoped_parts = self.max_scoped_parts_by_scope.get(scope).copied()?;
+        let nerfed = parsed.nerf_dart();
+        let parts: Vec<&str> = nerfed.split('/').collect();
+        let upper = parts.len().min(max_scoped_parts);
+        for i in (3..upper).rev() {
+            let key = format!("{}/", parts[..i].join("/"));
+            if let Some(value) = scoped_by_uri.get(&key) {
+                return Some(value.as_str());
+            }
         }
         None
     }
@@ -160,6 +279,39 @@ impl AuthHeaders {
         }
         None
     }
+}
+
+fn normalize_auth_key(mut uri: String) -> String {
+    if !uri.is_empty() && !uri.ends_with('/') {
+        uri.push('/');
+    }
+    uri
+}
+
+fn split_scoped_auth_key(uri: &str) -> Option<(&str, &str)> {
+    let trimmed = uri.strip_suffix('/').unwrap_or(uri);
+    let last_slash_index = trimmed.rfind('/')?;
+    let scope = &trimmed[last_slash_index + 1..];
+    if !is_package_scope(scope) {
+        return None;
+    }
+    Some((&uri[..=last_slash_index], scope))
+}
+
+fn is_package_scope(scope: &str) -> bool {
+    scope.starts_with('@') && scope.len() > 1
+}
+
+fn package_scope(pkg_name: Option<&str>) -> Option<&str> {
+    let pkg_name = pkg_name?;
+    if !pkg_name.starts_with('@') {
+        return None;
+    }
+    let (scope, name) = pkg_name.split_once('/')?;
+    if scope.len() <= 1 || name.is_empty() {
+        return None;
+    }
+    Some(scope)
 }
 
 /// Strip protocol, query string, fragment, basic-auth, and any

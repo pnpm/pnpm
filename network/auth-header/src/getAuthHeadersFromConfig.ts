@@ -1,19 +1,63 @@
 import { spawnSync } from 'node:child_process'
 
 import { PnpmError } from '@pnpm/error'
-import type { Creds, RegistryConfig, TokenHelper } from '@pnpm/types'
+import { type Creds, DEFAULT_REGISTRY_SCOPE, type RegistryConfig, type TokenHelper } from '@pnpm/types'
+
+export interface AuthHeaders {
+  authHeaderValueByURI: Record<string, string>
+  scopedAuthHeaderValueByURI: Record<string, Record<string, string>>
+}
+
+export type AuthHeadersByScope = Record<string, Record<string, string>>
 
 export function getAuthHeadersFromCreds (
   configByUri: Record<string, RegistryConfig>
-): Record<string, string> {
-  const authHeaderValueByURI: Record<string, string> = {}
+): AuthHeaders {
+  const authHeaders: AuthHeaders = {
+    authHeaderValueByURI: {},
+    scopedAuthHeaderValueByURI: {},
+  }
   for (const [uri, registryConfig] of Object.entries(configByUri)) {
-    const header = credsToHeader(registryConfig.creds)
+    const normalizedUri = normalizeAuthKey(uri)
+    const header = credsToHeader(registryConfig[DEFAULT_REGISTRY_SCOPE])
     if (header) {
-      authHeaderValueByURI[uri] = header
+      authHeaders.authHeaderValueByURI[normalizedUri] = header
+    }
+    for (const scope of getRegistryScopes(registryConfig)) {
+      if (scope === DEFAULT_REGISTRY_SCOPE) continue
+      const scopedCreds = registryConfig[scope]
+      const scopedHeader = credsToHeader(scopedCreds)
+      if (scopedHeader) {
+        authHeaders.scopedAuthHeaderValueByURI[normalizedUri] ??= {}
+        authHeaders.scopedAuthHeaderValueByURI[normalizedUri][scope] = scopedHeader
+      }
     }
   }
-  return authHeaderValueByURI
+  return authHeaders
+}
+
+export function getAuthHeadersByScope (authHeaders: AuthHeaders): AuthHeadersByScope {
+  const result: AuthHeadersByScope = {}
+  for (const [registryURI, authHeader] of Object.entries(authHeaders.authHeaderValueByURI)) {
+    result[registryURI] ??= {}
+    result[registryURI][DEFAULT_REGISTRY_SCOPE] = authHeader
+  }
+  for (const [registryURI, scopedAuthHeaders] of Object.entries(authHeaders.scopedAuthHeaderValueByURI)) {
+    result[registryURI] ??= {}
+    for (const [scope, authHeader] of Object.entries(scopedAuthHeaders)) {
+      result[registryURI][scope] = authHeader
+    }
+  }
+  return result
+}
+
+function getRegistryScopes (registryConfig: RegistryConfig): Array<`@${string}`> {
+  return Object.keys(registryConfig).filter((scope): scope is `@${string}` => scope.startsWith('@'))
+}
+
+function normalizeAuthKey (uri: string): string {
+  if (!uri) return uri
+  return uri.endsWith('/') ? uri : `${uri}/`
 }
 
 function credsToHeader (creds?: Creds): string | undefined {

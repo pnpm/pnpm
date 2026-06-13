@@ -123,7 +123,7 @@ pub async fn fetch_full_metadata_cached(
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     let (client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
         let mut request = client.get(&url).header(header::ACCEPT, accept);
-        if let Some(value) = opts.auth_headers.for_url(&url) {
+        if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
             request = request.header(header::AUTHORIZATION, value);
         }
         if let Some(headers) = cache_headers.as_ref() {

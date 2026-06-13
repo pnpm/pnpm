@@ -267,7 +267,7 @@ impl PackageVersion {
         );
         // Same auth flow as `Package::fetch_from_registry`. See the
         // doc comment there.
-        if let Some(value) = auth_headers.for_url(&url) {
+        if let Some(value) = auth_headers.for_url_with_package(&url, Some(name)) {
             request = request.header("authorization", value);
         }
         request

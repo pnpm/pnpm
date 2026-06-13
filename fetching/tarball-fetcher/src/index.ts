@@ -71,7 +71,7 @@ export function createTarballFetcher (
 async function fetchFromTarball (
   ctx: {
     download: DownloadFunction
-    getAuthHeaderByURI: (registry: string) => string | undefined
+    getAuthHeaderByURI: GetAuthHeader
     offline?: boolean
     storeIndex: StoreIndex
   },

@@ -98,6 +98,60 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     mock.assert_async().await;
 }
 
+#[tokio::test]
+async fn fetch_full_metadata_uses_package_scope_auth() {
+    let mut server = mockito::Server::new_async().await;
+    let body = r#"{
+        "name": "@scope/pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2025-01-15T12:00:00.000Z",
+        "versions": {
+            "1.0.0": {
+                "name": "@scope/pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/@scope/pkg-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let mock = server
+        .mock("GET", "/@scope%2Fpkg")
+        .match_header("authorization", "Bearer scoped-token")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::from_creds_map(
+        [(
+            format!("{}@scope", pacquet_network::nerf_dart(&registry)),
+            "Bearer scoped-token".to_owned(),
+        )],
+        None,
+    );
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: false,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let pkg = expect_modified(
+        fetch_full_metadata("@scope/pkg", &opts).await.expect("server returns 200"),
+    );
+    assert_eq!(pkg.name, "@scope/pkg");
+    mock.assert_async().await;
+}
+
 /// A 5xx response propagates as a [`super::FetchMetadataError::Network`]
 /// rather than panicking or silently returning a default-valued
 /// `Package`. Mirrors upstream's `fetchFullMetadataCached`

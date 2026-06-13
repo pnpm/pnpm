@@ -14,6 +14,7 @@ use std::{
     time::Duration,
 };
 
+use pacquet_network::{AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE};
 use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions, VerifyLockfileOptions};
 use pacquet_testing_utils::registry::TestRegistry;
 use tempfile::TempDir;
@@ -49,6 +50,14 @@ async fn wait_until_ready(addr: SocketAddr) {
 
 fn deps<const COUNT: usize>(entries: [(&str, &str); COUNT]) -> BTreeMap<String, String> {
     entries.into_iter().map(|(name, range)| (name.to_string(), range.to_string())).collect()
+}
+
+fn auth_headers<const COUNT: usize>(entries: [(&str, &str, &str); COUNT]) -> AuthHeadersByScope {
+    let mut result = AuthHeadersByScope::new();
+    for (uri, scope, value) in entries {
+        result.entry(uri.to_string()).or_default().insert(scope.to_string(), value.to_string());
+    }
+    result
 }
 
 /// The nerf-darted key (`//host[:port]/path/`) a forwarded credential for
@@ -113,7 +122,7 @@ async fn forwards_credentials_and_the_identity_header() {
         .mock("POST", "/v1/resolve")
         .match_header("authorization", "Bearer pnpr-token")
         .match_body(mockito::Matcher::PartialJsonString(
-            r#"{"authHeaders":{"//npm.acme.test/":"Bearer upstream-token"}}"#.to_string(),
+            r#"{"authHeaders":{"//npm.acme.test/":{"@":"Bearer upstream-token"}}}"#.to_string(),
         ))
         .with_status(500)
         .with_body("stop")
@@ -123,7 +132,8 @@ async fn forwards_credentials_and_the_identity_header() {
     let client = PnprClient::new(format!("{}/", server.url()));
 
     let mut opts = options("https://npm.acme.test/", deps([("@acme/foo", "1.0.0")]));
-    opts.auth_headers = deps([("//npm.acme.test/", "Bearer upstream-token")]);
+    opts.auth_headers =
+        auth_headers([("//npm.acme.test/", DEFAULT_REGISTRY_SCOPE, "Bearer upstream-token")]);
     opts.authorization = Some("Bearer pnpr-token".to_string());
 
     let result = client.resolve(opts).await;
@@ -144,9 +154,10 @@ async fn a_forwarded_credential_resolves_a_private_package() {
     let client = PnprClient::new(pnpr_url);
 
     let mut opts = options(&registry.url(), deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
-    let mut auth = BTreeMap::new();
-    auth.insert(nerf_key(&registry.url()), format!("Bearer {token}"));
-    opts.auth_headers = auth;
+    let registry_key = nerf_key(&registry.url());
+    let bearer = format!("Bearer {token}");
+    opts.auth_headers =
+        auth_headers([(registry_key.as_str(), DEFAULT_REGISTRY_SCOPE, bearer.as_str())]);
 
     let outcome = client.resolve(opts).await.expect("forwarded credential should resolve it");
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
@@ -367,9 +378,10 @@ async fn verify_lockfile_endpoint_forwards_credentials() {
     let (resolve_pnpr_url, _resolve_storage) = start_pnpr().await;
 
     let mut resolve_opts = options(&registry.url(), deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
-    let mut auth = BTreeMap::new();
-    auth.insert(nerf_key(&registry.url()), format!("Bearer {token}"));
-    resolve_opts.auth_headers = auth;
+    let registry_key = nerf_key(&registry.url());
+    let bearer = format!("Bearer {token}");
+    resolve_opts.auth_headers =
+        auth_headers([(registry_key.as_str(), DEFAULT_REGISTRY_SCOPE, bearer.as_str())]);
     let first = PnprClient::new(resolve_pnpr_url)
         .resolve(resolve_opts.clone())
         .await

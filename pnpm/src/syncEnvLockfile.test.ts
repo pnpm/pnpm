@@ -147,9 +147,7 @@ test('uses trusted package-manager registries instead of project registries', as
   }
   const packageManagerNetworkConfig = {
     configByUri: {
-      '//trusted.example.com/': {
-        creds: { authToken: 'trusted-token' },
-      },
+      '//trusted.example.com/': { '@': { authToken: 'trusted-token' } },
     },
     httpProxy: 'http://trusted-http-proxy.example.com:8080',
     httpsProxy: 'http://trusted-https-proxy.example.com:8080',
@@ -159,9 +157,7 @@ test('uses trusted package-manager registries instead of project registries', as
 
   await syncEnvLockfile({
     configByUri: {
-      '//project.example.com/': {
-        creds: { authToken: 'project-token' },
-      },
+      '//project.example.com/': { '@': { authToken: 'project-token' } },
     },
     httpProxy: 'http://project-http-proxy.example.com:8080',
     httpsProxy: 'http://project-https-proxy.example.com:8080',
@@ -199,9 +195,7 @@ test('defaults package-manager registries to npmjs instead of project registries
 
   await syncEnvLockfile({
     configByUri: {
-      '//project.example.com/': {
-        creds: { authToken: 'project-token' },
-      },
+      '//project.example.com/': { '@': { authToken: 'project-token' } },
     },
     httpProxy: 'http://project-http-proxy.example.com:8080',
     httpsProxy: 'http://project-https-proxy.example.com:8080',

@@ -1568,7 +1568,7 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // resolve the per-URL auth header and attach it. Tarball hosts that
     // differ from the metadata host still pick up the header keyed at
     // the registry's nerf-darted URI.
-    if let Some(value) = auth_headers.for_url(package_url) {
+    if let Some(value) = auth_headers.for_url_with_package(package_url, Some(package_id)) {
         request = request.header("authorization", value);
     }
 
@@ -2437,7 +2437,7 @@ async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     // would 401 without this. Keeps parity with pnpm's binary
     // fetcher which goes through the same `fetchFromRegistry` /
     // auth-header plumbing.
-    if let Some(value) = auth_headers.for_url(package_url) {
+    if let Some(value) = auth_headers.for_url_with_package(package_url, Some(package_id)) {
         request = request.header("authorization", value);
     }
 

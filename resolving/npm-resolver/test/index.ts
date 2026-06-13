@@ -320,6 +320,31 @@ test('can resolve aliased scoped dependency', async () => {
   expect(resolveResult!.id).toBe('@sindresorhus/is@0.6.0')
 })
 
+test('resolveFromNpm() passes package name to auth header lookup', async () => {
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({
+      path: '/@sindresorhus%2Fis',
+      method: 'GET',
+      headers: { authorization: 'Bearer scoped-token' },
+    })
+    .reply(200, sindresorhusIsMeta)
+
+  const calls: Array<{ uri: string, pkgName?: string }> = []
+  const scopedGetAuthHeader = (uri: string, opts?: { pkgName?: string }): string | undefined => {
+    calls.push({ uri, pkgName: opts?.pkgName })
+    return opts?.pkgName === '@sindresorhus/is' ? 'Bearer scoped-token' : undefined
+  }
+  const { resolveFromNpm } = createNpmResolver(fetch, scopedGetAuthHeader, {
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+
+  const resolveResult = await resolveFromNpm({ alias: 'is', bareSpecifier: 'npm:@sindresorhus/is@0.6.0' }, {})
+  expect(resolveResult!.id).toBe('@sindresorhus/is@0.6.0')
+  expect(calls).toContainEqual({ uri: registries.default, pkgName: '@sindresorhus/is' })
+})
+
 test('can resolve aliased scoped dependency w/o version specifier', async () => {
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/@sindresorhus%2Fis', method: 'GET' })

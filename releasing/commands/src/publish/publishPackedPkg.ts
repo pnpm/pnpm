@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { createDispatchedFetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
-import type { Creds, RegistryConfig } from '@pnpm/types'
+import { type Creds, DEFAULT_REGISTRY_SCOPE, type RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
 
 import { createPublishSummary, type PublishSummary } from '../tarball/publishSummary.js'
@@ -121,7 +121,8 @@ export async function createPublishOptions (
     ? manifest.publishConfig.registry
     : undefined
   const { registry, config } = findRegistryInfo(manifest, options, publishConfigRegistry)
-  const { creds, tls } = config ?? {}
+  const tls = config?.tls
+  const creds = config?.[DEFAULT_REGISTRY_SCOPE]
 
   const publishConfigAccess = manifest.publishConfig?.access
   const access = options.access ?? (isPublishAccess(publishConfigAccess) ? publishConfigAccess : null)
@@ -237,20 +238,25 @@ export function findRegistryInfo (
     longestConfigKey: initialRegistryConfigKey,
   } = supportedRegistryInfo
 
+  const credsScope: `@${string}` = registryName === 'default' ? DEFAULT_REGISTRY_SCOPE : registryName as `@${string}`
   let creds: Creds | undefined
   let tls: RegistryConfig['tls'] = {}
   for (const registryConfigKey of allRegistryConfigKeys(initialRegistryConfigKey)) {
     const entry = configByUri[registryConfigKey]
     if (!entry) continue
     // Auth from longer path collectively overrides shorter path
-    creds ??= entry.creds
+    creds ??= entry[credsScope] ?? entry[DEFAULT_REGISTRY_SCOPE]
     // TLS from longer path individually overrides shorter path
     tls = { ...entry.tls, ...tls }
   }
 
+  const config: RegistryConfig = { tls }
+  if (creds) {
+    config[DEFAULT_REGISTRY_SCOPE] = creds
+  }
   return {
     registry,
-    config: { creds, tls },
+    config,
   }
 }
 

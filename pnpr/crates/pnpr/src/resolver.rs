@@ -219,9 +219,7 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     // The caller's forwarded upstream credentials, threaded through
     // resolve/verify but kept out of the interned `config` so it never
     // leaks a `&'static Config` per user.
-    let request_auth = Arc::new(AuthHeaders::from_map(
-        request.auth_headers.iter().map(|(uri, value)| (uri.clone(), value.clone())).collect(),
-    ));
+    let request_auth = Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()));
 
     // Verify the *input* lockfile under the client's policy before any
     // package is streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
@@ -317,9 +315,7 @@ pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> R
     }
 
     let config = runtime.config_for(&request);
-    let request_auth = Arc::new(AuthHeaders::from_map(
-        request.auth_headers.iter().map(|(uri, value)| (uri.clone(), value.clone())).collect(),
-    ));
+    let request_auth = Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()));
 
     match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
         // The dist stats the verifier observed feed `/v1/resolve`'s sized

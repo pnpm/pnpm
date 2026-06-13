@@ -65,3 +65,23 @@ describe('createPublishOptions: access', () => {
     expect(opts.access).toBeNull()
   })
 })
+
+describe('createPublishOptions: auth', () => {
+  test('prefers package-scoped credentials over registry-wide credentials', async () => {
+    const opts = await createPublishOptions(
+      { name: '@scope/pkg', version: '1.0.0' },
+      {
+        ...baseOpts(),
+        configByUri: {
+          '//registry.npmjs.org/': {
+            '@': { authToken: 'default-token' },
+            '@scope': { authToken: 'scoped-token' },
+          },
+        },
+      },
+      { oidc: false }
+    )
+
+    expect(opts.token).toBe('scoped-token')
+  })
+})

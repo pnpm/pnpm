@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import type { Creds, RegistryConfig } from '@pnpm/types'
+import { type Creds, DEFAULT_REGISTRY_SCOPE, type RegistryConfig } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 
 import { parseCreds, type RawCreds } from './parseCreds.js'
@@ -11,7 +11,7 @@ export interface NetworkConfigs {
 }
 
 export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkConfigs {
-  const rawCredsMap: Record<string, RawCreds> = {}
+  const rawCredsMap: Record<string, Record<string, RawCreds>> = {}
   const registries: Record<string, string> = {}
   const networkConfigs: NetworkConfigs = { registries }
   for (const [configKey, value] of Object.entries(rawConfig)) {
@@ -22,9 +22,10 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
 
     const parsedCreds = tryParseCredsKey(configKey)
     if (parsedCreds) {
-      const { credsField, registry } = parsedCreds
+      const { credsField, registry, scope } = parsedCreds
       rawCredsMap[registry] ??= {}
-      rawCredsMap[registry][credsField] = value as string
+      rawCredsMap[registry][scope ?? DEFAULT_REGISTRY_SCOPE] ??= {}
+      rawCredsMap[registry][scope ?? DEFAULT_REGISTRY_SCOPE][credsField] = value as string
       continue
     }
 
@@ -41,11 +42,11 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
   }
 
   for (const uri in rawCredsMap) {
-    const creds = parseCreds(rawCredsMap[uri])
-    if (creds) {
+    const scopedCreds = getScopedCreds(rawCredsMap[uri])
+    if (Object.keys(scopedCreds).length > 0) {
       networkConfigs.configByUri ??= {}
       networkConfigs.configByUri[uri] ??= {}
-      networkConfigs.configByUri[uri].creds = creds
+      Object.assign(networkConfigs.configByUri[uri], scopedCreds)
     }
   }
 
@@ -75,6 +76,7 @@ const AUTH_SUFFIX_KEY_MAP: Record<string, keyof RawCreds> = {
 
 interface ParsedCredsKey {
   registry: string
+  scope?: string
   credsField: keyof RawCreds
 }
 
@@ -88,7 +90,35 @@ function tryParseCredsKey (key: string): ParsedCredsKey | undefined {
   if (!credsField) {
     throw new Error(`Unexpected key: ${match.groups.key}`)
   }
-  return { registry, credsField }
+  return { ...splitScopeFromRegistry(registry), credsField }
+}
+
+function getScopedCreds (rawCredsByScope: Record<string, RawCreds> = {}): Record<string, Creds> {
+  const scopedCreds: Record<string, Creds> = {}
+  for (const [scope, rawCreds] of Object.entries(rawCredsByScope)) {
+    const creds = parseCreds(rawCreds)
+    if (creds) {
+      scopedCreds[scope] = creds
+    }
+  }
+  return scopedCreds
+}
+
+function splitScopeFromRegistry (registry: string): { registry: string, scope?: string } {
+  if (!registry.startsWith('//')) return { registry }
+  const trimmed = registry.endsWith('/') ? registry.slice(0, -1) : registry
+  const lastSlashIndex = trimmed.lastIndexOf('/')
+  if (lastSlashIndex === -1) return { registry }
+  const scope = trimmed.slice(lastSlashIndex + 1)
+  if (!isPackageScope(scope)) return { registry }
+  return {
+    registry: trimmed.slice(0, lastSlashIndex + 1),
+    scope,
+  }
+}
+
+function isPackageScope (scope: string): boolean {
+  return scope.startsWith('@') && scope.length > 1
 }
 
 const SSL_SUFFIX_RE = /:(?<id>cert|key|ca)(?<kind>file)?$/

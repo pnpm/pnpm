@@ -8,9 +8,7 @@ const REGISTRY_URL = `${REGISTRY}/`
 const AUTH_HEADER = 'Bearer test-token'
 const CONFIG_BY_URI = {
   '//registry.npmjs.org/': {
-    creds: {
-      authToken: 'test-token',
-    },
+    '@': { authToken: 'test-token' },
   },
 }
 

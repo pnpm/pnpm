@@ -1,6 +1,8 @@
 use crate::{Config, api::EnvVar};
 use pacquet_env_replace::env_replace_lossy;
-use pacquet_network::{AuthHeaders, NoProxySetting, PerRegistryTls, RegistryTls, base64_encode};
+use pacquet_network::{
+    AuthHeaders, DEFAULT_REGISTRY_SCOPE, NoProxySetting, PerRegistryTls, RegistryTls, base64_encode,
+};
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
@@ -48,11 +50,9 @@ pub(crate) struct NpmrcAuth {
     /// `username=…` / `_password=…` without a leading `//host/`).
     /// Applied to whichever URI the resolved `registry` points at.
     pub default_creds: RawCreds,
-    /// Per-URI creds, keyed by the literal `.npmrc` key prefix
-    /// (`//host[:port]/path/`). The map is preserved verbatim through
-    /// to [`AuthHeaders`] construction so the lookup keys stay
-    /// byte-equivalent to upstream.
-    pub creds_by_uri: HashMap<String, RawCreds>,
+    /// Per-registry creds keyed as `[registry_uri][scope]`. The `@`
+    /// scope stores registry-wide credentials.
+    pub creds_by_scope_by_uri: HashMap<String, HashMap<String, RawCreds>>,
     /// `${VAR}` placeholders that could not be resolved while parsing.
     /// Surfaced as warnings; `pnpm` does the same in
     /// [`substituteEnv`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/loadNpmrcFiles.ts#L156-L162).
@@ -200,7 +200,7 @@ impl NpmrcAuth {
         let mut auth = NpmrcAuth::default();
         for (key, value) in npm_scoped {
             if let Some((uri, suffix)) = split_creds_key(&key) {
-                let entry = auth.creds_by_uri.entry(uri.to_owned()).or_default();
+                let entry = auth.creds_entry_mut(uri);
                 apply_creds_field(entry, suffix, value);
             }
         }
@@ -366,7 +366,7 @@ impl NpmrcAuth {
             }
 
             if let Some((uri, suffix)) = split_creds_key(&key) {
-                let entry = auth.creds_by_uri.entry(uri.to_owned()).or_default();
+                let entry = auth.creds_entry_mut(uri);
                 apply_creds_field(entry, suffix, value);
                 continue;
             }
@@ -512,25 +512,30 @@ impl NpmrcAuth {
     /// [`getAuthHeadersFromCreds`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts).
     pub fn build_auth_headers(self, config: &mut Config) {
         let mut auth_header_by_uri: HashMap<String, String> = HashMap::new();
-        for (uri, raw) in self.creds_by_uri {
-            if let Some(header) = creds_to_header(&raw) {
-                auth_header_by_uri.insert(uri, header);
+        let mut auth_header_by_scope_by_uri: HashMap<String, HashMap<String, String>> =
+            HashMap::new();
+        for (uri, raw_by_scope) in self.creds_by_scope_by_uri {
+            for (scope, raw) in raw_by_scope {
+                if let Some(header) = creds_to_header(&raw) {
+                    if scope == DEFAULT_REGISTRY_SCOPE {
+                        auth_header_by_uri.insert(uri.clone(), header);
+                    } else {
+                        auth_header_by_scope_by_uri
+                            .entry(uri.clone())
+                            .or_default()
+                            .insert(scope, header);
+                    }
+                }
             }
         }
-        // Default-registry creds are passed through with an empty-string
-        // key, matching upstream's
-        // [`getAuthHeadersFromCreds`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts)
-        // where `configByUri['']` holds default creds and is re-keyed
-        // onto `defaultRegistry` by the constructor.
-        // [`AuthHeaders::from_creds_map`] does the nerf-darting.
         if !self.default_creds.is_empty()
             && let Some(header) = creds_to_header(&self.default_creds)
         {
-            auth_header_by_uri.insert(String::new(), header);
+            auth_header_by_uri.insert(pacquet_network::nerf_dart(&config.registry), header);
         }
 
         config.auth_headers =
-            Arc::new(AuthHeaders::from_creds_map(auth_header_by_uri, Some(&config.registry)));
+            Arc::new(AuthHeaders::from_parts(auth_header_by_uri, auth_header_by_scope_by_uri));
     }
 
     /// Pin this source file's **unscoped** credentials (`_authToken`,
@@ -538,7 +543,7 @@ impl NpmrcAuth {
     /// registry declared in this same file — or the npmjs default
     /// ([`DEFAULT_REGISTRY`]) when the file has no `registry=` of its
     /// own — by nerf-darting that registry into a per-URI key and moving
-    /// the values onto [`Self::creds_by_uri`] / [`Self::tls_by_uri`].
+    /// the values onto [`Self::creds_by_scope_by_uri`] / [`Self::tls_by_uri`].
     ///
     /// This is the security boundary ported from pnpm's
     /// [`rescopeUnscopedCreds`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/loadNpmrcFiles.ts):
@@ -593,7 +598,12 @@ impl NpmrcAuth {
             }
             // An explicitly URL-scoped value for the same key wins, so
             // the rescoped unscoped value only fills the gaps.
-            self.creds_by_uri.entry(key.clone()).or_default().fill_from(taken);
+            self.creds_by_scope_by_uri
+                .entry(key.clone())
+                .or_default()
+                .entry(DEFAULT_REGISTRY_SCOPE.to_owned())
+                .or_default()
+                .fill_from(taken);
         }
         if has_identity {
             let entry = self.tls_by_uri.entry(key.clone()).or_default();
@@ -644,8 +654,11 @@ impl NpmrcAuth {
         self.strict_ssl = self.strict_ssl.take().or(lower.strict_ssl);
         self.local_address = self.local_address.take().or(lower.local_address);
 
-        for (uri, creds) in lower.creds_by_uri {
-            self.creds_by_uri.entry(uri).or_default().fill_from(creds);
+        for (uri, lower_by_scope) in lower.creds_by_scope_by_uri {
+            let by_scope = self.creds_by_scope_by_uri.entry(uri).or_default();
+            for (scope, creds) in lower_by_scope {
+                by_scope.entry(scope).or_default().fill_from(creds);
+            }
         }
         for (uri, tls) in lower.tls_by_uri {
             let entry = self.tls_by_uri.entry(uri).or_default();
@@ -678,6 +691,15 @@ impl NpmrcAuth {
         self.apply_proxy_cascade::<Sys>(config);
         self.apply_tls_and_local_address(config);
         self.build_auth_headers(config);
+    }
+
+    fn creds_entry_mut(&mut self, uri: &str) -> &mut RawCreds {
+        let (registry_uri, scope) = split_scope_from_uri(uri);
+        self.creds_by_scope_by_uri
+            .entry(registry_uri.to_owned())
+            .or_default()
+            .entry(scope.unwrap_or(DEFAULT_REGISTRY_SCOPE).to_owned())
+            .or_default()
     }
 }
 
@@ -872,6 +894,22 @@ fn split_creds_key(key: &str) -> Option<(&str, &str)> {
         }
     }
     None
+}
+
+fn split_scope_from_uri(uri: &str) -> (&str, Option<&str>) {
+    let trimmed = uri.strip_suffix('/').unwrap_or(uri);
+    let Some(last_slash_index) = trimmed.rfind('/') else {
+        return (uri, None);
+    };
+    let scope = &trimmed[last_slash_index + 1..];
+    if !is_package_scope(scope) {
+        return (uri, None);
+    }
+    (&trimmed[..=last_slash_index], Some(scope))
+}
+
+fn is_package_scope(scope: &str) -> bool {
+    scope.starts_with('@') && scope.len() > 1
 }
 
 fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {

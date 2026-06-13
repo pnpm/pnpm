@@ -14,6 +14,7 @@ path = "src/lib.rs"
 pacquet-config                = { workspace = true }
 pacquet-lockfile              = { workspace = true }
 pacquet-lockfile-verification = { workspace = true }
+pacquet-network               = { workspace = true }
 derive_more                   = { workspace = true }
 futures-util                  = { workspace = true }
 reqwest                       = { workspace = true }

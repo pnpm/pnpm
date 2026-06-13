@@ -3,6 +3,7 @@ import { prepare } from '@pnpm/prepare'
 import { distTag } from '@pnpm/registry-access.commands'
 import { publish } from '@pnpm/releasing.commands'
 import { DEFAULT_OPTS as BASE_OPTS } from '@pnpm/testing.command-defaults'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 const DEFAULT_OPTS = {
@@ -12,9 +13,7 @@ const DEFAULT_OPTS = {
 
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
-    creds: {
-      basicAuth: REGISTRY_MOCK_CREDENTIALS,
-    },
+    '@': { basicAuth: REGISTRY_MOCK_CREDENTIALS },
   },
 }
 
@@ -43,6 +42,39 @@ test('dist-tag ls: should list dist-tags', async () => {
   }, ['ls', pkgName])
 
   expect(result).toContain('latest: 1.0.0')
+})
+
+test('dist-tag ls: should use package-scoped auth', async () => {
+  await setupMockAgent()
+  try {
+    const mockPool = getMockAgent().get('https://registry.example.com')
+    const encodedName = '@scope%2f' + 'pkg'
+    mockPool.intercept({
+      method: 'GET',
+      path: `/-/package/${encodedName}/dist-tags`,
+    }).reply(({ headers }) => {
+      expect((headers as Record<string, string>)['authorization']).toBe('Bearer scoped-token')
+      return {
+        statusCode: 200,
+        data: JSON.stringify({ latest: '1.0.0' }),
+      }
+    })
+
+    const result = await distTag.handler({
+      cliOptions: {},
+      configByUri: {
+        '//registry.example.com/': {
+          '@': { authToken: 'default-token' },
+          '@scope': { authToken: 'scoped-token' },
+        },
+      },
+      registries: { default: 'https://registry.example.com/' },
+    }, ['ls', '@scope/pkg'])
+
+    expect(result).toBe('latest: 1.0.0')
+  } finally {
+    await teardownMockAgent()
+  }
 })
 
 test('dist-tag ls: should list dist-tags without subcommand', async () => {
