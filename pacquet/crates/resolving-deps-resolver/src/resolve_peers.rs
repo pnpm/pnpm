@@ -663,7 +663,7 @@ impl Walker<'_> {
                 &parent_pkg_ids_chain,
             );
             for (peer_alias, peer_node_id) in output.auto_install_resolved_peers {
-                self.resolved_peer_providers_by_alias.entry(peer_alias).or_insert(peer_node_id);
+                self.resolved_peer_providers_by_alias.insert(peer_alias, peer_node_id);
             }
         }
         self.patch_pending_peer_edges();

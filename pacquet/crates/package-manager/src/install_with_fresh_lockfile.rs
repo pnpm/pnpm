@@ -843,7 +843,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let compat_package_extender = if config.ignore_compatibility_db {
             None
         } else {
-            Some(Arc::new(crate::compat_package_extensions::compat_package_extender()))
+            Some(crate::compat_package_extensions::compat_package_extender())
         };
         let package_extender = match config.package_extensions.as_ref() {
             Some(extensions) => {

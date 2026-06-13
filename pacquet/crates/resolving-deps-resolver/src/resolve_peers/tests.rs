@@ -249,6 +249,55 @@ fn transitive_pending_peer_uses_provider_final_suffix() {
 }
 
 #[test]
+fn resolved_peer_providers_from_direct_outputs_are_last_write_wins() {
+    let first_peer = NodeId::leaf("peer@1.0.0");
+    let second_peer = NodeId::leaf("peer@2.0.0");
+    let first = NodeId::next();
+    let second = NodeId::next();
+
+    let mut first_children = BTreeMap::new();
+    first_children.insert("peer".to_string(), first_peer.clone());
+
+    let mut second_children = BTreeMap::new();
+    second_children.insert("peer".to_string(), second_peer.clone());
+
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep {
+                alias: "first".to_string(),
+                node_id: first.clone(),
+                id: "first@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "second".to_string(),
+                node_id: second.clone(),
+                id: "second@1.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from([
+            ("peer@1.0.0".to_string(), package("peer", "1.0.0", &[], true)),
+            ("peer@2.0.0".to_string(), package("peer", "2.0.0", &[], true)),
+            ("first@1.0.0".to_string(), package("first", "1.0.0", &[("peer", "*")], false)),
+            ("second@1.0.0".to_string(), package("second", "1.0.0", &[("peer", "*")], false)),
+        ]),
+        dependencies_tree: HashMap::from([
+            (first_peer, tree_node("peer@1.0.0", BTreeMap::new(), 1)),
+            (second_peer.clone(), tree_node("peer@2.0.0", BTreeMap::new(), 1)),
+            (first, tree_node("first@1.0.0", first_children, 0)),
+            (second, tree_node("second@1.0.0", second_children, 0)),
+        ]),
+        all_peer_dep_names: HashSet::from(["peer".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::new(),
+    };
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+    assert_eq!(result.resolved_peer_providers_by_alias.get("peer"), Some(&second_peer));
+}
+
+#[test]
 fn peer_name_cycle_collapses_provider_suffixes() {
     let loader = NodeId::next();
     let webpack_cli = NodeId::next();

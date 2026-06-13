@@ -1,18 +1,21 @@
 use crate::PackageExtender;
 use indexmap::IndexMap;
 use pacquet_config::{PackageExtension, PeerDependencyMeta};
-use std::{collections::BTreeMap, sync::OnceLock};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, OnceLock},
+};
 
 static COMPAT_PACKAGE_EXTENSIONS: OnceLock<IndexMap<String, PackageExtension>> = OnceLock::new();
-static COMPAT_PACKAGE_EXTENDER: OnceLock<PackageExtender> = OnceLock::new();
+static COMPAT_PACKAGE_EXTENDER: OnceLock<Arc<PackageExtender>> = OnceLock::new();
 
-pub(crate) fn compat_package_extender() -> PackageExtender {
-    COMPAT_PACKAGE_EXTENDER
-        .get_or_init(|| {
+pub(crate) fn compat_package_extender() -> Arc<PackageExtender> {
+    Arc::clone(COMPAT_PACKAGE_EXTENDER.get_or_init(|| {
+        Arc::new(
             PackageExtender::new(compat_package_extensions())
-                .expect("@yarnpkg/extensions compatibility DB selectors are valid")
-        })
-        .clone()
+                .expect("@yarnpkg/extensions compatibility DB selectors are valid"),
+        )
+    }))
 }
 
 fn compat_package_extensions() -> &'static IndexMap<String, PackageExtension> {
