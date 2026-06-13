@@ -243,7 +243,25 @@ test('update --latest --prod', async function () {
   expect(pkg.devDependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
   expect(pkg.dependencies?.['@pnpm.e2e/bar']).toBe('^100.1.0')
 
-  project.has('@pnpm.e2e/dep-of-pkg-with-1-dep') // not pruned
+  project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep') // pruned because --prod excludes devDependencies
+})
+
+test('update --prod should not install devDependencies that are not installed', async function () {
+  const project = prepare()
+
+  await addDistTag('@pnpm.e2e/bar', '100.1.0', 'latest')
+
+  await execPnpm(['add', '-D', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  await execPnpm(['add', '-P', '@pnpm.e2e/bar@^100.0.0'])
+
+  // Install only production deps
+  await execPnpm(['install', '--prod'])
+  project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+
+  // Update with --prod: should not install devDependencies
+  await execPnpm(['update', '--prod'])
+  project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  project.has('@pnpm.e2e/bar')
 })
 
 test('recursive update --latest on projects that do not share a lockfile', async () => {
@@ -348,7 +366,7 @@ test('recursive update --latest --prod on projects that do not share a lockfile'
   expect(lockfile1.importers['.'].devDependencies?.['@pnpm.e2e/foo'].version).toBe('100.0.0')
 
   projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
-  projects['project-1'].has('@pnpm.e2e/foo')
+  projects['project-1'].hasNot('@pnpm.e2e/foo') // pruned because --prod excludes devDependencies
 
   const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
   expect(manifest2.dependencies).toStrictEqual({
@@ -362,7 +380,7 @@ test('recursive update --latest --prod on projects that do not share a lockfile'
   expect(lockfile2.importers['.'].devDependencies?.['@pnpm.e2e/bar'].version).toBe('100.0.0')
   expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
 
-  projects['project-2'].has('@pnpm.e2e/bar')
+  projects['project-2'].hasNot('@pnpm.e2e/bar') // pruned because --prod excludes devDependencies
   projects['project-2'].has('@pnpm.e2e/foo')
 })
 
@@ -535,9 +553,9 @@ test('recursive update --latest --prod on projects with a shared a lockfile', as
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
 
   projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
-  projects['project-1'].has('@pnpm.e2e/foo')
+  projects['project-1'].hasNot('@pnpm.e2e/foo') // pruned because --prod excludes devDependencies
   projects['project-2'].has('@pnpm.e2e/foo')
-  projects['project-2'].has('@pnpm.e2e/bar')
+  projects['project-2'].hasNot('@pnpm.e2e/bar') // pruned because --prod excludes devDependencies
 })
 
 test('recursive update --latest specific dependency on projects with a shared a lockfile', async () => {

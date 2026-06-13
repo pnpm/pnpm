@@ -114,8 +114,8 @@ test('recursive update prod dependencies only', async () => {
   const modules = await readModulesManifest('./node_modules')
   expect(modules?.included).toStrictEqual({
     dependencies: true,
-    devDependencies: true,
-    optionalDependencies: true,
+    devDependencies: false,
+    optionalDependencies: false,
   })
 })
 
