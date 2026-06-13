@@ -9,13 +9,13 @@
 //!   modified) to feed conditional GETs without touching the rest.
 //! - [`load_meta`] — read the headers + index records and reconstruct
 //!   a [`Package`] whose versions hydrate from byte spans on demand.
-//! - [`save_meta_indexed`] — atomic write via temp + rename so a torn
-//!   write never leaks a half-formed mirror to the next install.
+//! - [`save_meta_indexed`] / [`save_meta_ndjson`] — atomic write via
+//!   temp + rename so a torn write never leaks a half-formed mirror to
+//!   the next install.
 //!
 //! ## File layout
 //!
-//! Pacquet's own indexed format (this cache is no longer byte-shared
-//! with other package managers):
+//! Pacquet's indexed format:
 //!
 //! ```text
 //! pacquet-meta-v1 <headers_len> <index_len>\n
@@ -29,13 +29,15 @@
 //! loader rebases them so each version's slot can read its span
 //! directly. A warm pick therefore costs the two leading records plus
 //! one span read per version it actually hydrates — never the whole
-//! body. Files in the older two-line NDJSON shape read as cache
-//! misses and are rewritten in this format on the next 200.
+//! body.
+//!
+//! pnpm's two-line NDJSON format is also readable and is used when
+//! writing filtered full metadata.
 //!
 //! Plus the constants and name-encoding rules:
 //!
-//! - [`FULL_META_DIR`] / [`ABBREVIATED_META_DIR`] — directory slugs
-//!   pnpm and pacquet share.
+//! - [`FULL_META_DIR`] / [`FULL_FILTERED_META_DIR`] /
+//!   [`ABBREVIATED_META_DIR`] — directory slugs pnpm and pacquet share.
 //! - [`encode_pkg_name`] — mixed-case package names get a sha256 hex
 //!   suffix so case-insensitive filesystems (HFS+, NTFS by default)
 //!   can't collide two distinct package names onto one mirror file.
@@ -59,6 +61,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_registry::{Package, PackageVersions};
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
 /// Mirror directory for the **abbreviated** metadata cache. Mirrors
@@ -70,6 +73,11 @@ pub const ABBREVIATED_META_DIR: &str = "v11/metadata";
 /// upstream's
 /// [`FULL_META_DIR`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/constants/src/index.ts#L22).
 pub const FULL_META_DIR: &str = "v11/metadata-full";
+
+/// Mirror directory for the filtered full metadata cache. Mirrors
+/// upstream's
+/// [`FULL_FILTERED_META_DIR`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/constants/src/index.ts#L23).
+pub const FULL_FILTERED_META_DIR: &str = "v11/metadata-full-filtered";
 
 /// Cached headers persisted as the mirror's first line. The cached
 /// metadata fetcher feeds these into `If-None-Match` /
@@ -217,6 +225,12 @@ struct MirrorIndex {
 #[diagnostic(code(pacquet_resolving_npm_resolver::mirror::encode))]
 pub struct EncodeMetaError(#[error(source)] serde_json::Error);
 
+impl EncodeMetaError {
+    pub(crate) fn into_inner(self) -> serde_json::Error {
+        self.0
+    }
+}
+
 /// Atomically persist `meta` at `pkg_mirror` in the indexed format.
 ///
 /// Version fragments come from [`PackageVersions::fragments`] — for a
@@ -231,7 +245,7 @@ pub fn save_meta_indexed(
 ) -> Result<(), SaveMetaError> {
     let headers = serde_json::to_string(&MetaHeaders {
         etag: etag.map(str::to_string),
-        modified: meta.modified.clone(),
+        modified: meta_modified(meta),
     })
     .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
 
@@ -267,20 +281,110 @@ pub fn save_meta_indexed(
     save_meta(pkg_mirror, &bytes)
 }
 
+/// Atomically persist `meta` at `pkg_mirror` in pnpm's two-line
+/// NDJSON mirror format.
+pub fn save_meta_ndjson(
+    pkg_mirror: &Path,
+    meta: &Package,
+    etag: Option<&str>,
+) -> Result<(), SaveMetaError> {
+    let headers = serde_json::to_vec(&MetaHeaders {
+        etag: etag.map(str::to_string),
+        modified: meta_modified(meta),
+    })
+    .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+    let mut body_meta = meta.clone();
+    body_meta.etag = None;
+    let body = serde_json::to_vec(&body_meta)
+        .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+
+    let mut bytes = Vec::with_capacity(headers.len() + 1 + body.len());
+    bytes.extend_from_slice(&headers);
+    bytes.push(b'\n');
+    bytes.extend_from_slice(&body);
+    save_meta(pkg_mirror, &bytes)
+}
+
+/// Strip full packuments down to the fields pnpm keeps when
+/// `filterMetadata` is enabled.
+pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
+    const VERSION_KEYS: &[&str] = &[
+        "name",
+        "version",
+        "bin",
+        "directories",
+        "devDependencies",
+        "optionalDependencies",
+        "dependencies",
+        "peerDependencies",
+        "dist",
+        "engines",
+        "peerDependenciesMeta",
+        "cpu",
+        "os",
+        "libc",
+        "deprecated",
+        "bundleDependencies",
+        "bundledDependencies",
+        "hasInstallScript",
+        "_npmUser",
+    ];
+
+    let mut versions = Map::new();
+    for (version, json) in meta.versions.fragments() {
+        let info: Value = serde_json::from_str(&json).map_err(EncodeMetaError)?;
+        let Value::Object(info) = info else {
+            continue;
+        };
+        let mut filtered = Map::new();
+        for key in VERSION_KEYS {
+            if let Some(value) = info.get(*key) {
+                filtered.insert((*key).to_string(), value.clone());
+            }
+        }
+        versions.insert(version.clone(), Value::Object(filtered));
+    }
+
+    let mut pkg = Map::new();
+    pkg.insert("name".to_string(), Value::String(meta.name.clone()));
+    pkg.insert(
+        "dist-tags".to_string(),
+        serde_json::to_value(&meta.dist_tags).map_err(EncodeMetaError)?,
+    );
+    pkg.insert("versions".to_string(), Value::Object(versions));
+    if let Some(time) = meta.time.as_ref() {
+        pkg.insert("time".to_string(), serde_json::to_value(time).map_err(EncodeMetaError)?);
+    }
+    if let Some(modified) = meta.modified.as_ref() {
+        pkg.insert("modified".to_string(), Value::String(modified.clone()));
+    }
+
+    let mut cleared: Package =
+        serde_json::from_value(Value::Object(pkg)).map_err(EncodeMetaError)?;
+    cleared.etag.clone_from(&meta.etag);
+    Ok(cleared)
+}
+
+fn meta_modified(meta: &Package) -> Option<String> {
+    meta.modified.clone().or_else(|| {
+        meta.time
+            .as_ref()
+            .and_then(|time| time.get("modified"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    })
+}
+
 /// Parse the `pacquet-meta-v1 <headers_len> <index_len>` line.
-/// `None` for anything else — including the previous NDJSON format,
-/// which thereby reads as a cache miss and gets rewritten on the next
-/// 200 response.
+/// `None` for anything else, including pnpm's NDJSON format.
 fn parse_mirror_magic(line: &str) -> Option<(usize, usize)> {
     let rest = line.strip_prefix(MIRROR_MAGIC)?.strip_prefix(' ')?;
     let (headers_len, index_len) = rest.split_once(' ')?;
     Some((headers_len.parse().ok()?, index_len.parse().ok()?))
 }
 
-/// Read the headers record off an indexed mirror without touching the
-/// index or fragment sections. `None` for anything unreadable —
-/// including the previous NDJSON format, which thereby reads as a
-/// cache miss.
+/// Read the headers record without touching the full metadata body.
+/// `None` for anything unreadable.
 fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
     // Magic + two decimal lengths fit well inside this; the headers
     // record is ~100 bytes of etag + timestamp.
@@ -296,7 +400,9 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
     let chunk = &buf[..filled];
     let newline = chunk.iter().position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&chunk[..newline]).ok()?;
-    let (headers_len, _) = parse_mirror_magic(line)?;
+    let Some((headers_len, _)) = parse_mirror_magic(line) else {
+        return serde_json::from_str(line).ok();
+    };
     // The headers record is ~100 bytes of etag + timestamp. Bound the
     // declared length before allocating from it so a corrupted or
     // hostile mirror can't trigger an arbitrarily large allocation.
@@ -345,7 +451,12 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
     let contents = fs::read(pkg_mirror).ok()?;
     let newline = contents.iter().position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&contents[..newline]).ok()?;
-    let (headers_len, index_len) = parse_mirror_magic(line)?;
+    let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
+        let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
+        let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
+        meta.etag = headers.etag;
+        return Some(meta);
+    };
     let headers_start = newline + 1;
     let index_start = headers_start.checked_add(headers_len)?;
     let fragment_base = index_start.checked_add(index_len)?;

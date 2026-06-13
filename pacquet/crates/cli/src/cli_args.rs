@@ -25,7 +25,12 @@ use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{NdjsonReporter, Reporter, SilentReporter};
 use remove::RemoveArgs;
 use run::RunArgs;
-use std::path::PathBuf;
+use serde_json::Value;
+use std::{
+    fs,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
 use store::StoreCommand;
 use update::UpdateArgs;
 
@@ -306,6 +311,11 @@ impl CliArgs {
                 // for a single-package repo. Owned so it doesn't hold a
                 // borrow of `cfg` across the `&mut` `updateConfig` pass.
                 let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir.clone());
+                let package_manager_version = package_manager_version_to_sync(
+                    &config_root.join("package.json"),
+                    &config_root,
+                )
+                .wrap_err("read package manager policy")?;
                 // Resolve + install configurational dependencies, then run
                 // their `updateConfig` plugin hooks, before the main
                 // install. The env lockfile must land at the top of
@@ -315,6 +325,15 @@ impl CliArgs {
                 // it. Mirrors pnpm running both at config-finalization.
                 match reporter {
                     ReporterType::Ndjson => {
+                        if let Some(pnpm_version) = package_manager_version.as_deref() {
+                            config_deps::sync_package_manager_dependencies(
+                                cfg,
+                                &config_root,
+                                pnpm_version,
+                                frozen_lockfile,
+                            )
+                            .await?;
+                        }
                         config_deps::install_config_deps::<NdjsonReporter>(
                             cfg,
                             &config_root,
@@ -329,6 +348,15 @@ impl CliArgs {
                         args.run::<NdjsonReporter>(state).await?;
                     }
                     ReporterType::Silent => {
+                        if let Some(pnpm_version) = package_manager_version.as_deref() {
+                            config_deps::sync_package_manager_dependencies(
+                                cfg,
+                                &config_root,
+                                pnpm_version,
+                                frozen_lockfile,
+                            )
+                            .await?;
+                        }
                         config_deps::install_config_deps::<SilentReporter>(
                             cfg,
                             &config_root,
@@ -384,6 +412,164 @@ impl CliArgs {
 
         Ok(())
     }
+}
+
+#[derive(Debug)]
+struct WantedPackageManager {
+    name: String,
+    version: Option<String>,
+    from_dev_engines: bool,
+    on_fail: Option<String>,
+}
+
+fn package_manager_version_to_sync(
+    manifest_path: &Path,
+    root_dir: &Path,
+) -> miette::Result<Option<String>> {
+    let Some(manifest) = read_manifest_json(manifest_path)? else {
+        return Ok(None);
+    };
+    let Some(pm) = wanted_package_manager(&manifest) else {
+        return Ok(None);
+    };
+    let Some(wanted_version) = pm.version.as_deref() else {
+        return Ok(None);
+    };
+    if pm.name != "pnpm" || !should_persist_package_manager_lockfile(&pm) {
+        return Ok(None);
+    }
+    let source_version = current_source_pnpm_version().or_else(|| pnpm_version_from(root_dir));
+    if let Some(version) =
+        source_version.filter(|version| version_satisfies(version, wanted_version))
+    {
+        return Ok(Some(version));
+    }
+    Ok(exact_version(wanted_version).filter(|version| version_satisfies(version, wanted_version)))
+}
+
+fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error).into_diagnostic(),
+    };
+    serde_json::from_str(&content).into_diagnostic().map(Some)
+}
+
+fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
+    if let Some(mut pm) = parse_dev_engines_package_manager(manifest) {
+        if pm.version.as_deref().is_some_and(|version| node_semver::Range::parse(version).is_err())
+        {
+            pm.version = None;
+        }
+        return Some(pm);
+    }
+    let package_manager = manifest.get("packageManager")?.as_str()?;
+    let (name, version) = parse_package_manager(package_manager);
+    let version = version.and_then(|version| exact_version(&version));
+    Some(WantedPackageManager { name, version, from_dev_engines: false, on_fail: None })
+}
+
+fn parse_dev_engines_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
+    let value = manifest.get("devEngines")?.get("packageManager")?;
+    if let Some(items) = value.as_array() {
+        if items.is_empty() {
+            return None;
+        }
+        let index = items
+            .iter()
+            .position(|item| item.get("name").and_then(Value::as_str) == Some("pnpm"))
+            .unwrap_or(0);
+        let item = &items[index];
+        let on_fail =
+            item.get("onFail").and_then(Value::as_str).map(ToString::to_string).or_else(|| {
+                Some(if index == items.len() - 1 { "error" } else { "ignore" }.to_string())
+            });
+        return package_manager_from_engine(item, true, on_fail);
+    }
+    package_manager_from_engine(
+        value,
+        true,
+        value.get("onFail").and_then(Value::as_str).map(ToString::to_string),
+    )
+}
+
+fn package_manager_from_engine(
+    value: &Value,
+    from_dev_engines: bool,
+    on_fail: Option<String>,
+) -> Option<WantedPackageManager> {
+    Some(WantedPackageManager {
+        name: value.get("name")?.as_str()?.to_string(),
+        version: value.get("version").and_then(Value::as_str).map(ToString::to_string),
+        from_dev_engines,
+        on_fail,
+    })
+}
+
+fn parse_package_manager(package_manager: &str) -> (String, Option<String>) {
+    let Some((name, reference)) = package_manager.split_once('@') else {
+        return (package_manager.to_string(), None);
+    };
+    if reference.contains(':') {
+        return (name.to_string(), None);
+    }
+    (
+        name.to_string(),
+        Some(reference.split_once('+').map_or(reference, |(version, _)| version).to_string()),
+    )
+}
+
+fn should_persist_package_manager_lockfile(pm: &WantedPackageManager) -> bool {
+    if pm.on_fail.as_deref().unwrap_or("download") == "ignore" {
+        return false;
+    }
+    if pm.from_dev_engines {
+        return true;
+    }
+    pm.version
+        .as_deref()
+        .and_then(|version| node_semver::Version::parse(version).ok())
+        .is_some_and(|version| version.major >= 12)
+}
+
+fn current_source_pnpm_version() -> Option<String> {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir.ancestors().find_map(pnpm_version_from)
+}
+
+fn pnpm_version_from(root_dir: &Path) -> Option<String> {
+    let path = root_dir.join("pnpm").join("package.json");
+    let value = read_manifest_json(&path).ok()??;
+    value.get("version").and_then(Value::as_str).map(ToString::to_string)
+}
+
+fn exact_version(version: &str) -> Option<String> {
+    let parsed = node_semver::Version::parse(version).ok()?;
+    (parsed.to_string() == version).then(|| version.to_string())
+}
+
+fn version_satisfies(version: &str, wanted_range: &str) -> bool {
+    let Ok(version) = node_semver::Version::parse(version) else {
+        return false;
+    };
+    let Ok(range) = node_semver::Range::parse(wanted_range) else {
+        return false;
+    };
+    if version.satisfies(&range) {
+        return true;
+    }
+    if version.pre_release.is_empty() {
+        return false;
+    }
+    let base = node_semver::Version {
+        major: version.major,
+        minor: version.minor,
+        patch: version.patch,
+        pre_release: Vec::new(),
+        build: version.build,
+    };
+    base.satisfies(&range)
 }
 
 #[cfg(test)]

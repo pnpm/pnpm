@@ -612,6 +612,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // demand it. Mirrors upstream's
             // [`fullMetadata`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/connection-manager/src/createNewStoreController.ts#L69-L74).
             full_metadata,
+            filter_metadata: full_metadata,
             retry_opts: crate::retry_config::retry_opts_from_config(config),
         });
         let git_resolver = GitResolver::new(
@@ -694,6 +695,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
             // Same rationale as `NpmResolver.full_metadata` above.
             full_metadata,
+            filter_metadata: full_metadata,
             retry_opts: crate::retry_config::retry_opts_from_config(config),
         };
         let pnpmfile_hook = finder::load_pnpmfile(lockfile_dir);

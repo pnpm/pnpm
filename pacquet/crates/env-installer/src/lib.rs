@@ -16,11 +16,13 @@
 
 mod errors;
 mod install_config_deps;
+mod manifest_lockfile;
 mod options;
 mod parse_integrity;
 mod prune;
 mod resolve_and_install_config_deps;
 mod resolve_optional_subdeps;
+mod resolve_package_manager_integrities;
 
 pub use errors::ConfigDepError;
 pub use install_config_deps::install_config_deps;
@@ -29,6 +31,9 @@ pub use parse_integrity::{NormalizedConfigDep, NormalizedSubdep, parse_integrity
 pub use prune::prune_env_lockfile;
 pub use resolve_and_install_config_deps::resolve_and_install_config_deps;
 pub use resolve_optional_subdeps::resolve_optional_subdeps;
+pub use resolve_package_manager_integrities::{
+    is_package_manager_resolved, resolve_package_manager_integrities,
+};
 
 #[cfg(test)]
 mod tests;

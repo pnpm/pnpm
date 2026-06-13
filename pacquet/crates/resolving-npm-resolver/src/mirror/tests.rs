@@ -5,8 +5,8 @@ use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
 use super::{
-    ABBREVIATED_META_DIR, FULL_META_DIR, encode_pkg_name, get_pkg_mirror_path, get_registry_name,
-    load_meta, load_meta_headers, save_meta_indexed,
+    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, encode_pkg_name,
+    get_pkg_mirror_path, get_registry_name, load_meta, load_meta_headers, save_meta_indexed,
 };
 
 /// Lower-case names pass through unchanged. Matches upstream's
@@ -76,6 +76,7 @@ fn get_pkg_mirror_path_composes_full_path() {
 #[test]
 fn constants_match_upstream() {
     assert_eq!(FULL_META_DIR, "v11/metadata-full");
+    assert_eq!(FULL_FILTERED_META_DIR, "v11/metadata-full-filtered");
     assert_eq!(ABBREVIATED_META_DIR, "v11/metadata");
 }
 
@@ -147,16 +148,25 @@ fn load_meta_rejects_truncated_fragments() {
     assert!(load_meta(&mirror).is_none());
 }
 
-/// Files in the previous two-line NDJSON format read as cache misses
-/// (the fetcher then refetches and rewrites in the indexed format).
+/// Files in pnpm's two-line NDJSON format are readable so pnpm and
+/// pacquet share the same metadata mirror.
 #[test]
-fn previous_ndjson_format_reads_as_cache_miss() {
+fn pnpm_ndjson_format_reads_as_cache_hit() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
-    std::fs::write(&mirror, "{\"etag\":\"W/abc\"}\n{\"name\":\"acme\",\"versions\":{}}")
-        .expect("write old format");
-    assert!(load_meta_headers(&mirror).is_none());
-    assert!(load_meta(&mirror).is_none());
+    std::fs::write(
+        &mirror,
+        format!(
+            "{{\"etag\":\"W/abc\",\"modified\":\"2025-01-15T12:00:00.000Z\"}}\n{}",
+            serde_json::to_string(&fixture_package()).expect("serialize fixture"),
+        ),
+    )
+    .expect("write pnpm format");
+    let headers = load_meta_headers(&mirror).expect("read headers");
+    assert_eq!(headers.etag.as_deref(), Some("W/abc"));
+    let meta = load_meta(&mirror).expect("read meta");
+    assert_eq!(meta.etag.as_deref(), Some("W/abc"));
+    assert_eq!(meta.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
 }
 
 /// Missing file → `None` from both readers. The fetcher's lookup
