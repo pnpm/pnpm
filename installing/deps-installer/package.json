@@ -53,7 +53,8 @@
     "test": "pn compile && pn .test",
     "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
-    ".test": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+    ".test": "pn .test:shard --shard=1/5 && pn .test:shard --shard=2/5 && pn .test:shard --shard=3/5 && pn .test:shard --shard=4/5 && pn .test:shard --shard=5/5",
+    ".test:shard": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@inquirer/prompts": "catalog:",
