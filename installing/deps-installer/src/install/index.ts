@@ -373,11 +373,12 @@ export async function mutateModules (
   // install even mid-flight, and an install that finishes first is held back
   // until the verdict arrives.
   //
-  // Skipped when we already know pacquet will run the install: pacquet's
-  // frozen-install path applies the same resolver-policy gate (port of
-  // this function), so re-running here would duplicate the work — and
-  // for `minimumReleaseAge` in strict mode each lockfile entry is an
-  // HTTP probe.
+  // Skipped when we already know pacquet will run the install: pacquet
+  // applies the same resolver-policy gate (port of this function) whether
+  // it materializes a frozen lockfile or re-resolves from the manifests,
+  // so re-running here would duplicate the work — and for
+  // `minimumReleaseAge` in strict mode each lockfile entry is an HTTP
+  // probe.
   //
   // The predicate mirrors every short-circuit `tryFrozenInstall` checks
   // before reaching the pacquet branch: anything that would make it
@@ -2086,10 +2087,22 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         // restore it afterwards (`writeEnvLockfile` re-reads pacquet's main
         // document and re-prepends the env document), otherwise the next
         // `--frozen-lockfile` install fails its config-deps freshness gate.
+        // The restore runs even if pacquet fails partway: a non-zero exit can
+        // still leave a rewritten lockfile behind, so the env document must be
+        // put back regardless.
         const envLockfile = await readEnvLockfile(ctx.lockfileDir)
-        await opts.runPacquet.run({ resolve: true })
-        if (envLockfile != null) {
-          await writeEnvLockfile(ctx.lockfileDir, envLockfile)
+        try {
+          await opts.runPacquet.run({ resolve: true })
+        } finally {
+          if (envLockfile != null) {
+            await writeEnvLockfile(ctx.lockfileDir, envLockfile).catch((restoreErr: Error) => {
+              logger.warn({
+                error: restoreErr,
+                message: `Failed to restore the configDependencies document in pnpm-lock.yaml: ${restoreErr.message}`,
+                prefix: ctx.lockfileDir,
+              })
+            })
+          }
         }
         return pacquetResolveResult(projects, ctx)
       }
