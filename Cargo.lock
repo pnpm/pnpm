@@ -3868,6 +3868,7 @@ dependencies = [
  "derive_more",
  "indexmap 2.14.0",
  "node-semver",
+ "pacquet-catalogs-types",
  "pacquet-crypto-hash",
  "pacquet-diagnostics",
  "pacquet-package-manifest",

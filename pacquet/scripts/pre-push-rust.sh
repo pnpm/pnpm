@@ -15,6 +15,16 @@ if command -v cargo >/dev/null 2>&1; then
         failed=1
     fi
 
+    # Mirror the CI clippy gate. `--all-targets` is the load-bearing flag:
+    # without it clippy skips the test and bench crates, so a lint that
+    # only fires in an integration test slips past `cargo clippy -p <crate>`
+    # and surfaces for the first time in CI.
+    yellow '▸ cargo clippy --all-targets --workspace -- -D warnings'
+    if ! cargo clippy --all-targets --workspace -- -D warnings; then
+        red '✗ cargo clippy reported lints — fix the findings (or `just lint`) and commit.'
+        failed=1
+    fi
+
     yellow '▸ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features'
     if ! RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --workspace --all-features --quiet; then
         red '✗ cargo doc reported warnings — fix the rustdoc diagnostics and commit.'

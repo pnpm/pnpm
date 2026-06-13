@@ -49,9 +49,29 @@ afterEach(() => {
   jest.mocked(console.warn).mockRestore()
 })
 
-test('console a warning when the .npmrc has an env variable in a project-level registry', async () => {
+test('console a warning when a project-level .npmrc has an unresolved env variable in an expanded setting', async () => {
   prepare()
 
+  // `cafile` is still env-expanded (unlike registry/proxy URLs), so an
+  // unresolved placeholder surfaces the generic env-replace warning.
+  fs.writeFileSync('.npmrc', 'cafile=${ENV_VAR_123}', 'utf8')
+
+  await getConfig({
+    json: false,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+  })
+
+  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
+})
+
+test('console a warning when a project-level .npmrc uses an env variable in a request destination', async () => {
+  prepare()
+
+  // Env placeholders in repository-controlled registry/proxy URLs are not
+  // expanded at all — the setting is dropped with a dedicated warning
+  // instead of the generic env-replace one.
   fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8')
 
   await getConfig({

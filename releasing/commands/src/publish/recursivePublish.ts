@@ -11,6 +11,7 @@ import pFilter from 'p-filter'
 import { pick } from 'ramda'
 import { writeJsonFile } from 'write-json-file'
 
+import { batchPublishPackages } from './batchPublish.js'
 import { publish } from './publish.js'
 import type { PublishPackedPkgOptions, PublishSummary } from './publishPackedPkg.js'
 
@@ -60,6 +61,7 @@ Partial<Pick<ConfigContext,
   argv: {
     original: string[]
   }
+  batch?: boolean
   reportSummary?: boolean
 } & PublishPackedPkgOptions
 
@@ -113,43 +115,51 @@ export async function recursivePublish (
     }
     const chunks = sortProjects(opts.selectedProjectsGraph)
     const tag = opts.tag ?? 'latest'
-    const commandArgs = opts.stage ? ['stage', 'publish'] : ['publish']
-    for (const chunk of chunks) {
-      // We can't run publish concurrently due to the npm CLI asking for OTP.
-      // NOTE: If we solve the OTP issue, we still need to limit packages concurrency.
-      // Otherwise, publishing will consume too much resources.
-      // See related issue: https://github.com/pnpm/pnpm/issues/6968
-      for (const pkgDir of chunk) {
-        if (!publishedPkgDirs.has(pkgDir)) continue
-        const pkg = opts.selectedProjectsGraph[pkgDir].package
-        const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, pkg.manifest.name!)
-        // eslint-disable-next-line no-await-in-loop
-        const publishResult = await publish({
-          ...opts,
-          dir: pkg.rootDir,
-          argv: {
-            original: [
-              ...commandArgs,
-              '--tag',
-              tag,
-              '--registry',
-              registry,
-              ...appendedArgs,
-            ],
-          },
-          gitChecks: false,
-          recursive: false,
-        }, [pkg.rootDir])
-        if (publishResult?.publishSummary != null) {
-          publishedPackages.push(publishResult.publishSummary)
-        } else {
-          // Fallback for paths that don't produce a full PublishSummary (e.g. dry run via the
-          // legacy npm-CLI bridge, or future call sites that bypass publishPackedPkg).
-          const publishedManifest = publishResult?.publishedManifest ?? publishResult?.manifest
-          if (publishedManifest != null) {
-            publishedPackages.push(pick(['name', 'version'], publishedManifest))
-          } else if (publishResult?.exitCode) {
-            return { exitCode: publishResult.exitCode, publishedPackages }
+    if (opts.batch) {
+      const sortedPkgs = chunks
+        .flat()
+        .filter((pkgDir) => publishedPkgDirs.has(pkgDir))
+        .map((pkgDir) => opts.selectedProjectsGraph[pkgDir].package)
+      publishedPackages.push(...await batchPublishPackages(sortedPkgs, { ...opts, tag }))
+    } else {
+      const commandArgs = opts.stage ? ['stage', 'publish'] : ['publish']
+      for (const chunk of chunks) {
+        // We can't run publish concurrently due to the npm CLI asking for OTP.
+        // NOTE: If we solve the OTP issue, we still need to limit packages concurrency.
+        // Otherwise, publishing will consume too much resources.
+        // See related issue: https://github.com/pnpm/pnpm/issues/6968
+        for (const pkgDir of chunk) {
+          if (!publishedPkgDirs.has(pkgDir)) continue
+          const pkg = opts.selectedProjectsGraph[pkgDir].package
+          const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, pkg.manifest.name!)
+          // eslint-disable-next-line no-await-in-loop
+          const publishResult = await publish({
+            ...opts,
+            dir: pkg.rootDir,
+            argv: {
+              original: [
+                ...commandArgs,
+                '--tag',
+                tag,
+                '--registry',
+                registry,
+                ...appendedArgs,
+              ],
+            },
+            gitChecks: false,
+            recursive: false,
+          }, [pkg.rootDir])
+          if (publishResult?.publishSummary != null) {
+            publishedPackages.push(publishResult.publishSummary)
+          } else {
+            // Fallback for paths that don't produce a full PublishSummary (e.g. dry run via the
+            // legacy npm-CLI bridge, or future call sites that bypass publishPackedPkg).
+            const publishedManifest = publishResult?.publishedManifest ?? publishResult?.manifest
+            if (publishedManifest != null) {
+              publishedPackages.push(pick(['name', 'version'], publishedManifest))
+            } else if (publishResult?.exitCode) {
+              return { exitCode: publishResult.exitCode, publishedPackages }
+            }
           }
         }
       }

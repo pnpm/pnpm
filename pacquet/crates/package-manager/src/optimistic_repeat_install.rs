@@ -117,7 +117,8 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// previous install materialized — and `pnpm-lock.yaml` is
     /// regenerated from it before the check reports up-to-date.
     pub lockfile: MaybeLazyLockfile<'a>,
-    /// Workspace catalogs, for resolving `catalog:` values inside
+    /// Catalogs from the workspace manifest or an `updateConfig`
+    /// pnpmfile hook, for resolving `catalog:` values inside
     /// `pnpm.overrides` before the lockfile settings comparison.
     pub catalogs: &'a Catalogs,
 }
@@ -135,6 +136,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         included,
         project_manifests,
         is_workspace_install,
+        catalogs,
         ..
     } = check;
     if !config.optimistic_repeat_install {
@@ -152,6 +154,10 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
 
     if !settings_match(&state, config, node_linker, included) {
         return Decision::Skipped { reason: "settings drift" };
+    }
+
+    if !catalogs_cache_matches(state.settings.catalogs.as_ref(), catalogs) {
+        return Decision::Skipped { reason: "catalogs cache outdated" };
     }
 
     if !project_structure_matches(&state, project_manifests) {
@@ -259,6 +265,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
                     config,
                     node_linker,
                     included,
+                    catalogs,
                     project_manifests,
                 );
                 if let Err(error) = update_workspace_state(workspace_root, &new_state) {
@@ -411,9 +418,12 @@ fn modified_manifests_match_lockfile(
 
     let parsed_overrides = crate::install::parse_config_overrides(config, catalogs)
         .map_err(|_| "pnpm.overrides cannot be parsed")?;
-    if let Err(error) =
-        crate::install::check_lockfile_settings_drift(wanted, config, parsed_overrides.as_deref())
-    {
+    if let Err(error) = crate::install::check_lockfile_settings_drift(
+        wanted,
+        config,
+        catalogs,
+        parsed_overrides.as_deref(),
+    ) {
         tracing::debug!(target: "pacquet::install", %error, "repeat-install content check: lockfile settings drift");
         return Err("a lockfile setting drifted from the current configuration");
     }
@@ -747,11 +757,16 @@ fn settings_match(
         && recorded.prefer_workspace_packages == live.prefer_workspace_packages
         && recorded.production == live.production
         && recorded.public_hoist_pattern == live.public_hoist_pattern
-    // Deliberately *not* compared. pnpm leaves the first group
+    // Deliberately *not* compared in this generic settings loop. pnpm
+    // ignores `catalogs` here (`ignoredSettings.add('catalogs')`), then
+    // checks it separately. Pacquet mirrors that split in
+    // `check_optimistic_repeat_install` so catalogs from either
+    // `pnpm-workspace.yaml` or an `updateConfig` hook can invalidate
+    // the cache.
+    //
+    // The remaining omitted keys are left out because pnpm leaves them
     // `undefined` by default, so omitting them here still matches pnpm's
     // all-key freshness check (`undefined == undefined`):
-    //   catalogs                    (pnpm always ignores; see
-    //                                ignoredSettings.add('catalogs'))
     //   minimumReleaseAgeStrict     (pnpm sets it only when the user
     //                                explicitly sets minimumReleaseAge)
     //   minimumReleaseAgeExclude
@@ -873,6 +888,37 @@ pub(crate) fn current_settings(
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         ..Default::default()
     }
+}
+
+pub(crate) fn current_settings_with_catalogs(
+    config: &Config,
+    node_linker: NodeLinker,
+    included: IncludedDependencies,
+    catalogs: &Catalogs,
+) -> WorkspaceStateSettings {
+    let mut settings = current_settings(config, node_linker, included);
+    settings.catalogs = Some(catalogs_to_json(catalogs));
+    settings
+}
+
+fn catalogs_cache_matches(recorded: Option<&serde_json::Value>, current: &Catalogs) -> bool {
+    let recorded = recorded.cloned().map_or_else(empty_json_object, filter_null_object_values);
+    let current = filter_null_object_values(catalogs_to_json(current));
+    recorded == current
+}
+
+fn catalogs_to_json(catalogs: &Catalogs) -> serde_json::Value {
+    serde_json::to_value(catalogs).expect("Catalogs serialize to a JSON object")
+}
+
+fn empty_json_object() -> serde_json::Value {
+    serde_json::Value::Object(serde_json::Map::new())
+}
+
+fn filter_null_object_values(value: serde_json::Value) -> serde_json::Value {
+    let serde_json::Value::Object(mut map) = value else { return value };
+    map.retain(|_, value| !value.is_null());
+    serde_json::Value::Object(map)
 }
 
 fn link_workspace_packages_to_json(value: LinkWorkspacePackages) -> serde_json::Value {

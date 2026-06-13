@@ -123,6 +123,7 @@ catalog:
   '@types/node': ^22.19.19
   '@types/normalize-package-data': ^2.4.4
   '@types/normalize-path': ^3.0.2
+  '@types/npm-registry-fetch': ^8.0.9
   '@types/object-hash': 3.0.6
   '@types/parse-json': ^7.0.0
   '@types/picomatch': ^4.0.3
@@ -250,6 +251,7 @@ catalog:
   # npm-packlist 11.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above
   # pnpm's supported floor of Node.js >=22.13.
   npm-packlist: 10.0.4
+  npm-registry-fetch: ^19.0.0
   object-hash: 3.0.0
   open: ^11.0.0
   openpgp: ^6.3.1

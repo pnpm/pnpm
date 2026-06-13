@@ -1067,6 +1067,7 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            &BTreeMap::default(),
             &[],
         );
         assert!(state.projects.is_empty());
@@ -1099,6 +1100,7 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            &BTreeMap::default(),
             &project_manifests,
         );
 
@@ -1133,6 +1135,7 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            &BTreeMap::default(),
             &[],
         );
         assert_eq!(state.config_dependencies, config.config_dependencies);
