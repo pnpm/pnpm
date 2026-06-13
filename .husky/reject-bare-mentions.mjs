@@ -47,10 +47,11 @@ function stripCommentLines (text) {
 // Replace each code span with a boundary char rather than removing it, so the
 // text on either side cannot glue together and flip mention detection — e.g.
 // `PR` + `` `x` `` + `@octocat` must still expose `@octocat`. Fenced blocks span
-// lines (collapse to a newline); inline spans collapse to a space.
+// lines (collapse to a newline); inline spans collapse to a space. Both fence
+// styles GitHub recognises — backticks and tildes — are handled.
 function stripCodeSpans (text) {
   return text
-    .replace(/```[\s\S]*?```/g, '\n')
+    .replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, '\n')
     .replace(/`[^`]*`/g, ' ')
 }
 
