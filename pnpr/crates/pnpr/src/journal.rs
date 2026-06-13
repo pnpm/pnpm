@@ -213,7 +213,13 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
     for package in &manifest.packages {
         let name = PackageName::parse(&package.name)?;
         for tarball in &package.tarballs {
-            if fs::try_exists(&tarball.tmp_path).await.unwrap_or(false) {
+            // A missing tmp file was already promoted before the crash, so
+            // skip it. But never read an I/O error as "missing": that would
+            // skip promotion, write the packument anyway, and delete the
+            // journal entry — advertising a tarball with nothing on disk and
+            // no journal state left to retry from. Propagate it instead so
+            // recovery aborts and the entry survives for a later attempt.
+            if fs::try_exists(&tarball.tmp_path).await? {
                 let slot = TarballSlot::from_parts(
                     tarball.tmp_path.clone(),
                     name.clone(),
