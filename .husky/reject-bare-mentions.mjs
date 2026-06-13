@@ -16,9 +16,17 @@ if (!msgPath) {
 
 const raw = readFileSync(msgPath, 'utf8')
 
+// `git commit -v` appends the diff below a scissors line; git discards
+// everything from that line onward, so the hook must not scan it either —
+// otherwise an `@mention` that only appears in the diff (e.g. a scoped-package
+// import) would wrongly reject a commit, on text the author never wrote in the
+// message and cannot remove.
+const scissors = raw.match(/^#\s*-{2,}\s*>8\s*-{2,}.*$/m)
+const committable = scissors ? raw.slice(0, scissors.index) : raw
+
 // Drop git comment lines (those starting with `#`). Git strips them from the
 // final message anyway, so a bare `@name` on such a line is never committed.
-let message = raw
+let message = committable
   .split('\n')
   .filter((line) => !line.trimStart().startsWith('#'))
   .join('\n')
