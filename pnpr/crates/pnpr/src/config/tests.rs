@@ -1,7 +1,7 @@
 use super::{
     BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, LogFormat,
-    LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkFile, config_file_in,
-    pattern_matches, resolve_relative, resolve_uplink,
+    LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkConfig, UplinkFile, config_file_in,
+    parse_interval, pattern_matches, resolve_relative, resolve_uplink,
 };
 use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;
@@ -29,7 +29,16 @@ impl EnvVar for FakeEnv {
 }
 
 fn uplink_file(auth: Option<UplinkAuthFile>, headers: IndexMap<String, String>) -> UplinkFile {
-    UplinkFile { url: "https://upstream.test/".to_string(), auth, headers }
+    UplinkFile {
+        url: "https://upstream.test/".to_string(),
+        auth,
+        headers,
+        maxage: None,
+        timeout: None,
+        max_fails: None,
+        fail_timeout: None,
+        cache: None,
+    }
 }
 
 fn auth_header(uplink: &super::UplinkConfig) -> Option<&str> {
@@ -1170,6 +1179,74 @@ packages:
         assert!(access.allows(&user("bob")), "{yaml}");
         assert!(!access.allows(&user("carol")), "{yaml}");
     }
+}
+
+#[test]
+fn parse_interval_handles_suffixes_compounds_and_bare_numbers() {
+    use std::time::Duration;
+    assert_eq!(parse_interval("30s"), Some(Duration::from_secs(30)));
+    assert_eq!(parse_interval("2m"), Some(Duration::from_mins(2)));
+    assert_eq!(parse_interval("5m"), Some(Duration::from_mins(5)));
+    assert_eq!(parse_interval("1h"), Some(Duration::from_hours(1)));
+    assert_eq!(parse_interval("1d"), Some(Duration::from_hours(24)));
+    assert_eq!(parse_interval("1w"), Some(Duration::from_hours(168)));
+    assert_eq!(parse_interval("500ms"), Some(Duration::from_millis(500)));
+    // Compound, with and without whitespace.
+    assert_eq!(parse_interval("1h30m"), Some(Duration::from_mins(90)));
+    assert_eq!(parse_interval("2m 30s"), Some(Duration::from_secs(150)));
+    // A bare number is seconds, matching verdaccio's `interval * 1000` ms.
+    assert_eq!(parse_interval("45"), Some(Duration::from_secs(45)));
+    // A trailing suffix-less number is also seconds.
+    assert_eq!(parse_interval("1m15"), Some(Duration::from_secs(75)));
+}
+
+#[test]
+fn parse_interval_rejects_garbage() {
+    assert_eq!(parse_interval(""), None);
+    assert_eq!(parse_interval("   "), None);
+    assert_eq!(parse_interval("soon"), None);
+    assert_eq!(parse_interval("2x"), None);
+    assert_eq!(parse_interval("m30"), None);
+}
+
+#[test]
+fn resolve_uplink_defaults_knobs_to_verdaccio_values() {
+    let uplink = resolve_uplink::<FakeEnv>("npmjs", uplink_file(None, IndexMap::new())).unwrap();
+    // An unset `maxage` defers to the global packument TTL (`None` here),
+    // while the rest fall back to verdaccio's documented defaults.
+    assert_eq!(uplink.maxage, None);
+    assert_eq!(uplink.timeout, UplinkConfig::DEFAULT_TIMEOUT);
+    assert_eq!(uplink.max_fails, UplinkConfig::DEFAULT_MAX_FAILS);
+    assert_eq!(uplink.fail_timeout, UplinkConfig::DEFAULT_FAIL_TIMEOUT);
+    assert!(uplink.cache);
+}
+
+#[test]
+fn resolve_uplink_parses_explicit_knobs() {
+    use std::time::Duration;
+    let mut file = uplink_file(None, IndexMap::new());
+    file.maxage = Some("10m".to_string());
+    file.timeout = Some("45s".to_string());
+    file.max_fails = Some(5);
+    file.fail_timeout = Some("1m".to_string());
+    file.cache = Some(false);
+    let uplink = resolve_uplink::<FakeEnv>("npmjs", file).unwrap();
+    assert_eq!(uplink.maxage, Some(Duration::from_mins(10)));
+    assert_eq!(uplink.timeout, Duration::from_secs(45));
+    assert_eq!(uplink.max_fails, 5);
+    assert_eq!(uplink.fail_timeout, Duration::from_mins(1));
+    assert!(!uplink.cache);
+}
+
+#[test]
+fn resolve_uplink_rejects_an_unparsable_interval() {
+    let mut file = uplink_file(None, IndexMap::new());
+    file.maxage = Some("whenever".to_string());
+    let err = resolve_uplink::<FakeEnv>("npmjs", file).unwrap_err();
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { reason } if reason.contains("maxage")),
+        "expected an InvalidConfig naming the offending field",
+    );
 }
 
 #[test]

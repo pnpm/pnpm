@@ -157,13 +157,8 @@ pub fn router(config: Config) -> Router {
 pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
     let storage =
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
-    let upstreams: IndexMap<String, Upstream> = config
-        .uplinks
-        .iter()
-        .map(|(name, uplink)| {
-            (name.clone(), Upstream::new(uplink.url.clone(), uplink.headers.clone()))
-        })
-        .collect();
+    let upstreams: IndexMap<String, Upstream> =
+        config.uplinks.iter().map(|(name, uplink)| (name.clone(), Upstream::new(uplink))).collect();
     let state = AppState {
         inner: Arc::new(AppInner {
             storage,
@@ -667,6 +662,12 @@ async fn serve_tarball(
         Err(err) => return error_response(&err),
     };
     let upstream_len = response.content_length();
+
+    // `cache: false` uplinks (verdaccio) are mirror-less: stream the
+    // tarball straight to the client without writing it to disk.
+    if !upstream.caches() {
+        return tarball_response(Body::from_stream(response.bytes_stream()), upstream_len);
+    }
 
     let write = match state.inner.storage.open_cached_tarball_tmp(&name, filename).await {
         Ok(w) => w,
@@ -1810,7 +1811,11 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
     // versions surface sooner but more upstream traffic; higher = the
     // reverse. The conditional GET on the stale path keeps a high `ttl`
     // cheap (a `304` refreshes the entry without re-downloading it).
-    let ttl = state.inner.config.packument_ttl;
+    //
+    // The uplink's per-uplink `maxage` (verdaccio) wins when set;
+    // otherwise the global `packument_ttl` (the `--packument-ttl-secs`
+    // flag) applies.
+    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
     // A fresh entry serves immediately (and moves its bytes out — a
     // packument can be multiple MB). A stale entry yields only its
     // validators; its body stays on disk until a `304`/error path below

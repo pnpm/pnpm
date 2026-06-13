@@ -1,9 +1,9 @@
 use crate::{
-    config::RedactedHeaders,
+    config::{RedactedHeaders, UplinkConfig},
     error::{RegistryError, Result},
     package_name::PackageName,
 };
-use chrono::{DateTime, Duration, Timelike, Utc};
+use chrono::{DateTime, Timelike, Utc};
 use pacquet_network::ThrottledClient;
 use reqwest::{
     StatusCode,
@@ -11,14 +11,22 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU32, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 /// Wraps a shared [`ThrottledClient`] (so the registry inherits pnpm's
 /// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, hickory DNS,
 /// pool/timeout tuning, concurrency semaphore, and per-registry TLS
-/// routing if it's ever wired in later) and adds the small bit of
-/// glue specific to a proxy: building the upstream URL and fishing
-/// the packument or tarball response out of it.
+/// routing if it's ever wired in later) and adds the per-uplink glue a
+/// proxy needs: building the upstream URL, applying verdaccio's
+/// `timeout`/`max_fails`/`fail_timeout` knobs, and fishing the packument
+/// or tarball response out of it.
 #[derive(Clone)]
 pub struct Upstream {
     client: Arc<ThrottledClient>,
@@ -26,6 +34,19 @@ pub struct Upstream {
     /// Resolved per-uplink request headers (auth + custom) attached to
     /// every fetch. Empty for an uplink with no `auth:`/`headers:`.
     headers: HeaderMap,
+    /// Per-request deadline (verdaccio's `timeout`).
+    timeout: Duration,
+    /// Per-uplink packument freshness window (verdaccio's `maxage`), or
+    /// `None` to defer to the global [`crate::config::Config::packument_ttl`].
+    maxage: Option<Duration>,
+    /// Whether tarballs from this uplink are written to the local mirror
+    /// (verdaccio's `cache`).
+    cache: bool,
+    /// Shared failure tracker implementing verdaccio's
+    /// `max_fails`/`fail_timeout` circuit breaker. Behind an [`Arc`] so
+    /// every clone of this `Upstream` (the registry holds one per uplink
+    /// and clones it per request) updates the same counters.
+    breaker: Arc<CircuitBreaker>,
 }
 
 impl fmt::Debug for Upstream {
@@ -34,7 +55,60 @@ impl fmt::Debug for Upstream {
             .field("client", &self.client)
             .field("base", &self.base)
             .field("headers", &RedactedHeaders(&self.headers))
+            .field("timeout", &self.timeout)
+            .field("maxage", &self.maxage)
+            .field("cache", &self.cache)
+            .field("breaker", &self.breaker)
             .finish()
+    }
+}
+
+/// Verdaccio's `max_fails` / `fail_timeout` circuit breaker. After
+/// `max_fails` consecutive failures the uplink is considered down and
+/// requests short-circuit, until `fail_timeout` elapses since the last
+/// failure — a single probe is then allowed through, and its success
+/// resets the breaker or its failure restarts the cooldown.
+#[derive(Debug)]
+struct CircuitBreaker {
+    max_fails: u32,
+    fail_timeout: Duration,
+    failed_requests: AtomicU32,
+    last_failure: Mutex<Option<Instant>>,
+}
+
+impl CircuitBreaker {
+    fn new(max_fails: u32, fail_timeout: Duration) -> Self {
+        Self {
+            max_fails,
+            fail_timeout,
+            failed_requests: AtomicU32::new(0),
+            last_failure: Mutex::new(None),
+        }
+    }
+
+    /// Whether a request to this uplink should be attempted. Available
+    /// while under `max_fails` consecutive failures, or once the
+    /// `fail_timeout` cooldown has elapsed since the last failure.
+    /// `max_fails == 0` disables the breaker entirely.
+    fn is_available(&self) -> bool {
+        if self.max_fails == 0 || self.failed_requests.load(Ordering::Relaxed) < self.max_fails {
+            return true;
+        }
+        let last_failure = *self.last_failure.lock().expect("circuit breaker poisoned");
+        match last_failure {
+            Some(at) => at.elapsed() >= self.fail_timeout,
+            None => true,
+        }
+    }
+
+    fn record_success(&self) {
+        self.failed_requests.store(0, Ordering::Relaxed);
+        *self.last_failure.lock().expect("circuit breaker poisoned") = None;
+    }
+
+    fn record_failure(&self) {
+        self.failed_requests.fetch_add(1, Ordering::Relaxed);
+        *self.last_failure.lock().expect("circuit breaker poisoned") = Some(Instant::now());
     }
 }
 
@@ -94,8 +168,32 @@ pub enum PackumentFetch {
 }
 
 impl Upstream {
-    pub fn new(base: String, headers: HeaderMap) -> Self {
-        Self { client: Arc::new(ThrottledClient::new_for_installs()), base, headers }
+    /// Build an uplink client from its resolved [`UplinkConfig`], baking
+    /// in the per-uplink `timeout`/`maxage`/`cache` knobs and arming the
+    /// `max_fails`/`fail_timeout` circuit breaker.
+    pub fn new(config: &UplinkConfig) -> Self {
+        Self {
+            client: Arc::new(ThrottledClient::new_for_installs()),
+            base: config.url.clone(),
+            headers: config.headers.clone(),
+            timeout: config.timeout,
+            maxage: config.maxage,
+            cache: config.cache,
+            breaker: Arc::new(CircuitBreaker::new(config.max_fails, config.fail_timeout)),
+        }
+    }
+
+    /// Per-uplink packument freshness window (`maxage`), or `None` to
+    /// defer to the global [`crate::config::Config::packument_ttl`].
+    pub fn maxage(&self) -> Option<Duration> {
+        self.maxage
+    }
+
+    /// Whether tarballs from this uplink should be written to the local
+    /// mirror (`cache: true`). When `false` the caller streams the body
+    /// straight through without caching it.
+    pub fn caches(&self) -> bool {
+        self.cache
     }
 
     /// Fetch a package's packument, conditionally when `validators`
@@ -103,14 +201,18 @@ impl Upstream {
     /// circuits to [`PackumentFetch::NotModified`] without a body, so the
     /// caller can keep serving its cached copy — the bandwidth win on a
     /// stale-but-current packument.
+    ///
+    /// Returns [`RegistryError::UpstreamUnavailable`] without hitting the
+    /// network when the circuit breaker is open.
     pub async fn fetch_packument(
         &self,
         name: &PackageName,
         validators: &CacheValidators,
     ) -> Result<PackumentFetch> {
+        self.ensure_available()?;
         let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
         let client = self.client.acquire_for_url(&url).await;
-        let mut request = client.get(&url).headers(self.headers.clone());
+        let mut request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
         let mut sent_conditional = false;
         if let Some(etag) = &validators.etag
             && let Ok(value) = HeaderValue::from_str(etag)
@@ -124,27 +226,28 @@ impl Upstream {
             request = request.header(header::IF_MODIFIED_SINCE, value);
             sent_conditional = true;
         }
-        let response = request
-            .send()
-            .await
-            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
+        let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
+            // A 404 is an authoritative answer, not an uplink failure.
+            self.breaker.record_success();
             return Ok(PackumentFetch::NotFound);
         }
         // Only honor a `304` if we actually sent a conditional header. A
         // `304` to an unconditional request is a misbehaving upstream and
-        // carries no body to serve, so let it fall through to
-        // `check_status` and surface as an upstream status error rather
-        // than reusing a (possibly nonexistent) cached copy.
+        // carries no body to serve, so let it fall through to `checked`
+        // and surface as an upstream status error rather than reusing a
+        // (possibly nonexistent) cached copy.
         if sent_conditional && response.status() == StatusCode::NOT_MODIFIED {
+            self.breaker.record_success();
             return Ok(PackumentFetch::NotModified);
         }
-        let response = check_status(response, &url).await?;
+        let response = self.checked(response, &url).await?;
         let validators = CacheValidators::from_headers(response.headers());
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
+        let bytes = response.bytes().await.map_err(|source| {
+            self.breaker.record_failure();
+            RegistryError::Upstream { url: url.clone(), source }
+        })?;
+        self.breaker.record_success();
         Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec(), validators }))
     }
 
@@ -152,34 +255,63 @@ impl Upstream {
     /// [`reqwest::Response`] so the caller can pipe the body straight
     /// to the client without buffering. Status and 404 handling
     /// happen here before any bytes are forwarded.
+    ///
+    /// Returns [`RegistryError::UpstreamUnavailable`] without hitting the
+    /// network when the circuit breaker is open.
     pub async fn fetch_tarball_response(
         &self,
         name: &PackageName,
         filename: &str,
     ) -> Result<FetchOutcome<reqwest::Response>> {
+        self.ensure_available()?;
         let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename);
         let client = self.client.acquire_for_url(&url).await;
-        let response = client
-            .get(&url)
-            .headers(self.headers.clone())
-            .send()
-            .await
-            .map_err(|source| RegistryError::Upstream { url: url.clone(), source })?;
+        let request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
+        let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
+            self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
         }
-        let response = check_status(response, &url).await?;
+        let response = self.checked(response, &url).await?;
+        // Success here covers only headers; a mid-stream body failure is
+        // the caller's to observe. Recording success on a clean status is
+        // what verdaccio does too.
+        self.breaker.record_success();
         Ok(FetchOutcome::Ok(response))
     }
-}
 
-async fn check_status(response: reqwest::Response, url: &str) -> Result<reqwest::Response> {
-    let status = response.status();
-    if status.is_success() {
-        return Ok(response);
+    /// Fail fast with [`RegistryError::UpstreamUnavailable`] when the
+    /// breaker is open, so callers never pay a request to a known-down
+    /// uplink.
+    fn ensure_available(&self) -> Result<()> {
+        if self.breaker.is_available() {
+            return Ok(());
+        }
+        Err(RegistryError::UpstreamUnavailable { uplink: self.base.clone() })
     }
-    let body = response.text().await.unwrap_or_default();
-    Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
+
+    /// Send a built request, mapping a transport error to
+    /// [`RegistryError::Upstream`] and counting it against the breaker.
+    async fn run(&self, request: reqwest::RequestBuilder, url: &str) -> Result<reqwest::Response> {
+        request.send().await.map_err(|source| {
+            self.breaker.record_failure();
+            RegistryError::Upstream { url: url.to_string(), source }
+        })
+    }
+
+    /// Pass a successful response through; map any non-success status to
+    /// [`RegistryError::UpstreamStatus`] and count it against the breaker
+    /// (a 5xx/4xx-other upstream is a failure; a 404 is handled by the
+    /// callers before reaching here).
+    async fn checked(&self, response: reqwest::Response, url: &str) -> Result<reqwest::Response> {
+        if response.status().is_success() {
+            return Ok(response);
+        }
+        self.breaker.record_failure();
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
+    }
 }
 
 /// Rewrite every `dist.tarball` in `value` to a URL served by *this*
@@ -374,7 +506,7 @@ fn coarsen_time_map(
     time: &serde_json::Map<String, Value>,
     now: DateTime<Utc>,
 ) -> serde_json::Map<String, Value> {
-    let horizon = now - Duration::days(TIME_PRECISION_HORIZON_DAYS);
+    let horizon = now - chrono::Duration::days(TIME_PRECISION_HORIZON_DAYS);
     let mut out = serde_json::Map::with_capacity(time.len());
     for (key, value) in time {
         let coarsened = value.as_str().and_then(|raw| coarsen_timestamp(raw, horizon));
@@ -401,7 +533,7 @@ fn coarsen_timestamp(raw: &str, horizon: DateTime<Utc>) -> Option<String> {
         Some(rounded.format("%Y-%m-%d").to_string())
     } else {
         let minute = parsed.with_second(0)?.with_nanosecond(0)?;
-        let rounded = if parsed == minute { minute } else { minute + Duration::minutes(1) };
+        let rounded = if parsed == minute { minute } else { minute + chrono::Duration::minutes(1) };
         Some(rounded.format("%Y-%m-%dT%H:%MZ").to_string())
     }
 }
