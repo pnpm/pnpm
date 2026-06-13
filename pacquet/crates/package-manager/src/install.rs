@@ -978,6 +978,7 @@ where
                     config,
                     node_linker,
                     included,
+                    &catalogs,
                     &project_manifests,
                 ),
             )
@@ -1129,7 +1130,7 @@ where
                 dependency_groups,
                 logged_methods: &logged_methods,
                 requester: &prefix,
-                catalogs,
+                catalogs: catalogs.clone(),
                 lockfile_dir: &workspace_root,
                 workspace_packages,
                 update_checksums,
@@ -1322,6 +1323,7 @@ where
                 config,
                 node_linker,
                 included,
+                &catalogs,
                 &project_manifests,
             ),
         )
@@ -1368,7 +1370,7 @@ fn check_lockfile_freshness(
     ignore_manifest_check: bool,
 ) -> Result<(), FreshnessCheckError> {
     let parsed_overrides_opt = parse_config_overrides(config, catalogs)?;
-    check_lockfile_settings_drift(lockfile, config, parsed_overrides_opt.as_deref())?;
+    check_lockfile_settings_drift(lockfile, config, catalogs, parsed_overrides_opt.as_deref())?;
 
     if ignore_manifest_check {
         return Ok(());
@@ -1417,6 +1419,7 @@ pub(crate) fn parse_config_overrides(
 pub(crate) fn check_lockfile_settings_drift(
     lockfile: &Lockfile,
     config: &Config,
+    catalogs: &Catalogs,
     parsed_overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
 ) -> Result<(), FreshnessCheckError> {
     let overrides_map: Option<std::collections::HashMap<String, String>> =
@@ -1429,14 +1432,17 @@ pub(crate) fn check_lockfile_settings_drift(
     // from what the lockfile recorded.
     let patched_dependency_hashes =
         config.patched_dependency_hashes().map_err(FreshnessCheckError::CalcPatchHashes)?;
-    pacquet_lockfile::check_lockfile_settings(
+    pacquet_lockfile::check_lockfile_settings_with_catalogs(
         lockfile,
-        overrides_map.as_ref(),
-        package_extensions_checksum.as_deref(),
-        config.ignored_optional_dependencies.as_deref(),
-        patched_dependency_hashes.as_ref(),
-        config.inject_workspace_packages,
-        config.peers_suffix_max_length,
+        pacquet_lockfile::LockfileSettingsCheck {
+            catalogs,
+            overrides: overrides_map.as_ref(),
+            package_extensions_checksum: package_extensions_checksum.as_deref(),
+            ignored_optional_dependencies: config.ignored_optional_dependencies.as_deref(),
+            patched_dependencies: patched_dependency_hashes.as_ref(),
+            inject_workspace_packages: config.inject_workspace_packages,
+            peers_suffix_max_length: config.peers_suffix_max_length,
+        },
     )
     .map_err(FreshnessCheckError::Stale)
 }
@@ -1924,6 +1930,7 @@ pub(crate) fn build_workspace_state(
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
+    catalogs: &Catalogs,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> WorkspaceState {
     WorkspaceState {
@@ -1941,7 +1948,12 @@ pub(crate) fn build_workspace_state(
         // produces. Keeping the construction in one place guarantees
         // adding a field on one side doesn't silently flip the other
         // into "drift" on the next install.
-        settings: crate::optimistic_repeat_install::current_settings(config, node_linker, included),
+        settings: crate::optimistic_repeat_install::current_settings_with_catalogs(
+            config,
+            node_linker,
+            included,
+            catalogs,
+        ),
     }
 }
 

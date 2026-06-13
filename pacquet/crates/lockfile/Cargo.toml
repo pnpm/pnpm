@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-catalogs-types   = { workspace = true }
 pacquet-crypto-hash      = { workspace = true }
 pacquet-diagnostics      = { workspace = true }
 pacquet-package-manifest = { workspace = true }

@@ -1,6 +1,8 @@
 use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install, current_settings,
+    current_settings_with_catalogs,
 };
+use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_modules_yaml::IncludedDependencies;
@@ -24,16 +26,44 @@ fn check(
     node_linker: pacquet_config::NodeLinker,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> Decision {
+    check_with_catalogs(
+        workspace_root,
+        config,
+        node_linker,
+        project_manifests,
+        false,
+        &BTreeMap::default(),
+    )
+}
+
+fn check_with_catalogs(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pacquet_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    is_workspace_install: bool,
+    catalogs: &Catalogs,
+) -> Decision {
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
         node_linker,
         included: isolated_included(),
         project_manifests,
-        is_workspace_install: false,
+        is_workspace_install,
         lockfile: MaybeLazyLockfile::Loaded(None),
-        catalogs: &BTreeMap::default(),
+        catalogs,
     })
+}
+
+fn check_workspace(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pacquet_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    catalogs: &Catalogs,
+) -> Decision {
+    check_with_catalogs(workspace_root, config, node_linker, project_manifests, true, catalogs)
 }
 
 /// Write an empty `pnpm-lock.yaml` to satisfy the single-project
@@ -992,8 +1022,6 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
         current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
     // Populate fields pacquet records but `settings_match` does not
     // compare, to prove a difference on them keeps the fast path.
-    // `catalogs` is always ignored by pnpm itself; pacquet mirrors that.
-    settings.catalogs = Some(serde_json::json!({"default": {"react": "^18.0.0"}}));
     // `workspacePackagePatterns` is recorded by pnpm from
     // pnpm-workspace.yaml's `packages:` field, which pacquet
     // tracks via `WorkspaceManifest.packages` instead of this
@@ -1014,6 +1042,99 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
+}
+
+#[test]
+fn returns_outdated_when_workspace_catalog_cache_changes() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    let config = config.leak();
+
+    let recorded_catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([("react".to_string(), "^18.0.0".to_string())]),
+    )]);
+    let settings = current_settings_with_catalogs(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &recorded_catalogs,
+    );
+
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+
+    let current_catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([("react".to_string(), "^19.0.0".to_string())]),
+    )]);
+    let decision = check_workspace(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(workspace_root.to_path_buf(), &manifest)],
+        &current_catalogs,
+    );
+    assert_eq!(decision, Decision::Skipped { reason: "catalogs cache outdated" });
+}
+
+#[test]
+fn returns_outdated_when_single_project_catalog_cache_changes() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    let config = config.leak();
+
+    let recorded_catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([("react".to_string(), "^18.0.0".to_string())]),
+    )]);
+    let settings = current_settings_with_catalogs(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &recorded_catalogs,
+    );
+
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+
+    let current_catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([("react".to_string(), "^19.0.0".to_string())]),
+    )]);
+    let decision = check_with_catalogs(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(workspace_root.to_path_buf(), &manifest)],
+        false,
+        &current_catalogs,
+    );
+    assert_eq!(decision, Decision::Skipped { reason: "catalogs cache outdated" });
 }
 
 /// `allowBuilds` is the one field where pnpm and pacquet round-trip
