@@ -70,11 +70,11 @@ jobs:
         with:
           persist-credentials: false
 
-      # The clippy --all-targets pass plus the nextest build hold two
-      # full sets of debug artifacts in target/, which no longer fits
-      # in the hosted runner's free disk — the linker dies with ENOSPC
-      # / SIGBUS mid-build. Drop the preinstalled toolchains this job
-      # never uses (~25 GB) before compiling anything.
+      # The nextest build holds a full set of debug artifacts in
+      # target/, which no longer fits in the hosted runner's free disk —
+      # the linker dies with ENOSPC / SIGBUS mid-build. Drop the
+      # preinstalled toolchains this job never uses (~25 GB) before
+      # compiling anything.
       - name: Free up runner disk space
         if: runner.os == 'Linux'
         run: |
@@ -84,7 +84,6 @@ jobs:
       - name: Install Rust Toolchain
         uses: ./.github/actions/rustup
         with:
-          clippy: true
           save-cache: ${{ github.ref_name == 'main' }}
 
       - name: Install pnpm (for compatibility check)
@@ -104,9 +103,6 @@ jobs:
             ${{ env.HOME }}/.local/share/pnpm/store/v11
         timeout-minutes: 1
         continue-on-error: true
-
-      - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
       - name: Install just
         uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
@@ -130,6 +126,35 @@ jobs:
           unset XDG_DATA_HOME
 
           just test
+
+  clippy:
+    name: Clippy
+    # Clippy lints the same source on every platform, so one OS is
+    # enough — running the full `--all-targets` workspace lint across the
+    # whole test matrix just triples the cost. Mirrors the single-OS doc,
+    # format, and dylint jobs. (Platform-gated `#[cfg]` blocks are still
+    # type-checked per-OS by the test job's build.)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # `clippy --all-targets` over the whole workspace holds a full set
+      # of debug artifacts in target/; drop the preinstalled toolchains
+      # this job never uses (~25 GB) so the linker doesn't hit ENOSPC.
+      - name: Free up runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Install Rust Toolchain
+        uses: ./.github/actions/rustup
+        with:
+          clippy: true
+
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
   doc:
     name: Doc
