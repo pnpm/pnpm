@@ -187,6 +187,7 @@
     "node": ">=22.13"
   },
   "jest": {
+    "collectCoverage": false,
     "preset": "@pnpm/jest-config/with-registry"
   },
   "preferGlobal": true,
