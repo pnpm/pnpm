@@ -666,3 +666,53 @@ fn libc_matches_truth_table() {
     assert!(!libc_matches(None, Some("uclibc")));
     assert!(!libc_matches(Some("glibc"), Some("uclibc")));
 }
+
+const SHA512: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
+
+/// A reconstructible registry tarball URL is dropped, leaving only the
+/// integrity, so the path-preserving cases below are not just returning the
+/// input unchanged.
+#[test]
+fn to_lockfile_form_drops_reconstructible_registry_tarball() {
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz".to_string(),
+        integrity: Some(integrity(SHA512)),
+        git_hosted: None,
+        path: None,
+    });
+    let actual = resolution.to_lockfile_form("foo", "1.0.0", "https://registry.npmjs.org/", false);
+    assert_eq!(
+        actual,
+        LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
+    );
+}
+
+/// The `path` selects the subdirectory to extract from a monorepo tarball
+/// (`repo#commit&path:/sub/dir`). Dropping it makes later installs silently
+/// unpack the repository root. See
+/// <https://github.com/pnpm/pnpm/issues/12304>.
+#[test]
+fn to_lockfile_form_keeps_git_hosted_subdirectory_path() {
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
+        integrity: Some(integrity(SHA512)),
+        git_hosted: Some(true),
+        path: Some("/packages/foo".to_string()),
+    });
+    let actual = resolution.to_lockfile_form("foo", "1.0.0", "https://registry.npmjs.org/", false);
+    assert_eq!(actual, resolution);
+}
+
+/// `include_tarball_url` takes the same kept-URL branch, so it must keep
+/// `path` too.
+#[test]
+fn to_lockfile_form_keeps_git_hosted_subdirectory_path_when_including_tarball_url() {
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
+        integrity: Some(integrity(SHA512)),
+        git_hosted: Some(true),
+        path: Some("/packages/foo".to_string()),
+    });
+    let actual = resolution.to_lockfile_form("foo", "1.0.0", "https://registry.npmjs.org/", true);
+    assert_eq!(actual, resolution);
+}

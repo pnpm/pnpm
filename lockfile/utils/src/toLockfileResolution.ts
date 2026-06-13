@@ -26,49 +26,46 @@ export function toLockfileResolution (
   // legacy lockfiles read by callers that don't enrich the field).
   const gitHosted = (resolution as TarballResolution).gitHosted === true ||
     isGitHostedTarballUrl(tarball)
-  if (lockfileIncludeTarballUrl) {
-    return preservingGitHosted({
-      integrity: resolution['integrity'],
-      tarball,
-    }, gitHosted)
+  // A standard registry tarball whose URL can be rebuilt from the package name,
+  // version, and registry is written as just `{ integrity }` — pnpm derives the
+  // URL on demand. Every other tarball must keep its URL or it can no longer be
+  // re-fetched on a frozen-lockfile install: `file:` tarballs, git-provider
+  // tarballs (GitHub/GitLab/Bitbucket), and non-standard registry URLs such as
+  // npm Enterprise (https://github.com/pnpm/pnpm/issues/867) or GitHub Packages
+  // `/download/` URLs. `lockfileIncludeTarballUrl` forces the URL to be kept.
+  if (
+    !lockfileIncludeTarballUrl &&
+    !gitHosted &&
+    !tarball.startsWith('file:') &&
+    isCanonicalRegistryTarballUrl(tarball, pkg, registry)
+  ) {
+    return { integrity: resolution['integrity'] }
   }
-  // Tarball URLs that cannot be reconstructed from the package name, version,
-  // and registry must always stay in the lockfile, otherwise the package can
-  // no longer be re-fetched. This covers local `file:` tarballs and tarballs
-  // served by git providers (GitHub, GitLab, Bitbucket).
-  if (tarball.startsWith('file:') || gitHosted) {
-    return preservingGitHosted({
-      integrity: resolution['integrity'],
-      tarball,
-    }, gitHosted)
-  }
-  // Sometimes packages are hosted under non-standard tarball URLs.
-  // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
-  // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072.
-  // Even when the user explicitly sets `lockfileIncludeTarballUrl: false`, we
-  // must preserve such URLs — otherwise the package cannot be re-fetched on a
-  // frozen-lockfile install (e.g. GitHub Packages tarballs at
-  // `https://npm.pkg.github.com/download/<scope>/<name>/<version>/<hash>`).
-  // `lockfileIncludeTarballUrl` only controls whether URLs that *can* be
-  // derived from name+version+registry are written.
-  const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
-  const actualTarball = tarball.replaceAll('%2f', '/')
-  if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
-    return preservingGitHosted({
-      integrity: resolution['integrity'],
-      tarball,
-    }, gitHosted)
-  }
+  // The kept-URL form carries the `gitHosted` marker and the subdirectory `path`
+  // (`repo#commit&path:/sub/dir`, only ever set on git-hosted tarballs) so a
+  // git-hosted monorepo tarball still unpacks the right subfolder.
+  // See https://github.com/pnpm/pnpm/issues/12304.
+  const { path } = resolution as TarballResolution
   return {
     integrity: resolution['integrity'],
+    tarball,
+    ...(gitHosted ? { gitHosted: true } : {}),
+    ...(path == null ? {} : { path }),
   }
 }
 
-function preservingGitHosted<T extends { tarball?: string, integrity: string }> (
-  resolution: T,
-  gitHosted: boolean
-): T & { gitHosted?: boolean } {
-  return gitHosted ? { ...resolution, gitHosted: true } : resolution
+// Whether `tarball` is the canonical npm registry URL derived from the package
+// name, version, and registry — i.e. it can be dropped from the lockfile and
+// rebuilt on demand. The `%2f` unescape matches the URLs npm produces for
+// scoped packages.
+function isCanonicalRegistryTarballUrl (
+  tarball: string,
+  pkg: { name: string, version: string },
+  registry: string
+): boolean {
+  const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
+  const actualTarball = tarball.replaceAll('%2f', '/')
+  return removeProtocol(expectedTarball) === removeProtocol(actualTarball)
 }
 
 // Inlined to avoid pulling @pnpm/fetching.pick-fetcher into the lockfile-utils

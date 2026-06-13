@@ -299,24 +299,31 @@ impl LockfileResolution {
 
         let git_hosted =
             tarball.git_hosted == Some(true) || is_git_hosted_tarball_url(&tarball.tarball);
-        let keep_url = || {
-            LockfileResolution::Tarball(TarballResolution {
-                tarball: tarball.tarball.clone(),
-                integrity: Some(integrity.clone()),
-                git_hosted: git_hosted.then_some(true),
-                path: tarball.path.clone(),
-            })
-        };
-
-        if include_tarball_url || tarball.tarball.starts_with("file:") || git_hosted {
-            return keep_url();
+        // A standard registry tarball whose URL can be rebuilt from name+version+
+        // registry is written as just `{integrity}` — pnpm derives the URL on
+        // demand. Every other tarball must keep its URL or it can no longer be
+        // re-fetched on a frozen-lockfile install: `file:` tarballs, git-provider
+        // tarballs, and non-standard registry URLs (npm Enterprise, GitHub Packages
+        // `/download/` URLs). `include_tarball_url` forces the URL to be kept.
+        if !include_tarball_url
+            && !git_hosted
+            && !tarball.tarball.starts_with("file:")
+            && is_canonical_registry_tarball_url(&tarball.tarball, name, version, registry)
+        {
+            return LockfileResolution::Registry(RegistryResolution {
+                integrity: integrity.clone(),
+            });
         }
-        let expected = npm_tarball_url(name, version, registry);
-        let actual = tarball.tarball.replace("%2f", "/");
-        if remove_protocol(&expected) != remove_protocol(&actual) {
-            return keep_url();
-        }
-        LockfileResolution::Registry(RegistryResolution { integrity: integrity.clone() })
+        // The kept-URL form carries the `git_hosted` marker and the subdirectory
+        // `path` (`repo#commit&path:/sub/dir`, only ever set on git-hosted tarballs)
+        // so a git-hosted monorepo tarball still unpacks the right subfolder.
+        // See <https://github.com/pnpm/pnpm/issues/12304>.
+        LockfileResolution::Tarball(TarballResolution {
+            tarball: tarball.tarball.clone(),
+            integrity: Some(integrity.clone()),
+            git_hosted: git_hosted.then_some(true),
+            path: tarball.path.clone(),
+        })
     }
 }
 
@@ -333,6 +340,21 @@ pub fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
     };
     let version = version.split_once('+').map_or(version, |(base, _)| base);
     format!("{registry}{name}/-/{scopeless}-{version}.tgz")
+}
+
+/// Whether `tarball` is the canonical npm registry URL derived from `name`,
+/// `version`, and `registry` — i.e. it can be dropped from the lockfile and
+/// rebuilt on demand. The `%2f` unescape matches the URLs npm produces for
+/// scoped packages.
+fn is_canonical_registry_tarball_url(
+    tarball: &str,
+    name: &str,
+    version: &str,
+    registry: &str,
+) -> bool {
+    let expected = npm_tarball_url(name, version, registry);
+    let actual = tarball.replace("%2f", "/");
+    remove_protocol(&expected) == remove_protocol(&actual)
 }
 
 /// Default-vs-scope routing for an npm package. Mirrors pnpm's
