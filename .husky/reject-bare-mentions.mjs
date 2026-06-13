@@ -58,7 +58,7 @@ function stripCodeSpans (text) {
 // Collect every distinct `@handle` GitHub would linkify as a mention.
 function findBareMentions (text) {
   const offenders = new Set()
-  const handle = /@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\/[a-z0-9._-]+)?/gi
+  const handle = /@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\/[a-z0-9._-]*[a-z0-9])?/gi
   let match
   while ((match = handle.exec(text)) !== null) {
     if (isMentionBoundary(text, match.index)) {
