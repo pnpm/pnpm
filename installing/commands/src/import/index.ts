@@ -337,7 +337,11 @@ function getAllVersionsFromYarnLockFile (
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
   const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
-  return { [searchedDir]: { dependencies: [], package: project } }
+  // Mirror installDeps.ts: key the graph by `project.rootDir` so the
+  // downstream `manifestsByPath` lookup in `recursive()` finds the project
+  // when `opts.dir` and `project.rootDir` have different platform-normalized
+  // forms (most often on Windows due to drive-letter casing).
+  return { [project.rootDir]: { dependencies: [], package: project } }
 }
 
 function getYarnLockfileType (
