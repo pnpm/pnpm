@@ -30,11 +30,13 @@ message = message
   .replace(/```[\s\S]*?```/g, '')
   .replace(/`[^`]*`/g, '')
 
-// Match `@` + username where the char before `@` is not part of a word, email
-// local part, or path. That skips `user@example.com` (preceded by a word char)
-// while catching bare `@foo`, `(@foo)`, `thanks @foo`, and scoped package names
-// like `@pnpm/core`.
-const bareMentionRegExp = /(^|[^\w.@/-])@([a-z0-9][a-z0-9-]*(?:\/[a-z0-9._-]+)?)/gi
+// Match `@` + username at a mention boundary, mirroring how GitHub linkifies
+// mentions: the `@` must be at the start of input or follow a non-word char.
+// An email like `user@example.com` is skipped because its `@` follows a word
+// char, while `@foo`, `.@foo`, `(@foo)`, `thanks @foo`, and scoped names like
+// `@pnpm/core` are caught. The username forbids a trailing hyphen so the
+// reported handle matches what GitHub would actually link.
+const bareMentionRegExp = /(^|[^\w])@([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\/[a-z0-9._-]+)?)/gi
 
 const offenders = new Set()
 let match
