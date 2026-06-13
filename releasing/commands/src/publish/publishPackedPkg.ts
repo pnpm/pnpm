@@ -1,6 +1,4 @@
-import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
-import path from 'node:path'
 
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
@@ -10,7 +8,7 @@ import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { Creds, RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
 
-import { extractBundledDependencies, type PublishSummary } from '../tarball/publishSummary.js'
+import { createPublishSummary, type PublishSummary } from '../tarball/publishSummary.js'
 import { displayError } from './displayError.js'
 import { executeTokenHelper } from './executeTokenHelper.js'
 import { createFailedToPublishError } from './FailedToPublishError.js'
@@ -64,21 +62,7 @@ export async function publishPackedPkg (
   const { registry } = publishOptions
   const isStage = opts.stage === true
   globalInfo(`📦 ${name}@${version} → ${registry ?? 'the default registry'}`)
-  const summary: PublishSummary = {
-    id: `${name}@${version}`,
-    name: name as string,
-    version: version as string,
-    size: tarballData.byteLength,
-    unpackedSize,
-    // SHA-1 is what `npm publish --json` reports as `shasum` for back-compat with the registry's
-    // legacy dist.shasum field; `integrity` below is the modern SRI hash.
-    shasum: createHash('sha1').update(tarballData).digest('hex'),
-    integrity: `sha512-${createHash('sha512').update(tarballData).digest('base64')}`,
-    filename: path.basename(tarballPath),
-    files: contents.map((file) => ({ path: file })),
-    entryCount: contents.length,
-    bundled: extractBundledDependencies(publishedManifest),
-  }
+  const summary = createPublishSummary({ publishedManifest, tarballPath, contents, unpackedSize }, tarballData)
   if (opts.dryRun) {
     globalWarn(`Skip ${isStage ? 'staging' : 'publishing'} ${name}@${version} (dry run)`)
     return summary
@@ -120,10 +104,19 @@ type StagePublishOptions = PublishOptionsWithDefaultAccess & {
 }
 
 /**
- * @internal Exported for unit testing of the access / registry / auth fallback rules. Not part of the package's
- *   public API.
+ * Build the libnpmpublish / npm-registry-fetch options (registry, auth, headers) for publishing
+ * {@link manifest}. When `oidc` is `false`, the per-package OIDC token exchange is skipped and only
+ * statically configured credentials are used — batch publish sends many packages in one request,
+ * which a package-scoped OIDC token cannot authorize.
+ *
+ * @internal Exported for unit testing of the access / registry / auth fallback rules and for batch
+ *   publish. Not part of the package's public API.
  */
-export async function createPublishOptions (manifest: ExportedManifest, options: PublishPackedPkgOptions): Promise<StagePublishOptions> {
+export async function createPublishOptions (
+  manifest: ExportedManifest,
+  options: PublishPackedPkgOptions,
+  { oidc = true }: { oidc?: boolean } = {}
+): Promise<StagePublishOptions> {
   const publishConfigRegistry = typeof manifest.publishConfig?.registry === 'string'
     ? manifest.publishConfig.registry
     : undefined
@@ -188,15 +181,17 @@ export async function createPublishOptions (manifest: ExportedManifest, options:
   }
 
   if (registry) {
-    // OIDC takes precedence over a configured static `_authToken`, mirroring the npm CLI's
-    // behavior (see https://github.com/npm/cli/blob/7d900c46/lib/utils/oidc.js). Trusted
-    // publishing wins whenever the registry has it configured for the package; the static
-    // token is used only as a fallback when OIDC is not applicable.
-    const oidcTokenProvenance = await fetchTokenAndProvenanceByOidc(manifest.name, registry, options)
-    if (oidcTokenProvenance?.authToken) {
-      publishOptions.token = oidcTokenProvenance.authToken
+    if (oidc) {
+      // OIDC takes precedence over a configured static `_authToken`, mirroring the npm CLI's
+      // behavior (see https://github.com/npm/cli/blob/7d900c46/lib/utils/oidc.js). Trusted
+      // publishing wins whenever the registry has it configured for the package; the static
+      // token is used only as a fallback when OIDC is not applicable.
+      const oidcTokenProvenance = await fetchTokenAndProvenanceByOidc(manifest.name, registry, options)
+      if (oidcTokenProvenance?.authToken) {
+        publishOptions.token = oidcTokenProvenance.authToken
+      }
+      publishOptions.provenance ??= oidcTokenProvenance?.provenance
     }
-    publishOptions.provenance ??= oidcTokenProvenance?.provenance
     appendAuthOptionsForRegistry(publishOptions, registry)
   }
 
@@ -204,7 +199,7 @@ export async function createPublishOptions (manifest: ExportedManifest, options:
   return publishOptions
 }
 
-function isPublishAccess (access: unknown): access is 'public' | 'restricted' {
+export function isPublishAccess (access: unknown): access is 'public' | 'restricted' {
   return access === 'public' || access === 'restricted'
 }
 
@@ -218,8 +213,10 @@ interface RegistryInfo {
  * Follows {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
  *
  * The manifest's `publishConfig.registry`, when set, takes precedence over `registries`.
+ *
+ * @internal Exported for batch publish, which groups packages by their target registry.
  */
-function findRegistryInfo (
+export function findRegistryInfo (
   { name }: ExportedManifest,
   { configByUri, registries }: Pick<Config, 'configByUri' | 'registries'>,
   publishConfigRegistry?: string
