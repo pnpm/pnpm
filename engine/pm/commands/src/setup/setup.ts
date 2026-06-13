@@ -84,7 +84,12 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
 
   try {
     const binDir = path.join(pnpmHomeDir, 'bin')
-    const { status, error } = spawnSync(execPath, ['add', '-g', `file:${execDir}`], {
+    // The pnpm executable itself is the "build script" trigger here — the
+    // global install of `@pnpm/exe` needs to place the binary. Allow that
+    // explicitly so 11.6.0's per-package build-script consent prompt doesn't
+    // halt `pnpm setup` waiting on user input (and doesn't read like a
+    // supply-chain warning for pnpm's own install path).
+    const { status, error } = spawnSync(execPath, ['add', '-g', '--allow-build=@pnpm/exe', `file:${execDir}`], {
       stdio: 'inherit',
       env: {
         ...process.env,
