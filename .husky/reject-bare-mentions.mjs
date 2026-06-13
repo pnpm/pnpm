@@ -1,8 +1,5 @@
-// Rejects commit messages that contain a bare `@name` mention.
-//
-// A "bare" mention is an `@` immediately followed by a username-like token
-// that is NOT wrapped in backticks (inline code or a fenced code block) and
-// is NOT part of an email address.
+// Rejects commit messages that contain a bare `@name` mention — one that is not
+// wrapped in backticks. GitHub turns such a token into a real notification.
 //
 // Rationale lives in the error message below and in AGENTS.md.
 
@@ -14,55 +11,72 @@ if (!msgPath) {
   process.exit(1)
 }
 
-const raw = readFileSync(msgPath, 'utf8')
-
-// `git commit -v` appends the diff below a scissors line; git discards
-// everything from that line onward, so the hook must not scan it either —
-// otherwise an `@mention` that only appears in the diff (e.g. a scoped-package
-// import) would wrongly reject a commit, on text the author never wrote in the
-// message and cannot remove.
-const scissors = raw.match(/^#\s*-{2,}\s*>8\s*-{2,}.*$/m)
-const committable = scissors ? raw.slice(0, scissors.index) : raw
-
-// Drop git comment lines (those starting with `#`). Git strips them from the
-// final message anyway, so a bare `@name` on such a line is never committed.
-let message = committable
-  .split('\n')
-  .filter((line) => !line.trimStart().startsWith('#'))
-  .join('\n')
-
-// Replace backtick-wrapped spans before scanning: a mention inside a fenced
-// code block or an inline code span is exactly the safe form we want people to
-// use, so it must not be flagged. Each span is replaced with a boundary char
-// (not removed) so the text on either side cannot glue together and flip the
-// mention-boundary classification — e.g. `PR` + `` `x` `` + `@octocat` must
-// still expose `@octocat` as a mention, the way GitHub renders it. Fenced
-// blocks (which span lines) collapse to a newline; inline spans to a space.
-message = message
-  .replace(/```[\s\S]*?```/g, '\n')
-  .replace(/`[^`]*`/g, ' ')
-
-// Match `@` + username at a mention boundary, mirroring how GitHub linkifies
-// mentions: the `@` must be at the start of input or follow a non-word char.
-// An email like `user@example.com` is skipped because its `@` follows a word
-// char, while `@foo`, `.@foo`, `(@foo)`, `thanks @foo`, and scoped names like
-// `@pnpm/core` are caught. The username forbids a trailing hyphen so the
-// reported handle matches what GitHub would actually link.
-const bareMentionRegExp = /(^|[^\w])@([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\/[a-z0-9._-]+)?)/gi
-
-const offenders = new Set()
-let match
-while ((match = bareMentionRegExp.exec(message)) !== null) {
-  offenders.add(`@${match[2]}`)
-}
+const offenders = findBareMentions(scannableText(readFileSync(msgPath, 'utf8')))
 
 if (offenders.size === 0) {
   process.exit(0)
 }
 
-const list = [...offenders].join(', ')
+reportAndExit(offenders)
 
-console.error(`
+// Reduce the raw commit-message file to the text that will actually be
+// committed and rendered by GitHub, with code spans neutralised so a mention
+// inside backticks is not flagged.
+function scannableText (raw) {
+  return stripCodeSpans(stripCommentLines(stripScissorsSection(raw)))
+}
+
+// `git commit -v` appends the diff below a scissors line; git discards
+// everything from that line onward, so the hook must not scan it either —
+// otherwise an `@mention` that only appears in the diff (e.g. a scoped-package
+// import) would wrongly reject a commit on text the author cannot remove.
+function stripScissorsSection (text) {
+  const scissors = text.match(/^#\s*-{2,}\s*>8\s*-{2,}.*$/m)
+  return scissors ? text.slice(0, scissors.index) : text
+}
+
+// Git strips comment lines (those starting with `#`) from the final message,
+// so a mention on such a line is never committed.
+function stripCommentLines (text) {
+  return text
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('#'))
+    .join('\n')
+}
+
+// Replace each code span with a boundary char rather than removing it, so the
+// text on either side cannot glue together and flip mention detection — e.g.
+// `PR` + `` `x` `` + `@octocat` must still expose `@octocat`. Fenced blocks span
+// lines (collapse to a newline); inline spans collapse to a space.
+function stripCodeSpans (text) {
+  return text
+    .replace(/```[\s\S]*?```/g, '\n')
+    .replace(/`[^`]*`/g, ' ')
+}
+
+// Collect every distinct `@handle` GitHub would linkify as a mention.
+function findBareMentions (text) {
+  const offenders = new Set()
+  const handle = /@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\/[a-z0-9._-]+)?/gi
+  let match
+  while ((match = handle.exec(text)) !== null) {
+    if (isMentionBoundary(text, match.index)) {
+      offenders.add(match[0])
+    }
+  }
+  return offenders
+}
+
+// GitHub only linkifies `@name` when the `@` starts the text or follows a
+// non-word char. This is what skips `user@example.com`, whose `@` follows a
+// word char.
+function isMentionBoundary (text, atIndex) {
+  return atIndex === 0 || /\W/.test(text[atIndex - 1])
+}
+
+function reportAndExit (offenders) {
+  const list = [...offenders].join(', ')
+  console.error(`
 ✖ Commit message rejected: bare @mention(s) found: ${list}
 
 A bare "@name" is ambiguous and frequently wrong. Wrap it in backticks
@@ -90,5 +104,5 @@ HOW TO FIX
 DO NOT bypass this check with --no-verify, by editing/deleting this hook, or
 with any suppression file. Fix the mention in the commit message instead.
 `)
-
-process.exit(1)
+  process.exit(1)
+}
