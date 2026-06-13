@@ -116,10 +116,12 @@ test('interactively update', async () => {
     {
       name: `is-negative                                                  1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')}                 `,
       value: 'is-negative',
+      short: 'is-negative',
     },
     {
       name: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
       value: 'micromatch',
+      short: 'micromatch',
     },
   ])
   expect(mockCheckbox).toHaveBeenCalledWith(
@@ -165,14 +167,17 @@ test('interactively update', async () => {
     {
       name: `is-negative                                                  1.0.1 ❯ ${chalk.redBright.bold('2.1.0')}                 `,
       value: 'is-negative',
+      short: 'is-negative',
     },
     {
       name: `is-positive                                                  2.0.0 ❯ ${chalk.redBright.bold('3.1.0')}                 `,
       value: 'is-positive',
+      short: 'is-positive',
     },
     {
       name: `micromatch                                                   3.0.0 ❯ ${chalk.redBright.bold('4.0.0')}                 `,
       value: 'micromatch',
+      short: 'micromatch',
     },
   ])
   expect(mockCheckbox).toHaveBeenCalledWith(
@@ -311,6 +316,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
       {
         name: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
         value: 'micromatch',
+        short: 'micromatch',
       },
     ]
   )
