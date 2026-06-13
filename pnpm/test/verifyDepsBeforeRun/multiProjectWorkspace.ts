@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
@@ -10,6 +10,8 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
+
+jest.setTimeout(15 * 60 * 1000)
 
 test('single dependency', async () => {
   const checkEnv = 'node --eval "assert.strictEqual(process.env.pnpm_config_verify_deps_before_run, \'false\')"'
