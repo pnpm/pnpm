@@ -171,6 +171,17 @@ For references to issues/PRs in **this** repo, also use the qualified form `pnpm
 
 **Address the root cause when the hook fires.** Rewrite the reference into the correct unambiguous form. Never bypass the check with `git commit --no-verify`, by editing or deleting the hook, or with any suppression file.
 
+### Never use a bare `@mention`
+
+**Do not write a bare `@name` (an `@` followed by a username-like token) anywhere in a commit message.** A `commit-msg` hook (`.husky/reject-bare-mentions.mjs`) rejects them.
+
+GitHub turns any `@name` into a mention of that user/org/team, which is wrong either way it is meant:
+
+-   If it is code (a scoped package like `@pnpm/core`, a handle, a path), GitHub should not treat it as a mention.
+-   If it really is a person, every push, force-push, and rebase that carries the commit re-notifies them — noise nobody asked for.
+
+**Fix:** wrap the reference in backticks so GitHub renders it as code and sends no notification — e.g. `` `@pnpm/core` `` or `` `@foo` `` — or remove it if it is not needed. Never bypass the check with `git commit --no-verify`, by editing or deleting the hook, or with any suppression file.
+
 ## Changesets (TypeScript only)
 
 If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory. The changeset file should describe the change and specify the packages that are affected with the pending version bump types: patch, minor, or major.
