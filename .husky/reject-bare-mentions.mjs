@@ -19,24 +19,25 @@ if (offenders.size === 0) {
 
 reportAndExit(offenders)
 
-// Reduce the raw commit-message file to the text that will actually be
-// committed and rendered by GitHub, with code spans neutralised so a mention
-// inside backticks is not flagged.
+// Reduce the raw commit-message file to the text git will actually keep: the
+// diff that `git commit -v` appends below the scissors line is dropped, and
+// `#` comment lines are dropped — git strips both, so a mention in either is
+// never committed and must not be flagged.
 function scannableText (raw) {
-  return stripCodeSpans(stripCommentLines(stripScissorsSection(raw)))
+  return stripCommentLines(stripScissorsSection(raw))
 }
 
-// `git commit -v` appends the diff below a scissors line; git discards
-// everything from that line onward, so the hook must not scan it either —
-// otherwise an `@mention` that only appears in the diff (e.g. a scoped-package
-// import) would wrongly reject a commit on text the author cannot remove.
-function stripScissorsSection (text) {
-  const scissors = text.match(/^#\s*-{2,}\s*>8\s*-{2,}.*$/m)
-  return scissors ? text.slice(0, scissors.index) : text
+function stripScissorsSection (raw) {
+  const lines = raw.split('\n')
+  const cut = lines.findIndex(isScissorsLine)
+  return cut === -1 ? raw : lines.slice(0, cut).join('\n')
 }
 
-// Git strips comment lines (those starting with `#`) from the final message,
-// so a mention on such a line is never committed.
+// git's `commit -v` cut line, e.g. "# ------------------------ >8 ------------------------".
+function isScissorsLine (line) {
+  return line.startsWith('#') && line.includes('>8') && line.includes('--')
+}
+
 function stripCommentLines (text) {
   return text
     .split('\n')
@@ -44,35 +45,53 @@ function stripCommentLines (text) {
     .join('\n')
 }
 
-// Replace each code span with a boundary char rather than removing it, so the
-// text on either side cannot glue together and flip mention detection — e.g.
-// `PR` + `` `x` `` + `@octocat` must still expose `@octocat`. Fenced blocks span
-// lines (collapse to a newline); inline spans collapse to a space. Both fence
-// styles GitHub recognises — backticks and tildes — are handled.
-function stripCodeSpans (text) {
-  return text
-    .replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, '\n')
-    .replace(/`[^`]*`/g, ' ')
-}
-
-// Collect every distinct `@handle` GitHub would linkify as a mention.
+// Find every distinct `@handle` that GitHub would linkify as a mention. We only
+// care about GitHub's rendering, not the exact username rules: an `@` is a
+// mention when it is not inside code, is followed by an ASCII letter or digit,
+// and is not preceded by one (which would make it part of an email address).
 function findBareMentions (text) {
   const offenders = new Set()
-  const handle = /@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\/[a-z0-9._-]*[a-z0-9])?/gi
-  let match
-  while ((match = handle.exec(text)) !== null) {
-    if (isMentionBoundary(text, match.index)) {
-      offenders.add(match[0])
-    }
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== '@') continue
+    if (isInsideBackticks(text, i)) continue
+    if (!isAsciiAlnum(text[i + 1])) continue
+    if (isAsciiAlnum(text[i - 1])) continue
+    offenders.add(readHandle(text, i))
   }
   return offenders
 }
 
-// GitHub only linkifies `@name` when the `@` starts the text or follows a
-// non-word char. This is what skips `user@example.com`, whose `@` follows a
-// word char.
-function isMentionBoundary (text, atIndex) {
-  return atIndex === 0 || /\W/.test(text[atIndex - 1])
+// An `@` sits inside a code span when an odd number of backticks precede it (one
+// is still open). This covers inline `` `code` `` and triple-backtick fences
+// alike, without parsing Markdown.
+function isInsideBackticks (text, index) {
+  let backticks = 0
+  for (let i = 0; i < index; i++) {
+    if (text[i] === '`') backticks++
+  }
+  return backticks % 2 === 1
+}
+
+// Read the handle starting at the `@`, for display in the error message. Trailing
+// punctuation is trimmed so the reported token is the part GitHub would actually
+// link (e.g. the sentence-ending dot in "@pnpm/core." is dropped).
+function readHandle (text, atIndex) {
+  let end = atIndex + 1
+  while (isHandleChar(text[end])) end++
+  while (end > atIndex + 1 && !isAsciiAlnum(text[end - 1])) end--
+  return text.slice(atIndex, end)
+}
+
+function isHandleChar (ch) {
+  return isAsciiAlnum(ch) || ch === '-' || ch === '_' || ch === '.' || ch === '/'
+}
+
+function isAsciiAlnum (ch) {
+  return ch !== undefined && (
+    (ch >= 'a' && ch <= 'z') ||
+    (ch >= 'A' && ch <= 'Z') ||
+    (ch >= '0' && ch <= '9')
+  )
 }
 
 function reportAndExit (offenders) {
