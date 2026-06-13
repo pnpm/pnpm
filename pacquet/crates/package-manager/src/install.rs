@@ -1421,13 +1421,8 @@ pub(crate) fn check_lockfile_settings_drift(
 ) -> Result<(), FreshnessCheckError> {
     let overrides_map: Option<std::collections::HashMap<String, String>> =
         parsed_overrides.map(pacquet_config_parse_overrides::create_overrides_map_from_parsed);
-    let package_extensions_checksum = config
-        .package_extensions
-        .as_ref()
-        .filter(|extensions| !extensions.is_empty())
-        .and_then(|extensions| serde_json::to_value(extensions).ok())
-        .as_ref()
-        .and_then(pacquet_graph_hasher::hash_object_nullable_with_prefix);
+    let package_extensions_checksum =
+        crate::install_with_fresh_lockfile::compute_package_extensions_checksum(config);
     // `calcPatchHashes(opts.patchedDependencies)` — reading the patch
     // files here lets `check_lockfile_settings` catch an edited patch
     // whose hash (and thus its `(patch_hash=...)` depPath suffix) drifted

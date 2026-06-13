@@ -113,6 +113,29 @@ fn version_range_falls_back_when_latest_out_of_range() {
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
 }
 
+#[test]
+fn version_range_lte_partial_allows_entire_major() {
+    let pkg = make_package(
+        "@jest/environment",
+        &[("26.6.2", None), ("27.0.0", None), ("27.5.1", None), ("28.0.0", None)],
+        &[("latest", "28.0.0")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: ">=24 <=27",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("27.5.1"));
+}
+
+#[test]
+fn partial_lte_upper_bound_returns_none_on_overflow() {
+    assert_eq!(super::partial_lte_upper_bound(&u64::MAX.to_string()), None);
+    assert_eq!(super::partial_lte_upper_bound(&format!("1.{}", u64::MAX)), None);
+}
+
 /// `*` is a special case: `semver.satisfies` rejects prereleases, so
 /// upstream short-circuits to return `latest` for `*` regardless.
 /// See pnpm/pnpm#865.

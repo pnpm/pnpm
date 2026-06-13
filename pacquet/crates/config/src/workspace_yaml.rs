@@ -169,6 +169,7 @@ pub struct WorkspaceSettings {
     pub prefer_workspace_packages: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub strict_peer_dependencies: Option<bool>,
+    pub ignore_compatibility_db: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
     pub verify_store_integrity: Option<bool>,
@@ -603,6 +604,7 @@ impl WorkspaceSettings {
         self.prefer_workspace_packages = None;
         self.dedupe_injected_deps = None;
         self.strict_peer_dependencies = None;
+        self.ignore_compatibility_db = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
         self.hoisting_limits = None;
@@ -732,7 +734,7 @@ impl WorkspaceSettings {
             hoist_workspace_packages,
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, dedupe_peers, dedupe_direct_deps, dedupe_injected_deps,
-            strict_peer_dependencies,
+            strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity, frozen_store,
             block_exotic_subdeps,
             link_workspace_packages,

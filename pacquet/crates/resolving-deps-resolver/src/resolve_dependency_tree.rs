@@ -439,20 +439,21 @@ where
 /// mode (the default) every occurrence shares the same pair, so the
 /// dedup is unchanged.
 ///
-/// `project_dir` is part of the key only for project-relative
-/// specifiers (`link:` / `file:` / `workspace:`). A non-injected
+/// `project_dir` is part of the key for any specifier that can produce
+/// a project-relative resolution. This includes explicit local
+/// specifiers (`link:` / `file:` / `workspace:`) and normal semver
+/// specifiers in workspace mode, because `linkWorkspacePackages` can
+/// replace the registry pick with a workspace package. A non-injected
 /// workspace dep resolves through
 /// [`resolve_from_local_package`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L908-L951)
 /// to a `link:<path>` whose `<path>` is computed *relative to the
 /// consuming importer's directory*. Without `project_dir` in the key,
-/// the first importer to resolve `(@scope/lib, workspace:*)` would
+/// the first importer to resolve `(@scope/lib, ^1.0.0)` would
 /// seed the workspace-wide cache with its own relative path and every
 /// other importer would reuse it verbatim — e.g. a root resolving to
 /// `link:packages/lib` would hand `packages/app` the same string,
 /// which from `packages/app` points at the non-existent
-/// `packages/app/packages/lib`. Registry specifiers are
-/// importer-independent, so they keep `None` and stay shared across
-/// importers (the cross-importer dedup the cache exists for).
+/// `packages/app/packages/lib`.
 type WantedKey = (
     Option<String>,
     Option<String>,
@@ -472,10 +473,14 @@ type WantedKey = (
 /// [`resolve_from_local_package`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L908-L951)
 /// derives from `project_dir`. Such resolutions must not be shared
 /// across importers in [`WantedKey`].
-fn is_project_relative_specifier(bare_specifier: Option<&str>) -> bool {
-    bare_specifier.is_some_and(|spec| {
+fn project_relative_cache_scope(
+    wanted: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<PathBuf> {
+    (wanted.bare_specifier.as_deref().is_some_and(|spec| {
         spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
-    })
+    }) || (opts.always_try_workspace_packages && opts.workspace_packages.is_some()))
+    .then(|| opts.project_dir.clone())
 }
 
 /// One spec carried through [`extend_tree`] and the importer-side
@@ -1305,8 +1310,7 @@ where
     // is never reused by another. See [`WantedKey`]. The prior key
     // joins so two edges that share a specifier but recorded different
     // versions never share a `currentPkg`-dependent result.
-    let project_scope = is_project_relative_specifier(wanted.bare_specifier.as_deref())
-        .then(|| ctx.base_opts.project_dir.clone());
+    let project_scope = project_relative_cache_scope(&wanted, opts);
     // The overlay's view for this edge joins the cache key: the same
     // range can legitimately pick different versions under levels
     // that resolved different siblings. The view keeps each candidate
@@ -1859,8 +1863,7 @@ where
                 // it reuses this entry outright; otherwise it misses
                 // into its own bucket and re-picks from the warm
                 // metadata caches.
-                let project_scope = is_project_relative_specifier(wanted.bare_specifier.as_deref())
-                    .then(|| ctx.base_opts.project_dir.clone());
+                let project_scope = project_relative_cache_scope(&wanted, opts);
                 let cache_key: WantedKey = (
                     wanted.alias.clone(),
                     wanted.bare_specifier.clone(),
@@ -2103,15 +2106,12 @@ where
     let result = Arc::new(result);
 
     // A reused node carries the synthesized registry resolution into the
-    // same per-wanted cache a fresh resolve would populate, so a later
-    // fresh-resolve of the identical wanted dep short-circuits to it.
-    // `try_reuse_node` only reproduces registry resolutions, which are
-    // importer-independent, so the project scope is always `None` here —
-    // computed through the same helper to stay in lockstep with the
-    // fresh-resolve key shape.
+    // same per-wanted cache bucket a fresh resolve would populate, so a
+    // later fresh-resolve of the identical wanted dep short-circuits to
+    // it without occupying an importer-independent bucket that normal
+    // workspace-mode semver specs must avoid.
     let opts = ctx.opts_for_depth(depth);
-    let project_scope = is_project_relative_specifier(wanted.bare_specifier.as_deref())
-        .then(|| ctx.base_opts.project_dir.clone());
+    let project_scope = project_relative_cache_scope(&wanted, opts);
     let cache_key: WantedKey = (
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),

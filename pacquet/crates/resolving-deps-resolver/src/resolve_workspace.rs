@@ -54,6 +54,10 @@ pub struct WorkspaceResolveOptions {
     /// it. Mirrors pnpm's `dedupePeerDependents` setting (default
     /// `true`).
     pub dedupe_peer_dependents: bool,
+    /// When true, non-root importers can resolve peers from the
+    /// workspace root's direct dependencies. Mirrors pnpm's
+    /// `resolvePeersFromWorkspaceRoot` setting.
+    pub resolve_peers_from_workspace_root: bool,
     /// Threaded into [`ResolvePeersOptions::exclude_links_from_lockfile`]
     /// for the workspace-wide peer pass. Per-importer
     /// [`ResolvePeersOptions::modules_dir`] comes from each
@@ -151,6 +155,7 @@ where
         dedupe_peers,
         dedupe_injected_deps,
         dedupe_peer_dependents,
+        resolve_peers_from_workspace_root,
         exclude_links_from_lockfile,
         lockfile_dir,
         peers_suffix_max_length,
@@ -286,6 +291,7 @@ where
         &lockfile_dir,
         dedupe_injected_deps,
         dedupe_peer_dependents,
+        resolve_peers_from_workspace_root,
         peer_opts,
     );
 

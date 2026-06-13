@@ -840,6 +840,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // `createReadPackageHook`: packageExtensions first, overrides
         // after that. The pnpmfile readPackage hook is still threaded
         // separately and runs after this built-in hook in the resolver.
+        let compat_package_extender = if config.ignore_compatibility_db {
+            None
+        } else {
+            Some(crate::compat_package_extensions::compat_package_extender())
+        };
         let package_extender = match config.package_extensions.as_ref() {
             Some(extensions) => {
                 let extender = crate::PackageExtender::new(extensions)
@@ -848,16 +853,21 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             }
             None => None,
         };
+        let package_extensions_checksum = compute_package_extensions_checksum(config);
         let versions_overrider = parsed_overrides
             .as_ref()
             .map(|parsed| Arc::new(VersionsOverrider::new(parsed, lockfile_dir)));
 
         let mut effective_importer_manifests_holder = BTreeMap::new();
-        if package_extender.is_some()
+        if compat_package_extender.is_some()
+            || package_extender.is_some()
             || versions_overrider.as_ref().is_some_and(|overrider| !overrider.is_empty())
         {
             for (id, manifest) in &importer_manifests {
                 let mut cloned = (*manifest).clone();
+                if let Some(extender) = compat_package_extender.as_ref() {
+                    extender.apply(cloned.value_mut());
+                }
                 if let Some(extender) = package_extender.as_ref() {
                     extender.apply(cloned.value_mut());
                 }
@@ -878,6 +888,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     .collect()
             };
 
+        let compat_package_extensions_hook: Option<ManifestHook> =
+            compat_package_extender.as_ref().map(|extender| {
+                let extender = Arc::clone(extender);
+                Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
+            });
         let package_extensions_hook: Option<ManifestHook> =
             package_extender.as_ref().map(|extender| {
                 let extender = Arc::clone(extender);
@@ -893,7 +908,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                         as ManifestHook)
                 }
             });
-        let manifest_hook = compose_manifest_hooks(package_extensions_hook, overrides_hook);
+        let manifest_hook = compose_manifest_hooks(
+            compose_manifest_hooks(compat_package_extensions_hook, package_extensions_hook),
+            overrides_hook,
+        );
 
         // Seed `allPreferredVersions` from every importer's manifest +
         // the wanted lockfile's snapshots (when an existing one is
@@ -1071,6 +1089,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             dedupe_peers: config.dedupe_peers,
             dedupe_injected_deps: config.dedupe_injected_deps,
             dedupe_peer_dependents: config.dedupe_peer_dependents,
+            resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
             exclude_links_from_lockfile: config.exclude_links_from_lockfile,
             lockfile_dir: lockfile_dir.to_path_buf(),
             peers_suffix_max_length,
@@ -1088,8 +1107,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // lockfile on these settings changes.
             wanted_lockfile: wanted_lockfile
                 .filter(|lockfile| {
-                    lockfile.package_extensions_checksum
-                        == compute_package_extensions_checksum(config)
+                    lockfile.package_extensions_checksum == package_extensions_checksum
                         && overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
                 })
                 .cloned()
@@ -1985,15 +2003,7 @@ fn build_fresh_lockfile(opts: FreshLockfileBuildOptions<'_>) -> Lockfile {
     })
 }
 
-/// Hash `Config::package_extensions` into the prefixed sha256 string
-/// pnpm writes to `pnpm-lock.yaml#packageExtensionsChecksum`.
-/// Mirrors upstream's
-/// [`hashObjectNullableWithPrefix(opts.packageExtensions)`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L545)
-/// call at install time. Returns `None` when no extensions are
-/// configured so the field is omitted from the on-disk lockfile, the
-/// same way pnpm omits `packageExtensionsChecksum` when the input is
-/// `undefined` or `{}`.
-fn compute_package_extensions_checksum(config: &Config) -> Option<String> {
+pub(crate) fn compute_package_extensions_checksum(config: &Config) -> Option<String> {
     let extensions =
         config.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())?;
     let value = serde_json::to_value(extensions).ok()?;

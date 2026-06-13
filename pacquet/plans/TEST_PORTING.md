@@ -866,9 +866,15 @@ lockfile-parity peer fixes (pnpm/pnpm#12266, pnpm/pnpm#12267).
 - [x] `should return from where the bad peer dependency is resolved` — `bad_peer_inside_subtree_records_resolved_from_parent`.
 - [x] `should find peer dependency conflicts` — covered by `bad_peer_version_is_reported`.
 - [x] `a peer's own peer is shared with a sibling that peer-depends both` — ported as `peers_own_peer_shared_with_sibling_that_peer_depends_both`.
+- [x] `transitive pending peer uses provider final suffix` — ported as `transitive_pending_peer_uses_provider_final_suffix`.
 - [x] Walk-ancestor suffix propagation (no direct upstream case — pacquet-specific manifestation of the deferred `calculateDepPath`) — `ancestor_peer_carries_its_own_suffix`.
 - [x] Optional peer not hoisted from the run-resolved tree (resolveRootDependencies behavior behind `getHoistableOptionalPeers`) — `optional_peer_only_in_resolved_tree_is_not_hoisted`.
 - [x] `build_final_graph` min-depth tie-break across `pure_pkgs`/`find_hit` revisits (pacquet-specific) — `shallower_pure_pkgs_revisit_lowers_graph_depth`.
+
+### High-level install / CLI peer lockfile coverage
+
+- [x] `TypeScript repo: installing/deps-installer/test/install/peerDependencies.ts` `transitive pending peer uses provider final suffix in lockfile` — package-manager port added as `fresh_install_uses_final_peer_suffix_for_transitive_pending_peer`.
+- [x] `TypeScript repo: pnpm/test/install/peerDependencies.ts` `transitive pending peer uses provider final suffix in lockfile` — CLI port added as `transitive_pending_peer_uses_provider_final_suffix_in_lockfile`.
 
 ### `resolvePeers.ts` — not yet ported
 

@@ -47,7 +47,7 @@ use pacquet_resolving_resolver_base::{
     PreferredVersions, ResolveOptions, Resolver, VersionSelectorEntry, VersionSelectorType,
 };
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     sync::Arc,
 };
 
@@ -418,6 +418,8 @@ impl ImporterHoistState {
         self.all_missing_optional_peers.clear();
         loop {
             let mut snapshot = self.ctx.snapshot(self.direct.clone());
+            let original_node_ids: HashSet<crate::NodeId> =
+                snapshot.dependencies_tree.keys().cloned().collect();
             let peers_result = {
                 let mut opts = self.peers_opts();
                 // Re-snapshotted per peer pass because auto-hoisting
@@ -439,6 +441,12 @@ impl ImporterHoistState {
                 &peers_result.peer_dependency_issues.missing,
                 &self.parent_pkg_aliases,
                 self.auto_install_peers_from_highest_match,
+            );
+            self.append_resolved_peer_providers(
+                &peers_result.resolved_peer_providers_by_alias,
+                &snapshot,
+                &original_node_ids,
+                &missing_required,
             );
             for (name, ranges) in fresh_optional {
                 let bucket = self.all_missing_optional_peers.entry(name).or_default();
@@ -495,6 +503,36 @@ impl ImporterHoistState {
             update_preferred_versions_with_ctx(&self.ctx, &mut self.all_preferred_versions);
         }
         Ok(())
+    }
+
+    fn append_resolved_peer_providers(
+        &mut self,
+        providers: &BTreeMap<String, crate::NodeId>,
+        snapshot: &ResolvedTree,
+        original_node_ids: &HashSet<crate::NodeId>,
+        missing_required: &BTreeMap<String, MissingPeerInfo>,
+    ) {
+        if !self.auto_install_peers {
+            return;
+        }
+        for (alias, node_id) in providers {
+            if self.parent_pkg_aliases.contains(alias) || missing_required.contains_key(alias) {
+                continue;
+            }
+            if !original_node_ids.contains(node_id) {
+                continue;
+            }
+            let Some(tree_node) = snapshot.dependencies_tree.get(node_id) else { continue };
+            if !snapshot.packages.contains_key(&tree_node.resolved_package_id) {
+                continue;
+            }
+            self.direct.push(DirectDep {
+                alias: alias.clone(),
+                node_id: node_id.clone(),
+                id: tree_node.resolved_package_id.clone(),
+            });
+            self.parent_pkg_aliases.insert(alias.clone());
+        }
     }
 
     /// Hoist this round's missing optional peers; `true` when any were
@@ -566,7 +604,7 @@ impl ImporterHoistState {
 /// component, keyed by peer name with the deduplicated range list the
 /// outer loop's [`get_hoistable_optional_peers`] needs.
 fn partition_missing_peers(
-    missing: &std::collections::HashMap<String, Vec<MissingPeer>>,
+    missing: &HashMap<String, Vec<MissingPeer>>,
     parent_pkg_aliases: &HashSet<String>,
     auto_install_peers_from_highest_match: bool,
 ) -> (BTreeMap<String, MissingPeerInfo>, BTreeMap<String, Vec<String>>) {

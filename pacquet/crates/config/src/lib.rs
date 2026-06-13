@@ -801,6 +801,11 @@ pub struct Config {
     /// If this is enabled, commands will fail if there is a missing or invalid peer dependency in the tree.
     pub strict_peer_dependencies: bool,
 
+    /// When true, skip pnpm's built-in compatibility database from
+    /// `@yarnpkg/extensions`. Default `false` so known broken package
+    /// manifests are patched during resolution.
+    pub ignore_compatibility_db: bool,
+
     /// When enabled, dependencies of the root workspace project are used to resolve peer
     /// dependencies of any projects in the workspace. It is a useful feature as you can install
     /// your peer dependencies only in the root of the workspace, and you can be sure that all
