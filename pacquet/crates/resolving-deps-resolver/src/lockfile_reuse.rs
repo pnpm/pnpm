@@ -244,6 +244,9 @@ fn synthesize_manifest(
     if let Some(libc) = metadata.libc.as_ref() {
         manifest.insert("libc".to_string(), string_array(libc));
     }
+    if let Some(deprecated) = metadata.deprecated.as_ref() {
+        manifest.insert("deprecated".to_string(), Value::String(deprecated.clone()));
+    }
     // `has_bin: Some(true)` round-trips as a truthy `bin` so the
     // bundled-manifest bin linker sees a non-empty bin set; the exact
     // bin paths live in the store-index bundled manifest the install
