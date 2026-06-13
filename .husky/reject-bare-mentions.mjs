@@ -72,9 +72,11 @@ function isInsideBackticks (text, index) {
   return backticks % 2 === 1
 }
 
-// Read the handle starting at the `@`, for display in the error message. Trailing
-// punctuation is trimmed so the reported token is the part GitHub would actually
-// link (e.g. the sentence-ending dot in "@pnpm/core." is dropped).
+// Read the handle starting at the `@`, for display in the error message. The
+// caller only invokes this once the char after `@` is an ASCII alphanumeric, so
+// that first char is always kept; trailing punctuation is then trimmed so the
+// reported token is the part GitHub would actually link (e.g. the sentence-ending
+// dot in "@pnpm/core." is dropped).
 function readHandle (text, atIndex) {
   let end = atIndex + 1
   while (isHandleChar(text[end])) end++
