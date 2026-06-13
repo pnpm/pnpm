@@ -23,12 +23,16 @@ let message = raw
   .filter((line) => !line.trimStart().startsWith('#'))
   .join('\n')
 
-// Strip backtick-wrapped spans before scanning: a mention inside a fenced code
-// block or an inline code span is exactly the safe form we want people to use,
-// so it must not be flagged. Remove fenced blocks first, then inline spans.
+// Replace backtick-wrapped spans before scanning: a mention inside a fenced
+// code block or an inline code span is exactly the safe form we want people to
+// use, so it must not be flagged. Each span is replaced with a boundary char
+// (not removed) so the text on either side cannot glue together and flip the
+// mention-boundary classification — e.g. `PR` + `` `x` `` + `@octocat` must
+// still expose `@octocat` as a mention, the way GitHub renders it. Fenced
+// blocks (which span lines) collapse to a newline; inline spans to a space.
 message = message
-  .replace(/```[\s\S]*?```/g, '')
-  .replace(/`[^`]*`/g, '')
+  .replace(/```[\s\S]*?```/g, '\n')
+  .replace(/`[^`]*`/g, ' ')
 
 // Match `@` + username at a mention boundary, mirroring how GitHub linkifies
 // mentions: the `@` must be at the start of input or follow a non-word char.
