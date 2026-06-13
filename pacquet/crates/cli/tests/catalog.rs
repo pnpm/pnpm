@@ -4,6 +4,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_lockfile::Lockfile;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
@@ -53,6 +54,18 @@ fn dep_spec(workspace: &Path, name: &str) -> Option<String> {
 
 fn read(workspace: &Path, file: &str) -> String {
     fs::read_to_string(workspace.join(file)).unwrap_or_else(|_| panic!("read {file}"))
+}
+
+fn catalog_snapshot(workspace: &Path, name: &str) -> (String, String) {
+    let lockfile: Lockfile =
+        serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
+    let entry = lockfile
+        .catalogs
+        .as_ref()
+        .and_then(|catalogs| catalogs.get("default"))
+        .and_then(|catalog| catalog.get(name))
+        .unwrap_or_else(|| panic!("missing default catalog snapshot entry for {name}"));
+    (entry.specifier.clone(), entry.version.clone())
 }
 
 fn run_ok(workspace: &Path, args: &[&str]) {
@@ -219,6 +232,30 @@ fn update_latest_no_save_leaves_the_catalog_untouched() {
         workspace_yaml.contains(&format!("'{FOO}': 1.0.0")),
         "--no-save must not rewrite the catalog entry:\n{workspace_yaml}",
     );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn install_reruns_when_catalog_entry_changes() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(&workspace, &format!("catalog:\n  '{FOO}': 1.0.0\n"));
+
+    run_ok(&workspace, &["install"]);
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("1.0.0".to_string(), "1.0.0".to_string()));
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        workspace_yaml.replace(&format!("'{FOO}': 1.0.0"), &format!("'{FOO}': 2.0.0")),
+    )
+    .expect("rewrite pnpm-workspace.yaml catalog entry");
+
+    run_ok(&workspace, &["install"]);
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("2.0.0".to_string(), "2.0.0".to_string()));
 
     drop((root, anchor));
 }

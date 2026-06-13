@@ -17,8 +17,20 @@
 
 use crate::{Lockfile, ProjectSnapshot};
 use derive_more::{Display, Error};
+use pacquet_catalogs_types::Catalogs;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+
+#[derive(Clone, Copy)]
+pub struct LockfileSettingsCheck<'a> {
+    pub catalogs: &'a Catalogs,
+    pub overrides: Option<&'a HashMap<String, String>>,
+    pub package_extensions_checksum: Option<&'a str>,
+    pub ignored_optional_dependencies: Option<&'a [String]>,
+    pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
+    pub inject_workspace_packages: bool,
+    pub peers_suffix_max_length: u64,
+}
 
 /// Why an importer's lockfile entry doesn't satisfy the on-disk
 /// `package.json`. Mirrors the discriminated cases upstream's
@@ -29,6 +41,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 #[derive(Debug, Display, Error, PartialEq)]
 #[non_exhaustive]
 pub enum StalenessReason {
+    /// A catalog entry recorded in the lockfile's `catalogs:` snapshot
+    /// no longer matches the current workspace catalog config. Mirrors
+    /// upstream's `getOutdatedLockfileSetting` first branch, which
+    /// returns `'catalogs'` when `allCatalogsAreUpToDate` fails.
+    #[display("`catalogs` in the lockfile don't match the current config")]
+    CatalogsChanged { lockfile: Option<crate::CatalogSnapshots>, config: Catalogs },
+
     /// The lockfile has no `importers["."]` (or whatever id) entry,
     /// so we can't even start the comparison. Mirrors upstream's
     /// "no importer" reason at
@@ -233,11 +252,11 @@ impl SpecDiff {
 
 /// Verify that lockfile-level settings the install pipeline reads
 /// from `pnpm-workspace.yaml` haven't drifted since the lockfile
-/// was written. Today this covers `overrides`,
+/// was written. Today this covers `catalogs`, `overrides`,
 /// `packageExtensionsChecksum`, `ignoredOptionalDependencies`,
 /// `patchedDependencies`, and the relevant `settings.*` keys (umbrella
 /// [#434] slice 7); the variants below will grow as more upstream
-/// settings land (`catalogs`, `pnpmfileChecksum`, etc.).
+/// settings land (`pnpmfileChecksum`, etc.).
 ///
 /// Mirrors upstream's
 /// [`getOutdatedLockfileSetting`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts).
@@ -258,6 +277,43 @@ pub fn check_lockfile_settings(
     inject_workspace_packages: bool,
     peers_suffix_max_length: u64,
 ) -> Result<(), StalenessReason> {
+    check_lockfile_settings_with_catalogs(
+        lockfile,
+        LockfileSettingsCheck {
+            catalogs: &Catalogs::new(),
+            overrides,
+            package_extensions_checksum,
+            ignored_optional_dependencies,
+            patched_dependencies,
+            inject_workspace_packages,
+            peers_suffix_max_length,
+        },
+    )
+}
+
+/// Catalog-aware variant of [`check_lockfile_settings`] used by install paths
+/// that have already loaded `pnpm-workspace.yaml`.
+pub fn check_lockfile_settings_with_catalogs(
+    lockfile: &Lockfile,
+    check: LockfileSettingsCheck<'_>,
+) -> Result<(), StalenessReason> {
+    let LockfileSettingsCheck {
+        catalogs,
+        overrides,
+        package_extensions_checksum,
+        ignored_optional_dependencies,
+        patched_dependencies,
+        inject_workspace_packages,
+        peers_suffix_max_length,
+    } = check;
+
+    if !all_catalogs_are_up_to_date(catalogs, lockfile.catalogs.as_ref()) {
+        return Err(StalenessReason::CatalogsChanged {
+            lockfile: lockfile.catalogs.clone(),
+            config: catalogs.clone(),
+        });
+    }
+
     // Upstream checks `overrides` before `ignoredOptionalDependencies`,
     // so an install that changed both surfaces the overrides drift
     // first — preserving that for parity with pnpm error reports.
@@ -359,6 +415,18 @@ pub fn check_lockfile_settings(
     Ok(())
 }
 
+fn all_catalogs_are_up_to_date(
+    catalogs_config: &Catalogs,
+    snapshot: Option<&crate::CatalogSnapshots>,
+) -> bool {
+    snapshot.iter().flat_map(|catalogs| catalogs.iter()).all(|(catalog_name, catalog)| {
+        catalog.iter().all(|(alias, entry)| {
+            catalogs_config.get(catalog_name).and_then(|catalog| catalog.get(alias))
+                == Some(&entry.specifier)
+        })
+    })
+}
+
 /// Verify the on-disk `package.json` is still satisfied by the
 /// lockfile's importer entry for the same project. Returns `Ok(())`
 /// when the lockfile is up-to-date; returns `Err(StalenessReason)`
@@ -380,11 +448,11 @@ pub fn check_lockfile_settings(
 ///
 /// Mirrors upstream's
 /// [`satisfiesPackageManifest`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts).
-/// Scoped to what pacquet supports today: no catalogs (#?), no
-/// `auto-install-peers` pre-pass (pacquet has no separate
-/// auto-install-peers mode), no `excludeLinksFromLockfile` (`link:`
-/// resolutions aren't supported yet — [#431] territory), and no
-/// version-range-satisfies check (covered in pnpm's
+/// Scoped to what pacquet supports today: no `auto-install-peers`
+/// pre-pass (pacquet has no separate auto-install-peers mode), no
+/// `excludeLinksFromLockfile` (`link:` resolutions aren't supported
+/// yet — [#431] territory), and no version-range-satisfies check
+/// (covered in pnpm's
 /// `localTarballDepsAreUpToDate` for file: / tarball deps; out of
 /// scope here).
 ///

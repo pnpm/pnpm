@@ -1,7 +1,12 @@
-use super::{StalenessReason, check_lockfile_settings, satisfies_package_manifest};
+use super::{
+    LockfileSettingsCheck, StalenessReason, check_lockfile_settings,
+    check_lockfile_settings_with_catalogs, satisfies_package_manifest,
+};
 use crate::Lockfile;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_package_manifest::PackageManifest;
 use pretty_assertions::assert_eq;
+use std::collections::BTreeMap;
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -15,6 +20,18 @@ fn manifest_from_json(json: &str) -> (tempfile::TempDir, PackageManifest) {
     std::fs::write(&path, json).expect("write package.json");
     let manifest = PackageManifest::from_path(path).expect("parse package.json");
     (tmp, manifest)
+}
+
+fn settings_check(catalogs: &Catalogs) -> LockfileSettingsCheck<'_> {
+    LockfileSettingsCheck {
+        catalogs,
+        overrides: None,
+        package_extensions_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        inject_workspace_packages: false,
+        peers_suffix_max_length: crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
+    }
 }
 
 /// Single-importer lockfile + matching manifest passes the check.
@@ -578,6 +595,93 @@ fn importer_empty_dev_dependencies_equivalent_to_absent() {
     }"#,
     );
     assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
+}
+
+// ---------------------------------------------------------------------------
+// `catalogs` drift — pacquet's mirror of upstream's
+// `getOutdatedLockfileSetting` first check
+// ---------------------------------------------------------------------------
+
+#[test]
+fn check_settings_passes_when_catalog_snapshot_matches_config() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "catalogs:"
+        "  default:"
+        "    react:"
+        "      specifier: ^18.2.0"
+        "      version: 18.2.0"
+    })
+    .expect("parse lockfile with catalogs");
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([("react".to_string(), "^18.2.0".to_string())]),
+    )]);
+    assert!(check_lockfile_settings_with_catalogs(&lockfile, settings_check(&catalogs)).is_ok());
+}
+
+#[test]
+fn check_settings_ignores_catalog_config_entries_absent_from_snapshot() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+    })
+    .expect("parse lockfile without catalog snapshot");
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([("react".to_string(), "^18.2.0".to_string())]),
+    )]);
+    assert!(check_lockfile_settings_with_catalogs(&lockfile, settings_check(&catalogs)).is_ok());
+}
+
+#[test]
+fn check_settings_returns_drift_when_catalog_snapshot_specifier_changes() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "catalogs:"
+        "  default:"
+        "    react:"
+        "      specifier: ^18.2.0"
+        "      version: 18.2.0"
+    })
+    .expect("parse lockfile with catalogs");
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([("react".to_string(), "^19.0.0".to_string())]),
+    )]);
+    let err = check_lockfile_settings_with_catalogs(&lockfile, settings_check(&catalogs))
+        .expect_err("changed catalog entry must surface drift");
+    let StalenessReason::CatalogsChanged { lockfile: snapshot, config } = err else {
+        panic!("expected CatalogsChanged");
+    };
+    assert_eq!(
+        snapshot
+            .as_ref()
+            .and_then(|catalogs| catalogs.get("default"))
+            .and_then(|catalog| catalog.get("react"))
+            .map(|entry| entry.specifier.as_str()),
+        Some("^18.2.0"),
+    );
+    assert_eq!(
+        config.get("default").and_then(|catalog| catalog.get("react")).map(String::as_str),
+        Some("^19.0.0"),
+    );
+}
+
+#[test]
+fn check_settings_returns_drift_when_catalog_snapshot_entry_is_removed_from_config() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "catalogs:"
+        "  default:"
+        "    react:"
+        "      specifier: ^18.2.0"
+        "      version: 18.2.0"
+    })
+    .expect("parse lockfile with catalogs");
+    let catalogs = Catalogs::from([("default".to_string(), BTreeMap::new())]);
+    let err = check_lockfile_settings_with_catalogs(&lockfile, settings_check(&catalogs))
+        .expect_err("removed catalog entry must surface drift");
+    assert!(matches!(err, StalenessReason::CatalogsChanged { .. }));
 }
 
 // ---------------------------------------------------------------------------
