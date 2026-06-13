@@ -160,6 +160,7 @@ export async function createPublishOptions (
     provenance,
     provenanceFile,
     registry,
+    strictSSL: options.strictSsl, // npm-registry-fetch defaults to true; must be set explicitly to honour strictSsl: false
     userAgent,
     // Signal to the registry that the client supports web-based authentication.
     // Without this, the registry would never offer the web auth flow and would
