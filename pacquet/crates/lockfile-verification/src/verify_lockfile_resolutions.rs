@@ -186,6 +186,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     if violations.is_empty() {
         emit_guard.cancel(LockfileVerificationMessage::Done {
             entries,
+            checked: entries,
             elapsed_ms: started_at.elapsed().as_millis() as u64,
             lockfile_path: lockfile_path_str,
         });
@@ -538,6 +539,11 @@ impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
         Self {
             pending: Some(LockfileVerificationMessage::Failed {
                 entries,
+                // Pacquet does not track per-entry progress yet, so the
+                // checked count is not known on the failure path. Zero
+                // is the safe minimum — the reporter renders `0/entries`
+                // rather than `undefined/entries`.
+                checked: 0,
                 // Placeholder; the Drop impl overwrites this with
                 // the real elapsed when the guard actually fires.
                 elapsed_ms: 0,
@@ -560,9 +566,10 @@ impl<Reporter: self::Reporter> Drop for TerminalEmitGuard<Reporter> {
             // success branch already filled the up-to-date value via
             // `cancel(Done { elapsed_ms: <now> })`.
             let message = match message {
-                LockfileVerificationMessage::Failed { entries, lockfile_path, .. } => {
+                LockfileVerificationMessage::Failed { entries, checked, lockfile_path, .. } => {
                     LockfileVerificationMessage::Failed {
                         entries,
+                        checked,
                         elapsed_ms: self.started_at.elapsed().as_millis() as u64,
                         lockfile_path,
                     }

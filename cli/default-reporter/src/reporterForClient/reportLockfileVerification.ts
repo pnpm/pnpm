@@ -63,7 +63,23 @@ export function reportLockfileVerification (
 function formatProgress (log: LockfileVerificationLog): string {
   // The `cached` branch is handled before calling this function.
   if (log.status === 'cached') return ''
-  const checked = log.status === 'started' ? 0 : log.checked
+  // Defensively handle a missing `checked` field — Pacquet's
+  // `Done`/`Failed` events may not carry it (the field was added
+  // after Pacquet first ported the lockfile-verification gate, so
+  // existing Pacquet binaries emit events without it). TypeScript
+  // types require it, but the NDJSON wire from an older Rust binary
+  // deserialises into the union discriminant tag with `checked`
+  // absent, producing `undefined` at the call site.
+  //   - For `done` the safe fallback is `entries` — all entries were
+  //     verified on the success path.
+  //   - For `failed` the safe fallback is `0` — we don't know how many
+  //     entries were checked when the failure happened.
+  //   - For `progress` the safe fallback is `0` (shouldn't happen from
+  //     Pacquet since it doesn't emit progress events, but Ts-side
+  //     always carries the field).
+  const checked = log.status === 'started'
+    ? 0
+    : (log.checked ?? (log.status === 'done' ? log.entries : 0))
   return `${checked}/${log.entries} ${log.entries === 1 ? 'entry' : 'entries'}`
 }
 
