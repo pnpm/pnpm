@@ -333,6 +333,7 @@ const yamlTextFormat = createFormat<string>({
   },
 })
 
+const depsInstallerTestShardCount = 5
 const registryMockPortForCore = 7769
 
 async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string, nextTag: string): Promise<ProjectManifest> {
@@ -368,7 +369,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       if (manifest.name === '@pnpm/installing.deps-installer') {
       // @pnpm/installing.deps-installer tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
-        scripts['.test'] = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest`
+        scripts['.test'] = Array.from({ length: depsInstallerTestShardCount }, (_, index) => `pn .test:shard --shard=${index + 1}/${depsInstallerTestShardCount}`).join(' && ')
+        scripts['.test:shard'] = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest`
       } else {
         scripts['.test'] = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest'
       }
