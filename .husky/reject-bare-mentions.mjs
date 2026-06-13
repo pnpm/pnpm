@@ -5,13 +5,13 @@
 
 import { readFileSync } from 'node:fs'
 
-const msgPath = process.argv[2]
-if (!msgPath) {
+const messagePath = process.argv[2]
+if (!messagePath) {
   console.error('reject-bare-mentions: missing commit message file path argument')
   process.exit(1)
 }
 
-const offenders = findBareMentions(scannableText(readFileSync(msgPath, 'utf8')))
+const offenders = findBareMentions(scannableText(readFileSync(messagePath, 'utf8')))
 
 if (offenders.size === 0) {
   process.exit(0)
@@ -54,8 +54,8 @@ function findBareMentions (text) {
   for (let i = 0; i < text.length; i++) {
     if (text[i] !== '@') continue
     if (isInsideBackticks(text, i)) continue
-    if (!isAsciiAlnum(text[i + 1])) continue
-    if (isAsciiAlnum(text[i - 1])) continue
+    if (!isAsciiAlphaNumeric(text[i + 1])) continue
+    if (isAsciiAlphaNumeric(text[i - 1])) continue
     offenders.add(readHandle(text, i))
   }
   return offenders
@@ -79,20 +79,24 @@ function isInsideBackticks (text, index) {
 // dot in "@pnpm/core." is dropped).
 function readHandle (text, atIndex) {
   let end = atIndex + 1
-  while (isHandleChar(text[end])) end++
-  while (end > atIndex + 1 && !isAsciiAlnum(text[end - 1])) end--
+  while (isHandleCharacter(text[end])) end++
+  while (end > atIndex + 1 && !isAsciiAlphaNumeric(text[end - 1])) end--
   return text.slice(atIndex, end)
 }
 
-function isHandleChar (ch) {
-  return isAsciiAlnum(ch) || ch === '-' || ch === '_' || ch === '.' || ch === '/'
+function isHandleCharacter (character) {
+  return isAsciiAlphaNumeric(character) ||
+    character === '-' ||
+    character === '_' ||
+    character === '.' ||
+    character === '/'
 }
 
-function isAsciiAlnum (ch) {
-  return ch !== undefined && (
-    (ch >= 'a' && ch <= 'z') ||
-    (ch >= 'A' && ch <= 'Z') ||
-    (ch >= '0' && ch <= '9')
+function isAsciiAlphaNumeric (character) {
+  return character !== undefined && (
+    (character >= 'a' && character <= 'z') ||
+    (character >= 'A' && character <= 'Z') ||
+    (character >= '0' && character <= '9')
   )
 }
 
