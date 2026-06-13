@@ -59,7 +59,7 @@ async function createRegistryStub (): Promise<RegistryStub> {
   })
   const { port } = server.address() as AddressInfo
   return Object.assign(stub, {
-    url: `http://localhost:${port}/`,
+    url: `http://127.0.0.1:${port}/`,
     close: () => new Promise<void>((resolve, reject) => {
       server.close((err) => {
         if (err) reject(err)

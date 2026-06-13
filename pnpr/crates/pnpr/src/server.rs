@@ -1444,6 +1444,9 @@ async fn delete_package(state: &AppState, headers: &HeaderMap, raw_name: &str) -
     if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
         return error_response(&err);
     }
+    // Serialize against same-package publishers so a delete can't race a
+    // stage-and-commit and remove the package mid-write.
+    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
     if let Err(err) = state.inner.storage.remove_package(&name).await {
         return error_response(&err);
     }
@@ -1478,6 +1481,9 @@ async fn delete_tarball(
     if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
         return error_response(&err);
     }
+    // Serialize against same-package publishers so a delete can't race a
+    // stage-and-commit and remove a tarball mid-write.
+    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
     if let Err(err) = state.inner.storage.remove_tarball(&name, &canonical).await {
         return error_response(&err);
     }
