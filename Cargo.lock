@@ -3804,6 +3804,7 @@ dependencies = [
  "miette 7.6.0",
  "pacquet-diagnostics",
  "pacquet-executor",
+ "pacquet-fs",
  "pacquet-package-manifest",
  "pacquet-reporter",
  "pacquet-store-dir",
