@@ -1025,6 +1025,78 @@ describe('locked peer provider preferences', () => {
     expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
   })
 
+  test('a provider pinned for a childless consumer does not leak to the consumer\'s siblings', async () => {
+    const victimNodeId = '>wrapper/1.0.0>victim/1.0.0>' as NodeId
+    const victimPkg = {
+      name: 'victim',
+      pkgIdWithPatchHash: 'victim/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {
+        peer: { version: '>=1', optional: true },
+      },
+      id: '' as PkgResolutionId,
+    }
+    // The two orders simulate the dependency tree arriving in different
+    // resolution orders (network timing). The victim's resolution must not
+    // depend on whether it is processed before or after the consumer whose
+    // locked context pins the provider.
+    const wrapperChildrenVariants: ChildrenMap[] = [
+      { consumer: consumerNodeId, victim: victimNodeId },
+      { victim: victimNodeId, consumer: consumerNodeId },
+    ]
+    for (const wrapperChildren of wrapperChildrenVariants) {
+      const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        [retainerNodeId, {
+          children: { peer: retainedPeerNodeId },
+          installable: true,
+          resolvedPackage: retainerPkg,
+          depth: 0,
+        }],
+        [retainedPeerNodeId, {
+          children: {},
+          installable: true,
+          previousDepPath: 'peer/2.0.0' as DepPath,
+          resolvedPackage: peer2Pkg,
+          depth: 1,
+        }],
+        [wrapperNodeId, {
+          children: wrapperChildren,
+          installable: true,
+          resolvedPackage: wrapperPkg,
+          depth: 0,
+        }],
+        [consumerNodeId, {
+          children: {},
+          installable: true,
+          lockedPeerContext: { peer: 'peer/2.0.0' as DepPath },
+          resolvedPackage: consumerPkg,
+          depth: 1,
+        }],
+        [victimNodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: victimPkg,
+          depth: 1,
+        }],
+      ])
+      const resolutionOpts = options(dependenciesTree, new Map([
+        ['retainer', retainerNodeId],
+        ['wrapper', wrapperNodeId],
+      ]))
+      // eslint-disable-next-line no-await-in-loop
+      const initial = await resolvePeers(resolutionOpts)
+      // eslint-disable-next-line no-await-in-loop
+      const preferred = await resolvePeers({
+        ...resolutionOpts,
+        resolvedPeerProviderPaths: initial.pathsByNodeId,
+      })
+
+      expect(preferred.dependenciesGraph['consumer/1.0.0(peer/2.0.0)' as DepPath]).toBeTruthy()
+      expect(preferred.dependenciesGraph['victim/1.0.0' as DepPath]).toBeTruthy()
+      expect(preferred.dependenciesGraph['victim/1.0.0(peer/2.0.0)' as DepPath]).toBeUndefined()
+    }
+  })
+
   test('does not reuse a locked provider outside the current peer range', async () => {
     const resolutionOpts = options(createTree(undefined, true, '^1.0.0'), new Map([
       ['peer', currentPeerNodeId],

@@ -511,6 +511,15 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ctx.pathsByNodeIdPromises.set(peerNodeId, peerPathPromise)
       ctx.pathsByNodeId.set(peerNodeId, previousPeerDepPath)
       peerPathPromise.resolve(previousPeerDepPath)
+      // Pinning writes into parentPkgs, and a childless node shares the object
+      // with its parent, so siblings processed later would see the pinned
+      // provider too. Copy before the first write to keep the pin scoped to
+      // this node — sibling order follows resolution order, so a leak makes the
+      // lockfile depend on network timing. Done here, not before the loop, so a
+      // pass whose guards skip every entry never allocates.
+      if (parentPkgs === parentParentPkgs) {
+        parentPkgs = { ...parentParentPkgs }
+      }
       parentPkgs[peerName] = lockedPeer
     }
   }
