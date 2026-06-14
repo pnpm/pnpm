@@ -194,7 +194,7 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   const settings = await safeReadIniFile(readIniFile, configPath) as Record<string, unknown>
   const registryConfigKey = getRegistryConfigKey(registry)
   const scopeKey = normalizeScope(opts.scope)
-  const authConfigKey = scopeKey == null ? registryConfigKey : `${registryConfigKey}${scopeKey}`
+  const authConfigKey = scopeKey == null ? registryConfigKey : `${registryConfigKey.replace(/\/$/, '')}:${scopeKey}`
   settings[`${authConfigKey}:_authToken`] = token
   if (scopeKey != null) {
     settings[`${scopeKey}:registry`] = registry

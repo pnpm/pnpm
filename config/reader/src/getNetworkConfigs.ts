@@ -105,6 +105,24 @@ function getScopedCreds (rawCredsByScope: Record<string, RawCreds> = {}): Record
 }
 
 function splitScopeFromRegistry (registry: string): { registry: string, scope?: string } {
+  const colonScope = splitScopeFromRegistryByColon(registry)
+  if (colonScope) return colonScope
+  return splitScopeFromRegistryByPath(registry)
+}
+
+function splitScopeFromRegistryByColon (registry: string): { registry: string, scope: string } | undefined {
+  if (!registry.startsWith('//')) return undefined
+  const scopeSeparatorIndex = registry.lastIndexOf(':@')
+  if (scopeSeparatorIndex === -1) return undefined
+  const scope = registry.slice(scopeSeparatorIndex + 1)
+  if (!isPackageScope(scope)) return undefined
+  return {
+    registry: normalizeRegistryKey(registry.slice(0, scopeSeparatorIndex)),
+    scope,
+  }
+}
+
+function splitScopeFromRegistryByPath (registry: string): { registry: string, scope?: string } {
   if (!registry.startsWith('//')) return { registry }
   const trimmed = registry.endsWith('/') ? registry.slice(0, -1) : registry
   const lastSlashIndex = trimmed.lastIndexOf('/')
@@ -118,7 +136,11 @@ function splitScopeFromRegistry (registry: string): { registry: string, scope?: 
 }
 
 function isPackageScope (scope: string): boolean {
-  return scope.startsWith('@') && scope.length > 1
+  return scope.startsWith('@') && scope.length > 1 && !scope.includes('/') && !scope.includes(':')
+}
+
+function normalizeRegistryKey (registry: string): string {
+  return registry.endsWith('/') ? registry : `${registry}/`
 }
 
 const SSL_SUFFIX_RE = /:(?<id>cert|key|ca)(?<kind>file)?$/

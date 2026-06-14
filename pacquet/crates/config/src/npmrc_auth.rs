@@ -696,9 +696,9 @@ impl NpmrcAuth {
     fn creds_entry_mut(&mut self, uri: &str) -> &mut RawCreds {
         let (registry_uri, scope) = split_scope_from_uri(uri);
         self.creds_by_scope_by_uri
-            .entry(registry_uri.to_owned())
+            .entry(registry_uri)
             .or_default()
-            .entry(scope.unwrap_or(DEFAULT_REGISTRY_SCOPE).to_owned())
+            .entry(scope.unwrap_or_else(|| DEFAULT_REGISTRY_SCOPE.to_owned()))
             .or_default()
     }
 }
@@ -896,20 +896,43 @@ fn split_creds_key(key: &str) -> Option<(&str, &str)> {
     None
 }
 
-fn split_scope_from_uri(uri: &str) -> (&str, Option<&str>) {
+fn split_scope_from_uri(uri: &str) -> (String, Option<String>) {
+    if let Some((registry_uri, scope)) = split_scope_from_uri_by_colon(uri) {
+        return (normalize_registry_key(registry_uri), Some(scope.to_owned()));
+    }
+    split_scope_from_uri_by_path(uri)
+}
+
+fn split_scope_from_uri_by_colon(uri: &str) -> Option<(&str, &str)> {
+    if !uri.starts_with("//") {
+        return None;
+    }
+    let scope_separator_index = uri.rfind(":@")?;
+    let scope = &uri[scope_separator_index + 1..];
+    if !is_package_scope(scope) {
+        return None;
+    }
+    Some((&uri[..scope_separator_index], scope))
+}
+
+fn split_scope_from_uri_by_path(uri: &str) -> (String, Option<String>) {
     let trimmed = uri.strip_suffix('/').unwrap_or(uri);
     let Some(last_slash_index) = trimmed.rfind('/') else {
-        return (uri, None);
+        return (uri.to_owned(), None);
     };
     let scope = &trimmed[last_slash_index + 1..];
     if !is_package_scope(scope) {
-        return (uri, None);
+        return (uri.to_owned(), None);
     }
-    (&trimmed[..=last_slash_index], Some(scope))
+    (trimmed[..=last_slash_index].to_owned(), Some(scope.to_owned()))
 }
 
 fn is_package_scope(scope: &str) -> bool {
-    scope.starts_with('@') && scope.len() > 1
+    scope.starts_with('@') && scope.len() > 1 && !scope.contains('/') && !scope.contains(':')
+}
+
+fn normalize_registry_key(registry: &str) -> String {
+    if registry.ends_with('/') { registry.to_owned() } else { format!("{registry}/") }
 }
 
 fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {

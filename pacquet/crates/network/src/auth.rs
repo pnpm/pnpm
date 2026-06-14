@@ -101,10 +101,7 @@ impl AuthHeaders {
         for (uri, value) in headers {
             let uri = normalize_auth_key(uri);
             if let Some((registry_uri, scope)) = split_scoped_auth_key(&uri) {
-                scoped_by_uri
-                    .entry(registry_uri.to_owned())
-                    .or_default()
-                    .insert(scope.to_owned(), value);
+                scoped_by_uri.entry(registry_uri).or_default().insert(scope, value);
             } else {
                 by_uri.insert(uri, value);
             }
@@ -288,18 +285,27 @@ fn normalize_auth_key(mut uri: String) -> String {
     uri
 }
 
-fn split_scoped_auth_key(uri: &str) -> Option<(&str, &str)> {
+fn split_scoped_auth_key(uri: &str) -> Option<(String, String)> {
     let trimmed = uri.strip_suffix('/').unwrap_or(uri);
+    if let Some(scope_separator_index) = trimmed.rfind(":@") {
+        let scope = &trimmed[scope_separator_index + 1..];
+        if is_package_scope(scope) {
+            return Some((
+                normalize_auth_key(trimmed[..scope_separator_index].to_owned()),
+                scope.to_owned(),
+            ));
+        }
+    }
     let last_slash_index = trimmed.rfind('/')?;
     let scope = &trimmed[last_slash_index + 1..];
     if !is_package_scope(scope) {
         return None;
     }
-    Some((&uri[..=last_slash_index], scope))
+    Some((trimmed[..=last_slash_index].to_owned(), scope.to_owned()))
 }
 
 fn is_package_scope(scope: &str) -> bool {
-    scope.starts_with('@') && scope.len() > 1
+    scope.starts_with('@') && scope.len() > 1 && !scope.contains('/') && !scope.contains(':')
 }
 
 fn package_scope(pkg_name: Option<&str>) -> Option<&str> {

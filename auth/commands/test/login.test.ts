@@ -176,7 +176,7 @@ describe('login', () => {
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://my-org.example/')
     expect(savedSettings).toMatchObject({
-      '//my-org.example/@my-org:_authToken': 'scoped-token',
+      '//my-org.example:@my-org:_authToken': 'scoped-token',
       '@my-org:registry': 'https://my-org.example/',
     })
     expect(savedSettings['//my-org.example/:_authToken']).toBeUndefined()
@@ -215,7 +215,7 @@ describe('login', () => {
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://example.com/npm/')
     expect(savedSettings).toMatchObject({
-      '//example.com/npm/@team:_authToken': 'path-scoped-token',
+      '//example.com/npm:@team:_authToken': 'path-scoped-token',
       '@team:registry': 'https://example.com/npm/',
     })
     expect(savedSettings['//example.com/npm/:_authToken']).toBeUndefined()
@@ -245,7 +245,7 @@ describe('login', () => {
     })
     const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://my-org.example', scope: '@my-org' }
     await login({ context, opts })
-    expect(savedSettings['//my-org.example/@my-org:_authToken']).toBe('tok')
+    expect(savedSettings['//my-org.example:@my-org:_authToken']).toBe('tok')
     expect(savedSettings['//my-org.example/:_authToken']).toBeUndefined()
     expect(savedSettings['@my-org:registry']).toBe('https://my-org.example/')
     expect(savedSettings['@@my-org:registry']).toBeUndefined()
