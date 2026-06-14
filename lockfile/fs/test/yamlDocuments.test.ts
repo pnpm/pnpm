@@ -26,6 +26,19 @@ describe('streamReadFirstYamlDocument', () => {
     expect(result).toBeNull()
   })
 
+  test('closes a non-env lockfile before returning null', async () => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    const tempFilePath = `${filePath}.tmp`
+    fs.writeFileSync(filePath, 'lockfileVersion: 9.0\n')
+    fs.writeFileSync(tempFilePath, 'lockfileVersion: 9.0\nimporters: {}\n')
+
+    const result = await streamReadFirstYamlDocument(filePath)
+
+    expect(result).toBeNull()
+    fs.renameSync(tempFilePath, filePath)
+  })
+
   test('returns null for a non-existent file', async () => {
     const dir = temporaryDirectory()
     const result = await streamReadFirstYamlDocument(path.join(dir, 'nonexistent.yaml'))
