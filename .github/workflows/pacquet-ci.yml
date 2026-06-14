@@ -117,7 +117,7 @@ jobs:
         with:
           tool: cargo-nextest
 
-      - name: Test
+      - name: Test pacquet
         shell: bash
         run: |
           # removing env vars is a temporary workaround for unit tests in pacquet relying on external environment
@@ -125,7 +125,58 @@ jobs:
           unset PNPM_HOME
           unset XDG_DATA_HOME
 
-          just test
+          node .github/scripts/measure-command.mjs \
+            --name tests.all \
+            --output .bench/pacquet-tests-all.json \
+            -- just test-pacquet
+
+      - name: Test pnpr
+        shell: bash
+        run: |
+          # removing env vars is a temporary workaround for unit tests in pacquet relying on external environment
+          # this should be removed in the future
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+
+          node .github/scripts/measure-command.mjs \
+            --name tests.all \
+            --output .bench/pnpr-tests-all.json \
+            -- just test-pnpr
+
+      - name: Stage Bencher test durations
+        env:
+          TESTBED_OS: ${{ matrix.os }}
+        shell: bash
+        run: |
+          os="${TESTBED_OS%-latest}"
+          artifact_dir=.bench/artifact/rust
+          mkdir -p "$artifact_dir"
+          cp .bench/pacquet-tests-all.json "$artifact_dir/pacquet-tests-all.json"
+          cp .bench/pnpr-tests-all.json "$artifact_dir/pnpr-tests-all.json"
+
+          cat > "$artifact_dir/metadata.json" <<EOF
+          {
+            "kind": "rust",
+            "reports": [
+              {
+                "testbed": "pacquet.${os}",
+                "file": "pacquet-tests-all.json"
+              },
+              {
+                "testbed": "pnpr.${os}",
+                "file": "pnpr-tests-all.json"
+              }
+            ]
+          }
+          EOF
+
+      - name: Upload Bencher test duration artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-performance-rust-${{ matrix.os }}
+          path: .bench/artifact/rust/
+          if-no-files-found: error
+          retention-days: 14
 
   clippy:
     name: Clippy

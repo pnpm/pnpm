@@ -130,22 +130,91 @@ jobs:
         REF_NAME: ${{ github.ref_name }}
       run: |
         if [[ "$REF_NAME" == "main" || "$REF_NAME" == "chore/update-lockfile" || "$REF_NAME" == release/* ]]; then
-          echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
-          echo "scope=all" >> "$GITHUB_OUTPUT"
+          {
+            echo "script=ci:test-all"
+            echo "scope=all"
+            echo "full_tests=true"
+            echo "benchmark=tests.all"
+          } >> "$GITHUB_OUTPUT"
         else
           git remote set-branches --add origin main && git fetch origin main --depth=1
           if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml)" ]; then
-            echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
-            echo "scope=all — pnpm-workspace.yaml modified" >> "$GITHUB_OUTPUT"
+            {
+              echo "script=ci:test-all"
+              echo "scope=all — pnpm-workspace.yaml modified"
+              echo "full_tests=true"
+              echo "benchmark=tests.all"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "script=ci:test-branch" >> "$GITHUB_OUTPUT"
-            echo "scope=affected packages" >> "$GITHUB_OUTPUT"
+            {
+              echo "script=ci:test-branch"
+              echo "scope=affected packages"
+              echo "full_tests=false"
+              echo "benchmark=tests.affected"
+            } >> "$GITHUB_OUTPUT"
           fi
         fi
     - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
       shell: bash
       env:
+        BENCHMARK: ${{ steps.test-scope.outputs.benchmark }}
         PNPM_WORKERS: 3
         TEST_SCRIPT: ${{ steps.test-scope.outputs.script }}
-      run: pn run "$TEST_SCRIPT"
+      run: |
+        node .github/scripts/measure-command.mjs \
+          --name "$BENCHMARK" \
+          --output ".bench/${BENCHMARK}.json" \
+          -- pn run "$TEST_SCRIPT"
+    - name: Extract pnpm CLI e2e test duration
+      if: steps.test-scope.outputs.full_tests == 'true'
+      shell: bash
+      run: |
+        node .github/scripts/bencher-result-from-pnpm-summary.mjs \
+          --name tests.cli \
+          --output .bench/tests.cli.json \
+          --package-dir pnpm
+    - name: Stage Bencher test durations
+      if: steps.test-scope.outputs.full_tests == 'true'
+      env:
+        NODE_VERSION: ${{ inputs.node }}
+        PLATFORM: ${{ inputs.platform }}
+      shell: bash
+      run: |
+        platform_slug=${PLATFORM%-latest}
+        node_major=${NODE_VERSION%%.*}
+        case "$platform_slug" in
+          ubuntu|windows) ;;
+          *)
+            echo "::error::Unsupported platform '$platform_slug' for pnpm benchmarks; expected ubuntu or windows"
+            exit 1
+            ;;
+        esac
+        case "$node_major" in
+          22|24|26) ;;
+          *)
+            echo "::error::Unsupported Node major '$node_major' for pnpm benchmarks; expected 22, 24, or 26"
+            exit 1
+            ;;
+        esac
+        artifact_dir=.bench/artifact/pnpm
+        mkdir -p "$artifact_dir"
+
+        node .github/scripts/merge-bencher-results.mjs \
+          --output "$artifact_dir/results.json" \
+          -- .bench/tests.all.json .bench/tests.cli.json
+
+        cat > "$artifact_dir/metadata.json" <<EOF
+        {
+          "kind": "pnpm",
+          "testbed": "pnpm.${platform_slug}.node${node_major}"
+        }
+        EOF
+    - name: Upload Bencher test duration artifact
+      if: steps.test-scope.outputs.full_tests == 'true'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ci-performance-pnpm-${{ inputs.platform }}-node-${{ inputs.node }}
+        path: .bench/artifact/pnpm/
+        if-no-files-found: error
+        retention-days: 14

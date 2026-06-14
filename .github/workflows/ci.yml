@@ -27,7 +27,11 @@ jobs:
     - name: Lint
       run: pn lint
     - name: Package compiled artifacts
-      run: tar -czf compiled.tar.gz --exclude='node_modules' $(find . -type d -name lib -not -path '*/node_modules/*') $(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*') pnpm/dist
+      shell: bash
+      run: |
+        mapfile -d '' -t lib_dirs < <(find . -type d -name lib -not -path '*/node_modules/*' -print0)
+        mapfile -d '' -t tsbuildinfo_files < <(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*' -print0)
+        tar -czf compiled.tar.gz --exclude='node_modules' "${lib_dirs[@]}" "${tsbuildinfo_files[@]}" pnpm/dist
     - name: Upload compiled artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
