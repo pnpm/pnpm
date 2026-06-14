@@ -92,7 +92,10 @@ test('pnpm install resolves a newly-added dependency with pacquet >= 0.11.7', as
     { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
   )
   expect(status).toBe(0)
-  expect(stdout.toString()).toContain('Using pacquet for this install')
+  const output = stdout.toString()
+  expect(output).toContain('Using pacquet for this install')
+  expect(output).toContain('Progress: resolved')
+  expect(output.indexOf('Using pacquet for this install')).toBeLessThan(output.indexOf('Progress: resolved'))
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
 
@@ -110,7 +113,10 @@ test('pnpm install resolves a newly-added dependency itself when pacquet < 0.11.
     { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
   )
   expect(status).toBe(0)
-  expect(stdout.toString()).toContain('Using pacquet for this install')
+  const output = stdout.toString()
+  expect(output).toContain('Using pacquet for this install')
+  expect(output).toContain('Progress: resolved')
+  expect(output.indexOf('Progress: resolved')).toBeLessThan(output.indexOf('Using pacquet for this install'))
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
 

@@ -388,6 +388,8 @@ export async function mutateModules (
   // isn't known here — so verification still runs in that window, the
   // duplicate is bounded to it.
   const willDelegateToPacquet = opts.runPacquet != null &&
+    opts.lockfileCheck == null &&
+    opts.enableModulesDir &&
     installsOnly &&
     !opts.lockfileOnly &&
     !opts.fixLockfile &&
@@ -1056,7 +1058,7 @@ Note that in CI environments, this setting is enabled by default.`,
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
-    if (opts.runPacquet != null) {
+    if (opts.runPacquet != null && opts.lockfileCheck == null && opts.enableModulesDir) {
       try {
         await opts.runPacquet.run()
       } catch (err) {
@@ -1992,7 +1994,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     if (!opts.frozenLockfile && opts.useLockfile) {
       const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects)
         .filter((project) => isPathInsideWorkspace(project.rootDirRealPath ?? project.rootDir))
-      if (allProjectsLocatedInsideWorkspace.length > projects.length) {
+      if (allProjectsLocatedInsideWorkspace.length > projects.length && opts.lockfileCheck == null && opts.enableModulesDir) {
         const newProjects = [...projects]
         const getWantedDepsOpts = {
           autoInstallPeers: opts.autoInstallPeers,
@@ -2044,7 +2046,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
       }
     }
-    if (opts.nodeLinker === 'hoisted' && !opts.lockfileOnly) {
+    if (opts.nodeLinker === 'hoisted' && !opts.lockfileOnly && opts.lockfileCheck == null && opts.enableModulesDir) {
       const result = await _installInContext(projects, ctx, {
         ...opts,
         lockfileOnly: true,
@@ -2073,7 +2075,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     // Isolated `nodeLinker` (the default) with a non-frozen install.
     // The frozen branch is handled earlier in `tryFrozenInstall`; the
     // hoisted branch above runs a resolve-then-materialize sequence.
-    if (opts.runPacquet != null && !opts.lockfileOnly) {
+    if (opts.runPacquet != null && !opts.lockfileOnly && opts.lockfileCheck == null && opts.enableModulesDir) {
       // pacquet >= 0.11.7 resolves itself: hand it the whole install
       // (resolve + fetch + import + link + build, writing the lockfile)
       // in a single non-frozen pass. Only for plain installs — `add` /

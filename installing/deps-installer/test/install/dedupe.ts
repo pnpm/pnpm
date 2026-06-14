@@ -1,4 +1,4 @@
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/testing.registry-mock'
@@ -23,6 +23,35 @@ test('prefer version ranges specified for top dependencies', async () => {
   const lockfile = project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
   expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+})
+
+test('does not delegate lockfile check mode to pacquet', async () => {
+  prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }, testDefaults())
+
+  const lockfileCheck = jest.fn()
+  const runPacquet = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }, testDefaults({
+    dedupe: true,
+    lockfileCheck,
+    runPacquet: {
+      supportsResolution: true,
+      run: runPacquet,
+    },
+  }))
+
+  expect(lockfileCheck).toHaveBeenCalled()
+  expect(runPacquet).not.toHaveBeenCalled()
 })
 
 test('prefer version ranges specified for top dependencies, when doing named installation', async () => {
