@@ -91,7 +91,7 @@ catalog:
   '@pnpm/logger': '^1100.0.0'
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/nopt': ^0.3.1
-  '@pnpm/npm-lifecycle': 1100.0.0-1
+  '@pnpm/npm-lifecycle': https://github.com/pnpm/npm-lifecycle#refs/pull/59/head # TODO: update to a released version once https://github.com/pnpm/npm-lifecycle/pull/59 lands
   '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^3.0.1
   '@pnpm/patch-package': 0.0.1

@@ -62,18 +62,23 @@ test('runLifecycleHook() passes newline correctly', async () => {
   ])
 })
 
-test('runLifecycleHook() does not set npm_config env vars', async () => {
-  const pkgRoot = f.find('inspect-frozen-lockfile')
+test('runLifecycleHook() does not set npm_config env vars but preserves user-defined ones', async () => {
+  const pkgRoot = f.find('inspect-npm-config-env')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
-  await runLifecycleHook('postinstall', pkg, {
-    depPath: '/inspect-frozen-lockfile/1.0.0',
-    pkgRoot,
-    rootModulesDir,
-    unsafePerm: true,
-  })
+  process.env.npm_config_platform_arch = 'x64'
+  try {
+    await runLifecycleHook('postinstall', pkg, {
+      depPath: '/inspect-npm-config-env/1.0.0',
+      pkgRoot,
+      rootModulesDir,
+      unsafePerm: true,
+    })
+  } finally {
+    delete process.env.npm_config_platform_arch
+  }
 
-  expect(server.getLines()).toStrictEqual(['unset'])
+  expect(server.getLines()).toStrictEqual(['npm_config_platform_arch=x64'])
 })
 
 test('runPostinstallHooks()', async () => {
