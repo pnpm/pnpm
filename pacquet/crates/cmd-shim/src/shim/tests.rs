@@ -85,7 +85,11 @@ case `uname -a` in"#
         "header must convert WSL2 basedir with wslpath, body was:\n{body}",
     );
     assert!(
-        body.contains("if [ -x \"$basedir/node.exe\" ]; then\n  exec \"$basedir/node.exe\"  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$exe\" ] && command -v node.exe >/dev/null 2>&1; then\n  exec node.exe  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelse\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nfi\n"),
+        body.contains("else\n        exe=\".exe\"\n      fi"),
+        "WSL2 branch must enable .exe fallback only after wslpath succeeds, body was:\n{body}",
+    );
+    assert!(
+        body.contains("if [ -n \"$exe\" ] && [ -x \"$basedir/node.exe\" ]; then\n  exec \"$basedir/node.exe\"  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$exe\" ] && command -v node.exe >/dev/null 2>&1; then\n  exec node.exe  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelse\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nfi\n"),
         "exec block must preserve the generated sh shim fallback order, body was:\n{body}",
     );
     assert!(
@@ -332,7 +336,7 @@ fn generate_sh_shim_uses_windows_target_only_for_exe_branches() {
     let body = generate_sh_shim(target, shim, Some(&runtime));
 
     assert!(
-        body.contains("if [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\nelif [ -x \"$basedir/cmd\" ]; then\n  exec \"$basedir/cmd\" //C \"$basedir/../foo/src.bat\" \"$@\"\nelif command -v cmd >/dev/null 2>&1; then\n  exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\nelif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n  exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\nelse\n  exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\nfi\n"),
+        body.contains("if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\nelif [ -x \"$basedir/cmd\" ]; then\n  exec \"$basedir/cmd\" //C \"$basedir/../foo/src.bat\" \"$@\"\nelif command -v cmd >/dev/null 2>&1; then\n  exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\nelif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n  exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\nelse\n  exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\nfi\n"),
         "cmd sh shim must use Windows-form targets only for .exe execution branches, body was:\n{body}",
     );
 }
