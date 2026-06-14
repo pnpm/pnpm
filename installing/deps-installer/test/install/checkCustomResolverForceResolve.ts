@@ -124,18 +124,25 @@ describe('checkCustomResolverForceResolve', () => {
   })
 
   test('runs checks in parallel', async () => {
-    const callOrder: string[] = []
+    const PKG_COUNT = 3
+    const started: string[] = []
+    // Each hook blocks until every hook has started. This only unblocks if the
+    // checks run concurrently; were they awaited one at a time, the first hook
+    // would wait forever for siblings that never start and the test would hang.
+    let releaseAllStarted!: () => void
+    const allStarted = new Promise<void>(resolve => {
+      releaseAllStarted = resolve
+    })
     const resolver: CustomResolver = {
       shouldRefreshResolution: async (depPath) => {
-        const delays: Record<string, number> = { 'pkg1@1.0.0': 30, 'pkg2@1.0.0': 20 }
-        const delay = delays[depPath] ?? 10
-        await new Promise(resolve => setTimeout(resolve, delay))
-        callOrder.push(depPath)
+        started.push(depPath)
+        if (started.length === PKG_COUNT) releaseAllStarted()
+        await allStarted
         return false
       },
     }
 
-    await checkCustomResolverForceResolve(
+    const result = await checkCustomResolverForceResolve(
       [resolver],
       lockfileWithPackages({
         'pkg1@1.0.0': {
@@ -150,8 +157,8 @@ describe('checkCustomResolverForceResolve', () => {
       })
     )
 
-    // If parallel, pkg3 finishes first (10ms), then pkg2 (20ms), then pkg1 (30ms)
-    expect(callOrder).toEqual(['pkg3@1.0.0', 'pkg2@1.0.0', 'pkg1@1.0.0'])
+    expect(result).toBe(false)
+    expect([...started].sort()).toEqual(['pkg1@1.0.0', 'pkg2@1.0.0', 'pkg3@1.0.0'])
   })
 
   test('passes depPath and pkgSnapshot to shouldRefreshResolution', async () => {
