@@ -109,13 +109,14 @@ pub fn is_package_manager_resolved(
     else {
         return false;
     };
-    PACKAGE_MANAGER_DEPS.iter().all(|name| {
-        pm_deps.get(*name).is_some_and(|dep| {
-            dep.specifier == wanted_specifier
-                && dep.version == pnpm_version
-                && package_manager_entry_exists(env_lockfile, name, &dep.version)
+    pm_deps.len() == PACKAGE_MANAGER_DEPS.len()
+        && PACKAGE_MANAGER_DEPS.iter().all(|name| {
+            pm_deps.get(*name).is_some_and(|dep| {
+                dep.specifier == wanted_specifier
+                    && dep.version == pnpm_version
+                    && package_manager_entry_exists(env_lockfile, name, &dep.version)
+            })
         })
-    })
 }
 
 fn package_manager_entry_exists(env_lockfile: &EnvLockfile, name: &str, version: &str) -> bool {

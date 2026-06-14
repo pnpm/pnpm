@@ -330,6 +330,20 @@ async fn resolves_package_manager_dependencies_graph() {
     assert!(!env.snapshots[&libc_key].optional);
     assert!(is_package_manager_resolved(&env, "^100.0.0", "100.0.0"));
     assert!(!is_package_manager_resolved(&env, "~100.0.0", "100.0.0"));
+
+    let mut env_with_extra_pm_dep = env.clone();
+    env_with_extra_pm_dep
+        .importers
+        .get_mut(EnvLockfile::ROOT_IMPORTER_KEY)
+        .unwrap()
+        .package_manager_dependencies
+        .as_mut()
+        .unwrap()
+        .insert(
+            "yarn".to_string(),
+            SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
+        );
+    assert!(!is_package_manager_resolved(&env_with_extra_pm_dep, "^100.0.0", "100.0.0",));
 }
 
 #[tokio::test]
