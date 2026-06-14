@@ -404,8 +404,9 @@ export async function mutateModules (
       // Resolving install: pacquet (>= 0.11.7) re-resolves from the
       // manifests itself — applying the policy during fresh resolution —
       // so the existing lockfile entries verified here would just be
-      // discarded.
-      (opts.runPacquet.supportsResolution && opts.frozenLockfile !== true && opts.nodeLinker !== 'hoisted')
+      // discarded. If a policy handler is active, keep resolution in pnpm
+      // so violations can be returned to the command layer.
+      (opts.runPacquet.supportsResolution && opts.frozenLockfile !== true && opts.nodeLinker !== 'hoisted' && opts.handleResolutionPolicyViolations == null)
     )
   let verifyLockfilePromise: Promise<void> | undefined
   if (!willDelegateToPacquet && !opts.trustLockfile) {
@@ -1942,8 +1943,10 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
  * `node_modules` tree itself. `ctx.wantedLockfile` has already been
  * refreshed from disk, and pacquet reports its own stats / ignored-builds
  * via NDJSON, so the structured `stats` / `ignoredBuilds` fall back to
- * their no-op defaults. Manifests are returned unchanged — this path only
- * runs for plain installs, which don't rewrite `package.json`.
+ * their no-op defaults. Resolution-policy handlers are guarded out before
+ * this path, so there are no command-layer policy violations to return.
+ * Manifests are returned unchanged — this path only runs for plain
+ * installs, which don't rewrite `package.json`.
  */
 function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): InstallFunctionResult {
   return {
@@ -2082,7 +2085,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       // `update` / `remove` need pnpm to mutate the manifests and
       // resolve the new specs first (pacquet's `install` reads
       // package.json from disk, which pnpm hasn't rewritten yet).
-      if (opts.runPacquet.supportsResolution && !opts.frozenLockfile && allMutationsAreInstalls(projects)) {
+      if (opts.runPacquet.supportsResolution && !opts.frozenLockfile && opts.handleResolutionPolicyViolations == null && allMutationsAreInstalls(projects)) {
         // `configDependencies` are recorded in a YAML document prepended
         // to `pnpm-lock.yaml` — purely a pnpm concept that pacquet doesn't
         // model. Capture it before pacquet rewrites the lockfile and

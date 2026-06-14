@@ -1,4 +1,4 @@
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -242,6 +242,35 @@ test('loose mode surfaces immature fresh picks in the install result', async () 
     handleResolutionPolicyViolations: async () => {},
   })
 
+  expect(result.resolutionPolicyViolations).toContainEqual(
+    expect.objectContaining({
+      name: 'is-odd',
+      version: '0.1.0',
+      code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+    })
+  )
+})
+
+test('pacquet materializes after pnpm resolves when policy violations must be surfaced', async () => {
+  prepareEmpty()
+
+  const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
+  const runPacquet = jest.fn<(opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>>().mockResolvedValue(undefined)
+  const result = await install({
+    dependencies: {
+      'is-odd': '0.1',
+    },
+  }, {
+    ...opts,
+    handleResolutionPolicyViolations: async () => {},
+    runPacquet: {
+      supportsResolution: true,
+      run: runPacquet,
+    },
+  })
+
+  expect(runPacquet).toHaveBeenCalledWith({ filterResolvedProgress: true })
+  expect(runPacquet).not.toHaveBeenCalledWith({ resolve: true })
   expect(result.resolutionPolicyViolations).toContainEqual(
     expect.objectContaining({
       name: 'is-odd',
