@@ -19,7 +19,11 @@ jobs:
     name: Upload CI performance results
     runs-on: ubuntu-latest
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
+      (
+        github.event.workflow_run.conclusion == 'success' ||
+        github.event.workflow_run.conclusion == 'failure' ||
+        github.event.workflow_run.conclusion == 'timed_out'
+      ) &&
       github.event.workflow_run.head_repository.full_name == github.repository
     steps:
       - name: Resolve Bencher branch
@@ -133,18 +137,68 @@ jobs:
             exit 0
           fi
 
-          upload() {
-            local testbed=$1 file=$2
-            local rust_testbed_regex='^(pacquet|pnpr)\.(ubuntu|windows|macos)$'
-            local pnpm_testbed_regex='^pnpm\.(ubuntu|windows)\.node(22|24|26)$'
-            if [[ ! "$testbed" =~ $rust_testbed_regex && ! "$testbed" =~ $pnpm_testbed_regex ]]; then
-              echo "::error::unexpected testbed '$testbed'"
+          github_error() {
+            local message=$1
+            message=${message//'%'/'%25'}
+            message=${message//$'\r'/'%0D'}
+            message=${message//$'\n'/'%0A'}
+            echo "::error::$message"
+          }
+
+          validate_artifact_dir() {
+            local artifact_dir=$1
+            if [ -L "$artifact_dir" ]; then
+              github_error "artifact directory is a symlink: $artifact_dir"
+              exit 1
+            fi
+            if [ ! -d "$artifact_dir" ]; then
+              github_error "artifact directory does not exist: $artifact_dir"
+              exit 1
+            fi
+            local artifacts_root_real artifact_dir_real
+            artifacts_root_real=$(realpath ci-performance-artifacts)
+            artifact_dir_real=$(realpath "$artifact_dir")
+            case "$artifact_dir_real" in
+              "$artifacts_root_real"/*) ;;
+              *)
+                github_error "artifact directory escapes download root: $artifact_dir"
+                exit 1
+                ;;
+            esac
+          }
+
+          validate_artifact_file() {
+            local artifact_dir=$1 file=$2 label=$3
+            validate_artifact_dir "$artifact_dir"
+            if [ -L "$file" ]; then
+              github_error "$label is a symlink: $file"
               exit 1
             fi
             if [ ! -f "$file" ]; then
-              echo "::error::$file not found for $testbed"
+              github_error "$label is not a regular file: $file"
               exit 1
             fi
+            local artifact_dir_real file_real
+            artifact_dir_real=$(realpath "$artifact_dir")
+            file_real=$(realpath "$file")
+            case "$file_real" in
+              "$artifact_dir_real"/*) ;;
+              *)
+                github_error "$label escapes artifact directory '$artifact_dir': $file"
+                exit 1
+                ;;
+            esac
+          }
+
+          upload() {
+            local testbed=$1 artifact_dir=$2 file=$3
+            local rust_testbed_regex='^(pacquet|pnpr)\.(ubuntu|windows|macos)$'
+            local pnpm_testbed_regex='^pnpm\.(ubuntu|windows)\.node(22|24|26)$'
+            if [[ ! "$testbed" =~ $rust_testbed_regex && ! "$testbed" =~ $pnpm_testbed_regex ]]; then
+              github_error "unexpected testbed '$testbed'"
+              exit 1
+            fi
+            validate_artifact_file "$artifact_dir" "$file" "$testbed result file"
 
             local args=(
               --project pnpm-ci-performance
@@ -166,26 +220,27 @@ jobs:
           shopt -s nullglob
           metadata_files=(ci-performance-artifacts/ci-performance-*/metadata.json)
           if [ "${#metadata_files[@]}" -eq 0 ]; then
-            echo "::error::No metadata.json files found in CI performance artifacts"
+            github_error "No metadata.json files found in CI performance artifacts"
             exit 1
           fi
 
           for metadata in "${metadata_files[@]}"; do
             dir=$(dirname "$metadata")
+            validate_artifact_file "$dir" "$metadata" "metadata file"
             kind=$(jq -r '.kind // empty' "$metadata")
             case "$kind" in
               pnpm)
                 testbed=$(jq -r '.testbed // empty' "$metadata")
-                upload "$testbed" "$dir/results.json"
+                upload "$testbed" "$dir" "$dir/results.json"
                 ;;
               rust)
                 if ! reports_json=$(jq -ce '.reports | arrays' "$metadata"); then
-                  echo "::error::missing or invalid rust reports array in $metadata"
+                  github_error "missing or invalid rust reports array in $metadata"
                   exit 1
                 fi
                 reports_count=$(jq 'length' <<< "$reports_json")
                 if [ "$reports_count" -ne 2 ]; then
-                  echo "::error::expected exactly 2 rust reports in $metadata"
+                  github_error "expected exactly 2 rust reports in $metadata"
                   exit 1
                 fi
 
@@ -197,36 +252,36 @@ jobs:
                   case "$file" in
                     pacquet-tests-all.json)
                       if [ "$seen_pacquet" = "true" ]; then
-                        echo "::error::duplicate result file '$file' in $metadata"
+                        github_error "duplicate result file '$file' in $metadata"
                         exit 1
                       fi
                       seen_pacquet=true
                       ;;
                     pnpr-tests-all.json)
                       if [ "$seen_pnpr" = "true" ]; then
-                        echo "::error::duplicate result file '$file' in $metadata"
+                        github_error "duplicate result file '$file' in $metadata"
                         exit 1
                       fi
                       seen_pnpr=true
                       ;;
                     *)
-                      echo "::error::unexpected result file '$file'"
+                      github_error "unexpected result file '$file'"
                       exit 1
                       ;;
                   esac
-                  upload "$testbed" "$dir/$file"
+                  upload "$testbed" "$dir" "$dir/$file"
                 done < <(jq -c '.[]' <<< "$reports_json")
                 if [ "$seen_pacquet" != "true" ]; then
-                  echo "::error::missing result file 'pacquet-tests-all.json' in $metadata"
+                  github_error "missing result file 'pacquet-tests-all.json' in $metadata"
                   exit 1
                 fi
                 if [ "$seen_pnpr" != "true" ]; then
-                  echo "::error::missing result file 'pnpr-tests-all.json' in $metadata"
+                  github_error "missing result file 'pnpr-tests-all.json' in $metadata"
                   exit 1
                 fi
                 ;;
               *)
-                echo "::error::unexpected artifact kind '$kind' in $metadata"
+                github_error "unexpected artifact kind '$kind' in $metadata"
                 exit 1
                 ;;
             esac
