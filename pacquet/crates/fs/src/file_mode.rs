@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, path::Path};
 
 /// Bit mask to filter executable bits (`--x--x--x`).
 pub const EXEC_MASK: u32 = 0b001_001_001;
@@ -15,6 +15,16 @@ pub const EXEC_MODE: u32 = 0b111_101_101;
 #[must_use]
 pub fn is_executable(mode: u32) -> bool {
     mode & EXEC_MASK != 0
+}
+
+/// Whether a CAS file path encodes "executable" via the `-exec` suffix
+/// pnpm's CAFS layout uses (see `pacquet_store_dir::StoreDir::cas_file_path`).
+/// Reading the suffix is cheaper than a `stat` and is the only reliable
+/// signal once a blob has been copied out of the store, where the on-disk
+/// mode may have lost its exec bit on a copy / reflink fallback.
+#[must_use]
+pub fn cas_path_is_executable(path: &Path) -> bool {
+    path.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.ends_with("-exec"))
 }
 
 /// Set file mode to 777 on POSIX platforms such as Linux or macOS,

@@ -13,6 +13,7 @@ repository.workspace  = true
 [dependencies]
 pacquet-diagnostics      = { workspace = true }
 pacquet-executor         = { workspace = true }
+pacquet-fs               = { workspace = true }
 pacquet-package-manifest = { workspace = true }
 pacquet-reporter         = { workspace = true }
 pacquet-store-dir        = { workspace = true }

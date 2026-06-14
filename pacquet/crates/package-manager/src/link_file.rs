@@ -214,11 +214,11 @@ fn try_import<Reporter: self::Reporter>(
                 log_method_once::<Reporter>(logged, LOG_FLAG_HARDLINK, WireImportMethod::Hardlink);
                 Ok(())
             }
-            Err(error) if is_cross_device(&error) => fs::copy(source_file, target_link)
-                .inspect(|_| {
+            Err(error) if is_cross_device(&error) => {
+                copy_file(source_file, target_link).inspect(|()| {
                     log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
                 })
-                .map(drop),
+            }
             Err(error) => Err(error),
         },
         PackageImportMethod::Clone => {
@@ -230,12 +230,33 @@ fn try_import<Reporter: self::Reporter>(
             static CLONE_OR_COPY_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
             clone_or_copy_link::<Reporter>(logged, &CLONE_OR_COPY_STATE, source_file, target_link)
         }
-        PackageImportMethod::Copy => fs::copy(source_file, target_link)
-            .inspect(|_| {
-                log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-            })
-            .map(drop),
+        PackageImportMethod::Copy => copy_file(source_file, target_link).inspect(|()| {
+            log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+        }),
     }
+}
+
+/// `fs::copy` plus exec-bit restoration for the copy fallback tier.
+///
+/// `fs::copy` already carries a regular file's mode across on Unix, but
+/// a CAS entry's executable bit can be lost when a copy / reflink
+/// fallback materializes it (observed on overlayfs), leaving a native
+/// binary at `0o644`. The CAS encodes executability purely in the
+/// `-exec` path suffix, so that suffix is the source of truth: when it
+/// is present we re-add the exec bits, mirroring `git-fetcher`'s
+/// `materialize_into`. Non-executable files are left exactly as
+/// `fs::copy` produced them — we never widen their mode and never pay a
+/// `set_permissions` syscall for them.
+fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
+    fs::copy(source_file, target_link)?;
+    #[cfg(unix)]
+    if pacquet_fs::file_mode::cas_path_is_executable(source_file) {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(target_link)?.permissions();
+        perms.set_mode(perms.mode() | pacquet_fs::file_mode::EXEC_MASK);
+        fs::set_permissions(target_link, perms)?;
+    }
+    Ok(())
 }
 
 /// EXDEV = "cross-device link not permitted". Linux / macOS / BSD all
@@ -323,11 +344,9 @@ fn auto_link<Reporter: self::Reporter>(
                 }
             },
             _ => {
-                return fs::copy(source, target)
-                    .inspect(|_| {
-                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                    })
-                    .map(drop);
+                return copy_file(source, target).inspect(|()| {
+                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                });
             }
         }
     }
@@ -358,11 +377,9 @@ fn clone_or_copy_link<Reporter: self::Reporter>(
                 }
             },
             _ => {
-                return fs::copy(source, target)
-                    .inspect(|_| {
-                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                    })
-                    .map(drop);
+                return copy_file(source, target).inspect(|()| {
+                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                });
             }
         }
     }
