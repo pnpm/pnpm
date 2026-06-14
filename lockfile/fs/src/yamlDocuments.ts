@@ -22,7 +22,7 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
   try {
     fileHandle = await open(filePath, 'r')
     const decoder = new StringDecoder('utf8')
-    const readBuffer = Buffer.allocUnsafe(readBufferSize)
+    const readBuffer = Buffer.allocUnsafe(normalizeReadBufferSize(readBufferSize))
     let position = 0
     while (true) {
       const { bytesRead } = await fileHandle.read(readBuffer, 0, readBuffer.length, position) // eslint-disable-line no-await-in-loop
@@ -66,6 +66,11 @@ function canRejectDocumentStart (buffer: string): boolean {
   if (buffer.length < YAML_DOCUMENT_START.length) return false
   if (buffer === '---\r') return false
   return !buffer.startsWith(YAML_DOCUMENT_START)
+}
+
+function normalizeReadBufferSize (readBufferSize: number): number {
+  const size = Number.isFinite(readBufferSize) ? Math.floor(readBufferSize) : READ_BUFFER_SIZE
+  return size > 0 ? size : READ_BUFFER_SIZE
 }
 
 /**

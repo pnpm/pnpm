@@ -69,6 +69,14 @@ describe('streamReadFirstYamlDocument', () => {
     expect(result).toBe('foo: bar')
   })
 
+  test.each([0, -1, Number.NaN])('falls back to default read buffer size for %p', async (readBufferSize) => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    fs.writeFileSync(filePath, '---\nfoo: bar\n---\nlockfileVersion: 9.0\n')
+    const result = await streamReadFirstYamlDocument(filePath, readBufferSize)
+    expect(result).toBe('foo: bar')
+  })
+
   test('returns null for empty file', async () => {
     const dir = temporaryDirectory()
     const filePath = path.join(dir, 'test.yaml')
