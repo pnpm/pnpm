@@ -60,10 +60,9 @@ fn relative_target_traverses_into_sibling_package() {
     assert_eq!(relative_target(target, shim), "../foo/bin/cli.js");
 }
 
-/// Shim body for the typical `#!/usr/bin/env node` case must match the
-/// exec template upstream produces verbatim, including the double space
-/// between `$basedir/node` and the quoted target path (upstream's
-/// `${args}` interpolates to empty between two literal spaces).
+/// Shim body for the typical `#!/usr/bin/env node` case must preserve
+/// the generated exec block shape, including the double space between
+/// `$basedir/node` and the quoted target path when `args` is empty.
 #[test]
 fn generate_sh_shim_matches_pnpm_typical_case() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
@@ -86,8 +85,8 @@ case `uname -a` in"#
         "header must convert WSL2 basedir with wslpath, body was:\n{body}",
     );
     assert!(
-        body.contains("if [ -x \"$basedir/node.exe\" ]; then\n  exec \"$basedir/node.exe\"  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif [ -x node ]; then\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$exe\" ]; then\n  exec node.exe  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelse\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nfi\n"),
-        "exec block must match pnpm's generateShShim template, body was:\n{body}",
+        body.contains("if [ -x \"$basedir/node.exe\" ]; then\n  exec \"$basedir/node.exe\"  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$exe\" ] && command -v node.exe >/dev/null 2>&1; then\n  exec node.exe  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelse\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nfi\n"),
+        "exec block must preserve the generated sh shim fallback order, body was:\n{body}",
     );
     assert!(
         body.ends_with("# cmd-shim-target=/proj/node_modules/typescript/bin/tsc\n"),
@@ -331,8 +330,21 @@ fn generate_sh_shim_uses_windows_target_only_for_exe_branches() {
     let body = generate_sh_shim(target, shim, Some(&runtime));
 
     assert!(
-        body.contains("if [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\nelif [ -x \"$basedir/cmd\" ]; then\n  exec \"$basedir/cmd\" //C \"$basedir/../foo/src.bat\" \"$@\"\nelif [ -x cmd ]; then\n  exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\nelif [ -n \"$exe\" ]; then\n  exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\nelse\n  exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\nfi\n"),
+        body.contains("if [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\nelif [ -x \"$basedir/cmd\" ]; then\n  exec \"$basedir/cmd\" //C \"$basedir/../foo/src.bat\" \"$@\"\nelif command -v cmd >/dev/null 2>&1; then\n  exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\nelif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n  exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\nelse\n  exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\nfi\n"),
         "cmd sh shim must use Windows-form targets only for .exe execution branches, body was:\n{body}",
+    );
+}
+
+#[test]
+fn generate_sh_shim_checks_path_before_exe_fallback() {
+    let target = Path::new("/proj/node_modules/foo/src.sh");
+    let shim = Path::new("/proj/node_modules/.bin/foo");
+    let runtime = ScriptRuntime { prog: Some("sh".into()), args: String::new() };
+    let body = generate_sh_shim(target, shim, Some(&runtime));
+
+    assert!(
+        body.contains("elif command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nelif [ -n \"$exe\" ] && command -v sh.exe >/dev/null 2>&1; then\n  exec sh.exe  \"$basedir_win/../foo/src.sh\" \"$@\"\nelse\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nfi\n"),
+        "PATH fallback must prefer POSIX runtimes and gate .exe fallback, body was:\n{body}",
     );
 }
 

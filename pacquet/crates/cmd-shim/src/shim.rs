@@ -218,7 +218,7 @@ pub fn generate_sh_shim(
                 let sh_long_prog = format!("\"$basedir/{prog}\"");
                 writeln!(
                     sh,
-                    "if [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelif [ -x {prog} ]; then\n  exec {prog} {args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ]; then\n  exec {prog_exe} {args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi",
+                    "if [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelif command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ] && command -v {prog_exe} >/dev/null 2>&1; then\n  exec {prog_exe} {args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi",
                 )
                 .unwrap();
             }
