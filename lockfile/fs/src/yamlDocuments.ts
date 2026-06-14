@@ -1,10 +1,13 @@
-import { createReadStream, type ReadStream } from 'node:fs'
+import { type FileHandle, open } from 'node:fs/promises'
+import { StringDecoder } from 'node:string_decoder'
 import util from 'node:util'
 
 import stripBom from 'strip-bom'
 
 export const YAML_DOCUMENT_SEPARATOR = '\n---\n'
 export const YAML_DOCUMENT_START = '---\n'
+
+const READ_BUFFER_SIZE = 64 * 1024
 
 /**
  * Reads the first YAML document from a multi-document YAML file using streaming.
@@ -13,62 +16,50 @@ export const YAML_DOCUMENT_START = '---\n'
  * Returns null if the file doesn't exist or doesn't start with "---\n".
  */
 export async function streamReadFirstYamlDocument (filePath: string): Promise<string | null> {
-  const stream = createReadStream(filePath, { encoding: 'utf8' })
-  const chunks = stream[Symbol.asyncIterator]()
+  let fileHandle: FileHandle | undefined
   let buffer = ''
+  let firstChunk = true
   try {
-    // Phase 1: verify the file starts with "---\n"
-
-    for (let chunk = await chunks.next(); !chunk.done; chunk = await chunks.next()) { // eslint-disable-line no-await-in-loop
-      if (buffer.length === 0) {
-        // Strip BOM from the first chunk. Safe because the stream uses utf8 encoding,
-        // so the 3-byte BOM is decoded into a single \uFEFF character in the first chunk.
-        buffer = stripBom(chunk.value as string)
-      } else {
-        buffer += chunk.value
+    fileHandle = await open(filePath, 'r')
+    const decoder = new StringDecoder('utf8')
+    const readBuffer = Buffer.allocUnsafe(READ_BUFFER_SIZE)
+    let position = 0
+    while (true) {
+      const { bytesRead } = await fileHandle.read(readBuffer, 0, readBuffer.length, position) // eslint-disable-line no-await-in-loop
+      if (bytesRead === 0) break
+      position += bytesRead
+      let chunk = decoder.write(readBuffer.subarray(0, bytesRead))
+      if (firstChunk) {
+        // Strip BOM from the first chunk. Safe because the decoder uses utf8,
+        // so the 3-byte BOM is decoded into a single \uFEFF character.
+        chunk = stripBom(chunk)
+        firstChunk = false
       }
+      buffer += chunk
       // Normalize CRLF (Windows) to LF so document separator detection works.
       buffer = buffer.replace(/\r\n/g, '\n')
-      if (buffer.length >= YAML_DOCUMENT_START.length) break
-    }
-    if (!buffer.startsWith(YAML_DOCUMENT_START)) {
-      await closeStream(stream)
-      return null
-    }
-    // Phase 2: find the second "---" separator
-    let firstDocument: string | undefined
-    while (true) {
+      if (buffer.length >= YAML_DOCUMENT_START.length && !buffer.startsWith(YAML_DOCUMENT_START)) {
+        return null
+      }
       const sep = buffer.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
       if (sep !== -1) {
-        firstDocument = buffer.slice(YAML_DOCUMENT_START.length, sep)
-        break
+        return buffer.slice(YAML_DOCUMENT_START.length, sep)
       }
-      const chunk = await chunks.next() // eslint-disable-line no-await-in-loop
-      if (chunk.done) break
-      // Normalize CRLF (Windows) to LF so the separator search matches on Windows-checked-out files.
-      buffer = (buffer + chunk.value).replace(/\r\n/g, '\n')
     }
-    if (firstDocument != null) {
-      await closeStream(stream)
-      return firstDocument
+    const remainder = decoder.end()
+    if (remainder.length > 0) {
+      buffer += firstChunk ? stripBom(remainder) : remainder
+      buffer = buffer.replace(/\r\n/g, '\n')
     }
+    return null
   } catch (err: unknown) {
-    await closeStream(stream)
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
+  } finally {
+    await fileHandle?.close()
   }
-  await closeStream(stream)
-  return null
-}
-
-async function closeStream (stream: ReadStream): Promise<void> {
-  if (stream.closed) return
-  await new Promise<void>((resolve) => {
-    stream.once('close', resolve)
-    stream.destroy()
-  })
 }
 
 /**

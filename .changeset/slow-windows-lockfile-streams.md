@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Wait for early-exited lockfile read streams to close before rewriting lockfiles.
+Close lockfile reads deterministically before rewriting lockfiles.
