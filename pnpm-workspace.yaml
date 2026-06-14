@@ -369,7 +369,6 @@ minimumReleaseAgeExclude:
   - '@pnpm/*'
   - '@rushstack/worker-pool@0.7.18'
   - '@zkochan/*'
-  - '@zkochan/cmd-shim@9.0.4'
   - better-path-resolve
   - body-parser@2.2.1
   - can-link
