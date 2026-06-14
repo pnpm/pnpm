@@ -56,6 +56,26 @@ test('does not delegate lockfile check mode to pacquet', async () => {
   expect(runPacquet).not.toHaveBeenCalled()
 })
 
+test('does not delegate no-lockfile installs to pacquet', async () => {
+  const project = prepareEmpty()
+  const runPacquet = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, testDefaults({
+    runPacquet: {
+      supportsResolution: true,
+      run: runPacquet,
+    },
+    useLockfile: false,
+  }))
+
+  expect(runPacquet).not.toHaveBeenCalled()
+  expect(project.readLockfile()).toBeFalsy()
+})
+
 test('uses the lockfile written by pacquet for post-install checks', async () => {
   prepareEmpty()
 

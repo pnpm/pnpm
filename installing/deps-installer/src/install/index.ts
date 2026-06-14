@@ -389,6 +389,7 @@ export async function mutateModules (
   // isn't known here — so verification still runs in that window, the
   // duplicate is bounded to it.
   const willDelegateToPacquet = opts.runPacquet != null &&
+    opts.useLockfile &&
     opts.lockfileCheck == null &&
     opts.enableModulesDir &&
     installsOnly &&
@@ -406,7 +407,7 @@ export async function mutateModules (
       // so the existing lockfile entries verified here would just be
       // discarded. If a policy handler is active, keep resolution in pnpm
       // so violations can be returned to the command layer.
-      (opts.runPacquet.supportsResolution && opts.frozenLockfile !== true && opts.nodeLinker !== 'hoisted' && opts.handleResolutionPolicyViolations == null)
+      (opts.saveLockfile && opts.runPacquet.supportsResolution && opts.frozenLockfile !== true && opts.nodeLinker !== 'hoisted' && opts.handleResolutionPolicyViolations == null)
     )
   let verifyLockfilePromise: Promise<void> | undefined
   if (!willDelegateToPacquet && !opts.trustLockfile) {
@@ -1060,7 +1061,7 @@ Note that in CI environments, this setting is enabled by default.`,
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
-    if (opts.runPacquet != null && opts.lockfileCheck == null && opts.enableModulesDir) {
+    if (opts.runPacquet != null && opts.useLockfile && opts.lockfileCheck == null && opts.enableModulesDir) {
       try {
         await opts.runPacquet.run()
       } catch (err) {
@@ -1976,10 +1977,10 @@ function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): 
  * stats record and a no-op ignoredBuilds iteration).
  */
 async function materializeOrDelegate (
-  opts: { runPacquet?: { run: (opts?: { filterResolvedProgress?: boolean }) => Promise<void> } },
+  opts: { runPacquet?: { run: (opts?: { filterResolvedProgress?: boolean }) => Promise<void> }, saveLockfile?: boolean, useLockfile?: boolean },
   runHeadlessInstall: () => Promise<{ stats: InstallationResultStats, ignoredBuilds: IgnoredBuilds | undefined }>
 ): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
-  if (opts.runPacquet != null) {
+  if (opts.runPacquet != null && opts.useLockfile !== false && opts.saveLockfile !== false) {
     // Reached only from the resolve-then-materialize call sites
     // (workspace-partial, hoisted-linker, pnpr server install). Each ran a
     // lockfileOnly resolve pass that emitted one
@@ -2078,7 +2079,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     // Isolated `nodeLinker` (the default) with a non-frozen install.
     // The frozen branch is handled earlier in `tryFrozenInstall`; the
     // hoisted branch above runs a resolve-then-materialize sequence.
-    if (opts.runPacquet != null && !opts.lockfileOnly && opts.lockfileCheck == null && opts.enableModulesDir) {
+    if (opts.runPacquet != null && opts.useLockfile && opts.saveLockfile && !opts.lockfileOnly && opts.lockfileCheck == null && opts.enableModulesDir) {
       // pacquet >= 0.11.7 resolves itself: hand it the whole install
       // (resolve + fetch + import + link + build, writing the lockfile)
       // in a single non-frozen pass. Only for plain installs — `add` /
