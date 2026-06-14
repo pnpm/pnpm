@@ -398,7 +398,7 @@ export async function mutateModules (
       // re-applies the resolver-policy gate as it walks it.
       (ctx.existsNonEmptyWantedLockfile &&
         (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)) ||
-      // Resolving install: pacquet (>= 0.11) re-resolves from the
+      // Resolving install: pacquet (>= 0.11.7) re-resolves from the
       // manifests itself — applying the policy during fresh resolution —
       // so the existing lockfile entries verified here would just be
       // discarded.
@@ -2074,7 +2074,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     // The frozen branch is handled earlier in `tryFrozenInstall`; the
     // hoisted branch above runs a resolve-then-materialize sequence.
     if (opts.runPacquet != null && !opts.lockfileOnly) {
-      // pacquet >= 0.11 resolves itself: hand it the whole install
+      // pacquet >= 0.11.7 resolves itself: hand it the whole install
       // (resolve + fetch + import + link + build, writing the lockfile)
       // in a single non-frozen pass. Only for plain installs — `add` /
       // `update` / `remove` need pnpm to mutate the manifests and

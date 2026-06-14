@@ -244,7 +244,7 @@ export interface StrictInstallOptions {
    * only pacquet consumes.
    *
    * `supportsResolution` is `true` when the engine can resolve
-   * dependencies itself (pacquet >= 0.11). When `false` the installer
+   * dependencies itself (pacquet >= 0.11.7). When `false` the installer
    * runs its own resolve pass first and the engine only materializes the
    * written lockfile.
    *

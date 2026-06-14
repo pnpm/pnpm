@@ -27,10 +27,12 @@ function makeEngine (lockfileDir: string, packageName: 'pacquet' | '@pnpm/pacque
 }
 
 test.each([
-  ['0.11.0', true],
-  ['0.11.0-rc.1', true],
+  ['0.11.7', true],
+  ['0.11.7-rc.1', true],
   ['0.12.3', true],
   ['1.0.0', true],
+  ['0.11.6', false],
+  ['0.11.0', false],
   ['0.10.99', false],
   ['0.2.2', false],
   ['0.0.1', false],
@@ -50,6 +52,6 @@ test('supportsResolution is false when the pacquet config dependency is absent',
 })
 
 test('the version is read from the @pnpm/pacquet scoped alias too', () => {
-  const lockfileDir = setupPacquetConfigDep('0.11.0', '@pnpm/pacquet')
+  const lockfileDir = setupPacquetConfigDep('0.11.7', '@pnpm/pacquet')
   expect(makeEngine(lockfileDir, '@pnpm/pacquet').supportsResolution).toBe(true)
 })

@@ -70,7 +70,7 @@ export interface RunPacquetCallOpts {
    * `--frozen-lockfile`, so pacquet resolves the manifests, writes
    * `pnpm-lock.yaml`, and materializes in a single pass. Only valid
    * when {@link PacquetEngine.supportsResolution} is `true` (pacquet
-   * >= 0.11).
+   * >= 0.11.7).
    */
   resolve?: boolean
 }
@@ -81,7 +81,7 @@ export interface RunPacquetCallOpts {
  */
 export interface PacquetEngine {
   /**
-   * `true` when the installed pacquet is new enough (>= 0.11) to
+   * `true` when the installed pacquet is new enough (>= 0.11.7) to
    * perform dependency resolution itself. When `false`, pacquet can
    * only materialize an already-resolved lockfile, so the deps-installer
    * runs its own resolve pass first and hands the written lockfile to
@@ -248,15 +248,15 @@ function resolvePacquetVersion (lockfileDir: string, packageName: 'pacquet' | '@
 }
 
 /**
- * pacquet gained its own resolver in 0.11; earlier releases can only
- * materialize a lockfile pnpm already resolved. Pre-release builds of
- * 0.11 (e.g. `0.11.0-rc.1`) count as supporting it.
+ * pacquet gained full resolving installs in 0.11.7; earlier releases
+ * stay on pnpm's resolve-then-materialize path. Pre-release builds of
+ * 0.11.7 (e.g. `0.11.7-rc.1`) count as supporting it.
  */
 function pacquetSupportsResolution (version: string | undefined): boolean {
   if (version == null) return false
-  const [major, minor] = version.split('.', 2).map((part) => parseInt(part, 10))
-  if (Number.isNaN(major) || Number.isNaN(minor)) return false
-  return major > 0 || (major === 0 && minor >= 11)
+  const [major, minor, patch] = version.split('.', 3).map((part) => parseInt(part, 10))
+  if (Number.isNaN(major) || Number.isNaN(minor) || Number.isNaN(patch)) return false
+  return major > 0 || (major === 0 && (minor > 11 || (minor === 11 && patch >= 7)))
 }
 
 /**

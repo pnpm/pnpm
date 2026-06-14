@@ -10,12 +10,11 @@ import { execPnpm, execPnpmSync } from '../utils/index.js'
 // carry it (or its platform-specific binary sub-packages). Tests are gated
 // on the public registry being reachable.
 const PUBLIC_REGISTRY = '--config.registry=https://registry.npmjs.org/'
-// pacquet >= 0.11 ships its own resolver, so pnpm delegates resolution to
-// it on a non-frozen install too.
-const PACQUET_VERSION = '0.11.0'
-// pacquet < 0.11 has no resolver: pnpm resolves and pacquet only
-// materializes the finished lockfile.
-const PACQUET_MATERIALIZE_ONLY_VERSION = '0.2.14'
+// pacquet >= 0.11.7 supports full resolving installs, so pnpm delegates
+// non-frozen plain installs to it too.
+const PACQUET_VERSION = '0.11.7'
+// pacquet < 0.11.7 stays on pnpm's resolve-then-materialize path.
+const PACQUET_RESOLVE_WITH_PNPM_VERSION = '0.11.6'
 
 // Each test runs two or three installs against the public registry; raise
 // the per-test timeout above jest's 5s default to allow for cold caches.
@@ -78,10 +77,10 @@ test('bare `pnpm install` (no --frozen-lockfile) delegates to pacquet when the l
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
 
-test('pnpm install resolves a newly-added dependency with pacquet >= 0.11', async () => {
+test('pnpm install resolves a newly-added dependency with pacquet >= 0.11.7', async () => {
   // `prepare` installs with no dependencies, so the lockfile has no entry
   // for `is-positive`. Adding it to the manifest forces a real resolution
-  // on the next install — which pacquet 0.11 performs itself, in a single
+  // on the next install — which pacquet performs itself, in a single
   // non-frozen pass (resolve + materialize), without a pnpm resolve pass.
   await prepareWithPacquet()
   const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))
@@ -97,11 +96,11 @@ test('pnpm install resolves a newly-added dependency with pacquet >= 0.11', asyn
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
 
-test('pnpm install resolves a newly-added dependency itself when pacquet < 0.11 only materializes', async () => {
-  // Same setup as the resolving test above, but with a pre-resolver
+test('pnpm install resolves a newly-added dependency itself when pacquet < 0.11.7', async () => {
+  // Same setup as the resolving test above, but with an older
   // pacquet: pnpm runs its own lockfileOnly resolve pass for the new dep
   // and hands the freshly-written lockfile to pacquet to materialize.
-  await prepareWithPacquet({ version: PACQUET_MATERIALIZE_ONLY_VERSION })
+  await prepareWithPacquet({ version: PACQUET_RESOLVE_WITH_PNPM_VERSION })
   const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))
   manifest.dependencies = { 'is-positive': '3.1.0' }
   fs.writeFileSync('package.json', JSON.stringify(manifest, null, 2))
