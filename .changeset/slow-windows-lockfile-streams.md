@@ -1,6 +1,7 @@
 ---
 "@pnpm/lockfile.fs": patch
+"@pnpm/installing.commands": patch
 "pnpm": patch
 ---
 
-Wait for early-exited lockfile read streams to close before rewriting lockfiles.
+Close lockfile reads deterministically before rewriting lockfiles and keep pacquet's virtual store directory length aligned with pnpm on Windows.

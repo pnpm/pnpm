@@ -23,6 +23,7 @@ function makeEngine (lockfileDir: string, packageName: 'pacquet' | '@pnpm/pacque
     packageName,
     argv: { original: [], remain: [] },
     isInstallCommand: true,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   })
 }
 

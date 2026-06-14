@@ -500,8 +500,8 @@ pub struct Config {
     /// flat name would exceed this many bytes, the tail is replaced
     /// with a 32-char sha256 hash so the path stays within filesystem
     /// limits (macOS / ext4 cap component names at 255 bytes; pnpm
-    /// defaults to 120 to leave headroom for `node_modules/<name>`
-    /// suffixes appended below).
+    /// defaults to 60 on Windows and 120 elsewhere to leave headroom
+    /// for `node_modules/<name>` suffixes appended below).
     ///
     /// Configurable via `virtualStoreDirMaxLength` in
     /// `pnpm-workspace.yaml`, global `config.yaml`, or
@@ -511,7 +511,7 @@ pub struct Config {
     /// The same value is persisted into `node_modules/.modules.yaml`
     /// so subsequent installs see the user's pick.
     ///
-    /// Default value is 120.
+    /// Default value is 60 on Windows and 120 otherwise.
     #[default(_code = "default_virtual_store_dir_max_length()")]
     pub virtual_store_dir_max_length: u64,
 

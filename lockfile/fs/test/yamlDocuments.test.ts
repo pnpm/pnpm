@@ -61,6 +61,22 @@ describe('streamReadFirstYamlDocument', () => {
     expect(result).toBe('foo: bar')
   })
 
+  test('handles BOM split across reads', async () => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    fs.writeFileSync(filePath, '\uFEFF---\nfoo: bar\n---\nlockfileVersion: 9.0\n')
+    const result = await streamReadFirstYamlDocument(filePath, 2)
+    expect(result).toBe('foo: bar')
+  })
+
+  test.each([0, -1, Number.NaN])('falls back to default read buffer size for %p', async (readBufferSize) => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    fs.writeFileSync(filePath, '---\nfoo: bar\n---\nlockfileVersion: 9.0\n')
+    const result = await streamReadFirstYamlDocument(filePath, readBufferSize)
+    expect(result).toBe('foo: bar')
+  })
+
   test('returns null for empty file', async () => {
     const dir = temporaryDirectory()
     const filePath = path.join(dir, 'test.yaml')
@@ -86,6 +102,14 @@ describe('streamReadFirstYamlDocument', () => {
     fs.writeFileSync(filePath, content)
     const result = await streamReadFirstYamlDocument(filePath)
     expect(result).toBe(envContent)
+  })
+
+  test('handles CRLF document start split across reads', async () => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    fs.writeFileSync(filePath, '---\r\nfoo: bar\r\n---\r\nlockfileVersion: 9.0\r\n')
+    const result = await streamReadFirstYamlDocument(filePath, 4)
+    expect(result).toBe('foo: bar')
   })
 
   test('handles BOM with CRLF line endings', async () => {

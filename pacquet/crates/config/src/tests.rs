@@ -1504,16 +1504,14 @@ pub fn pnpm_config_hoist_false_clears_hoist_pattern() {
     );
 }
 
-/// `virtualStoreDirMaxLength` defaults to 120 — same value pnpm
-/// writes when nothing is configured. The constant lives in
-/// `pacquet-modules-yaml`; this asserts the config side carries
-/// the matching default so a fresh install produces the same
-/// virtual-store dirnames as pnpm.
+/// `virtualStoreDirMaxLength` defaults to the same platform-aware value
+/// pnpm uses when nothing is configured.
 #[test]
-pub fn virtual_store_dir_max_length_defaults_to_120() {
+pub fn virtual_store_dir_max_length_matches_pnpm_default() {
     let tmp = tempdir().unwrap();
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
-    assert_eq!(config.virtual_store_dir_max_length, 120);
+    let expected = if cfg!(windows) { 60 } else { 120 };
+    assert_eq!(config.virtual_store_dir_max_length, expected);
 }
 
 /// `virtualStoreDirMaxLength` in `pnpm-workspace.yaml` overrides

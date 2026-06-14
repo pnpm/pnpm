@@ -19,6 +19,13 @@ const streamParserWritable = streamParser as unknown as Writable
 export interface MakeRunPacquetOpts {
   lockfileDir: string
   /**
+   * Effective pnpm config value. Forwarded through `PNPM_CONFIG_*` so
+   * pacquet writes the same `.modules.yaml` and virtual-store paths as
+   * the pnpm process that delegated to it, including Windows' shorter
+   * default.
+   */
+  virtualStoreDirMaxLength: number
+  /**
    * Which `configDependencies` entry installed pacquet: either the
    * original unscoped `pacquet` or the official scoped
    * `@pnpm/pacquet` mirror. Drives the directory we look in under
@@ -121,10 +128,7 @@ function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => 
     // surface closely enough on that command that they're safe to pass
     // along. From `add`/`update`/`dedupe` we don't forward anything: those
     // commands carry flags pacquet's `install` doesn't recognize
-    // (`--save-dev`, `--save-peer`, etc.) which clap would reject. Either
-    // way pacquet picks up the settings users care about from
-    // `pnpm-workspace.yaml` / `.npmrc` on its own, so a non-install
-    // delegation isn't broken by the omission.
+    // (`--save-dev`, `--save-peer`, etc.) which clap would reject.
     const forwardedFlags = opts.isInstallCommand ? collectForwardedFlags(opts.argv) : []
     // In resolve mode pacquet does the resolution itself, so it must not
     // be pinned to the existing lockfile — drop both injected flags.
@@ -160,6 +164,7 @@ function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => 
     logger.info({ message: banner, prefix: opts.lockfileDir })
     const child = spawn(pacquetBin, args, {
       cwd: opts.lockfileDir,
+      env: makePacquetEnv(opts),
       stdio: ['ignore', 'inherit', 'pipe'],
     })
     const filterResolved = callOpts?.filterResolvedProgress === true
@@ -195,6 +200,17 @@ function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => 
       })
     })
   }
+}
+
+function makePacquetEnv (opts: MakeRunPacquetOpts): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  for (const key of Object.keys(env)) {
+    if (key.toLowerCase() === 'pnpm_config_virtual_store_dir_max_length') {
+      delete env[key]
+    }
+  }
+  env.PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH = String(opts.virtualStoreDirMaxLength)
+  return env
 }
 
 /**
