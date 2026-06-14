@@ -51,21 +51,6 @@ export interface MakeRunPacquetOpts {
   isInstallCommand: boolean
 }
 
-/**
- * Build the install-engine callback `mutateModules` invokes when
- * `configDependencies` declares pacquet.
- *
- * The callback spawns the pacquet binary installed under
- * `node_modules/.pnpm-config/pacquet`. From `pnpm install`/`pnpm i` it
- * forwards the user's own pnpm CLI flags to pacquet's `install`
- * subcommand; from `add`/`update`/`dedupe` it doesn't forward (warning
- * instead). Pacquet's NDJSON stderr is parsed line-by-line and the
- * valid JSON records are re-emitted on pnpm's global `streamParser` so
- * `@pnpm/cli.default-reporter` renders pacquet's events the same way it
- * renders pnpm's own. Non-JSON stderr lines (panic backtraces,
- * unexpected diagnostics) are forwarded to the real stderr verbatim so
- * they reach the user.
- */
 /** Args the deps-installer passes per pacquet invocation. */
 export interface RunPacquetCallOpts {
   /**
@@ -79,9 +64,56 @@ export interface RunPacquetCallOpts {
    * source.
    */
   filterResolvedProgress?: boolean
+  /**
+   * `true` to let pacquet perform the resolution itself rather than
+   * materialize an already-resolved lockfile. Drops the injected
+   * `--frozen-lockfile`, so pacquet resolves the manifests, writes
+   * `pnpm-lock.yaml`, and materializes in a single pass. Only valid
+   * when {@link PacquetEngine.supportsResolution} is `true` (pacquet
+   * >= 0.11.7).
+   */
+  resolve?: boolean
 }
 
-export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => Promise<void> {
+/**
+ * Handle to the pacquet install engine: its capabilities plus the
+ * callback `mutateModules` invokes to run it.
+ */
+export interface PacquetEngine {
+  /**
+   * `true` when the installed pacquet is new enough (>= 0.11.7) to
+   * perform dependency resolution itself. When `false`, pacquet can
+   * only materialize an already-resolved lockfile, so the deps-installer
+   * runs its own resolve pass first and hands the written lockfile to
+   * pacquet.
+   */
+  supportsResolution: boolean
+  run: (callOpts?: RunPacquetCallOpts) => Promise<void>
+}
+
+/**
+ * Build the pacquet install engine `mutateModules` delegates to when
+ * `configDependencies` declares pacquet.
+ *
+ * `run` spawns the pacquet binary installed under
+ * `node_modules/.pnpm-config/pacquet`. From `pnpm install`/`pnpm i` it
+ * forwards the user's own pnpm CLI flags to pacquet's `install`
+ * subcommand; from `add`/`update`/`dedupe` it doesn't forward (warning
+ * instead). Pacquet's NDJSON stderr is parsed line-by-line and the
+ * valid JSON records are re-emitted on pnpm's global `streamParser` so
+ * `@pnpm/cli.default-reporter` renders pacquet's events the same way it
+ * renders pnpm's own. Non-JSON stderr lines (panic backtraces,
+ * unexpected diagnostics) are forwarded to the real stderr verbatim so
+ * they reach the user.
+ */
+export function makeRunPacquet (opts: MakeRunPacquetOpts): PacquetEngine {
+  return {
+    supportsResolution: pacquetSupportsResolution(resolvePacquetVersion(opts.lockfileDir, opts.packageName)),
+    run: makeRun(opts),
+  }
+}
+
+function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => Promise<void> {
   return async (callOpts) => {
     const pacquetBin = resolvePacquetBin(opts.lockfileDir, opts.packageName)
     // From `pnpm install`/`pnpm i` we forward the user's flags through to
@@ -94,16 +126,21 @@ export function makeRunPacquet (opts: MakeRunPacquetOpts): (callOpts?: RunPacque
     // `pnpm-workspace.yaml` / `.npmrc` on its own, so a non-install
     // delegation isn't broken by the omission.
     const forwardedFlags = opts.isInstallCommand ? collectForwardedFlags(opts.argv) : []
-    // `--ignore-manifest-check` tells pacquet to skip its per-importer
-    // `package.json` ↔ `pnpm-lock.yaml` freshness gate. pnpm just
-    // resolved and wrote the lockfile itself; on `pnpm up` / `add` /
-    // `remove` the manifest on disk is still the pre-mutation copy
-    // (pnpm writes it after `mutateModules` returns), so pacquet's own
-    // check would always fire here. See
+    // In resolve mode pacquet does the resolution itself, so it must not
+    // be pinned to the existing lockfile — drop both injected flags.
+    //
+    // Otherwise (frozen materialization) inject `--frozen-lockfile` plus
+    // `--ignore-manifest-check`. The latter tells pacquet to skip its
+    // per-importer `package.json` ↔ `pnpm-lock.yaml` freshness gate:
+    // pnpm just resolved and wrote the lockfile itself; on `pnpm up` /
+    // `add` / `remove` the manifest on disk is still the pre-mutation
+    // copy (pnpm writes it after `mutateModules` returns), so pacquet's
+    // own check would always fire here. See
     // https://github.com/pnpm/pnpm/issues/11797. The flag is narrow
     // (only the manifest check); settings drift like `overrides` is
     // still enforced and was already re-validated by pnpm.
-    const args = ['--reporter=ndjson', 'install', '--frozen-lockfile', '--ignore-manifest-check', ...forwardedFlags]
+    const frozenArgs = callOpts?.resolve === true ? [] : ['--frozen-lockfile', '--ignore-manifest-check']
+    const args = ['--reporter=ndjson', 'install', ...frozenArgs, ...forwardedFlags]
     const droppedFlags = opts.isInstallCommand ? [] : collectDroppedFlags(opts.argv)
     if (droppedFlags.length > 0) {
       logger.warn({
@@ -191,6 +228,35 @@ function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm
 export function pacquetPlatformPkgName (): string {
   const libc = process.platform === 'linux' && getLibcFamilySync() === MUSL ? '-musl' : ''
   return `@pacquet/${process.platform}-${process.arch}${libc}`
+}
+
+/**
+ * Read the installed pacquet's version from its `package.json` under
+ * `node_modules/.pnpm-config/<packageName>`. Returns `undefined` if it
+ * can't be read — callers treat that as "assume the older,
+ * materialization-only pacquet" so a missing/garbled manifest degrades
+ * to the safe path rather than failing the install.
+ */
+function resolvePacquetVersion (lockfileDir: string, packageName: 'pacquet' | '@pnpm/pacquet'): string | undefined {
+  try {
+    const pacquetPkg = fs.realpathSync(path.join(lockfileDir, 'node_modules/.pnpm-config', packageName, 'package.json'))
+    const { version } = JSON.parse(fs.readFileSync(pacquetPkg, 'utf8')) as { version?: string }
+    return version
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * pacquet gained full resolving installs in 0.11.7; earlier releases
+ * stay on pnpm's resolve-then-materialize path. Pre-release builds of
+ * 0.11.7 (e.g. `0.11.7-rc.1`) count as supporting it.
+ */
+function pacquetSupportsResolution (version: string | undefined): boolean {
+  if (version == null) return false
+  const [major, minor, patch] = version.split('.', 3).map((part) => parseInt(part, 10))
+  if (Number.isNaN(major) || Number.isNaN(minor) || Number.isNaN(patch)) return false
+  return major > 0 || (major === 0 && (minor > 11 || (minor === 11 && patch >= 7)))
 }
 
 /**

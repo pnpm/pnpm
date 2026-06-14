@@ -46,8 +46,11 @@ import {
   isEmptyLockfile,
   type LockfileObject,
   type ProjectSnapshot,
+  readEnvLockfile,
+  readWantedLockfile,
   readWantedLockfileFile,
   writeCurrentLockfile,
+  writeEnvLockfile,
   writeLockfiles,
   writeWantedLockfile,
 } from '@pnpm/lockfile.fs'
@@ -371,11 +374,12 @@ export async function mutateModules (
   // install even mid-flight, and an install that finishes first is held back
   // until the verdict arrives.
   //
-  // Skipped when we already know pacquet will run the install: pacquet's
-  // frozen-install path applies the same resolver-policy gate (port of
-  // this function), so re-running here would duplicate the work — and
-  // for `minimumReleaseAge` in strict mode each lockfile entry is an
-  // HTTP probe.
+  // Skipped when we already know pacquet will run the install: pacquet
+  // applies the same resolver-policy gate (port of this function) whether
+  // it materializes a frozen lockfile or re-resolves from the manifests,
+  // so re-running here would duplicate the work — and for
+  // `minimumReleaseAge` in strict mode each lockfile entry is an HTTP
+  // probe.
   //
   // The predicate mirrors every short-circuit `tryFrozenInstall` checks
   // before reaching the pacquet branch: anything that would make it
@@ -385,13 +389,28 @@ export async function mutateModules (
   // isn't known here — so verification still runs in that window, the
   // duplicate is bounded to it.
   const willDelegateToPacquet = opts.runPacquet != null &&
+    opts.useLockfile &&
+    !opts.useGitBranchLockfile &&
+    !opts.mergeGitBranchLockfiles &&
+    opts.lockfileCheck == null &&
+    opts.enableModulesDir &&
     installsOnly &&
     !opts.lockfileOnly &&
     !opts.fixLockfile &&
     !opts.dedupe &&
     !ctx.lockfileHadConflicts &&
-    ctx.existsNonEmptyWantedLockfile &&
-    (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)
+    (
+      // Frozen materialization: pacquet reads the existing lockfile and
+      // re-applies the resolver-policy gate as it walks it.
+      (ctx.existsNonEmptyWantedLockfile &&
+        (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)) ||
+      // Resolving install: pacquet (>= 0.11.7) re-resolves from the
+      // manifests itself — applying the policy during fresh resolution —
+      // so the existing lockfile entries verified here would just be
+      // discarded. If a policy handler is active, keep resolution in pnpm
+      // so violations can be returned to the command layer.
+      (opts.saveLockfile && opts.runPacquet.supportsResolution && opts.frozenLockfile !== true && opts.nodeLinker !== 'hoisted' && opts.handleResolutionPolicyViolations == null)
+    )
   let verifyLockfilePromise: Promise<void> | undefined
   if (!willDelegateToPacquet && !opts.trustLockfile) {
     const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
@@ -1044,9 +1063,9 @@ Note that in CI environments, this setting is enabled by default.`,
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
-    if (opts.runPacquet != null) {
+    if (opts.runPacquet != null && opts.useLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && opts.lockfileCheck == null && opts.enableModulesDir) {
       try {
-        await opts.runPacquet()
+        await opts.runPacquet.run()
       } catch (err) {
         // Same reasoning as the verifyLockfileResolutions catch above: this
         // is the user-facing failure path, so detach the reporter listener
@@ -1922,6 +1941,29 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
 }
 
 /**
+ * The `InstallFunctionResult` for an install pacquet resolved and
+ * materialized end-to-end. pacquet wrote `pnpm-lock.yaml` and the
+ * `node_modules` tree itself. `ctx.wantedLockfile` has already been
+ * refreshed from disk, and pacquet reports its own stats / ignored-builds
+ * via NDJSON, so the structured `stats` / `ignoredBuilds` fall back to
+ * their no-op defaults. Resolution-policy handlers are guarded out before
+ * this path, so there are no command-layer policy violations to return.
+ * Manifests are returned unchanged — this path only runs for plain
+ * installs, which don't rewrite `package.json`.
+ */
+function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): InstallFunctionResult {
+  return {
+    newLockfile: ctx.wantedLockfile,
+    projects: projects.map((project) => ({
+      manifest: project.originalManifest ?? project.manifest,
+      rootDir: project.rootDir,
+    })),
+    depsRequiringBuild: [],
+    resolutionPolicyViolations: [],
+  }
+}
+
+/**
  * Run the pacquet binary if it's configured, otherwise run the JS
  * `headlessInstall`. Callers can hand off any code path that materializes
  * an already-resolved lockfile (workspace partial install, hoisted
@@ -1937,16 +1979,28 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
  * stats record and a no-op ignoredBuilds iteration).
  */
 async function materializeOrDelegate (
-  opts: { runPacquet?: (opts?: { filterResolvedProgress?: boolean }) => Promise<void> },
+  opts: {
+    mergeGitBranchLockfiles?: boolean
+    runPacquet?: { run: (opts?: { filterResolvedProgress?: boolean }) => Promise<void> }
+    saveLockfile?: boolean
+    useGitBranchLockfile?: boolean
+    useLockfile?: boolean
+  },
   runHeadlessInstall: () => Promise<{ stats: InstallationResultStats, ignoredBuilds: IgnoredBuilds | undefined }>
 ): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
-  if (opts.runPacquet != null) {
+  if (
+    opts.runPacquet != null &&
+    opts.useLockfile !== false &&
+    opts.saveLockfile !== false &&
+    opts.useGitBranchLockfile !== true &&
+    opts.mergeGitBranchLockfiles !== true
+  ) {
     // Reached only from the resolve-then-materialize call sites
     // (workspace-partial, hoisted-linker, pnpr server install). Each ran a
     // lockfileOnly resolve pass that emitted one
     // `pnpm:progress status:resolved` per package, so pacquet's
     // duplicate `resolved` events would double the reporter's count.
-    await opts.runPacquet({ filterResolvedProgress: true })
+    await opts.runPacquet.run({ filterResolvedProgress: true })
     return {}
   }
   return runHeadlessInstall()
@@ -1958,7 +2012,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     if (!opts.frozenLockfile && opts.useLockfile) {
       const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects)
         .filter((project) => isPathInsideWorkspace(project.rootDirRealPath ?? project.rootDir))
-      if (allProjectsLocatedInsideWorkspace.length > projects.length) {
+      if (allProjectsLocatedInsideWorkspace.length > projects.length && opts.lockfileCheck == null && opts.enableModulesDir) {
         const newProjects = [...projects]
         const getWantedDepsOpts = {
           autoInstallPeers: opts.autoInstallPeers,
@@ -2010,7 +2064,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
       }
     }
-    if (opts.nodeLinker === 'hoisted' && !opts.lockfileOnly) {
+    if (opts.nodeLinker === 'hoisted' && !opts.lockfileOnly && opts.lockfileCheck == null && opts.enableModulesDir) {
       const result = await _installInContext(projects, ctx, {
         ...opts,
         lockfileOnly: true,
@@ -2036,20 +2090,67 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ignoredBuilds,
       }
     }
-    // Isolated `nodeLinker` (the default) with a non-frozen install:
-    // pacquet doesn't ship a resolver yet, so split the install in two —
-    // ask `_installInContext` for a `lockfileOnly` resolve pass (writes
-    // `pnpm-lock.yaml`), then hand the freshly-written lockfile to
-    // pacquet for the fetch / import / link / build phases. The frozen
-    // branch is handled earlier in `tryFrozenInstall`; the hoisted
-    // branch above already runs the same resolve-then-materialize
-    // sequence (it had to even before pacquet existed). When no pacquet
-    // is configured this falls through to the full single-pass install.
-    if (opts.runPacquet != null && !opts.lockfileOnly) {
+    // Isolated `nodeLinker` (the default) with a non-frozen install.
+    // The frozen branch is handled earlier in `tryFrozenInstall`; the
+    // hoisted branch above runs a resolve-then-materialize sequence.
+    if (opts.runPacquet != null && opts.useLockfile && opts.saveLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !opts.lockfileOnly && opts.lockfileCheck == null && opts.enableModulesDir) {
+      // pacquet >= 0.11.7 resolves itself: hand it the whole install
+      // (resolve + fetch + import + link + build, writing the lockfile)
+      // in a single non-frozen pass. Only for plain installs — `add` /
+      // `update` / `remove` need pnpm to mutate the manifests and
+      // resolve the new specs first (pacquet's `install` reads
+      // package.json from disk, which pnpm hasn't rewritten yet).
+      if (opts.runPacquet.supportsResolution && !opts.frozenLockfile && opts.handleResolutionPolicyViolations == null && allMutationsAreInstalls(projects)) {
+        // `configDependencies` are recorded in a YAML document prepended
+        // to `pnpm-lock.yaml` — purely a pnpm concept that pacquet doesn't
+        // model. Capture it before pacquet rewrites the lockfile and
+        // restore it afterwards (`writeEnvLockfile` re-reads pacquet's main
+        // document and re-prepends the env document), otherwise the next
+        // `--frozen-lockfile` install fails its config-deps freshness gate.
+        // The restore runs even if pacquet fails partway: a non-zero exit can
+        // still leave a rewritten lockfile behind, so the env document must be
+        // put back regardless.
+        const envLockfile = await readEnvLockfile(ctx.lockfileDir)
+        let pacquetError: unknown
+        try {
+          await opts.runPacquet.run({ resolve: true })
+        } catch (err: unknown) {
+          pacquetError = err
+          throw err
+        } finally {
+          if (envLockfile != null) {
+            await writeEnvLockfile(ctx.lockfileDir, envLockfile).catch((restoreErr: Error) => {
+              if (pacquetError == null) {
+                throw restoreErr
+              }
+              logger.warn({
+                error: restoreErr,
+                message: `Failed to restore the configDependencies document in pnpm-lock.yaml: ${restoreErr.message}`,
+                prefix: ctx.lockfileDir,
+              })
+            })
+          }
+        }
+        const wantedLockfile = await readWantedLockfile(ctx.lockfileDir, {
+          ignoreIncompatible: opts.force || opts.ci === true,
+          mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+          useGitBranchLockfile: opts.useGitBranchLockfile,
+          wantedVersions: [LOCKFILE_VERSION],
+        })
+        if (wantedLockfile == null) {
+          throw new PnpmError('PACQUET_LOCKFILE_READ_FAILED', `pacquet did not write a readable ${WANTED_LOCKFILE}`)
+        }
+        ctx.wantedLockfile = wantedLockfile
+        return pacquetResolveResult(projects, ctx)
+      }
+      // Older pacquet can only materialize: split the install in two —
+      // ask `_installInContext` for a `lockfileOnly` resolve pass (writes
+      // `pnpm-lock.yaml`), then hand the freshly-written lockfile to
+      // pacquet for the fetch / import / link / build phases. The resolve
+      // pass emitted a `pnpm:progress status:resolved` per package; ask
+      // pacquet to drop its own duplicates.
       const result = await _installInContext(projects, ctx, { ...opts, lockfileOnly: true })
-      // The resolve pass above emitted a `pnpm:progress status:resolved`
-      // per package; ask pacquet to drop its own duplicates.
-      await opts.runPacquet({ filterResolvedProgress: true })
+      await opts.runPacquet.run({ filterResolvedProgress: true })
       return result
     }
     return await _installInContext(projects, ctx, opts)
