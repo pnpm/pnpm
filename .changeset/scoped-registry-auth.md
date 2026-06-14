@@ -1,4 +1,5 @@
 ---
+"@pnpm/auth.commands": patch
 "@pnpm/config.reader": patch
 "@pnpm/fetching.tarball-fetcher": patch
 "@pnpm/fetching.types": patch
@@ -27,5 +28,7 @@ Configure a scope-specific token by adding the package scope after the registry 
 
 //npm.pkg.github.com/:_authToken=${FALLBACK_TOKEN}
 ```
+
+`pnpm login --registry=https://npm.pkg.github.com --scope=@org-a` writes the token to the same scope-specific auth key.
 
 When installing or publishing `@org-a/*`, pnpm uses `ORG_A_TOKEN`. For `@org-b/*`, pnpm uses `ORG_B_TOKEN`. Packages without a matching scope continue to use the registry-wide fallback token.
