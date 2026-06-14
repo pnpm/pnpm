@@ -319,7 +319,9 @@ fn escape_msys_cmd_switches_escapes_only_standalone_cmd_switches() {
 fn strip_exe_suffix_is_case_insensitive() {
     assert_eq!(strip_exe_suffix("cmd.exe"), Some("cmd"));
     assert_eq!(strip_exe_suffix("cmd.EXE"), Some("cmd"));
+    assert_eq!(strip_exe_suffix("\u{e5}.exe"), Some("\u{e5}"));
     assert_eq!(strip_exe_suffix("node"), None);
+    assert_eq!(strip_exe_suffix("\u{e5}\u{e5}x"), None);
 }
 
 #[test]

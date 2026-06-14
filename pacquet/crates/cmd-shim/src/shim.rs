@@ -417,8 +417,7 @@ fn escape_msys_cmd_switches(args: &str) -> String {
 
 fn strip_exe_suffix(prog: &str) -> Option<&str> {
     let suffix_start = prog.len().checked_sub(4)?;
-    let suffix = &prog[suffix_start..];
-    suffix.eq_ignore_ascii_case(".exe").then_some(&prog[..suffix_start])
+    prog.as_bytes()[suffix_start..].eq_ignore_ascii_case(b".exe").then(|| &prog[..suffix_start])
 }
 
 /// Trailing `# cmd-shim-target=<rel>` marker. Upstream uses it to detect
