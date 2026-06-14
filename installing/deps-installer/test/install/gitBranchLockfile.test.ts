@@ -34,6 +34,30 @@ test('install with git-branch-lockfile = true', async () => {
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
 })
 
+test('git-branch-lockfile installs are not delegated to pacquet', async () => {
+  prepareEmpty()
+
+  const branchName: string = 'main-branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+  const runPacquet = jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+
+  await install({
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }, testDefaults({
+    runPacquet: {
+      supportsResolution: true,
+      run: runPacquet,
+    },
+    useGitBranchLockfile: true,
+  }))
+
+  expect(runPacquet).not.toHaveBeenCalled()
+  expect(fs.existsSync(`pnpm-lock.${branchName}.yaml`)).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+})
+
 test('install with git-branch-lockfile = true and no lockfile changes', async () => {
   prepareEmpty()
 
