@@ -47,6 +47,7 @@ import {
   type LockfileObject,
   type ProjectSnapshot,
   readEnvLockfile,
+  readWantedLockfile,
   readWantedLockfileFile,
   writeCurrentLockfile,
   writeEnvLockfile,
@@ -1938,12 +1939,11 @@ function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
 /**
  * The `InstallFunctionResult` for an install pacquet resolved and
  * materialized end-to-end. pacquet wrote `pnpm-lock.yaml` and the
- * `node_modules` tree itself and reports its own stats / ignored-builds
- * via NDJSON, so there's nothing to recover here: the caller doesn't read
- * `newLockfile` on this path, and `stats` / `ignoredBuilds` fall back to
- * their no-op defaults (same as the frozen delegation). Manifests are
- * returned unchanged — this path only runs for plain installs, which
- * don't rewrite `package.json`.
+ * `node_modules` tree itself. `ctx.wantedLockfile` has already been
+ * refreshed from disk, and pacquet reports its own stats / ignored-builds
+ * via NDJSON, so the structured `stats` / `ignoredBuilds` fall back to
+ * their no-op defaults. Manifests are returned unchanged — this path only
+ * runs for plain installs, which don't rewrite `package.json`.
  */
 function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): InstallFunctionResult {
   return {
@@ -2093,11 +2093,18 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         // still leave a rewritten lockfile behind, so the env document must be
         // put back regardless.
         const envLockfile = await readEnvLockfile(ctx.lockfileDir)
+        let pacquetError: unknown
         try {
           await opts.runPacquet.run({ resolve: true })
+        } catch (err: unknown) {
+          pacquetError = err
+          throw err
         } finally {
           if (envLockfile != null) {
             await writeEnvLockfile(ctx.lockfileDir, envLockfile).catch((restoreErr: Error) => {
+              if (pacquetError == null) {
+                throw restoreErr
+              }
               logger.warn({
                 error: restoreErr,
                 message: `Failed to restore the configDependencies document in pnpm-lock.yaml: ${restoreErr.message}`,
@@ -2106,6 +2113,16 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             })
           }
         }
+        const wantedLockfile = await readWantedLockfile(ctx.lockfileDir, {
+          ignoreIncompatible: opts.force || opts.ci === true,
+          mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+          useGitBranchLockfile: opts.useGitBranchLockfile,
+          wantedVersions: [LOCKFILE_VERSION],
+        })
+        if (wantedLockfile == null) {
+          throw new PnpmError('PACQUET_LOCKFILE_READ_FAILED', `pacquet did not write a readable ${WANTED_LOCKFILE}`)
+        }
+        ctx.wantedLockfile = wantedLockfile
         return pacquetResolveResult(projects, ctx)
       }
       // Older pacquet can only materialize: split the install in two —

@@ -1,7 +1,9 @@
 import { expect, jest, test } from '@jest/globals'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/testing.registry-mock'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -52,6 +54,62 @@ test('does not delegate lockfile check mode to pacquet', async () => {
 
   expect(lockfileCheck).toHaveBeenCalled()
   expect(runPacquet).not.toHaveBeenCalled()
+})
+
+test('uses the lockfile written by pacquet for post-install checks', async () => {
+  prepareEmpty()
+
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, testDefaults({
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+  }))
+
+  const depPath = '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'
+  const runPacquet = jest.fn<(opts?: { resolve?: boolean }) => Promise<void>>().mockImplementation(async () => {
+    writeYamlFileSync(WANTED_LOCKFILE, {
+      importers: {
+        '.': {
+          dependencies: {
+            '@pnpm.e2e/pre-and-postinstall-scripts-example': {
+              specifier: '1.0.0',
+              version: '1.0.0',
+            },
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        [depPath]: {
+          resolution: {
+            integrity: 'sha512-test',
+          },
+        },
+      },
+      snapshots: {
+        [depPath]: {},
+      },
+    }, { lineWidth: 1000 })
+  })
+
+  const { ignoredBuilds } = await install({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  }, testDefaults({
+    allowBuilds: {},
+    runPacquet: {
+      supportsResolution: true,
+      run: runPacquet,
+    },
+  }))
+
+  expect(runPacquet).toHaveBeenCalledWith({ resolve: true })
+  expect(Array.from(ignoredBuilds ?? [])).toContain(depPath)
 })
 
 test('prefer version ranges specified for top dependencies, when doing named installation', async () => {
