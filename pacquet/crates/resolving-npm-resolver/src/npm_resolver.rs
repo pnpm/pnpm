@@ -120,6 +120,9 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// [`PickPackageContext::full_metadata`]. Mirrors upstream's
     /// [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175).
     pub full_metadata: bool,
+    /// When full metadata is forced, read and write pnpm's filtered
+    /// full-metadata mirror.
+    pub filter_metadata: bool,
     /// Retry budget threaded through to
     /// [`PickPackageContext::retry_opts`]. Sourced from the install's
     /// `fetch-retries` config.
@@ -391,6 +394,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             prefer_offline: self.prefer_offline,
             ignore_missing_time_field: self.ignore_missing_time_field,
             full_metadata: self.full_metadata,
+            filter_metadata: self.filter_metadata,
             retry_opts: self.retry_opts,
         };
 

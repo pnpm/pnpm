@@ -1,5 +1,6 @@
-use super::{CliArgs, CliCommand};
+use super::{CliArgs, CliCommand, package_manager_to_sync};
 use clap::Parser;
+use tempfile::TempDir;
 
 /// `--recursive` / `-r` defaults to `false` when absent. Mirrors
 /// pnpm, where `recursive` is unset unless the flag (or a recursive
@@ -72,4 +73,25 @@ fn filter_flag_split_across_subcommand_keeps_only_subcommand_side() {
     let parsed = CliArgs::try_parse_from(["pacquet", "-F", "a", "install", "-F", "b"])
         .expect("parses split -F");
     assert_eq!(parsed.filter, ["b"], "global-side `a` is dropped");
+}
+
+#[test]
+fn package_manager_to_sync_preserves_dev_engine_specifier() {
+    let root = TempDir::new().expect("tmp dir");
+    let manifest_path = root.path().join("package.json");
+    std::fs::write(
+        &manifest_path,
+        r#"{"devEngines":{"packageManager":{"name":"pnpm","version":">=0.0.0","onFail":"download"}}}"#,
+    )
+    .expect("write manifest");
+
+    let package_manager = package_manager_to_sync(&manifest_path, root.path())
+        .expect("read policy")
+        .expect("sync package manager");
+
+    assert_eq!(package_manager.specifier, ">=0.0.0");
+    assert_eq!(
+        package_manager.version,
+        super::current_source_pnpm_version().expect("source pnpm version"),
+    );
 }

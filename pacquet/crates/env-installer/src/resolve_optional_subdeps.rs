@@ -6,9 +6,11 @@
 //! resolved version drift between machines even with a stable parent
 //! integrity, breaking the lockfile's reproducibility promise.
 
-use crate::{ConfigDepError, options::ConfigDepsInstallOptions};
+use crate::{
+    ConfigDepError, manifest_lockfile::package_metadata, options::ConfigDepsInstallOptions,
+};
 use pacquet_lockfile::{
-    EnvLockfile, PackageKey, PackageMetadata, PkgName, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
+    EnvLockfile, PackageKey, PkgName, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
 };
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use std::collections::HashMap;
@@ -47,6 +49,7 @@ pub async fn resolve_optional_subdeps(
         let wanted = WantedDependency {
             alias: Some(subdep_name.clone()),
             bare_specifier: Some(subdep_spec.to_string()),
+            optional: Some(true),
             ..WantedDependency::default()
         };
         let resolve_opts = ResolveOptions {
@@ -89,28 +92,9 @@ pub async fn resolve_optional_subdeps(
                 message: format!("Resolved optionalDependency {subdep_name}@{subdep_version} has an unparsable key"),
             })?;
 
-        let manifest = result.manifest.as_deref();
         env_lockfile.packages.insert(
             pkg_key.clone(),
-            PackageMetadata {
-                resolution: result.resolution.to_lockfile_form(
-                    subdep_name,
-                    &subdep_version,
-                    registry,
-                    false,
-                ),
-                version: None,
-                engines: None,
-                cpu: platform_field(manifest, "cpu"),
-                os: platform_field(manifest, "os"),
-                libc: platform_field(manifest, "libc"),
-                deprecated: None,
-                has_bin: None,
-                prepare: None,
-                bundled_dependencies: None,
-                peer_dependencies: None,
-                peer_dependencies_meta: None,
-            },
+            package_metadata(subdep_name, &subdep_version, &result, registry, false),
         );
         env_lockfile
             .snapshots
@@ -130,18 +114,6 @@ pub async fn resolve_optional_subdeps(
     }
 
     Ok((!resolved.is_empty()).then_some(resolved))
-}
-
-/// `os` / `cpu` / `libc` from a resolved manifest, as a non-empty
-/// `Vec<String>` or `None`. Mirrors pnpm's `pickPlatformFields`.
-fn platform_field(manifest: Option<&serde_json::Value>, key: &str) -> Option<Vec<String>> {
-    let values: Vec<String> = manifest?
-        .get(key)?
-        .as_array()?
-        .iter()
-        .filter_map(|value| value.as_str().map(str::to_string))
-        .collect();
-    (!values.is_empty()).then_some(values)
 }
 
 pub(crate) fn resolution_has_integrity(resolution: &pacquet_lockfile::LockfileResolution) -> bool {

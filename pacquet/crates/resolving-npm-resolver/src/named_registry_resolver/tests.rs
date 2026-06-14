@@ -82,6 +82,7 @@ fn build_resolver(
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
     (resolver, cache_dir)

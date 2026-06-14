@@ -69,8 +69,8 @@ use crate::{
     FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchFullMetadataOutcome,
     FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
-        ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta_async,
-        save_meta_indexed,
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
+        get_pkg_mirror_path, load_meta_async, save_meta_indexed, save_meta_ndjson,
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
@@ -237,6 +237,9 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// `false`; the verifier-time fetcher sets it `true` because
     /// it needs `time` and trust evidence for every entry.
     pub full_metadata: bool,
+    /// When full metadata is forced, use pnpm's filtered full-metadata
+    /// mirror and filtered packument shape.
+    pub filter_metadata: bool,
     /// Retry budget for the picker's metadata fetches. Sourced from
     /// the same `fetch-retries` config the verifier and tarball paths
     /// use, so a registry flap during a pick retries (and a user who
@@ -398,7 +401,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // is the install-wide bias. Either being `true` forces the full
     // packument.
     let full_metadata = opts.optional || ctx.full_metadata;
-    let meta_dir = if full_metadata { FULL_META_DIR } else { ABBREVIATED_META_DIR };
+    let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
+    let meta_dir = if full_metadata {
+        if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
+    } else {
+        ABBREVIATED_META_DIR
+    };
 
     let pkg_mirror = ctx
         .cache_dir
@@ -412,14 +420,16 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // shares one cache across all `pick_package` calls, so the key
     // has to do the scoping itself.
     //
-    // The `:full` suffix mirrors upstream's
+    // The full-mode suffix mirrors upstream's
     // [cache-key shape](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L206):
     // a later call with `opts.optional = true` must not satisfy
     // itself with the abbreviated cache entry an earlier call
     // populated (the abbreviated form drops `libc`/`cpu`/`os` from
-    // some shapes).
+    // some shapes). Filtered full metadata gets its own suffix
+    // because pacquet stores it in a distinct on-disk mirror shape.
     let cache_key = if full_metadata {
-        format!("{}\x00{}:full", opts.registry, spec.name)
+        let suffix = if use_filtered_full_metadata { ":full:filtered" } else { ":full" };
+        format!("{}\x00{}{suffix}", opts.registry, spec.name)
     } else {
         format!("{}\x00{}", opts.registry, spec.name)
     };
@@ -432,6 +442,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             opts,
             &picker_opts,
             full_metadata,
+            use_filtered_full_metadata,
             &cache_key,
             pkg_mirror.as_deref(),
             cached,
@@ -474,6 +485,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             opts,
             &picker_opts,
             full_metadata,
+            use_filtered_full_metadata,
             &cache_key,
             pkg_mirror.as_deref(),
             cached,
@@ -511,7 +523,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             let meta = upgrade.meta;
             if upgrade.upgraded && !opts.dry_run {
                 if let Some(path) = pkg_mirror.as_deref() {
-                    persist_upgraded_to_mirror(path, &meta);
+                    persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
                 }
                 ctx.meta_cache.set(cache_key.clone(), Arc::clone(&meta));
             }
@@ -607,6 +619,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         auth_headers: ctx.auth_headers,
         cache_dir: ctx.cache_dir,
         full_metadata,
+        filter_metadata: use_filtered_full_metadata,
         retry_opts: ctx.retry_opts,
     };
 
@@ -652,7 +665,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         && !opts.dry_run
         && let Some(path) = pkg_mirror.as_deref()
     {
-        persist_upgraded_to_mirror(path, &meta);
+        persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
     }
 
     // Divergence from upstream worth flagging: pnpm's pickPackage
@@ -691,6 +704,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     opts: &PickPackageOptions<'_>,
     picker_opts: &PickerOpts<'_>,
     full_metadata: bool,
+    use_filtered_full_metadata: bool,
     cache_key: &str,
     pkg_mirror: Option<&Path>,
     cached: Arc<Package>,
@@ -704,7 +718,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         // fetch on its next install. Matches upstream's
         // [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
         if let Some(path) = pkg_mirror {
-            persist_upgraded_to_mirror(path, &meta);
+            persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
         }
         ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
@@ -1114,8 +1128,25 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
 /// and the install proceeds — the next install simply re-triggers
 /// the upgrade fetch. Mirrors upstream's
 /// [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
-fn persist_upgraded_to_mirror(pkg_mirror: &Path, meta: &Package) {
-    if let Err(error) = save_meta_indexed(pkg_mirror, meta, meta.etag.as_deref()) {
+fn persist_upgraded_to_mirror(pkg_mirror: &Path, meta: &Package, filter_metadata: bool) {
+    let save_result = if filter_metadata {
+        let meta_for_cache = match clear_meta(meta) {
+            Ok(meta_for_cache) => meta_for_cache,
+            Err(error) => {
+                tracing::debug!(
+                    target: "pacquet_resolving_npm_resolver::pick_package",
+                    ?error,
+                    path = %pkg_mirror.display(),
+                    "could not filter upgraded mirror metadata",
+                );
+                return;
+            }
+        };
+        save_meta_ndjson(pkg_mirror, &meta_for_cache, meta.etag.as_deref())
+    } else {
+        save_meta_indexed(pkg_mirror, meta, meta.etag.as_deref())
+    };
+    if let Err(error) = save_result {
         tracing::debug!(
             target: "pacquet_resolving_npm_resolver::pick_package",
             ?error,

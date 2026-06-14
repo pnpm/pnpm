@@ -10,7 +10,9 @@ use super::{
     PickPackageOptions, persist_meta_to_mirror, pick_package, shared_packument_fetch_locker,
 };
 use crate::{
-    mirror::{ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta},
+    mirror::{
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta,
+    },
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
 };
 
@@ -106,6 +108,7 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -123,6 +126,42 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
     // landed.
     let key = format!("{registry}\x00acme");
     assert!(meta_cache.get(&key).is_some(), "in-memory cache populated");
+}
+
+#[tokio::test]
+async fn filtered_full_metadata_reads_pnpm_jsonl_mirror_for_lowest_pick() {
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = "https://registry.example.test/";
+    let mirror_path =
+        get_pkg_mirror_path(cache_dir.path(), FULL_FILTERED_META_DIR, registry, "acme")
+            .expect("path");
+    std::fs::create_dir_all(mirror_path.parent().expect("mirror parent")).expect("mkdir");
+    std::fs::write(&mirror_path, format!("{{\"etag\":\"W/filtered\"}}\n{PACKAGE_BODY}"))
+        .expect("write pnpm jsonl mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: true,
+        filter_metadata: true,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let mut opts = default_opts(registry);
+    opts.pick_lowest_version = true;
+
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
 }
 
 /// Warm in-memory cache: no network call, picker reads the cached
@@ -155,6 +194,7 @@ async fn warm_in_memory_cache_skips_network() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -193,6 +233,7 @@ async fn offline_with_mirror_picks_from_disk() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -224,6 +265,7 @@ async fn offline_without_mirror_errors() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -261,6 +303,7 @@ async fn version_spec_with_mirror_takes_fast_path() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -326,6 +369,7 @@ async fn version_spec_missing_in_mirror_fetches() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -367,6 +411,7 @@ async fn dry_run_skips_in_memory_cache() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -406,6 +451,7 @@ async fn pick_lowest_version_picks_min() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -490,6 +536,7 @@ async fn in_memory_cache_does_not_leak_across_registries() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -533,6 +580,7 @@ async fn invalid_package_name_errors_synchronously() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -601,6 +649,7 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -651,6 +700,7 @@ async fn optional_opt_forces_full_metadata_endpoint() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -708,6 +758,7 @@ async fn cache_key_separates_abbreviated_from_full() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -723,6 +774,63 @@ async fn cache_key_separates_abbreviated_from_full() {
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second");
 
     abbrev_mock.assert_async().await;
+    full_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn cache_key_separates_filtered_full_from_unfiltered_full() {
+    let mut server = mockito::Server::new_async().await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(2)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let unfiltered_ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: true,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+    let filtered_ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: true,
+        filter_metadata: true,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let _ = pick_package(&unfiltered_ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("unfiltered full");
+    let _ = pick_package(&filtered_ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("filtered full");
+
+    assert!(meta_cache.get(&format!("{registry}\x00acme:full")).is_some());
+    assert!(meta_cache.get(&format!("{registry}\x00acme:full:filtered")).is_some());
     full_mock.assert_async().await;
 }
 
@@ -776,6 +884,7 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -843,6 +952,7 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
         prefer_offline: false,
         ignore_missing_time_field: true,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -889,6 +999,7 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -972,6 +1083,7 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
@@ -1035,6 +1147,7 @@ async fn concurrent_picks_for_same_key_share_one_network_fetch() {
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
 
