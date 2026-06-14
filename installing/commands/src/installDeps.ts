@@ -519,14 +519,6 @@ export async function installDeps (
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
   const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
-  // Key the graph by `project.rootDir`, not `searchedDir`. Downstream
-  // `recursive()` builds `manifestsByPath` from `projects` (keyed by
-  // `project.rootDir`) and then iterates `Object.keys(selectedProjectsGraph)`
-  // to look up `manifestsByPath[rootDir]`. On Windows, `opts.dir` and
-  // `project.rootDir` can end up with different drive-letter casing or path
-  // separators after platform normalization, leaving the lookup `undefined`
-  // and surfacing as `Cannot destructure property 'manifest' of
-  // 'manifestsByPath[rootDir]' as it is undefined`.
   return { [project.rootDir]: { dependencies: [], package: project } }
 }
 
