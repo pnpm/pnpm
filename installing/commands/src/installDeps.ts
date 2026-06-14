@@ -119,6 +119,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'configDependencies'
 | 'packageExtensions'
 | 'updateConfig'
+| 'virtualStoreDirMaxLength'
 > & Pick<ConfigContext,
 | 'allProjects'
 | 'allProjectsGraph'
@@ -245,6 +246,7 @@ export async function installDeps (
       packageName: pacquetConfigDepName,
       argv: { original: opts.argv.original, remain: opts.argv.remain ?? [] },
       isInstallCommand: opts.isInstallCommand === true,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
     : undefined
   const includeDirect = opts.includeDirect ?? {

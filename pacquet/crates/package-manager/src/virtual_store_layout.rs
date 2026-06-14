@@ -79,8 +79,9 @@ pub struct VirtualStoreLayout {
     /// the escaped filename exceeds this many bytes, the tail is
     /// replaced with a 32-char sha256 hash so the directory name fits
     /// within filesystem limits (macOS / ext4 cap component names at
-    /// 255 bytes, but pnpm defaults to 120 to leave headroom for the
-    /// `<name>@<version>/` suffix appended below).
+    /// 255 bytes, but pnpm defaults to 60 on Windows and 120 elsewhere
+    /// to leave headroom for the `<name>@<version>/` suffix appended
+    /// below).
     ///
     /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
     virtual_store_dir_max_length: usize,
