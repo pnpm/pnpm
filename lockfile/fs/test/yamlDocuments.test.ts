@@ -61,6 +61,14 @@ describe('streamReadFirstYamlDocument', () => {
     expect(result).toBe('foo: bar')
   })
 
+  test('handles BOM split across reads', async () => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    fs.writeFileSync(filePath, '\uFEFF---\nfoo: bar\n---\nlockfileVersion: 9.0\n')
+    const result = await streamReadFirstYamlDocument(filePath, 2)
+    expect(result).toBe('foo: bar')
+  })
+
   test('returns null for empty file', async () => {
     const dir = temporaryDirectory()
     const filePath = path.join(dir, 'test.yaml')

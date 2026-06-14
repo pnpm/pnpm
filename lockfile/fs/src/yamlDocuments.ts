@@ -15,21 +15,21 @@ const READ_BUFFER_SIZE = 64 * 1024
  * Stops reading as soon as the second document separator is found.
  * Returns null if the file doesn't exist or doesn't start with "---\n".
  */
-export async function streamReadFirstYamlDocument (filePath: string): Promise<string | null> {
+export async function streamReadFirstYamlDocument (filePath: string, readBufferSize = READ_BUFFER_SIZE): Promise<string | null> {
   let fileHandle: FileHandle | undefined
   let buffer = ''
   let firstChunk = true
   try {
     fileHandle = await open(filePath, 'r')
     const decoder = new StringDecoder('utf8')
-    const readBuffer = Buffer.allocUnsafe(READ_BUFFER_SIZE)
+    const readBuffer = Buffer.allocUnsafe(readBufferSize)
     let position = 0
     while (true) {
       const { bytesRead } = await fileHandle.read(readBuffer, 0, readBuffer.length, position) // eslint-disable-line no-await-in-loop
       if (bytesRead === 0) break
       position += bytesRead
       let chunk = decoder.write(readBuffer.subarray(0, bytesRead))
-      if (firstChunk) {
+      if (firstChunk && chunk.length > 0) {
         // Strip BOM from the first chunk. Safe because the decoder uses utf8,
         // so the 3-byte BOM is decoded into a single \uFEFF character.
         chunk = stripBom(chunk)
