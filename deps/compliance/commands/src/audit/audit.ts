@@ -1,6 +1,7 @@
 import { checkbox, Separator } from '@inquirer/prompts'
 import { docsUrl, interactivePromptPageSize, TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { writeSettings } from '@pnpm/config.writer'
 import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
@@ -13,6 +14,7 @@ import { pick, pickBy } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { createAuditNetworkOptions, loadAuditContext } from './auditContext.js'
+import { cleanupIgnoredGhsas } from './cleanupIgnoredGhsas.js'
 import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { getAuditFixChoices } from './getAuditFixChoices.js'
@@ -255,6 +257,29 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
     throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}. Should be one of "override" or "update"`)
   }
   if (fixMethod != null) {
+    // Cleanup unused ignored GHSAs if enabled
+    if (opts.auditConfig?.cleanupUnusedIgnoredGhsas && opts.auditConfig?.ignoreGhsas?.length) {
+      const { cleaned, retained } = cleanupIgnoredGhsas(opts.auditConfig.ignoreGhsas, auditReport)
+      if (cleaned.length > 0) {
+        globalInfo(`Removed ${cleaned.length} unused ignored GHSA(s): ${cleaned.join(', ')}`)
+        const retainedNormalized = retained.map(normalizeGhsaId)
+        await writeSettings({
+          ...opts,
+          workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+          updatedSettings: {
+            auditConfig: {
+              ...opts.auditConfig,
+              ignoreGhsas: retainedNormalized.length > 0 ? retainedNormalized : undefined,
+            },
+          },
+        })
+        // Update opts for subsequent operations
+        opts.auditConfig = {
+          ...opts.auditConfig,
+          ignoreGhsas: retainedNormalized.length > 0 ? retainedNormalized : undefined,
+        }
+      }
+    }
     // Pre-filter by auditLevel and ignoreGhsas so the interactive prompt
     // and the update-method path see the same set of advisories that
     // fix.ts's getFixableAdvisories filters for the override path.
