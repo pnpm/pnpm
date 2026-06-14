@@ -1,6 +1,7 @@
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod job_control;
 mod state;
 
 use clap::Parser;
@@ -25,6 +26,10 @@ pub fn main() -> miette::Result<()> {
     if args.finished_via_install_fast_path(&config_overrides) {
         return Ok(());
     }
+    // Tie any child pacquet spawns (lifecycle scripts and their descendants)
+    // to this process so none are orphaned on Windows. Held until `main`
+    // returns; see `job_control`.
+    let _job_guard = job_control::setup();
     configure_rayon_pool();
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
