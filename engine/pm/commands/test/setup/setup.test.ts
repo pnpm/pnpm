@@ -1,9 +1,24 @@
+import os from 'node:os'
+import path from 'node:path'
+
 import { expect, jest, test } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
 import type { PathExtenderReport } from '@pnpm/os.env.path-extender'
 
 jest.unstable_mockModule('@pnpm/os.env.path-extender', () => ({
   addDirToEnvPath: jest.fn(),
+}))
+
+const actualCliMeta = await import('@pnpm/cli.meta')
+jest.unstable_mockModule('@pnpm/cli.meta', () => ({
+  ...actualCliMeta,
+  detectIfCurrentPkgIsExecutable: jest.fn(() => false),
+}))
+
+const actualChildProcess = await import('node:child_process')
+jest.unstable_mockModule('node:child_process', () => ({
+  ...actualChildProcess,
+  spawnSync: jest.fn(() => ({ status: 0 })),
 }))
 
 const actualFs = await import('node:fs')
@@ -19,6 +34,8 @@ jest.unstable_mockModule('fs', () => {
 })
 
 const { addDirToEnvPath } = await import('@pnpm/os.env.path-extender')
+const { detectIfCurrentPkgIsExecutable } = await import('@pnpm/cli.meta')
+const { spawnSync } = await import('node:child_process')
 const { setup } = await import('@pnpm/engine.pm.commands')
 
 test('setup makes no changes', async () => {
@@ -82,4 +99,26 @@ test('hint is added to ERR_PNPM_BAD_SHELL_SECTION error object', async () => {
     err = _err
   }
   expect(err?.hint).toBe('If you want to override the existing configuration section, use the --force option')
+})
+
+test('global install of the standalone executable skips its build scripts', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const execPath = path.join(tmpDir, 'pnpm')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir: path.join(tmpDir, 'home') })
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+  expect(spawnSync).toHaveBeenCalledTimes(1)
+  const args = jest.mocked(spawnSync).mock.calls[0][1] as string[]
+  expect(args).toContain('--ignore-scripts')
+  expect(args).toEqual(['add', '-g', '--ignore-scripts', `file:${tmpDir}`])
 })

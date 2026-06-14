@@ -84,7 +84,15 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
 
   try {
     const binDir = path.join(pnpmHomeDir, 'bin')
-    const { status, error } = spawnSync(execPath, ['add', '-g', `file:${execDir}`], {
+    // @pnpm/exe ships a `preinstall`/`prepare` pair (setup.js/prepare.js) that
+    // hardlinks the platform-specific binary out of its optional platform
+    // packages. None of that applies here: this `file:` dependency is the
+    // standalone executable itself (its binary is already present), the
+    // platform packages aren't installed alongside it, and the SEA host may
+    // have no `node` to run the scripts at all. Skipping them avoids a build
+    // approval prompt for pnpm's own install. See
+    // https://github.com/pnpm/pnpm/issues/12377.
+    const { status, error } = spawnSync(execPath, ['add', '-g', '--ignore-scripts', `file:${execDir}`], {
       stdio: 'inherit',
       env: {
         ...process.env,
