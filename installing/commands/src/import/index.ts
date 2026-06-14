@@ -12,6 +12,7 @@ import {
   createStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store.connection-manager'
+import type { Project, ProjectsGraph } from '@pnpm/types'
 import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
@@ -24,7 +25,6 @@ import { map as mapValues } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { recursive } from '../recursive.js'
-import { selectProjectByDir } from '../selectProjectByDir.js'
 import { yarnLockFileKeyNormalizer } from './yarnUtil.js'
 
 interface NpmPackageLock {
@@ -332,6 +332,12 @@ function getAllVersionsFromYarnLockFile (
     }
     versionsByPackageNames[pkgName].add(version)
   }
+}
+
+function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
+  const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
+  if (project == null) return undefined
+  return { [project.rootDir]: { dependencies: [], package: project } }
 }
 
 function getYarnLockfileType (
