@@ -96,6 +96,14 @@ describe('streamReadFirstYamlDocument', () => {
     expect(result).toBe(envContent)
   })
 
+  test('handles CRLF document start split across reads', async () => {
+    const dir = temporaryDirectory()
+    const filePath = path.join(dir, 'test.yaml')
+    fs.writeFileSync(filePath, '---\r\nfoo: bar\r\n---\r\nlockfileVersion: 9.0\r\n')
+    const result = await streamReadFirstYamlDocument(filePath, 4)
+    expect(result).toBe('foo: bar')
+  })
+
   test('handles BOM with CRLF line endings', async () => {
     const dir = temporaryDirectory()
     const filePath = path.join(dir, 'test.yaml')

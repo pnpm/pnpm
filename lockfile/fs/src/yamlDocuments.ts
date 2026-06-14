@@ -38,7 +38,7 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
       buffer += chunk
       // Normalize CRLF (Windows) to LF so document separator detection works.
       buffer = buffer.replace(/\r\n/g, '\n')
-      if (buffer.length >= YAML_DOCUMENT_START.length && !buffer.startsWith(YAML_DOCUMENT_START)) {
+      if (canRejectDocumentStart(buffer)) {
         return null
       }
       const sep = buffer.indexOf(YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START.length)
@@ -58,8 +58,14 @@ export async function streamReadFirstYamlDocument (filePath: string, readBufferS
     }
     throw err
   } finally {
-    await fileHandle?.close()
+    await fileHandle?.close().catch(() => {})
   }
+}
+
+function canRejectDocumentStart (buffer: string): boolean {
+  if (buffer.length < YAML_DOCUMENT_START.length) return false
+  if (buffer === '---\r') return false
+  return !buffer.startsWith(YAML_DOCUMENT_START)
 }
 
 /**
