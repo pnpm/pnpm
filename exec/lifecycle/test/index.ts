@@ -66,6 +66,7 @@ test('runLifecycleHook() does not set npm_config env vars but preserves user-def
   const pkgRoot = f.find('inspect-npm-config-env')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
+  const prevPlatformArch = process.env.npm_config_platform_arch
   process.env.npm_config_platform_arch = 'x64'
   try {
     await runLifecycleHook('postinstall', pkg, {
@@ -75,7 +76,11 @@ test('runLifecycleHook() does not set npm_config env vars but preserves user-def
       unsafePerm: true,
     })
   } finally {
-    delete process.env.npm_config_platform_arch
+    if (prevPlatformArch === undefined) {
+      delete process.env.npm_config_platform_arch
+    } else {
+      process.env.npm_config_platform_arch = prevPlatformArch
+    }
   }
 
   expect(server.getLines()).toStrictEqual(['npm_config_platform_arch=x64'])

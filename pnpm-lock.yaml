@@ -354,8 +354,8 @@ catalogs:
       specifier: ^0.3.1
       version: 0.3.1
     '@pnpm/npm-lifecycle':
-      specifier: https://github.com/pnpm/npm-lifecycle#refs/pull/59/head
-      version: 1100.0.0-1
+      specifier: ^1100.0.0
+      version: 1100.0.0
     '@pnpm/npm-package-arg':
       specifier: ^2.0.0
       version: 2.0.0
@@ -4383,7 +4383,7 @@ importers:
         version: link:../../fetching/directory-fetcher
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
-        version: https://codeload.github.com/pnpm/npm-lifecycle/tar.gz/61fb2521ed7b0ea81005607cc10661e1206085df(typanion@3.14.0)
+        version: 1100.0.0(typanion@3.14.0)
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
@@ -11646,9 +11646,8 @@ packages:
     resolution: {integrity: sha512-5jW/GNLdZMiw+PJ8FYSvOghoApSjsORNIro2fj8j6NHAqJxJjcHekC5/NsKaawoI5LAkU/XDDVjNC71Yz+uS1w==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/npm-lifecycle@https://codeload.github.com/pnpm/npm-lifecycle/tar.gz/61fb2521ed7b0ea81005607cc10661e1206085df':
-    resolution: {gitHosted: true, integrity: sha512-tApMu00Rs2kSntgeLByOMAfVEpHPx8znePiccLetwl5EW47AbirZLvZeQiOBz4oyG+P7Dqta2oKzf37bMPhgPg==, tarball: https://codeload.github.com/pnpm/npm-lifecycle/tar.gz/61fb2521ed7b0ea81005607cc10661e1206085df}
-    version: 1100.0.0-1
+  '@pnpm/npm-lifecycle@1100.0.0':
+    resolution: {integrity: sha512-igdq1MDnShKMFLdA9uBkMZ8lI/65FUMeh7mjgd1x710qjk9JtF8bV2iYOs/hbBz6IFo98adyQvg1Trx1n5dwIw==}
     engines: {node: '>=22.13'}
 
   '@pnpm/npm-package-arg@2.0.0':
@@ -19235,7 +19234,7 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/npm-lifecycle@https://codeload.github.com/pnpm/npm-lifecycle/tar.gz/61fb2521ed7b0ea81005607cc10661e1206085df(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@1100.0.0(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
       '@pnpm/error': 1000.1.0
