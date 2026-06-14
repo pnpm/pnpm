@@ -164,10 +164,10 @@ test('auth and tls combined', () => {
 test('package-scope auth is grouped under the registry URI', () => {
   expect(getNetworkConfigs({
     '//npm.pkg.github.com/:_authToken': 'registry-token',
-    '//npm.pkg.github.com:@orgA:_authToken': 'org-a-token',
-    '//npm.pkg.github.com:@orgB:_authToken': 'org-b-token',
-    '//reg.com/npm:@orgA:_authToken': 'org-a-path-token',
-    '//localhost:4873:@orgC:_authToken': 'org-c-port-token',
+    '//npm.pkg.github.com/:@orgA:_authToken': 'org-a-token',
+    '//npm.pkg.github.com/:@orgB:_authToken': 'org-b-token',
+    '//reg.com/npm/:@orgA:_authToken': 'org-a-path-token',
+    '//localhost:4873/:@orgC:_authToken': 'org-c-port-token',
   })).toStrictEqual({
     registries: {},
     configByUri: {

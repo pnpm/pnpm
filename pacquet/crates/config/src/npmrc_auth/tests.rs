@@ -153,10 +153,10 @@ fn parses_per_registry_auth_token() {
 fn parses_package_scope_auth_under_registry_uri() {
     let ini = "\
 //npm.pkg.github.com/:_authToken=registry-token
-//npm.pkg.github.com:@orgA:_authToken=org-a-token
-//npm.pkg.github.com:@orgB:_authToken=org-b-token
-//reg.com/npm:@orgA:_authToken=org-a-path-token
-//localhost:4873:@orgC:_authToken=org-c-port-token
+//npm.pkg.github.com/:@orgA:_authToken=org-a-token
+//npm.pkg.github.com/:@orgB:_authToken=org-b-token
+//reg.com/npm/:@orgA:_authToken=org-a-path-token
+//localhost:4873/:@orgC:_authToken=org-c-port-token
 ";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(default_auth_token(&auth, "//npm.pkg.github.com/"), Some(Some("registry-token")));
@@ -198,7 +198,7 @@ fn parses_slash_package_scope_auth_under_registry_uri() {
 fn package_scope_auth_from_npmrc_wins_over_registry_auth() {
     let ini = "\
 //npm.pkg.github.com/:_authToken=registry-token
-//npm.pkg.github.com:@orgA:_authToken=org-a-token
+//npm.pkg.github.com/:@orgA:_authToken=org-a-token
 ";
     let mut config = Config::new();
     NpmrcAuth::from_ini::<NoEnv>(ini, Path::new("")).apply_to::<NoEnv>(&mut config);

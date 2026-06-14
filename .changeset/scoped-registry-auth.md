@@ -23,8 +23,8 @@ Configure a scope-specific token by adding the package scope after the registry 
 @org-a:registry=https://npm.pkg.github.com/
 @org-b:registry=https://npm.pkg.github.com/
 
-//npm.pkg.github.com:@org-a:_authToken=${ORG_A_TOKEN}
-//npm.pkg.github.com:@org-b:_authToken=${ORG_B_TOKEN}
+//npm.pkg.github.com/:@org-a:_authToken=${ORG_A_TOKEN}
+//npm.pkg.github.com/:@org-b:_authToken=${ORG_B_TOKEN}
 
 //npm.pkg.github.com/:_authToken=${FALLBACK_TOKEN}
 ```
