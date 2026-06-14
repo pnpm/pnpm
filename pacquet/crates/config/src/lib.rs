@@ -1796,7 +1796,7 @@ impl Config {
         // [`loadNpmrcFiles.ts`](https://github.com/pnpm/pnpm/blob/main/config/reader/src/loadNpmrcFiles.ts).
         let env_scoped_source = {
             let auth = crate::npmrc_auth::NpmrcAuth::from_url_scoped_env::<Sys>();
-            (!auth.creds_by_uri.is_empty()).then_some(auth)
+            (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
         };
 
         // Fold high-priority-first: the first present source is the

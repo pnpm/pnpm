@@ -88,7 +88,7 @@ test('auth and tls combined', () => {
     },
     configByUri: {
       '//example.com/foo': {
-        creds: { authToken: 'example auth token' },
+        '@': { authToken: 'example auth token' },
       },
     },
   } as NetworkConfigs)
@@ -102,7 +102,7 @@ test('auth and tls combined', () => {
     },
     configByUri: {
       '//example.com/foo': {
-        creds: {
+        '@': {
           basicAuth: {
             username: 'foo',
             password: 'bar',
@@ -122,7 +122,7 @@ test('auth and tls combined', () => {
     },
     configByUri: {
       '//example.com/foo': {
-        creds: {
+        '@': {
           basicAuth: {
             username: 'foo',
             password: 'bar',
@@ -141,7 +141,7 @@ test('auth and tls combined', () => {
     },
     configByUri: {
       '//example.com/foo': {
-        creds: { tokenHelper: ['node', './my-token-helper.cjs'] },
+        '@': { tokenHelper: ['node', './my-token-helper.cjs'] },
       },
     },
   } as NetworkConfigs)
@@ -154,8 +154,52 @@ test('auth and tls combined', () => {
     registries: {},
     configByUri: {
       '//example.com/foo': {
-        creds: { authToken: 'token' },
+        '@': { authToken: 'token' },
         tls: { cert: 'some-cert', key: 'some-key' },
+      },
+    },
+  } as NetworkConfigs)
+})
+
+test('package-scope auth is grouped under the registry URI', () => {
+  expect(getNetworkConfigs({
+    '//npm.pkg.github.com/:_authToken': 'registry-token',
+    '//npm.pkg.github.com/:@orgA:_authToken': 'org-a-token',
+    '//npm.pkg.github.com/:@orgB:_authToken': 'org-b-token',
+    '//reg.com/npm/:@orgA:_authToken': 'org-a-path-token',
+    '//localhost:4873/:@orgC:_authToken': 'org-c-port-token',
+  })).toStrictEqual({
+    registries: {},
+    configByUri: {
+      '//npm.pkg.github.com/': {
+        '@': { authToken: 'registry-token' },
+        '@orgA': { authToken: 'org-a-token' },
+        '@orgB': { authToken: 'org-b-token' },
+      },
+      '//reg.com/npm/': {
+        '@orgA': { authToken: 'org-a-path-token' },
+      },
+      '//localhost:4873/': {
+        '@orgC': { authToken: 'org-c-port-token' },
+      },
+    },
+  } as NetworkConfigs)
+})
+
+test('slash package-scope auth is grouped under the registry URI', () => {
+  expect(getNetworkConfigs({
+    '//npm.pkg.github.com/@orgA:_authToken': 'org-a-token',
+    '//npm.pkg.github.com/@orgB/:_authToken': 'org-b-token',
+    '//reg.com/npm/@orgA:_authToken': 'org-a-path-token',
+  })).toStrictEqual({
+    registries: {},
+    configByUri: {
+      '//npm.pkg.github.com/': {
+        '@orgA': { authToken: 'org-a-token' },
+        '@orgB': { authToken: 'org-b-token' },
+      },
+      '//reg.com/npm/': {
+        '@orgA': { authToken: 'org-a-path-token' },
       },
     },
   } as NetworkConfigs)

@@ -51,7 +51,7 @@ export function help (): string {
             name: '--registry <url>',
           },
           {
-            description: 'Associate an operation with a scope for a scoped registry. The scope-to-registry mapping is recorded so future installs in the same scope use the chosen registry.',
+            description: 'Associate the login token with a package scope and record the scope-to-registry mapping.',
             name: '--scope <scope>',
           },
         ],
@@ -193,11 +193,9 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   const configPath = path.join(opts.configDir, 'auth.ini')
   const settings = await safeReadIniFile(readIniFile, configPath) as Record<string, unknown>
   const registryConfigKey = getRegistryConfigKey(registry)
-  settings[`${registryConfigKey}:_authToken`] = token
-  // Persist the scope → registry mapping next to the auth token so subsequent
-  // installs for `@scope/*` packages route to this registry. `auth.ini` is
-  // already an allowed source of `@scope:registry=` (see config/reader).
   const scopeKey = normalizeScope(opts.scope)
+  const authConfigKey = scopeKey == null ? registryConfigKey : `${registryConfigKey}:${scopeKey}`
+  settings[`${authConfigKey}:_authToken`] = token
   if (scopeKey != null) {
     settings[`${scopeKey}:registry`] = registry
   }
@@ -206,9 +204,6 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
   return `Logged in on ${registry}`
 }
 
-// `--scope foo` and `--scope @foo` should both produce `@foo`. Empty / blank
-// values are treated as unset so accidental whitespace doesn't write a broken
-// `@:registry=` entry.
 function normalizeScope (scope: string | undefined): string | undefined {
   if (scope == null) return undefined
   const trimmed = scope.trim()

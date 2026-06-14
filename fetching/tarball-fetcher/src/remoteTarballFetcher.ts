@@ -4,7 +4,7 @@ import util from 'node:util'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError } from '@pnpm/error'
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
-import type { FetchFromRegistry } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
@@ -21,14 +21,15 @@ export interface HttpResponse {
 }
 
 export type DownloadOptions = {
-  getAuthHeaderByURI: (registry: string) => string | undefined
+  getAuthHeaderByURI: GetAuthHeader
   cafs: Cafs
   registry?: string
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   integrity?: string
   storeIndex: StoreIndex
-} & Pick<FetchOptions, 'pkg' | 'appendManifest' | 'readManifest' | 'filesIndexFile' | 'ignoreFilePattern'>
+  pkg?: FetchOptions['pkg']
+} & Pick<FetchOptions, 'appendManifest' | 'readManifest' | 'filesIndexFile' | 'ignoreFilePattern'>
 
 export type DownloadFunction = (url: string, opts: DownloadOptions) => Promise<FetchResult>
 
@@ -64,7 +65,7 @@ export function createDownloader (
   const fetchMinSpeedKiBps = gotOpts.fetchMinSpeedKiBps ?? 50 // 50 KiB/s
 
   return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
-    const authHeaderValue = opts.getAuthHeaderByURI(url)
+    const authHeaderValue = opts.getAuthHeaderByURI(url, { pkgName: opts.pkg?.name })
 
     const op = retry.operation(retryOpts)
 

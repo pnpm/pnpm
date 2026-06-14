@@ -280,7 +280,7 @@ describe('plugin-commands-audit', () => {
       dir: hasVulnerabilitiesDir,
       rootProjectManifestDir: hasVulnerabilitiesDir,
       configByUri: {
-        '//audit.registry/': { creds: { authToken: '123' } },
+        '//audit.registry/': { '@': { authToken: '123' } },
       },
     })
 

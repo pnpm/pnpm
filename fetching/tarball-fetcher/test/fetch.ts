@@ -25,6 +25,7 @@ jest.unstable_mockModule('@pnpm/logger', async () => {
 const { globalWarn } = await import('@pnpm/logger')
 const {
   createTarballFetcher,
+  createDownloader,
   BadTarballError,
   TarballIntegrityError,
 } = await import('@pnpm/fetching.tarball-fetcher')
@@ -539,6 +540,97 @@ test('accessing private packages', async () => {
   })
 
   expect(index).toBeTruthy()
+})
+
+test('passes package name to auth header lookup when fetching tarballs', async () => {
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  mockPool.intercept({
+    path: '/download/pkg.tgz',
+    method: 'GET',
+    headers: {
+      authorization: 'Bearer scoped-token',
+    },
+  }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const calls: Array<{ uri: string, pkgName?: string }> = []
+  const getScopedAuthHeader = (uri: string, opts?: { pkgName?: string }): string | undefined => {
+    calls.push({ uri, pkgName: opts?.pkgName })
+    return opts?.pkgName === '@org/pkg' ? 'Bearer scoped-token' : undefined
+  }
+  const fetch = createTarballFetcher(fetchFromRegistry, getScopedAuthHeader, {
+    storeIndex,
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+
+  const resolution = {
+    integrity: tarballIntegrity,
+    registry: `${registry}/`,
+    tarball: `${registry}/download/pkg.tgz`,
+  }
+
+  const index = await fetch.remoteTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg: {
+      name: '@org/pkg',
+      version: '1.0.0',
+    },
+  })
+
+  expect(index).toBeTruthy()
+  expect(calls).toContainEqual({ uri: resolution.tarball, pkgName: '@org/pkg' })
+})
+
+test('does not require package name for tarball auth lookup', async () => {
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  mockPool.intercept({
+    path: '/download/pkg-without-name.tgz',
+    method: 'GET',
+  }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const calls: Array<{ uri: string, pkgName?: string }> = []
+  const getAuthHeaderByURI = (uri: string, opts?: { pkgName?: string }): string | undefined => {
+    calls.push({ uri, pkgName: opts?.pkgName })
+    return undefined
+  }
+  const download = createDownloader(fetchFromRegistry, {
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+  const resolution = {
+    integrity: tarballIntegrity,
+    tarball: `${registry}/download/pkg-without-name.tgz`,
+  }
+
+  const index = await download(resolution.tarball, {
+    getAuthHeaderByURI,
+    cafs,
+    storeIndex,
+    filesIndexFile,
+    integrity: resolution.integrity,
+  })
+
+  expect(index).toBeTruthy()
+  expect(calls).toContainEqual({ uri: resolution.tarball, pkgName: undefined })
 })
 
 async function getFileIntegrity (filename: string) {

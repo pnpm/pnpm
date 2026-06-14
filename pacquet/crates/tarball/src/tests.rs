@@ -1638,6 +1638,48 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
     drop(store_dir_keep);
 }
 
+#[tokio::test]
+async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .match_header("authorization", "Bearer scoped-token")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+    let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
+    let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
+    let auth_headers =
+        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())], None);
+
+    let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
+        &client,
+        &url,
+        Some(&pkg_integrity),
+        None,
+        0,
+        "@scope/test-pkg@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &auth_headers,
+        None,
+        None,
+    )
+    .await
+    .expect("server should accept the request once the scoped bearer header is attached");
+
+    assert!(cas_paths.contains_key("package.json"));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
 /// The retry loop must re-attach the `Authorization` header on every
 /// attempt, not just the first. A regression that read `auth_headers`
 /// once outside the loop would pass the single-attempt test

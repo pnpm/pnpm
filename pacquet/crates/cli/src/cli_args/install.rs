@@ -600,12 +600,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         // Forward the whole credential map: the registries a graph
         // touches aren't known up front (scope-routed or tarball-URL
         // sub-deps), so the server attaches the right token per URL.
-        auth_headers: state
-            .config
-            .auth_headers
-            .entries()
-            .map(|(uri, value)| (uri.to_string(), value.to_string()))
-            .collect(),
+        auth_headers: state.config.auth_headers.to_by_scope(),
         authorization: state.config.auth_headers.for_url(pnpr_server),
         overrides,
         lockfile: state

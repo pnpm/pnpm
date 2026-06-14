@@ -15,9 +15,7 @@ const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
-    creds: {
-      basicAuth: REGISTRY_MOCK_CREDENTIALS,
-    },
+    '@': { basicAuth: REGISTRY_MOCK_CREDENTIALS },
   },
 }
 

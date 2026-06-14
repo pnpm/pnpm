@@ -68,7 +68,7 @@ export async function fetchPackageInfo (
     packageName,
     {
       registry,
-      authHeaderValue: getAuthHeader(registry),
+      authHeaderValue: getAuthHeader(registry, { pkgName: packageName }),
       fullMetadata: true,
     }
   )

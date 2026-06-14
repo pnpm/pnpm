@@ -16,9 +16,7 @@ import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
-    creds: {
-      basicAuth: REGISTRY_MOCK_CREDENTIALS,
-    },
+    '@': { basicAuth: REGISTRY_MOCK_CREDENTIALS },
   },
 }
 

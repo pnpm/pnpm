@@ -27,7 +27,7 @@ export function createStageContext (opts: StageOptions, packageName?: string): S
   return {
     opts,
     registry,
-    authHeaderValue: getAuthHeaderByUri(registry),
+    authHeaderValue: packageName ? getAuthHeaderByUri(registry, { pkgName: packageName }) : getAuthHeaderByUri(registry),
     fetchFromRegistry: createFetchFromRegistry(opts),
   }
 }

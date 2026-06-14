@@ -4104,6 +4104,7 @@ dependencies = [
  "pacquet-config",
  "pacquet-lockfile",
  "pacquet-lockfile-verification",
+ "pacquet-network",
  "pacquet-testing-utils",
  "pnpr",
  "reqwest 0.13.4",

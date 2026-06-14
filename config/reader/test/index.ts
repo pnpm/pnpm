@@ -724,7 +724,7 @@ test('project .npmrc does not expand env variables in auth values', async () => 
   expect(serializedAuthConfig).not.toContain('secret-user')
   expect(serializedAuthConfig).not.toContain('secret-cert')
   expect(serializedAuthConfig).not.toContain('secret-key')
-  expect(config.configByUri?.['//attacker.example/']?.creds).toBeUndefined()
+  expect(config.configByUri?.['//attacker.example/']?.['@']).toBeUndefined()
   expect(config.configByUri?.['//attacker.example/']?.tls).toBeUndefined()
   expect(warnings).toEqual(expect.arrayContaining([
     expect.stringContaining('Ignored project-level auth setting "//attacker.example/:_authToken"'),
@@ -905,11 +905,11 @@ test('package manager bootstrap registries ignore project workspace registries',
   expect(config.httpsProxy).toBe('http://project-proxy.example.com:8080')
   expect(config.strictSsl).toBe(false)
   expect(config.configByUri).toMatchObject({
-    '//project.example.com/': { creds: { authToken: 'project-token' } },
+    '//project.example.com/': { '@': { authToken: 'project-token' } },
   })
   expect(config.packageManagerNetworkConfig).toMatchObject({
     configByUri: {
-      '//trusted.example.com/': { creds: { authToken: 'trusted-token' } },
+      '//trusted.example.com/': { '@': { authToken: 'trusted-token' } },
     },
     httpProxy: 'http://trusted-env-proxy.example.com:8080',
     httpsProxy: 'http://trusted-env-proxy.example.com:8080',
@@ -1311,7 +1311,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//trusted.example.com/': { creds: { authToken: 'user-secret' } },
+      '//trusted.example.com/': { '@': { authToken: 'user-secret' } },
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })
@@ -1329,7 +1329,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//trusted.example.com/': { creds: { basicAuth: { username: 'user', password: 'pass' } } },
+      '//trusted.example.com/': { '@': { basicAuth: { username: 'user', password: 'pass' } } },
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })
@@ -1347,7 +1347,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//trusted.example.com/': { creds: { basicAuth: { username: 'alice', password: 'pass' } } },
+      '//trusted.example.com/': { '@': { basicAuth: { username: 'alice', password: 'pass' } } },
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })
@@ -1373,7 +1373,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//registry.npmjs.org/': { creds: { authToken: 'user-secret' } },
+      '//registry.npmjs.org/': { '@': { authToken: 'user-secret' } },
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
     expect(config.configByUri['//trusted.example.com/']).toBeUndefined()
@@ -1390,7 +1390,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//trusted.example.com/': { creds: { authToken: 'user-secret' } },
+      '//trusted.example.com/': { '@': { authToken: 'user-secret' } },
     })
   })
 
@@ -1406,7 +1406,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//workspace.example.com/': { creds: { authToken: 'workspace-token' } },
+      '//workspace.example.com/': { '@': { authToken: 'workspace-token' } },
     })
   })
 
@@ -1426,7 +1426,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//trusted.example.com/': { creds: { authToken: 'user-secret' } },
+      '//trusted.example.com/': { '@': { authToken: 'user-secret' } },
     })
     // URL-scoped tokens should NOT trigger the deprecation warning.
     expect(warnings.join('\n')).not.toMatch(/deprecated/i)
@@ -1446,7 +1446,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
 
     // The token rescoped to the npmjs default when the user file was read.
     expect(config.configByUri).toMatchObject({
-      '//registry.npmjs.org/': { creds: { authToken: 'user-secret' } },
+      '//registry.npmjs.org/': { '@': { authToken: 'user-secret' } },
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })

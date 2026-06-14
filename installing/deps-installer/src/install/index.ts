@@ -2409,7 +2409,7 @@ async function installViaPnprServer (
     )
   }
   const { resolveViaPnprServer } = await import('@pnpm/pnpr.client')
-  const { createGetAuthHeaderByURI, getAuthHeadersFromCreds } = await import('@pnpm/network.auth-header')
+  const { createGetAuthHeaderByURI, getAuthHeadersByScope, getAuthHeadersFromCreds } = await import('@pnpm/network.auth-header')
 
   // Forward the whole credential map (the registries a graph touches
   // aren't known up front), so the server attaches the right token per
@@ -2451,7 +2451,7 @@ async function installViaPnprServer (
       projects: projectsList,
       registry: opts.registries?.default,
       namedRegistries: opts.namedRegistries,
-      authHeaders: forwardedAuthHeaders,
+      authHeaders: getAuthHeadersByScope(forwardedAuthHeaders),
       authorization: pnprAuthorization,
       overrides: opts.overrides,
       minimumReleaseAge: opts.minimumReleaseAge,

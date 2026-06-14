@@ -28,6 +28,8 @@ export interface BasicAuth {
 /** Parsed value of `tokenHelper` of each registry in the rc file. */
 export type TokenHelper = [string, ...string[]]
 
+export const DEFAULT_REGISTRY_SCOPE = '@'
+
 /** Per-registry authentication credentials. */
 export interface Creds {
   /** Parsed value of `_auth` of each registry in the rc file. */
@@ -50,7 +52,7 @@ export interface TlsConfig {
 
 /** Per-registry configuration (credentials + TLS). */
 export interface RegistryConfig {
-  creds?: Creds
+  [scope: `@${string}`]: Creds | undefined
   tls?: TlsConfig
 }
 

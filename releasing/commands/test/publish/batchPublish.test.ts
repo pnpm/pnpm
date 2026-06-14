@@ -85,7 +85,7 @@ function batchPublishOpts () {
     batch: true,
     configByUri: {
       [registry.url.replace(/^http:/, '')]: {
-        creds: { authToken: 'test-token' },
+        '@': { authToken: 'test-token' },
       },
     },
     dir: process.cwd(),
@@ -208,7 +208,7 @@ test('batch publish against a real pnpr registry publishes every package', async
     batch: true,
     configByUri: {
       [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
-        creds: { basicAuth: REGISTRY_MOCK_CREDENTIALS },
+        '@': { basicAuth: REGISTRY_MOCK_CREDENTIALS },
       },
     },
     dir: process.cwd(),

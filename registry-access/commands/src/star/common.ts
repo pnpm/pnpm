@@ -38,7 +38,7 @@ export async function performStarAction (opts: StarOptions, { packageName, star 
   const registryUrl = normalizeRegistryUrl(
     pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
   )
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const action = star ? 'star' : 'unstar'
   if (!authHeader) {
     throw new PnpmError('STAR_UNAUTHORIZED', `You must be logged in to ${action} packages`)
@@ -131,8 +131,9 @@ async function performLegacyStarAction (args: LegacyStarActionArgs): Promise<voi
 
 export function getAuthHeaderForRegistry (
   configByUri: Record<string, RegistryConfig> | undefined,
-  registryUrl: string
+  registryUrl: string,
+  packageName?: string
 ): string | undefined {
   const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {})
-  return getAuthHeader(registryUrl)
+  return getAuthHeader(registryUrl, packageName ? { pkgName: packageName } : undefined)
 }
