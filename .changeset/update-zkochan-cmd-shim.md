@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-Updated `@zkochan/cmd-shim` to v9.0.4.
+Updated `@zkochan/cmd-shim` to v9.0.6.

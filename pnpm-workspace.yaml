@@ -149,7 +149,7 @@ catalog:
   '@yarnpkg/nm': 4.0.7
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.1.6
-  '@zkochan/cmd-shim': ^9.0.4
+  '@zkochan/cmd-shim': ^9.0.6
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
