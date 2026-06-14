@@ -8,7 +8,7 @@ use std::{
 /// Detected runtime for a target script.
 ///
 /// Mirrors the return shape of `searchScriptRuntime` in
-/// <https://github.com/pnpm/cmd-shim/blob/0d79ca9534/src/index.ts>.
+/// <https://github.com/pnpm/cmd-shim/blob/e8560a8405/src/index.ts>.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScriptRuntime {
     /// The interpreter to invoke. `None` means "exec the file directly".
@@ -54,7 +54,8 @@ pub fn search_script_runtime<Sys: FsReadHead>(path: &Path) -> io::Result<Option<
     }
 
     if let Some(prog) = extension_program(extension) {
-        return Ok(Some(ScriptRuntime { prog: Some(prog.to_string()), args: String::new() }));
+        let args = if prog == "cmd" { "/C" } else { "" };
+        return Ok(Some(ScriptRuntime { prog: Some(prog.to_string()), args: args.to_string() }));
     }
 
     Ok(None)
@@ -164,11 +165,12 @@ fn strip_env_prefix(input: &str) -> (&str, bool) {
 ///
 /// The shim is a pure `/bin/sh` script that:
 ///
-/// 1. Resolves `basedir` to its own directory (with a `cygpath` fixup for
-///    MSYS-style POSIX shells on Windows).
-/// 2. If the runtime program is colocated at `$basedir/<prog>` (a rare case,
-///    only true when the runtime was bundled alongside the shim), prefer that
-///    binary; otherwise fall through to the system PATH.
+/// 1. Resolves `basedir` to its own directory and keeps `basedir_win` for
+///    native Windows binaries reached from Cygwin/MSYS/WSL2.
+/// 2. If the runtime program is colocated at `$basedir/<prog>.exe` or
+///    `$basedir/<prog>` (a rare case, only true when the runtime was bundled
+///    alongside the shim), prefer that binary; otherwise fall through to the
+///    system PATH.
 /// 3. Forwards `"$@"` to the resolved interpreter, with the target script as
 ///    the first positional argument.
 ///
@@ -189,18 +191,37 @@ pub fn generate_sh_shim(
     } else {
         format!("\"$basedir/{sh_target}\"")
     };
+    let quoted_target_win = if Path::new(&sh_target).is_absolute() {
+        format!("\"{sh_target}\"")
+    } else {
+        format!("\"$basedir_win/{sh_target}\"")
+    };
 
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
-            // `sh_long_prog` is the `"$basedir/<prog>"` form upstream uses.
-            // It always carries the leading `$basedir/` and quotes; never
-            // just the program name on its own.
-            let sh_long_prog = format!("\"$basedir/{prog}\"");
-            writeln!(
-                sh,
-                "if [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi",
-            )
-            .unwrap();
+            let prog_base = strip_exe_suffix(prog).unwrap_or(prog);
+            let prog_has_exe = prog_base.len() != prog.len();
+            let prog_exe = if prog_has_exe { prog.clone() } else { format!("{prog}.exe") };
+            let args = if prog_base.eq_ignore_ascii_case("cmd") {
+                escape_msys_cmd_switches(args)
+            } else {
+                args.clone()
+            };
+            let sh_long_prog_exe = format!("\"$basedir/{prog_exe}\"");
+            if prog_has_exe {
+                writeln!(
+                    sh,
+                    "if [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {args} {quoted_target_win} \"$@\"\nelse\n  exec {prog_exe} {args} {quoted_target_win} \"$@\"\nfi",
+                )
+                .unwrap();
+            } else {
+                let sh_long_prog = format!("\"$basedir/{prog}\"");
+                writeln!(
+                    sh,
+                    "if [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelif [ -x {prog} ]; then\n  exec {prog} {args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ]; then\n  exec {prog_exe} {args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi",
+                )
+                .unwrap();
+            }
         }
         // No runtime detected, so exec the target directly. Upstream still
         // emits `exit $?` on this branch for parity with non-execve POSIX
@@ -343,16 +364,62 @@ fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
 
 const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+basedir_win="$basedir"
+exe=""
 
-case `uname` in
-    *CYGWIN*|*MINGW*|*MSYS*)
-        if command -v cygpath > /dev/null 2>&1; then
-            basedir=`cygpath -w "$basedir"`
-        fi
-    ;;
+case `uname -a` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if command -v cygpath > /dev/null 2>&1; then
+      basedir=`cygpath -w "$basedir"`
+      basedir_win="$basedir"
+    fi
+    exe=".exe"
+  ;;
+  *WSL2*)
+    if command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      fi
+    fi
+    exe=".exe"
+  ;;
 esac
 
 "#;
+
+fn escape_msys_cmd_switches(args: &str) -> String {
+    let mut escaped = String::with_capacity(args.len());
+    let mut chars = args.char_indices();
+    let mut at_boundary = true;
+
+    while let Some((_, ch)) = chars.next() {
+        if ch == '/' && at_boundary {
+            let mut lookahead = chars.clone();
+            if let Some((_, switch @ ('C' | 'c' | 'K' | 'k'))) = lookahead.next()
+                && lookahead.next().is_none_or(|(_, next)| next.is_whitespace())
+            {
+                escaped.push('/');
+                escaped.push('/');
+                escaped.push(switch);
+                chars.next();
+                at_boundary = false;
+                continue;
+            }
+        }
+
+        escaped.push(ch);
+        at_boundary = ch.is_whitespace();
+    }
+
+    escaped
+}
+
+fn strip_exe_suffix(prog: &str) -> Option<&str> {
+    let suffix_start = prog.len().checked_sub(4)?;
+    let suffix = &prog[suffix_start..];
+    suffix.eq_ignore_ascii_case(".exe").then_some(&prog[..suffix_start])
+}
 
 /// Trailing `# cmd-shim-target=<rel>` marker. Upstream uses it to detect
 /// whether an existing shim already targets the same source without
