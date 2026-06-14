@@ -888,7 +888,10 @@ async fn install_writes_modules_yaml() {
     // `modules_dir`, so a relative on-disk value round-trips back
     // to the absolute install-time path.
     assert_eq!(emitted_virtual_store_dir, virtual_store_dir.to_string_lossy());
-    assert_eq!(virtual_store_dir_max_length, DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH);
+    assert_eq!(
+        virtual_store_dir_max_length,
+        pacquet_config::default_virtual_store_dir_max_length(),
+    );
     assert_eq!(
         registries.as_ref().and_then(|r| r.get("default")).map(String::as_str),
         Some(config.registry.as_str()),
