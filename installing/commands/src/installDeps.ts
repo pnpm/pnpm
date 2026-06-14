@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import { buildProjects } from '@pnpm/building.after-install'
 import type { CommandHandler } from '@pnpm/cli.command'
 import {
@@ -52,6 +50,7 @@ import {
   type UpdateDepsMatcher,
 } from './recursive.js'
 import { makeRunPacquet } from './runPacquet.js'
+import { selectProjectByDir } from './selectProjectByDir.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
 
@@ -514,12 +513,6 @@ export async function installDeps (
       })
     }
   }
-}
-
-function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
-  const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
-  if (project == null) return undefined
-  return { [project.rootDir]: { dependencies: [], package: project } }
 }
 
 async function recursiveInstallThenUpdateWorkspaceState (
