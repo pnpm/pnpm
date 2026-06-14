@@ -197,7 +197,11 @@ async function interactiveUpdate (
   opts: UpdateCommandOptions,
   rebuildHandler?: CommandHandler
 ): Promise<string | undefined> {
-  const include = makeIncludeDependenciesFromCLI(opts.cliOptions)
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
   const projects = (opts.selectedProjectsGraph != null)
     ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     : [
@@ -290,8 +294,12 @@ async function update (
       throw new PnpmError('LATEST_WITH_SPEC', `Specs are not allowed to be used with --latest (${dependenciesWithTags.join(', ')})`)
     }
   }
-  const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
-  const include = includeDirect
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
+  const includeDirect = include
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
   if (opts.packageVulnerabilityAudit != null) {
@@ -316,16 +324,4 @@ async function update (
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
   }, dependencies)
-}
-
-function makeIncludeDependenciesFromCLI (opts: {
-  production?: boolean
-  dev?: boolean
-  optional?: boolean
-}): IncludedDependencies {
-  return {
-    dependencies: opts.production === true || (opts.dev !== true && opts.optional !== true),
-    devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),
-    optionalDependencies: opts.optional === true || (opts.production !== true && opts.dev !== true),
-  }
 }

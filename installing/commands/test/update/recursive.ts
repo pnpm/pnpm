@@ -95,9 +95,11 @@ test('recursive update prod dependencies only', async () => {
     ...DEFAULT_OPTS,
     allProjects,
     cliOptions: {
-      optional: false,
       production: true,
     },
+    // Resolved config values (as normalized by config.reader when --prod is passed):
+    production: true,
+    dev: false,
     dir: process.cwd(),
     lockfileDir: process.cwd(),
     recursive: true,
@@ -115,7 +117,7 @@ test('recursive update prod dependencies only', async () => {
   expect(modules?.included).toStrictEqual({
     dependencies: true,
     devDependencies: false,
-    optionalDependencies: false,
+    optionalDependencies: true,
   })
 })
 
