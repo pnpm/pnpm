@@ -30,21 +30,33 @@ fn base_opts<'a>(
 }
 
 /// Ports `test('makeEnv')` from
-/// <https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/test/index.js#L97-L124>.
+/// <https://github.com/pnpm/npm-lifecycle/blob/9e2ac78148/test/index.js#L97-L153>.
 ///
-/// Four invariants we mirror:
+/// Invariants we mirror:
 /// - top-level `npm_package_name` is set from the manifest's `name`,
 /// - package-local config like `_myPackage` keys are NOT promoted to
 ///   `npm_package_config_*`,
-/// - `npm_*` keys leaked from the parent env are stripped (upstream's
-///   `!i.match(/^npm_/)` filter at `index.js:359`),
+/// - user-defined `npm_config_*` keys (e.g. `npm_config_platform_arch`)
+///   leaked from the parent env are PRESERVED,
+/// - `(npm|pnpm)_config_*` auth keys (`_auth*`, scope/registry-scoped)
+///   are stripped so credentials never leak,
+/// - `npm_package_*` keys leaked from the parent env are stripped
+///   (they're regenerated from the manifest),
 /// - everything else passes through — including `pnpm_*` keys like
 ///   `PNPM_HOME`, which upstream does not filter.
 #[test]
-fn make_env_stamps_top_level_keys_and_strips_npm_config_leakage() {
+fn make_env_preserves_user_config_and_strips_auth_and_package_leakage() {
     let mut parent = HashMap::new();
     parent.insert("PATH".into(), "/usr/bin".into());
-    parent.insert("npm_config_enteente".into(), "should-be-stripped".into());
+    parent.insert("npm_config_platform_arch".into(), "x64".into());
+    parent.insert("npm_config__auth".into(), "should-not-leak".into());
+    parent.insert("npm_config__authToken".into(), "should-not-leak".into());
+    parent.insert("npm_config__password".into(), "should-not-leak".into());
+    parent.insert("npm_config_//registry.npmjs.org/:_authToken".into(), "should-not-leak".into());
+    parent.insert("npm_config_@scope:registry".into(), "https://example.com".into());
+    parent.insert("pnpm_config__authToken".into(), "should-not-leak".into());
+    parent.insert("pnpm_config_//registry.npmjs.org/:_authToken".into(), "should-not-leak".into());
+    parent.insert("npm_package_name".into(), "should-be-regenerated".into());
     parent.insert("PNPM_HOME".into(), "/opt/pnpm".into());
     parent.insert("HOME".into(), "/home/me".into());
 
@@ -67,11 +79,27 @@ fn make_env_stamps_top_level_keys_and_strips_npm_config_leakage() {
         !built.env.contains_key("npm_package__myPackage_secret"),
         "underscore-prefixed manifest keys must be ignored",
     );
-    assert!(
-        !built.env.contains_key("npm_config_enteente"),
-        "npm_config_* must be stripped from parent env: {:?}",
+    assert_eq!(
+        built.env.get("npm_config_platform_arch").map(String::as_str),
+        Some("x64"),
+        "user-defined npm_config_* vars from the parent env are preserved: {:?}",
         built.env,
     );
+    for stripped in [
+        "npm_config__auth",
+        "npm_config__authToken",
+        "npm_config__password",
+        "npm_config_//registry.npmjs.org/:_authToken",
+        "npm_config_@scope:registry",
+        "pnpm_config__authToken",
+        "pnpm_config_//registry.npmjs.org/:_authToken",
+    ] {
+        assert!(
+            !built.env.contains_key(stripped),
+            "auth config key {stripped} must be stripped: {:?}",
+            built.env,
+        );
+    }
     assert_eq!(
         built.env.get("PNPM_HOME").map(String::as_str),
         Some("/opt/pnpm"),
@@ -251,15 +279,33 @@ fn sanitize_env_key_matches_upstream_regex() {
     assert_eq!(sanitize_env_key("npm_package_já"), "npm_package_j_");
 }
 
-/// On POSIX, env keys are case-sensitive: `NPM_CONFIG_FOO` is a
-/// different variable than `npm_config_foo`, so only the lowercase
-/// `npm_` prefix matches — matching upstream's `/^npm_/` regex
+/// On POSIX, env keys are case-sensitive: `NPM_PACKAGE_FOO` is a
+/// different variable than `npm_package_foo`, so only the lowercase
+/// prefixes match — matching upstream's case-sensitive regexes
 /// exactly.
 #[test]
 fn is_stamping_key_is_case_sensitive_on_posix() {
-    assert!(is_stamping_key("npm_config_user_agent", false));
-    assert!(!is_stamping_key("NPM_CONFIG_USER_AGENT", false));
+    // npm_package_* are regenerated from the manifest.
+    assert!(is_stamping_key("npm_package_name", false));
+    assert!(!is_stamping_key("NPM_PACKAGE_NAME", false));
+    // User-defined config is preserved.
+    assert!(!is_stamping_key("npm_config_user_agent", false));
+    assert!(!is_stamping_key("npm_config_platform_arch", false));
+    assert!(!is_stamping_key("pnpm_config_registry", false));
+    // Auth config is stripped: remainder starts with `_`/`/`/`@` or
+    // contains `:_`.
+    assert!(is_stamping_key("npm_config__auth", false));
+    assert!(is_stamping_key("npm_config__authToken", false));
+    assert!(is_stamping_key("npm_config_@scope:registry", false));
+    assert!(is_stamping_key("npm_config_//registry.npmjs.org/:_authToken", false));
+    assert!(is_stamping_key("npm_config_foo:_bar", false));
+    assert!(is_stamping_key("pnpm_config__authToken", false));
+    assert!(!is_stamping_key("NPM_CONFIG__AUTH", false));
+    // Non-package, non-config npm_* keys are preserved (they get
+    // overwritten by the per-call stamps when relevant).
+    assert!(!is_stamping_key("npm_lifecycle_event", false));
     assert!(!is_stamping_key("Npm_Lifecycle_Event", false));
+    // Per-call stamps we always re-derive.
     assert!(is_stamping_key("NODE", false));
     assert!(!is_stamping_key("Node", false));
     assert!(!is_stamping_key("node", false));
@@ -291,22 +337,33 @@ fn is_stamping_key_handles_non_ascii_keys_without_panicking() {
 }
 
 /// On Windows, Rust's `Command::env` treats env keys
-/// case-insensitively, so `NPM_CONFIG_FOO` and `npm_config_foo`
-/// refer to the same variable. We must strip the entire family
-/// case-insensitively or our `npm_*` inserts collide at spawn time
-/// with an unpredictable winner.
+/// case-insensitively, so `NPM_PACKAGE_FOO` and `npm_package_foo`
+/// refer to the same variable. We must strip each stamped family
+/// case-insensitively or our inserts collide at spawn time with an
+/// unpredictable winner.
 #[test]
 fn is_stamping_key_is_case_insensitive_on_windows() {
-    assert!(is_stamping_key("npm_config_user_agent", true));
-    assert!(is_stamping_key("NPM_CONFIG_USER_AGENT", true));
-    assert!(is_stamping_key("Npm_Lifecycle_Event", true));
+    // npm_package_* stripped case-insensitively.
+    assert!(is_stamping_key("npm_package_name", true));
+    assert!(is_stamping_key("NPM_PACKAGE_NAME", true));
+    // User-defined config preserved, in any case.
+    assert!(!is_stamping_key("npm_config_platform_arch", true));
+    assert!(!is_stamping_key("NPM_CONFIG_PLATFORM_ARCH", true));
+    // Auth config stripped case-insensitively (the prefix is matched
+    // CI; the `_`/`/`/`@`/`:_` markers are ASCII and case-agnostic).
+    assert!(is_stamping_key("npm_config__auth", true));
+    assert!(is_stamping_key("NPM_CONFIG__AUTH", true));
+    assert!(is_stamping_key("npm_config_@scope:registry", true));
+    // Non-package, non-config npm_* keys are preserved.
+    assert!(!is_stamping_key("Npm_Lifecycle_Event", true));
+    // Per-call stamps we always re-derive.
     assert!(is_stamping_key("NODE", true));
     assert!(is_stamping_key("Node", true));
     assert!(is_stamping_key("node", true));
     assert!(is_stamping_key("tmpdir", true));
     assert!(is_stamping_key("init_cwd", true));
     assert!(is_stamping_key("pnpm_script_src_dir", true));
-    // Edge: short keys shouldn't accidentally match `npm_`.
+    // Edge: short keys shouldn't accidentally match a prefix.
     assert!(!is_stamping_key("NPM", true));
     assert!(!is_stamping_key("npm", true));
     // pnpm_* keys other than the well-known stamps still survive.
