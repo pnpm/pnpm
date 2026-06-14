@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+reviews:
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        Apply the "AI Review Guidance" section in AGENTS.md. Security vulnerabilities are the first review priority; performance regressions in pnpm, pacquet, and pnpr are the second priority. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
