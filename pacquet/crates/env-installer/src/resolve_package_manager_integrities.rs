@@ -15,6 +15,7 @@ use std::{collections::HashMap, path::PathBuf};
 const PACKAGE_MANAGER_DEPS: [&str; 2] = ["pnpm", "@pnpm/exe"];
 
 pub async fn resolve_package_manager_integrities(
+    wanted_specifier: &str,
     pnpm_version: &str,
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
@@ -22,7 +23,7 @@ pub async fn resolve_package_manager_integrities(
     let mut env_lockfile = EnvLockfile::read(opts.root_dir)
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
-    if is_package_manager_resolved(&env_lockfile, pnpm_version) {
+    if is_package_manager_resolved(&env_lockfile, wanted_specifier, pnpm_version) {
         return Ok(());
     }
     if opts.frozen_lockfile {
@@ -38,7 +39,7 @@ pub async fn resolve_package_manager_integrities(
         package_manager_dependencies.insert(
             name.to_string(),
             SpecifierAndResolution {
-                specifier: pnpm_version.to_string(),
+                specifier: wanted_specifier.to_string(),
                 version: package.version.clone(),
             },
         );
@@ -96,7 +97,11 @@ pub async fn resolve_package_manager_integrities(
 }
 
 #[must_use]
-pub fn is_package_manager_resolved(env_lockfile: &EnvLockfile, pnpm_version: &str) -> bool {
+pub fn is_package_manager_resolved(
+    env_lockfile: &EnvLockfile,
+    wanted_specifier: &str,
+    pnpm_version: &str,
+) -> bool {
     let Some(pm_deps) = env_lockfile
         .importers
         .get(EnvLockfile::ROOT_IMPORTER_KEY)
@@ -104,9 +109,20 @@ pub fn is_package_manager_resolved(env_lockfile: &EnvLockfile, pnpm_version: &st
     else {
         return false;
     };
-    PACKAGE_MANAGER_DEPS
-        .iter()
-        .all(|name| pm_deps.get(*name).is_some_and(|dep| dep.version == pnpm_version))
+    PACKAGE_MANAGER_DEPS.iter().all(|name| {
+        pm_deps.get(*name).is_some_and(|dep| {
+            dep.specifier == wanted_specifier
+                && dep.version == pnpm_version
+                && package_manager_entry_exists(env_lockfile, name, &dep.version)
+        })
+    })
+}
+
+fn package_manager_entry_exists(env_lockfile: &EnvLockfile, name: &str, version: &str) -> bool {
+    let Ok(key) = format!("{name}@{version}").parse::<PackageKey>() else {
+        return false;
+    };
+    env_lockfile.packages.contains_key(&key) && env_lockfile.snapshots.contains_key(&key)
 }
 
 struct EnvPackage {

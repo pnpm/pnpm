@@ -57,12 +57,13 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
 pub async fn sync_package_manager_dependencies(
     config: &Config,
     root_dir: &Path,
+    wanted_specifier: &str,
     pnpm_version: &str,
     frozen_lockfile: bool,
 ) -> Result<()> {
     let context = EnvInstallerContext::new(config)?;
     let options = context.options(root_dir, frozen_lockfile);
-    resolve_package_manager_integrities(pnpm_version, &context.resolver, &options)
+    resolve_package_manager_integrities(wanted_specifier, pnpm_version, &context.resolver, &options)
         .await
         .map_err(miette::Report::new)
         .wrap_err("resolve package manager dependencies")

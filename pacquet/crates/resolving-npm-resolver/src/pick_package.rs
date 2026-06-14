@@ -401,8 +401,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // is the install-wide bias. Either being `true` forces the full
     // packument.
     let full_metadata = opts.optional || ctx.full_metadata;
+    let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
     let meta_dir = if full_metadata {
-        if ctx.filter_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
+        if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
     } else {
         ABBREVIATED_META_DIR
     };
@@ -419,14 +420,16 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // shares one cache across all `pick_package` calls, so the key
     // has to do the scoping itself.
     //
-    // The `:full` suffix mirrors upstream's
+    // The full-mode suffix mirrors upstream's
     // [cache-key shape](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L206):
     // a later call with `opts.optional = true` must not satisfy
     // itself with the abbreviated cache entry an earlier call
     // populated (the abbreviated form drops `libc`/`cpu`/`os` from
-    // some shapes).
+    // some shapes). Filtered full metadata gets its own suffix
+    // because pacquet stores it in a distinct on-disk mirror shape.
     let cache_key = if full_metadata {
-        format!("{}\x00{}:full", opts.registry, spec.name)
+        let suffix = if use_filtered_full_metadata { ":full:filtered" } else { ":full" };
+        format!("{}\x00{}{suffix}", opts.registry, spec.name)
     } else {
         format!("{}\x00{}", opts.registry, spec.name)
     };
@@ -439,6 +442,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             opts,
             &picker_opts,
             full_metadata,
+            use_filtered_full_metadata,
             &cache_key,
             pkg_mirror.as_deref(),
             cached,
@@ -481,6 +485,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             opts,
             &picker_opts,
             full_metadata,
+            use_filtered_full_metadata,
             &cache_key,
             pkg_mirror.as_deref(),
             cached,
@@ -518,7 +523,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             let meta = upgrade.meta;
             if upgrade.upgraded && !opts.dry_run {
                 if let Some(path) = pkg_mirror.as_deref() {
-                    persist_upgraded_to_mirror(path, &meta, ctx.filter_metadata);
+                    persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
                 }
                 ctx.meta_cache.set(cache_key.clone(), Arc::clone(&meta));
             }
@@ -614,7 +619,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         auth_headers: ctx.auth_headers,
         cache_dir: ctx.cache_dir,
         full_metadata,
-        filter_metadata: ctx.filter_metadata,
+        filter_metadata: use_filtered_full_metadata,
         retry_opts: ctx.retry_opts,
     };
 
@@ -660,7 +665,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         && !opts.dry_run
         && let Some(path) = pkg_mirror.as_deref()
     {
-        persist_upgraded_to_mirror(path, &meta, ctx.filter_metadata);
+        persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
     }
 
     // Divergence from upstream worth flagging: pnpm's pickPackage
@@ -699,6 +704,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     opts: &PickPackageOptions<'_>,
     picker_opts: &PickerOpts<'_>,
     full_metadata: bool,
+    use_filtered_full_metadata: bool,
     cache_key: &str,
     pkg_mirror: Option<&Path>,
     cached: Arc<Package>,
@@ -712,7 +718,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         // fetch on its next install. Matches upstream's
         // [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
         if let Some(path) = pkg_mirror {
-            persist_upgraded_to_mirror(path, &meta, ctx.filter_metadata);
+            persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
         }
         ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }

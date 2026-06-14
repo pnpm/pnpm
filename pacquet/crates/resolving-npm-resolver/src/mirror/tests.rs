@@ -154,11 +154,13 @@ fn load_meta_rejects_truncated_fragments() {
 fn pnpm_ndjson_format_reads_as_cache_hit() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
+    let mut pkg = fixture_package();
+    pkg.modified = None;
     std::fs::write(
         &mirror,
         format!(
             "{{\"etag\":\"W/abc\",\"modified\":\"2025-01-15T12:00:00.000Z\"}}\n{}",
-            serde_json::to_string(&fixture_package()).expect("serialize fixture"),
+            serde_json::to_string(&pkg).expect("serialize fixture"),
         ),
     )
     .expect("write pnpm format");
@@ -166,6 +168,7 @@ fn pnpm_ndjson_format_reads_as_cache_hit() {
     assert_eq!(headers.etag.as_deref(), Some("W/abc"));
     let meta = load_meta(&mirror).expect("read meta");
     assert_eq!(meta.etag.as_deref(), Some("W/abc"));
+    assert_eq!(meta.modified.as_deref(), Some("2025-01-15T12:00:00.000Z"));
     assert_eq!(meta.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
 }
 

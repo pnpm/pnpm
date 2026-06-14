@@ -1,6 +1,6 @@
 use crate::{
-    ConfigDepError, ConfigDepsInstallOptions, prune_env_lockfile, resolve_and_install_config_deps,
-    resolve_package_manager_integrities,
+    ConfigDepError, ConfigDepsInstallOptions, is_package_manager_resolved, prune_env_lockfile,
+    resolve_and_install_config_deps, resolve_package_manager_integrities,
 };
 use pacquet_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution,
@@ -288,6 +288,7 @@ async fn resolves_package_manager_dependencies_graph() {
         }));
 
     resolve_package_manager_integrities(
+        "^100.0.0",
         "100.0.0",
         &resolver,
         &options(&harness, root.path(), false),
@@ -300,7 +301,9 @@ async fn resolves_package_manager_dependencies_graph() {
         .package_manager_dependencies
         .as_ref()
         .expect("package manager deps recorded");
+    assert_eq!(pm_deps["pnpm"].specifier, "^100.0.0");
     assert_eq!(pm_deps["pnpm"].version, "100.0.0");
+    assert_eq!(pm_deps["@pnpm/exe"].specifier, "^100.0.0");
     assert_eq!(pm_deps["@pnpm/exe"].version, "100.0.0");
 
     let pnpm_key: PackageKey = "pnpm@100.0.0".parse().unwrap();
@@ -325,6 +328,8 @@ async fn resolves_package_manager_dependencies_graph() {
     );
     assert!(env.snapshots[&platform_key].optional);
     assert!(!env.snapshots[&libc_key].optional);
+    assert!(is_package_manager_resolved(&env, "^100.0.0", "100.0.0"));
+    assert!(!is_package_manager_resolved(&env, "~100.0.0", "100.0.0"));
 }
 
 #[tokio::test]

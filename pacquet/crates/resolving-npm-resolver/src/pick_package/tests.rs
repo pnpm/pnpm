@@ -777,6 +777,63 @@ async fn cache_key_separates_abbreviated_from_full() {
     full_mock.assert_async().await;
 }
 
+#[tokio::test]
+async fn cache_key_separates_filtered_full_from_unfiltered_full() {
+    let mut server = mockito::Server::new_async().await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(2)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let unfiltered_ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: true,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+    let filtered_ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: true,
+        filter_metadata: true,
+        retry_opts: RetryOpts::default(),
+    };
+
+    let _ = pick_package(&unfiltered_ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("unfiltered full");
+    let _ = pick_package(&filtered_ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("filtered full");
+
+    assert!(meta_cache.get(&format!("{registry}\x00acme:full")).is_some());
+    assert!(meta_cache.get(&format!("{registry}\x00acme:full:filtered")).is_some());
+    full_mock.assert_async().await;
+}
+
 /// `published_by` active + abbreviated cache lacking `time` +
 /// `modified` after the cutoff → re-fetch full metadata so the
 /// maturity check runs on real timestamps. Persisting the upgrade

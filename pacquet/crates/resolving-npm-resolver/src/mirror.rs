@@ -455,6 +455,7 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
         let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
         let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
         meta.etag = headers.etag;
+        meta.modified = meta.modified.or(headers.modified);
         return Some(meta);
     };
     let headers_start = newline + 1;

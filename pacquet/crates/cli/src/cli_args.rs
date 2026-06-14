@@ -311,11 +311,9 @@ impl CliArgs {
                 // for a single-package repo. Owned so it doesn't hold a
                 // borrow of `cfg` across the `&mut` `updateConfig` pass.
                 let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir.clone());
-                let package_manager_version = package_manager_version_to_sync(
-                    &config_root.join("package.json"),
-                    &config_root,
-                )
-                .wrap_err("read package manager policy")?;
+                let package_manager_to_sync =
+                    package_manager_to_sync(&config_root.join("package.json"), &config_root)
+                        .wrap_err("read package manager policy")?;
                 // Resolve + install configurational dependencies, then run
                 // their `updateConfig` plugin hooks, before the main
                 // install. The env lockfile must land at the top of
@@ -325,11 +323,12 @@ impl CliArgs {
                 // it. Mirrors pnpm running both at config-finalization.
                 match reporter {
                     ReporterType::Ndjson => {
-                        if let Some(pnpm_version) = package_manager_version.as_deref() {
+                        if let Some(pm) = package_manager_to_sync.as_ref() {
                             config_deps::sync_package_manager_dependencies(
                                 cfg,
                                 &config_root,
-                                pnpm_version,
+                                &pm.specifier,
+                                &pm.version,
                                 frozen_lockfile,
                             )
                             .await?;
@@ -348,11 +347,12 @@ impl CliArgs {
                         args.run::<NdjsonReporter>(state).await?;
                     }
                     ReporterType::Silent => {
-                        if let Some(pnpm_version) = package_manager_version.as_deref() {
+                        if let Some(pm) = package_manager_to_sync.as_ref() {
                             config_deps::sync_package_manager_dependencies(
                                 cfg,
                                 &config_root,
-                                pnpm_version,
+                                &pm.specifier,
+                                &pm.version,
                                 frozen_lockfile,
                             )
                             .await?;
@@ -422,10 +422,16 @@ struct WantedPackageManager {
     on_fail: Option<String>,
 }
 
-fn package_manager_version_to_sync(
+#[derive(Debug, PartialEq, Eq)]
+struct PackageManagerToSync {
+    specifier: String,
+    version: String,
+}
+
+fn package_manager_to_sync(
     manifest_path: &Path,
     root_dir: &Path,
-) -> miette::Result<Option<String>> {
+) -> miette::Result<Option<PackageManagerToSync>> {
     let Some(manifest) = read_manifest_json(manifest_path)? else {
         return Ok(None);
     };
@@ -442,9 +448,11 @@ fn package_manager_version_to_sync(
     if let Some(version) =
         source_version.filter(|version| version_satisfies(version, wanted_version))
     {
-        return Ok(Some(version));
+        return Ok(Some(PackageManagerToSync { specifier: wanted_version.to_string(), version }));
     }
-    Ok(exact_version(wanted_version).filter(|version| version_satisfies(version, wanted_version)))
+    Ok(exact_version(wanted_version)
+        .filter(|version| version_satisfies(version, wanted_version))
+        .map(|version| PackageManagerToSync { specifier: wanted_version.to_string(), version }))
 }
 
 fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
