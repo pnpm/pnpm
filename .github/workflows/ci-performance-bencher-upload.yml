@@ -34,18 +34,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          github_error() {
+            local message=$1
+            message=${message//'%'/'%25'}
+            message=${message//$'\r'/'%0D'}
+            message=${message//$'\n'/'%0A'}
+            echo "::error::$message"
+          }
+
           if [ "$EVENT_NAME" = "pull_request" ]; then
             if [[ -n "${TRIGGER_PR:-}" ]]; then
               pr="$TRIGGER_PR"
             else
               pr=$(
-                gh api "repos/$REPO/pulls?state=open&per_page=100" --paginate --jq '.[]' \
-                  | jq -s --arg sha "$HEAD_SHA" \
-                      '[.[] | select(.head.sha == $sha) | .number] | unique'
+                gh api "repos/$REPO/commits/$HEAD_SHA/pulls?per_page=100" \
+                  -H "Accept: application/vnd.github+json" \
+                  --paginate --jq '.[]' \
+                  | jq -s --arg branch "$HEAD_BRANCH" \
+                      'if $branch == "" then [.[] | .number] else [.[] | select(.head.ref == $branch) | .number] end | unique'
               )
               count=$(echo "$pr" | jq 'length')
               if [[ "$count" == "0" ]]; then
-                echo "::error::no open PR matches head_sha=$HEAD_SHA in $REPO"
+                github_error "no PR matches head_sha=$HEAD_SHA branch=$HEAD_BRANCH in $REPO"
                 exit 1
               fi
               if [[ "$count" != "1" ]]; then
