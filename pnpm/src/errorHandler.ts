@@ -47,9 +47,23 @@ export async function errorHandler (error: Error & { code?: string }): Promise<v
   )
 }
 
+// Enumerating descendant processes shells out to the OS process list. On
+// Windows that means `wmic` (and, where it's been removed, a PowerShell
+// `Get-CimInstance Win32_Process` fallback), which can take tens of seconds
+// on a busy machine — long enough to dominate the exit time of every failed
+// command. Bound the lookup so a pathologically slow enumeration can't stall
+// the exit; `exit()` calls `process.exit`, which abandons the still-running
+// query (a harmless read-only process listing).
+const DESCENDANT_LOOKUP_TIMEOUT = 2000
+
 async function killProcesses (status: number): Promise<void> {
   try {
-    const descendentProcesses = await getDescendentProcesses(process.pid)
+    const descendentProcesses = await Promise.race([
+      getDescendentProcesses(process.pid).catch(() => [] as number[]),
+      new Promise<number[]>((resolve) => {
+        setTimeout(() => resolve([]), DESCENDANT_LOOKUP_TIMEOUT).unref()
+      }),
+    ])
     for (const pid of descendentProcesses) {
       try {
         process.kill(pid)

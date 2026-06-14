@@ -97,7 +97,7 @@ jobs:
     # can't strip them before this cache saves.
     - name: Restore prebuilt pnpr binaries
       id: pnpr-bins
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: .pnpr-bin
         key: pnpr-bins-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '**/Cargo.lock', '**/Cargo.toml', 'pnpr/**/*.rs', 'pacquet/**/*.rs') }}
@@ -116,6 +116,15 @@ jobs:
         ext=""
         [ -f target/release/pnpr.exe ] && ext=".exe"
         cp "target/release/pnpr$ext" "target/release/pnpr-prepare$ext" .pnpr-bin/
+    # Save the binaries to the cache right after they build, not in a post-job
+    # step: a later step failing (e.g. a crashing test) would otherwise skip
+    # the save and force a full Rust rebuild on the next run.
+    - name: Save prebuilt pnpr binaries
+      if: steps.pnpr-bins.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: .pnpr-bin
+        key: ${{ steps.pnpr-bins.outputs.cache-primary-key }}
     - name: Export pnpr binary paths
       shell: bash
       run: |
