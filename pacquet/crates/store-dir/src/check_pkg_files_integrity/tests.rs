@@ -453,6 +453,58 @@ fn side_effects_overlay_malformed_added_digest_drops_cache_key_entry() {
     assert!(maps.contains_key("k-good"), "k-good must survive: {maps:?}");
 }
 
+/// An unsafe `added` path (absolute, `..`, or backslash) drops the
+/// **whole** `cache_key` entry so the importer can't be tricked into
+/// writing outside the package slot from a poisoned/corrupted index row
+/// (store integrity is not a tamper boundary). Other entries survive.
+#[test]
+fn side_effects_overlay_unsafe_added_path_drops_cache_key_entry() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let good_digest = sha512_hex(b"good-added");
+
+    let mut side_effects = HashMap::new();
+    for (key, unsafe_name) in
+        [("k-parent", "../evil.js"), ("k-abs", "/etc/evil"), ("k-backslash", "..\\evil")]
+    {
+        side_effects.insert(
+            key.to_string(),
+            SideEffectsDiff {
+                added: Some(HashMap::from([
+                    ("ok.js".to_string(), info(&good_digest, 4, 0o644, None)),
+                    (unsafe_name.to_string(), info(&good_digest, 4, 0o644, None)),
+                ])),
+                deleted: None,
+            },
+        );
+    }
+    side_effects.insert(
+        "k-good".to_string(),
+        SideEffectsDiff {
+            added: Some(HashMap::from([(
+                "nested/ok.js".to_string(),
+                info(&good_digest, 4, 0o644, None),
+            )])),
+            deleted: None,
+        },
+    );
+
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        algo: "sha512".into(),
+        files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
+        side_effects: Some(side_effects),
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let maps = result.side_effects_maps.expect("populated");
+    for key in ["k-parent", "k-abs", "k-backslash"] {
+        assert!(!maps.contains_key(key), "{key} must drop entirely on an unsafe overlay path");
+    }
+    assert!(maps.contains_key("k-good"), "a safe nested path must survive: {maps:?}");
+}
+
 /// Multiple cache keys produce independent overlays. One entry's
 /// `added` doesn't bleed into another's.
 #[test]
