@@ -3499,6 +3499,7 @@ dependencies = [
  "pacquet-cmd-shim",
  "pacquet-config",
  "pacquet-crypto-hash",
+ "pacquet-default-reporter",
  "pacquet-diagnostics",
  "pacquet-env-installer",
  "pacquet-executor",
@@ -3619,6 +3620,18 @@ dependencies = [
  "pretty_assertions",
  "reqwest 0.13.4",
  "tokio",
+]
+
+[[package]]
+name = "pacquet-default-reporter"
+version = "0.0.1"
+dependencies = [
+ "insta",
+ "libc",
+ "owo-colors",
+ "pacquet-reporter",
+ "pretty_assertions",
+ "serde_json",
 ]
 
 [[package]]

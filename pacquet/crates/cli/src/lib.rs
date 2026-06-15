@@ -20,6 +20,9 @@ pub fn main() -> miette::Result<()> {
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
     let (config_overrides, argv) = ConfigOverrides::extract(std::env::args_os());
+    // The default reporter's `Done in ... using pacquet v<version>` footer needs
+    // the version before the first event (including the fast path's).
+    pacquet_default_reporter::set_package_version(pacquet_config::PACQUET_VERSION);
     let args = CliArgs::parse_from(argv);
     // An up-to-date `pacquet install` finishes here, without paying for
     // the runtime, the HTTP client, or any worker threads.

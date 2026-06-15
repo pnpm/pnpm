@@ -436,13 +436,22 @@ fn link_one_importer<Reporter: self::Reporter>(
     entries.par_iter().try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
         let ResolvedEntry { name, spec, group, name_str, target } = entry;
 
-        symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
+        let outcome = symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
             SymlinkDirectDependenciesError::SymlinkPackage {
                 importer_id: importer_id.to_string(),
                 name: name_str.clone(),
                 source,
             }
         })?;
+
+        // Only a freshly-created symlink is a `pnpm:root added`. A symlink
+        // already pointing at the target is "reused", and pnpm skips the
+        // event for it (`if ((await symlinkDependency(...)).reused) return`
+        // at linkDirectDeps.ts:127-129), so a `pacquet add <new>` summary
+        // lists only the new dependency, not every already-linked one.
+        if outcome.reused {
+            return Ok(());
+        }
 
         // `pnpm:root added` mirrors pnpm's emit at
         // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L131>:
