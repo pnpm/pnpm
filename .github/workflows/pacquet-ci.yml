@@ -4,59 +4,69 @@ name: Pacquet CI
 # repo — pacquet and pnpr alike. They share the same cargo
 # workspace, so `just test`, dylint, doc, etc. all see both stacks
 # in one pass; running two workflows would just duplicate the work.
-# Trigger paths intentionally include `pnpr/**` for the same
-# reason.
+# The in-workflow change detector intentionally includes `pnpr/**`
+# for the same reason. Keep path filtering out of the workflow
+# trigger so required checks are created and can report skipped.
 
 permissions:
   contents: read
+  pull-requests: read
 
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize]
-    paths:
-      - 'pacquet/**'
-      - 'pnpr/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'rustfmt.toml'
-      - 'deny.toml'
-      - 'dylint.toml'
-      - '.taplo.toml'
-      - '.typos.toml'
-      - 'justfile'
-      - '.cargo/**'
-      - '.github/actions/rustup/**'
-      - '.github/actions/binstall/**'
-      - '.github/workflows/pacquet-ci.yml'
+    types: [opened, synchronize, reopened]
   push:
     branches:
       - main
-    paths:
-      - 'pacquet/**'
-      - 'pnpr/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'rustfmt.toml'
-      - 'deny.toml'
-      - 'dylint.toml'
-      - '.taplo.toml'
-      - '.typos.toml'
-      - 'justfile'
-      - '.cargo/**'
-      - '.github/actions/rustup/**'
-      - '.github/actions/binstall/**'
-      - '.github/workflows/pacquet-ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 jobs:
+  changes:
+    name: Detect Rust CI changes
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
+    steps:
+      - name: Run Rust CI for manual dispatch
+        if: github.event_name == 'workflow_dispatch'
+        id: manual
+        run: echo "rust=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        if: github.event_name != 'workflow_dispatch'
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'pacquet/**'
+              - 'pnpr/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - 'rustfmt.toml'
+              - 'deny.toml'
+              - 'dylint.toml'
+              - '.taplo.toml'
+              - '.typos.toml'
+              - 'justfile'
+              - '.cargo/**'
+              - '.github/actions/rustup/**'
+              - '.github/actions/binstall/**'
+              - '.github/workflows/pacquet-ci.yml'
+
   test:
     name: Lint and Test
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     strategy:
       fail-fast: false
       matrix:
@@ -180,6 +190,8 @@ jobs:
 
   clippy:
     name: Clippy
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     # Clippy lints the same source on every platform, so one OS is
     # enough — running the full `--all-targets` workspace lint across the
     # whole test matrix just triples the cost. Mirrors the single-OS doc,
@@ -209,6 +221,8 @@ jobs:
 
   doc:
     name: Doc
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -227,6 +241,8 @@ jobs:
 
   typos:
     name: Spell Check
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -239,6 +255,8 @@ jobs:
 
   deny:
     name: Cargo Deny
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -264,6 +282,8 @@ jobs:
 
   format:
     name: Format
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -287,8 +307,16 @@ jobs:
 
   dylint:
     name: Dylint
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.result != 'success') }}
     runs-on: ubuntu-latest
     steps:
+      - name: Verify change detection
+        if: ${{ needs.changes.result != 'success' }}
+        run: |
+          echo "::error::Unable to determine whether Rust CI should run."
+          exit 1
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
