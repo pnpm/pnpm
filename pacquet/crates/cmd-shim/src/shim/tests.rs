@@ -75,6 +75,7 @@ fn generate_sh_shim_matches_pnpm_typical_case() {
         body.contains(
             r#"basedir_win="$basedir"
 exe=""
+msys=""
 
 case `uname -a` in"#
         ),
@@ -83,6 +84,14 @@ case `uname -a` in"#
     assert!(
         body.contains(r#"basedir_win="$(wslpath -w "$basedir" 2> /dev/null)""#),
         "header must convert WSL2 basedir with wslpath, body was:\n{body}",
+    );
+    assert!(
+        body.contains(r#"basedir_win=`cygpath -w "$basedir"`"#),
+        "MSYS branch must only update the Windows-form basedir, body was:\n{body}",
+    );
+    assert!(
+        !body.contains("basedir=`cygpath"),
+        "MSYS branch must keep the POSIX basedir unchanged, body was:\n{body}",
     );
     assert!(
         body.contains("else\n        exe=\".exe\"\n      fi"),
@@ -336,8 +345,8 @@ fn generate_sh_shim_uses_windows_target_only_for_exe_branches() {
     let body = generate_sh_shim(target, shim, Some(&runtime));
 
     assert!(
-        body.contains("if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\nelif [ -x \"$basedir/cmd\" ]; then\n  exec \"$basedir/cmd\" //C \"$basedir/../foo/src.bat\" \"$@\"\nelif command -v cmd >/dev/null 2>&1; then\n  exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\nelif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n  exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\nelse\n  exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\nfi\n"),
-        "cmd sh shim must use Windows-form targets only for .exe execution branches, body was:\n{body}",
+        body.contains("if [ -n \"$msys\" ]; then\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
+        "cmd sh shim must escape switches only for MSYS and use Windows-form targets only for .exe execution branches, body was:\n{body}",
     );
 }
 
@@ -363,8 +372,8 @@ fn generate_sh_shim_does_not_append_exe_twice() {
 
     assert!(!body.contains("cmd.exe.exe"), "explicit .exe runtime must not double suffix:\n{body}");
     assert!(
-        body.contains("if [ -x \"$basedir/cmd.exe\" ]; then\n  exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\nelse\n  exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\nfi\n"),
-        "explicit .exe runtime must use Windows-form targets for every branch, body was:\n{body}",
+        body.contains("if [ -n \"$msys\" ]; then\n  if [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
+        "explicit .exe runtime must use Windows-form targets and escape switches only for MSYS, body was:\n{body}",
     );
 }
 

@@ -202,25 +202,40 @@ pub fn generate_sh_shim(
             let prog_base = strip_exe_suffix(prog).unwrap_or(prog);
             let prog_has_exe = prog_base.len() != prog.len();
             let prog_exe = if prog_has_exe { prog.clone() } else { format!("{prog}.exe") };
-            let args = if prog_base.eq_ignore_ascii_case("cmd") {
-                escape_msys_cmd_switches(args)
-            } else {
-                args.clone()
-            };
             let sh_long_prog_exe = format!("\"$basedir/{prog_exe}\"");
-            if prog_has_exe {
+            let exec_block = |exec_args: &str| {
+                let mut block = String::new();
+                if prog_has_exe {
+                    writeln!(
+                        block,
+                        "if [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nfi",
+                    )
+                    .unwrap();
+                } else {
+                    let sh_long_prog = format!("\"$basedir/{prog}\"");
+                    writeln!(
+                        block,
+                        "if [ -n \"$exe\" ] && [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {exec_args} {quoted_target} \"$@\"\nelif command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ] && command -v {prog_exe} >/dev/null 2>&1; then\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nfi",
+                    )
+                    .unwrap();
+                }
+                block
+            };
+
+            let msys_args = prog_base
+                .eq_ignore_ascii_case("cmd")
+                .then(|| escape_msys_cmd_switches(args))
+                .filter(|escaped_args| escaped_args != args);
+            if let Some(msys_args) = msys_args {
                 writeln!(
                     sh,
-                    "if [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {args} {quoted_target_win} \"$@\"\nelse\n  exec {prog_exe} {args} {quoted_target_win} \"$@\"\nfi",
+                    "if [ -n \"$msys\" ]; then\n{}else\n{}fi",
+                    indent_shell_block(&exec_block(&msys_args)),
+                    indent_shell_block(&exec_block(args)),
                 )
                 .unwrap();
             } else {
-                let sh_long_prog = format!("\"$basedir/{prog}\"");
-                writeln!(
-                    sh,
-                    "if [ -n \"$exe\" ] && [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelif command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ] && command -v {prog_exe} >/dev/null 2>&1; then\n  exec {prog_exe} {args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi",
-                )
-                .unwrap();
+                sh.push_str(&exec_block(args));
             }
         }
         // No runtime detected, so exec the target directly. Upstream still
@@ -366,14 +381,15 @@ const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
 basedir_win="$basedir"
 exe=""
+msys=""
 
 case `uname -a` in
   *CYGWIN*|*MINGW*|*MSYS*)
     if command -v cygpath > /dev/null 2>&1; then
-      basedir=`cygpath -w "$basedir"`
-      basedir_win="$basedir"
+      basedir_win=`cygpath -w "$basedir"`
     fi
     exe=".exe"
+    msys="true"
   ;;
   *WSL2*)
     if command -v wslpath > /dev/null 2>&1; then
@@ -388,6 +404,14 @@ case `uname -a` in
 esac
 
 "#;
+
+fn indent_shell_block(script: &str) -> String {
+    script
+        .split('\n')
+        .map(|line| if line.is_empty() { String::new() } else { format!("  {line}") })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
 
 fn escape_msys_cmd_switches(args: &str) -> String {
     let mut escaped = String::with_capacity(args.len());
