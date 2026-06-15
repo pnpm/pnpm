@@ -69,6 +69,10 @@ auditConfig:
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
     - GHSA-w5hq-g745-h8pq
+    # GHSA-h67p-54hq-rp68: js-yaml quadratic-complexity DoS in merge key handling.
+    # Patched only in >=4.1.2 with no v3 fix; @yarnpkg/parsers requires the js-yaml 3
+    # API (yaml.safeLoad), so its transitive js-yaml cannot be upgraded.
+    - GHSA-h67p-54hq-rp68
 
 catalog:
   '@babel/core': ^7.29.7
@@ -416,7 +420,6 @@ minimumReleaseAgeExclude:
   - write-yaml-file
   - qs@6.15.2
   - tmp@0.2.6
-  - js-yaml@4.1.2
 
 nodeVersion: 22.13.0
 
@@ -471,7 +474,6 @@ overrides:
   tough-cookie@<4.1.3: '>=4.1.3'
   validator@<13.15.22: '>=13.15.22'
   yaml@<2.2.2: '>=2.2.2'
-  js-yaml@<=4.1.1: ^4.1.2
 
 packageExtensions:
   '@babel/parser':
