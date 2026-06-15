@@ -185,6 +185,81 @@ fn add_prerelease_resolved_version_keeps_no_prefix() {
     drop((root, anchor)); // cleanup
 }
 
+/// `pacquet add <existing-dep>` without a version keeps the dependency's
+/// declared range verbatim instead of bumping it to `^<latest>`, matching
+/// `pnpm add <existing>`. The latest published version is `101.0.0`, which a
+/// bump would have written.
+#[test]
+fn add_existing_dependency_without_version_keeps_tilde_range() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "~100.0.0" } }"#,
+    )
+    .unwrap();
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "~100.0.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// The same applies to an exact pin: a re-add keeps it exact rather than
+/// widening it to the default caret.
+#[test]
+fn add_existing_dependency_without_version_keeps_exact_pin() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0" } }"#,
+    )
+    .unwrap();
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "100.0.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// When the same package exists in more than one dependency bucket with
+/// different specs, a versionless re-add preserves the specifier of the
+/// *targeted* group (here `--save-dev`), not whichever group happens to be
+/// scanned first, and leaves the other bucket untouched.
+#[test]
+fn add_existing_dependency_preserves_target_group_specifier() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "~100.0.0" }, "devDependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "^100.0.0" } }"#,
+    )
+    .unwrap();
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep", "--save-dev", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
+    let group_spec = |group| {
+        manifest
+            .dependencies([group])
+            .find(|(key, _)| *key == "@pnpm.e2e/dep-of-pkg-with-1-dep")
+            .map(|(_, spec)| spec.to_string())
+    };
+    assert_eq!(group_spec(DependencyGroup::Dev).as_deref(), Some("^100.0.0"));
+    assert_eq!(group_spec(DependencyGroup::Prod).as_deref(), Some("~100.0.0"));
+    drop((root, npmrc_info)); // cleanup
+}
+
 #[test]
 fn save_prefix_arbitrary_value_falls_back_to_caret() {
     let (root, dir, anchor) =

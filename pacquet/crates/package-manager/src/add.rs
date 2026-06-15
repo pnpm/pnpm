@@ -7,7 +7,6 @@ use miette::Diagnostic;
 use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
-use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -90,6 +89,16 @@ pub enum AddError {
 
     #[diagnostic(transparent)]
     Install(#[error(source)] InstallError),
+
+    /// Fetching a brand-new dependency's `latest` tag from the registry
+    /// failed while resolving the version to add.
+    #[display("Failed to resolve the latest version of {name}: {error}")]
+    #[diagnostic(code(pacquet_package_manager::add_resolve_latest))]
+    ResolveLatest {
+        name: String,
+        #[error(source)]
+        error: pacquet_registry::RegistryError,
+    },
 }
 
 impl<ListDependencyGroups, DependencyGroupList> Add<'_, ListDependencyGroups, DependencyGroupList>
@@ -135,41 +144,45 @@ where
         let prefix =
             workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
 
-        // The dependency's current manifest specifier, so a re-add of a
-        // `catalog:` dependency keeps its catalog reference.
+        // The dependency's current specifier *in the group(s) this add
+        // targets*, so a re-add keeps the existing range / `catalog:`
+        // reference of the bucket being written. Scanning only the target
+        // groups (rather than every group) avoids preserving a different
+        // group's specifier when the same package exists in more than one
+        // bucket with different specs.
         let prev_specifier = manifest
-            .dependencies([
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-                DependencyGroup::Peer,
-            ])
+            .dependencies(list_dependency_groups())
             .find(|(name, _)| *name == package_name)
             .map(|(_, spec)| spec.to_string());
 
-        // The bare specifier to reconcile against the catalogs: the
-        // explicit `@<version>`, the preserved `catalog:` reference on a
-        // re-add, or otherwise the freshly-fetched `latest` range.
-        let bare_specifier = match explicit_spec {
-            Some(spec) => spec.to_string(),
-            None => match prev_specifier.as_deref() {
-                Some(prev) if parse_catalog_protocol(prev).is_some() => prev.to_string(),
-                _ => {
-                    let registries: std::collections::HashMap<String, String> =
-                        config.resolved_registries().into_iter().collect();
-                    let registry = pick_registry_for_package(&registries, package_name, None);
-                    let latest = PackageVersion::fetch_from_registry(
-                        package_name,
-                        PackageTag::Latest,
-                        http_client,
-                        &registry,
-                        &config.auth_headers,
-                    )
-                    .await
-                    .expect("resolve latest tag"); // TODO: properly propagate this error
-                    latest.serialize(pinned_version)
-                }
-            },
+        // The bare specifier to reconcile against the catalogs:
+        // - an explicit `@<version>` is used as given;
+        // - a re-add with no version keeps the dependency's current
+        //   specifier verbatim (a `catalog:` reference, a range, or an
+        //   exact pin), matching pnpm — `pnpm add <existing>` without a
+        //   version leaves the declared range untouched;
+        // - a brand-new dependency fetches and pins the `latest` range.
+        let bare_specifier = match (explicit_spec, prev_specifier.as_deref()) {
+            (Some(spec), _) => spec.to_string(),
+            (None, Some(prev)) => prev.to_string(),
+            (None, None) => {
+                let registries: std::collections::HashMap<String, String> =
+                    config.resolved_registries().into_iter().collect();
+                let registry = pick_registry_for_package(&registries, package_name, None);
+                let latest = PackageVersion::fetch_from_registry(
+                    package_name,
+                    PackageTag::Latest,
+                    http_client,
+                    &registry,
+                    &config.auth_headers,
+                )
+                .await
+                .map_err(|error| AddError::ResolveLatest {
+                    name: package_name.to_string(),
+                    error,
+                })?;
+                latest.serialize(pinned_version)
+            }
         };
 
         let mut updated_catalogs = Catalogs::new();
