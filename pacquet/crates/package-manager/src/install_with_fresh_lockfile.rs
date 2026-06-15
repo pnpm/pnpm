@@ -286,6 +286,13 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     AllowBuildsPolicy(#[error(source)] VersionPolicyError),
 
+    /// Surfaces any failure from the shared lifecycle-script build
+    /// phase — `patchedDependencies` resolution, the `BuildModules`
+    /// run, or the post-build top-level bin link. Shared with the
+    /// frozen-lockfile path via `run_build_phase`.
+    #[diagnostic(transparent)]
+    BuildPhase(#[error(source)] crate::install_frozen_lockfile::BuildPhaseError),
+
     /// Failed to resolve and hash `patchedDependencies` against the
     /// workspace directory.
     #[diagnostic(transparent)]
@@ -1378,21 +1385,38 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             "phase complete",
         );
-        let engine_name: Option<String> = if config.enable_global_virtual_store {
-            tokio::task::spawn_blocking(|| {
-                pacquet_graph_hasher::detect_node_major()
-                    .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
-            })
-            .await
-            .ok()
-            .flatten()
-        } else {
-            None
+        // Detect the host node major once. The GVS layout needs it to
+        // compute slot paths; the build phase needs it for the
+        // side-effects-cache key. Probe only when one of those consumes
+        // it — when the side-effects cache is off and GVS is off, the
+        // build phase falls through to "rebuild" with no key to look
+        // up, so the `node --version` startup cost is pure waste.
+        //
+        // The GVS layout needs `engine_name` synchronously; the build
+        // phase only needs it for the side-effects-cache key. So under
+        // the default (non-GVS) config, defer the probe and let it
+        // overlap `CreateVirtualStore`'s I/O instead of serializing
+        // ahead of it — mirroring the frozen path's `deferred_engine_handle`.
+        let detect_engine = || {
+            pacquet_graph_hasher::detect_node_major()
+                .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
         };
+        let (engine_name, deferred_engine_handle): (
+            Option<String>,
+            Option<tokio::task::JoinHandle<Option<String>>>,
+        ) = if config.enable_global_virtual_store {
+            (tokio::task::spawn_blocking(detect_engine).await.ok().flatten(), None)
+        } else if config.side_effects_cache_read() || config.side_effects_cache_write() {
+            (None, Some(tokio::task::spawn_blocking(detect_engine)))
+        } else {
+            (None, None)
+        };
+        let layout_engine_name =
+            if config.enable_global_virtual_store { engine_name.as_deref() } else { None };
         let phase_start = std::time::Instant::now();
         let layout = VirtualStoreLayout::new(
             config,
-            engine_name.as_deref(),
+            layout_engine_name,
             built_lockfile.snapshots.as_ref(),
             built_lockfile.packages.as_ref(),
             Some(&allow_build_policy),
@@ -1430,8 +1454,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let phase_start = std::time::Instant::now();
         let CreateVirtualStoreOutput {
             package_manifests,
-            side_effects_maps_by_snapshot: _,
-            requires_build_by_snapshot: _,
+            // Consumed by the build phase below to drive the
+            // side-effects-cache `is_built` gate and the
+            // `requiresBuild` decision per snapshot.
+            side_effects_maps_by_snapshot,
+            requires_build_by_snapshot,
             fetch_failed: _,
             // Populated only under `node_linker == Hoisted`; consumed by
             // the hoisted-linker pass below to materialize the on-disk
@@ -1477,23 +1504,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             "phase complete",
         );
 
-        // Drop the orchestration's writer handle so the channel closes,
-        // then wait for the final batch flush. See `create_virtual_store.rs`
-        // for why errors here are downgraded to `warn!`.
-        drop(store_index_writer);
-        match writer_task.await {
-            Ok(Ok(())) => {}
-            Ok(Err(error)) => tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "store-index writer task returned an error; some rows may not be persisted",
-            ),
-            Err(error) => tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "store-index writer task panicked; some rows may not be persisted",
-            ),
-        }
+        // The store-index writer is kept open past `CreateVirtualStore`
+        // so the build phase below can persist side-effects-cache rows;
+        // it is dropped and drained after `run_build_phase`.
 
         // Create `<modules_dir>/<alias>` symlinks for each direct dep.
         // Replaces the per-edge `symlink_package` calls the old
@@ -1519,6 +1532,17 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // (`.modules.yaml`, `LinkVirtualStoreBins`, etc.) already
         // writes.
         let symlink_root: &Path = config.modules_dir.parent().unwrap_or(lockfile_dir);
+
+        // Captured out of the link branches below for the shared build
+        // phase: `hoisted_pkg_root_by_key` lets `BuildModules` `cd` into
+        // the hoisted on-disk dir (`None`/empty for the isolated
+        // linker), and `publicly_hoisted_for_post_build` carries the
+        // public-hoist alias list into the post-build top-level bin
+        // link so a direct dep's bin wins over a hoisted one.
+        let mut hoisted_pkg_root_by_key: Option<
+            HashMap<pacquet_lockfile::PackageKey, std::path::PathBuf>,
+        > = None;
+        let mut publicly_hoisted_for_post_build: Vec<String> = Vec::new();
 
         // Under `nodeLinker: hoisted` the regular deps live as real
         // directories materialized by the hoisted linker, not as
@@ -1572,6 +1596,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 &mut skipped,
             )
             .map_err(InstallWithFreshLockfileError::from)?;
+            hoisted_pkg_root_by_key = output.hoisted_pkg_root_by_key;
             (HoistedDependencies::new(), output.hoisted_locations)
         } else {
             // Pre-compute the hoist plan so the dedupe pass in
@@ -1640,6 +1665,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 .map_err(InstallWithFreshLockfileError::HoistSymlink)?;
                 crate::link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
                     .map_err(InstallWithFreshLockfileError::HoistLinkBins)?;
+                // Stash the public-hoist alias list so the post-build
+                // top-level bin link resolves direct-over-hoisted
+                // precedence (pnpm/pacquet#342) instead of leaving it to
+                // the per-importer `link_bins` walk below.
+                publicly_hoisted_for_post_build = result.publicly_hoisted_aliases_with_bins;
                 result.hoisted_dependencies
             } else {
                 HoistedDependencies::new()
@@ -1704,17 +1734,89 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             (hoisted_dependencies, BTreeMap::new())
         };
 
+        // Mirrors upstream `link.ts:167-170`: `importing_done` fires
+        // once extraction and symlink linking are complete, before the
+        // build phase. Reporters use it to close the import progress
+        // display so the subsequent `pnpm:lifecycle` events render in
+        // their own section.
+        // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>
+        Reporter::emit(&LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: requester.to_string(),
+            stage: Stage::ImportingDone,
+        }));
+
+        // Resolve the deferred `node --version` probe (non-GVS path);
+        // it overlapped `CreateVirtualStore` above. Falls back to the
+        // synchronous value when the probe wasn't deferred.
+        let engine_name = match deferred_engine_handle {
+            Some(handle) => handle.await.ok().flatten(),
+            None => engine_name,
+        };
+
+        // Run lifecycle scripts, report ignored builds, and re-link
+        // top-level bins — the same build phase the frozen path runs, so
+        // `pacquet add esbuild` reports the blocked `esbuild` build (and
+        // builds approved packages) exactly like `pnpm`. `workspace_root`
+        // is the real lockfile dir (sets each script's `INIT_CWD`); the
+        // post-build bin link anchors on `symlink_root` to match where
+        // this path placed `node_modules`.
+        crate::install_frozen_lockfile::run_build_phase::<Reporter>(
+            &crate::install_frozen_lockfile::BuildPhaseInputs {
+                config,
+                workspace_root: lockfile_dir,
+                top_level_bin_root: symlink_root,
+                layout: &layout,
+                snapshots: built_lockfile.snapshots.as_ref(),
+                packages: built_lockfile.packages.as_ref(),
+                importers: &built_lockfile.importers,
+                dependency_groups: &dependency_groups,
+                allow_build_policy: &allow_build_policy,
+                side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
+                requires_build_by_snapshot: &requires_build_by_snapshot,
+                engine_name: engine_name.as_deref(),
+                store_index_writer: &store_index_writer,
+                skipped: &skipped,
+                hoisted_pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
+                is_hoisted,
+                publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
+                logged_methods,
+            },
+        )
+        .map_err(InstallWithFreshLockfileError::BuildPhase)?;
+
+        // Drop the orchestration's writer handle so the channel closes,
+        // then wait for the final batch flush — now including any
+        // side-effects-cache rows the build phase queued. Errors are
+        // downgraded to `warn!` (see `create_virtual_store.rs`): the
+        // install is complete and a missed cache write just forces a
+        // re-fetch on the next install.
+        drop(store_index_writer);
+        match writer_task.await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => tracing::warn!(
+                target: "pacquet::install",
+                ?error,
+                "store-index writer task returned an error; some rows may not be persisted",
+            ),
+            Err(error) => tracing::warn!(
+                target: "pacquet::install",
+                ?error,
+                "store-index writer task panicked; some rows may not be persisted",
+            ),
+        }
+
         // Write `pnpm-lock.yaml` from the resolved graph. Mirrors
         // upstream's
         // [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/094aa6e57b/lockfile/fs/src/write.ts#L133)
         // call at the tail of `deps-installer/src/install/index.ts`:
         // every non-frozen install lands a wanted lockfile so the next
         // pnpm / pacquet invocation can either go headless or diff
-        // against it. The save runs after materialization succeeds so
-        // a partial install can't leave a lockfile pointing at slots
-        // that never landed on disk. `config.lockfile=false` skips the
-        // write, matching pnpm's documented opt-out behavior even
-        // though that knob is rarely exercised today.
+        // against it. The save runs after the build phase succeeds so a
+        // partial install can't leave a lockfile pointing at slots that
+        // never landed on disk. `config.lockfile=false` skips the write,
+        // matching pnpm's documented opt-out behavior even though that
+        // knob is rarely exercised today.
         //
         // The built lockfile is returned to the caller so it can also
         // persist `<virtual_store_dir>/lock.yaml` after `.modules.yaml`
@@ -1736,17 +1838,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         } else {
             (None, false)
         };
-
-        // Mirrors upstream `link.ts:167-170`: `importing_done` fires once
-        // extraction and symlink linking are complete. The fresh-lockfile
-        // path does not run lifecycle scripts today, so emitting here also
-        // marks end-of-install for reporters.
-        // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>
-        Reporter::emit(&LogEvent::Stage(StageLog {
-            level: LogLevel::Debug,
-            prefix: requester.to_string(),
-            stage: Stage::ImportingDone,
-        }));
 
         Ok(InstallWithFreshLockfileResult {
             hoisted_dependencies,
