@@ -1360,27 +1360,36 @@ where
             }
         };
         let now = SystemTime::now();
-        let pruned_virtual_store = crate::prune_virtual_store::should_prune_virtual_store(
+        // `did_prune` tracks whether the sweep actually ran, not just
+        // whether the throttle allowed it: the sweep is skipped when there
+        // is no wanted lockfile to derive the needed set from (e.g.
+        // `config.lockfile == false` leaves both `fresh_lockfile` and a
+        // loaded `lockfile` absent), and `prunedAt` must not advance on a
+        // run where nothing was pruned, or the next real sweep is throttled
+        // off for `modulesCacheMaxAge`.
+        let did_prune = crate::prune_virtual_store::should_prune_virtual_store(
             config.enable_global_virtual_store,
             prior_modules.as_ref().map(|modules| modules.pruned_at.as_str()),
             config.modules_cache_max_age,
             now,
-        );
-        if pruned_virtual_store && let Some(wanted) = fresh_lockfile.as_ref().or(lockfile) {
+        ) && if let Some(wanted) = fresh_lockfile.as_ref().or(lockfile) {
             crate::prune_virtual_store::prune_virtual_store(
                 config.effective_virtual_store_dir(),
                 wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
                 &frozen_skipped,
                 config.virtual_store_dir_max_length as usize,
             );
-        }
+            true
+        } else {
+            false
+        };
 
         // Stamp `prunedAt` only when the sweep ran (or there was no prior
         // `.modules.yaml`); otherwise preserve the recorded timestamp so
         // the throttle keeps counting from the last real prune. Mirrors
         // upstream's write at
         // <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L1828-L1830>.
-        let pruned_at = match (&prior_modules, pruned_virtual_store) {
+        let pruned_at = match (&prior_modules, did_prune) {
             (Some(prior), false) => prior.pruned_at.clone(),
             _ => httpdate::fmt_http_date(now),
         };
