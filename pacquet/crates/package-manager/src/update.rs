@@ -15,7 +15,7 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_resolving_npm_resolver::pick_registry_for_package;
+use pacquet_resolving_npm_resolver::{pick_registry_for_package, which_version_is_pinned};
 use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 use std::{collections::HashSet, sync::Arc};
@@ -39,10 +39,12 @@ const DIRECT_GROUPS: [DependencyGroup; 3] =
 ///   pnpm only rewrites the manifest for deps marked `updateSpec`, which
 ///   compatible updates are not.
 /// * **`--latest`**: each matched *direct* dependency's `latest` tag is
-///   fetched and written into `package.json` (`^<version>`, or the exact
-///   version under `--save-exact`), exactly as `pacquet add` records a
-///   freshly-added range. The follow-up install then resolves the new
-///   range. Mirrors pnpm's `updateToLatest` + `updateSpec` path.
+///   fetched and written into `package.json`, reusing the range operator
+///   the dependency already pinned (`^` stays `^`, `~` stays `~`, an exact
+///   pin stays exact) and falling back to the configured default
+///   otherwise — pnpm's `calcRange` precedence. The follow-up install then
+///   resolves the new range. Mirrors pnpm's `updateToLatest` + `updateSpec`
+///   path.
 ///
 /// Selector handling mirrors pnpm's
 /// [`update`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/update/index.ts#L282-L328):
@@ -72,7 +74,10 @@ pub struct Update<'a> {
     /// `package.json`.
     pub latest: bool,
     /// `--save-exact` / `-E`: write the resolved version without a range
-    /// operator when rewriting the manifest under `--latest`.
+    /// operator when rewriting the manifest under `--latest`. Only applies
+    /// to dependencies whose current specifier has no recoverable pin; an
+    /// existing `^`/`~`/exact range is preserved over this default, matching
+    /// pnpm's `calcRange`.
     pub save_exact: bool,
     /// `--save` (default) / `--no-save`. When `false`, the manifest is
     /// not persisted: the `--latest` / versioned-selector range rewrites
@@ -208,6 +213,13 @@ impl Update<'_> {
         // alone selects between an exact pin and the default caret range.
         let pinned_version = PinnedVersion::from_save_options(save_exact, None);
 
+        // Under `--latest`, the resolved version is written back with the
+        // range operator the dependency already used; only a specifier with
+        // no recoverable pin (a tag, a `catalog:` reference, a multi-comparator
+        // range) falls back to the configured default. Mirrors pnpm's
+        // `calcRange` precedence: `whichVersionIsPinned(prev) ?? default`.
+        let latest_pin = |prev: &str| which_version_is_pinned(prev).unwrap_or(pinned_version);
+
         let selectors: Vec<ParsedSelector> =
             packages.iter().map(|input| parse_update_param(input)).collect();
 
@@ -271,13 +283,13 @@ impl Update<'_> {
             let is_ignored =
                 |name: &str| ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name));
 
-            for (name, group, _) in &direct {
+            for (name, group, prev) in &direct {
                 if is_ignored(name) {
                     continue;
                 }
                 if latest {
                     let version = fetch_latest(name, http_client, config).await?;
-                    rewrites.push((name.clone(), *group, version.serialize(pinned_version)));
+                    rewrites.push((name.clone(), *group, version.serialize(latest_pin(prev))));
                 }
                 drop_names.insert(name.clone());
             }
@@ -342,10 +354,10 @@ impl Update<'_> {
             // manifest, mirroring pnpm's `matchDependencies` + `updateSpec`.
             let patterns: Vec<String> = selectors.iter().map(|sel| sel.pattern.clone()).collect();
             let matcher = create_matcher(&patterns);
-            let matched_direct: Vec<(String, DependencyGroup)> = direct
+            let matched_direct: Vec<(String, DependencyGroup, String)> = direct
                 .iter()
                 .filter(|(name, _, _)| matcher.matches(name))
-                .map(|(name, group, _)| (name.clone(), *group))
+                .map(|(name, group, prev)| (name.clone(), *group, prev.clone()))
                 .collect();
 
             if matched_direct.is_empty() {
@@ -373,11 +385,11 @@ impl Update<'_> {
                 }
                 UpdateSeedPolicy::DropOnly(drop_names)
             } else {
-                for (name, group) in &matched_direct {
+                for (name, group, prev) in &matched_direct {
                     drop_names.insert(name.clone());
                     if latest {
                         let version = fetch_latest(name, http_client, config).await?;
-                        rewrites.push((name.clone(), *group, version.serialize(pinned_version)));
+                        rewrites.push((name.clone(), *group, version.serialize(latest_pin(prev))));
                     } else if let Some(spec) = selectors
                         .iter()
                         .find(|sel| matcher_one(&sel.pattern).matches(name))
