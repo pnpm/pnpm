@@ -2042,6 +2042,55 @@ describe('update', () => {
     })
   })
 
+  // A named catalog whose name parses as a version (e.g. "express4-21") must not
+  // have its update policy overridden. The "catalog:express4-21" reference in the
+  // manifest carries no pinning of its own, so the "~" prefix from the catalog
+  // entry must be preserved instead of being widened to "^" (issue #10321).
+  test('update via install mutation preserves the ~ range of a version-like named catalog (issue #10321)', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo1-0',
+      },
+    }])
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        'foo1-0': { '@pnpm.e2e/foo': '~1.0.0' },
+      },
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().catalogs['foo1-0']).toEqual({
+      '@pnpm.e2e/foo': { specifier: '~1.0.0', version: '1.0.0' },
+    })
+
+    // Simulate `pnpm update` via the "install" mutation with update=true.
+    const { updatedCatalogs } = await mutateModules(
+      installProjects(projects).map((project) => ({
+        ...project,
+        mutation: 'install' as const,
+        update: true,
+        updatePackageManifest: true,
+      })),
+      mutateOpts
+    )
+
+    // The "~" prefix must be preserved, not widened to "^".
+    expect(updatedCatalogs).toEqual({
+      'foo1-0': {
+        '@pnpm.e2e/foo': '~1.0.0',
+      },
+    })
+
+    expect(readLockfile().catalogs['foo1-0']).toEqual({
+      '@pnpm.e2e/foo': { specifier: '~1.0.0', version: '1.0.0' },
+    })
+  })
+
   // Similar to above but with updateToLatest (simulating `pnpm upgrade -r --latest`)
   test('update via install mutation with updateToLatest preserves catalog: in manifest (issue #11658)', async () => {
     await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
