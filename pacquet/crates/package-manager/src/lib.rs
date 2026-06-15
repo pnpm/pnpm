@@ -32,6 +32,7 @@ mod package_extender;
 mod prefetching_resolver;
 mod remove;
 mod resolution_observer;
+mod resolution_policy;
 mod retry_config;
 mod safe_join_modules_dir;
 mod store_init;

@@ -12,7 +12,7 @@ use indexmap::IndexMap;
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_cmd_shim::{Host, LinkBinsError, link_bins};
-use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, TrustPolicy};
+use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
@@ -518,18 +518,22 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let named_registry_aliases: std::collections::HashSet<String> =
             merged_named_registries.keys().cloned().collect();
 
-        // `resolutionMode` derivations. `time_based` and
-        // `pick_lowest_direct` steer the deps-resolver's per-depth
-        // version pick; `full_metadata` forces the npm resolver to
-        // fetch per-version `time` fields so the time-based cutoff (and
-        // the no-downgrade trust check) have publication dates to work
-        // with. Mirrors pnpm's
-        // [`fullMetadata`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/connection-manager/src/createNewStoreController.ts#L69-L74)
-        // expression: `(time-based || no-downgrade) && !registrySupportsTimeField`.
-        let time_based = config.resolution_mode == ResolutionMode::TimeBased;
-        let pick_lowest_direct = config.resolution_mode.picks_lowest_direct();
-        let full_metadata = (time_based || config.trust_policy == TrustPolicy::NoDowngrade)
-            && !config.registry_supports_time_field;
+        // `resolutionMode` / `minimumReleaseAge` derivations. `time_based`
+        // and `pick_lowest_direct` steer the deps-resolver's per-depth
+        // version pick; `full_metadata` forces the npm resolver to fetch
+        // per-version `time` fields so the time-based cutoff and the
+        // no-downgrade trust check have publication dates; `published_by`
+        // (+exclude) is the maturity cutoff. Shared with `pacquet add`'s
+        // explicit-spec pre-resolution via [`PickPolicy`] so both pick the
+        // same version.
+        let crate::resolution_policy::PickPolicy {
+            time_based,
+            pick_lowest_direct,
+            full_metadata,
+            published_by,
+            published_by_exclude,
+        } = crate::resolution_policy::PickPolicy::from_config(config)
+            .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
 
         // One per-cache-key packument fetch serializer shared between
         // the npm and named-registry resolvers. Ports upstream's
@@ -793,29 +797,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             Some(observer) => Box::new(crate::ObservingResolver::new(resolver, observer)),
             None => resolver,
         };
-
-        // Compile `minimumReleaseAge` (and its exclude pattern set)
-        // for the resolve pass. Mirrors the verifier wiring in
-        // `build_resolution_verifiers` so the resolver-time pick and
-        // the lockfile-verification check enforce the same policy.
-        //
-        // Every step uses checked arithmetic so an absurd configured
-        // value (e.g. `u64::MAX`) can't wrap on the `u64 → i64` cast,
-        // overflow inside `chrono::Duration`, or underflow the
-        // wall-clock subtraction. On overflow we leave the policy
-        // inactive for this install — better than silently producing
-        // a cutoff in the wrong direction.
-        let published_by = config.resolved_minimum_release_age().and_then(|minutes| {
-            let duration = chrono::Duration::try_minutes(i64::try_from(minutes).ok()?)?;
-            chrono::Utc::now().checked_sub_signed(duration)
-        });
-        let published_by_exclude = config
-            .minimum_release_age_exclude
-            .as_deref()
-            .filter(|patterns| !patterns.is_empty())
-            .map(pacquet_config::version_policy::create_package_version_policy)
-            .transpose()
-            .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
 
         // `trustPolicy='no-downgrade'` config, threaded into every
         // resolve so the npm resolver re-applies the downgrade gate to
