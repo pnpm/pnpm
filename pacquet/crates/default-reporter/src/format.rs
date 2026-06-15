@@ -184,9 +184,12 @@ pub fn highlight_last_folder(path: &str, colors: &crate::colors::Colors) -> Stri
     }
 }
 
-/// `path.relative` membership test used by the lifecycle "collapsed" rule and
-/// the broken-modules path: whether `needle` appears as a path segment run in
-/// `haystack`, separator-agnostic.
+/// Substring containment after slash-normalization, used by the lifecycle
+/// "collapsed" rule. Ports pnpm's `wd.includes(NODE_MODULES)` /
+/// `wd.includes(TMP_DIR_IN_STORE)` checks in `reportLifecycleScripts.ts`,
+/// which are plain `String.includes` calls — segment-aware matching would
+/// diverge from pnpm. The needles pnpm passes (`/node_modules/`, `tmp/_tmp_`)
+/// already carry their own separators, so substring matching is sufficient.
 #[must_use]
 pub fn contains_path(haystack: &str, needle: &str) -> bool {
     normalize(haystack).contains(&normalize(needle))

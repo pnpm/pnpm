@@ -97,16 +97,17 @@ pub struct CliArgs {
 
 /// Selectable rendering strategy for log events.
 ///
-/// Mirrors the names pnpm uses for `--reporter` (`default`, `ndjson`,
-/// `silent`, `append-only`). `append-only` is not a separate variant yet:
-/// `default` falls back to its append-only rendering automatically when
-/// stdout is not a TTY, matching pnpm's behaviour.
+/// Mirrors the names pnpm uses for `--reporter` (`default`, `append-only`,
+/// `ndjson`, `silent`).
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum ReporterType {
     /// pnpm-style visual output (progress line, packages diff, lifecycle
     /// output, `Done in ...`). The default; renders in place on a TTY and
-    /// append-only otherwise.
+    /// falls back to append-only when stdout is not a TTY.
     Default,
+    /// Like `default` but forces the append-only rendering even on a TTY —
+    /// one line per update, no cursor movement.
+    AppendOnly,
     /// Newline-delimited JSON in pnpm's wire format on stderr.
     Ndjson,
     /// No progress output.
@@ -159,6 +160,7 @@ impl CliArgs {
     /// file seed + `--config.<key>` overrides). Workspace-filtered and
     /// recursive installs always take the full path.
     pub fn finished_via_install_fast_path(&self, config_overrides: &ConfigOverrides) -> bool {
+        let started_at = now_millis();
         let CliCommand::Install(install_args) = &self.command else {
             return false;
         };
@@ -174,9 +176,20 @@ impl CliArgs {
             return false;
         };
         config_overrides.apply(&mut config);
-        pacquet_default_reporter::set_cwd(dir.to_string_lossy().into_owned());
+        configure_default_reporter(self.reporter, &dir);
         let emit = reporter_emit(self.reporter);
-        install_args.finished_via_up_to_date_fast_path(&dir, &config, emit)
+        let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
+        if finished {
+            // The fast path returns from `main` before `run` reaches its
+            // end-of-command emit, so the `Done in ...` footer must be emitted
+            // here too to match the non-fast-path output.
+            emit(&LogEvent::ExecutionTime(ExecutionTimeLog {
+                level: LogLevel::Debug,
+                started_at,
+                ended_at: now_millis(),
+            }));
+        }
+        finished
     }
 
     /// Execute the command. `config_overrides` carries `--config.<key>=<value>`
@@ -203,10 +216,10 @@ impl CliArgs {
         // The default reporter renders paths relative to the install root and
         // its `Done in ...` footer over the whole command; seed both before any
         // event can fire.
-        pacquet_default_reporter::set_cwd(dir.to_string_lossy().into_owned());
+        configure_default_reporter(reporter, &dir);
         let started_at = now_millis();
         let is_install_family = matches!(
-            command,
+            &command,
             CliCommand::Add(_)
                 | CliCommand::Update(_)
                 | CliCommand::Remove(_)
@@ -264,14 +277,14 @@ impl CliArgs {
                 PackageManifest::init(&manifest_path()).wrap_err("initialize package.json")?;
             }
             CliCommand::Add(args) => match reporter {
-                ReporterType::Default => {
+                ReporterType::Default | ReporterType::AppendOnly => {
                     Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
                 }
                 ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
                 ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
             },
             CliCommand::Update(args) => match reporter {
-                ReporterType::Default => {
+                ReporterType::Default | ReporterType::AppendOnly => {
                     Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
                 }
                 ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
@@ -288,7 +301,7 @@ impl CliArgs {
                 }
             }
             CliCommand::Remove(args) => match reporter {
-                ReporterType::Default => {
+                ReporterType::Default | ReporterType::AppendOnly => {
                     Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
                 }
                 ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
@@ -359,7 +372,9 @@ impl CliArgs {
                 // monomorphized install futures would otherwise each reserve
                 // their full size in this frame.
                 match reporter {
-                    ReporterType::Default => Box::pin(pipeline.run::<DefaultReporter>()).await?,
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(pipeline.run::<DefaultReporter>()).await?;
+                    }
                     ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
                     ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
                 }
@@ -386,7 +401,7 @@ impl CliArgs {
                 }
             }
             CliCommand::Dlx(args) => match reporter {
-                ReporterType::Default => {
+                ReporterType::Default | ReporterType::AppendOnly => {
                     Box::pin(args.run::<DefaultReporter>(&dir, config()?)).await?;
                 }
                 ReporterType::Ndjson => {
@@ -472,9 +487,20 @@ impl InstallPipeline {
 /// the event-emission sites that aren't already generic over `Reporter`.
 fn reporter_emit(reporter: ReporterType) -> fn(&LogEvent) {
     match reporter {
-        ReporterType::Default => DefaultReporter::emit,
+        ReporterType::Default | ReporterType::AppendOnly => DefaultReporter::emit,
         ReporterType::Ndjson => NdjsonReporter::emit,
         ReporterType::Silent => SilentReporter::emit,
+    }
+}
+
+/// Seed the process-global default-reporter state that can't be recovered
+/// from events: the project root (for relative paths) and, for
+/// `--reporter=append-only`, the forced append-only mode. Idempotent; safe to
+/// call from both the fast path and the main run.
+fn configure_default_reporter(reporter: ReporterType, dir: &Path) {
+    pacquet_default_reporter::set_cwd(dir.to_string_lossy().into_owned());
+    if matches!(reporter, ReporterType::AppendOnly) {
+        pacquet_default_reporter::force_append_only();
     }
 }
 

@@ -22,9 +22,10 @@ use std::{
     fmt::Write as _,
     io::{IsTerminal, Write},
     sync::{LazyLock, Mutex, OnceLock},
+    time::{Duration, Instant},
 };
 
-use pacquet_reporter::{LogEvent, Reporter};
+use pacquet_reporter::{FetchingProgressMessage, LogEvent, Reporter};
 
 use crate::{
     colors::Colors,
@@ -33,6 +34,7 @@ use crate::{
 
 static CWD: OnceLock<String> = OnceLock::new();
 static PACKAGE_VERSION: OnceLock<String> = OnceLock::new();
+static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
 
 /// Set the project root the reporter renders paths relative to. Call once
 /// before the first event; ignored if already set.
@@ -50,6 +52,12 @@ pub(crate) fn package_version() -> &'static str {
     PACKAGE_VERSION.get().map(String::as_str).unwrap_or(env!("CARGO_PKG_VERSION"))
 }
 
+/// Force append-only rendering regardless of whether stdout is a TTY,
+/// backing `--reporter=append-only`. Call once before the first event.
+pub fn force_append_only() {
+    let _ = FORCE_APPEND_ONLY.set(true);
+}
+
 fn cwd() -> String {
     CWD.get().cloned().unwrap_or_else(|| {
         std::env::current_dir().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default()
@@ -63,7 +71,22 @@ impl Reporter for DefaultReporter {
     fn emit(event: &LogEvent) {
         let mut sink = SINK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let output = sink.state.handle(event);
-        sink.write(output);
+        sink.write(output, is_coalesceable(event));
+    }
+}
+
+/// Whether an event is a high-volume progress update that may be dropped
+/// under throttling, mirroring pnpm's `throttleProgress` on the progress
+/// stream. Per-package `pnpm:progress` and streaming `in_progress` download
+/// ticks coalesce; everything else (stats, summary, lifecycle, stage markers,
+/// the footer) renders immediately.
+fn is_coalesceable(event: &LogEvent) -> bool {
+    match event {
+        LogEvent::Progress(_) => true,
+        LogEvent::FetchingProgress(log) => {
+            matches!(log.message, FetchingProgressMessage::InProgress { .. })
+        }
+        _ => false,
     }
 }
 
@@ -73,23 +96,44 @@ struct Sink {
     state: ReporterState,
     columns: usize,
     prev_rows: usize,
+    throttle: Duration,
+    last_write: Option<Instant>,
 }
 
 impl Sink {
     fn new() -> Self {
         let is_tty = std::io::stdout().is_terminal();
+        let append_only = !is_tty || FORCE_APPEND_ONLY.get().copied().unwrap_or(false);
         let columns = if is_tty { terminal_columns().unwrap_or(80) } else { 80 };
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
         let width = if is_tty { columns.saturating_sub(2) } else { 80 };
         let colors = Colors { enabled: is_tty && std::env::var_os("NO_COLOR").is_none() };
-        let state = ReporterState::new(cwd(), width, colors, !is_tty);
-        Sink { state, columns, prev_rows: 0 }
+        let state = ReporterState::new(cwd(), width, colors, append_only);
+        // pnpm's `throttleProgress`: 200ms in place, 1000ms append-only.
+        let throttle =
+            if append_only { Duration::from_secs(1) } else { Duration::from_millis(200) };
+        Sink { state, columns, prev_rows: 0, throttle, last_write: None }
     }
 
-    fn write(&mut self, output: Output) {
+    fn write(&mut self, output: Output, coalesceable: bool) {
+        // Drop a high-volume progress redraw if the throttle window hasn't
+        // elapsed. State is already folded, so the next non-coalesceable
+        // event (stats, summary, importing-done, the footer) renders the
+        // latest counts.
+        if coalesceable && self.last_write.is_some_and(|last| last.elapsed() < self.throttle) {
+            return;
+        }
+        let wrote = self.write_output(output);
+        if wrote {
+            self.last_write = Some(Instant::now());
+        }
+    }
+
+    /// Returns whether anything was written.
+    fn write_output(&mut self, output: Output) -> bool {
         let mut out = std::io::stdout().lock();
         match output {
-            Output::None => return,
+            Output::None => return false,
             Output::Lines(lines) => {
                 for line in lines {
                     let _ = writeln!(out, "{line}");
@@ -108,6 +152,7 @@ impl Sink {
             }
         }
         let _ = out.flush();
+        true
     }
 }
 
@@ -141,3 +186,6 @@ fn terminal_columns() -> Option<usize> {
 fn terminal_columns() -> Option<usize> {
     None
 }
+
+#[cfg(test)]
+mod tests;
