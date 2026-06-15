@@ -799,16 +799,24 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         // and the slot is read-only under `frozen_store`, where a write
         // would fail with `EROFS`.
         //
-        // A materialization failure is *not* fatal. Side-effects `added`
-        // blobs aren't re-verified (see
+        // A materialization failure is usually *not* fatal. Side-effects
+        // `added` blobs aren't re-verified (see
         // [`pacquet_store_dir::build_file_maps_from_index`]), so a CAS
         // blob deleted out from under the store surfaces here as an
-        // import error. Treat that exactly like a cache miss: fall through
-        // to the normal build path below, which re-runs the script over
-        // the already-linked pristine files and re-seeds the cache. This
-        // also means a corrupt entry on an optional dependency reaches the
-        // optional-build-failure swallow below instead of aborting the
-        // whole install.
+        // import error. That failure happens while staging the new
+        // contents, before the existing slot is touched, so the pristine
+        // files are still on disk: treat it as a cache miss and fall
+        // through to the normal build path below, which re-runs the script
+        // over the intact files and re-seeds the cache.
+        //
+        // The one case that must *not* silently fall through is a
+        // stage-and-swap that failed mid-replace and left the slot without
+        // its base files. Rebuilding against that would run scripts on an
+        // incomplete dir (or skip them when the manifest is gone) and let
+        // the install finish with a broken package. When the manifest is
+        // missing after a failed materialization, skip an optional
+        // dependency (as for any optional build failure) and surface a
+        // hard error otherwise.
         let satisfied_by_cache = if layout.enable_global_virtual_store() {
             true
         } else {
@@ -821,7 +829,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                         overlay,
                     ) {
                         Ok(()) => true,
-                        Err(error) => {
+                        Err(error) if pkg_dir.join("package.json").exists() => {
                             tracing::warn!(
                                 target: "pacquet::build",
                                 ?snapshot_key,
@@ -830,6 +838,25 @@ fn build_one_snapshot<Reporter: self::Reporter>(
                                 "failed to materialize side-effects cache overlay; rebuilding",
                             );
                             false
+                        }
+                        Err(error) => {
+                            if snapshots.get(snapshot_key).is_some_and(|entry| entry.optional) {
+                                Reporter::emit(&LogEvent::SkippedOptionalDependency(
+                                    SkippedOptionalDependencyLog {
+                                        level: LogLevel::Debug,
+                                        details: Some(error.to_string()),
+                                        package: SkippedOptionalPackage::Installed {
+                                            id: pkg_dir.to_string_lossy().into_owned(),
+                                            name,
+                                            version,
+                                        },
+                                        prefix: lockfile_dir.to_string_lossy().into_owned(),
+                                        reason: SkippedOptionalReason::BuildFailure,
+                                    },
+                                ));
+                                return Ok(());
+                            }
+                            return Err(error);
                         }
                     }
                 }

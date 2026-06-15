@@ -927,6 +927,119 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
     );
 }
 
+/// If a failed materialization left the slot without its manifest (a
+/// stage-and-swap that failed mid-replace), the install must not finish
+/// with a silently broken package: a non-optional snapshot surfaces a
+/// hard error rather than falling through to a no-op "rebuild" over the
+/// incomplete directory.
+#[cfg(unix)]
+#[test]
+fn materialization_failure_on_incomplete_slot_is_fatal() {
+    let pkg_key = key("@pnpm.e2e/postinstall-modifies-source", "1.0.0");
+    let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
+    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+        HashMap::from([(
+            pkg_key.without_peer(),
+            pacquet_lockfile::PackageMetadata {
+                resolution: pacquet_lockfile::LockfileResolution::Registry(
+                    pacquet_lockfile::RegistryResolution {
+                        integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                            .parse()
+                            .expect("parse integrity"),
+                    },
+                ),
+                version: None,
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: None,
+                peer_dependencies_meta: None,
+            },
+        )]);
+    let importers = root_importers(&[("@pnpm.e2e/postinstall-modifies-source", "1.0.0")]);
+    let policy = policy_from_specs([], true);
+
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    let modules_dir = tempdir().expect("create temp dir");
+    let lockfile_dir = tempdir().expect("create temp dir");
+
+    // A slot directory that exists but has lost its manifest — the state a
+    // stage-and-swap failure would leave behind.
+    let (pkg_dir, _mode) =
+        create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+    fs::remove_file(pkg_dir.join("package.json")).expect("remove manifest");
+
+    let engine = "darwin;arm64;node20";
+    let dep_graph = crate::build_deps_graph(&snapshots, &packages);
+    let mut state_cache = pacquet_graph_hasher::DepsStateCache::new();
+    let expected_cache_key = pacquet_graph_hasher::calc_dep_state(
+        &dep_graph,
+        &mut state_cache,
+        &pkg_key,
+        &pacquet_graph_hasher::CalcDepStateOptions {
+            engine_name: engine,
+            patch_file_hash: None,
+            include_dep_graph_hash: true,
+        },
+    );
+    // Overlay points at a non-existent CAS blob, so materialization fails.
+    let overlay = std::collections::HashMap::from([(
+        "generated.txt".to_string(),
+        virtual_store_dir.path().join("missing-cas-blob"),
+    )]);
+    let mut side_effects_maps = std::collections::HashMap::new();
+    side_effects_maps.insert(
+        pkg_key.clone(),
+        std::sync::Arc::new(HashMap::from([(expected_cache_key, overlay)])),
+    );
+    // `requires_build` must be forced on: the gate is only reached for a
+    // build candidate, and the manifest-less slot would otherwise probe as
+    // not-requiring-build.
+    let requires_build: RequiresBuildBySnapshot = HashMap::from([(pkg_key.clone(), true)]);
+
+    let result = BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        packages: Some(&packages),
+        importers: &importers,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: Some(&side_effects_maps),
+        requires_build_by_snapshot: Some(&requires_build),
+        engine_name: Some(engine),
+        side_effects_cache: true,
+        side_effects_cache_write: false,
+        store_dir: None,
+        store_index_writer: None,
+        patches: None,
+
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_root_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
+    }
+    .run::<SilentReporter>();
+
+    assert!(
+        result.is_err(),
+        "a non-optional package whose slot lost its manifest must fail the install, not finish broken",
+    );
+}
+
 /// Negative pair: with `side_effects_cache = false`, even a
 /// matching cache entry is ignored — the build runs. Mirrors
 /// upstream's `sideEffectsCache: false` config branch.
