@@ -1,7 +1,7 @@
 use super::{LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings};
 use crate::{
-    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, ResolutionMode,
-    ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, NodePackageMapType,
+    ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
 };
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::{ConfigDependency, ConfigDependencyDetail};
@@ -19,6 +19,8 @@ autoInstallPeers: true
 dedupePeers: true
 preferWorkspacePackages: true
 nodeLinker: hoisted
+nodeExperimentalPackageMap: true
+nodePackageMapType: loose
 packages:
   - packages/*
 ";
@@ -30,6 +32,8 @@ packages:
     assert_eq!(settings.dedupe_peers, Some(true));
     assert_eq!(settings.prefer_workspace_packages, Some(true));
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
+    assert_eq!(settings.node_experimental_package_map, Some(true));
+    assert_eq!(settings.node_package_map_type, Some(NodePackageMapType::Loose));
 }
 
 #[test]

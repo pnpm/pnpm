@@ -11,7 +11,7 @@ use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
 use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{Config, NodeLinker};
+use pacquet_config::{Config, NodeLinker, NodePackageMapType};
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks,
     ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
@@ -1465,7 +1465,7 @@ where
             None
         };
         let package_map_lockfile = filtered_current_lockfile.as_ref().or(fresh_lockfile.as_ref());
-        if node_linker == NodeLinker::Isolated
+        if should_write_package_map(config, node_linker)
             && let Some(package_map_lockfile) = package_map_lockfile
         {
             crate::package_map::write_package_map(
@@ -2250,6 +2250,11 @@ fn build_workspace_packages_map(
         );
     }
     Some(map)
+}
+
+fn should_write_package_map(config: &Config, node_linker: NodeLinker) -> bool {
+    node_linker == NodeLinker::Isolated
+        && config.node_package_map_type == NodePackageMapType::Standard
 }
 
 /// Build the `projects` map for [`WorkspaceState`] from the

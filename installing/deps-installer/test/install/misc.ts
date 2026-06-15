@@ -137,6 +137,55 @@ test('writes a loose package map for hoisted node linker', async () => {
   })
 })
 
+test('does not inject a package map into lifecycle scripts when virtualStoreOnly skips map materialization', async () => {
+  prepareEmpty()
+  fs.mkdirSync('pkg')
+  const marker = path.resolve('package-map-env-ok')
+  fs.writeFileSync('pkg/package.json', JSON.stringify({
+    name: 'pkg',
+    version: '1.0.0',
+    scripts: {
+      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+    },
+  }), 'utf8')
+
+  await addDependenciesToPackage({}, ['file:./pkg'], testDefaults({
+    allowBuilds: { 'pkg@file:pkg': true },
+    nodeExperimentalPackageMap: true,
+    virtualStoreOnly: true,
+  }))
+
+  expect(fs.existsSync(path.resolve('node_modules/.package-map.json'))).toBeFalsy()
+  expect(fs.existsSync(marker)).toBeTruthy()
+})
+
+test('does not write or inject a package map when modules directory creation is disabled', async () => {
+  prepareEmpty()
+  const marker = path.resolve('package-map-env-ok')
+  const manifest: ProjectManifest = {
+    name: 'project',
+    version: '1.0.0',
+    scripts: {
+      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+    },
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+
+  await install(manifest, testDefaults({ ignoreScripts: true }))
+  rimrafSync('node_modules')
+
+  await install(manifest, testDefaults({
+    enableModulesDir: false,
+    frozenLockfile: true,
+    nodeExperimentalPackageMap: true,
+  }))
+
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeFalsy()
+  expect(fs.existsSync(marker)).toBeTruthy()
+})
+
 testOnNode27Plus('package map can resolve package dependencies at runtime with Node.js', async () => {
   prepareEmpty()
 
@@ -1472,3 +1521,16 @@ test('install should not hang on circular peer dependencies', async () => {
   // cspell:disable-next-line
   await addDependenciesToPackage({}, ['@medusajs/medusa-js@6.1.7'], testDefaults())
 })
+
+function makeAssertNoPackageMapNodeOptionsScript (marker: string): string {
+  const scriptPath = path.resolve('assert-no-package-map-node-options.cjs')
+  fs.writeFileSync(scriptPath, `
+const fs = require('node:fs')
+
+if ((process.env.NODE_OPTIONS || '').includes('--experimental-package-map')) {
+  throw new Error('unexpected package map NODE_OPTIONS')
+}
+fs.writeFileSync(process.argv[2], 'ok')
+`, 'utf8')
+  return `node ${JSON.stringify(scriptPath)} ${JSON.stringify(marker)}`
+}

@@ -46,7 +46,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'workspace-concurrency',
       'reporter-hide-prefix',
       'node-experimental-package-map',
-    'node-package-map-type',
+      'node-package-map-type',
     ], types),
     'shell-mode': Boolean,
     'resume-from': String,
@@ -243,8 +243,10 @@ export async function handler (
           const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(prefix))
           const extraEnv: Record<string, string | undefined> = {
             ...opts.extraEnv,
-            ...(pnpPath ? makeNodeRequireOption(pnpPath) : {}),
             ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
+          }
+          if (pnpPath) {
+            Object.assign(extraEnv, makeNodeRequireOption(pnpPath, extraEnv))
           }
           if (packageMapPath) {
             Object.assign(extraEnv, makeNodePackageMapOption(packageMapPath, extraEnv))

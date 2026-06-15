@@ -22,7 +22,7 @@ pub(crate) struct PackageMapPackage {
 
 #[derive(Debug, derive_more::Display, derive_more::Error)]
 pub enum WritePackageMapError {
-    #[display("failed to create node_modules directory: {_0}")]
+    #[display("failed to create package-map directory: {_0}")]
     CreateDir(#[error(source)] std::io::Error),
     #[display("failed to serialize package map: {_0}")]
     Serialize(#[error(source)] serde_json::Error),
@@ -230,15 +230,7 @@ fn resolve_link_target(lockfile_dir: &Path, importer_id: Option<&str>, target: &
         importer_dir.join(target)
     };
     let dir = lexical_normalize(&dir);
-    let relative_id =
-        normalize_path(&pathdiff::diff_paths(&dir, lockfile_dir).unwrap_or_else(|| dir.clone()));
-    let id = if relative_id.starts_with("..") {
-        format!("link:{}", normalize_path(&dir))
-    } else if relative_id.is_empty() {
-        ".".to_string()
-    } else {
-        relative_id
-    };
+    let id = link_target_id(pathdiff::diff_paths(&dir, lockfile_dir), &dir);
     LinkTarget { id, dir }
 }
 
@@ -274,7 +266,9 @@ fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String
 }
 
 fn to_relative_url(from: &Path, to: &Path) -> String {
-    let relative = pathdiff::diff_paths(to, from).unwrap_or_else(|| to.to_path_buf());
+    let Some(relative) = pathdiff::diff_paths(to, from) else {
+        return absolute_package_url(to);
+    };
     let relative = normalize_path(&relative);
     let relative = if relative.is_empty() { ".".to_string() } else { relative };
     if relative == "."
@@ -288,19 +282,63 @@ fn to_relative_url(from: &Path, to: &Path) -> String {
     }
 }
 
+fn link_target_id(relative: Option<PathBuf>, dir: &Path) -> String {
+    let Some(relative) = relative else {
+        return format!("link:{}", normalize_path(dir));
+    };
+    let relative_id = normalize_path(&relative);
+    if relative_id == ".." || relative_id.starts_with("../") {
+        format!("link:{}", normalize_path(dir))
+    } else if relative_id.is_empty() {
+        ".".to_string()
+    } else {
+        relative_id
+    }
+}
+
+fn absolute_package_url(path: &Path) -> String {
+    let normalized = normalize_path(path);
+    if cfg!(windows) && normalized.starts_with("//") {
+        format!("file:{}", encode_url_path(&normalized))
+    } else if cfg!(windows) && !normalized.starts_with('/') {
+        format!("file:///{}", encode_url_path(&normalized))
+    } else {
+        format!("file://{}", encode_url_path(&normalized))
+    }
+}
+
+fn encode_url_path(path: &str) -> String {
+    let mut encoded = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' | b':' => {
+                encoded.push(byte as char)
+            }
+            _ => encoded.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    encoded
+}
+
 fn normalize_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{PackageMapOptions, lockfile_to_package_map};
+    use super::{
+        PackageMapOptions, absolute_package_url, link_target_id, lockfile_to_package_map,
+        to_relative_url,
+    };
     use pacquet_lockfile::{
         ComVer, Lockfile, LockfileVersion, PkgName, ProjectSnapshot, ResolvedDependencyMap,
         ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
     };
     use pacquet_package_manifest::PackageManifest;
-    use std::collections::HashMap;
+    use std::{
+        collections::HashMap,
+        path::{Path, PathBuf},
+    };
 
     #[test]
     fn builds_package_map_from_lockfile() {
@@ -413,6 +451,40 @@ mod tests {
                     }
                 }
             })
+        );
+    }
+
+    #[test]
+    fn link_target_id_uses_link_prefix_when_relative_path_cannot_be_computed() {
+        let dir = PathBuf::from("/outside/store/pkg");
+        assert_eq!(link_target_id(None, &dir), "link:/outside/store/pkg");
+    }
+
+    #[test]
+    fn link_target_id_uses_link_prefix_for_paths_above_the_lockfile_dir() {
+        let dir = PathBuf::from("/outside/pkg");
+        assert_eq!(
+            link_target_id(Some(PathBuf::from("../outside/pkg")), &dir),
+            "link:/outside/pkg"
+        );
+    }
+
+    #[test]
+    fn relative_url_uses_a_file_url_when_relative_path_cannot_be_computed() {
+        assert_eq!(
+            absolute_package_url(Path::new("/outside/pkg with space")),
+            "file:///outside/pkg%20with%20space"
+        );
+    }
+
+    #[test]
+    fn relative_url_keeps_same_volume_paths_relative() {
+        assert_eq!(
+            to_relative_url(
+                Path::new("/workspace/node_modules"),
+                Path::new("/workspace/node_modules/.pnpm/foo")
+            ),
+            "./.pnpm/foo",
         );
     }
 

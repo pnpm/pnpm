@@ -292,6 +292,161 @@ test('lockfileToPackageMap', () => {
   })
 })
 
+test('lockfileToPackageMap loose mode includes linked dependencies from physical ancestors', () => {
+  const lockfile = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          dep1: '1.0.0',
+          linked: 'link:packages/linked',
+        },
+        specifiers: {},
+      },
+    },
+    lockfileVersion: '5',
+    packages: {
+      ['dep1@1.0.0' as DepPath]: {
+        resolution: {
+          integrity: '',
+        },
+      },
+    },
+  }
+  const opts = {
+    importerNames: {
+      '.': 'root',
+    },
+    lockfileDir: process.cwd(),
+    rootModulesDir: path.resolve('node_modules'),
+    virtualStoreDir: path.resolve('node_modules/.pnpm'),
+    virtualStoreDirMaxLength: 120,
+  }
+  const standardPackageMap = lockfileToPackageMap(lockfile, opts)
+  const loosePackageMap = lockfileToPackageMap(lockfile, {
+    ...opts,
+    packageMapType: 'loose',
+  })
+
+  expect(standardPackageMap.packages['dep1@1.0.0'].dependencies).toStrictEqual({
+    dep1: 'dep1@1.0.0',
+  })
+
+  expect(loosePackageMap.packages['dep1@1.0.0'].dependencies).toStrictEqual({
+    dep1: 'dep1@1.0.0',
+    linked: 'packages/linked',
+  })
+})
+
+test('lockfileToPackageMap uses file urls and link ids for Windows cross-drive links', () => {
+  const packageMap = lockfileToPackageMap({
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          linked: 'link:D:\\external\\linked',
+        },
+        specifiers: {},
+      },
+    },
+    lockfileVersion: '5',
+    packages: {},
+  }, {
+    importerNames: {},
+    lockfileDir: 'C:\\repo',
+    rootModulesDir: 'C:\\repo\\node_modules',
+    virtualStoreDir: 'C:\\repo\\node_modules\\.pnpm',
+    virtualStoreDirMaxLength: 120,
+  })
+
+  expect(packageMap.packages['.'].dependencies).toStrictEqual({
+    linked: 'link:D:/external/linked',
+  })
+  expect(packageMap.packages['link:D:/external/linked'].url).toBe('file:///D:/external/linked')
+})
+
+test('dependenciesGraphToPackageMap uses file urls and link ids for Windows cross-drive links', () => {
+  const packageMap = dependenciesGraphToPackageMap({
+    directDependenciesByImporterId: {
+      '.': {},
+    },
+    graph: {},
+    importerNames: {
+      '.': 'root',
+    },
+    lockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            linked: 'link:D:\\external\\linked',
+          },
+          specifiers: {},
+        },
+      },
+      lockfileVersion: '5',
+      packages: {},
+    },
+    lockfileDir: 'C:\\repo',
+    packageIdStrategy: 'path',
+    rootModulesDir: 'C:\\repo\\node_modules',
+  })
+
+  expect(packageMap.packages['.'].dependencies).toStrictEqual({
+    linked: 'link:D:/external/linked',
+    root: '.',
+  })
+  expect(packageMap.packages['link:D:/external/linked'].url).toBe('file:///D:/external/linked')
+})
+
+test('dependenciesGraphToPackageMap loose mode includes linked dependencies from physical ancestors', () => {
+  const rootModulesDir = path.resolve('node_modules')
+  const dep1Dir = path.join(rootModulesDir, 'dep1')
+  const packageMap = dependenciesGraphToPackageMap({
+    directDependenciesByImporterId: {
+      '.': {
+        dep1: dep1Dir,
+      },
+    },
+    graph: {
+      [dep1Dir]: {
+        children: {},
+        depPath: 'dep1@1.0.0' as DepPath,
+        dir: dep1Dir,
+        name: 'dep1',
+      },
+    },
+    importerNames: {
+      '.': 'root',
+    },
+    lockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            dep1: '1.0.0',
+            linked: 'link:packages/linked',
+          },
+          specifiers: {},
+        },
+      },
+      lockfileVersion: '5',
+      packages: {
+        ['dep1@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: '',
+          },
+        },
+      },
+    },
+    lockfileDir: process.cwd(),
+    packageIdStrategy: 'path',
+    packageMapType: 'loose',
+    rootModulesDir,
+  })
+
+  expect(packageMap.packages.dep1.dependencies).toStrictEqual({
+    dep1: 'dep1',
+    linked: '../packages/linked',
+  })
+})
+
 test('dependenciesGraphToPackageMap with path package ids', () => {
   const packageMap = dependenciesGraphToPackageMap({
     directDependenciesByImporterId: {

@@ -17,8 +17,8 @@
 //! [`config/reader/src/index.ts:719-722`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L719-L722).
 
 use crate::{
-    CatalogMode, HoistingLimits, NodeLinker, PackageImportMethod, ResolutionMode,
-    ScriptsPrependNodePath, TrustPolicy, WorkspaceSettings, api::EnvVar,
+    CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
+    ResolutionMode, ScriptsPrependNodePath, TrustPolicy, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -135,6 +135,8 @@ impl WorkspaceSettings {
         string_field!(store_dir, "STORE_DIR");
         string_field!(modules_dir, "MODULES_DIR");
         enum_field!(node_linker, "NODE_LINKER", NodeLinker);
+        json_field!(node_experimental_package_map, "NODE_EXPERIMENTAL_PACKAGE_MAP");
+        enum_field!(node_package_map_type, "NODE_PACKAGE_MAP_TYPE", NodePackageMapType);
         json_field!(symlink, "SYMLINK");
         string_field!(virtual_store_dir, "VIRTUAL_STORE_DIR");
         json_field!(enable_global_virtual_store, "ENABLE_GLOBAL_VIRTUAL_STORE");

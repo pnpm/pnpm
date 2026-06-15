@@ -1,6 +1,7 @@
 use crate::{
-    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PackageImportMethod,
-    ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
+    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, NodePackageMapType,
+    PackageImportMethod, ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+    resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -77,6 +78,8 @@ pub struct WorkspaceSettings {
     pub store_dir: Option<String>,
     pub modules_dir: Option<String>,
     pub node_linker: Option<NodeLinker>,
+    pub node_experimental_package_map: Option<bool>,
+    pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,
     pub virtual_store_dir: Option<String>,
     /// `enableGlobalVirtualStore` from `pnpm-workspace.yaml`. Default
@@ -703,7 +706,8 @@ impl WorkspaceSettings {
 
         apply! {
             hoist, shamefully_hoist,
-            node_linker, symlink, package_import_method, modules_cache_max_age,
+            node_linker, node_experimental_package_map, node_package_map_type,
+            symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,
             lockfile, prefer_frozen_lockfile, offline, prefer_offline,

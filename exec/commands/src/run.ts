@@ -90,7 +90,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     ...pick([
       'npm-path',
       'node-experimental-package-map',
-    'node-package-map-type',
+      'node-package-map-type',
     ], allTypes),
   }
 }

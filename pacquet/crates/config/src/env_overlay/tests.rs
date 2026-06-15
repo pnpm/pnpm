@@ -1,5 +1,5 @@
 use super::{WorkspaceSettings, parse_json_or_string, parse_tri_array};
-use crate::{NodeLinker, ScriptsPrependNodePath, TrustPolicy, api::EnvVar};
+use crate::{NodeLinker, NodePackageMapType, ScriptsPrependNodePath, TrustPolicy, api::EnvVar};
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -32,6 +32,10 @@ fn empty_env_var_is_treated_as_unset() {
 fn enum_env_var_accepts_bare_identifier() {
     assert_eq!(parse_json_or_string::<NodeLinker>("hoisted"), Some(NodeLinker::Hoisted));
     assert_eq!(parse_json_or_string::<TrustPolicy>("no-downgrade"), Some(TrustPolicy::NoDowngrade));
+    assert_eq!(
+        parse_json_or_string::<NodePackageMapType>("loose"),
+        Some(NodePackageMapType::Loose),
+    );
 }
 
 #[test]

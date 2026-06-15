@@ -542,7 +542,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
-  if (opts.nodeLinker !== 'pnp' && !opts.virtualStoreOnly) {
+  const shouldWritePackageMap = opts.enableModulesDir !== false && opts.nodeLinker !== 'pnp' && !opts.virtualStoreOnly
+  if (shouldWritePackageMap) {
     const importerNames = Object.fromEntries(
       selectedProjects.map(({ manifest, id }) => [id, manifest.name ?? id])
     )
@@ -610,7 +611,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
       }
     }
-    if (opts.nodeExperimentalPackageMap && opts.nodeLinker !== 'pnp') {
+    if (opts.nodeExperimentalPackageMap && shouldWritePackageMap) {
       extraEnv = {
         ...extraEnv,
         ...makeNodePackageMapOption(path.join(rootModulesDir, PACKAGE_MAP_FILENAME), extraEnv),
@@ -751,7 +752,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   summaryLogger.debug({ prefix: lockfileDir })
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest && !skipPostImportLinking) {
-    if (opts.nodeExperimentalPackageMap && opts.nodeLinker !== 'pnp') {
+    if (opts.nodeExperimentalPackageMap && shouldWritePackageMap) {
       scriptsOpts.extraEnv = {
         ...scriptsOpts.extraEnv,
         ...makeNodePackageMapOption(path.join(rootModulesDir, PACKAGE_MAP_FILENAME), scriptsOpts.extraEnv),

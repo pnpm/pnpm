@@ -139,7 +139,7 @@ export async function runRecursive (
           if (pnpPath) {
             lifecycleOpts.extraEnv = {
               ...lifecycleOpts.extraEnv,
-              ...makeNodeRequireOption(pnpPath),
+              ...makeNodeRequireOption(pnpPath, lifecycleOpts.extraEnv),
             }
           }
           const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(prefix))

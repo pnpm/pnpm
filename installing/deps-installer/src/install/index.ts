@@ -1685,6 +1685,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
   let stats: InstallationResultStats | undefined
   let ignoredBuilds: IgnoredBuilds | undefined
+  const shouldWritePackageMap = opts.enableModulesDir !== false && opts.nodeLinker === 'isolated' && !opts.virtualStoreOnly
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
@@ -1728,7 +1729,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     )
     stats = result.stats
-    if (opts.nodeLinker === 'isolated' && !opts.virtualStoreOnly) {
+    if (shouldWritePackageMap) {
       const importerNames = Object.fromEntries(
         projects.map(({ manifest, id }) => [id, manifest.name ?? id])
       )
@@ -1777,7 +1778,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
           }
         }
-        if (opts.nodeExperimentalPackageMap && opts.nodeLinker !== 'pnp') {
+        if (opts.nodeExperimentalPackageMap && shouldWritePackageMap) {
           extraEnv = {
             ...extraEnv,
             ...makeNodePackageMapOption(path.join(ctx.rootModulesDir, PACKAGE_MAP_FILENAME), extraEnv),
@@ -1940,7 +1941,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
         }
       }
-      if (opts.nodeExperimentalPackageMap && opts.nodeLinker !== 'pnp') {
+      if (opts.nodeExperimentalPackageMap && shouldWritePackageMap) {
         opts.scriptsOpts.extraEnv = {
           ...opts.scriptsOpts.extraEnv,
           ...makeNodePackageMapOption(path.join(ctx.rootModulesDir, PACKAGE_MAP_FILENAME), opts.scriptsOpts.extraEnv),

@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { depPathToFilename, refToRelative } from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
@@ -74,12 +75,13 @@ export function lockfileToPackageMap (
   lockfile: LockfileObject,
   opts: PackageMapOptions
 ): PackageMap {
+  const isLoose = opts.packageMapType === 'loose'
   const packages: PackageMap['packages'] = {}
-  const packageLocationsByModulesDir = new Map<string, Map<string, string>>()
-  const packageDirsById = new Map<string, string>()
+  const packageLocationsByModulesDir = isLoose ? new Map<string, Map<string, string>>() : undefined
+  const packageDirsById = isLoose ? new Map<string, string>() : undefined
 
   const addPackage = (id: string, packageDir: string, dependencies: Map<string, string>) => {
-    packageDirsById.set(id, packageDir)
+    packageDirsById?.set(id, packageDir)
     packages[id] = {
       url: toRelativeUrl(opts.rootModulesDir, packageDir),
       dependencies: Object.fromEntries(Array.from(dependencies).sort(([a], [b]) => compareStrings(a, b))),
@@ -94,12 +96,14 @@ export function lockfileToPackageMap (
   }
 
   const addPackageLocation = (packageName: string, packageLocation: string, packageId: string) => {
+    if (packageLocationsByModulesDir == null) return
     const modulesDir = getNodeModulesPath(packageLocation)
     if (modulesDir == null) return
     addPackageToModulesDir(packageLocationsByModulesDir, modulesDir, packageName, packageId)
   }
 
   const addDependencyLocation = (modulesDir: string, dependencyName: string, dependencyId: string) => {
+    if (packageLocationsByModulesDir == null) return
     addPackageToModulesDir(packageLocationsByModulesDir, modulesDir, dependencyName, dependencyId)
   }
 
@@ -112,15 +116,18 @@ export function lockfileToPackageMap (
     addDependencies(dependencies, importer.dependencies, { importerId })
     addDependencies(dependencies, importer.optionalDependencies, { importerId })
     addDependencies(dependencies, importer.devDependencies, { importerId })
-    addPackage(importerId, path.resolve(opts.lockfileDir, importerId), dependencies)
-    addPhysicalDependencyLocations(path.resolve(opts.lockfileDir, importerId, 'node_modules'), importer.dependencies)
-    addPhysicalDependencyLocations(path.resolve(opts.lockfileDir, importerId, 'node_modules'), importer.optionalDependencies)
-    addPhysicalDependencyLocations(path.resolve(opts.lockfileDir, importerId, 'node_modules'), importer.devDependencies)
+    addPackage(importerId, resolvePath(opts.lockfileDir, importerId), dependencies)
+    if (isLoose) {
+      const importerModulesDir = resolvePath(opts.lockfileDir, importerId, 'node_modules')
+      addPhysicalDependencyLocations(importerModulesDir, importer.dependencies, { importerId })
+      addPhysicalDependencyLocations(importerModulesDir, importer.optionalDependencies, { importerId })
+      addPhysicalDependencyLocations(importerModulesDir, importer.devDependencies, { importerId })
+    }
   }
 
   for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {}).sort(([a], [b]) => compareStrings(a, b))) {
     const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-    const packageDir = path.join(
+    const packageDir = joinPath(
       opts.virtualStoreDir,
       depPathToFilename(depPath as DepPath, opts.virtualStoreDirMaxLength),
       'node_modules',
@@ -130,16 +137,19 @@ export function lockfileToPackageMap (
     addDependencies(dependencies, pkgSnapshot.dependencies)
     addDependencies(dependencies, pkgSnapshot.optionalDependencies)
     addPackage(depPath, packageDir, dependencies)
-    addPackageLocation(name, packageDir, depPath)
-    addPhysicalDependencyLocations(path.join(packageDir, 'node_modules'), pkgSnapshot.dependencies)
-    addPhysicalDependencyLocations(path.join(packageDir, 'node_modules'), pkgSnapshot.optionalDependencies)
+    if (isLoose) {
+      addPackageLocation(name, packageDir, depPath)
+      const packageModulesDir = joinPath(packageDir, 'node_modules')
+      addPhysicalDependencyLocations(packageModulesDir, pkgSnapshot.dependencies)
+      addPhysicalDependencyLocations(packageModulesDir, pkgSnapshot.optionalDependencies)
+    }
   }
 
-  if (opts.packageMapType === 'loose') {
-    for (const [id, packageDir] of packageDirsById) {
+  if (isLoose) {
+    for (const [id, packageDir] of packageDirsById!) {
       packages[id].dependencies = serializeDependencies(new Map([
         ...Object.entries(packages[id].dependencies),
-        ...physicalDependencies(packageDir, packageLocationsByModulesDir),
+        ...physicalDependencies(packageDir, packageLocationsByModulesDir!),
       ]))
     }
   }
@@ -177,10 +187,16 @@ export function lockfileToPackageMap (
 
   function addPhysicalDependencyLocations (
     modulesDir: string,
-    deps: Record<string, string> | undefined
+    deps: Record<string, string> | undefined,
+    physicalOpts?: { importerId: string }
   ) {
     for (const [alias, ref] of Object.entries(deps ?? {})) {
-      if (ref.startsWith('link:')) continue
+      if (ref.startsWith('link:')) {
+        const target = resolveLinkTarget(opts.lockfileDir, physicalOpts?.importerId, ref)
+        addExternalLinkPackage(target)
+        addDependencyLocation(modulesDir, alias, target.id)
+        continue
+      }
       const relDepPath = refToRelative(ref, alias)
       if (relDepPath == null || lockfile.packages?.[relDepPath] == null) continue
       addDependencyLocation(modulesDir, alias, relDepPath)
@@ -191,13 +207,14 @@ export function lockfileToPackageMap (
 export function dependenciesGraphToPackageMap (
   opts: DependenciesGraphPackageMapOptions
 ): PackageMap {
+  const isLoose = opts.packageMapType === 'loose'
   const packages: PackageMap['packages'] = {}
   const packageIdsByGraphKey = new Map<string, string>()
-  const packageDirsById = new Map<string, string>()
-  const packageLocationsByModulesDir = new Map<string, Map<string, string>>()
+  const packageDirsById = isLoose ? new Map<string, string>() : undefined
+  const packageLocationsByModulesDir = isLoose ? new Map<string, Map<string, string>>() : undefined
 
   const addPackage = (id: string, packageDir: string, dependencies: Map<string, string>) => {
-    packageDirsById.set(id, packageDir)
+    packageDirsById?.set(id, packageDir)
     packages[id] = {
       url: toRelativeUrl(opts.rootModulesDir, packageDir),
       dependencies: Object.fromEntries(Array.from(dependencies).sort(([a], [b]) => compareStrings(a, b))),
@@ -211,26 +228,33 @@ export function dependenciesGraphToPackageMap (
     }
   }
 
+  const addDependencyLocation = (modulesDir: string, dependencyName: string, dependencyId: string) => {
+    if (packageLocationsByModulesDir == null) return
+    addPackageToModulesDir(packageLocationsByModulesDir, modulesDir, dependencyName, dependencyId)
+  }
+
   for (const [graphKey, node] of Object.entries(opts.graph).sort(([a], [b]) => compareStrings(a, b))) {
     packageIdsByGraphKey.set(graphKey, graphNodePackageId(node, opts))
-    const modulesDir = getNodeModulesPath(node.dir)
-    if (modulesDir) {
+    const modulesDir = isLoose ? getNodeModulesPath(node.dir) : undefined
+    if (modulesDir && packageLocationsByModulesDir != null) {
       addPackageToModulesDir(packageLocationsByModulesDir, modulesDir, node.name, graphNodePackageId(node, opts))
     }
   }
 
   for (const [importerId, importer] of Object.entries(opts.lockfile.importers).sort(([a], [b]) => compareStrings(a, b))) {
-    const importerPackageId = graphPackageId(path.resolve(opts.lockfileDir, importerId), opts)
+    const importerDir = resolvePath(opts.lockfileDir, importerId)
+    const importerPackageId = graphPackageId(importerDir, opts)
     const dependencies = new Map<string, string>()
     const importerName = opts.importerNames[importerId]
     if (importerName) {
       dependencies.set(importerName, importerPackageId)
     }
     addDirectDependencies(dependencies, opts.directDependenciesByImporterId[importerId])
-    addLinkedDependencies(dependencies, importer.dependencies, importerId)
-    addLinkedDependencies(dependencies, importer.optionalDependencies, importerId)
-    addLinkedDependencies(dependencies, importer.devDependencies, importerId)
-    addPackage(importerPackageId, path.resolve(opts.lockfileDir, importerId), dependencies)
+    const importerModulesDir = isLoose ? joinPath(importerDir, 'node_modules') : undefined
+    addLinkedDependencies(dependencies, importer.dependencies, { importerId, modulesDir: importerModulesDir })
+    addLinkedDependencies(dependencies, importer.optionalDependencies, { importerId, modulesDir: importerModulesDir })
+    addLinkedDependencies(dependencies, importer.devDependencies, { importerId, modulesDir: importerModulesDir })
+    addPackage(importerPackageId, importerDir, dependencies)
   }
 
   for (const [graphKey, node] of Object.entries(opts.graph).sort(([a], [b]) => compareStrings(a, b))) {
@@ -239,18 +263,19 @@ export function dependenciesGraphToPackageMap (
 
     const pkgSnapshot = opts.lockfile.packages?.[node.depPath]
     if (pkgSnapshot) {
-      addLinkedDependencies(dependencies, pkgSnapshot.dependencies)
-      addLinkedDependencies(dependencies, pkgSnapshot.optionalDependencies)
+      const packageModulesDir = isLoose ? joinPath(node.dir, 'node_modules') : undefined
+      addLinkedDependencies(dependencies, pkgSnapshot.dependencies, { modulesDir: packageModulesDir })
+      addLinkedDependencies(dependencies, pkgSnapshot.optionalDependencies, { modulesDir: packageModulesDir })
     }
 
     addPackage(packageIdsByGraphKey.get(graphKey)!, node.dir, dependencies)
   }
 
-  if (opts.packageMapType === 'loose') {
-    for (const [id, packageDir] of packageDirsById) {
+  if (isLoose) {
+    for (const [id, packageDir] of packageDirsById!) {
       packages[id].dependencies = serializeDependencies(new Map([
         ...Object.entries(packages[id].dependencies),
-        ...physicalDependencies(packageDir, packageLocationsByModulesDir),
+        ...physicalDependencies(packageDir, packageLocationsByModulesDir!),
       ]))
     }
   }
@@ -282,11 +307,14 @@ export function dependenciesGraphToPackageMap (
   function addLinkedDependencies (
     dependencies: Map<string, string>,
     deps: Record<string, string> | undefined,
-    importerId?: string
+    linkedOpts: {
+      importerId?: string
+      modulesDir?: string
+    } = {}
   ) {
     for (const [alias, ref] of Object.entries(deps ?? {}).sort(([a], [b]) => compareStrings(a, b))) {
       if (!ref.startsWith('link:')) continue
-      const target = resolveLinkTarget(opts.lockfileDir, importerId, ref)
+      const target = resolveLinkTarget(opts.lockfileDir, linkedOpts.importerId, ref)
       const targetId = opts.packageIdStrategy === 'path'
         ? graphPackageId(target.dir, opts)
         : target.id
@@ -295,6 +323,9 @@ export function dependenciesGraphToPackageMap (
         id: targetId,
       })
       dependencies.set(alias, targetId)
+      if (linkedOpts.modulesDir) {
+        addDependencyLocation(linkedOpts.modulesDir, alias, targetId)
+      }
     }
   }
 }
@@ -305,24 +336,30 @@ interface LinkTarget {
 }
 
 function resolveLinkTarget (lockfileDir: string, importerId: string | undefined, ref: string): LinkTarget {
-  const importerDir = path.resolve(lockfileDir, importerId ?? '.')
+  const pathUtils = getPathUtils(lockfileDir, ref)
+  const importerDir = pathUtils.resolve(lockfileDir, importerId ?? '.')
   const linkPath = ref.slice(5)
-  const dir = path.isAbsolute(linkPath)
+  const dir = pathUtils.isAbsolute(linkPath)
     ? linkPath
-    : path.resolve(importerDir, linkPath)
-  const relativeId = normalizePath(path.relative(lockfileDir, dir)) || '.'
+    : pathUtils.resolve(importerDir, linkPath)
+  const relativeId = relativePath(lockfileDir, dir)
   return {
-    id: relativeId.startsWith('..') ? `link:${normalizePath(dir)}` : relativeId,
+    id: relativeId == null || relativeId.startsWith('..') ? `link:${normalizePath(dir)}` : relativeId,
     dir,
   }
 }
 
 function toRelativeUrl (from: string, to: string): string {
-  const relativePath = normalizePath(path.relative(from, to)) || '.'
-  if (relativePath === '.' || relativePath === '..' || relativePath.startsWith('./') || relativePath.startsWith('../')) {
-    return relativePath
+  const pathUtils = getPathUtils(from, to)
+  const relative = pathUtils.relative(from, to)
+  if (pathUtils.isAbsolute(relative)) {
+    return pathToFileURL(to, { windows: pathUtils === path.win32 }).href
   }
-  return `./${relativePath}`
+  const normalizedRelativePath = normalizePath(relative) || '.'
+  if (normalizedRelativePath === '.' || normalizedRelativePath === '..' || normalizedRelativePath.startsWith('./') || normalizedRelativePath.startsWith('../')) {
+    return normalizedRelativePath
+  }
+  return `./${normalizedRelativePath}`
 }
 
 function getNodeModulesPath (packageLocation: string): string | undefined {
@@ -352,9 +389,10 @@ function physicalDependencies (
   packageLocationsByModulesDir: Map<string, Map<string, string>>
 ): Map<string, string> {
   const dependencies = new Map<string, string>()
+  const pathUtils = getPathUtils(packageDir)
   let currentPath = packageDir
   while (true) {
-    const modulesDir = normalizePath(path.join(currentPath, 'node_modules'))
+    const modulesDir = normalizePath(pathUtils.join(currentPath, 'node_modules'))
     const packageLocations = packageLocationsByModulesDir.get(modulesDir)
     if (packageLocations) {
       for (const [dependencyName, packageId] of Array.from(packageLocations).sort(([a], [b]) => compareStrings(a, b))) {
@@ -364,7 +402,7 @@ function physicalDependencies (
       }
     }
 
-    const parentPath = path.dirname(currentPath)
+    const parentPath = pathUtils.dirname(currentPath)
     if (parentPath === currentPath) break
     currentPath = parentPath
   }
@@ -381,8 +419,36 @@ function graphNodePackageId (node: PackageMapGraphNode, opts: DependenciesGraphP
 }
 
 function graphPackageId (packageDir: string, opts: Pick<DependenciesGraphPackageMapOptions, 'rootModulesDir'>): string {
-  const relativePath = normalizePath(path.relative(opts.rootModulesDir, packageDir)) || '.'
-  return relativePath === '..' ? '.' : relativePath
+  const relativeId = relativePath(opts.rootModulesDir, packageDir)
+  if (relativeId == null) return `link:${normalizePath(packageDir)}`
+  return relativeId === '..' ? '.' : relativeId
+}
+
+type PathUtils = typeof path.posix
+
+const WINDOWS_ABSOLUTE_PATH_REGEXP = /^(?:[a-z]:[\\/]|[/\\]{2}[^/\\])/i
+
+function resolvePath (from: string, ...segments: string[]): string {
+  return getPathUtils(from, ...segments).resolve(from, ...segments)
+}
+
+function joinPath (from: string, ...segments: string[]): string {
+  return getPathUtils(from, ...segments).join(from, ...segments)
+}
+
+function relativePath (from: string, to: string): string | undefined {
+  const pathUtils = getPathUtils(from, to)
+  const relative = pathUtils.relative(from, to)
+  if (pathUtils.isAbsolute(relative)) return undefined
+  return normalizePath(relative) || '.'
+}
+
+function getPathUtils (...paths: string[]): PathUtils {
+  return paths.some(isWindowsAbsolutePath) ? path.win32 : path
+}
+
+function isWindowsAbsolutePath (pathLike: string): boolean {
+  return WINDOWS_ABSOLUTE_PATH_REGEXP.test(pathLike)
 }
 
 function compareStrings (a: string, b: string): number {

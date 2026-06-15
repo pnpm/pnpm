@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 
@@ -46,6 +49,26 @@ test('exec should set the NODE_OPTIONS env var', async () => {
   expect(execa).toHaveBeenCalledWith('eslint', [], expect.objectContaining({
     env: expect.objectContaining({
       NODE_OPTIONS: '--max-old-space-size=4096',
+    }),
+  }))
+})
+
+test('exec should merge node options with PnP require option', async () => {
+  prepareEmpty()
+  const pnpPath = path.join(process.cwd(), '.pnp.cjs')
+  fs.writeFileSync(pnpPath, '')
+
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    selectedProjectsGraph: {},
+    workspaceDir: undefined,
+    nodeOptions: '--max-old-space-size=4096',
+  }, ['eslint'])
+
+  expect(execa).toHaveBeenCalledWith('eslint', [], expect.objectContaining({
+    env: expect.objectContaining({
+      NODE_OPTIONS: `--max-old-space-size=4096 --require=${pnpPath}`,
     }),
   }))
 })

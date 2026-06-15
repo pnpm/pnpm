@@ -33,6 +33,8 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         store_dir: StoreDir::new(store_dir),
         modules_dir: modules_dir.to_path_buf(),
         node_linker: Default::default(),
+        node_experimental_package_map: false,
+        node_package_map_type: Default::default(),
         symlink: false,
         virtual_store_dir: virtual_store_dir.to_path_buf(),
         enable_global_virtual_store: false,
