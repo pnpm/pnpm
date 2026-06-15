@@ -13,7 +13,7 @@ use pacquet_config::{CatalogMode, Config, matcher::create_matcher};
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::{PackageTag, PackageVersion};
+use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_tarball::MemCache;
@@ -204,6 +204,10 @@ impl Update<'_> {
             lockfile_only,
         } = self;
 
+        // `pacquet update` has no `--save-prefix` flag yet, so `save_exact`
+        // alone selects between an exact pin and the default caret range.
+        let pinned_version = PinnedVersion::from_save_options(save_exact, None);
+
         let selectors: Vec<ParsedSelector> =
             packages.iter().map(|input| parse_update_param(input)).collect();
 
@@ -273,7 +277,7 @@ impl Update<'_> {
                 }
                 if latest {
                     let version = fetch_latest(name, http_client, config).await?;
-                    rewrites.push((name.clone(), *group, version.serialize(save_exact)));
+                    rewrites.push((name.clone(), *group, version.serialize(pinned_version)));
                 }
                 drop_names.insert(name.clone());
             }
@@ -373,7 +377,7 @@ impl Update<'_> {
                     drop_names.insert(name.clone());
                     if latest {
                         let version = fetch_latest(name, http_client, config).await?;
-                        rewrites.push((name.clone(), *group, version.serialize(save_exact)));
+                        rewrites.push((name.clone(), *group, version.serialize(pinned_version)));
                     } else if let Some(spec) = selectors
                         .iter()
                         .find(|sel| matcher_one(&sel.pattern).matches(name))

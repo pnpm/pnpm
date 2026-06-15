@@ -5,6 +5,7 @@ use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::{get_all_folders, get_filenames_in_folder},
 };
+use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::fs;
@@ -59,8 +60,6 @@ fn should_install_all_dependencies() {
 #[test]
 #[cfg(unix)]
 pub fn should_symlink_correctly() {
-    use pipe_trait::Pipe;
-
     let (root, workspace, anchor) =
         exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin-parent"]);
 
@@ -109,6 +108,90 @@ fn should_add_to_package_json() {
         file.dependencies([DependencyGroup::Prod])
             .any(|(k, _)| k == "@pnpm.e2e/hello-world-js-bin"),
     );
+    drop((root, anchor)); // cleanup
+}
+
+fn prod_spec(dir: &std::path::Path, name: &str) -> String {
+    let manifest = dir.join("package.json").pipe(PackageManifest::from_path).unwrap();
+    let (_, spec) = manifest
+        .dependencies([DependencyGroup::Prod])
+        .find(|(key, _)| *key == name)
+        .unwrap_or_else(|| panic!("{name} should be in dependencies"));
+    spec.to_string()
+}
+
+#[test]
+fn save_prefix_defaults_to_caret() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin"]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "^1.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn save_prefix_tilde_writes_tilde_range() {
+    let (root, dir, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin", "--save-prefix=~"]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "~1.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn save_prefix_empty_writes_exact_version() {
+    let (root, dir, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin", "--save-prefix="]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "1.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn save_exact_overrides_save_prefix() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
+        "add",
+        "@pnpm.e2e/hello-world-js-bin",
+        "--save-prefix=~",
+        "--save-exact",
+    ]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "1.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn save_exact_writes_exact_version() {
+    let (root, dir, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin", "--save-exact"]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "1.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn add_prerelease_resolved_version_keeps_no_prefix() {
+    // `@pnpm.e2e/beta-version`'s only published version is the prerelease
+    // `1.0.0-beta.0`, so `latest` resolves to it. A prerelease range is
+    // written verbatim, with no `^`, matching pnpm.
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/beta-version"]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/beta-version");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "1.0.0-beta.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn save_prefix_arbitrary_value_falls_back_to_caret() {
+    let (root, dir, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin", "--save-prefix=foo"]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "^1.0.0");
     drop((root, anchor)); // cleanup
 }
 
