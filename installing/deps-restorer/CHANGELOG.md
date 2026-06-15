@@ -1,5 +1,59 @@
 # @pnpm/headless
 
+## 1102.0.0
+
+### Patch Changes
+
+- f648e9b: Reject path-traversal and reserved dependency aliases (such as `../../../escape`, `.bin`, `.pnpm`, or `node_modules`) that come from a lockfile rather than a freshly resolved manifest. A crafted lockfile alias could otherwise be joined directly under a hoisted `node_modules` directory, letting package files be written outside the intended install root or overwrite pnpm-owned layout.
+
+  The fix adds two layers:
+
+  - The `nodeLinker: hoisted` graph builder now validates each alias at the directory sink (`safeJoinModulesDir`), matching the validation pnpm already performs when resolving aliases from manifests.
+  - The lockfile verification gate (`verifyLockfileResolutions`) now runs an always-on, policy-independent check that rejects any importer or snapshot dependency alias that is not a valid package name, failing the install early — before any fetch or filesystem work — for every node linker at once.
+
+- c16eb0a: Sped up `pnpm install` with a frozen lockfile by running lockfile verification (the policy revalidation gate added for `minimumReleaseAge`/`trustPolicy` and the tarball-URL anti-tamper check) concurrently with fetching and linking instead of blocking the whole install on it. Dependency lifecycle scripts are still held back until verification succeeds, so no script runs on an unverified lockfile: if verification fails the install aborts before any dependency build, and if linking finishes first the install waits for the verification verdict before completing.
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [f648e9b]
+- Updated dependencies [61810aa]
+- Updated dependencies [f20ad8f]
+- Updated dependencies [23716ed]
+- Updated dependencies [681b593]
+- Updated dependencies [d50d691]
+- Updated dependencies [a31faa7]
+- Updated dependencies [cd8348c]
+  - @pnpm/fs.symlink-dependency@1100.0.10
+  - @pnpm/building.during-install@1102.0.0
+  - @pnpm/bins.linker@1100.0.14
+  - @pnpm/worker@1100.2.0
+  - @pnpm/installing.package-requester@1102.0.0
+  - @pnpm/lockfile.utils@1100.0.13
+  - @pnpm/exec.lifecycle@1100.0.18
+  - @pnpm/types@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.5
+  - @pnpm/config.package-is-installable@1100.0.11
+  - @pnpm/core-loggers@1100.2.1
+  - @pnpm/deps.graph-builder@1100.0.16
+  - @pnpm/deps.path@1100.0.8
+  - @pnpm/installing.linking.direct-dep-linker@1100.0.10
+  - @pnpm/installing.linking.hoist@1100.0.14
+  - @pnpm/installing.linking.modules-cleaner@1100.1.8
+  - @pnpm/lockfile.filtering@1100.1.7
+  - @pnpm/lockfile.to-pnp@1100.0.14
+  - @pnpm/patching.config@1100.0.8
+  - @pnpm/workspace.project-manifest-reader@1100.0.13
+  - @pnpm/deps.graph-hasher@1100.2.5
+  - @pnpm/installing.linking.real-hoist@1100.1.3
+  - @pnpm/building.policy@1100.0.10
+  - @pnpm/installing.modules-yaml@1100.0.9
+  - @pnpm/pkg-manifest.reader@1100.0.8
+  - @pnpm/store.controller-types@1100.1.5
+
 ## 1101.1.11
 
 ### Patch Changes

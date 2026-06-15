@@ -1,5 +1,49 @@
 # @pnpm/resolve-dependencies
 
+## 1100.2.3
+
+### Patch Changes
+
+- f648e9b: Reject path-traversal and reserved dependency aliases (such as `../../../escape`, `.bin`, `.pnpm`, or `node_modules`) that come from a lockfile rather than a freshly resolved manifest. A crafted lockfile alias could otherwise be joined directly under a hoisted `node_modules` directory, letting package files be written outside the intended install root or overwrite pnpm-owned layout.
+
+  The fix adds two layers:
+
+  - The `nodeLinker: hoisted` graph builder now validates each alias at the directory sink (`safeJoinModulesDir`), matching the validation pnpm already performs when resolving aliases from manifests.
+  - The lockfile verification gate (`verifyLockfileResolutions`) now runs an always-on, policy-independent check that rejects any importer or snapshot dependency alias that is not a valid package name, failing the install early — before any fetch or filesystem work — for every node linker at once.
+
+- 9b35a60: Made shared package child resolution deterministic when the same package is reached through multiple contexts. pnpm now chooses the shallowest occurrence, then importer order, then parent path, instead of letting request timing decide the child context and missing-peer report [pnpm/pnpm#12358](https://github.com/pnpm/pnpm/issues/12358).
+- 3a27141: Fixed nondeterministic lockfile output that made `pnpm dedupe --check` fail intermittently in CI. When a locked peer provider was pinned for a dependency that has no child dependencies of its own, the pinned provider leaked into the shared parent scope, so siblings resolved after it could pick up an optional peer they should not see. Which siblings were affected depended on resolution order, which varies with network timing.
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [61810aa]
+- Updated dependencies [f20ad8f]
+- Updated dependencies [681b593]
+- Updated dependencies [1310ab5]
+- Updated dependencies [a31faa7]
+  - @pnpm/resolving.npm-resolver@1102.0.0
+  - @pnpm/lockfile.utils@1100.0.13
+  - @pnpm/types@1101.3.2
+  - @pnpm/config.version-policy@1100.1.5
+  - @pnpm/core-loggers@1100.2.1
+  - @pnpm/deps.path@1100.0.8
+  - @pnpm/deps.peer-range@1100.0.2
+  - @pnpm/patching.config@1100.0.8
+  - @pnpm/pkg-manifest.utils@1100.2.5
+  - @pnpm/fetching.pick-fetcher@1100.0.12
+  - @pnpm/deps.graph-hasher@1100.2.5
+  - @pnpm/lockfile.preferred-versions@1100.0.16
+  - @pnpm/hooks.types@1100.0.12
+  - @pnpm/lockfile.pruner@1100.0.11
+  - @pnpm/lockfile.types@1100.0.11
+  - @pnpm/pkg-manifest.reader@1100.0.8
+  - @pnpm/resolving.resolver-base@1100.4.2
+  - @pnpm/store.controller-types@1100.1.5
+
 ## 1100.2.2
 
 ### Patch Changes

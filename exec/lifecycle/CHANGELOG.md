@@ -1,5 +1,29 @@
 # @pnpm/lifecycle
 
+## 1100.0.18
+
+### Patch Changes
+
+- 23716ed: User-defined `npm_config_*` environment variables are now preserved during lifecycle script execution. Previously, all `npm_`-prefixed env vars were stripped, which caused user-set variables like `npm_config_platform_arch` to be lost [pnpm/pnpm#12399](https://github.com/pnpm/pnpm/issues/12399).
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [61810aa]
+- Updated dependencies [681b593]
+- Updated dependencies [a31faa7]
+- Updated dependencies [cd8348c]
+  - @pnpm/bins.linker@1100.0.14
+  - @pnpm/types@1101.3.2
+  - @pnpm/core-loggers@1100.2.1
+  - @pnpm/fetching.directory-fetcher@1100.0.17
+  - @pnpm/pkg-manifest.reader@1100.0.8
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/store.controller-types@1100.1.5
+
 ## 1100.0.17
 
 ### Patch Changes

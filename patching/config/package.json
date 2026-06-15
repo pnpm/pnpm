@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/patching.config",
-  "version": "1100.0.7",
+  "version": "1100.0.8",
   "description": "Functions related to patching configurations",
   "keywords": [
     "pnpm",

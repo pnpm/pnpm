@@ -1,5 +1,43 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1100.2.5
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [8dcd9a0]
+- Updated dependencies [86e70d2]
+- Updated dependencies [61810aa]
+- Updated dependencies [ab0b7d1]
+- Updated dependencies [74a2dc9]
+- Updated dependencies [23716ed]
+- Updated dependencies [681b593]
+- Updated dependencies [d50d691]
+- Updated dependencies [a31faa7]
+  - @pnpm/installing.commands@1100.9.0
+  - @pnpm/config.reader@1101.9.0
+  - @pnpm/exec.lifecycle@1100.0.18
+  - @pnpm/types@1101.3.2
+  - @pnpm/building.commands@1100.1.5
+  - @pnpm/cli.utils@1101.0.12
+  - @pnpm/config.version-policy@1100.1.5
+  - @pnpm/core-loggers@1100.2.1
+  - @pnpm/deps.status@1100.1.1
+  - @pnpm/engine.runtime.commands@1100.1.5
+  - @pnpm/workspace.injected-deps-syncer@1100.0.19
+  - @pnpm/workspace.project-manifest-reader@1100.0.13
+  - @pnpm/installing.client@1100.2.8
+  - @pnpm/bins.resolver@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.8
+  - @pnpm/workspace.projects-sorter@1100.0.7
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.2.4
 
 ### Patch Changes

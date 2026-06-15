@@ -1,5 +1,17 @@
 # @pnpm/fetching.binary-fetcher
 
+## 1102.0.0
+
+### Patch Changes
+
+- Updated dependencies [61810aa]
+- Updated dependencies [681b593]
+- Updated dependencies [a31faa7]
+  - @pnpm/store.index@1100.2.0
+  - @pnpm/worker@1100.2.0
+  - @pnpm/fetching.types@1100.0.2
+  - @pnpm/fetching.fetcher-base@1100.1.9
+
 ## 1101.0.10
 
 ### Patch Changes
