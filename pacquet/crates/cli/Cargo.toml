@@ -27,6 +27,7 @@ pacquet-hooks                             = { workspace = true }
 pacquet-lockfile                          = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-config                            = { workspace = true }
+pacquet-default-reporter                  = { workspace = true }
 pacquet-package-manifest                  = { workspace = true }
 pacquet-package-manager                   = { workspace = true }
 pacquet-package-is-installable            = { workspace = true }

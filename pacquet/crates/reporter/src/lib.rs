@@ -223,6 +223,15 @@ pub enum LogEvent {
     /// Emit site: <https://github.com/pnpm/pnpm/blob/3b12eb27de/hooks/pnpmfile/src/requireHooks.ts#L244-L249>.
     #[serde(rename = "pnpm:hook")]
     Hook(HookLog),
+
+    /// Total command wall-clock time (`pnpm:execution-time`). Emitted once
+    /// per CLI run after the command finishes; the default reporter renders
+    /// it as the `Done in <time> using <pkg> v<version>` footer.
+    ///
+    /// Upstream: <https://github.com/pnpm/pnpm/blob/086c5e91e8/core/core-loggers/src/executionTimeLogger.ts>.
+    /// Emit site: <https://github.com/pnpm/pnpm/blob/086c5e91e8/pnpm/src/main.ts>.
+    #[serde(rename = "pnpm:execution-time")]
+    ExecutionTime(ExecutionTimeLog),
 }
 
 /// `pnpm:context` payload.
@@ -806,6 +815,17 @@ pub struct HookLog {
     pub hook: String,
     pub message: String,
     pub prefix: String,
+}
+
+/// `pnpm:execution-time` payload. `started_at` / `ended_at` are
+/// Unix-epoch milliseconds; the reporter renders their difference. Field
+/// names match pnpm's wire shape (`startedAt` / `endedAt`).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionTimeLog {
+    pub level: LogLevel,
+    pub started_at: u128,
+    pub ended_at: u128,
 }
 
 /// Severity level on the [bunyan]-shaped envelope.

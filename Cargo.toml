@@ -42,6 +42,7 @@ pacquet-network                           = { path = "pacquet/crates/network" }
 pacquet-config                            = { path = "pacquet/crates/config" }
 pacquet-config-dir                        = { path = "pacquet/crates/config-dir" }
 pacquet-config-parse-overrides            = { path = "pacquet/crates/config-parse-overrides" }
+pacquet-default-reporter                  = { path = "pacquet/crates/default-reporter" }
 pacquet-executor                          = { path = "pacquet/crates/executor" }
 pacquet-exportable-manifest               = { path = "pacquet/crates/exportable-manifest" }
 pacquet-directory-fetcher                 = { path = "pacquet/crates/directory-fetcher" }

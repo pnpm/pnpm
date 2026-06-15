@@ -332,12 +332,11 @@ fn run_finds_local_bin_on_path() {
     drop(root);
 }
 
-/// With a non-silent reporter (e.g. `--reporter=ndjson`), `pacquet run`
-/// echoes `$ <script>` to stderr before spawning the script —
+/// With a non-silent reporter (the default, or e.g. `--reporter=ndjson`),
+/// `pacquet run` echoes `$ <script>` to stderr before spawning the script —
 /// matching pnpm's `runLifecycleHook.ts:110`
-/// (`process.stderr.write(chalk.dim($ ${...})...)`). The default Silent
-/// reporter (no human-facing reporter exists in pacquet yet) suppresses
-/// it.
+/// (`process.stderr.write(chalk.dim($ ${...})...)`). Only `--reporter=silent`
+/// suppresses it.
 #[cfg(unix)]
 #[test]
 fn run_echoes_script_to_stderr_when_reporter_not_silent() {
