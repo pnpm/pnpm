@@ -1095,22 +1095,19 @@ fn pkg_root_for_key(
 /// `node_modules/` symlinks. Mirrors pnpm's `getFlatMap` + importer,
 /// which links the side-effects-applied file map directly.
 ///
-/// The forced stage-and-swap is skipped when the slot already matches the
-/// overlay exactly — the common case on a full reinstall whose slot
-/// wasn't re-linked (the warm import short-circuits on an intact slot, so
-/// the build output a previous install materialized is still present).
-/// That keeps repeated installs from re-staging every built package. A
-/// freshly linked, pristine-only slot is missing the `added` files, so
-/// the match fails and the full re-import runs.
+/// The import always runs on a cache hit (non-GVS). Skipping it when the
+/// slot "looks" materialized is unsound by filename alone — a slot left
+/// from a different cache key can carry the same filenames with stale
+/// bytes — and a content check would read every file, costing as much as
+/// the hardlink-based re-import it would replace. A cheap *and* sound skip
+/// needs a link-phase "this slot was re-linked pristine-only this install"
+/// signal threaded from the link phase, which is left as a follow-up.
 fn materialize_side_effects<Reporter: self::Reporter>(
     logged_methods: &std::sync::atomic::AtomicU8,
     import_method: PackageImportMethod,
     pkg_dir: &Path,
     overlay: &HashMap<String, PathBuf>,
 ) -> Result<(), BuildModulesError> {
-    if slot_matches_overlay(pkg_dir, overlay) {
-        return Ok(());
-    }
     import_indexed_dir::<Reporter>(
         logged_methods,
         import_method,
@@ -1119,60 +1116,6 @@ fn materialize_side_effects<Reporter: self::Reporter>(
         ImportIndexedDirOpts { force: true, keep_modules_dir: true },
     )
     .map_err(BuildModulesError::MaterializeSideEffects)
-}
-
-/// Whether `pkg_dir`'s file set already equals `overlay` exactly, so a
-/// re-import would be a no-op. True only when every overlay file is
-/// present *and* the slot holds no extra files — checking both directions
-/// keeps the skip sound across overlay changes (e.g. an engine bump whose
-/// new overlay drops a file the old one added). The nested `node_modules/`
-/// is ignored: the importer preserves it and the overlay never lists it.
-fn slot_matches_overlay(pkg_dir: &Path, overlay: &HashMap<String, PathBuf>) -> bool {
-    if !overlay.keys().all(|relative| pkg_dir.join(relative).exists()) {
-        return false;
-    }
-    let mut on_disk: HashSet<String> = HashSet::with_capacity(overlay.len());
-    if !collect_relative_files(pkg_dir, pkg_dir, &mut on_disk) {
-        // A read error means we can't prove a match — fall back to the
-        // re-import, which surfaces any real problem.
-        return false;
-    }
-    on_disk.len() == overlay.len() && on_disk.iter().all(|relative| overlay.contains_key(relative))
-}
-
-/// Collect every regular-file path under `dir`, relative to `root`, with
-/// forward-slash separators (matching overlay keys). The top-level
-/// `node_modules/` is skipped — it holds dependency symlinks the overlay
-/// never describes. Returns `false` on any read error.
-fn collect_relative_files(root: &Path, dir: &Path, out: &mut HashSet<String>) -> bool {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return false;
-    };
-    for entry in entries {
-        let Ok(entry) = entry else { return false };
-        let path = entry.path();
-        let Ok(file_type) = entry.file_type() else { return false };
-        if file_type.is_dir() {
-            if dir == root && entry.file_name() == "node_modules" {
-                continue;
-            }
-            if !collect_relative_files(root, &path, out) {
-                return false;
-            }
-        } else {
-            let Ok(relative) = path.strip_prefix(root) else { return false };
-            // Overlay keys use `/`; normalize so the comparison holds on
-            // Windows too.
-            out.insert(
-                relative
-                    .components()
-                    .filter_map(|component| component.as_os_str().to_str())
-                    .collect::<Vec<_>>()
-                    .join("/"),
-            );
-        }
-    }
-    true
 }
 
 /// Mirrors upstream's
