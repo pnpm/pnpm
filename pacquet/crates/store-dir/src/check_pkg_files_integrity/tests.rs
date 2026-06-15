@@ -466,7 +466,7 @@ fn side_effects_overlay_unsafe_added_path_drops_cache_key_entry() {
 
     let mut side_effects = HashMap::new();
     for (key, unsafe_name) in
-        [("k-parent", "../evil.js"), ("k-abs", "/etc/evil"), ("k-backslash", "..\\evil")]
+        [("k-parent", "../evil.js"), ("k-abs", "/etc/evil"), ("k-backslash", r"..\evil")]
     {
         side_effects.insert(
             key.to_string(),
