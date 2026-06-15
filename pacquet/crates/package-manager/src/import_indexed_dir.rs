@@ -123,9 +123,10 @@ pub enum ImportIndexedDirError {
 /// (hardlink → reflink → copy, etc.), and the per-method
 /// `pnpm:package-import-method` log is emitted via `logged_methods`
 /// the first time each tier is used in this install. The pre-flight
-/// `fs::metadata` short-circuit lives on `link_file()` for callers
-/// without a freshness guarantee — `populate_dir` already gates on
-/// the directory being fresh, so it skips that stat.
+/// `fs::metadata` short-circuit lives on `link_file()`; `populate_dir`
+/// skips it and relies on `import_into_fresh_target`'s EEXIST tolerance,
+/// which is what keeps a marker-repair re-link over a partial directory
+/// correct.
 pub fn import_indexed_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
@@ -148,20 +149,11 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         // Fresh target — populate it. Both linkers take this path on
         // first install.
         (None, _) => populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths),
-        // Existing directory with force=false — pnpm's pre-existence
-        // short-circuit, but keyed on the *completion marker*, not the
-        // mere existence of the directory (`pkgExistsAtTargetDir` in
-        // `fs/indexed-pkg-importer/src/index.ts`, which checks for
-        // `package.json`). A directory that exists but lacks the marker
-        // is a partial result from an interrupted import — `populate_dir`
-        // writes the marker last (see below), so its absence proves the
-        // earlier import never finished. Repair it by re-running
-        // `populate_dir`, which is non-destructive and EEXIST-tolerant:
-        // it links only the files still missing and leaves a sibling
-        // importer's work intact. This matches pnpm's `safeToSkip`
-        // (global-virtual-store) branch, which likewise re-links into an
-        // existing directory rather than destructively replacing it.
-        // Ported from pnpm commit cbfeeef328 (pnpm/pnpm#12204).
+        // Short-circuit only when the completion marker is present
+        // (pnpm's `pkgExistsAtTargetDir`, which checks `package.json`),
+        // not on mere directory existence. A marker-less directory is a
+        // partial import; repair it by re-running the non-destructive
+        // `populate_dir`. Ported from pnpm/pnpm#12204 (cbfeeef328).
         (Some(file_type), false) if file_type.is_dir() => {
             if marker_present(dir_path, cas_paths) {
                 Ok(())
@@ -169,10 +161,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
                 populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
             }
         }
-        // Existing non-directory dirent with force=false. A stale symlink
-        // or file occupying the slot is left as-is, matching the prior
-        // short-circuit; the force=true path below is the only one that
-        // clobbers a non-directory dirent.
+        // A non-directory dirent is left as-is; only force=true clobbers it.
         (Some(_), false) => Ok(()),
         // Existing non-directory dirent with force=true. The hoisted
         // linker call shape won't produce this in practice, but
@@ -234,24 +223,18 @@ fn populate_dir<Reporter: self::Reporter>(
             .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
     }
 
-    // pnpm writes the completion marker (`package.json`) last, so a
-    // crash mid-import leaves a directory the next install recognises as
-    // incomplete (`tryImportIndexedDir` in
-    // `fs/indexed-pkg-importer/src/importIndexedDir.ts`). Link every
-    // other file first, in parallel, then place the marker.
+    // Link every other file first, then place the marker last, so an
+    // interrupted import leaves a directory the next install recognises
+    // as incomplete (pnpm's `tryImportIndexedDir`).
     let marker = marker_file(cas_paths);
     cas_paths
         .par_iter()
         .filter(|(cleaned_entry, _)| Some(cleaned_entry.as_str()) != marker)
         .try_for_each(|(cleaned_entry, store_path)| {
-            // Targets are guaranteed fresh: `populate_dir` only runs
-            // against a freshly-mkdir'd `dir_path` (the caller in
-            // `import_indexed_dir` gates on the directory not existing,
-            // or staged it as a new sibling). Skipping the pre-flight
-            // `fs::metadata` saves one `stat` syscall per file — ~170k
-            // on the alotta-files fixture — without losing the
-            // no-op-on-existing-target contract that `link_file` exposes
-            // to other callers.
+            // No pre-flight stat: `import_into_fresh_target` tolerates an
+            // existing target (the repair branch re-links over a partial
+            // directory), so the stat would be pure overhead — ~170k saved
+            // syscalls on the alotta-files fixture.
             import_into_fresh_target::<Reporter>(
                 logged_methods,
                 import_method,
@@ -272,18 +255,12 @@ fn populate_dir<Reporter: self::Reporter>(
     Ok(())
 }
 
-/// Pick the completion-marker filename out of an indexed file map,
-/// mirroring pnpm's `pickFileFromFilesMap`
-/// (`fs/indexed-pkg-importer/src/index.ts`): prefer `package.json` (the
-/// worker synthesises one for every package), and otherwise fall back to
-/// a single file so old store entries indexed before the synthetic
-/// `package.json` still get a marker. pnpm's fallback is the map's
-/// first-by-insertion-order key; pacquet's `cas_paths` is a `HashMap`
-/// with no stable order, so we take the lexicographically smallest key —
-/// deterministic, and good enough since the gate
-/// ([`marker_present`]) and the marker write
-/// ([`populate_dir`]) both consult this same function. Returns `None`
-/// only for an empty map, where there is nothing to import or gate on.
+/// The completion-marker filename, mirroring pnpm's `pickFileFromFilesMap`:
+/// `package.json` when present, else a fallback file for old store entries
+/// indexed before the synthetic manifest. pnpm picks the first inserted
+/// key; `cas_paths` is unordered, so we pick the lexicographically
+/// smallest one instead — deterministic, which is all the gate and the
+/// write need. `None` only for an empty map.
 fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
     const PACKAGE_JSON: &str = "package.json";
     if cas_paths.contains_key(PACKAGE_JSON) {
@@ -292,10 +269,8 @@ fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
     cas_paths.keys().map(String::as_str).min()
 }
 
-/// Whether `dir_path` already holds the completion marker for this file
-/// map. An empty map has no marker to check, so it counts as present —
-/// there is nothing to import, matching the prior "directory exists ⇒
-/// done" short-circuit for that degenerate case.
+/// Whether `dir_path` holds the completion marker. An empty map has no
+/// marker, so it counts as present — there is nothing to import.
 fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
     match marker_file(cas_paths) {
         Some(marker) => dir_path.join(marker).exists(),
@@ -303,17 +278,13 @@ fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool
     }
 }
 
-/// Import the completion marker so it appears atomically: link it into a
-/// private temp sibling, then rename it onto the marker path. pnpm uses
-/// its `importFileAtomic` for `package.json` (a temp-file + rename on the
-/// copy path; the raw syscall on the already-atomic hardlink/reflink
-/// paths). pacquet's `Auto` / `CloneOrCopy` methods pick their tier at
-/// runtime, so rather than predict whether this import will copy, always
-/// stage-and-rename — one extra rename per package, and the marker can
-/// never be observed half-written. A concurrent importer that placed the
-/// marker first surfaces as `AlreadyExists` (Windows) or is replaced
-/// atomically (POSIX `rename`); either way the content is
-/// content-addressed, so the result is equivalent and we drop our temp.
+/// Place the marker atomically (pnpm's `importFileAtomic`): link it into a
+/// private temp sibling, then rename onto `marker_path` so it is never
+/// observed half-written. pacquet picks its import tier at runtime, so it
+/// always stages rather than predicting whether the import will copy. A
+/// concurrent importer that placed the marker first surfaces as
+/// `AlreadyExists` or is replaced atomically; the content is
+/// content-addressed either way, so we just drop our temp.
 fn import_marker_atomic<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
