@@ -6,6 +6,9 @@ on:
       node:
         required: true
         type: string
+      node_major:
+        required: true
+        type: string
       platform:
         required: true
         type: string
@@ -22,7 +25,7 @@ permissions:
 
 jobs:
   test:
-    name: Test
+    name: Node ${{ inputs.node_major }}
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform }}-${{ inputs.node }}
       cancel-in-progress: true
