@@ -350,7 +350,7 @@ catalogMode: strict
 cleanupUnusedCatalogs: true
 
 configDependencies:
-  '@pnpm/pacquet': 0.11.4
+  '@pnpm/pacquet': 0.11.7
 
 enableGlobalVirtualStore: true
 

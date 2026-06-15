@@ -62,11 +62,11 @@
     "shx": "catalog:",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@11.6.0",
+  "packageManager": "pnpm@11.7.0",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "11.6.0",
+      "version": "11.7.0",
       "onFail": "download"
     },
     "runtime": {
