@@ -252,6 +252,7 @@ where
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
+            catalogs_override: None,
         }
         .run::<Reporter>()
         .await

@@ -463,6 +463,132 @@ fn set_strict_catalog(workspace: &Path, entries: &[(&str, &str)]) {
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
+/// Append a named `catalogs:` block (default `manual` catalogMode) to the
+/// harness-written `pnpm-workspace.yaml`.
+fn set_named_catalog(workspace: &Path, catalog: &str, entries: &[(&str, &str)]) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    writeln!(yaml, "catalogs:\n  {catalog}:").unwrap();
+    for (name, spec) in entries {
+        writeln!(yaml, "    \"{name}\": \"{spec}\"").unwrap();
+    }
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
+fn read_workspace_yaml(workspace: &Path) -> String {
+    fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read pnpm-workspace.yaml")
+}
+
+/// An unmatched `--latest` selector is a no-op and must not read or parse
+/// the workspace catalogs: a malformed catalog config (here, the default
+/// catalog defined through both `catalog:` and `catalogs.default`) does not
+/// make the no-op fail. Guards the lazy catalog read against the eager read
+/// that previously ran whenever a `catalog:` dependency was present.
+#[test]
+fn update_latest_unmatched_selector_does_not_read_catalogs() {
+    let (root, workspace, anchor) = setup();
+
+    // A valid `catalog:` dependency (so the eager read would have triggered)
+    // alongside a default catalog defined twice (which a catalog read rejects
+    // with ERR_PNPM_..._CONFIGURATION).
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:grp1" }}"#));
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    write!(
+        yaml,
+        "catalog:\n  \"a\": \"^1.0.0\"\ncatalogs:\n  default:\n    \"b\": \"^1.0.0\"\n  grp1:\n    \"{DEP}\": \"~100.0.0\"\n",
+    )
+    .unwrap();
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    // The selector matches no direct dependency, so the update returns early
+    // without ever reading the (malformed) catalogs.
+    pacquet(&workspace, ["update", "--latest", "not-a-dependency"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// `pacquet update --latest` on a `catalog:` dependency keeps the
+/// `catalog:` reference in `package.json` and bumps the catalog entry to
+/// the latest version, preserving the entry's own range operator — even
+/// under the default `manual` catalogMode (which does not auto-catalog).
+/// Without this, the reference was overwritten with a direct version.
+#[test]
+fn update_latest_catalog_preserves_reference_and_operator() {
+    let (root, workspace, anchor) = setup();
+
+    set_named_catalog(&workspace, "grp1", &[(DEP, "~100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:grp1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    // The manifest still references the catalog, untouched.
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:grp1"));
+
+    // The catalog entry is bumped to the latest version with its tilde
+    // operator preserved (not widened to the default caret).
+    let yaml = read_workspace_yaml(&workspace);
+    assert!(yaml.contains("~101.0.0"), "catalog entry should be bumped to ~101.0.0: {yaml}");
+    assert!(!yaml.contains("100.0.0"), "stale catalog entry should be gone: {yaml}");
+
+    drop((root, anchor));
+}
+
+/// `--latest --no-save` on a `catalog:` dependency leaves `package.json`
+/// and `pnpm-workspace.yaml` untouched, but still re-resolves the lockfile
+/// to the bumped version. The bumped catalog drives resolution in memory
+/// (via the install's catalogs override) without being persisted to disk —
+/// matching how a non-catalog `--no-save` update bumps the lockfile.
+#[test]
+fn update_latest_no_save_catalog_bumps_lockfile_only() {
+    let (root, workspace, anchor) = setup();
+
+    set_named_catalog(&workspace, "grp1", &[(DEP, "~100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:grp1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+
+    pacquet(&workspace, ["update", "--latest", "--no-save"]).assert().success();
+
+    // package.json and the workspace catalog are untouched...
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:grp1"));
+    let yaml = read_workspace_yaml(&workspace);
+    assert!(yaml.contains("~100.0.0"), "catalog entry must be untouched under --no-save: {yaml}");
+
+    // ...but the lockfile/store re-resolved to the bumped version.
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
+
+    drop((root, anchor));
+}
+
+/// The same preservation applies to the default catalog (`catalog:`).
+#[test]
+fn update_latest_default_catalog_preserves_reference() {
+    let (root, workspace, anchor) = setup();
+
+    set_named_catalog(&workspace, "default", &[(DEP, "^100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:"));
+
+    let yaml = read_workspace_yaml(&workspace);
+    assert!(yaml.contains("^101.0.0"), "catalog entry should be bumped to ^101.0.0: {yaml}");
+    assert!(!yaml.contains("100.0.0"), "stale catalog entry should be gone: {yaml}");
+
+    drop((root, anchor));
+}
+
 /// `pacquet update --lockfile-only <pkg>@<version>` under
 /// `catalogMode: strict`, where the catalog entry for `<pkg>` is a
 /// *range*, rejects with `ERR_PNPM_CATALOG_VERSION_MISMATCH` instead of

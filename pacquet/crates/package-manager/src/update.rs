@@ -213,13 +213,6 @@ impl Update<'_> {
         // alone selects between an exact pin and the default caret range.
         let pinned_version = PinnedVersion::from_save_options(save_exact, None);
 
-        // Under `--latest`, the resolved version is written back with the
-        // range operator the dependency already used; only a specifier with
-        // no recoverable pin (a tag, a `catalog:` reference, a multi-comparator
-        // range) falls back to the configured default. Mirrors pnpm's
-        // `calcRange` precedence: `whichVersionIsPinned(prev) ?? default`.
-        let latest_pin = |prev: &str| which_version_is_pinned(prev).unwrap_or(pinned_version);
-
         let selectors: Vec<ParsedSelector> =
             packages.iter().map(|input| parse_update_param(input)).collect();
 
@@ -251,6 +244,14 @@ impl Update<'_> {
             .collect();
 
         let updates_all_groups = DIRECT_GROUPS.iter().all(|group| include_direct.contains(group));
+
+        // The workspace catalogs, read lazily on first use via
+        // `ensure_catalog_ctx`. They are needed only to bump a `catalog:`
+        // dependency under `--latest` (to preserve the entry's operator) and
+        // to reconcile rewrites under a non-`manual` `catalogMode`, so the
+        // no-op paths (a compatible bump, an unmatched `--latest` selector)
+        // never touch `pnpm-workspace.yaml`.
+        let mut catalog_ctx: Option<CatalogCtx> = None;
 
         // Names whose lockfile pins to withhold so they re-resolve, and
         // the per-direct-dep manifest rewrites (`--latest` / versioned
@@ -289,7 +290,9 @@ impl Update<'_> {
                 }
                 if latest {
                     let version = fetch_latest(name, http_client, config).await?;
-                    rewrites.push((name.clone(), *group, version.serialize(latest_pin(prev))));
+                    let pin =
+                        latest_pin(&mut catalog_ctx, manifest, config, prev, name, pinned_version)?;
+                    rewrites.push((name.clone(), *group, version.serialize(pin)));
                 }
                 drop_names.insert(name.clone());
             }
@@ -389,7 +392,15 @@ impl Update<'_> {
                     drop_names.insert(name.clone());
                     if latest {
                         let version = fetch_latest(name, http_client, config).await?;
-                        rewrites.push((name.clone(), *group, version.serialize(latest_pin(prev))));
+                        let pin = latest_pin(
+                            &mut catalog_ctx,
+                            manifest,
+                            config,
+                            prev,
+                            name,
+                            pinned_version,
+                        )?;
+                        rewrites.push((name.clone(), *group, version.serialize(pin)));
                     } else if let Some(spec) = selectors
                         .iter()
                         .find(|sel| matcher_one(&sel.pattern).matches(name))
@@ -403,29 +414,29 @@ impl Update<'_> {
         };
 
         // Reconcile the about-to-be-written versions against the workspace
-        // catalogs under `catalogMode`, mirroring pnpm's gate in
-        // `installSome` plus the auto-cataloging that follows it: a matching
-        // (or not-yet-cataloged) version is rewritten to `catalog:` and
-        // recorded for write-back to `pnpm-workspace.yaml`. Only the
-        // rewritten deps carry a user-chosen version, so a bare `update`
+        // catalogs. Two things happen here:
+        //
+        // * A `--latest` bump of a `catalog:` dependency keeps the manifest
+        //   reference and flows the resolved version into the catalog entry,
+        //   for **every** `catalogMode` — pnpm never rewrites a `catalog:`
+        //   reference to a direct version on update.
+        // * Auto-cataloging (pnpm's `installSome` gate plus `catalogLookup`):
+        //   under strict/prefer a direct version is rewritten to `catalog:`
+        //   and recorded for write-back. This does not engage under
+        //   `manual`.
+        //
+        // Only rewritten deps carry a user-chosen version, so a bare `update`
         // (compatible bump) produces no rewrites and nothing to reconcile.
+        //
+        // `catalog_ctx` is already populated when a `catalog:` dependency was
+        // bumped above (so its reference must be preserved); otherwise it is
+        // read here only for the non-`manual` auto-cataloging pass.
         let mut updated_catalogs: Catalogs = Catalogs::new();
         let mut workspace_dir_for_catalogs = None;
-        if config.catalog_mode != CatalogMode::Manual && !rewrites.is_empty() {
-            let manifest_dir =
-                manifest.path().parent().expect("manifest path always has a parent dir");
-            let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir)
-                .map_err(UpdateError::FindWorkspaceDir)?;
-            let workspace_manifest = match workspace_dir_opt.as_deref() {
-                Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
-                    .map_err(UpdateError::ReadWorkspaceManifest)?,
-                None => None,
-            };
-            let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-                .map_err(UpdateError::InvalidCatalogsConfiguration)?;
-            let prefix =
-                workspace_dir_opt.as_deref().unwrap_or(manifest_dir).to_string_lossy().into_owned();
-
+        if !rewrites.is_empty()
+            && (config.catalog_mode != CatalogMode::Manual || catalog_ctx.is_some())
+        {
+            let ctx = ensure_catalog_ctx(&mut catalog_ctx, manifest, config)?;
             let mut reconciled: Vec<(String, DependencyGroup, String)> =
                 Vec::with_capacity(rewrites.len());
             for (name, group, spec) in rewrites {
@@ -434,17 +445,20 @@ impl Update<'_> {
                     .find(|(prev_name, prev_group, _)| *prev_name == name && *prev_group == group)
                     .map(|(_, _, prev_spec)| prev_spec.as_str());
 
-                // `--latest` on a dependency already pinned to a catalog
-                // keeps the manifest's `catalog:` reference and bumps the
-                // catalog entry itself, matching pnpm's update of a
-                // `catalog:` dep (the manifest bareSpecifier stays
-                // `catalog:<name>`; the resolved version flows to the
-                // catalog).
+                // `--latest` on a `catalog:` dependency keeps the reference in
+                // the manifest (it is left out of `reconciled`) and bumps the
+                // catalog entry — with the entry's own range operator, applied
+                // by `latest_pin` above.
                 if latest && let Some(catalog_name) = prev.and_then(parse_catalog_protocol) {
                     updated_catalogs
                         .entry(catalog_name.to_string())
                         .or_default()
                         .insert(name.clone(), spec);
+                    continue;
+                }
+
+                if config.catalog_mode == CatalogMode::Manual {
+                    reconciled.push((name, group, spec));
                     continue;
                 }
 
@@ -456,9 +470,9 @@ impl Update<'_> {
                 match decide_catalog::<Reporter>(
                     config.catalog_mode,
                     None,
-                    &catalogs,
+                    &ctx.catalogs,
                     &dep,
-                    &prefix,
+                    &ctx.prefix,
                 )
                 .map_err(UpdateError::CatalogVersionMismatch)?
                 {
@@ -476,7 +490,7 @@ impl Update<'_> {
             }
             rewrites = reconciled;
             workspace_dir_for_catalogs =
-                workspace_dir_opt.or_else(|| Some(manifest_dir.to_path_buf()));
+                ctx.workspace_dir_opt.clone().or_else(|| Some(ctx.manifest_dir.clone()));
         }
 
         // Apply the manifest rewrites in memory before resolving so the
@@ -489,18 +503,34 @@ impl Update<'_> {
             manifest.add_dependency(name, spec, *group).map_err(UpdateError::UpdateManifest)?;
         }
 
-        // Write the new catalog entries to `pnpm-workspace.yaml` before the
-        // install so the resolver reads them back and the lockfile's
-        // `catalogs:` snapshot reflects the resolved versions. Gated on
+        // Persist the new catalog entries to `pnpm-workspace.yaml`. Gated on
         // `save`: `--no-save` persists nothing to disk, matching pnpm's
         // `if (opts.save !== false)` guard around `updateWorkspaceManifest`.
         if save
             && !updated_catalogs.is_empty()
-            && let Some(workspace_dir) = workspace_dir_for_catalogs
+            && let Some(workspace_dir) = &workspace_dir_for_catalogs
         {
-            update_workspace_manifest(&workspace_dir, &updated_catalogs)
+            update_workspace_manifest(workspace_dir, &updated_catalogs)
                 .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
+
+        // Drive the install's resolution from the bumped catalogs in memory,
+        // rather than relying on the on-disk `pnpm-workspace.yaml`. This is
+        // what lets `--no-save` still update the lockfile for a `catalog:`
+        // bump (the entry is not written to disk, but resolution must see
+        // it). The override is the complete catalogs set: the existing
+        // entries overlaid with the bumped/new ones.
+        let catalogs_override = (!updated_catalogs.is_empty()).then(|| {
+            let mut merged =
+                catalog_ctx.as_ref().map(|ctx| ctx.catalogs.clone()).unwrap_or_default();
+            for (catalog_name, entries) in &updated_catalogs {
+                let catalog = merged.entry(catalog_name.clone()).or_default();
+                for (dep, spec) in entries {
+                    catalog.insert(dep.clone(), spec.clone());
+                }
+            }
+            merged
+        });
 
         Install {
             tarball_mem_cache,
@@ -533,6 +563,7 @@ impl Update<'_> {
             update_seed_policy: seed_policy,
             auth_override: None,
             resolution_observer: None,
+            catalogs_override,
         }
         .run::<Reporter>()
         .await
@@ -565,6 +596,88 @@ impl Update<'_> {
 /// selector's version is applied to the right dep).
 fn matcher_one(pattern: &str) -> pacquet_config::matcher::Matcher {
     create_matcher(std::slice::from_ref(&pattern.to_string()))
+}
+
+/// The workspace catalogs and the directories needed to read the existing
+/// `catalog:` entries (to preserve their range operators) and write the
+/// bumped ones back to `pnpm-workspace.yaml`.
+struct CatalogCtx {
+    catalogs: Catalogs,
+    /// The workspace root, or `None` when the project is not part of a
+    /// workspace (entries are then written next to `package.json`).
+    workspace_dir_opt: Option<std::path::PathBuf>,
+    manifest_dir: std::path::PathBuf,
+    /// Workspace (or project) directory as a string, for warning messages.
+    prefix: String,
+}
+
+/// Borrow the effective catalogs, reading them on first use.
+fn ensure_catalog_ctx<'slot>(
+    slot: &'slot mut Option<CatalogCtx>,
+    manifest: &PackageManifest,
+    config: &Config,
+) -> Result<&'slot CatalogCtx, UpdateError> {
+    if slot.is_none() {
+        *slot = Some(read_catalog_ctx(manifest, config)?);
+    }
+    Ok(slot.as_ref().expect("just populated"))
+}
+
+/// The range operator to write a `--latest` bump with, mirroring pnpm's
+/// `calcRange`: the operator the dependency already pinned wins over the
+/// configured default. For a `catalog:` reference the pin comes from the
+/// catalog entry it points to (the reference carries none of its own), which
+/// is the only case that needs to consult the catalogs.
+fn latest_pin(
+    catalog_ctx: &mut Option<CatalogCtx>,
+    manifest: &PackageManifest,
+    config: &Config,
+    prev: &str,
+    name: &str,
+    default: PinnedVersion,
+) -> Result<PinnedVersion, UpdateError> {
+    if let Some(catalog_name) = parse_catalog_protocol(prev) {
+        let ctx = ensure_catalog_ctx(catalog_ctx, manifest, config)?;
+        return Ok(ctx
+            .catalogs
+            .get(catalog_name)
+            .and_then(|catalog| catalog.get(name))
+            .and_then(|spec| which_version_is_pinned(spec))
+            .unwrap_or(default));
+    }
+    Ok(which_version_is_pinned(prev).unwrap_or(default))
+}
+
+/// Read the effective catalogs and the directories around them.
+///
+/// The catalogs prefer a post-`updateConfig` pnpmfile hook's output
+/// (`config.catalogs`, the authoritative complete set) over the raw
+/// `pnpm-workspace.yaml` read, matching `Install::run` so an update never
+/// resolves `catalog:` deps against stale on-disk catalogs when a hook
+/// changed them. Workspace discovery still drives where bumped entries are
+/// written back.
+fn read_catalog_ctx(
+    manifest: &PackageManifest,
+    config: &Config,
+) -> Result<CatalogCtx, UpdateError> {
+    let manifest_dir =
+        manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let workspace_dir_opt = pacquet_workspace::find_workspace_dir(&manifest_dir)
+        .map_err(UpdateError::FindWorkspaceDir)?;
+    let catalogs = if let Some(catalogs) = config.catalogs.clone() {
+        catalogs
+    } else {
+        let workspace_manifest = match workspace_dir_opt.as_deref() {
+            Some(dir) => pacquet_workspace::read_workspace_manifest(dir)
+                .map_err(UpdateError::ReadWorkspaceManifest)?,
+            None => None,
+        };
+        get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
+            .map_err(UpdateError::InvalidCatalogsConfiguration)?
+    };
+    let prefix =
+        workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
+    Ok(CatalogCtx { catalogs, workspace_dir_opt, manifest_dir, prefix })
 }
 
 /// Fetch a package's `latest` dist-tag from the registry. Shares the

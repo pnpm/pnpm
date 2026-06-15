@@ -231,6 +231,12 @@ where
     /// ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)).
     /// Ignored on the frozen path (no tree walk to observe).
     pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+    /// In-memory catalogs to resolve against instead of reading
+    /// `pnpm-workspace.yaml` from disk. `None` (every plain install) reads
+    /// the workspace manifest. `pacquet update` sets this so a `--latest`
+    /// catalog bump drives resolution even under `--no-save`, where the
+    /// bumped entry is intentionally not persisted to disk.
+    pub catalogs_override: Option<Catalogs>,
 }
 
 /// Error type of [`Install`].
@@ -449,6 +455,7 @@ where
             update_seed_policy,
             auth_override,
             resolution_observer,
+            catalogs_override,
         } = self;
 
         // `--lockfile-only` with `lockfile: false` (pnpm's
@@ -505,12 +512,15 @@ where
                 .map_err(InstallError::ReadWorkspaceManifest)?,
             None => None,
         };
-        // Prefer catalogs an `updateConfig` pnpmfile hook produced
-        // (`config.catalogs`, the complete set after the hook pass) over
-        // the raw workspace-manifest read, mirroring pnpm using the
-        // post-`updateConfig` `config.catalogs`. `None` means no hook
-        // changed them, so fall back to the manifest.
-        let catalogs = match config.catalogs.clone() {
+        // Prefer a caller-supplied in-memory catalogs set
+        // (`catalogs_override`, e.g. `pacquet update --latest --no-save`
+        // resolving a bumped `catalog:` entry that is not written to disk),
+        // then catalogs an `updateConfig` pnpmfile hook produced
+        // (`config.catalogs`, the complete set after the hook pass), and
+        // finally the raw workspace-manifest read. `None` at every layer
+        // falls back to the manifest, mirroring pnpm's post-`updateConfig`
+        // `config.catalogs`.
+        let catalogs = match catalogs_override.or_else(|| config.catalogs.clone()) {
             Some(catalogs) => catalogs,
             None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
                 .map_err(InstallError::InvalidCatalogsConfiguration)?,

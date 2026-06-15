@@ -191,6 +191,7 @@ pub async fn resolve(
         // overlaps this server-side resolution. `None` falls back to a
         // single terminal `done` frame carrying the whole lockfile.
         resolution_observer: observer,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
