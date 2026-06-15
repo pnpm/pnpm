@@ -260,6 +260,69 @@ fn add_existing_dependency_preserves_target_group_specifier() {
     drop((root, npmrc_info)); // cleanup
 }
 
+/// `add <pkg>@<range>` records the range resolved to a concrete version
+/// with the input's operator, matching pnpm. `^100.0.0` resolves to the
+/// highest in-range version (100.1.0; 101.0.0 is a different major), so the
+/// manifest gets `^100.1.0` — not the verbatim `^100.0.0`.
+#[test]
+fn add_explicit_range_resolves_to_concrete_version() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
+        "add",
+        "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
+        "--lockfile-only",
+    ]);
+    assert_eq!(prod_spec(&dir, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "^100.1.0");
+    drop((root, anchor)); // cleanup
+}
+
+/// A dist-tag spec resolves to that tag's version, pinned with the default
+/// caret (the tag carries no operator). `latest` is 101.0.0.
+#[test]
+fn add_explicit_dist_tag_resolves_with_caret() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
+        "add",
+        "@pnpm.e2e/dep-of-pkg-with-1-dep@latest",
+        "--lockfile-only",
+    ]);
+    assert_eq!(prod_spec(&dir, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "^101.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+/// On a re-add with an explicit version, the existing entry's operator wins
+/// over the spec's (pnpm's calcSpecifier precedence): a `~`-pinned entry
+/// re-added with `@^100.0.0` stays tilde, resolved to the concrete version.
+#[test]
+fn add_explicit_range_respects_existing_operator() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "~100.0.0" } }"#,
+    )
+    .unwrap();
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "~100.1.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// An `npm:` alias specifier is written verbatim — never resolved (which
+/// would risk dropping the aliased target name).
+#[test]
+fn add_npm_alias_spec_is_kept_verbatim() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
+        "add",
+        "my-alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
+        "--lockfile-only",
+    ]);
+    assert_eq!(prod_spec(&dir, "my-alias"), "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0");
+    drop((root, anchor)); // cleanup
+}
+
 #[test]
 fn save_prefix_arbitrary_value_falls_back_to_caret() {
     let (root, dir, anchor) =

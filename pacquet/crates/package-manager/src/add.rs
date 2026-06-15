@@ -12,9 +12,12 @@ use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
+use pacquet_registry::{Package, PackageTag, PackageVersion, PinnedVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_resolving_npm_resolver::pick_registry_for_package;
+use pacquet_resolving_npm_resolver::{
+    PickVersionByVersionRangeOptions, RegistryPackageSpecType, parse_bare_specifier,
+    pick_registry_for_package, pick_version_by_version_range, which_version_is_pinned,
+};
 use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 
@@ -156,14 +159,27 @@ where
             .map(|(_, spec)| spec.to_string());
 
         // The bare specifier to reconcile against the catalogs:
-        // - an explicit `@<version>` is used as given;
+        // - an explicit `@<version>` is resolved to a concrete version and
+        //   recorded with the range operator it (or the existing entry)
+        //   pins, mirroring pnpm — `pnpm add foo@^7` records `^7.8.4`, not
+        //   `^7`. Specifiers that are not a plain registry range/tag/version
+        //   for this package (protocols, `npm:` aliases) stay verbatim;
         // - a re-add with no version keeps the dependency's current
         //   specifier verbatim (a `catalog:` reference, a range, or an
         //   exact pin), matching pnpm — `pnpm add <existing>` without a
         //   version leaves the declared range untouched;
         // - a brand-new dependency fetches and pins the `latest` range.
         let bare_specifier = match (explicit_spec, prev_specifier.as_deref()) {
-            (Some(spec), _) => spec.to_string(),
+            (Some(spec), prev) => resolve_explicit_registry_spec(
+                package_name,
+                spec,
+                prev,
+                config,
+                http_client,
+                pinned_version,
+            )
+            .await?
+            .unwrap_or_else(|| spec.to_string()),
             (None, Some(prev)) => prev.to_string(),
             (None, None) => {
                 let registries: std::collections::HashMap<String, String> =
@@ -300,6 +316,73 @@ where
 
         Ok(())
     }
+}
+
+/// Resolve an explicit `add <name>@<spec>` registry specifier to the
+/// manifest range pnpm would record: the spec resolved to a concrete
+/// version, carrying the range operator the existing entry pins (or, failing
+/// that, the spec's own operator, or the configured default) — mirroring
+/// pnpm's `calcSpecifier`. So `pnpm add foo@^7` records `^7.8.4`, not `^7`.
+///
+/// Returns `Ok(None)` — meaning "write the specifier verbatim" — for
+/// anything that is not a plain registry range/tag/version for
+/// `package_name` itself: non-registry protocols (`git:`/`file:`/
+/// `workspace:`/URLs, which [`parse_bare_specifier`] rejects), `npm:`
+/// aliases (resolving them risks dropping the aliased target), and
+/// specifiers that don't resolve against the packument.
+async fn resolve_explicit_registry_spec(
+    package_name: &str,
+    spec: &str,
+    prev_specifier: Option<&str>,
+    config: &Config,
+    http_client: &ThrottledClient,
+    pinned_version: PinnedVersion,
+) -> Result<Option<String>, AddError> {
+    if spec.starts_with("npm:") {
+        return Ok(None);
+    }
+    let registries: std::collections::HashMap<String, String> =
+        config.resolved_registries().into_iter().collect();
+    let registry = pick_registry_for_package(&registries, package_name, None);
+    let Some(spec_parsed) = parse_bare_specifier(spec, Some(package_name), "latest", &registry)
+    else {
+        return Ok(None);
+    };
+    // Defensive: anything that aliases to a different name (only `npm:`
+    // can, already returned above) is kept verbatim.
+    if spec_parsed.name != package_name {
+        return Ok(None);
+    }
+
+    let package =
+        Package::fetch_from_registry(package_name, http_client, &registry, &config.auth_headers)
+            .await
+            .map_err(|error| AddError::ResolveLatest { name: package_name.to_string(), error })?;
+
+    let resolved = match spec_parsed.spec_type {
+        RegistryPackageSpecType::Tag => {
+            package.dist_tag(&spec_parsed.fetch_spec).map(str::to_string)
+        }
+        RegistryPackageSpecType::Version | RegistryPackageSpecType::Range => {
+            pick_version_by_version_range(&PickVersionByVersionRangeOptions {
+                meta: &package,
+                version_range: &spec_parsed.fetch_spec,
+                preferred_version_selectors: None,
+                published_by: None,
+            })
+        }
+    };
+    let Some(resolved) = resolved.and_then(|version| package.versions.get(&version)) else {
+        return Ok(None);
+    };
+
+    // pnpm's calcSpecifier precedence: the existing entry's operator wins
+    // over the spec's, which wins over the configured default.
+    let pin = prev_specifier
+        .and_then(which_version_is_pinned)
+        .or_else(|| which_version_is_pinned(spec))
+        .unwrap_or(pinned_version);
+    Ok(Some(resolved.serialize(pin)))
 }
 
 /// Split a `pacquet add` argument into its package name and optional
