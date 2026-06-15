@@ -137,15 +137,51 @@ fn update_latest_rewrites_manifest() {
     drop((root, anchor));
 }
 
-/// `--save-exact` writes the bumped version without a range operator.
+/// `--latest` keeps the range operator the dependency already used, even
+/// when `--save-exact` is passed: a pre-existing pin takes precedence over
+/// the config default, matching pnpm's `calcRange`. (`pnpm update --latest
+/// --save-exact` on `^1.0.0` writes `^<latest>`, not the exact version.)
 #[test]
-fn update_latest_save_exact() {
+fn update_latest_save_exact_preserves_existing_caret() {
     let (root, workspace, anchor) = setup();
 
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
     pacquet(&workspace, ["update", "--latest", "--save-exact"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^101.0.0"));
+
+    drop((root, anchor));
+}
+
+/// `--latest` preserves a tilde range instead of widening it to the default
+/// caret — the gap this fix closes. Ports the prefix-preservation half of
+/// pnpm's `calcRange`.
+#[test]
+fn update_latest_preserves_tilde() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "~100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("~101.0.0"));
+
+    drop((root, anchor));
+}
+
+/// `--latest` preserves an exact pin (no range operator) without needing
+/// `--save-exact`.
+#[test]
+fn update_latest_preserves_exact() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
 
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("101.0.0"));
 
