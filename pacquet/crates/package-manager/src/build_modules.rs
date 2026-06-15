@@ -798,13 +798,49 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         // hit *is* that seeded slot), so there is nothing to re-link —
         // and the slot is read-only under `frozen_store`, where a write
         // would fail with `EROFS`.
-        if !layout.enable_global_virtual_store()
-            && let Some(pkg_dir) = pkg_root_for_key(layout, pkg_root_by_key, snapshot_key)
-            && pkg_dir.exists()
-        {
-            materialize_side_effects::<Reporter>(logged_methods, import_method, &pkg_dir, overlay)?;
+        //
+        // A materialization failure is *not* fatal. Side-effects `added`
+        // blobs aren't re-verified (see
+        // [`pacquet_store_dir::build_file_maps_from_index`]), so a CAS
+        // blob deleted out from under the store surfaces here as an
+        // import error. Treat that exactly like a cache miss: fall through
+        // to the normal build path below, which re-runs the script over
+        // the already-linked pristine files and re-seeds the cache. This
+        // also means a corrupt entry on an optional dependency reaches the
+        // optional-build-failure swallow below instead of aborting the
+        // whole install.
+        let satisfied_by_cache = if layout.enable_global_virtual_store() {
+            true
+        } else {
+            match pkg_root_for_key(layout, pkg_root_by_key, snapshot_key) {
+                Some(pkg_dir) if pkg_dir.exists() => {
+                    match materialize_side_effects::<Reporter>(
+                        logged_methods,
+                        import_method,
+                        &pkg_dir,
+                        overlay,
+                    ) {
+                        Ok(()) => true,
+                        Err(error) => {
+                            tracing::warn!(
+                                target: "pacquet::build",
+                                ?snapshot_key,
+                                cache_key = key,
+                                %error,
+                                "failed to materialize side-effects cache overlay; rebuilding",
+                            );
+                            false
+                        }
+                    }
+                }
+                // No slot to materialize into (skipped / never linked) —
+                // nothing for the build phase to do either.
+                _ => true,
+            }
+        };
+        if satisfied_by_cache {
+            return Ok(());
         }
-        return Ok(());
     }
 
     let optional = snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);

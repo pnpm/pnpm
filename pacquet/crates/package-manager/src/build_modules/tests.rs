@@ -815,6 +815,118 @@ fn using_side_effects_cache_skips_rebuild() {
     );
 }
 
+/// A cache hit whose overlay can't be materialized (e.g. a side-effects
+/// `added` blob deleted out from under the store — those aren't
+/// re-verified) must not abort the install. It degrades to a cache miss:
+/// the build re-runs over the pristine files and re-seeds the cache,
+/// instead of propagating the import error past the optional-dependency
+/// swallow below.
+#[cfg(unix)]
+#[test]
+fn corrupt_side_effects_cache_falls_back_to_rebuild() {
+    let pkg_key = key("@pnpm.e2e/postinstall-modifies-source", "1.0.0");
+    let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
+    let packages: HashMap<pacquet_lockfile::PackageKey, pacquet_lockfile::PackageMetadata> =
+        HashMap::from([(
+            pkg_key.without_peer(),
+            pacquet_lockfile::PackageMetadata {
+                resolution: pacquet_lockfile::LockfileResolution::Registry(
+                    pacquet_lockfile::RegistryResolution {
+                        integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                            .parse()
+                            .expect("parse integrity"),
+                    },
+                ),
+                version: None,
+                engines: None,
+                cpu: None,
+                os: None,
+                libc: None,
+                deprecated: None,
+                has_bin: None,
+                prepare: None,
+                bundled_dependencies: None,
+                peer_dependencies: None,
+                peer_dependencies_meta: None,
+            },
+        )]);
+    let importers = root_importers(&[("@pnpm.e2e/postinstall-modifies-source", "1.0.0")]);
+    let policy = policy_from_specs([], true);
+
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    let modules_dir = tempdir().expect("create temp dir");
+    let lockfile_dir = tempdir().expect("create temp dir");
+
+    let (pkg_dir, _mode) =
+        create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
+
+    let engine = "darwin;arm64;node20";
+    let dep_graph = crate::build_deps_graph(&snapshots, &packages);
+    let mut state_cache = pacquet_graph_hasher::DepsStateCache::new();
+    let expected_cache_key = pacquet_graph_hasher::calc_dep_state(
+        &dep_graph,
+        &mut state_cache,
+        &pkg_key,
+        &pacquet_graph_hasher::CalcDepStateOptions {
+            engine_name: engine,
+            patch_file_hash: None,
+            include_dep_graph_hash: true,
+        },
+    );
+    // The overlay points `generated.txt` at a CAS path that doesn't
+    // exist, so `materialize_side_effects` fails — standing in for a
+    // store whose side-effects blob went missing.
+    let overlay = std::collections::HashMap::from([
+        ("package.json".to_string(), pkg_dir.join("package.json")),
+        ("generated.txt".to_string(), virtual_store_dir.path().join("missing-cas-blob")),
+    ]);
+    let mut side_effects_maps = std::collections::HashMap::new();
+    side_effects_maps.insert(
+        pkg_key.clone(),
+        std::sync::Arc::new(HashMap::from([(expected_cache_key, overlay)])),
+    );
+
+    BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        packages: Some(&packages),
+        importers: &importers,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: Some(&side_effects_maps),
+        requires_build_by_snapshot: None,
+        engine_name: Some(engine),
+        side_effects_cache: true,
+        side_effects_cache_write: false,
+        store_dir: None,
+        store_index_writer: None,
+        patches: None,
+
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_root_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
+    }
+    .run::<SilentReporter>()
+    .expect("a corrupt cache overlay must degrade to a rebuild, not abort the install");
+
+    // The postinstall re-ran over the pristine files, regenerating its
+    // output — proving the gate fell through to the build path.
+    assert!(
+        pkg_dir.join("generated.txt").exists(),
+        "rebuild must run when the cached overlay can't be materialized",
+    );
+}
+
 /// Negative pair: with `side_effects_cache = false`, even a
 /// matching cache entry is ignored — the build runs. Mirrors
 /// upstream's `sideEffectsCache: false` config branch.
