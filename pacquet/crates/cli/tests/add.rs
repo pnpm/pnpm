@@ -5,6 +5,7 @@ use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::{get_all_folders, get_filenames_in_folder},
 };
+use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::fs;
@@ -59,8 +60,6 @@ fn should_install_all_dependencies() {
 #[test]
 #[cfg(unix)]
 pub fn should_symlink_correctly() {
-    use pipe_trait::Pipe;
-
     let (root, workspace, anchor) =
         exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin-parent"]);
 
@@ -113,7 +112,7 @@ fn should_add_to_package_json() {
 }
 
 fn prod_spec(dir: &std::path::Path, name: &str) -> String {
-    let manifest = PackageManifest::from_path(dir.join("package.json")).unwrap();
+    let manifest = dir.join("package.json").pipe(PackageManifest::from_path).unwrap();
     let (_, spec) = manifest
         .dependencies([DependencyGroup::Prod])
         .find(|(key, _)| *key == name)
