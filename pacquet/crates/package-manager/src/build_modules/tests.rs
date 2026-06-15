@@ -1,6 +1,6 @@
 use super::{AllowBuildPolicy, BuildModules, parse_name_version_from_key};
 use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
-use pacquet_config::Config;
+use pacquet_config::{Config, PackageImportMethod};
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_lockfile::{
     PackageKey, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
@@ -17,6 +17,12 @@ use std::{
     sync::Mutex,
 };
 use tempfile::tempdir;
+
+/// Install-scoped `pnpm:package-import-method` dedupe state shared by
+/// the `BuildModules` constructions below. The build phase only writes
+/// to it through the side-effects re-materialization path; tests don't
+/// assert on it, so one shared static is enough.
+static TEST_LOGGED_METHODS: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
 /// Build an [`AllowBuildPolicy`] from a list of `(spec, allowed)`
 /// pairs, mirroring how `pnpm-workspace.yaml`'s `allowBuilds` map
@@ -347,6 +353,8 @@ fn build_modules_collects_ignored_builds() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -400,6 +408,8 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -469,6 +479,8 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules under concurrency");
@@ -531,6 +543,8 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -616,6 +630,8 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<RecordingReporter>()
     .expect("optional build failure must NOT abort the install");
@@ -709,8 +725,12 @@ fn using_side_effects_cache_skips_rebuild() {
 
     // Compute the cache key the same way `BuildModules` will, then
     // pre-populate `side_effects_maps_by_snapshot` with a matching
-    // entry. The inner FilesMap value is irrelevant for this
-    // assertion — only presence of the key matters for the gate.
+    // entry. The overlay's FilesMap is the post-build file set
+    // (resolved to CAS paths); the gate re-materializes it into the
+    // already-linked slot, so it carries both the pristine
+    // `package.json` and a side-effect file the build would have
+    // produced — proving the cached build output lands on disk
+    // without the script re-running.
     let engine = "darwin;arm64;node20";
     let dep_graph = crate::build_deps_graph(&snapshots, &packages);
     let mut state_cache = pacquet_graph_hasher::DepsStateCache::new();
@@ -724,8 +744,22 @@ fn using_side_effects_cache_skips_rebuild() {
             include_dep_graph_hash: true,
         },
     );
+    let pkg_dir = virtual_store_dir
+        .path()
+        .join("@pnpm.e2e+failing-postinstall@1.0.0")
+        .join("node_modules")
+        .join("@pnpm.e2e/failing-postinstall");
+    let cas_source = tempdir().expect("create temp dir");
+    let side_effect_blob = cas_source.path().join("generated-by-postinstall");
+    fs::write(&side_effect_blob, b"built").expect("write side-effect blob");
     let mut overlay = std::collections::HashMap::new();
-    overlay.insert(expected_cache_key, std::collections::HashMap::new());
+    overlay.insert(
+        expected_cache_key,
+        std::collections::HashMap::from([
+            ("package.json".to_string(), pkg_dir.join("package.json")),
+            ("generated-by-postinstall.js".to_string(), side_effect_blob),
+        ]),
+    );
     let mut side_effects_maps = std::collections::HashMap::new();
     side_effects_maps.insert(pkg_key.clone(), std::sync::Arc::new(overlay));
 
@@ -756,6 +790,8 @@ fn using_side_effects_cache_skips_rebuild() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<RecordingReporter>()
     .expect("install must succeed when the cache hit skips the rebuild");
@@ -769,6 +805,14 @@ fn using_side_effects_cache_skips_rebuild() {
     let captured = EVENTS.lock().expect("lock").clone();
     let any_lifecycle = captured.iter().any(|e| matches!(e, LogEvent::Lifecycle(_)));
     assert!(!any_lifecycle, "side-effects cache hit must skip lifecycle scripts: {captured:#?}");
+
+    // The script was skipped, but the cached build output still has to
+    // be materialized — the overlay's side-effect file must land in the
+    // slot so the warm reinstall isn't left in its pre-build state.
+    assert!(
+        pkg_dir.join("generated-by-postinstall.js").exists(),
+        "cached side-effect file must be materialized when the gate skips the rebuild",
+    );
 }
 
 /// Negative pair: with `side_effects_cache = false`, even a
@@ -825,6 +869,8 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect_err("with cache disabled, the failing postinstall must run and the install must fail");
@@ -887,6 +933,8 @@ fn fail_when_failing_postinstall_is_required() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect_err("required build failure must propagate");
@@ -971,6 +1019,8 @@ fn frozen_backstop_run(
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
 }
@@ -1290,6 +1340,8 @@ async fn write_path_populates_side_effects_row() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1406,6 +1458,8 @@ async fn write_path_disabled_skips_upload() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1530,6 +1584,8 @@ async fn upload_error_does_not_interrupt_install() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect("upload failure must not propagate; install continues");
@@ -1765,6 +1821,8 @@ new file mode 100644
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1876,6 +1934,8 @@ new file mode 100644
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1958,6 +2018,8 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
     }
     .run::<SilentReporter>()
     .expect_err("missing patch_file_path must surface as PatchFilePathMissing");

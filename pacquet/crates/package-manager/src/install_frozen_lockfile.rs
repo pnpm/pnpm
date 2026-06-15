@@ -1079,6 +1079,8 @@ where
             pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
             gather_ancestor_bin_paths: is_hoisted,
             frozen_store: config.frozen_store,
+            import_method: config.package_import_method,
+            logged_methods,
         }
         .run::<Reporter>()
         .map_err(InstallFrozenLockfileError::BuildModules)?;
