@@ -449,6 +449,7 @@ impl InstallArgs {
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
+            catalogs_override: None,
         }
         .run::<Reporter>()
         .await
@@ -687,6 +688,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
+            catalogs_override: None,
         };
 
         let result = match lockfile_verification_override {
@@ -813,6 +815,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         update_seed_policy: UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<Reporter>()
     .await
