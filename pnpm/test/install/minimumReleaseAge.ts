@@ -392,4 +392,57 @@ describe('lockfile minimumReleaseAge verification', () => {
     expect(output).toContain('ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION')
     expect(output).toMatch(/is-odd@0\.1\.2/)
   })
+
+  test('--fix-lockfile enforces minimumReleaseAge on existing lockfile entries', () => {
+    // Reproduces the scenario from https://github.com/pnpm/pnpm/issues/10361:
+    // a lockfile entry that was installed while the package was immature (possibly
+    // under a minimumReleaseAgeExclude) must still be rejected by the verifier when
+    // --fix-lockfile is run without an exclude covering it. The fix-lockfile path
+    // must not bypass the lockfile verification step.
+    prepare({
+      dependencies: { 'is-odd': '0.1.2' },
+    })
+    execPnpmSync([PUBLIC_REGISTRY, 'install'], { expectSuccess: true })
+
+    // Turn on an extreme minimumReleaseAge (no exclude list) so every locked
+    // entry is considered immature.
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: true,
+    })
+
+    const result = execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--fix-lockfile'],
+      omitMinReleaseAgeEnv
+    )
+
+    expect(result.status).toBe(1)
+    const output = `${result.stdout.toString()}\n${result.stderr.toString()}`
+    expect(output).toContain('ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION')
+    expect(output).toMatch(/is-odd@0\.1\.2/)
+  })
+
+  test('--fix-lockfile respects minimumReleaseAgeExclude for entries in the exclude list', () => {
+    // When minimumReleaseAgeExclude covers the immature lockfile entries, --fix-lockfile
+    // should succeed (the verifier accepts excluded entries).
+    prepare({
+      dependencies: { 'is-odd': '0.1.2' },
+    })
+    execPnpmSync([PUBLIC_REGISTRY, 'install'], { expectSuccess: true })
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: IMMATURE_FOR_EVERYTHING,
+      minimumReleaseAgeStrict: true,
+      // is-odd is version-qualified to exercise the exact-version exclude path
+      // (the `name@version` form that issue 10361 relies on); the transitive
+      // deps stay name-only because their resolved versions shift across npm
+      // republishes.
+      minimumReleaseAgeExclude: ['is-odd@0.1.2', 'is-buffer', 'is-number', 'kind-of'],
+    })
+
+    execPnpmSync(
+      [PUBLIC_REGISTRY, 'install', '--fix-lockfile'],
+      { ...omitMinReleaseAgeEnv, expectSuccess: true }
+    )
+  })
 })
