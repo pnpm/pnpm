@@ -4,7 +4,10 @@ use pacquet_network::{AuthHeaders, ThrottledClient};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 
-use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
+use crate::{
+    NetworkError, PackageTag, PinnedVersion, RegistryError,
+    package_distribution::PackageDistribution,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -303,9 +306,8 @@ impl PackageVersion {
     }
 
     #[must_use]
-    pub fn serialize(&self, save_exact: bool) -> String {
-        let prefix = if save_exact { "" } else { "^" };
-        format!("{0}{1}", prefix, self.version)
+    pub fn serialize(&self, pinned_version: PinnedVersion) -> String {
+        format!("{0}{1}", pinned_version.range_prefix(), self.version)
     }
 }
 

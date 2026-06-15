@@ -11,6 +11,7 @@ use pacquet_crypto_hash::create_short_hash;
 use pacquet_fs::force_symlink_dir;
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::DependencyGroup;
+use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Value, json};
@@ -299,7 +300,8 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         add_package::<Reporter, _, _>(
             state,
             pkg,
-            false,
+            // dlx records the default caret range; the spec is throwaway.
+            PinnedVersion::default(),
             // dlx never catalogs.
             None,
             // dlx must download to run the bin, so never lockfile-only.

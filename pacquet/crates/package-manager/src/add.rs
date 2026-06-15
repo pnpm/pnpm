@@ -13,7 +13,7 @@ use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::{PackageTag, PackageVersion};
+use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_tarball::MemCache;
@@ -36,7 +36,11 @@ where
     pub lockfile_path: Option<&'a std::path::Path>,
     pub list_dependency_groups: ListDependencyGroups, // must be a function because it is called multiple times
     pub package_name: &'a str, // may carry a `@<version>` suffix; TODO: multiple arguments, name this `packages`
-    pub save_exact: bool,      // TODO: add `save-exact` to `.npmrc`, merge configs, and remove this
+    /// How the freshly-resolved version is pinned into the manifest range,
+    /// derived from `--save-exact` / `--save-prefix`. See
+    /// [`PinnedVersion::from_save_options`].
+    // TODO: read `save-exact` / `save-prefix` from `.npmrc`, merge configs, and derive this there.
+    pub pinned_version: PinnedVersion,
     /// `--save-catalog-name=<name>` (with `--save-catalog` a shorthand for
     /// `default`), or the `saveCatalogName` config default. When `Some`,
     /// the added dependency is written as `catalog:` / `catalog:<name>`
@@ -104,7 +108,7 @@ where
             lockfile_path,
             list_dependency_groups,
             package_name,
-            save_exact,
+            pinned_version,
             save_catalog_name,
             resolved_packages,
             supported_architectures,
@@ -163,7 +167,7 @@ where
                     )
                     .await
                     .expect("resolve latest tag"); // TODO: properly propagate this error
-                    latest.serialize(save_exact)
+                    latest.serialize(pinned_version)
                 }
             },
         };

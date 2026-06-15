@@ -112,6 +112,58 @@ fn should_add_to_package_json() {
     drop((root, anchor)); // cleanup
 }
 
+fn prod_spec(dir: &std::path::Path, name: &str) -> String {
+    let manifest = PackageManifest::from_path(dir.join("package.json")).unwrap();
+    let (_, spec) = manifest
+        .dependencies([DependencyGroup::Prod])
+        .find(|(key, _)| *key == name)
+        .unwrap_or_else(|| panic!("{name} should be in dependencies"));
+    spec.to_string()
+}
+
+#[test]
+fn save_prefix_defaults_to_caret() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin"]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "^1.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn save_prefix_tilde_writes_tilde_range() {
+    let (root, dir, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin", "--save-prefix=~"]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "~1.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn save_prefix_empty_writes_exact_version() {
+    let (root, dir, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin", "--save-prefix="]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "1.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
+fn save_exact_overrides_save_prefix() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
+        "add",
+        "@pnpm.e2e/hello-world-js-bin",
+        "--save-prefix=~",
+        "--save-exact",
+    ]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "1.0.0");
+    drop((root, anchor)); // cleanup
+}
+
 #[test]
 fn should_add_dev_dependency() {
     let (root, dir, anchor) =

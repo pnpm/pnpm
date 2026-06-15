@@ -4,7 +4,7 @@ use node_semver::Version;
 use pretty_assertions::assert_eq;
 
 use super::{AuthHeaders, Package, PackageVersion, ThrottledClient};
-use crate::package_distribution::PackageDistribution;
+use crate::{PinnedVersion, package_distribution::PackageDistribution};
 
 #[test]
 pub fn package_version_should_include_peers() {
@@ -50,8 +50,10 @@ pub fn serialized_according_to_params() {
         deprecated: None,
     };
 
-    assert_eq!(version.serialize(true), "3.2.1");
-    assert_eq!(version.serialize(false), "^3.2.1");
+    assert_eq!(version.serialize(PinnedVersion::Patch), "3.2.1");
+    assert_eq!(version.serialize(PinnedVersion::Minor), "~3.2.1");
+    assert_eq!(version.serialize(PinnedVersion::Major), "^3.2.1");
+    assert_eq!(version.serialize(PinnedVersion::None), "^3.2.1");
 }
 
 /// [`Package::fetch_from_registry`] must attach the registry-keyed

@@ -3,6 +3,7 @@ use crate::ResolvedPackages;
 use pacquet_config::Config;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_registry::PinnedVersion;
 use pacquet_reporter::SilentReporter;
 use std::sync::Arc;
 use tempfile::tempdir;
@@ -74,7 +75,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
         lockfile_path: None,
         list_dependency_groups: || [DependencyGroup::Prod],
         package_name: "@private/foo",
-        save_exact: true,
+        pinned_version: PinnedVersion::Patch,
         save_catalog_name: None,
         supported_architectures: None,
         lockfile_only: true,
