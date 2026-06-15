@@ -307,6 +307,12 @@ impl PackageVersion {
 
     #[must_use]
     pub fn serialize(&self, pinned_version: PinnedVersion) -> String {
+        // A prerelease resolved version is written verbatim, ignoring the
+        // pinned prefix, matching pnpm's `createVersionSpecFromResolvedVersion`
+        // at <https://github.com/pnpm/pnpm/blob/086c5e91e8/pkg-manifest/utils/src/updateProjectManifestObject.ts#L29-L45>.
+        if !self.version.pre_release.is_empty() {
+            return self.version.to_string();
+        }
         format!("{0}{1}", pinned_version.range_prefix(), self.version)
     }
 }
