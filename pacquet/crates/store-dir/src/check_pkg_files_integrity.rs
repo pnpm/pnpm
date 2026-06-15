@@ -224,6 +224,23 @@ fn build_side_effects_maps(
         let mut overlay: FilesMap = HashMap::with_capacity(base_files.len());
         if let Some(added) = added {
             for (filename, info) in added {
+                // The overlay map is later joined onto the package
+                // directory and written during import, so a poisoned /
+                // corrupted index row (store integrity is explicitly not
+                // a tamper boundary — see `verify_file`) could otherwise
+                // escape the slot via a `..` or absolute `added` key.
+                // Drop the whole `cache_key` entry on any unsafe path so
+                // the importer falls back to a rebuild, matching the
+                // malformed-digest handling below.
+                if !is_safe_overlay_path(&filename) {
+                    tracing::debug!(
+                        target: "pacquet::store_index",
+                        ?filename,
+                        cache_key,
+                        "unsafe path in side-effects `added` overlay; dropping this cache_key entry entirely so the importer falls back to rebuild",
+                    );
+                    continue 'next_key;
+                }
                 let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
                     // Skip the entire `cache_key` entry rather than
                     // returning a partial overlay. A future importer
@@ -259,6 +276,22 @@ fn build_side_effects_maps(
         out.insert(cache_key, overlay);
     }
     Some(out)
+}
+
+/// Whether `filename` is a safe package-relative path to write under the
+/// package slot. Rejects absolute paths, any `..` component, and `\`
+/// separators (which are `Normal` components on Unix but path separators
+/// on Windows). Mirrors the path-traversal guard the tarball extractor
+/// applies to archive entries — the side-effects overlay reaches the same
+/// `dir.join(key)` import, so the same rule applies to a store row that
+/// can't be trusted not to have been tampered with.
+fn is_safe_overlay_path(filename: &str) -> bool {
+    use std::path::Component;
+    if filename.is_empty() || filename.contains('\\') {
+        return false;
+    }
+    let path = Path::new(filename);
+    path.components().all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
 }
 
 /// Port of pnpm's `verifyFile`. `true` when the on-disk file is either
