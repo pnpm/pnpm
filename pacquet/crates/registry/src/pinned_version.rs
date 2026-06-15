@@ -7,7 +7,7 @@
 /// [`PinnedVersion::Major`]; the `--save-exact` / `--save-prefix` interpreter
 /// in [`PinnedVersion::from_save_options`] never produces it, matching pnpm's
 /// `getPinnedVersion`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum PinnedVersion {
     /// Save with a caret range (`^version`), allowing same-major updates.
     /// pnpm's default.
