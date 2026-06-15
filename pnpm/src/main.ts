@@ -95,6 +95,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
     const isDlxOrCreateCommand = cmd === 'dlx' || cmd === 'create'
+    const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
     if (cmd === 'link' && cliParams.length === 0) {
       cliOptions.global = true
     }
@@ -138,9 +139,9 @@ export async function main (inputArgv: string[]): Promise<void> {
     // `cmd === 'config'` at this layer, so list them explicitly — users can
     // hit the #10684 crash via any of these three entry points.
     ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
-      tolerateConfigDependenciesErrors: cmd === 'config' || cmd === 'set' || cmd === 'get',
+      tolerateConfigDependenciesErrors: isConfigCommand
     }) as { config: typeof config, context: ConfigContext })
-    if (isDlxOrCreateCommand || cmd === 'sbom' || cmd === 'with') {
+    if (isDlxOrCreateCommand || isConfigCommand || cmd === 'sbom' || cmd === 'with' || cmd === 'store') {
       config.useStderr = true
     }
     config.argv = argv
