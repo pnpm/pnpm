@@ -7,7 +7,7 @@ on:
   # workflow_run, validates artifact metadata, then performs the authenticated
   # upload from trusted workflow code.
   workflow_run:
-    workflows: ["CI", "Pacquet CI"]
+    workflows: ["CI", "TS CI", "Pacquet CI", "Rust CI"]
     types: [completed]
 
 permissions:

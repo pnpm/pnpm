@@ -1,4 +1,4 @@
-name: CI
+name: TS CI
 
 on: [push, pull_request]
 
@@ -12,7 +12,7 @@ jobs:
     # Exception: chore/update-lockfile PRs (created by automation with GITHUB_TOKEN, which doesn't trigger push events)
     if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile' }}
 
-    name: Compile & Lint
+    name: TS CI / Compile & Lint
     runs-on: ubuntu-latest
 
     steps:
@@ -40,24 +40,36 @@ jobs:
         retention-days: 1
 
   test-smoke:
-    name: ubuntu-latest / Node.js 24
+    name: TS CI / Test / ubuntu
     needs: compile-and-lint
     uses: ./.github/workflows/test.yml
     with:
       node: '24.0.0'
+      node_major: '24'
       platform: ubuntu-latest
       garnet: true
     secrets:
       GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
 
   test:
-    name: ${{ matrix.platform }} / Node.js ${{ matrix.node }}
+    name: TS CI / Test / ${{ matrix.platform_label }}
     needs: test-smoke
     strategy:
       fail-fast: false
       matrix:
         node: ['22.13.0', '24.0.0', '26.3.0']
         platform: [ubuntu-latest, windows-latest]
+        include:
+          - node: '22.13.0'
+            node_major: '22'
+          - node: '24.0.0'
+            node_major: '24'
+          - node: '26.3.0'
+            node_major: '26'
+          - platform: ubuntu-latest
+            platform_label: ubuntu
+          - platform: windows-latest
+            platform_label: windows
         exclude:
           - node: '24.0.0'
             platform: ubuntu-latest
@@ -70,4 +82,5 @@ jobs:
     uses: ./.github/workflows/test.yml
     with:
       node: ${{ matrix.node }}
+      node_major: ${{ matrix.node_major }}
       platform: ${{ matrix.platform }}

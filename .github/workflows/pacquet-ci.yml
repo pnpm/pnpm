@@ -1,12 +1,11 @@
-name: Pacquet CI
+name: Rust CI
 
-# Despite the name, this workflow covers every Rust crate in the
-# repo — pacquet and pnpr alike. They share the same cargo
-# workspace, so `just test`, dylint, doc, etc. all see both stacks
-# in one pass; running two workflows would just duplicate the work.
-# The in-workflow change detector intentionally includes `pnpr/**`
-# for the same reason. Keep path filtering out of the workflow
-# trigger so required checks are created and can report skipped.
+# This workflow covers every Rust crate in the repo — pacquet and
+# pnpr alike. They share the same cargo workspace, so `just test`,
+# dylint, doc, etc. all see both stacks in one pass; running two
+# workflows would just duplicate the work. Keep path filtering out
+# of the workflow trigger so required checks are created and can
+# report skipped.
 
 permissions:
   contents: read
@@ -26,7 +25,7 @@ concurrency:
 
 jobs:
   changes:
-    name: Detect Rust CI changes
+    name: Rust CI / Detect Changes
     runs-on: ubuntu-latest
     outputs:
       rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
@@ -65,7 +64,7 @@ jobs:
               - '.github/workflows/pacquet-ci.yml'
 
   test:
-    name: Lint and Test
+    name: Rust CI / Test / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     strategy:
@@ -73,8 +72,11 @@ jobs:
       matrix:
         include:
           - os: windows-latest
+            os_label: windows
           - os: ubuntu-latest
+            os_label: ubuntu
           - os: macos-latest
+            os_label: macos
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -190,7 +192,7 @@ jobs:
           retention-days: 14
 
   clippy:
-    name: Clippy
+    name: Rust CI / Clippy
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     # Clippy lints the same source on every platform, so one OS is
@@ -221,7 +223,7 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
   doc:
-    name: Doc
+    name: Rust CI / Doc
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
@@ -241,7 +243,7 @@ jobs:
         run: cargo doc --no-deps --workspace --document-private-items
 
   typos:
-    name: Spell Check
+    name: Rust CI / Spell Check
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
@@ -255,7 +257,7 @@ jobs:
           files: pacquet pnpr
 
   deny:
-    name: Cargo Deny
+    name: Rust CI / Cargo Deny
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
@@ -282,7 +284,7 @@ jobs:
         run: cargo deny check
 
   format:
-    name: Format
+    name: Rust CI / Format
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
@@ -307,7 +309,7 @@ jobs:
       - run: taplo format --check
 
   dylint:
-    name: Dylint
+    name: Rust CI / Dylint
     needs: changes
     if: ${{ always() && !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.result != 'success') }}
     runs-on: ubuntu-latest
