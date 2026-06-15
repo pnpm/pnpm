@@ -379,6 +379,92 @@ fn empty_importers_is_a_no_op() {
     drop(dir);
 }
 
+/// A symlink already pointing at its target is "reused", and a reused
+/// symlink is NOT a `pnpm:root added` — so a re-link (e.g. `pacquet add`
+/// over an already-installed project) emits an event only for genuinely
+/// new dependencies, not every previously-linked one. Mirrors pnpm's
+/// `if ((await symlinkDependency(...)).reused) return` at
+/// <https://github.com/pnpm/pnpm/blob/39101f5e37/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L127-L129>.
+#[test]
+fn reused_symlinks_do_not_emit_pnpm_root_added() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir.clone();
+    let config = config.leak();
+
+    let target = virtual_store_dir.join("fastify@4.0.0").join("node_modules").join("fastify");
+    fs::create_dir_all(&target).expect("create symlink target");
+
+    let mut prod = ResolvedDependencyMap::new();
+    prod.insert(
+        "fastify".parse().expect("parse fastify pkg name"),
+        ResolvedDependencySpec {
+            specifier: "^4.0.0".to_string(),
+            version: "4.0.0".parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+        },
+    );
+    let project_snapshot =
+        ProjectSnapshot { dependencies: Some(prod), ..ProjectSnapshot::default() };
+    let mut importers = HashMap::new();
+    importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), project_snapshot);
+    let layout = crate::VirtualStoreLayout::legacy(
+        config.virtual_store_dir.clone(),
+        config.virtual_store_dir_max_length as usize,
+    );
+    let link = || {
+        SymlinkDirectDependencies {
+            config,
+            layout: &layout,
+            importers: &importers,
+            dependency_groups: [DependencyGroup::Prod],
+            workspace_root: &project_root,
+            skipped: &SkippedSnapshots::default(),
+            link_only: false,
+            public_hoist_targets: None,
+        }
+        .run::<RecordingReporter>()
+        .expect("symlink should succeed");
+    };
+
+    // First link: the symlink is created, so one `pnpm:root added`.
+    link();
+    assert_eq!(count_added(&EVENTS), 1, "the first link of a new dep emits one added event");
+
+    // Second link over the now-existing symlink: reused, so no event.
+    EVENTS.lock().unwrap().clear();
+    link();
+    assert_eq!(count_added(&EVENTS), 0, "re-linking a reused symlink emits no added event");
+
+    drop(dir);
+}
+
+fn count_added(events: &Mutex<Vec<LogEvent>>) -> usize {
+    events
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|event| {
+            matches!(event, LogEvent::Root(RootLog { message: RootMessage::Added { .. }, .. }))
+        })
+        .count()
+}
+
 /// Two importers under one workspace root each produce their own
 /// `pnpm:root added` event with the importer's `rootDir` as the
 /// event prefix. Mirrors upstream's per-project emit at
