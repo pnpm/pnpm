@@ -11,7 +11,7 @@ use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
 use pacquet_catalogs_types::Catalogs;
-use pacquet_config::{Config, NodeLinker, NodePackageMapType};
+use pacquet_config::{Config, NodeLinker};
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks,
     ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
@@ -1141,6 +1141,7 @@ where
                     .as_ref()
                     .and_then(|lockfile| lockfile.packages.as_ref()),
                 dependency_groups,
+                project_manifests: &project_manifests,
                 logged_methods: &logged_methods,
                 workspace_root: &workspace_root,
                 requester: &prefix,
@@ -1473,6 +1474,7 @@ where
                 &crate::package_map::PackageMapOptions {
                     lockfile_dir: &workspace_root,
                     modules_dir: &config.modules_dir,
+                    package_map_type: config.node_package_map_type,
                     virtual_store_dir: &config.virtual_store_dir,
                     virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
                     project_manifests: &project_manifests,
@@ -1562,6 +1564,7 @@ where
             run_projects_lifecycle_scripts::<Reporter>(
                 &project_manifests,
                 config,
+                node_linker,
                 &workspace_root,
             )?;
         }
@@ -2071,6 +2074,7 @@ fn load_workspace_projects(
 fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     config: &Config,
+    node_linker: NodeLinker,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
     let modules_dir_basename =
@@ -2082,7 +2086,18 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
         pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
         pacquet_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
     };
-    let extra_env = std::collections::HashMap::new();
+    let mut extra_env = std::collections::HashMap::new();
+    if let Some(node_options) = &config.node_options {
+        extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+    }
+    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+        let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            crate::make_node_package_map_option(&package_map_path, node_options),
+        );
+    }
     for (project_dir, _manifest) in project_manifests {
         let root_modules_dir = project_dir.join(modules_dir_basename);
         let dep_path = project_dir.to_string_lossy();
@@ -2252,9 +2267,8 @@ fn build_workspace_packages_map(
     Some(map)
 }
 
-fn should_write_package_map(config: &Config, node_linker: NodeLinker) -> bool {
+fn should_write_package_map(_config: &Config, node_linker: NodeLinker) -> bool {
     node_linker == NodeLinker::Isolated
-        && config.node_package_map_type == NodePackageMapType::Standard
 }
 
 /// Build the `projects` map for [`WorkspaceState`] from the

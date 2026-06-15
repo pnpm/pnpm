@@ -109,7 +109,7 @@ fn package_map_writer_is_gated_to_supported_pacquet_mode() {
     assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Pnp));
 
     config.node_package_map_type = NodePackageMapType::Loose;
-    assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
+    assert!(should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
 }
 
 #[tokio::test]

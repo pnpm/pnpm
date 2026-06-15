@@ -329,6 +329,7 @@ pub struct BuildModules<'a> {
     /// [`RunPostinstallHooks::scripts_prepend_node_path`] for each
     /// spawned lifecycle script. Default [`ScriptsPrependNodePath::Never`].
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
+    pub extra_env: &'a HashMap<String, String>,
     /// Mirrors `config.unsafe_perm`. When `false`, [`pacquet_executor`]
     /// runs each lifecycle script under a per-package TMPDIR set to
     /// `node_modules/.tmp`; when `true`, TMPDIR is left at the
@@ -437,6 +438,7 @@ impl BuildModules<'_> {
             store_index_writer,
             patches,
             scripts_prepend_node_path,
+            extra_env,
             unsafe_perm,
             child_concurrency,
             skipped,
@@ -449,8 +451,6 @@ impl BuildModules<'_> {
         } = self;
 
         let Some(snapshots) = snapshots else { return Ok(Vec::new()) };
-
-        let extra_env = HashMap::new();
 
         // Compute `requiresBuild` per snapshot. Warm store-index rows
         // already carry the upstream worker's answer, so only misses

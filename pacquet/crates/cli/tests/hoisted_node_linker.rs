@@ -30,7 +30,7 @@ use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
-use std::{fs, path::Path};
+use std::{fs, path::Path, process::Command};
 
 /// Replace the `pnpm-workspace.yaml` written by `add_mocked_registry`
 /// with one that keeps the mock's `storeDir` / `cacheDir` and appends
@@ -212,6 +212,146 @@ fn peer_dependencies_installed_with_auto_install_peers() {
     );
 
     drop((root, mock_instance));
+}
+
+#[test]
+fn package_map_resolves_declared_hoisted_dependencies_at_runtime() {
+    if node_major() < 27 {
+        eprintln!("skipping package-map runtime smoke: Node.js major is below 27");
+        return;
+    }
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    pacquet.with_args(["install"]).assert().success();
+
+    let root_dependency_dir = root_dependency_dir(&workspace, "@pnpm.e2e/pkg-with-1-dep");
+    let smoke = root_dependency_dir.join("package-map-smoke.cjs");
+    fs::write(&smoke, "require('@pnpm.e2e/dep-of-pkg-with-1-dep')\n").expect("write smoke file");
+    let output = run_node_with_package_map(&workspace, &smoke);
+    assert!(
+        output.status.success(),
+        "declared package should resolve with package map\nstdout:\n{}\nstderr:\n{}\npackage map:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+        package_map_contents(&workspace),
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn standard_package_map_blocks_undeclared_hoisted_dependencies_at_runtime() {
+    if node_major() < 27 {
+        eprintln!("skipping package-map runtime smoke: Node.js major is below 27");
+        return;
+    }
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({
+            "@pnpm.e2e/foo": "100.0.0",
+            "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+        }),
+    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    pacquet.with_args(["install"]).assert().success();
+
+    let root_dependency_dir = root_dependency_dir(&workspace, "@pnpm.e2e/pkg-with-1-dep");
+    let smoke = root_dependency_dir.join("package-map-block-smoke.cjs");
+    fs::write(&smoke, "require('@pnpm.e2e/foo/package.json')\n").expect("write smoke file");
+    let output = run_node_with_package_map(&workspace, &smoke);
+    assert!(
+        !output.status.success(),
+        "undeclared hoisted package should not resolve in standard package-map mode"
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn loose_package_map_allows_undeclared_hoisted_dependencies_at_runtime() {
+    if node_major() < 27 {
+        eprintln!("skipping package-map runtime smoke: Node.js major is below 27");
+        return;
+    }
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({
+            "@pnpm.e2e/foo": "100.0.0",
+            "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+        }),
+    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\nnodePackageMapType: loose\n");
+
+    pacquet.with_args(["install"]).assert().success();
+
+    let root_dependency_dir = root_dependency_dir(&workspace, "@pnpm.e2e/pkg-with-1-dep");
+    let smoke = root_dependency_dir.join("package-map-loose-smoke.cjs");
+    fs::write(&smoke, "require('@pnpm.e2e/foo/package.json')\n").expect("write smoke file");
+    let output = run_node_with_package_map(&workspace, &smoke);
+    assert!(
+        output.status.success(),
+        "undeclared hoisted package should resolve in loose package-map mode\nstdout:\n{}\nstderr:\n{}\npackage map:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+        package_map_contents(&workspace),
+    );
+
+    drop((root, mock_instance));
+}
+
+fn run_node_with_package_map(workspace: &Path, script: &Path) -> std::process::Output {
+    Command::new("node")
+        .arg(format!(
+            "--experimental-package-map={}",
+            workspace.join("node_modules/.package-map.json").display()
+        ))
+        .arg(script)
+        .current_dir(workspace)
+        .output()
+        .expect("run Node.js")
+}
+
+fn package_map_contents(workspace: &Path) -> String {
+    fs::read_to_string(workspace.join("node_modules/.package-map.json"))
+        .unwrap_or_else(|error| format!("failed to read package map: {error}"))
+}
+
+fn root_dependency_dir(workspace: &Path, name: &str) -> std::path::PathBuf {
+    let package_map: serde_json::Value =
+        serde_json::from_str(&package_map_contents(workspace)).expect("parse package map");
+    let dependency_id =
+        package_map["packages"]["."]["dependencies"][name].as_str().expect("root dependency id");
+    let url = package_map["packages"][dependency_id]["url"].as_str().expect("dependency url");
+    workspace.join("node_modules").join(url)
+}
+
+fn node_major() -> u32 {
+    let output = Command::new("node").arg("--version").output().expect("run node --version");
+    assert!(output.status.success(), "node --version should succeed");
+    let version = String::from_utf8(output.stdout).expect("node version is utf8");
+    version
+        .trim()
+        .strip_prefix('v')
+        .unwrap_or(version.trim())
+        .split('.')
+        .next()
+        .expect("node version has a major")
+        .parse()
+        .expect("node major is numeric")
 }
 
 mod known_failures {
