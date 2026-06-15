@@ -61,6 +61,7 @@ jobs:
               - '.cargo/**'
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
+              - '.github/scripts/measure-command.mjs'
               - '.github/workflows/pacquet-ci.yml'
 
   test:
@@ -308,7 +309,7 @@ jobs:
   dylint:
     name: Dylint
     needs: changes
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.result != 'success') }}
+    if: ${{ always() && !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.result != 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Verify change detection
