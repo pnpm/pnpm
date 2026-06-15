@@ -85,6 +85,13 @@ pub enum ImportIndexedDirError {
         #[error(source)]
         error: io::Error,
     },
+    #[display("failed to place completion marker {from:?} at {to:?}: {error}")]
+    PlaceMarker {
+        from: PathBuf,
+        to: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
 }
 
 /// Materialize an indexed package's files into `dir_path`, the way
@@ -116,9 +123,10 @@ pub enum ImportIndexedDirError {
 /// (hardlink → reflink → copy, etc.), and the per-method
 /// `pnpm:package-import-method` log is emitted via `logged_methods`
 /// the first time each tier is used in this install. The pre-flight
-/// `fs::metadata` short-circuit lives on `link_file()` for callers
-/// without a freshness guarantee — `populate_dir` already gates on
-/// the directory being fresh, so it skips that stat.
+/// `fs::metadata` short-circuit lives on `link_file()`; `populate_dir`
+/// skips it and relies on `import_into_fresh_target`'s EEXIST tolerance,
+/// which is what keeps a marker-repair re-link over a partial directory
+/// correct.
 pub fn import_indexed_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
@@ -141,9 +149,19 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         // Fresh target — populate it. Both linkers take this path on
         // first install.
         (None, _) => populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths),
-        // Existing target with force=false — pnpm's pre-existence
-        // short-circuit. The isolated linker relies on this: each
-        // virtual-store slot is populated exactly once.
+        // Short-circuit only when the completion marker is present
+        // (pnpm's `pkgExistsAtTargetDir`, which checks `package.json`),
+        // not on mere directory existence. A marker-less directory is a
+        // partial import; repair it by re-running the non-destructive
+        // `populate_dir`. Ported from pnpm/pnpm#12204 (cbfeeef328).
+        (Some(file_type), false) if file_type.is_dir() => {
+            if marker_present(dir_path, cas_paths) {
+                Ok(())
+            } else {
+                populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+            }
+        }
+        // A non-directory dirent is left as-is; only force=true clobbers it.
         (Some(_), false) => Ok(()),
         // Existing non-directory dirent with force=true. The hoisted
         // linker call shape won't produce this in practice, but
@@ -205,17 +223,18 @@ fn populate_dir<Reporter: self::Reporter>(
             .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
     }
 
+    // Link every other file first, then place the marker last, so an
+    // interrupted import leaves a directory the next install recognises
+    // as incomplete (pnpm's `tryImportIndexedDir`).
+    let marker = marker_file(cas_paths);
     cas_paths
         .par_iter()
+        .filter(|(cleaned_entry, _)| Some(cleaned_entry.as_str()) != marker)
         .try_for_each(|(cleaned_entry, store_path)| {
-            // Targets are guaranteed fresh: `populate_dir` only runs
-            // against a freshly-mkdir'd `dir_path` (the caller in
-            // `import_indexed_dir` gates on the directory not existing,
-            // or staged it as a new sibling). Skipping the pre-flight
-            // `fs::metadata` saves one `stat` syscall per file — ~170k
-            // on the alotta-files fixture — without losing the
-            // no-op-on-existing-target contract that `link_file` exposes
-            // to other callers.
+            // No pre-flight stat: `import_into_fresh_target` tolerates an
+            // existing target (the repair branch re-links over a partial
+            // directory), so the stat would be pure overhead — ~170k saved
+            // syscalls on the alotta-files fixture.
             import_into_fresh_target::<Reporter>(
                 logged_methods,
                 import_method,
@@ -223,7 +242,73 @@ fn populate_dir<Reporter: self::Reporter>(
                 &dir_path.join(cleaned_entry),
             )
         })
-        .map_err(ImportIndexedDirError::LinkFile)
+        .map_err(ImportIndexedDirError::LinkFile)?;
+
+    if let Some(marker) = marker {
+        import_marker_atomic::<Reporter>(
+            logged_methods,
+            import_method,
+            &cas_paths[marker],
+            &dir_path.join(marker),
+        )?;
+    }
+    Ok(())
+}
+
+/// The completion-marker filename, mirroring pnpm's `pickFileFromFilesMap`:
+/// `package.json` when present, else a fallback file for old store entries
+/// indexed before the synthetic manifest. pnpm picks the first inserted
+/// key; `cas_paths` is unordered, so we pick the lexicographically
+/// smallest one instead — deterministic, which is all the gate and the
+/// write need. `None` only for an empty map.
+fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
+    const PACKAGE_JSON: &str = "package.json";
+    if cas_paths.contains_key(PACKAGE_JSON) {
+        return Some(PACKAGE_JSON);
+    }
+    cas_paths.keys().map(String::as_str).min()
+}
+
+/// Whether `dir_path` holds the completion marker. An empty map has no
+/// marker, so it counts as present — there is nothing to import.
+fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> bool {
+    match marker_file(cas_paths) {
+        Some(marker) => dir_path.join(marker).exists(),
+        None => true,
+    }
+}
+
+/// Place the marker atomically (pnpm's `importFileAtomic`): link it into a
+/// private temp sibling, then rename onto `marker_path` so it is never
+/// observed half-written. pacquet picks its import tier at runtime, so it
+/// always stages rather than predicting whether the import will copy. A
+/// concurrent importer that placed the marker first surfaces as
+/// `AlreadyExists` or is replaced atomically; the content is
+/// content-addressed either way, so we just drop our temp.
+fn import_marker_atomic<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    store_path: &Path,
+    marker_path: &Path,
+) -> Result<(), ImportIndexedDirError> {
+    let temp = pick_stage_path(marker_path);
+    import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, &temp)
+        .map_err(ImportIndexedDirError::LinkFile)?;
+    match fs::rename(&temp, marker_path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            let _ = fs::remove_file(&temp);
+            Ok(())
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&temp);
+            Err(ImportIndexedDirError::PlaceMarker {
+                from: temp,
+                to: marker_path.to_path_buf(),
+                error,
+            })
+        }
+    }
 }
 
 fn stage_and_swap<Reporter: self::Reporter>(
