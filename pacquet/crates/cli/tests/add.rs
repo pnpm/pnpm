@@ -174,6 +174,18 @@ fn save_exact_writes_exact_version() {
 }
 
 #[test]
+fn add_prerelease_resolved_version_keeps_no_prefix() {
+    // `@pnpm.e2e/beta-version`'s only published version is the prerelease
+    // `1.0.0-beta.0`, so `latest` resolves to it. A prerelease range is
+    // written verbatim, with no `^`, matching pnpm.
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/beta-version"]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/beta-version");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "1.0.0-beta.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
 fn save_prefix_arbitrary_value_falls_back_to_caret() {
     let (root, dir, anchor) =
         exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin", "--save-prefix=foo"]);
