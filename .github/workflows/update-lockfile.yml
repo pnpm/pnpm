@@ -58,7 +58,9 @@ jobs:
         pnpm runtime set node 26
 
         # Refresh the whole lockfile to the latest compatible dependency versions.
-        rm pnpm-lock.yaml
+        # Remove node_modules too so pnpm cannot reuse node_modules/.pnpm/lock.yaml
+        # as the missing wanted lockfile and skip resolution.
+        rm -rf node_modules pnpm-lock.yaml
         pnpm install
 
         # Propagate the new Node.js version into the GitHub Actions workflows,
