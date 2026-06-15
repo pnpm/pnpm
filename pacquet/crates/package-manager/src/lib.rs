@@ -31,6 +31,7 @@ mod optimistic_repeat_install;
 mod overrides;
 mod package_extender;
 mod prefetching_resolver;
+mod prune_virtual_store;
 mod remove;
 mod resolution_observer;
 mod resolution_policy;

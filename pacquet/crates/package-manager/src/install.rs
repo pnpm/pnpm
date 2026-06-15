@@ -1340,6 +1340,51 @@ where
         // progress display has closed. Mirrors upstream's emit point in
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>.
 
+        // Remove surplus virtual-store directories the wanted lockfile
+        // no longer references, throttled by `modulesCacheMaxAge`.
+        // Mirrors upstream's `pruneVirtualStore` gate at
+        // <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L471-L473>
+        // and the virtual-store sweep inside `prune` at
+        // <https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L173-L191>.
+        // The wanted lockfile is `fresh_lockfile` on the resolve path and
+        // `lockfile` on the frozen path; its `snapshots:` keys name the
+        // virtual-store subdirectories that must survive.
+        // A genuine read/parse failure (not `NotFound`) is treated as
+        // "no prior manifest" — the safe direction (prune + fresh
+        // `prunedAt`) — but logged rather than silently swallowed.
+        let prior_modules = match read_modules_manifest::<Host>(&config.modules_dir) {
+            Ok(modules) => modules,
+            Err(error) => {
+                tracing::warn!(?error, "failed to read .modules.yaml; treating as a fresh install");
+                None
+            }
+        };
+        let now = SystemTime::now();
+        let pruned_virtual_store = crate::prune_virtual_store::should_prune_virtual_store(
+            config.enable_global_virtual_store,
+            prior_modules.as_ref().map(|modules| modules.pruned_at.as_str()),
+            config.modules_cache_max_age,
+            now,
+        );
+        if pruned_virtual_store && let Some(wanted) = fresh_lockfile.as_ref().or(lockfile) {
+            crate::prune_virtual_store::prune_virtual_store(
+                config.effective_virtual_store_dir(),
+                wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+                &frozen_skipped,
+                config.virtual_store_dir_max_length as usize,
+            );
+        }
+
+        // Stamp `prunedAt` only when the sweep ran (or there was no prior
+        // `.modules.yaml`); otherwise preserve the recorded timestamp so
+        // the throttle keeps counting from the last real prune. Mirrors
+        // upstream's write at
+        // <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L1828-L1830>.
+        let pruned_at = match (&prior_modules, pruned_virtual_store) {
+            (Some(prior), false) => prior.pruned_at.clone(),
+            _ => httpdate::fmt_http_date(now),
+        };
+
         // Write `node_modules/.modules.yaml`. Mirrors upstream's
         // `writeModulesManifest` call at
         // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1608-L1630>,
@@ -1358,6 +1403,7 @@ where
                 hoisted_locations,
                 &frozen_skipped,
                 &ignored_builds,
+                pruned_at,
             ),
         )
         .map_err(InstallError::WriteModules)?;
@@ -1857,6 +1903,7 @@ fn build_modules_manifest(
     hoisted_locations: BTreeMap<String, Vec<String>>,
     skipped: &crate::SkippedSnapshots,
     ignored_builds: &[String],
+    pruned_at: String,
 ) -> Modules {
     Modules {
         // The `name@version` keys whose build scripts were blocked, so a
@@ -1880,9 +1927,10 @@ fn build_modules_manifest(
         // resolves at compile time to this crate's package version.
         package_manager: concat!("pacquet@", env!("CARGO_PKG_VERSION")).to_string(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
-        // RFC 1123 / `toUTCString()` format, matching upstream's
-        // `new Date().toUTCString()` at line 1622.
-        pruned_at: httpdate::fmt_http_date(SystemTime::now()),
+        // RFC 1123 / `toUTCString()` format. The caller decides whether
+        // this is a fresh timestamp (a prune ran or first install) or the
+        // preserved prior value, per upstream's `prunedAt` write logic.
+        pruned_at,
         registries: Some(config.resolved_registries()),
         // `iter_installability` excludes fetch-failure entries so they
         // don't get persisted across installs — matches upstream's
