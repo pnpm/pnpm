@@ -260,6 +260,132 @@ fn add_existing_dependency_preserves_target_group_specifier() {
     drop((root, npmrc_info)); // cleanup
 }
 
+/// `add <pkg>@<range>` records the range resolved to a concrete version
+/// with the input's operator, matching pnpm. `^100.0.0` resolves to the
+/// highest in-range version (100.1.0; 101.0.0 is a different major), so the
+/// manifest gets `^100.1.0` — not the verbatim `^100.0.0`.
+#[test]
+fn add_explicit_range_resolves_to_concrete_version() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
+        "add",
+        "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
+        "--lockfile-only",
+    ]);
+    assert_eq!(prod_spec(&dir, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "^100.1.0");
+    drop((root, anchor)); // cleanup
+}
+
+/// A narrower range is not widened: `~100.0.0` resolves to the highest
+/// `100.0.x` (here `100.0.0`) and keeps the tilde — it is not bumped to the
+/// `latest` tag (`101.0.0`).
+#[test]
+fn add_explicit_tilde_range_is_not_widened_to_latest() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
+        "add",
+        "@pnpm.e2e/dep-of-pkg-with-1-dep@~100.0.0",
+        "--lockfile-only",
+    ]);
+    assert_eq!(prod_spec(&dir, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "~100.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+/// A dist-tag spec resolves to that tag's version, pinned with the default
+/// caret (the tag carries no operator). `latest` is 101.0.0.
+#[test]
+fn add_explicit_dist_tag_resolves_with_caret() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
+        "add",
+        "@pnpm.e2e/dep-of-pkg-with-1-dep@latest",
+        "--lockfile-only",
+    ]);
+    assert_eq!(prod_spec(&dir, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "^101.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+/// On a re-add with an explicit version, the existing entry biases the pick
+/// (it is a preferred version): re-adding `~100.0.0` with `@^100.0.0` keeps
+/// the existing `100.0.0` rather than bumping to the highest in range
+/// (`100.1.0`), and the existing operator wins over the spec's — matching
+/// pnpm, which dedups to and keeps the already-declared version.
+#[test]
+fn add_explicit_range_respects_existing_operator() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "~100.0.0" } }"#,
+    )
+    .unwrap();
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "~100.0.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// An `npm:` alias specifier is written verbatim — never resolved (which
+/// would risk dropping the aliased target name).
+#[test]
+fn add_npm_alias_spec_is_kept_verbatim() {
+    let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
+        "add",
+        "my-alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
+        "--lockfile-only",
+    ]);
+    assert_eq!(prod_spec(&dir, "my-alias"), "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+/// A previous specifier that is a non-registry path/URL must not influence
+/// the pin: `which_version_is_pinned` forward-scans for a version substring,
+/// so a `file:` tarball path with an embedded `x.y.z` could otherwise force
+/// an exact pin. Re-adding over `file:../…-100.0.0.tgz` with `@^100.0.0`
+/// keeps the caret (`^100.1.0`), not an exact `100.1.0`.
+#[test]
+fn add_explicit_range_ignores_pin_from_non_registry_prev() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "file:../dep-of-pkg-with-1-dep-100.0.0.tgz" } }"#,
+    )
+    .unwrap();
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "^100.1.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// A registry-host tarball URL parses as a registry `Version` spec, but it
+/// must be written verbatim — resolving it would rewrite an explicit URL
+/// dependency into a semver range.
+#[test]
+fn add_registry_tarball_url_is_kept_verbatim() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(workspace.join("package.json"), r#"{ "name": "p", "version": "1.0.0" }"#)
+        .unwrap();
+
+    let url = format!(
+        "{}@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz",
+        npmrc_info.mock_instance.url(),
+    );
+    pacquet
+        .with_args(["add", &format!("@pnpm.e2e/dep-of-pkg-with-1-dep@{url}"), "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), url);
+    drop((root, npmrc_info)); // cleanup
+}
+
 #[test]
 fn save_prefix_arbitrary_value_falls_back_to_caret() {
     let (root, dir, anchor) =
