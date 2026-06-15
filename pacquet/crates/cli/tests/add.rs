@@ -164,6 +164,16 @@ fn save_exact_overrides_save_prefix() {
 }
 
 #[test]
+fn save_prefix_arbitrary_value_falls_back_to_caret() {
+    let (root, dir, anchor) =
+        exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin", "--save-prefix=foo"]);
+    let spec = prod_spec(&dir, "@pnpm.e2e/hello-world-js-bin");
+    eprintln!("SPEC: {spec}");
+    assert_eq!(spec, "^1.0.0");
+    drop((root, anchor)); // cleanup
+}
+
+#[test]
 fn should_add_dev_dependency() {
     let (root, dir, anchor) =
         exec_pacquet_in_temp_cwd(["add", "@pnpm.e2e/hello-world-js-bin", "--save-dev"]);
