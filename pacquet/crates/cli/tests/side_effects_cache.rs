@@ -3,7 +3,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::fs;
+use std::{fs, path::Path, process::Command};
 
 /// Regression for <https://github.com/pnpm/pnpm/issues/12042#issuecomment-4682732058>:
 /// a package approved via `allowBuilds` whose lifecycle script produces
@@ -70,12 +70,16 @@ fn side_effects_materialized_on_warm_frozen_reinstall() {
     drop((root, mock_instance));
 }
 
-fn run_frozen_install(workspace: &std::path::Path) {
-    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init().add_mocked_registry();
-    pacquet
+/// A fresh `pacquet install --frozen-lockfile` against an existing
+/// workspace. The registry config lives in the workspace's `.npmrc` /
+/// `pnpm-workspace.yaml` and the mock registry is a process-global
+/// singleton kept alive by the caller, so this only needs its own
+/// command — no extra `CommandTempCwd` / registry.
+fn run_frozen_install(workspace: &Path) {
+    Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
         .with_current_dir(workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
-    drop(root);
 }
