@@ -9,6 +9,16 @@ export function makeNodeRequireOption (modulePath: string): { NODE_OPTIONS: stri
   return { NODE_OPTIONS }
 }
 
+export function makeNodePackageMapOption (packageMapPath: string, env?: Record<string, string | undefined>): { NODE_OPTIONS: string } {
+  let { NODE_OPTIONS } = env ?? process.env
+  NODE_OPTIONS = `${NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ''} --experimental-package-map=${quotePathIfNeeded(packageMapPath)}`.trim()
+  return { NODE_OPTIONS }
+}
+
+function quotePathIfNeeded (path: string): string {
+  return /\s/.test(path) ? JSON.stringify(path) : path
+}
+
 export {
   runLifecycleHook,
   type RunLifecycleHookOptions,

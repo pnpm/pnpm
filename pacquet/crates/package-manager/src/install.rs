@@ -415,6 +415,13 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     WriteWorkspaceState(#[error(source)] UpdateWorkspaceStateError),
 
+    /// Surfaces a failure to persist `node_modules/.package-map.json`,
+    /// the package-map metadata Node consumes when the user opts into
+    /// `--experimental-package-map`.
+    #[display("Failed to write node_modules/.package-map.json: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    WritePackageMap(#[error(source)] crate::WritePackageMapError),
+
     /// A value in `pnpm.overrides` couldn't be parsed — the selector
     /// key isn't a recognizable package name, or the override value
     /// uses the `catalog:` protocol (which pacquet doesn't support
@@ -1450,6 +1457,30 @@ where
         )
         .map_err(InstallError::WriteModules)?;
 
+        let filtered_current_lockfile = if frozen_lockfile {
+            lockfile.map(|lockfile| {
+                crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
+            })
+        } else {
+            None
+        };
+        let package_map_lockfile = filtered_current_lockfile.as_ref().or(fresh_lockfile.as_ref());
+        if node_linker == NodeLinker::Isolated
+            && let Some(package_map_lockfile) = package_map_lockfile
+        {
+            crate::package_map::write_package_map(
+                package_map_lockfile,
+                &crate::package_map::PackageMapOptions {
+                    lockfile_dir: &workspace_root,
+                    modules_dir: &config.modules_dir,
+                    virtual_store_dir: &config.virtual_store_dir,
+                    virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
+                    project_manifests: &project_manifests,
+                },
+            )
+            .map_err(InstallError::WritePackageMap)?;
+        }
+
         // Write `<virtual_store_dir>/lock.yaml`. Mirrors upstream's
         // `writeCurrentLockfile` call at
         // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/index.ts#L1597>:
@@ -1467,7 +1498,7 @@ where
         // <https://github.com/pnpm/pacquet/issues/299>), this needs to narrow to the filtered lockfile
         // (selected importers × engine filter) so the saved current
         // lockfile reflects only what was actually materialized.
-        if frozen_lockfile && let Some(lockfile) = lockfile {
+        if frozen_lockfile && let Some(lockfile) = filtered_current_lockfile.as_ref() {
             // Filter the wanted lockfile down to the snapshots that
             // were actually materialized: dep maps the user excluded
             // (`--no-optional`, `--no-dev`) plus snapshots the
@@ -1479,7 +1510,7 @@ where
             // next install diffs against this filtered shape so
             // dropped snapshots aren't mistaken for already-done
             // work.
-            crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
+            lockfile
                 .save_current_to_virtual_store_dir(&config.virtual_store_dir)
                 .map_err(InstallError::SaveCurrentLockfile)?;
         } else if let Some(fresh_lockfile) = fresh_lockfile.as_ref() {

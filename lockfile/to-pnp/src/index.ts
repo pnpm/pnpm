@@ -10,6 +10,20 @@ import type { Registries } from '@pnpm/types'
 import { generateInlinedScript, type PackageRegistry } from '@yarnpkg/pnp'
 import normalizePath from 'normalize-path'
 
+export {
+  type DependenciesGraphPackageMapOptions,
+  dependenciesGraphToPackageMap,
+  lockfileToPackageMap,
+  PACKAGE_MAP_FILENAME,
+  type PackageMap,
+  type PackageMapGraphNode,
+  type PackageMapOptions,
+  type PackageMapPackage,
+  type PackageMapType,
+  writePackageMap,
+  writePackageMapFromDependenciesGraph,
+} from './packageMap.js'
+
 export async function writePnpFile (
   lockfile: LockfileObject,
   opts: {

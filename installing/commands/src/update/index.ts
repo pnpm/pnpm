@@ -48,6 +48,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'lockfile',
     'lockfile-include-tarball-url',
     'network-concurrency',
+    'node-experimental-package-map',
+    'node-package-map-type',
     'noproxy',
     'npm-path',
     'offline',

@@ -24,6 +24,7 @@ import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
+  makeNodePackageMapOption,
   makeNodeRequireOption,
   runLifecycleHook,
   runLifecycleHooksConcurrently,
@@ -62,7 +63,7 @@ import {
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
-import { writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
@@ -1727,6 +1728,19 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     )
     stats = result.stats
+    if (opts.nodeLinker === 'isolated' && !opts.virtualStoreOnly) {
+      const importerNames = Object.fromEntries(
+        projects.map(({ manifest, id }) => [id, manifest.name ?? id])
+      )
+      await writePackageMap(result.currentLockfile, {
+        importerNames,
+        lockfileDir: ctx.lockfileDir,
+        packageMapType: opts.nodePackageMapType,
+        rootModulesDir: ctx.rootModulesDir,
+        virtualStoreDir: ctx.virtualStoreDir,
+        virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+      })
+    }
     if (opts.enablePnp) {
       const importerNames = Object.fromEntries(
         projects.map(({ manifest, id }) => [id, manifest.name ?? id])
@@ -1761,6 +1775,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           extraEnv = {
             ...extraEnv,
             ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
+          }
+        }
+        if (opts.nodeExperimentalPackageMap && opts.nodeLinker !== 'pnp') {
+          extraEnv = {
+            ...extraEnv,
+            ...makeNodePackageMapOption(path.join(ctx.rootModulesDir, PACKAGE_MAP_FILENAME), extraEnv),
           }
         }
         // Dependency lifecycle scripts must not run on an unverified lockfile.
@@ -1918,6 +1938,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         opts.scriptsOpts.extraEnv = {
           ...opts.scriptsOpts.extraEnv,
           ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
+        }
+      }
+      if (opts.nodeExperimentalPackageMap && opts.nodeLinker !== 'pnp') {
+        opts.scriptsOpts.extraEnv = {
+          ...opts.scriptsOpts.extraEnv,
+          ...makeNodePackageMapOption(path.join(ctx.rootModulesDir, PACKAGE_MAP_FILENAME), opts.scriptsOpts.extraEnv),
         }
       }
       const projectsToBeBuilt = projectsWithTargetDirs.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]

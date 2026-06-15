@@ -54,6 +54,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'lockfile-dir',
     'lockfile-only',
     'lockfile',
+    'node-experimental-package-map',
+    'node-package-map-type',
     'node-linker',
     'package-import-method',
     'pnpmfile',

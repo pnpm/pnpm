@@ -11,6 +11,7 @@ import { type Config, type ConfigContext, getWorkspaceConcurrency, types as allT
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import {
+  makeNodePackageMapOption,
   makeNodeRequireOption,
   runLifecycleHook,
   type RunLifecycleHookOptions,
@@ -88,6 +89,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'npm-path',
+      'node-experimental-package-map',
+    'node-package-map-type',
     ], allTypes),
   }
 }
@@ -168,6 +171,7 @@ export type RunOpts =
   | 'extraBinPaths'
   | 'extraEnv'
   | 'nodeOptions'
+  | 'nodeExperimentalPackageMap'
   | 'pnpmHomeDir'
   | 'reporter'
   | 'scriptShell'
@@ -289,7 +293,17 @@ so you may run "pnpm -w run ${scriptName}"`,
   if (pnpPath) {
     lifecycleOpts.extraEnv = {
       ...lifecycleOpts.extraEnv,
-      ...makeNodeRequireOption(pnpPath),
+      ...makeNodeRequireOption(pnpPath, lifecycleOpts.extraEnv),
+    }
+  }
+  const existsPackageMap = existsInDir.bind(null, path.join('node_modules', '.package-map.json'))
+  const packageMapPath = opts.nodeExperimentalPackageMap
+    ? (opts.workspaceDir && existsPackageMap(opts.workspaceDir)) ?? existsPackageMap(dir)
+    : undefined
+  if (packageMapPath) {
+    lifecycleOpts.extraEnv = {
+      ...lifecycleOpts.extraEnv,
+      ...makeNodePackageMapOption(packageMapPath, lifecycleOpts.extraEnv),
     }
   }
   const limitRun = pLimit(concurrency)
