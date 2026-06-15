@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pnpr.client",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Client for the pnpr server — resolves a project server-side and receives the resolved lockfile",
   "keywords": [
     "pnpm",

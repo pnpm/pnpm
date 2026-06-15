@@ -1,5 +1,16 @@
 # @pnpm/assert-project
 
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [681b593]
+  - @pnpm/types@1101.3.2
+  - @pnpm/assert-store@1100.0.16
+  - @pnpm/installing.modules-yaml@1100.0.9
+  - @pnpm/lockfile.types@1100.0.11
+  - @pnpm/testing.registry-mock@1100.0.6
+
 ## 1100.0.15
 
 ### Patch Changes

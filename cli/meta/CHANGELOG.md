@@ -1,5 +1,12 @@
 # @pnpm/cli-meta
 
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [681b593]
+  - @pnpm/types@1101.3.2
+
 ## 1100.0.7
 
 ### Patch Changes

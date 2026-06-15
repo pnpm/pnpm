@@ -1,5 +1,15 @@
 # @pnpm/prune-lockfile
 
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [681b593]
+- Updated dependencies [a31faa7]
+  - @pnpm/types@1101.3.2
+  - @pnpm/deps.path@1100.0.8
+  - @pnpm/lockfile.types@1100.0.11
+
 ## 1100.0.10
 
 ### Patch Changes
