@@ -586,7 +586,7 @@ impl BuildModules<'_> {
                         gather_ancestor_bin_paths,
                         modules_dir,
                         lockfile_dir,
-                        &extra_env,
+                        extra_env,
                         scripts_prepend_node_path,
                         unsafe_perm,
                         frozen_store,

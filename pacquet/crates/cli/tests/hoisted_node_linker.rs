@@ -271,7 +271,7 @@ fn standard_package_map_blocks_undeclared_hoisted_dependencies_at_runtime() {
     let output = run_node_with_package_map(&workspace, &smoke);
     assert!(
         !output.status.success(),
-        "undeclared hoisted package should not resolve in standard package-map mode"
+        "undeclared hoisted package should not resolve in standard package-map mode",
     );
 
     drop((root, mock_instance));
@@ -317,7 +317,7 @@ fn run_node_with_package_map(workspace: &Path, script: &Path) -> std::process::O
     Command::new("node")
         .arg(format!(
             "--experimental-package-map={}",
-            workspace.join("node_modules/.package-map.json").display()
+            workspace.join("node_modules/.package-map.json").display(),
         ))
         .arg(script)
         .current_dir(workspace)
@@ -346,7 +346,7 @@ fn node_major() -> u32 {
     version
         .trim()
         .strip_prefix('v')
-        .unwrap_or(version.trim())
+        .unwrap_or_else(|| version.trim())
         .split('.')
         .next()
         .expect("node version has a major")

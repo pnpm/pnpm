@@ -166,7 +166,7 @@ test('a lockfile created even when there are no deps in package.json', async () 
   await install({}, testDefaults())
 
   expect(project.readLockfile()).toBeTruthy()
-  expect(fs.existsSync('node_modules')).toBeFalsy()
+  expect(fs.readdirSync('node_modules')).toStrictEqual(['.package-map.json'])
 })
 
 test('current lockfile removed when no deps in package.json', async () => {
@@ -192,7 +192,7 @@ test('current lockfile removed when no deps in package.json', async () => {
   await install({}, testDefaults())
 
   expect(project.readLockfile()).toBeTruthy()
-  expect(fs.existsSync('node_modules')).toBeFalsy()
+  expect(fs.readdirSync('node_modules')).toStrictEqual(['.package-map.json'])
 })
 
 test('lockfile is fixed when it does not match package.json', async () => {

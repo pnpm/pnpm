@@ -18,8 +18,8 @@ import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import * as structUtils from '@yarnpkg/core/structUtils'
 import { type LockFileObject, parse as parseYarnLockfile } from '@yarnpkg/lockfile'
-import { parseSyml } from '@yarnpkg/parsers'
 import { rimraf } from '@zkochan/rimraf'
+import yaml from 'js-yaml'
 import { loadJsonFile } from 'load-json-file'
 import { map as mapValues } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -63,6 +63,8 @@ interface YarnLockPackage {
 interface YarnPackageLock {
   [name: string]: YarnLockPackage
 }
+
+type YarnLockYaml = YarnPackageLock & { __metadata?: unknown }
 
 const YarnLockType = {
   yarn: 'yarn',
@@ -215,7 +217,7 @@ async function readYarnLockFile (dir: string): Promise<LockFileObject> {
 }
 
 function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
-  const parseYarnLock = parseSyml(lockFileContents)
+  const parseYarnLock = parseYarn2Yaml(lockFileContents)
 
   delete parseYarnLock.__metadata
   const dependencies: YarnPackageLock = {}
@@ -236,6 +238,18 @@ function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
     object: dependencies,
     type: YarnLockType.yarn2,
   }
+}
+
+function parseYarn2Yaml (lockFileContents: string): YarnLockYaml {
+  const parseYarnLock = yaml.load(lockFileContents, {
+    schema: yaml.FAILSAFE_SCHEMA,
+    json: true,
+  })
+  if (parseYarnLock == null) return {}
+  if (typeof parseYarnLock !== 'object' || Array.isArray(parseYarnLock)) {
+    throw new PnpmError('YARN_LOCKFILE_PARSE_FAILED', `Expected an indexed object, got a ${Array.isArray(parseYarnLock) ? 'array' : typeof parseYarnLock} instead. Does your file follow Yaml's rules?`)
+  }
+  return parseYarnLock as YarnLockYaml
 }
 
 async function readNpmLockfile (dir: string): Promise<LockedPackage> {
