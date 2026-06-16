@@ -49,10 +49,6 @@ fn settings_only_manifest_leaves_packages_none() {
     assert_eq!(manifest.packages, None);
 }
 
-/// An explicit `packages: []` survives as `Some(vec![])` and is
-/// distinct from the omitted case. Downstream this means "enumerate
-/// only the workspace root project," not "fall back to the recursive
-/// `**` default."
 #[test]
 fn workspace_package_patterns_default_settings_only_manifest_to_root() {
     let manifest = WorkspaceManifest { packages: None, ..WorkspaceManifest::default() };
@@ -65,6 +61,10 @@ fn workspace_package_patterns_preserve_explicit_empty_packages() {
     assert_eq!(workspace_package_patterns(&manifest), Vec::<String>::new());
 }
 
+/// An explicit `packages: []` survives as `Some(vec![])` and is
+/// distinct from the omitted case. Downstream this means "enumerate
+/// only the workspace root project," not "fall back to the recursive
+/// `**` default."
 #[test]
 fn empty_packages_array_preserved_as_some_empty() {
     let tmp = TempDir::new().unwrap();

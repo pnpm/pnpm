@@ -107,11 +107,6 @@ pub enum ReadWorkspaceManifestError {
     Invalid(#[error(source)] InvalidWorkspaceManifestError),
 }
 
-/// Read and validate the `pnpm-workspace.yaml` under `dir`.
-///
-/// Returns `Ok(None)` when the file does not exist (matching upstream's
-/// `ENOENT`-as-undefined contract). Every other read or parse failure
-/// propagates.
 /// Resolve `pnpm-workspace.yaml` `packages:` into pnpm's workspace
 /// package pattern default.
 ///
@@ -119,10 +114,16 @@ pub enum ReadWorkspaceManifestError {
 /// `workspaceManifest?.packages ?? ['.']`. A settings-only workspace
 /// manifest therefore enumerates the root project only; it does not use
 /// the lower-level `findPackages` recursive default.
+#[must_use]
 pub fn workspace_package_patterns(manifest: &WorkspaceManifest) -> Vec<String> {
     manifest.packages.clone().unwrap_or_else(|| vec![".".to_string()])
 }
 
+/// Read and validate the `pnpm-workspace.yaml` under `dir`.
+///
+/// Returns `Ok(None)` when the file does not exist (matching upstream's
+/// `ENOENT`-as-undefined contract). Every other read or parse failure
+/// propagates.
 pub fn read_workspace_manifest(
     dir: &Path,
 ) -> Result<Option<WorkspaceManifest>, ReadWorkspaceManifestError> {
