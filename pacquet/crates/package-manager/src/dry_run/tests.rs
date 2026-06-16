@@ -1,11 +1,13 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use pacquet_lockfile::{
     ImporterDepVersion, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec,
+    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 
-use super::{ImporterDiff, LockfileDiff, diff_importer, render_dry_run_report};
+use super::{
+    ImporterDiff, LockfileDiff, diff_importer, render_dry_run_report, snapshot_wiring_differs,
+};
 
 fn pkg(name: &str) -> PkgName {
     PkgName::from_str(name).expect("parse PkgName")
@@ -49,11 +51,27 @@ fn non_empty_diff_lists_importer_and_package_changes() {
         }],
         added_packages: vec!["is-negative@1.0.0".to_string()],
         removed_packages: vec![],
+        updated_packages: vec![],
     };
     let report = render_dry_run_report(&diff);
     assert!(report.contains("+ is-negative 1.0.0"), "got: {report}");
     assert!(report.contains("is-positive 1.0.0 -> 2.0.0"), "got: {report}");
     assert!(report.contains("+ is-negative@1.0.0"), "got: {report}");
+}
+
+/// A snapshot whose dependency wiring changed (same key, different resolved
+/// edge) is a lockfile rewrite a real install would perform — e.g. a
+/// peer-variant re-resolution. Mirrors pnpm diffing snapshot
+/// `dependencies` / `optionalDependencies`.
+#[test]
+fn snapshot_wiring_change_is_detected() {
+    let old = SnapshotEntry::default();
+    let mut new = SnapshotEntry::default();
+    assert!(!snapshot_wiring_differs(&old, &new), "identical snapshots must not differ");
+
+    new.dependencies =
+        Some(HashMap::from([(pkg("is-positive"), SnapshotDepRef::Plain(ver("1.0.0")))]));
+    assert!(snapshot_wiring_differs(&old, &new), "a new dependency edge must register as a change");
 }
 
 /// A dependency moving between groups (dev -> prod) with the same resolved

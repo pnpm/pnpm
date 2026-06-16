@@ -6,17 +6,23 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use pacquet_lockfile::{Lockfile, ProjectSnapshot};
+use pacquet_lockfile::{Lockfile, ProjectSnapshot, SnapshotEntry};
 
 /// What a real install would change, derived from two lockfiles.
+///
+/// Package-level changes are diffed over the v9 `snapshots:` map — the
+/// peer-aware dependency wiring a real install rewrites — to match pnpm's
+/// `dedupeDiffCheck`, whose in-memory `packages` map is depPath-keyed.
 #[derive(Debug, Default)]
 pub struct LockfileDiff {
     /// Per-importer direct-dependency changes, in importer-id order.
     pub importers: Vec<ImporterDiff>,
-    /// `packages:` keys present in the new lockfile but not the old.
+    /// `snapshots:` keys present in the new lockfile but not the old.
     pub added_packages: Vec<String>,
-    /// `packages:` keys present in the old lockfile but not the new.
+    /// `snapshots:` keys present in the old lockfile but not the new.
     pub removed_packages: Vec<String>,
+    /// `snapshots:` keys present in both whose dependency wiring changed.
+    pub updated_packages: Vec<String>,
 }
 
 /// Direct-dependency changes for a single importer.
@@ -43,6 +49,7 @@ impl LockfileDiff {
         self.importers.is_empty()
             && self.added_packages.is_empty()
             && self.removed_packages.is_empty()
+            && self.updated_packages.is_empty()
     }
 }
 
@@ -72,19 +79,44 @@ pub fn diff_lockfiles(old: Option<&Lockfile>, new: Option<&Lockfile>) -> Lockfil
         }
     }
 
-    let new_keys = package_keys(Some(new));
-    let old_keys = package_keys(old);
-    diff.added_packages = new_keys.difference(&old_keys).cloned().collect();
-    diff.removed_packages = old_keys.difference(&new_keys).cloned().collect();
+    diff_snapshots(old, Some(new), &mut diff);
 
     diff
 }
 
-fn package_keys(lockfile: Option<&Lockfile>) -> BTreeSet<String> {
-    lockfile
-        .and_then(|lockfile| lockfile.packages.as_ref())
-        .map(|packages| packages.keys().map(ToString::to_string).collect())
-        .unwrap_or_default()
+/// Diff the v9 `snapshots:` map — the peer-aware dependency wiring a real
+/// install rewrites — by key set and by `dependencies` /
+/// `optionalDependencies`. Mirrors pnpm's `dedupeDiffCheck`, which diffs its
+/// depPath-keyed `packages` snapshots the same way. Results are sorted.
+fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut LockfileDiff) {
+    let old_snapshots = old.and_then(|lockfile| lockfile.snapshots.as_ref());
+    let new_snapshots = new.and_then(|lockfile| lockfile.snapshots.as_ref());
+
+    for (key, new_entry) in new_snapshots.into_iter().flatten() {
+        match old_snapshots.and_then(|snapshots| snapshots.get(key)) {
+            None => diff.added_packages.push(key.to_string()),
+            Some(old_entry) if snapshot_wiring_differs(old_entry, new_entry) => {
+                diff.updated_packages.push(key.to_string());
+            }
+            Some(_) => {}
+        }
+    }
+    for key in old_snapshots.into_iter().flatten().map(|(key, _)| key) {
+        if new_snapshots.is_none_or(|snapshots| !snapshots.contains_key(key)) {
+            diff.removed_packages.push(key.to_string());
+        }
+    }
+
+    diff.added_packages.sort();
+    diff.removed_packages.sort();
+    diff.updated_packages.sort();
+}
+
+/// Whether a real install would rewrite this snapshot's dependency wiring.
+/// Compares only `dependencies` / `optionalDependencies`, matching pnpm's
+/// `PACKAGE_SNAPSHOT_DEP_FIELDS`.
+fn snapshot_wiring_differs(old: &SnapshotEntry, new: &SnapshotEntry) -> bool {
+    old.dependencies != new.dependencies || old.optional_dependencies != new.optional_dependencies
 }
 
 fn diff_importer(
@@ -176,13 +208,19 @@ pub fn render_dry_run_report(diff: &LockfileDiff) -> String {
         lines.push(String::new());
     }
 
-    if !diff.added_packages.is_empty() || !diff.removed_packages.is_empty() {
+    if !diff.added_packages.is_empty()
+        || !diff.removed_packages.is_empty()
+        || !diff.updated_packages.is_empty()
+    {
         lines.push("Packages".to_string());
         for key in &diff.added_packages {
             lines.push(format!("+ {key}"));
         }
         for key in &diff.removed_packages {
             lines.push(format!("- {key}"));
+        }
+        for key in &diff.updated_packages {
+            lines.push(format!("~ {key}"));
         }
     }
 
