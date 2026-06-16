@@ -60,7 +60,7 @@ use pacquet_deps_path::{
 };
 use pacquet_resolving_resolver_base::ResolveResult;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -406,8 +406,6 @@ pub fn resolve_peers_workspace(
         dedupe_peer_dependents(&mut graph, &mut direct_dependencies_by_importer);
     }
 
-    propagate_transitive_peer_dependencies(&mut graph);
-
     WorkspaceResolvePeersResult {
         graph,
         direct_dependencies_by_importer,
@@ -449,64 +447,6 @@ struct ParentRef {
 /// requirement against the alias and `peerDependencies.next` against
 /// the real name.
 type ParentRefs = HashMap<String, ParentRef>;
-
-pub(crate) fn propagate_transitive_peer_dependencies(graph: &mut DependenciesGraph) {
-    let mut parents_of: HashMap<DepPath, Vec<DepPath>> = HashMap::new();
-    let mut provided_names: HashMap<DepPath, HashSet<String>> = HashMap::new();
-    for (parent_path, entry) in graph.iter() {
-        let mut names = HashSet::new();
-        for (alias, child_path) in &entry.children {
-            parents_of.entry(child_path.clone()).or_default().push(parent_path.clone());
-            names.insert(alias.clone());
-            if let Some(child) = graph.get(child_path)
-                && let Some(ref name_ver) = child.resolve_result.name_ver
-            {
-                names.insert(name_ver.name.to_string());
-            }
-        }
-        provided_names.insert(parent_path.clone(), names);
-    }
-
-    let mut worklist: VecDeque<DepPath> = graph
-        .iter()
-        .filter(|(_, entry)| !entry.transitive_peer_dependencies.is_empty())
-        .map(|(path, _)| path.clone())
-        .collect();
-
-    while let Some(child_path) = worklist.pop_front() {
-        let Some(parents) = parents_of.get(&child_path) else { continue };
-
-        let diffs: Vec<(DepPath, Vec<String>)> = {
-            let child = graph.get(&child_path).expect("worklist seeded from graph");
-            parents
-                .iter()
-                .filter_map(|parent_path| {
-                    let parent = graph.get(parent_path)?;
-                    let parent_provided = provided_names.get(parent_path);
-                    let diff: Vec<String> = child
-                        .transitive_peer_dependencies
-                        .iter()
-                        .filter(|tpd| {
-                            !parent.transitive_peer_dependencies.contains(*tpd)
-                                && !parent.peer_dependencies.contains_key(*tpd)
-                                && !parent_provided.is_some_and(|names| names.contains(*tpd))
-                        })
-                        .cloned()
-                        .collect();
-                    if diff.is_empty() { None } else { Some((parent_path.clone(), diff)) }
-                })
-                .collect()
-        };
-
-        for (parent_path, diff) in diffs {
-            let parent = graph.get_mut(&parent_path).unwrap();
-            for tpd in diff {
-                parent.transitive_peer_dependencies.insert(tpd);
-            }
-            worklist.push_back(parent_path);
-        }
-    }
-}
 
 #[derive(Clone, Copy)]
 struct FinalPeerContext<'a> {
@@ -733,8 +673,7 @@ impl Walker<'_> {
             direct_by_alias
                 .insert(dep.alias.clone(), self.final_dep_path_of(&dep.node_id, &final_dep_paths));
         }
-        let mut graph = self.build_final_graph(&final_dep_paths);
-        propagate_transitive_peer_dependencies(&mut graph);
+        let graph = self.build_final_graph(&final_dep_paths);
         let resolved_peer_providers_by_alias = self.resolved_peer_providers_by_alias;
         let mut missing_names_by_pkg: HashMap<String, std::collections::HashSet<String>> =
             HashMap::new();
@@ -1222,7 +1161,20 @@ impl Walker<'_> {
         // visit with a compatible parent context can short-circuit
         // via [`Self::find_hit`]. Mirrors upstream's
         // [post-walk cache-population block](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L507-L522).
-        if is_pure {
+        //
+        // A cycle re-entry resolves against truncated children (the cycle is
+        // broken by dropping the repeated package's subtree), so its empty or
+        // partial peer sets are not authoritative for the package as a whole.
+        // Caching that verdict would let it short-circuit other occurrences
+        // that can see the full subtree, dropping their
+        // `transitivePeerDependencies` depending on traversal order and
+        // churning the lockfile (https://github.com/pnpm/pnpm/issues/5108).
+        let resolved_through_cycle = parent_pkg_ids_chain.contains(&pkg.id);
+        if resolved_through_cycle {
+            // Leave both caches untouched so later occurrences re-resolve (or
+            // hit the authoritative entry of the same package) instead of
+            // reusing this partial one.
+        } else if is_pure {
             self.pure_pkgs.insert(pkg.id.clone());
         } else {
             self.peers_cache.entry(pkg.id.clone()).or_default().push(PeersCacheItem {

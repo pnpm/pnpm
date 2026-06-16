@@ -220,55 +220,6 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       }
     }
   }
-
-  const parentsOf: Record<string, Set<DepPath>> = {}
-  const providedNames = new Map<DepPath, Set<string>>()
-  for (const [parentPath, entry] of Object.entries(depGraphWithResolvedChildren)) {
-    const names = new Set<string>()
-    for (const [alias, childPath] of Object.entries<DepPath>(entry.children)) {
-      if (!parentsOf[childPath]) {
-        parentsOf[childPath] = new Set()
-      }
-      parentsOf[childPath].add(parentPath as DepPath)
-      names.add(alias)
-      const childEntry = depGraphWithResolvedChildren[childPath]
-      if (childEntry?.name) names.add(childEntry.name)
-    }
-    providedNames.set(parentPath as DepPath, names)
-  }
-
-  const worklist = new Set<DepPath>()
-  for (const [path, entry] of Object.entries(depGraphWithResolvedChildren)) {
-    if (entry.transitivePeerDependencies.size > 0) {
-      worklist.add(path as DepPath)
-    }
-  }
-
-  while (worklist.size > 0) {
-    const childPath = worklist.values().next().value!
-    worklist.delete(childPath)
-    const childEntry = depGraphWithResolvedChildren[childPath]
-    if (!childEntry?.transitivePeerDependencies.size) continue
-
-    const parents = parentsOf[childPath]
-    if (!parents) continue
-
-    for (const parentPath of parents) {
-      const parentEntry = depGraphWithResolvedChildren[parentPath]
-      if (!parentEntry) continue
-      const parentProvidedNames = providedNames.get(parentPath)
-      let gained = false
-      for (const tpd of childEntry.transitivePeerDependencies) {
-        if (!parentEntry.transitivePeerDependencies.has(tpd) && !parentEntry.peerDependencies?.[tpd] && !parentProvidedNames?.has(tpd)) {
-          parentEntry.transitivePeerDependencies.add(tpd)
-          gained = true
-        }
-      }
-      if (gained) {
-        worklist.add(parentPath)
-      }
-    }
-  }
   return {
     dependenciesGraph: depGraphWithResolvedChildren,
     dependenciesByProjectId,
@@ -641,7 +592,17 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   let cache: PeersCacheItem
   const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
-  if (isPure) {
+  // A cycle re-entry resolves against truncated children (the cycle is broken by
+  // dropping the repeated package's subtree), so its empty/partial peer sets are
+  // not authoritative for the package as a whole. Recording that verdict — as
+  // pure or in peersCache — lets it short-circuit other occurrences that *can*
+  // see the full subtree, dropping their transitivePeerDependencies depending on
+  // traversal order and churning the lockfile (https://github.com/pnpm/pnpm/issues/5108).
+  const resolvedThroughCycle = ctx.parentDepPathsChain.includes(resolvedPackage.pkgIdWithPatchHash)
+  if (resolvedThroughCycle) {
+    // Leave both caches untouched so later occurrences re-resolve (or hit the
+    // authoritative entry of the same package) instead of reusing this partial one.
+  } else if (isPure) {
     ctx.purePkgs.add(resolvedPackage.pkgIdWithPatchHash)
   } else {
     cache = {

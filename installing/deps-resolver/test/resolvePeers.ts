@@ -1491,7 +1491,12 @@ describe('dedupePeers', () => {
     expect(depPaths).not.toContain('plugin/1.0.0(parser/1.0.0(typescript/2.0.0))(typescript/1.0.0)')
   })
 
-  test('transitivePeerDependencies propagate through depGraph after purePkgs early return in cycle', async () => {
+  // A cycle re-entry of `a` (a→b→a) resolves against truncated children and must
+  // not poison the purePkgs/peersCache verdict for `a`. If it did, the sibling
+  // occurrence under `h` would short-circuit to empty and lose the transitive
+  // peer `e` that `a` reaches through c→d, churning the lockfile by traversal
+  // order. https://github.com/pnpm/pnpm/issues/5108
+  test('cycle re-entry does not drop a sibling occurrence transitive peers', async () => {
     const aPkg = {
       name: 'a',
       pkgIdWithPatchHash: 'a/1.0.0' as PkgIdWithPatchHash,
