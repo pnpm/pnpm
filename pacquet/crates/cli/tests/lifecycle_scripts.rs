@@ -698,7 +698,7 @@ mod dependency_build_scripts {
 
     /// A corrupt / unreadable `.modules.yaml` must not let a strict rerun
     /// short-circuit to exit 0: the up-to-date fast paths can't prove the
-    /// absence of recorded ignored builds from an unparseable state file,
+    /// absence of recorded ignored builds from an unparsable state file,
     /// so they conservatively fall through to the full install, which
     /// fails again with `ERR_PNPM_IGNORED_BUILDS`.
     #[test]
