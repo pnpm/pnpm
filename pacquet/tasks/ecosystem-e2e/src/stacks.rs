@@ -122,7 +122,7 @@ pub const STACKS: &[Stack] = &[
         name: "astro",
         description: "Astro minimal project (astro build + astro preview)",
         scaffold: &[ScaffoldCommand {
-            spec: "create-astro@latest",
+            spec: "create-astro@5",
             args: &[
                 "app",
                 "--template",
@@ -145,7 +145,7 @@ pub const STACKS: &[Stack] = &[
         name: "sveltekit",
         description: "SvelteKit minimal project (vite build + vite preview)",
         scaffold: &[ScaffoldCommand {
-            spec: "sv@latest",
+            spec: "sv@0.16",
             args: &[
                 "create",
                 "app",
@@ -176,7 +176,7 @@ pub const STACKS: &[Stack] = &[
         name: "nuxt",
         description: "Nuxt project (nuxt build + nuxi preview, port via env)",
         scaffold: &[ScaffoldCommand {
-            spec: "nuxi@latest",
+            spec: "nuxi@3",
             args: &[
                 "init",
                 "app",
@@ -195,7 +195,7 @@ pub const STACKS: &[Stack] = &[
         name: "react-router",
         description: "React Router 7 framework project (build + react-router-serve, port via env)",
         scaffold: &[ScaffoldCommand {
-            spec: "create-react-router@latest",
+            spec: "create-react-router@7",
             args: &["app", "--no-install", "--no-git-init", "--yes"],
         }],
         build_script: "build",

@@ -51,11 +51,12 @@ jobs:
           pnpm --filter pnpm run compile
 
       - name: Wrap the built pnpm bundle as an executable
-        # The harness takes a single executable for --pnpm; the bundle is a
-        # plain .cjs that needs `node`. Wrap it so the run tests this repo's
-        # pnpm, not the one provisioned by pnpm/setup.
+        # The harness takes a single executable for --pnpm; the launcher is a
+        # .cjs that needs `node`. Wrap the repo's bin entry (which loads
+        # dist/pnpm.mjs) so the run tests this repo's pnpm, not the one
+        # provisioned by pnpm/setup.
         run: |
-          printf '#!/usr/bin/env bash\nexec node "%s/pnpm/dist/pnpm.cjs" "$@"\n' "$PWD" > pnpm-built
+          printf '#!/usr/bin/env bash\nexec node "%s/pnpm/bin/pnpm.cjs" "$@"\n' "$PWD" > pnpm-built
           chmod +x pnpm-built
 
       - name: Run ecosystem E2E

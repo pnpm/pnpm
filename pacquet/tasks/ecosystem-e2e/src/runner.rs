@@ -5,7 +5,7 @@ use crate::{
 use std::{
     ffi::OsString,
     fs::{self, File, OpenOptions},
-    io::{Read, Write},
+    io::{BufRead, BufReader, Write},
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -38,13 +38,23 @@ impl Cell<'_> {
 
 /// Scaffold a stack into `<template_root>/<stack>` once, without installing
 /// dependencies. The generated tree is later copied into each cell.
+///
+/// With `reuse`, an already-scaffolded template (a `<stack>/app` directory
+/// holding a `package.json`) is returned untouched — re-running a generator
+/// into a non-empty directory typically fails. Without it, the caller is
+/// expected to have wiped the work dir, so scaffolding starts clean.
 pub fn scaffold_template(
     pnpm: &str,
     stack: &Stack,
     template_root: &Path,
     log_path: &Path,
+    reuse: bool,
 ) -> Result<PathBuf, String> {
     let template_dir = template_root.join(stack.name);
+    let project_dir = template_dir.join(PROJECT_DIR);
+    if reuse && project_dir.join("package.json").is_file() {
+        return Ok(project_dir);
+    }
     fs::create_dir_all(&template_dir)
         .map_err(|error| format!("create {template_dir:?}: {error}"))?;
     for command in stack.scaffold {
@@ -56,7 +66,6 @@ pub fn scaffold_template(
             log_path,
         )?;
     }
-    let project_dir = template_dir.join(PROJECT_DIR);
     if !project_dir.is_dir() {
         return Err(format!("scaffold did not produce {project_dir:?}"));
     }
@@ -253,15 +262,20 @@ fn wait_until_serving(
         if let Ok(Some(status)) = child.try_wait() {
             return Err(format!("server exited before serving ({status})"));
         }
-        match probe(port, serve.ready_path) {
-            // Any HTTP reply means the server booted; a non-error status means
-            // it actually served the route through the installed layout.
+        // A 2xx/3xx means the server served the route through the installed
+        // layout. A connection error or an HTTP error status is retried until
+        // the deadline — many dev servers briefly refuse connections or answer
+        // 4xx/5xx while warming up.
+        let observation = match probe(port, serve.ready_path) {
             Ok(code) if (200..400).contains(&code) => return Ok(()),
-            Ok(code) => return Err(format!("server answered HTTP {code} at {}", serve.ready_path)),
-            Err(error) if Instant::now() >= deadline => {
-                return Err(format!("not serving within {}s (last: {error})", serve.timeout_secs));
-            }
-            Err(_) => {}
+            Ok(code) => format!("HTTP {code} at {}", serve.ready_path),
+            Err(error) => error,
+        };
+        if Instant::now() >= deadline {
+            return Err(format!(
+                "not serving within {}s (last: {observation})",
+                serve.timeout_secs,
+            ));
         }
         thread::sleep(Duration::from_millis(500));
     }
@@ -269,6 +283,8 @@ fn wait_until_serving(
 
 /// Issue one `GET` and return the HTTP status code, or an error if the
 /// server isn't accepting connections / didn't answer with a status line.
+/// Only the status line is read; the body is left unread and the connection
+/// dropped.
 fn probe(port: u16, path: &str) -> Result<u16, String> {
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
     let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(2))
@@ -276,9 +292,10 @@ fn probe(port: u16, path: &str) -> Result<u16, String> {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
     let request = format!("GET {path} HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
     stream.write_all(request.as_bytes()).map_err(|error| format!("write request: {error}"))?;
-    let mut response = String::new();
-    stream.read_to_string(&mut response).map_err(|error| format!("read response: {error}"))?;
-    let status_line = response.lines().next().ok_or("empty response")?;
+    let mut status_line = String::new();
+    BufReader::new(stream)
+        .read_line(&mut status_line)
+        .map_err(|error| format!("read response: {error}"))?;
     status_line
         .split_whitespace()
         .nth(1)

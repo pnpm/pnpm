@@ -44,7 +44,7 @@ fn main() -> ExitCode {
         let scaffold_log = template_root.join(format!("{}.scaffold.log", stack.name));
         eprintln!("== scaffolding {} ({}) ==", stack.name, stack.description);
         let template_project =
-            match scaffold_template(&args.pnpm, stack, &template_root, &scaffold_log) {
+            match scaffold_template(&args.pnpm, stack, &template_root, &scaffold_log, args.keep) {
                 Ok(path) => path,
                 Err(message) => {
                     // A failed scaffold dooms every cell of this stack; record
