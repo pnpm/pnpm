@@ -621,15 +621,17 @@ where
             // swallowed read error.
             let fast_path_safe = if config.strict_dep_builds {
                 match read_modules_manifest::<Host>(&config.modules_dir) {
-                    Ok(modules) => {
-                        if let Some(package_names) = modules
-                            .as_ref()
-                            .and_then(|modules| unapproved_recorded_ignored_builds(modules, config))
-                        {
+                    Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config)
+                    {
+                        Ok(Some(package_names)) => {
                             return Err(InstallError::IgnoredBuilds { package_names });
                         }
-                        true
-                    }
+                        Ok(None) => true,
+                        // Unreadable state or a malformed `allowBuilds`:
+                        // can't trust the fast path, run the full install.
+                        Err(_) => false,
+                    },
+                    Ok(None) => true,
                     Err(_) => false,
                 }
             } else {
@@ -1033,8 +1035,12 @@ where
             // and still throws from `handleIgnoredBuilds`. Checked after
             // verification (a tampered lockfile fails first) and before the
             // "up to date" log so the command doesn't claim success.
+            // `Err` (malformed `allowBuilds`) is unreachable here — the
+            // `has_newly_allowed_ignored_builds` guard above returns `true`
+            // on the same `from_config` error and skips this block — so a
+            // bad policy is surfaced by the full install instead.
             if config.strict_dep_builds
-                && let Some(package_names) = unapproved_recorded_ignored_builds(modules, config)
+                && let Ok(Some(package_names)) = unapproved_recorded_ignored_builds(modules, config)
             {
                 return Err(InstallError::IgnoredBuilds { package_names });
             }
@@ -1739,16 +1745,26 @@ fn has_newly_allowed_ignored_builds(modules: &Modules, config: &Config) -> bool 
 /// — those are silently skipped, never reported — matching a full
 /// install's `BuildModules`. Newly-allowed packages are handled upstream
 /// by [`has_newly_allowed_ignored_builds`], which skips the fast path.
-fn unapproved_recorded_ignored_builds(modules: &Modules, config: &Config) -> Option<Vec<String>> {
-    let ignored = modules.ignored_builds.as_ref().filter(|set| !set.is_empty())?;
-    let policy = crate::AllowBuildPolicy::from_config(config).ok()?;
+///
+/// A malformed `allowBuilds` spec surfaces as `Err` (e.g.
+/// `ERR_PNPM_INVALID_VERSION_UNION`) rather than being swallowed: the
+/// fast-path callers fall through to the full install on `Err`, which
+/// re-evaluates the policy and reports the real error.
+fn unapproved_recorded_ignored_builds(
+    modules: &Modules,
+    config: &Config,
+) -> Result<Option<Vec<String>>, pacquet_config::version_policy::VersionPolicyError> {
+    let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
+        return Ok(None);
+    };
+    let policy = crate::AllowBuildPolicy::from_config(config)?;
     let mut names: Vec<String> = ignored
         .iter()
         .filter(|dep_path| policy.check(dep_path.as_str()).is_none())
         .map(|dep_path| dep_path.as_str().to_string())
         .collect();
     names.sort();
-    (!names.is_empty()).then_some(names)
+    Ok((!names.is_empty()).then_some(names))
 }
 
 /// Assemble the [`Modules`] payload for [`write_modules_manifest`].
@@ -1989,13 +2005,14 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
     // absence of recorded ignored builds).
     if config.strict_dep_builds {
         match read_modules_manifest::<Host>(&config.modules_dir) {
-            Ok(modules) => {
-                if modules.as_ref().is_some_and(|modules| {
-                    unapproved_recorded_ignored_builds(modules, config).is_some()
-                }) {
-                    return None;
-                }
-            }
+            Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
+                Ok(Some(_)) => return None,
+                Ok(None) => {}
+                // Unreadable state or a malformed `allowBuilds`: force the
+                // full install rather than reporting up-to-date.
+                Err(_) => return None,
+            },
+            Ok(None) => {}
             Err(_) => return None,
         }
     }

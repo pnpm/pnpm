@@ -5335,6 +5335,24 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
     );
 }
 
+/// `unapproved_recorded_ignored_builds` surfaces a malformed
+/// `allowBuilds` spec as `Err` (here `ERR_PNPM_INVALID_VERSION_UNION`)
+/// instead of swallowing it into `None`, so the strict up-to-date fast
+/// paths fall through to the full install — which reports the real error
+/// — rather than short-circuiting to success and hiding it.
+#[test]
+fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
+    let modules = Modules {
+        ignored_builds: Some([pacquet_modules_yaml::DepPath::from("pkg@1.0.0".to_string())].into()),
+        ..Default::default()
+    };
+    let mut config = Config::new();
+    config.allow_builds.insert("foo@not-a-version".to_string(), true);
+    let config = config.leak();
+
+    assert!(super::unapproved_recorded_ignored_builds(&modules, config).is_err());
+}
+
 /// [`is_modules_yaml_consistent`] returns `false` when
 /// `.modules.yaml` is missing, so a first install (no prior state)
 /// can't be mistaken for an up-to-date install.
