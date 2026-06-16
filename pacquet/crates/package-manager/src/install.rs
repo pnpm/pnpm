@@ -980,8 +980,12 @@ where
         // `allProjectsAreUpToDate` fast path at
         // <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L913-L985>.
         // Parse `.modules.yaml` once and share it across the consistency,
-        // newly-allowed, and unapproved-ignored checks below.
-        let modules_manifest = read_modules_manifest::<Host>(&config.modules_dir).ok().flatten();
+        // newly-allowed, and unapproved-ignored checks below. Only the
+        // frozen path reads it, so the fresh-lockfile/`add` path skips the
+        // file read + YAML parse entirely.
+        let modules_manifest = take_frozen_path
+            .then(|| read_modules_manifest::<Host>(&config.modules_dir).ok().flatten())
+            .flatten();
         if take_frozen_path
             && let Some(wanted_lockfile) = lockfile
             && let Some(current) = current_lockfile.as_ref()
