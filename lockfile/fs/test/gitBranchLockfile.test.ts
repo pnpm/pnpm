@@ -26,7 +26,7 @@ test('git-branch lockfile matcher requires literal dots and a branch segment', (
       'pnpm-lock.main.yaml', // branch lockfile
       'pnpm-lock.feature.x.yaml', // branch name containing a dot
       'pnpm-lock.yaml', // base lockfile, not a branch lockfile
-      'pnpm-lockxmainxyaml', // no literal dots
+      'pnpm-lock-main-yaml', // no literal dots
       'my-pnpm-lock.main.yaml', // does not start at the beginning
       'README.md',
     ]) {
