@@ -58,7 +58,7 @@ pub fn scaffold_template(
     fs::create_dir_all(&template_dir)
         .map_err(|error| format!("create {template_dir:?}: {error}"))?;
     for command in stack.scaffold {
-        let mut process = Command::new(pnpm);
+        let mut process = sandboxed_command(pnpm);
         process.current_dir(&template_dir).arg("dlx").arg(command.spec).args(command.args);
         run(
             &format!("pnpm dlx {} {}", command.spec, command.args.join(" ")),
@@ -106,7 +106,7 @@ pub fn run_cell(
         Binary::Pnpm => pnpm,
         Binary::Pacquet => pacquet,
     };
-    let mut install = Command::new(install_binary);
+    let mut install = sandboxed_command(install_binary);
     install.current_dir(&project_dir).arg("install");
     if let Some(failed) = outcome("install", run("install", &mut install, &log_path)) {
         return failed;
@@ -189,9 +189,52 @@ fn run_build_script(project_dir: &Path, script_name: &str, log_path: &Path) -> R
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| format!("no `{script_name}` script in {manifest_path:?}"))?;
 
-    let mut process = Command::new("sh");
+    let mut process = sandboxed_command("sh");
     process.current_dir(project_dir).arg("-c").arg(script).env("PATH", bin_path(project_dir)?);
     run(&format!("run {script_name}: {script}"), &mut process, log_path)
+}
+
+/// Environment variables an install/build/serve subprocess legitimately
+/// needs. Everything else is scrubbed, so a lifecycle script from an
+/// untrusted package can't read ambient CI secrets (`GITHUB_TOKEN`, npm auth
+/// tokens, etc.). Build/serve callers override `PATH` with a
+/// `node_modules/.bin`-prefixed one; the rest inherit it from here.
+const ENV_PASSTHROUGH: &[&str] = &[
+    "PATH",
+    "HOME",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "TERM",
+    "USER",
+    "LOGNAME",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    "NODE_EXTRA_CA_CERTS",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+];
+
+/// A [`Command`] whose environment is scrubbed down to [`ENV_PASSTHROUGH`].
+/// Used for every launch that runs third-party code — scaffolding,
+/// installs, and the build/serve scripts — so unattended lifecycle scripts
+/// can't exfiltrate secrets from the parent environment.
+fn sandboxed_command(program: &str) -> Command {
+    let mut command = Command::new(program);
+    command.env_clear();
+    for key in ENV_PASSTHROUGH {
+        if let Some(value) = std::env::var_os(key) {
+            command.env(key, value);
+        }
+    }
+    command
 }
 
 /// `PATH` with the project's `node_modules/.bin` prepended, so locally
@@ -228,7 +271,7 @@ fn run_serve(project_dir: &Path, serve: &Serve, log_path: &Path) -> Result<(), S
     let _ =
         writeln!(log, "\n$ serve: {command} (probe http://127.0.0.1:{port}{})", serve.ready_path);
 
-    let mut child = Command::new("sh")
+    let mut child = sandboxed_command("sh")
         .current_dir(project_dir)
         .arg("-c")
         // `exec` replaces the shell with the server so the spawned PID is the

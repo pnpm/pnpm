@@ -18,10 +18,10 @@ It exists for two reasons specific to this repo:
 
 Every run is the cross product of three axes:
 
-```
+```text
 binary:  pnpm | pacquet            (--binary)
 layout:  isolated | global-virtual-store   (--layout)
-stack:   next | vite-react | …     (--stack, defaults to all)
+stack:   next | vite-react | ...   (--stack, defaults to all)
 ```
 
 Each cell runs four stages, stopping at the first failure:

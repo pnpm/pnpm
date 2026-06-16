@@ -24,6 +24,9 @@ jobs:
   ecosystem-e2e:
     name: Ecosystem E2E / ${{ matrix.stack }}
     runs-on: ubuntu-latest
+    # Bound the blast radius: a hung build or serve subprocess can't pin a
+    # runner indefinitely.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
