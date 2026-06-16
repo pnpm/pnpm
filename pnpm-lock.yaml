@@ -539,9 +539,6 @@ catalogs:
     amaro:
       specifier: ^1.1.9
       version: 1.1.10
-    ansi-diff:
-      specifier: ^1.2.0
-      version: 1.2.0
     archy:
       specifier: ^1.0.0
       version: 1.0.0
@@ -2292,9 +2289,6 @@ importers:
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
         version: 4.0.1
-      ansi-diff:
-        specifier: 'catalog:'
-        version: 1.2.0
       boxen:
         specifier: 'catalog:'
         version: '@zkochan/boxen@5.1.2'

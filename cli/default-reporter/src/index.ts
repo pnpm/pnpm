@@ -1,7 +1,6 @@
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type * as logs from '@pnpm/core-loggers'
 import type { LogLevel, StreamParser } from '@pnpm/logger'
-import createDiffer from 'ansi-diff'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
 
@@ -13,10 +12,11 @@ import { formatWarn } from './reporterForClient/utils/formatWarn.js'
 
 export { formatWarn }
 
-// ANSI "erase to end of line". Appended after each rendered line so that
-// remnants from external processes (e.g. SSH passphrase prompts) that write to
-// the terminal between progress updates don't bleed into the progress line.
-const ERASE_EOL = '\x1b[K'
+// ANSI "erase from cursor to end of display". Emitted before reprinting each
+// frame so that anything an external process (e.g. an SSH passphrase prompt)
+// wrote to the terminal between progress updates is cleared instead of bleeding
+// into the progress output.
+const ERASE_TO_END_OF_DISPLAY = '\x1b[0J'
 
 export function initDefaultReporter (
   opts: {
@@ -70,10 +70,6 @@ export function initDefaultReporter (
       subscription.unsubscribe()
     }
   }
-  const diff = createDiffer({
-    height: proc.stdout.rows,
-    outputMaxWidth,
-  })
   const subscription = output$
     .subscribe({
       complete () {}, // eslint-disable-line:no-empty
@@ -85,16 +81,35 @@ export function initDefaultReporter (
   const write = opts.useStderr
     ? proc.stderr.write.bind(proc.stderr)
     : proc.stdout.write.bind(proc.stdout)
+  let prevRows = 0
   function logUpdate (view: string) {
     // A new line should always be appended in case a prompt needs to appear.
     // Without a new line the prompt will be joined with the previous output.
     // An example of such prompt may be seen by running: pnpm update --interactive
     if (!view.endsWith(EOL)) view += EOL
-    write(diff.update(view).toString().replaceAll('\n', `${ERASE_EOL}\n`))
+    // Redraw the whole frame in place: move the cursor back to the top of the
+    // previous frame, erase everything below it, then reprint. Doing this in a
+    // single write keeps the redraw atomic (no flicker) and guarantees any
+    // characters written by an external process in between are cleared.
+    const moveToFrameTop = prevRows > 0 ? `\x1b[${prevRows}A` : ''
+    write(`${moveToFrameTop}${ERASE_TO_END_OF_DISPLAY}${view}`)
+    prevRows = countRows(view)
   }
   return () => {
     subscription.unsubscribe()
   }
+}
+
+// Number of terminal rows a frame occupies. The frame always ends with a
+// newline, so this also equals how far below the frame's top the cursor rests
+// after printing it. Lines are assumed not to soft-wrap, matching how the
+// progress output is width-constrained before it reaches here.
+function countRows (frame: string): number {
+  let rows = 0
+  for (let i = 0; i < frame.length; i++) {
+    if (frame.charCodeAt(i) === 10 /* \n */) rows++
+  }
+  return rows
 }
 
 export function toOutput$ (

@@ -24,8 +24,8 @@ export function reportLockfileVerification (
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
   const expectedDir = opts.workspaceDir ?? opts.cwd
   // A single inner observable so the `done` message overwrites the
-  // transient `started` message in ansi-diff mode. In appendOnly mode
-  // both lines are printed.
+  // transient `started` message when the reporter redraws in place. In
+  // appendOnly mode both lines are printed.
   return Rx.of(lockfileVerification$.pipe(
     map((log) => {
       const path_ = formatLockfilePath(log.lockfilePath, opts.cwd, expectedDir)
