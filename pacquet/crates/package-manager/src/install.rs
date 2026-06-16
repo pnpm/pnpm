@@ -1655,24 +1655,21 @@ fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
     }
 }
 
-/// Check whether `<modules_dir>/.modules.yaml` is present and its
-/// recorded layout settings (`nodeLinker`, hoist patterns, store /
-/// virtual-store paths, `virtualStoreDirMaxLength`, included dep
-/// groups, layout version) match what the current install would
-/// produce. Returns `false` when the file is missing, unreadable, or
-/// records a different layout — both cases that disqualify the no-op
+/// Whether a parsed `.modules.yaml` records the same layout settings
+/// (`nodeLinker`, hoist patterns, store / virtual-store paths,
+/// `virtualStoreDirMaxLength`, included dep groups, layout version) the
+/// current install would produce. A mismatch disqualifies the no-op
 /// short-circuit.
+///
+/// Takes the already-parsed [`Modules`] so the up-to-date fast path can
+/// share one parse across the consistency, newly-allowed, and
+/// unapproved-ignored checks.
 ///
 /// Mirrors the settings checks in upstream's
 /// [`validateModules`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts)
 /// minus the prune side effects: a settings mismatch in pnpm forces a
-/// rewrite of `node_modules`, but pacquet's caller falls through to
-/// the regular install path, which rebuilds the layout from scratch
-/// anyway.
-/// Whether a parsed `.modules.yaml` describes the same layout the current
-/// config would produce. Split from [`is_modules_yaml_consistent`] so the
-/// up-to-date fast path can reuse one parse across the consistency,
-/// newly-allowed, and unapproved-ignored checks.
+/// rewrite of `node_modules`, but pacquet's caller falls through to the
+/// regular install path, which rebuilds the layout from scratch anyway.
 fn modules_consistent_with(
     modules: &Modules,
     config: &Config,
