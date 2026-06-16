@@ -614,20 +614,36 @@ where
             // already caught by `settings_match` (the policy is part of
             // the workspace state), which reports drift and skips this
             // branch, so the full install runs and rebuilds it.
-            if config.strict_dep_builds
-                && let Some(modules) =
-                    read_modules_manifest::<Host>(&config.modules_dir).ok().flatten()
-                && let Some(package_names) = unapproved_recorded_ignored_builds(&modules, config)
-            {
-                return Err(InstallError::IgnoredBuilds { package_names });
+            //
+            // A corrupt / unreadable `.modules.yaml` can't prove there are
+            // no recorded ignored builds, so under strict mode fall through
+            // to the full install rather than short-circuiting on a
+            // swallowed read error.
+            let fast_path_safe = if config.strict_dep_builds {
+                match read_modules_manifest::<Host>(&config.modules_dir) {
+                    Ok(modules) => {
+                        if let Some(package_names) = modules
+                            .as_ref()
+                            .and_then(|modules| unapproved_recorded_ignored_builds(modules, config))
+                        {
+                            return Err(InstallError::IgnoredBuilds { package_names });
+                        }
+                        true
+                    }
+                    Err(_) => false,
+                }
+            } else {
+                true
+            };
+            if fast_path_safe {
+                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                    level: LogLevel::Info,
+                    message: "Already up to date".to_string(),
+                    prefix: prefix.clone(),
+                }));
+                Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+                return Ok(());
             }
-            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Info,
-                message: "Already up to date".to_string(),
-                prefix: prefix.clone(),
-            }));
-            Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
-            return Ok(());
         }
 
         // Past the repeat-install fast path every install flavor needs
@@ -1968,14 +1984,20 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
     // build must keep the install failing — never let the pre-runtime
     // fast path report up-to-date and exit 0. Returning `None` falls
     // through to the full `Install::run`, whose optimistic branch raises
-    // `ERR_PNPM_IGNORED_BUILDS`.
-    if config.strict_dep_builds
-        && read_modules_manifest::<Host>(&config.modules_dir)
-            .ok()
-            .flatten()
-            .is_some_and(|modules| unapproved_recorded_ignored_builds(&modules, config).is_some())
-    {
-        return None;
+    // `ERR_PNPM_IGNORED_BUILDS`. A corrupt / unreadable `.modules.yaml`
+    // is treated conservatively the same way (its `Err` can't prove the
+    // absence of recorded ignored builds).
+    if config.strict_dep_builds {
+        match read_modules_manifest::<Host>(&config.modules_dir) {
+            Ok(modules) => {
+                if modules.as_ref().is_some_and(|modules| {
+                    unapproved_recorded_ignored_builds(modules, config).is_some()
+                }) {
+                    return None;
+                }
+            }
+            Err(_) => return None,
+        }
     }
     (check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: &workspace_root,
