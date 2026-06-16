@@ -31,7 +31,6 @@ export interface MakePublishManifestOptions {
   modulesDir?: string
   skipManifestObfuscation?: boolean
   embedReadme?: boolean
-  projectDir?: string
 }
 
 async function readReadmeFile (projectDir: string): Promise<string | undefined> {
@@ -82,10 +81,10 @@ export async function createExportableManifest (
 
   overridePublishConfig(publishManifest)
 
-  if (publishManifest.readme == null && opts?.embedReadme && opts.projectDir) {
-    const readme = await readReadmeFile(opts.projectDir)
+  if (publishManifest.readme == null && opts?.embedReadme) {
+    const readme = await readReadmeFile(dir)
     if (readme != null) {
-      publishManifest.readme ??= readme
+      publishManifest.readme = readme
     }
   }
 

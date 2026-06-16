@@ -401,7 +401,6 @@ async function createPublishManifest (opts: {
     catalogs,
     hooks,
     embedReadme,
-    projectDir,
     modulesDir,
     skipManifestObfuscation,
   })

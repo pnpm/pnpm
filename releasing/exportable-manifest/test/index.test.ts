@@ -126,7 +126,6 @@ test('skipManifestObfuscation does not mutate the original manifest', async () =
       ...defaultOpts,
       skipManifestObfuscation: true,
       embedReadme: true,
-      projectDir,
     })).toStrictEqual({
       name: 'foo',
       version: '1.0.0',
@@ -152,7 +151,6 @@ test('readme added to published manifest', async () => {
     }, {
       ...defaultOpts,
       embedReadme: true,
-      projectDir,
     })).toStrictEqual({
       name: 'foo',
       version: '1.0.0',
