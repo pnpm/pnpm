@@ -36,6 +36,13 @@ import { syncEnvLockfile } from './syncEnvLockfile.js'
 
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
+// Commands whose reporter output (warnings, progress) must go to stderr so that
+// their stdout stays a clean, machine-readable value. For example, `pnpm store
+// path` is meant to be captured with `STORE=$(pnpm store path)` and `pnpm config
+// list --json` to be piped into `jq`; a warning mixed into stdout would corrupt
+// both.
+const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set', 'get', 'sbom', 'with', 'store'])
+
 loudRejection()
 
 function isRootOnlyPatterns (patterns: string[]): boolean {
@@ -95,6 +102,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
     const isDlxOrCreateCommand = cmd === 'dlx' || cmd === 'create'
+    const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
     if (cmd === 'link' && cliParams.length === 0) {
       cliOptions.global = true
     }
@@ -138,9 +146,9 @@ export async function main (inputArgv: string[]): Promise<void> {
     // `cmd === 'config'` at this layer, so list them explicitly — users can
     // hit the #10684 crash via any of these three entry points.
     ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
-      tolerateConfigDependenciesErrors: cmd === 'config' || cmd === 'set' || cmd === 'get',
+      tolerateConfigDependenciesErrors: isConfigCommand,
     }) as { config: typeof config, context: ConfigContext })
-    if (isDlxOrCreateCommand || cmd === 'sbom' || cmd === 'with') {
+    if (cmd != null && COMMANDS_WITH_STDERR_REPORTER.has(cmd)) {
       config.useStderr = true
     }
     config.argv = argv
