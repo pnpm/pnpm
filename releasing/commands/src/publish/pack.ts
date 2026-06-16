@@ -352,14 +352,6 @@ function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config[
   }
 }
 
-async function readReadmeFile (projectDir: string): Promise<string | undefined> {
-  const files = await fs.promises.readdir(projectDir)
-  const readmePath = files.find(name => /readme\.md$/i.test(name))
-  const readmeFile = readmePath ? await fs.promises.readFile(path.join(projectDir, readmePath), 'utf8') : undefined
-
-  return readmeFile
-}
-
 async function packPkg (opts: {
   destFile: string
   filesMap: Record<string, string>
@@ -405,11 +397,10 @@ async function createPublishManifest (opts: {
   skipManifestObfuscation?: boolean
 }): Promise<ExportedManifest> {
   const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks, skipManifestObfuscation } = opts
-  const readmeFile = embedReadme ? await readReadmeFile(projectDir) : undefined
   return createExportableManifest(projectDir, manifest, {
     catalogs,
     hooks,
-    readmeFile,
+    embedReadme,
     modulesDir,
     skipManifestObfuscation,
   })
