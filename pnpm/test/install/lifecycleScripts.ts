@@ -422,7 +422,7 @@ test('approve-builds works after stashing and re-adding a dependency (#12221)', 
   expect(firstApprove.status).toBe(0)
 
   const wsManifest = await readWorkspaceManifest(process.cwd())
-  expect((wsManifest!.allowBuilds as Record<string, unknown>)[pkgName]).toBe(true)
+  expect(wsManifest!.allowBuilds?.[pkgName]).toBe(true)
 
   fs.rmSync('package.json', { force: true })
   fs.rmSync('pnpm-workspace.yaml', { force: true })

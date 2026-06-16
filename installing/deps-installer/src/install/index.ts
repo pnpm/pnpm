@@ -493,8 +493,7 @@ export async function mutateModules (
     await cleanGitBranchLockfiles(ctx.lockfileDir)
   }
 
-  const ignoredBuildsFromInstall = result.ignoredBuilds
-  let ignoredBuilds = ignoredBuildsFromInstall
+  let ignoredBuilds = result.ignoredBuilds
   if (!opts.ignoreScripts && ignoredBuilds?.size) {
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, ctx.wantedLockfile, allowBuild)
   }
