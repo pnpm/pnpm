@@ -3675,6 +3675,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-ecosystem-e2e"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "serde_json",
+ "which 8.0.2",
+]
+
+[[package]]
 name = "pacquet-engine-runtime-bun-resolver"
 version = "0.0.1"
 dependencies = [
