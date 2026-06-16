@@ -1,0 +1,40 @@
+name: CodeRabbit approval
+
+# Label and announce a PR when CodeRabbit submits an approving review.
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  on-coderabbit-approval:
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.review.user.login == 'coderabbitai[bot]'
+    runs-on: ubuntu-latest
+    env:
+      # Webhook URL is optional; the Discord step is skipped when the secret is unset.
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      # PR fields are passed through the environment, never interpolated into a run script,
+      # so an attacker-controlled PR title cannot inject shell commands.
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+    steps:
+      - name: Add the reviewed label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "reviewed: coderabbit"
+
+      - name: Announce on Discord
+        if: ${{ env.DISCORD_WEBHOOK != '' }}
+        run: |
+          payload="$(jq -n \
+            --arg n "$PR_NUMBER" \
+            --arg t "$PR_TITLE" \
+            --arg u "$PR_URL" \
+            '{content: ("✅ CodeRabbit approved PR #" + $n + ": " + $t + "\n" + $u)}')"
+          curl -fsS -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK"
