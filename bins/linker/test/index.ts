@@ -763,6 +763,35 @@ describe('node binary linking', () => {
     expect(fs.existsSync(exePath)).toBe(true)
     expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
   })
+
+  testOnWindows('linkBinsOfPackages() does not warn when node.exe has identical content but is not a hardlink', async () => {
+    const binTarget = temporaryDirectory()
+    const nodeDir = temporaryDirectory()
+
+    fs.writeFileSync(path.join(nodeDir, 'node.exe'), 'fake-node-binary', 'utf8')
+    // Pre-place an independent copy with identical content (different inode), as
+    // happens on filesystems where Windows reports a zero inode and the previous
+    // link fell back to a copy.
+    fs.writeFileSync(path.join(binTarget, 'node.exe'), 'fake-node-binary', 'utf8')
+
+    const pkgs = [
+      {
+        location: nodeDir,
+        manifest: {
+          name: 'node',
+          version: '20.0.0',
+          bin: { node: 'node.exe' },
+        },
+      },
+    ]
+
+    await linkBinsOfPackages(pkgs, binTarget)
+
+    expect(globalWarn).not.toHaveBeenCalled()
+    const exePath = path.join(binTarget, 'node.exe')
+    expect(fs.existsSync(exePath)).toBe(true)
+    expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
+  })
 })
 
 test('linkBins() resolves conflicts using BIN_OWNER_OVERRIDES (npx owned by npm)', async () => {

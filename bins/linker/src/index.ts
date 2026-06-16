@@ -280,26 +280,23 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   } catch {}
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
+    // node.exe is the only bin pnpm links directly as a real executable rather
+    // than through a cmd-shim, so the existing-exe handling only applies to it.
+    // We could update our own cmd shims to support node.cmd, but we can't
+    // control npm's cmd shims, which break when node resolves to node.cmd.
+    // npm's cmd shims use `IF EXIST "%~dp0\node.exe"` to find the node binary.
+    const isNodeExe = cmd.name === 'node' && cmd.path.toLowerCase().endsWith('.exe')
     if (existsSync(exePath)) {
-      // If the existing exe is already a hard link to the target, there is
-      // nothing to do. We read inode/device numbers as BigInts to avoid the
-      // precision loss that NTFS 64-bit file IDs suffer when cast to a Number.
-      // A zero inode means the filesystem doesn't expose a reliable identity
-      // (common on Windows), so we fall through to warn and replace instead of
-      // trusting a potentially colliding match.
-      const exeStat = await fs.stat(exePath, { bigint: true }).catch(() => null)
-      const targetStat = await fs.stat(cmd.path, { bigint: true }).catch(() => null)
-      if (exeStat?.ino && targetStat?.ino && exeStat.ino === targetStat.ino && exeStat.dev === targetStat.dev) {
+      // Skip warning and re-linking when the existing node.exe already matches
+      // the target, otherwise every command that re-links node would spam the
+      // warning below on warm installs.
+      if (isNodeExe && await isSameFile(exePath, cmd.path)) {
         return
       }
       globalWarn(`The target bin directory already contains an exe called ${cmd.name}, so removing ${exePath}`)
       await rimraf(exePath)
     }
-    // node.exe must exist as a real executable, not a cmd-shim wrapper.
-    // We could update our own cmd shims to support node.cmd, but we can't
-    // control npm's cmd shims, which break when node resolves to node.cmd.
-    // npm's cmd shims use `IF EXIST "%~dp0\node.exe"` to find the node binary.
-    if (cmd.name === 'node' && cmd.path.toLowerCase().endsWith('.exe')) {
+    if (isNodeExe) {
       try {
         await fs.link(cmd.path, exePath)
       } catch {
@@ -370,6 +367,28 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     await ensureExecutable(cmd.path, 0o755)
   }
+}
+
+// Reports whether two paths refer to the same file. A matching inode/device
+// pair (read as BigInts to avoid the precision loss of NTFS 64-bit file IDs)
+// detects a hard link cheaply, but Windows often reports a zero inode, so when
+// the identity is unreliable we fall back to comparing the file contents after
+// a quick size check.
+async function isSameFile (pathA: string, pathB: string): Promise<boolean> {
+  const [statA, statB] = await Promise.all([
+    fs.stat(pathA, { bigint: true }).catch(() => null),
+    fs.stat(pathB, { bigint: true }).catch(() => null),
+  ])
+  if (statA == null || statB == null) return false
+  if (statA.ino && statB.ino && statA.ino === statB.ino && statA.dev === statB.dev) {
+    return true
+  }
+  if (statA.size !== statB.size) return false
+  const [contentA, contentB] = await Promise.all([
+    fs.readFile(pathA).catch(() => null),
+    fs.readFile(pathB).catch(() => null),
+  ])
+  return contentA != null && contentB != null && contentA.equals(contentB)
 }
 
 // `fixBin` chmods the bin's source file (which lives inside the store) to make
