@@ -316,12 +316,20 @@ pub enum BuildPhaseError {
 /// lockfile is built/loaded.
 pub(crate) fn resolve_snapshot_patches(
     config: &Config,
+    pre_resolved: Option<&pacquet_patching::PatchGroupRecord>,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
 ) -> Result<Option<HashMap<PackageKey, ExtendedPatchInfo>>, BuildPhaseError> {
-    let patch_groups = config
-        .resolved_patched_dependencies()
-        .map_err(BuildPhaseError::ResolvePatchedDependencies)?;
-    let patches = match (patch_groups.as_ref(), snapshots) {
+    // Reuse the caller's grouped record when it already resolved it (the
+    // fresh-lockfile path builds it to feed the resolver), so the patch
+    // files aren't re-hashed; otherwise resolve it once here (frozen path).
+    let resolved_owned = match pre_resolved {
+        Some(_) => None,
+        None => config
+            .resolved_patched_dependencies()
+            .map_err(BuildPhaseError::ResolvePatchedDependencies)?,
+    };
+    let patch_groups = pre_resolved.or(resolved_owned.as_ref());
+    let patches = match (patch_groups, snapshots) {
         (Some(groups), Some(snaps)) => {
             let mut map = HashMap::new();
             for key in snaps.keys() {
@@ -366,6 +374,10 @@ pub(crate) struct BuildPhaseInputs<'a> {
     pub(crate) packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
     pub(crate) dependency_groups: &'a [DependencyGroup],
+    /// `patchedDependencies` already resolved + grouped by the caller, so
+    /// the build phase doesn't re-hash the patch files. `None` on the
+    /// frozen path, which resolves it inside [`resolve_snapshot_patches`].
+    pub(crate) patch_groups: Option<&'a pacquet_patching::PatchGroupRecord>,
     pub(crate) allow_build_policy: &'a AllowBuildPolicy,
     pub(crate) side_effects_maps_by_snapshot: &'a crate::SideEffectsMapsBySnapshot,
     pub(crate) requires_build_by_snapshot: &'a crate::RequiresBuildBySnapshot,
@@ -404,6 +416,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         packages,
         importers,
         dependency_groups,
+        patch_groups,
         allow_build_policy,
         side_effects_maps_by_snapshot,
         requires_build_by_snapshot,
@@ -416,7 +429,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         logged_methods,
     } = inputs;
 
-    let patches = resolve_snapshot_patches(config, snapshots)?;
+    let patches = resolve_snapshot_patches(config, patch_groups, snapshots)?;
 
     // Convert `pacquet-config`'s mirror enum to the executor's
     // canonical type. Config's enum carries the yaml-deserialize impl;
@@ -1220,6 +1233,9 @@ where
             packages,
             importers,
             dependency_groups: &dependency_groups,
+            // Resolved once inside `resolve_snapshot_patches`; the frozen
+            // path has no earlier patch resolution to reuse.
+            patch_groups: None,
             allow_build_policy: &allow_build_policy,
             side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
             requires_build_by_snapshot: &requires_build_by_snapshot,

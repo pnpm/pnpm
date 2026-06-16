@@ -1814,6 +1814,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 packages: built_lockfile.packages.as_ref(),
                 importers: &built_lockfile.importers,
                 dependency_groups: &dependency_groups,
+                // Reuse the record resolved earlier for the resolver so the
+                // patch files aren't hashed a second time.
+                patch_groups: patched_dependencies.as_deref(),
                 allow_build_policy: &allow_build_policy,
                 side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
                 requires_build_by_snapshot: &requires_build_by_snapshot,

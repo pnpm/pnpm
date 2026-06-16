@@ -29,6 +29,21 @@ use std::sync::Mutex;
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
+/// Reading wrapper over [`super::modules_consistent_with`] for the tests
+/// that exercise the `.modules.yaml`-absent and drift cases. Production
+/// code reads the manifest once itself and calls `modules_consistent_with`
+/// directly, so this wrapper lives with the tests.
+fn is_modules_yaml_consistent(
+    modules_dir: &std::path::Path,
+    config: &Config,
+    node_linker: pacquet_config::NodeLinker,
+    included: pacquet_modules_yaml::IncludedDependencies,
+) -> bool {
+    read_modules_manifest::<Host>(modules_dir).ok().flatten().is_some_and(|modules| {
+        super::modules_consistent_with(&modules, config, node_linker, included)
+    })
+}
+
 const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
 
 fn scoped_package_body(registry_url: &str) -> String {
@@ -5320,7 +5335,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
     );
 }
 
-/// [`super::is_modules_yaml_consistent`] returns `false` when
+/// [`is_modules_yaml_consistent`] returns `false` when
 /// `.modules.yaml` is missing, so a first install (no prior state)
 /// can't be mistaken for an up-to-date install.
 #[test]
@@ -5331,7 +5346,7 @@ fn is_modules_yaml_consistent_returns_false_when_modules_yaml_absent() {
     config.modules_dir = modules_dir.clone();
     let config = config.leak();
 
-    assert!(!super::is_modules_yaml_consistent(
+    assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::default(),
@@ -5339,7 +5354,7 @@ fn is_modules_yaml_consistent_returns_false_when_modules_yaml_absent() {
     ));
 }
 
-/// [`super::is_modules_yaml_consistent`] returns `true` when every
+/// [`is_modules_yaml_consistent`] returns `true` when every
 /// layout-determining setting matches what
 /// [`super::build_modules_manifest`] would write for the current
 /// config / linker / dependency-group selection. The roundtrip needs
@@ -5375,7 +5390,7 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
     };
     write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
 
-    assert!(super::is_modules_yaml_consistent(
+    assert!(is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::default(),
@@ -5410,7 +5425,7 @@ fn is_modules_yaml_consistent_returns_false_when_node_linker_drifts() {
     };
     write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
 
-    assert!(!super::is_modules_yaml_consistent(
+    assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::Isolated,
@@ -5457,7 +5472,7 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
     };
     write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
 
-    assert!(!super::is_modules_yaml_consistent(
+    assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::Isolated,

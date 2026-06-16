@@ -615,8 +615,9 @@ where
             // the workspace state), which reports drift and skips this
             // branch, so the full install runs and rebuilds it.
             if config.strict_dep_builds
-                && let Some(package_names) =
-                    unapproved_recorded_ignored_builds(&config.modules_dir, config)
+                && let Some(modules) =
+                    read_modules_manifest::<Host>(&config.modules_dir).ok().flatten()
+                && let Some(package_names) = unapproved_recorded_ignored_builds(&modules, config)
             {
                 return Err(InstallError::IgnoredBuilds { package_names });
             }
@@ -978,15 +979,19 @@ where
         // spuriously, then exit. Mirrors upstream's `validateModules` +
         // `allProjectsAreUpToDate` fast path at
         // <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L913-L985>.
+        // Parse `.modules.yaml` once and share it across the consistency,
+        // newly-allowed, and unapproved-ignored checks below.
+        let modules_manifest = read_modules_manifest::<Host>(&config.modules_dir).ok().flatten();
         if take_frozen_path
             && let Some(wanted_lockfile) = lockfile
             && let Some(current) = current_lockfile.as_ref()
             && wanted_lockfile == current
-            && is_modules_yaml_consistent(&config.modules_dir, config, node_linker, included)
+            && let Some(modules) = modules_manifest.as_ref()
+            && modules_consistent_with(modules, config, node_linker, included)
             // An `allowBuilds` change that now permits a previously-ignored
             // build must rebuild it, even though the lockfile and layout are
             // unchanged. Mirrors pnpm's `runUnignoredDependencyBuilds`.
-            && !has_newly_allowed_ignored_builds(&config.modules_dir, config)
+            && !has_newly_allowed_ignored_builds(modules, config)
         {
             // Nothing to materialize means no fetch to overlap; verify
             // eagerly before the up-to-date early return.
@@ -1009,8 +1014,7 @@ where
             // verification (a tampered lockfile fails first) and before the
             // "up to date" log so the command doesn't claim success.
             if config.strict_dep_builds
-                && let Some(package_names) =
-                    unapproved_recorded_ignored_builds(&config.modules_dir, config)
+                && let Some(package_names) = unapproved_recorded_ignored_builds(modules, config)
             {
                 return Err(InstallError::IgnoredBuilds { package_names });
             }
@@ -1661,15 +1665,16 @@ fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
 /// rewrite of `node_modules`, but pacquet's caller falls through to
 /// the regular install path, which rebuilds the layout from scratch
 /// anyway.
-fn is_modules_yaml_consistent(
-    modules_dir: &Path,
+/// Whether a parsed `.modules.yaml` describes the same layout the current
+/// config would produce. Split from [`is_modules_yaml_consistent`] so the
+/// up-to-date fast path can reuse one parse across the consistency,
+/// newly-allowed, and unapproved-ignored checks.
+fn modules_consistent_with(
+    modules: &Modules,
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
 ) -> bool {
-    let Some(modules) = read_modules_manifest::<Host>(modules_dir).ok().flatten() else {
-        return false;
-    };
     modules.layout_version == Some(LayoutVersion)
         && modules.node_linker == Some(map_node_linker(node_linker))
         && modules.included == included
@@ -1692,11 +1697,8 @@ fn is_modules_yaml_consistent(
 /// result by letting the full frozen install run, whose `BuildModules`
 /// re-evaluates the policy and rebuilds the now-allowed package (already
 /// built deps are skipped by the side-effects-cache `is_built` gate).
-fn has_newly_allowed_ignored_builds(modules_dir: &Path, config: &Config) -> bool {
-    let Some(modules) = read_modules_manifest::<Host>(modules_dir).ok().flatten() else {
-        return false;
-    };
-    let Some(ignored) = modules.ignored_builds.filter(|set| !set.is_empty()) else {
+fn has_newly_allowed_ignored_builds(modules: &Modules, config: &Config) -> bool {
+    let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
         return false;
     };
     // A malformed `allowBuilds` can't be evaluated here; let the full
@@ -1712,7 +1714,7 @@ fn has_newly_allowed_ignored_builds(modules_dir: &Path, config: &Config) -> bool
 /// builds that the current `allowBuilds` policy still leaves unapproved
 /// (`None`), or `None` when there are none.
 ///
-/// The frozen no-op fast path uses this to keep `strictDepBuilds`
+/// The up-to-date fast paths use this to keep `strictDepBuilds`
 /// enforced across reruns: pnpm seeds `ignoredBuilds` from `.modules.yaml`
 /// on the up-to-date path and `handleIgnoredBuilds` still throws, so a
 /// rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not exit 0.
@@ -1720,9 +1722,8 @@ fn has_newly_allowed_ignored_builds(modules_dir: &Path, config: &Config) -> bool
 /// — those are silently skipped, never reported — matching a full
 /// install's `BuildModules`. Newly-allowed packages are handled upstream
 /// by [`has_newly_allowed_ignored_builds`], which skips the fast path.
-fn unapproved_recorded_ignored_builds(modules_dir: &Path, config: &Config) -> Option<Vec<String>> {
-    let modules = read_modules_manifest::<Host>(modules_dir).ok().flatten()?;
-    let ignored = modules.ignored_builds.filter(|set| !set.is_empty())?;
+fn unapproved_recorded_ignored_builds(modules: &Modules, config: &Config) -> Option<Vec<String>> {
+    let ignored = modules.ignored_builds.as_ref().filter(|set| !set.is_empty())?;
     let policy = crate::AllowBuildPolicy::from_config(config).ok()?;
     let mut names: Vec<String> = ignored
         .iter()
@@ -1968,7 +1969,10 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
     // through to the full `Install::run`, whose optimistic branch raises
     // `ERR_PNPM_IGNORED_BUILDS`.
     if config.strict_dep_builds
-        && unapproved_recorded_ignored_builds(&config.modules_dir, config).is_some()
+        && read_modules_manifest::<Host>(&config.modules_dir)
+            .ok()
+            .flatten()
+            .is_some_and(|modules| unapproved_recorded_ignored_builds(&modules, config).is_some())
     {
         return None;
     }
