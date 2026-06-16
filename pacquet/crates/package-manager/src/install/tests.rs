@@ -29,6 +29,21 @@ use std::sync::Mutex;
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
+/// Reading wrapper over [`super::modules_consistent_with`] for the tests
+/// that exercise the `.modules.yaml`-absent and drift cases. Production
+/// code reads the manifest once itself and calls `modules_consistent_with`
+/// directly, so this wrapper lives with the tests.
+fn is_modules_yaml_consistent(
+    modules_dir: &std::path::Path,
+    config: &Config,
+    node_linker: pacquet_config::NodeLinker,
+    included: pacquet_modules_yaml::IncludedDependencies,
+) -> bool {
+    read_modules_manifest::<Host>(modules_dir).ok().flatten().is_some_and(|modules| {
+        super::modules_consistent_with(&modules, config, node_linker, included)
+    })
+}
+
 const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
 
 fn scoped_package_body(registry_url: &str) -> String {
@@ -1194,6 +1209,10 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
+    // Allow the transitive `failing-postinstall` build to actually run so
+    // the optional-failure tolerance is exercised (an ignored build would
+    // instead trip `strictDepBuilds`, which is unrelated to this test).
+    config.dangerously_allow_all_builds = true;
     let config = config.leak();
 
     Install {
@@ -2925,6 +2944,7 @@ fn build_modules_manifest_serializes_skipped_set() {
         Default::default(),
         Default::default(),
         &skipped,
+        &[],
     );
 
     // Compare as sets — `build_modules_manifest` does not sort.
@@ -2961,6 +2981,7 @@ fn build_modules_manifest_skipped_is_empty_on_empty_set() {
         Default::default(),
         Default::default(),
         &SkippedSnapshots::new(),
+        &[],
     );
     assert!(manifest.skipped.is_empty());
     // Empty `hoisted_locations` is dropped to `None` so an
@@ -5314,7 +5335,25 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
     );
 }
 
-/// [`super::is_modules_yaml_consistent`] returns `false` when
+/// `unapproved_recorded_ignored_builds` surfaces a malformed
+/// `allowBuilds` spec as `Err` (here `ERR_PNPM_INVALID_VERSION_UNION`)
+/// instead of swallowing it into `None`, so the strict up-to-date fast
+/// paths fall through to the full install — which reports the real error
+/// — rather than short-circuiting to success and hiding it.
+#[test]
+fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
+    let modules = Modules {
+        ignored_builds: Some([pacquet_modules_yaml::DepPath::from("pkg@1.0.0".to_string())].into()),
+        ..Default::default()
+    };
+    let mut config = Config::new();
+    config.allow_builds.insert("foo@not-a-version".to_string(), true);
+    let config = config.leak();
+
+    assert!(super::unapproved_recorded_ignored_builds(&modules, config).is_err());
+}
+
+/// [`is_modules_yaml_consistent`] returns `false` when
 /// `.modules.yaml` is missing, so a first install (no prior state)
 /// can't be mistaken for an up-to-date install.
 #[test]
@@ -5325,7 +5364,7 @@ fn is_modules_yaml_consistent_returns_false_when_modules_yaml_absent() {
     config.modules_dir = modules_dir.clone();
     let config = config.leak();
 
-    assert!(!super::is_modules_yaml_consistent(
+    assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::default(),
@@ -5333,7 +5372,7 @@ fn is_modules_yaml_consistent_returns_false_when_modules_yaml_absent() {
     ));
 }
 
-/// [`super::is_modules_yaml_consistent`] returns `true` when every
+/// [`is_modules_yaml_consistent`] returns `true` when every
 /// layout-determining setting matches what
 /// [`super::build_modules_manifest`] would write for the current
 /// config / linker / dependency-group selection. The roundtrip needs
@@ -5369,7 +5408,7 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
     };
     write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
 
-    assert!(super::is_modules_yaml_consistent(
+    assert!(is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::default(),
@@ -5404,7 +5443,7 @@ fn is_modules_yaml_consistent_returns_false_when_node_linker_drifts() {
     };
     write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
 
-    assert!(!super::is_modules_yaml_consistent(
+    assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::Isolated,
@@ -5451,7 +5490,7 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
     };
     write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
 
-    assert!(!super::is_modules_yaml_consistent(
+    assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::Isolated,

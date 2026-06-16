@@ -242,6 +242,11 @@ pub struct WorkspaceSettings {
     /// [`allow_builds`]: Self::allow_builds
     pub dangerously_allow_all_builds: Option<bool>,
 
+    /// `strictDepBuilds` from `pnpm-workspace.yaml`. When `true` (the
+    /// default), an install that ignored any dependency build script
+    /// fails instead of only warning. Default `true`.
+    pub strict_dep_builds: Option<bool>,
+
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Tri-state
     /// — yaml accepts `true` / `false` / `"warn-only"`. Custom serde
     /// shape, see [`ScriptsPrependNodePath`]'s `Deserialize` impl.
@@ -832,6 +837,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.dangerously_allow_all_builds {
             config.dangerously_allow_all_builds = v;
+        }
+        if let Some(v) = self.strict_dep_builds {
+            config.strict_dep_builds = v;
         }
         if let Some(v) = self.scripts_prepend_node_path {
             config.scripts_prepend_node_path = v;

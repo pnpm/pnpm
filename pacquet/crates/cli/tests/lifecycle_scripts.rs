@@ -1,21 +1,46 @@
-mod known_failures {
+mod dependency_build_scripts {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        bin::{AddMockedRegistry, CommandTempCwd},
-        known_failure::{KnownFailure, KnownResult},
-    };
+    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
     use pipe_trait::Pipe;
-    use std::{fs, path::Path};
+    use std::{fmt::Write as _, fs, path::Path};
 
-    fn build_deps_ran(_workspace: &Path) -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "lifecycle scripts only run in the frozen-lockfile path; \
-             the non-frozen path does not write a lockfile so these \
-             tests cannot exercise --frozen-lockfile yet. \
-             Additionally, bin linking (#330) is not implemented.",
-        ))
+    /// Set `strictDepBuilds` in the workspace's `pnpm-workspace.yaml`.
+    /// Tests that intentionally leave some builds ignored and then
+    /// inspect the filesystem set it to `false` so the install completes
+    /// instead of failing with `ERR_PNPM_IGNORED_BUILDS` (the default).
+    /// Must be called before [`allow_builds`] so its block survives the
+    /// `allowBuilds:` truncation on re-calls.
+    fn set_strict_dep_builds(workspace: &Path, strict: bool) {
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let mut yaml = fs::read_to_string(&yaml_path).unwrap_or_default();
+        if !yaml.is_empty() && !yaml.ends_with('\n') {
+            yaml.push('\n');
+        }
+        writeln!(yaml, "strictDepBuilds: {strict}").expect("format strictDepBuilds");
+        fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    }
+
+    /// Set an `allowBuilds:` block in the workspace's
+    /// `pnpm-workspace.yaml`, replacing any block a previous phase
+    /// wrote. pnpm v11 (and pacquet) read build approval from
+    /// `pnpm-workspace.yaml`, not from `package.json#pnpm` — this
+    /// mirrors upstream tests passing `allowBuilds` through
+    /// `testDefaults`.
+    fn allow_builds(workspace: &Path, entries: &[(&str, bool)]) {
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let mut yaml = fs::read_to_string(&yaml_path).unwrap_or_default();
+        if let Some(idx) = yaml.find("allowBuilds:") {
+            yaml.truncate(idx);
+        }
+        if !yaml.is_empty() && !yaml.ends_with('\n') {
+            yaml.push('\n');
+        }
+        yaml.push_str("allowBuilds:\n");
+        for (spec, value) in entries {
+            writeln!(yaml, "  '{spec}': {value}").expect("format allowBuilds entry");
+        }
+        fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
     }
 
     // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L26>
@@ -33,11 +58,10 @@ mod known_failures {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         let pkg_dir = workspace.join(
             "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
@@ -72,18 +96,13 @@ mod known_failures {
             "dependencies": {
                 "@pnpm.e2e/install-script-example": "1.0.0",
             },
-            "pnpm": {
-                "allowBuilds": {
-                    "@pnpm.e2e/install-script-example": true,
-                },
-            },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
+        allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         let pkg_dir = workspace.join(
             "node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0\
@@ -111,11 +130,13 @@ mod known_failures {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        allow_builds(
+            &workspace,
+            &[("@pnpm.e2e/with-postinstall-a", true), ("@pnpm.e2e/with-postinstall-b", true)],
+        );
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         let virtual_store = workspace.join("node_modules/.pnpm");
         let output_a: serde_json::Value = virtual_store
@@ -137,8 +158,13 @@ mod known_failures {
             .pipe_ref(|s| serde_json::from_str(s))
             .expect("parse output B");
 
-        let ts_b = output_b[0].as_u64().expect("B timestamp");
-        let ts_a = output_a[0].as_u64().expect("A timestamp");
+        // `json-append` stores the `Number(new Date())` timestamp as a
+        // JSON string; mirror upstream's `+value` coercion.
+        let timestamp = |value: &serde_json::Value| -> u64 {
+            value[0].as_str().expect("timestamp string").parse().expect("parse timestamp")
+        };
+        let ts_b = timestamp(&output_b);
+        let ts_a = timestamp(&output_a);
         eprintln!("Checking B ran before A (B={ts_b}, A={ts_a})...");
         assert!(ts_b < ts_a, "dependency B should run before dependent A");
 
@@ -160,11 +186,10 @@ mod known_failures {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        allow_builds(&workspace, &[("@pnpm.e2e/generated-bins", true)]);
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         let node_modules = workspace.join("node_modules");
 
@@ -187,8 +212,6 @@ mod known_failures {
             .with_args(["install", "--frozen-lockfile"])
             .assert()
             .success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         eprintln!("Checking generated bins are executable after frozen reinstall...");
         #[cfg(unix)]
@@ -218,11 +241,13 @@ mod known_failures {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        // No `allowBuilds`: scripts are intentionally ignored. Disable
+        // strict mode so the install completes and the bins can still be
+        // inspected (strict would fail with `ERR_PNPM_IGNORED_BUILDS`).
+        set_strict_dep_builds(&workspace, false);
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         let node_modules = workspace.join("node_modules");
 
@@ -262,18 +287,13 @@ mod known_failures {
                 "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
                 "@pnpm.e2e/install-script-example": "1.0.0",
             },
-            "pnpm": {
-                "allowBuilds": {
-                    "@pnpm.e2e/install-script-example": true,
-                },
-            },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
+        allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         let virtual_store = workspace.join("node_modules/.pnpm");
 
@@ -309,18 +329,13 @@ mod known_failures {
                 "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
                 "@pnpm.e2e/install-script-example": "1.0.0",
             },
-            "pnpm": {
-                "allowBuilds": {
-                    "@pnpm.e2e/install-script-example": true,
-                },
-            },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
+        allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         let virtual_store = workspace.join("node_modules/.pnpm");
         let node_modules = workspace.join("node_modules");
@@ -348,19 +363,13 @@ mod known_failures {
             "Re-running install with explicit denial of pre-and-postinstall-scripts-example...",
         );
         fs::remove_dir_all(&node_modules).expect("remove node_modules");
-        let updated_package_json = serde_json::json!({
-            "dependencies": {
-                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
-                "@pnpm.e2e/install-script-example": "1.0.0",
-            },
-            "pnpm": {
-                "allowBuilds": {
-                    "@pnpm.e2e/install-script-example": true,
-                    "@pnpm.e2e/pre-and-postinstall-scripts-example": false,
-                },
-            },
-        });
-        fs::write(&manifest_path, updated_package_json.to_string()).expect("update package.json");
+        allow_builds(
+            &workspace,
+            &[
+                ("@pnpm.e2e/install-script-example", true),
+                ("@pnpm.e2e/pre-and-postinstall-scripts-example", false),
+            ],
+        );
 
         let CommandTempCwd { pacquet: frozen_pacquet, root: frozen_root, .. } =
             CommandTempCwd::init().add_mocked_registry();
@@ -395,18 +404,13 @@ mod known_failures {
                 "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
                 "@pnpm.e2e/install-script-example": "1.0.0",
             },
-            "pnpm": {
-                "allowBuilds": {
-                    "@pnpm.e2e/install-script-example@1.0.0": true,
-                },
-            },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
+        allow_builds(&workspace, &[("@pnpm.e2e/install-script-example@1.0.0", true)]);
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         let virtual_store = workspace.join("node_modules/.pnpm");
 
@@ -444,11 +448,10 @@ mod known_failures {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        allow_builds(&workspace, &[("@pnpm.e2e/postinstall-requires-is-positive", true)]);
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         eprintln!("Deleting node_modules for frozen reinstall...");
         let node_modules = workspace.join("node_modules");
@@ -480,18 +483,13 @@ mod known_failures {
                 "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
                 "@pnpm.e2e/install-script-example": "1.0.0",
             },
-            "pnpm": {
-                "allowBuilds": {
-                    "@pnpm.e2e/install-script-example": true,
-                },
-            },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
+        allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         let virtual_store = workspace.join("node_modules/.pnpm");
 
@@ -511,19 +509,13 @@ mod known_failures {
         assert!(!scripts_pkg.join("generated-by-postinstall.js").exists());
 
         eprintln!("Updating allowBuilds and running frozen reinstall...");
-        let updated_manifest = serde_json::json!({
-            "dependencies": {
-                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
-                "@pnpm.e2e/install-script-example": "1.0.0",
-            },
-            "pnpm": {
-                "allowBuilds": {
-                    "@pnpm.e2e/install-script-example": true,
-                    "@pnpm.e2e/pre-and-postinstall-scripts-example": true,
-                },
-            },
-        });
-        fs::write(&manifest_path, updated_manifest.to_string()).expect("write package.json");
+        allow_builds(
+            &workspace,
+            &[
+                ("@pnpm.e2e/install-script-example", true),
+                ("@pnpm.e2e/pre-and-postinstall-scripts-example", true),
+            ],
+        );
 
         let CommandTempCwd { pacquet: frozen_pacquet, root: frozen_root, .. } =
             CommandTempCwd::init().add_mocked_registry();
@@ -532,8 +524,6 @@ mod known_failures {
             .with_args(["install", "--frozen-lockfile"])
             .assert()
             .success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         eprintln!("Checking all scripts ran after allowBuilds change...");
         assert!(install_pkg.join("generated-by-install.js").exists());
@@ -558,11 +548,10 @@ mod known_failures {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
-
-        allow_known_failure!(build_deps_ran(&workspace));
 
         let pkg_dir = workspace.join(
             "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
@@ -575,12 +564,188 @@ mod known_failures {
 
         drop((root, mock_instance));
     }
+
+    /// Regression test for the user-reported gap: `pacquet add <pkg>`
+    /// takes the fresh-lockfile path, which never ran the build phase —
+    /// so a blocked dependency build script was silently ignored, and
+    /// the install exited 0, unlike `pnpm add`. Under the default
+    /// `strictDepBuilds`, the install now fails with
+    /// `ERR_PNPM_IGNORED_BUILDS` after adding the dependency.
+    #[test]
+    fn add_fails_under_strict_dep_builds_when_a_build_is_ignored() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), "{}\n").expect("write package.json");
+
+        // No `allowBuilds` and `strictDepBuilds` defaults to true, so the
+        // blocked build must fail the install with a non-zero exit, like
+        // `pnpm add`.
+        let output = pacquet
+            .with_args(["add", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"])
+            .output()
+            .expect("run pacquet add");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("pacquet add stdout:\n{stdout}\nstderr:\n{stderr}");
+        assert!(!output.status.success(), "strict add with an ignored build must exit non-zero");
+        let combined = format!("{stdout}{stderr}");
+        assert!(
+            combined.contains("ERR_PNPM_IGNORED_BUILDS")
+                && combined.contains("Ignored build scripts")
+                && combined.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
+            "expected ERR_PNPM_IGNORED_BUILDS naming the package; got:\n{combined}",
+        );
+
+        // The dependency was still added and materialized; only its
+        // blocked scripts did not run. Mirrors pnpm, which writes the
+        // artifacts before failing.
+        let pkg_dir = workspace.join(
+            "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+             /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+        );
+        assert!(pkg_dir.join("package.json").exists(), "dependency should be materialized");
+        assert!(!pkg_dir.join("generated-by-preinstall.js").exists());
+        assert!(!pkg_dir.join("generated-by-postinstall.js").exists());
+
+        drop((root, mock_instance));
+    }
+
+    /// With `strictDepBuilds: false`, an ignored build is a non-fatal
+    /// warning printed to stdout and the install exits 0 — mirroring
+    /// pnpm's `reportIgnoredBuilds` box.
+    #[test]
+    fn add_warns_without_strict_dep_builds_when_a_build_is_ignored() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), "{}\n").expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
+
+        let output = pacquet
+            .with_args(["add", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"])
+            .output()
+            .expect("run pacquet add");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        eprintln!("pacquet add stdout:\n{stdout}");
+        assert!(output.status.success(), "non-strict add must exit zero");
+        assert!(
+            stdout.contains("Ignored build scripts")
+                && stdout.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
+            "expected an ignored-build-scripts warning naming the package; got:\n{stdout}",
+        );
+
+        let pkg_dir = workspace.join(
+            "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+             /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+        );
+        assert!(!pkg_dir.join("generated-by-preinstall.js").exists());
+
+        drop((root, mock_instance));
+    }
+
+    /// `strictDepBuilds` must stay enforced across reruns: after a strict
+    /// install fails with `ERR_PNPM_IGNORED_BUILDS`, a warm rerun must
+    /// fail again rather than short-circuit to exit 0 via an up-to-date
+    /// fast path — otherwise rerunning install would bypass the gate.
+    #[test]
+    fn strict_install_keeps_failing_on_warm_rerun() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        // First install (strict default, no `allowBuilds`): fails, but
+        // still materializes the dep and records the ignored build in
+        // `.modules.yaml`.
+        let first = pacquet.with_arg("install").output().expect("run pacquet install");
+        assert!(!first.status.success(), "first strict install with an ignored build must fail");
+
+        // Warm rerun: the lockfile and `.modules.yaml` are unchanged, so
+        // the up-to-date fast path would normally exit 0 — but strict mode
+        // must keep failing until the build is approved.
+        let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let rerun_out = rerun
+            .with_current_dir(&workspace)
+            .with_arg("install")
+            .output()
+            .expect("run pacquet install again");
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&rerun_out.stdout),
+            String::from_utf8_lossy(&rerun_out.stderr),
+        );
+        eprintln!("rerun output:\n{combined}");
+        assert!(
+            !rerun_out.status.success(),
+            "a warm rerun must not bypass strictDepBuilds; got:\n{combined}",
+        );
+        assert!(
+            combined.contains("ERR_PNPM_IGNORED_BUILDS"),
+            "rerun should still report ERR_PNPM_IGNORED_BUILDS; got:\n{combined}",
+        );
+
+        drop((root, mock_instance, rerun_root));
+    }
+
+    /// A corrupt / unreadable `.modules.yaml` must not let a strict rerun
+    /// short-circuit to exit 0: the up-to-date fast paths can't prove the
+    /// absence of recorded ignored builds from an unparsable state file,
+    /// so they conservatively fall through to the full install, which
+    /// fails again with `ERR_PNPM_IGNORED_BUILDS`.
+    #[test]
+    fn strict_install_keeps_failing_with_unreadable_modules_yaml() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        let first = pacquet.with_arg("install").output().expect("run pacquet install");
+        assert!(!first.status.success(), "first strict install with an ignored build must fail");
+
+        // Corrupt the recorded state so it can't be parsed.
+        fs::write(workspace.join("node_modules/.modules.yaml"), "}{ not: valid: yaml")
+            .expect("corrupt .modules.yaml");
+
+        let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let rerun_out = rerun
+            .with_current_dir(&workspace)
+            .with_arg("install")
+            .output()
+            .expect("run pacquet install again");
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&rerun_out.stdout),
+            String::from_utf8_lossy(&rerun_out.stderr),
+        );
+        eprintln!("rerun output:\n{combined}");
+        assert!(
+            !rerun_out.status.success(),
+            "a strict rerun with a corrupt .modules.yaml must not exit 0; got:\n{combined}",
+        );
+
+        drop((root, mock_instance, rerun_root));
+    }
 }
 
 /// Project (workspace/root) lifecycle scripts run during
 /// `pacquet install` — preinstall, install, postinstall, preprepare,
 /// prepare, postprepare — as opposed to the dependency build scripts
-/// the `known_failures` module above exercises.
+/// the `dependency_build_scripts` module above exercises.
 ///
 /// Ported from
 /// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/test/install/lifecycleScripts.ts>.

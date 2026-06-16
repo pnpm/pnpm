@@ -847,6 +847,14 @@ impl ReporterState {
         if log.package_names.is_empty() {
             return;
         }
+        // Suppress the warning box under `strictDepBuilds` — the install
+        // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
+        // only duplicate the error. Mirrors pnpm's `reportIgnoredBuilds`,
+        // gated on `!strictDepBuilds`. The structured event still carries
+        // the names for NDJSON consumers.
+        if log.strict_dep_builds {
+            return;
+        }
         let list = log.package_names.join(", ");
         self.push_block(format!(
             "Ignored build scripts: {list}.\nRun \"pnpm approve-builds\" to pick which dependencies should be allowed to run scripts.",

@@ -86,6 +86,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         config_dependencies: None,
         allow_builds: Default::default(),
         dangerously_allow_all_builds: false,
+        strict_dep_builds: true,
         scripts_prepend_node_path: Default::default(),
         enable_pre_post_scripts: false,
         script_shell: None,

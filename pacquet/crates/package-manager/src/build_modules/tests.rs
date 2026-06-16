@@ -1364,6 +1364,7 @@ fn ignored_scripts_event_carries_returned_names() {
     RecordingReporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
         level: pacquet_reporter::LogLevel::Debug,
         package_names: names.clone(),
+        strict_dep_builds: false,
     }));
 
     let captured = EVENTS.lock().expect("lock").clone();

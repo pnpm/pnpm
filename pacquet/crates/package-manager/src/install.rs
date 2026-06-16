@@ -251,6 +251,24 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
 
+    /// pnpm's `ERR_PNPM_IGNORED_BUILDS`: with `strictDepBuilds` on (the
+    /// default), an install that blocked any dependency build script
+    /// fails so the user explicitly approves the builds. The package
+    /// list is the sorted set of `name@version` keys whose scripts were
+    /// ignored; the `help` hint matches pnpm's.
+    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/src/install/index.ts#L2193>
+    #[display("Ignored build scripts: {}", package_names.join(", "))]
+    #[diagnostic(
+        code(ERR_PNPM_IGNORED_BUILDS),
+        help(
+            r#"Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts."#
+        )
+    )]
+    IgnoredBuilds {
+        #[error(not(source))]
+        package_names: Vec<String>,
+    },
+
     /// A custom resolver hook failed (loading the pnpmfile's resolvers
     /// or running `shouldRefreshResolution`) while deciding whether the
     /// frozen-path optimization may run. Mirrors pnpm, where a throwing
@@ -589,13 +607,45 @@ where
                 catalogs: &catalogs,
             }) == OptimisticRepeatInstallDecision::UpToDate;
         if optimistic_decision {
-            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Info,
-                message: "Already up to date".to_string(),
-                prefix: prefix.clone(),
-            }));
-            Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
-            return Ok(());
+            // Keep `strictDepBuilds` enforced across reruns: an install
+            // that already recorded unapproved ignored builds must keep
+            // failing until they are approved, not exit 0 via the fast
+            // path. An `allowBuilds` change that newly permits one is
+            // already caught by `settings_match` (the policy is part of
+            // the workspace state), which reports drift and skips this
+            // branch, so the full install runs and rebuilds it.
+            //
+            // A corrupt / unreadable `.modules.yaml` can't prove there are
+            // no recorded ignored builds, so under strict mode fall through
+            // to the full install rather than short-circuiting on a
+            // swallowed read error.
+            let fast_path_safe = if config.strict_dep_builds {
+                match read_modules_manifest::<Host>(&config.modules_dir) {
+                    Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config)
+                    {
+                        Ok(Some(package_names)) => {
+                            return Err(InstallError::IgnoredBuilds { package_names });
+                        }
+                        Ok(None) => true,
+                        // Unreadable state or a malformed `allowBuilds`:
+                        // can't trust the fast path, run the full install.
+                        Err(_) => false,
+                    },
+                    Ok(None) => true,
+                    Err(_) => false,
+                }
+            } else {
+                true
+            };
+            if fast_path_safe {
+                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                    level: LogLevel::Info,
+                    message: "Already up to date".to_string(),
+                    prefix: prefix.clone(),
+                }));
+                Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+                return Ok(());
+            }
         }
 
         // Past the repeat-install fast path every install flavor needs
@@ -947,11 +997,23 @@ where
         // spuriously, then exit. Mirrors upstream's `validateModules` +
         // `allProjectsAreUpToDate` fast path at
         // <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L913-L985>.
+        // Parse `.modules.yaml` once and share it across the consistency,
+        // newly-allowed, and unapproved-ignored checks below. Only the
+        // frozen path reads it, so the fresh-lockfile/`add` path skips the
+        // file read + YAML parse entirely.
+        let modules_manifest = take_frozen_path
+            .then(|| read_modules_manifest::<Host>(&config.modules_dir).ok().flatten())
+            .flatten();
         if take_frozen_path
             && let Some(wanted_lockfile) = lockfile
             && let Some(current) = current_lockfile.as_ref()
             && wanted_lockfile == current
-            && is_modules_yaml_consistent(&config.modules_dir, config, node_linker, included)
+            && let Some(modules) = modules_manifest.as_ref()
+            && modules_consistent_with(modules, config, node_linker, included)
+            // An `allowBuilds` change that now permits a previously-ignored
+            // build must rebuild it, even though the lockfile and layout are
+            // unchanged. Mirrors pnpm's `runUnignoredDependencyBuilds`.
+            && !has_newly_allowed_ignored_builds(modules, config)
         {
             // Nothing to materialize means no fetch to overlap; verify
             // eagerly before the up-to-date early return.
@@ -965,6 +1027,22 @@ where
                     &config.cache_dir,
                 )
                 .await?;
+            }
+            // Keep `strictDepBuilds` enforced on the up-to-date path: a
+            // rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not
+            // exit 0 just because the lockfile and layout are unchanged.
+            // Mirrors pnpm, which seeds `ignoredBuilds` from `.modules.yaml`
+            // and still throws from `handleIgnoredBuilds`. Checked after
+            // verification (a tampered lockfile fails first) and before the
+            // "up to date" log so the command doesn't claim success.
+            // `Err` (malformed `allowBuilds`) is unreachable here — the
+            // `has_newly_allowed_ignored_builds` guard above returns `true`
+            // on the same `from_config` error and skips this block — so a
+            // bad policy is surfaced by the full install instead.
+            if config.strict_dep_builds
+                && let Ok(Some(package_names)) = unapproved_recorded_ignored_builds(modules, config)
+            {
+                return Err(InstallError::IgnoredBuilds { package_names });
             }
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,
@@ -997,6 +1075,11 @@ where
             return Ok(());
         }
 
+        // Sorted `name@version` keys whose builds were blocked; assigned
+        // by whichever path runs and consumed by the `strictDepBuilds`
+        // gate at the tail. Kept out of the tuple below to avoid a
+        // `clippy::type_complexity` annotation.
+        let ignored_builds: Vec<String>;
         let (hoisted_dependencies, hoisted_locations, frozen_skipped, fresh_lockfile): (
             HoistedDependencies,
             BTreeMap<String, Vec<String>>,
@@ -1041,6 +1124,7 @@ where
             // is the same gate, just run alongside the fetch.
             .map_err(map_frozen_lockfile_error)?;
 
+            ignored_builds = frozen_result.ignored_builds;
             (
                 frozen_result.hoisted_dependencies,
                 frozen_result.hoisted_locations,
@@ -1182,6 +1266,7 @@ where
                 );
             }
 
+            ignored_builds = fresh_result.ignored_builds;
             (
                 fresh_result.hoisted_dependencies,
                 fresh_result.hoisted_locations,
@@ -1231,6 +1316,7 @@ where
                 hoisted_dependencies,
                 hoisted_locations,
                 &frozen_skipped,
+                &ignored_builds,
             ),
         )
         .map_err(InstallError::WriteModules)?;
@@ -1344,6 +1430,16 @@ where
         // come after `importing_done`, matching pnpm's ordering at
         // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1663>.
         Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+
+        // Mirror pnpm's `handleIgnoredBuilds`: when `strictDepBuilds` is on
+        // (the default), an install that blocked any dependency build
+        // script fails with `ERR_PNPM_IGNORED_BUILDS` *after* the artifacts
+        // are written, so the package is still added/installed and the user
+        // approves the builds and reinstalls.
+        // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/commands/src/handleIgnoredBuilds.ts#L22>
+        if config.strict_dep_builds && !ignored_builds.is_empty() {
+            return Err(InstallError::IgnoredBuilds { package_names: ignored_builds });
+        }
 
         Ok(())
     }
@@ -1581,29 +1677,27 @@ fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
     }
 }
 
-/// Check whether `<modules_dir>/.modules.yaml` is present and its
-/// recorded layout settings (`nodeLinker`, hoist patterns, store /
-/// virtual-store paths, `virtualStoreDirMaxLength`, included dep
-/// groups, layout version) match what the current install would
-/// produce. Returns `false` when the file is missing, unreadable, or
-/// records a different layout — both cases that disqualify the no-op
+/// Whether a parsed `.modules.yaml` records the same layout settings
+/// (`nodeLinker`, hoist patterns, store / virtual-store paths,
+/// `virtualStoreDirMaxLength`, included dep groups, layout version) the
+/// current install would produce. A mismatch disqualifies the no-op
 /// short-circuit.
+///
+/// Takes the already-parsed [`Modules`] so the up-to-date fast path can
+/// share one parse across the consistency, newly-allowed, and
+/// unapproved-ignored checks.
 ///
 /// Mirrors the settings checks in upstream's
 /// [`validateModules`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts)
 /// minus the prune side effects: a settings mismatch in pnpm forces a
-/// rewrite of `node_modules`, but pacquet's caller falls through to
-/// the regular install path, which rebuilds the layout from scratch
-/// anyway.
-fn is_modules_yaml_consistent(
-    modules_dir: &Path,
+/// rewrite of `node_modules`, but pacquet's caller falls through to the
+/// regular install path, which rebuilds the layout from scratch anyway.
+fn modules_consistent_with(
+    modules: &Modules,
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
 ) -> bool {
-    let Some(modules) = read_modules_manifest::<Host>(modules_dir).ok().flatten() else {
-        return false;
-    };
     modules.layout_version == Some(LayoutVersion)
         && modules.node_linker == Some(map_node_linker(node_linker))
         && modules.included == included
@@ -1615,13 +1709,70 @@ fn is_modules_yaml_consistent(
             == config.effective_virtual_store_dir().to_string_lossy().as_ref()
 }
 
+/// Whether `.modules.yaml` records any ignored build that the current
+/// `allowBuilds` policy now allows.
+///
+/// When `true`, the frozen no-op fast path must not short-circuit: the
+/// install has to rebuild the newly-allowed package. Ports pnpm's
+/// [`runUnignoredDependencyBuilds`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/src/install/index.ts#L1153),
+/// which re-runs the builds an `allowBuilds` change un-ignored even on
+/// an otherwise up-to-date install. pacquet achieves the same observable
+/// result by letting the full frozen install run, whose `BuildModules`
+/// re-evaluates the policy and rebuilds the now-allowed package (already
+/// built deps are skipped by the side-effects-cache `is_built` gate).
+fn has_newly_allowed_ignored_builds(modules: &Modules, config: &Config) -> bool {
+    let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
+        return false;
+    };
+    // A malformed `allowBuilds` can't be evaluated here; let the full
+    // install run so it surfaces the real error instead of silently
+    // staying on the fast path.
+    let Ok(policy) = crate::AllowBuildPolicy::from_config(config) else {
+        return true;
+    };
+    ignored.iter().any(|dep_path| policy.check(dep_path.as_str()) == Some(true))
+}
+
+/// The sorted `name@version` keys `.modules.yaml` recorded as ignored
+/// builds that the current `allowBuilds` policy still leaves unapproved
+/// (`None`), or `None` when there are none.
+///
+/// The up-to-date fast paths use this to keep `strictDepBuilds`
+/// enforced across reruns: pnpm seeds `ignoredBuilds` from `.modules.yaml`
+/// on the up-to-date path and `handleIgnoredBuilds` still throws, so a
+/// rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not exit 0.
+/// Packages a later policy explicitly denies (`Some(false)`) are excluded
+/// — those are silently skipped, never reported — matching a full
+/// install's `BuildModules`. Newly-allowed packages are handled upstream
+/// by [`has_newly_allowed_ignored_builds`], which skips the fast path.
+///
+/// A malformed `allowBuilds` spec surfaces as `Err` (e.g.
+/// `ERR_PNPM_INVALID_VERSION_UNION`) rather than being swallowed: the
+/// fast-path callers fall through to the full install on `Err`, which
+/// re-evaluates the policy and reports the real error.
+fn unapproved_recorded_ignored_builds(
+    modules: &Modules,
+    config: &Config,
+) -> Result<Option<Vec<String>>, pacquet_config::version_policy::VersionPolicyError> {
+    let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
+        return Ok(None);
+    };
+    let policy = crate::AllowBuildPolicy::from_config(config)?;
+    let mut names: Vec<String> = ignored
+        .iter()
+        .filter(|dep_path| policy.check(dep_path.as_str()).is_none())
+        .map(|dep_path| dep_path.as_str().to_string())
+        .collect();
+    names.sort();
+    Ok((!names.is_empty()).then_some(names))
+}
+
 /// Assemble the [`Modules`] payload for [`write_modules_manifest`].
 ///
 /// Mirrors upstream's literal at
 /// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1608-L1630>.
 /// Fields pacquet does not populate yet (`pendingBuilds`,
-/// `injectedDeps`, `ignoredBuilds`, `allowBuilds`) default to empty
-/// / unset.
+/// `injectedDeps`, `allowBuilds`) default to empty / unset.
 ///
 /// `hoistedDependencies` is produced by the isolated-linker hoist
 /// pass in [`crate::InstallFrozenLockfile::run`] and threaded in
@@ -1660,8 +1811,16 @@ fn build_modules_manifest(
     hoisted_dependencies: HoistedDependencies,
     hoisted_locations: BTreeMap<String, Vec<String>>,
     skipped: &crate::SkippedSnapshots,
+    ignored_builds: &[String],
 ) -> Modules {
     Modules {
+        // The `name@version` keys whose build scripts were blocked, so a
+        // later install can re-run any that an `allowBuilds` change now
+        // allows (see [`has_newly_allowed_ignored_builds`]). `None` when
+        // empty, matching pnpm's omit-when-empty encoding.
+        ignored_builds: (!ignored_builds.is_empty()).then(|| {
+            ignored_builds.iter().cloned().map(pacquet_modules_yaml::DepPath::from).collect()
+        }),
         hoist_pattern: config.hoist_pattern.clone(),
         hoisted_dependencies,
         // `Some(empty)` would round-trip on disk as
@@ -1837,6 +1996,26 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
     } else {
         LazyLockfile::disabled()
     };
+    // Under `strictDepBuilds`, a recorded-and-still-unapproved ignored
+    // build must keep the install failing — never let the pre-runtime
+    // fast path report up-to-date and exit 0. Returning `None` falls
+    // through to the full `Install::run`, whose optimistic branch raises
+    // `ERR_PNPM_IGNORED_BUILDS`. A corrupt / unreadable `.modules.yaml`
+    // is treated conservatively the same way (its `Err` can't prove the
+    // absence of recorded ignored builds).
+    if config.strict_dep_builds {
+        match read_modules_manifest::<Host>(&config.modules_dir) {
+            Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
+                Ok(Some(_)) => return None,
+                Ok(None) => {}
+                // Unreadable state or a malformed `allowBuilds`: force the
+                // full install rather than reporting up-to-date.
+                Err(_) => return None,
+            },
+            Ok(None) => {}
+            Err(_) => return None,
+        }
+    }
     (check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: &workspace_root,
         config,

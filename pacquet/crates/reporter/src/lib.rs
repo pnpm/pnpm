@@ -598,6 +598,15 @@ pub enum LifecycleStdio {
 pub struct IgnoredScriptsLog {
     pub level: LogLevel,
     pub package_names: Vec<String>,
+    /// `strictDepBuilds` at emit time. Carried in-memory only —
+    /// `#[serde(skip)]` keeps it out of the `pnpm:ignored-scripts` NDJSON
+    /// wire shape — so the default reporter can suppress the warning box
+    /// under strict mode (where the install fails with
+    /// `ERR_PNPM_IGNORED_BUILDS` instead) without relying on a stale
+    /// global flag. The structured event itself is always emitted with
+    /// the package names, matching pnpm's `ignoredScriptsLogger.debug`.
+    #[serde(skip)]
+    pub strict_dep_builds: bool,
 }
 
 /// `pnpm:skipped-optional-dependency` payload.
