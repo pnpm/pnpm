@@ -345,6 +345,7 @@ test('install --dry-run reports changes in a workspace without writing', async (
     dependencies: { 'is-positive': '1.0.0', 'is-negative': '1.0.0' },
   }))
   const lockfileBefore = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  const projectManifestBefore = fs.readFileSync('project-1/package.json', 'utf8')
 
   const { allProjects, selectedProjectsGraph } = await selectWorkspace()
   const output = await install.handler({
@@ -362,5 +363,7 @@ test('install --dry-run reports changes in a workspace without writing', async (
   // The recursive path must surface the change rather than mask it as up to date.
   expect(output).not.toContain('up to date')
   expect(output).toContain('is-negative')
+  // Nothing is written: not the lockfile, nor the project manifest.
   expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfileBefore)
+  expect(fs.readFileSync('project-1/package.json', 'utf8')).toBe(projectManifestBefore)
 })

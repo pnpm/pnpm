@@ -409,7 +409,7 @@ export async function installDeps (
       targetDependenciesField: getSaveType(opts),
     }
     const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
-    if (opts.save !== false) {
+    if (opts.save !== false && !opts.dryRun) {
       // Only pick entries when we'll actually persist. Otherwise the
       // info log would claim we added entries the workspace manifest
       // never saw, and the next install would re-prompt or fail
@@ -448,7 +448,7 @@ export async function installDeps (
   // from this install" — both package.json and the workspace manifest.
   // Skip the pick so the info log doesn't claim entries were added that
   // were never written; the next install will resurface them.
-  if (opts.save !== false) {
+  if (opts.save !== false && !opts.dryRun) {
     const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
     if (opts.update === true) {
       await Promise.all([

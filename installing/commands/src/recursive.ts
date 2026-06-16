@@ -66,6 +66,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'dedupePeerDependents'
 | 'dedupePeers'
 | 'depth'
+| 'dryRun'
 | 'globalPnpmfile'
 | 'hoistPattern'
 | 'hoistingLimits'
@@ -341,7 +342,7 @@ export async function recursive (
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
     })
-    if (opts.save !== false) {
+    if (opts.save !== false && !opts.dryRun) {
       // Only pick entries when we'll actually persist. Otherwise the
       // info log would claim entries were added that the workspace
       // manifest never saw, and the next install would re-prompt or
