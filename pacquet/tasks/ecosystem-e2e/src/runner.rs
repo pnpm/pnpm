@@ -186,7 +186,7 @@ fn run_build_script(project_dir: &Path, script_name: &str, log_path: &Path) -> R
 }
 
 /// `PATH` with the project's `node_modules/.bin` prepended, so locally
-/// installed binaries (next, vite, …) resolve ahead of anything global.
+/// installed binaries (next, vite, etc.) resolve ahead of anything global.
 fn bin_path(project_dir: &Path) -> Result<OsString, String> {
     let bin_dir = project_dir.join("node_modules").join(".bin");
     match std::env::var_os("PATH") {
@@ -227,7 +227,7 @@ fn run_serve(project_dir: &Path, serve: &Serve, log_path: &Path) -> Result<(), S
         .arg(format!("exec {command}"))
         .env("PATH", bin_path(project_dir)?)
         // Servers that take their port via env rather than a flag (nitro,
-        // react-router-serve, …) honor these; for the rest the explicit
+        // react-router-serve, etc.) honor these; for the rest the explicit
         // `{port}` flag wins and PORT is harmless.
         .env("PORT", port.to_string())
         .env("HOST", "127.0.0.1")
