@@ -190,6 +190,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   const wantedLockfileName = await getWantedLockfileName({
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    cwd: workspaceDir ?? lockfileDir ?? rootProjectManifestDir,
   })
   const { conflictedDir: conflictedLockfileDir, anyModified: lockfilesModified } = scanWantedLockfiles(lockfileDirs, workspaceState.lastValidatedTimestamp, wantedLockfileName)
   if (conflictedLockfileDir != null) {

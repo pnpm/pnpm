@@ -716,6 +716,45 @@ describe('checkDepsStatus - lockfile modification', () => {
       await fs.rm(workspaceDir, { force: true, recursive: true })
     }
   })
+
+  it('passes the workspace dir as cwd to getWantedLockfileName so git branch is resolved in the correct repo', async () => {
+    jest.mocked(lockfileFs.getWantedLockfileName).mockResolvedValueOnce('pnpm-lock.main.yaml')
+    jest.mocked(loadWorkspaceState).mockReturnValue({
+      lastValidatedTimestamp: Date.now() - 10_000,
+      pnpmfiles: [],
+      settings: { excludeLinksFromLockfile: false, linkWorkspacePackages: true, preferWorkspacePackages: true },
+      projects: {},
+      filteredInstall: false,
+    })
+    jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+    jest.mocked(fsUtils.safeStat).mockResolvedValue(undefined)
+    jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue(undefined)
+
+    const opts: CheckDepsStatusOptions = {
+      allProjects: [{
+        rootDir: '/workspace/pkg' as ProjectRootDir,
+        rootDirRealPath: '/workspace/pkg' as ProjectRootDirRealPath,
+        manifest: { name: 'pkg', version: '1.0.0' },
+        writeProjectManifest: async () => {},
+      }],
+      workspaceDir: '/workspace',
+      sharedWorkspaceLockfile: true,
+      useGitBranchLockfile: true,
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/workspace',
+      pnpmfile: [],
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: true,
+      preferWorkspacePackages: true,
+    }
+    await checkDepsStatus(opts)
+
+    expect(jest.mocked(lockfileFs.getWantedLockfileName)).toHaveBeenCalledWith({
+      useGitBranchLockfile: true,
+      mergeGitBranchLockfiles: undefined,
+      cwd: '/workspace',
+    })
+  })
 })
 
 async function writeConflictedLockfile (lockfileDir: string): Promise<void> {

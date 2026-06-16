@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { safeExeca as execa } from 'execa'
 
 // git checks logic is from https://github.com/sindresorhus/np/blob/master/source/git-tasks.js
@@ -16,6 +19,8 @@ export async function isGitRepo (opts: GitCwdOptions = {}): Promise<boolean> {
 }
 
 export async function getCurrentBranch (opts: GitCwdOptions = {}): Promise<string | null> {
+  const branch = readBranchFromHeadFile(opts.cwd)
+  if (branch !== undefined) return branch
   try {
     const { stdout } = await execa('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: opts.cwd })
     return stdout as string
@@ -49,4 +54,42 @@ export async function isRemoteHistoryClean (opts: GitCwdOptions = {}): Promise<b
     return false
   }
   return true
+}
+
+/**
+ * Reads the current branch name from `.git/HEAD` without spawning a git subprocess.
+ *
+ * Returns:
+ * - `string` — the branch name extracted from `ref: refs/heads/<name>`
+ * - `null` — HEAD is detached (a raw commit SHA, not a symbolic ref)
+ * - `undefined` — `.git/HEAD` could not be read (not a git repo, worktree
+ *   layout not recognised, permissions error, etc.); caller should fall
+ *   back to `git symbolic-ref`.
+ */
+function readBranchFromHeadFile (cwd?: string): string | null | undefined {
+  const baseDir = cwd ?? process.cwd()
+  const dotGitPath = path.join(baseDir, '.git')
+  let gitDir: string
+  try {
+    const stat = fs.statSync(dotGitPath)
+    if (stat.isDirectory()) {
+      gitDir = dotGitPath
+    } else {
+      // `.git` is a file — worktree or submodule. It contains `gitdir: <path>`.
+      const content = fs.readFileSync(dotGitPath, 'utf8').trim()
+      const match = content.match(/^gitdir:\s*(.+)/)
+      if (!match) return undefined
+      gitDir = path.isAbsolute(match[1]!) ? match[1]! : path.resolve(baseDir, match[1]!)
+    }
+  } catch {
+    return undefined
+  }
+  try {
+    const head = fs.readFileSync(path.join(gitDir, 'HEAD'), 'utf8').trim()
+    const match = head.match(/^ref:\s*refs\/heads\/(.+)/)
+    if (match) return match[1]!
+    return null
+  } catch {
+    return undefined
+  }
 }
