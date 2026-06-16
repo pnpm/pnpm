@@ -82,6 +82,9 @@
       "path": "../../../testing/registry-mock"
     },
     {
+      "path": "../../../workspace/project-manifest-reader"
+    },
+    {
       "path": "../../../workspace/projects-filter"
     },
     {
