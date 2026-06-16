@@ -281,6 +281,7 @@ export async function pickPackage (
         try {
           const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, metaCachedInStore)
           if (pickedPackage) {
+            ctx.metaCache.set(cacheKey, metaCachedInStore)
             return {
               meta: metaCachedInStore,
               pickedPackage,
