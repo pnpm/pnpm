@@ -3548,6 +3548,7 @@ dependencies = [
  "pacquet-fs",
  "pipe-trait",
  "rayon",
+ "same-file",
  "serde_json",
  "tempfile",
  "walkdir",

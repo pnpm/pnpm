@@ -1272,6 +1272,50 @@ fn link_node_bin_hardlinks_node_exe_on_windows() {
     );
 }
 
+/// Windows-only: when `node.exe` already has identical content to the
+/// source binary (e.g. a prior copy-fallback install), the linker must
+/// leave it in place instead of removing and relinking it. Exercises the
+/// content-comparison fallback, since the pre-existing copy has a different
+/// file identity than the source. Mirrors pnpm's same-file early-return at
+/// <https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/src/index.ts#L281-L308>.
+#[cfg(windows)]
+#[test]
+fn link_node_bin_skips_relink_when_node_exe_already_correct() {
+    use same_file::Handle;
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    create_dir_all(&bin_target).unwrap();
+    let node_dir = tmp.path().join("node_pkg");
+    create_dir_all(&node_dir).unwrap();
+    write_file(node_dir.join("node.exe"), "fake-node-binary").unwrap();
+    // Pre-place an independent copy with identical content (a different file
+    // identity), as an earlier copy-fallback install would leave behind.
+    write_file(bin_target.join("node.exe"), "fake-node-binary").unwrap();
+
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "node.exe"}}).to_string(),
+    )
+    .unwrap();
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    let exe = bin_target.join("node.exe");
+    assert_eq!(read_to_string(&exe).unwrap(), "fake-node-binary");
+    // The pre-existing copy is left in place rather than removed and relinked:
+    // node.exe must not become a hardlink to the source binary.
+    assert_ne!(
+        Handle::from_path(&exe).unwrap(),
+        Handle::from_path(node_dir.join("node.exe")).unwrap(),
+        "node.exe must stay the independent copy, not be relinked to the source",
+    );
+}
+
 /// Windows-only: when the node manifest declares a non-`.exe` source
 /// (uncommon but possible — e.g. a wrapper script), pnpm falls through
 /// to the regular cmd-shim path. Pacquet must too.
