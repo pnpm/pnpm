@@ -99,7 +99,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
   })
 
-  return install.handler({
+  await install.handler({
     ...opts,
     patchedDependencies,
   })

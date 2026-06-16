@@ -95,6 +95,13 @@ pub struct InstallArgs {
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
 
+    /// Report what an install would change without writing anything to
+    /// disk (no `pnpm-lock.yaml`, no `node_modules`). Resolution still
+    /// runs against the registry. Exits 0 whether or not changes were
+    /// found. Mirrors pnpm's `install --dry-run`.
+    #[clap(long = "dry-run")]
+    pub dry_run: bool,
+
     /// Force-enable `preferFrozenLockfile` for this invocation.
     /// Overrides `pnpm-workspace.yaml` / `PNPM_CONFIG_PREFER_FROZEN_LOCKFILE`.
     /// Mirrors pnpm's `--prefer-frozen-lockfile`. Conflicts with
@@ -343,6 +350,7 @@ impl InstallArgs {
             supported_architectures,
             frozen_lockfile,
             lockfile_only,
+            dry_run,
             prefer_frozen_lockfile,
             no_prefer_frozen_lockfile,
             ignore_manifest_check,
@@ -419,6 +427,12 @@ impl InstallArgs {
         // server-produced lockfile via the normal frozen install. Mirrors
         // pnpm's `install()` delegating to `installFromPnpmRegistry`.
         if let Some(pnpr_server) = config.pnpr_server.as_deref() {
+            // The pnpr path resolves and links through the server, so it
+            // can't honor `--dry-run`'s no-write contract. Reject up front,
+            // mirroring pnpm's CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER.
+            if dry_run {
+                return Err(DryRunIncompatibleWithPnpr.into());
+            }
             return install_via_pnpr::<Reporter>(
                 &state,
                 pnpr_server,
@@ -462,6 +476,7 @@ impl InstallArgs {
             supported_architectures,
             node_linker,
             lockfile_only,
+            dry_run,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
@@ -544,6 +559,22 @@ struct PnprLink<'a> {
     )
 )]
 struct FrozenStoreIncompatibleWithPnpr;
+
+/// `--dry-run` was requested with a configured `pnprServer`. The pnpr path
+/// resolves and links through the server, so it can't honor the dry-run
+/// "writes nothing" contract. Mirrors pnpm's
+/// `ERR_PNPM_CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER`.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Cannot use --dry-run with a configured pnpr server because the pnpr install path resolves and links through the server."
+)]
+#[diagnostic(
+    code(ERR_PNPM_CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER),
+    help(
+        "Unset the pnpr server (`--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) to preview locally, or drop --dry-run."
+    )
+)]
+struct DryRunIncompatibleWithPnpr;
 
 /// Resolve a single project through a `pnpr` server, then link it.
 ///
@@ -701,6 +732,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             supported_architectures: link.supported_architectures,
             node_linker: link.node_linker,
             lockfile_only: false,
+            dry_run: false,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
@@ -828,6 +860,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         supported_architectures: link.supported_architectures,
         node_linker: link.node_linker,
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,

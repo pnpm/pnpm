@@ -22,6 +22,7 @@ import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   addDependenciesToPackage,
+  type DryRunInstallResult,
   install,
   type InstallOptions,
   type MutatedProject,
@@ -65,6 +66,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'dedupePeerDependents'
 | 'dedupePeers'
 | 'depth'
+| 'dryRun'
 | 'globalPnpmfile'
 | 'hoistPattern'
 | 'hoistingLimits'
@@ -153,6 +155,11 @@ export interface RecursiveResult {
    * cache so that reverting a catalog entry is detected as an outdated state.
    */
   updatedCatalogs?: Catalogs
+  /**
+   * Present only for a `dryRun` install over a shared workspace lockfile:
+   * the before/after wanted lockfiles for the caller to diff.
+   */
+  dryRunResult?: DryRunInstallResult
 }
 
 export async function recursive (
@@ -329,12 +336,13 @@ export async function recursive (
       updatedProjects: mutatedPkgs,
       ignoredBuilds,
       resolutionPolicyViolations,
+      dryRunResult,
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
     })
-    if (opts.save !== false) {
+    if (opts.save !== false && !opts.dryRun) {
       // Only pick entries when we'll actually persist. Otherwise the
       // info log would claim entries were added that the workspace
       // manifest never saw, and the next install would re-prompt or
@@ -352,7 +360,7 @@ export async function recursive (
       await Promise.all(promises)
     }
     await handleIgnoredBuilds(opts, ignoredBuilds)
-    return { passed: true, updatedCatalogs }
+    return { passed: true, updatedCatalogs, dryRunResult }
   }
 
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()

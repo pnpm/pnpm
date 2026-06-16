@@ -13,6 +13,7 @@ import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
+  type DryRunInstallResult,
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
@@ -175,12 +176,12 @@ export type InstallDepsOptions = Pick<Config,
    * subcommand — see `runPacquet.ts`'s `noRuntime` opt.
    */
   isInstallCommand?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile'>>
+} & Partial<Pick<Config, 'dryRun' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
-): Promise<void> {
+): Promise<DryRunInstallResult | undefined> {
   if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
       ...opts,
@@ -290,7 +291,7 @@ export async function installDeps (
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 
-      await recursiveInstallThenUpdateWorkspaceState(allProjects,
+      return recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
@@ -303,7 +304,6 @@ export async function installDeps (
         },
         opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
       )
-      return
     }
   }
   // `pnpm install ""` is going to be just `pnpm install`
@@ -408,8 +408,8 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations } = await mutateModulesInSingleProject(mutatedProject, installOpts)
-    if (opts.save !== false) {
+    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    if (opts.save !== false && !opts.dryRun) {
       // Only pick entries when we'll actually persist. Otherwise the
       // info log would claim we added entries the workspace manifest
       // never saw, and the next install would re-prompt or fail
@@ -436,10 +436,10 @@ export async function installDeps (
       })
     }
     await handleIgnoredBuilds(opts, ignoredBuilds)
-    return
+    return dryRunResult
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations } = await install(manifest, {
+  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await install(manifest, {
     ...installOpts,
     updatePackageManifest,
     updateMatching,
@@ -448,7 +448,7 @@ export async function installDeps (
   // from this install" — both package.json and the workspace manifest.
   // Skip the pick so the info log doesn't claim entries were added that
   // were never written; the next install will resurface them.
-  if (opts.save !== false) {
+  if (opts.save !== false && !opts.dryRun) {
     const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
     if (opts.update === true) {
       await Promise.all([
@@ -518,6 +518,7 @@ export async function installDeps (
       })
     }
   }
+  return dryRunResult
 }
 
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
@@ -532,7 +533,7 @@ async function recursiveInstallThenUpdateWorkspaceState (
   opts: RecursiveOptions & WorkspaceStateSettings,
   cmdFullName: CommandFullName,
   updatedCatalogs?: Catalogs
-): Promise<boolean | string> {
+): Promise<DryRunInstallResult | undefined> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
   if (!opts.lockfileOnly) {
     await updateWorkspaceState({
@@ -544,7 +545,7 @@ async function recursiveInstallThenUpdateWorkspaceState (
       configDependencies: opts.configDependencies,
     })
   }
-  return recursiveResult.passed
+  return recursiveResult.dryRunResult
 }
 
 /**

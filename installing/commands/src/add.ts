@@ -305,20 +305,25 @@ export async function handler (
     for (const pkg of opts.allowBuild) {
       mergedAllowBuilds[pkg] = true
     }
-    return installDeps({
+    await installDeps({
       ...opts,
       allowBuilds: mergedAllowBuilds,
       rebuildHandler: commands?.rebuild,
       fetchFullMetadata: getFetchFullMetadata(opts),
       include,
       includeDirect: include,
+      // `--dry-run` is an `install`-only preview; never let a config-level
+      // `dry-run` turn `add` into a no-op check.
+      dryRun: false,
     }, params)
+    return
   }
-  return installDeps({
+  await installDeps({
     ...opts,
     rebuildHandler: commands?.rebuild,
     fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,
+    dryRun: false,
   }, params)
 }

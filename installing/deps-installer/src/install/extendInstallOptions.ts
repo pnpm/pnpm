@@ -65,6 +65,13 @@ export interface StrictInstallOptions {
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean | 'rolling'
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
+  /**
+   * When true, resolve fully but write nothing to disk (no lockfile, no
+   * `node_modules`). The before/after wanted lockfiles are returned in the
+   * install result's `dryRunResult` so the caller can report what an install
+   * would change. Powers `pnpm install --dry-run`.
+   */
+  dryRun?: boolean
   lockfileIncludeTarballUrl?: boolean
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean

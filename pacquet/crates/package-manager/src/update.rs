@@ -560,6 +560,7 @@ impl Update<'_> {
             supported_architectures,
             node_linker: config.node_linker,
             lockfile_only,
+            dry_run: false,
             update_seed_policy: seed_policy,
             auth_override: None,
             resolution_observer: None,
