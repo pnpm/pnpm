@@ -34,11 +34,12 @@ export interface MakePublishManifestOptions {
 }
 
 async function readReadmeFile (projectDir: string): Promise<string | undefined> {
-  const files = await fs.promises.readdir(projectDir)
-  const readmePath = files.find(name => /readme\.md$/i.test(name))
-  const readmeFile = readmePath ? await fs.promises.readFile(path.join(projectDir, readmePath), 'utf8') : undefined
-
-  return readmeFile
+  const entries = await fs.promises.readdir(projectDir, { withFileTypes: true })
+  // Only embed a regular README.md file. A symlink could point outside the
+  // project and leak its target's contents into the published manifest.
+  const readmeEntry = entries.find((entry) => entry.isFile() && /^readme\.md$/i.test(entry.name))
+  if (readmeEntry == null) return undefined
+  return fs.promises.readFile(path.join(projectDir, readmeEntry.name), 'utf8')
 }
 
 export async function createExportableManifest (

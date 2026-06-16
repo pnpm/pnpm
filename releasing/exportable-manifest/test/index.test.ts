@@ -159,6 +159,30 @@ test('readme added to published manifest', async () => {
   })
 })
 
+test('readme is not embedded when README.md is a symlink pointing outside the project', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
+  try {
+    const secretFile = path.join(tmpDir, 'secret.txt')
+    await fs.promises.writeFile(secretFile, 'secret content', 'utf8')
+    const projectDir = path.join(tmpDir, 'project')
+    await fs.promises.mkdir(projectDir)
+    await fs.promises.symlink(secretFile, path.join(projectDir, 'README.md'))
+
+    expect(await createExportableManifest(projectDir, {
+      name: 'foo',
+      version: '1.0.0',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
+    })).toStrictEqual({
+      name: 'foo',
+      version: '1.0.0',
+    })
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
 async function withTempProjectReadme<T> (readmeContent: string, fn: (projectDir: string) => Promise<T>): Promise<T> {
   const projectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
   try {
