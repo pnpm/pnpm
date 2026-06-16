@@ -5,6 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { checkCustomResolverCanResolve, type CustomResolver } from '@pnpm/hooks.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { type AquaResolveResult, resolveAqua } from '@pnpm/resolving.aqua-resolver'
 import { createGitResolver, type GitResolveResult, resolveLatestFromGit } from '@pnpm/resolving.git-resolver'
 import { type LocalResolveResult, resolveFromLocalPath, resolveFromLocalScheme, resolveLatestFromLocal } from '@pnpm/resolving.local-resolver'
 import {
@@ -59,6 +60,7 @@ export type DefaultResolveResult =
   | NodeRuntimeResolveResult
   | DenoRuntimeResolveResult
   | BunRuntimeResolveResult
+  | AquaResolveResult
   | CustomResolverResolveResult
 
 export type DefaultResolver = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<DefaultResolveResult>
@@ -126,6 +128,7 @@ export function createResolver (
   const _resolveLatestNodeRuntime = resolveLatestNodeRuntime.bind(null, { fetchFromRegistry, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
   const _resolveLatestDenoRuntime = resolveLatestDenoRuntime.bind(null, { resolveFromNpm })
   const _resolveLatestBunRuntime = resolveLatestBunRuntime.bind(null, { resolveFromNpm })
+  const _resolveAqua = resolveAqua.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline })
   const _resolveFromCustomResolvers = pnpmOpts.customResolvers
     ? resolveFromCustomResolvers.bind(null, pnpmOpts.customResolvers)
     : null
@@ -137,6 +140,7 @@ export function createResolver (
         (wantedDependency.bareSpecifier && (
           await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
+          await _resolveAqua(wantedDependency, opts) ??
           await _resolveFromLocalScheme(wantedDependency as { bareSpecifier: string }, opts)
         )) ??
         await _resolveNodeRuntime(wantedDependency, opts) ??
