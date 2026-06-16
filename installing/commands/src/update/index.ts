@@ -70,6 +70,9 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache-readonly',
     'side-effects-cache',
     'store-dir',
+    'trust-policy',
+    'trust-policy-exclude',
+    'trust-policy-ignore-after',
     'unsafe-perm',
   ], allTypes)
 }
@@ -151,6 +154,18 @@ dependencies is not found inside the workspace',
             name: '--interactive',
             shortAlias: '-i',
           },
+          {
+            description: 'When set to no-downgrade, show trust evidence in interactive update and reject weaker trust when resolving',
+            name: '--trust-policy no-downgrade',
+          },
+          {
+            description: 'Exclude package specs from trust-policy checks',
+            name: '--trust-policy-exclude <package-spec>',
+          },
+          {
+            description: 'Ignore trust-policy checks for versions published earlier than this many minutes',
+            name: '--trust-policy-ignore-after <minutes>',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -166,6 +181,7 @@ export type UpdateCommandOptions = InstallCommandOptions & {
   include?: IncludedDependencies
   interactive?: boolean
   latest?: boolean
+  trustPolicy?: 'no-downgrade' | 'off'
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
 }
 
@@ -220,7 +236,7 @@ async function interactiveUpdate (
     timeout: opts.fetchTimeout,
   })
   const workspacesEnabled = !!opts.workspaceDir
-  const choiceGroups = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled)
+  const choiceGroups = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled, opts.trustPolicy)
   if (choiceGroups.length === 0) {
     if (opts.latest) {
       return 'All of your dependencies are already up to date'

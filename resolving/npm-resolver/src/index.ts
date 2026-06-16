@@ -64,6 +64,8 @@ import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 
+export { getTrustEvidence } from './trustChecks.js'
+
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
   packageMeta: PackageMeta

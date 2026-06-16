@@ -38,6 +38,9 @@ export async function outdatedDepsOfProjects (
     compatible?: boolean
     ignoreDependencies?: string[]
     include: IncludedDependencies
+    minimumReleaseAge?: number
+    minimumReleaseAgeExclude?: string[]
+    trustPolicy?: 'no-downgrade' | 'off'
   }
 ): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {
@@ -57,8 +60,10 @@ export async function outdatedDepsOfProjects (
     ...opts,
     configByUri: opts.configByUri,
     filterMetadata: false,
-    fullMetadata: opts.fullMetadata === true || Boolean(opts.minimumReleaseAge),
+    fullMetadata: opts.fullMetadata === true || Boolean(opts.minimumReleaseAge) || opts.trustPolicy === 'no-downgrade',
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
+    minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
   })
 
   return Promise.all(pkgs.map(async ({ rootDir, manifest }): Promise<OutdatedPackage[]> => {
@@ -79,6 +84,7 @@ export async function outdatedDepsOfProjects (
       publishedBy,
       publishedByExclude,
       wantedLockfile,
+      trustPolicy: opts.trustPolicy,
     })
   }))
 }

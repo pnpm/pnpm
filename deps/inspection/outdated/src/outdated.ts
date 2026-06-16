@@ -31,11 +31,33 @@ import semver from 'semver'
 
 export * from './createManifestGetter.js'
 
+interface OutdatedPackageManifest extends PackageManifest {
+  _npmUser?: {
+    approver?: unknown
+    name?: string
+    email?: string
+    trustedPublisher?: {
+      id: string
+      oidcConfigId: string
+    }
+  }
+  dist?: {
+    integrity?: string
+    shasum: string
+    tarball: string
+    attestations?: {
+      provenance?: {
+        predicateType: string
+      }
+    }
+  }
+}
 export interface OutdatedPackage {
   alias: string
   belongsTo: DependenciesField
   current?: string // not defined means the package is not installed
-  latestManifest?: PackageManifest
+  currentManifest?: OutdatedPackageManifest | null
+  latestManifest?: OutdatedPackageManifest
   packageName: string
   wanted: string
   workspace?: string
@@ -58,6 +80,7 @@ export async function outdated (
     publishedBy?: Date
     publishedByExclude?: PackageVersionPolicy
     wantedLockfile: LockfileObject | null
+    trustPolicy?: 'no-downgrade' | 'off'
   }
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
@@ -144,10 +167,19 @@ export async function outdated (
           // the refs, so a commit/path change still fires correctly.
           if (latestManifest == null) {
             if (wanted !== current) {
+              const currentManifest = await getCurrentManifestForTrustPolicy({
+                trustPolicy: opts.trustPolicy,
+                resolveLatest: opts.resolveLatest,
+                resolveOpts,
+                alias,
+                packageName,
+                current,
+              })
               outdated.push({
                 alias,
                 belongsTo: depType,
                 current,
+                ...(currentManifest != null ? { currentManifest } : {}),
                 latestManifest: undefined,
                 packageName,
                 wanted,
@@ -168,10 +200,19 @@ export async function outdated (
             return
           }
           if (wanted !== current || isLowerVersion(wanted, latestManifest.version) || latestManifest.deprecated) {
+            const currentManifest = await getCurrentManifestForTrustPolicy({
+              trustPolicy: opts.trustPolicy,
+              resolveLatest: opts.resolveLatest,
+              resolveOpts,
+              alias,
+              packageName,
+              current,
+            })
             outdated.push({
               alias,
               belongsTo: depType,
               current,
+              ...(currentManifest != null ? { currentManifest } : {}),
               latestManifest,
               packageName,
               wanted,
@@ -221,6 +262,38 @@ function displayVersion (ref: string, relativeDepPath: DepPath | null, snapshotV
 function isLowerVersion (current: string, latest: string): boolean {
   if (!semver.valid(current) || !semver.valid(latest)) return false
   return semver.lt(current, latest)
+}
+
+async function getCurrentManifestForTrustPolicy (
+  opts: {
+    trustPolicy?: 'no-downgrade' | 'off'
+    resolveLatest: ResolveLatestDispatcher
+    resolveOpts: {
+      lockfileDir: string
+      preferredVersions: Record<string, never>
+      projectDir: string
+      publishedBy?: Date
+      publishedByExclude?: PackageVersionPolicy
+    }
+    alias: string
+    packageName: string
+    current?: string
+  }
+): Promise<OutdatedPackageManifest | undefined> {
+  if (opts.trustPolicy !== 'no-downgrade' || opts.current == null || !semver.valid(opts.current)) {
+    return undefined
+  }
+
+  const wantedDependency = opts.packageName === opts.alias
+    ? { alias: opts.packageName, bareSpecifier: opts.current }
+    : { alias: opts.alias, bareSpecifier: `npm:${opts.packageName}@${opts.current}` }
+
+  try {
+    const result = await opts.resolveLatest({ wantedDependency, compatible: false }, opts.resolveOpts)
+    return result?.latestManifest
+  } catch {
+    return undefined
+  }
 }
 
 function replaceCatalogProtocolIfNecessary (catalogs: Catalogs, wantedDependency: WantedDependency) {
