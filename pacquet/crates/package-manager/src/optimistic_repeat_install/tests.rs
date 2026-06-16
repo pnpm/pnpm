@@ -393,6 +393,35 @@ fn returns_up_to_date_when_overrides_are_not_local_paths() {
     assert_eq!(decision, Decision::UpToDate);
 }
 
+/// An unparseable `pnpm.overrides` (here a `catalog:` reference with no
+/// matching catalog entry) bails to the full install with the
+/// parse-error reason, not the local-file reason: the cause is a
+/// misconfiguration, and attributing it to a local file dependency
+/// would mislead troubleshooting.
+#[test]
+fn returns_skipped_with_parse_error_reason_when_overrides_cannot_be_parsed() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides = Some(IndexMap::from([("bar".to_string(), "catalog:".to_string())]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("cannot be parsed")),
+        "decision was {decision:?}",
+    );
+}
+
 /// A `catalog:` dependency whose catalog entry holds a bare local path
 /// is a local file dependency after dereferencing — the catalog
 /// resolver only bans the `workspace:`, `link:`, and `file:` protocols,
