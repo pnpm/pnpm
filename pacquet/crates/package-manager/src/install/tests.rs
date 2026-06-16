@@ -2929,6 +2929,7 @@ fn build_modules_manifest_serializes_skipped_set() {
         Default::default(),
         Default::default(),
         &skipped,
+        &[],
     );
 
     // Compare as sets — `build_modules_manifest` does not sort.
@@ -2965,6 +2966,7 @@ fn build_modules_manifest_skipped_is_empty_on_empty_set() {
         Default::default(),
         Default::default(),
         &SkippedSnapshots::new(),
+        &[],
     );
     assert!(manifest.skipped.is_empty());
     // Empty `hoisted_locations` is dropped to `None` so an

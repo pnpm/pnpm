@@ -1629,7 +1629,7 @@ pub(crate) fn collect_public_hoist_targets(
 /// as `u32`. Used to derive the engine-name string upstream's
 /// side-effects cache lookup expects without re-spawning
 /// `node --version`.
-fn parse_major_from_version(version: &str) -> Option<u32> {
+pub(crate) fn parse_major_from_version(version: &str) -> Option<u32> {
     let after_v = version.strip_prefix('v').unwrap_or(version);
     after_v.split('.').next()?.parse().ok()
 }
@@ -1651,7 +1651,9 @@ fn parse_major_from_version(version: &str) -> Option<u32> {
 /// Returns `None` when no importer pinned a runtime — callers should
 /// then fall through to the host probe (`node --version` or the
 /// cached `host_node`).
-fn find_runtime_node_major(snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>) -> Option<u32> {
+pub(crate) fn find_runtime_node_major(
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+) -> Option<u32> {
     let snapshots = snapshots?;
     for key in snapshots.keys() {
         if key.suffix.prefix() != Prefix::Runtime {

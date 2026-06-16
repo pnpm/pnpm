@@ -1394,31 +1394,67 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             "phase complete",
         );
-        // Detect the host node major once. The GVS layout needs it to
-        // compute slot paths; the build phase needs it for the
-        // side-effects-cache key. Probe only when one of those consumes
-        // it — when the side-effects cache is off and GVS is off, the
-        // build phase falls through to "rebuild" with no key to look
-        // up, so the `node --version` startup cost is pure waste.
-        //
-        // The GVS layout needs `engine_name` synchronously; the build
-        // phase only needs it for the side-effects-cache key. So under
-        // the default (non-GVS) config, defer the probe and let it
-        // overlap `CreateVirtualStore`'s I/O instead of serializing
-        // ahead of it — mirroring the frozen path's `deferred_engine_handle`.
-        let detect_engine = || {
-            pacquet_graph_hasher::detect_node_major()
-                .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
+        // Detect the host node once and reuse it for both the engine-name
+        // cache key and (under the hoisted linker) the installability
+        // check — mirroring the frozen path, which shares one
+        // `InstallabilityHost::detect` between the two instead of spawning
+        // `node --version` twice. Only needed when the hoisted walker runs
+        // the installability check; the isolated path has none yet.
+        let needs_installability_check = is_hoisted
+            && built_lockfile.packages.as_ref().is_some_and(|packages| {
+                built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
+                    crate::any_installability_constraint(snapshots, packages)
+                })
+            });
+        let host_node: Option<(bool, String)> = if needs_installability_check {
+            tokio::task::spawn_blocking(crate::InstallabilityHost::detect)
+                .await
+                .ok()
+                .map(|host| (host.node_detected, host.node_version))
+        } else {
+            None
         };
+
+        // `engine_name` priority mirrors the frozen path: a `node@runtime:`
+        // pin in the lockfile wins outright (so pinned and non-pinned
+        // installs on the same host share the store), then the
+        // already-detected host, then a `node --version` probe — deferred
+        // so it overlaps `CreateVirtualStore`'s I/O, except under the
+        // global virtual store whose layout needs it synchronously.
+        let runtime_pinned_major = crate::install_frozen_lockfile::find_runtime_node_major(
+            built_lockfile.snapshots.as_ref(),
+        );
         let (engine_name, deferred_engine_handle): (
             Option<String>,
             Option<tokio::task::JoinHandle<Option<String>>>,
-        ) = if config.enable_global_virtual_store {
-            (tokio::task::spawn_blocking(detect_engine).await.ok().flatten(), None)
-        } else if config.side_effects_cache_read() || config.side_effects_cache_write() {
-            (None, Some(tokio::task::spawn_blocking(detect_engine)))
+        ) = if let Some(major) = runtime_pinned_major {
+            (Some(pacquet_graph_hasher::engine_name(major, None, None)), None)
         } else {
-            (None, None)
+            match &host_node {
+                Some((true, ver)) => (
+                    crate::install_frozen_lockfile::parse_major_from_version(ver)
+                        .map(|major| pacquet_graph_hasher::engine_name(major, None, None)),
+                    None,
+                ),
+                Some((false, _)) => (None, None),
+                None if config.enable_global_virtual_store => (
+                    tokio::task::spawn_blocking(|| {
+                        pacquet_graph_hasher::detect_node_major()
+                            .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
+                    })
+                    .await
+                    .ok()
+                    .flatten(),
+                    None,
+                ),
+                None => (
+                    None,
+                    Some(tokio::task::spawn_blocking(|| {
+                        pacquet_graph_hasher::detect_node_major()
+                            .map(|major| pacquet_graph_hasher::engine_name(major, None, None))
+                    })),
+                ),
+            }
         };
         let layout_engine_name =
             if config.enable_global_virtual_store { engine_name.as_deref() } else { None };
@@ -1468,7 +1504,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // `requiresBuild` decision per snapshot.
             side_effects_maps_by_snapshot,
             requires_build_by_snapshot,
-            fetch_failed: _,
+            // Optional snapshots whose fetch was swallowed. Folded into
+            // the live skip set below so the symlink, bin-link, and build
+            // phases observe them as absent — matching the frozen path
+            // and avoiding dangling links / build attempts on a slot that
+            // was never extracted.
+            fetch_failed,
             // Populated only under `node_linker == Hoisted`; consumed by
             // the hoisted-linker pass below to materialize the on-disk
             // tree. `None` for the isolated linker.
@@ -1512,6 +1553,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             "phase complete",
         );
+
+        // Fold fetch-failure swallows into the skip set before the
+        // symlink / bin-link / build phases, mirroring the frozen path.
+        for key in fetch_failed {
+            skipped.add_fetch_failed(key);
+        }
 
         // The store-index writer is kept open past `CreateVirtualStore`
         // so the build phase below can persist side-effects-cache rows;
@@ -1565,24 +1612,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // adapter shape); `hoisted_locations` carries the walker's
         // placements so `.modules.yaml` round-trips them.
         let (hoisted_dependencies, hoisted_locations) = if is_hoisted {
-            // The hoisted walker runs the installability check, which
-            // consults `engines.node`. Detect the host node version (as the
-            // frozen path does) whenever a package carries an installability
-            // constraint, so the engine check resolves against a real version
-            // instead of erroring on an empty one. Skip the `node --version`
-            // probe entirely when nothing constrains it.
-            let host_node = if built_lockfile.packages.as_ref().is_some_and(|packages| {
-                built_lockfile.snapshots.as_ref().is_some_and(|snapshots| {
-                    crate::any_installability_constraint(snapshots, packages)
-                })
-            }) {
-                tokio::task::spawn_blocking(crate::InstallabilityHost::detect)
-                    .await
-                    .ok()
-                    .map(|host| (host.node_detected, host.node_version))
-            } else {
-                None
-            };
+            // Reuse the host probed once above for the engine-name key, so
+            // a hoisted install with installability constraints spawns
+            // `node --version` only once. `None` when nothing constrained
+            // it (the engine check then resolves against the host inside
+            // `run_hoisted_linker`, matching the frozen path).
             let output = crate::install_frozen_lockfile::run_hoisted_linker::<Reporter>(
                 crate::install_frozen_lockfile::HoistedLinkerInputs {
                     config,

@@ -970,6 +970,10 @@ where
             && let Some(current) = current_lockfile.as_ref()
             && wanted_lockfile == current
             && is_modules_yaml_consistent(&config.modules_dir, config, node_linker, included)
+            // An `allowBuilds` change that now permits a previously-ignored
+            // build must rebuild it, even though the lockfile and layout are
+            // unchanged. Mirrors pnpm's `runUnignoredDependencyBuilds`.
+            && !has_newly_allowed_ignored_builds(&config.modules_dir, config)
         {
             // Nothing to materialize means no fetch to overlap; verify
             // eagerly before the up-to-date early return.
@@ -1256,6 +1260,7 @@ where
                 hoisted_dependencies,
                 hoisted_locations,
                 &frozen_skipped,
+                &ignored_builds,
             ),
         )
         .map_err(InstallError::WriteModules)?;
@@ -1650,13 +1655,39 @@ fn is_modules_yaml_consistent(
             == config.effective_virtual_store_dir().to_string_lossy().as_ref()
 }
 
+/// Whether `.modules.yaml` records any ignored build that the current
+/// `allowBuilds` policy now allows.
+///
+/// When `true`, the frozen no-op fast path must not short-circuit: the
+/// install has to rebuild the newly-allowed package. Ports pnpm's
+/// [`runUnignoredDependencyBuilds`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/src/install/index.ts#L1153),
+/// which re-runs the builds an `allowBuilds` change un-ignored even on
+/// an otherwise up-to-date install. pacquet achieves the same observable
+/// result by letting the full frozen install run, whose `BuildModules`
+/// re-evaluates the policy and rebuilds the now-allowed package (already
+/// built deps are skipped by the side-effects-cache `is_built` gate).
+fn has_newly_allowed_ignored_builds(modules_dir: &Path, config: &Config) -> bool {
+    let Some(modules) = read_modules_manifest::<Host>(modules_dir).ok().flatten() else {
+        return false;
+    };
+    let Some(ignored) = modules.ignored_builds.filter(|set| !set.is_empty()) else {
+        return false;
+    };
+    // A malformed `allowBuilds` can't be evaluated here; let the full
+    // install run so it surfaces the real error instead of silently
+    // staying on the fast path.
+    let Ok(policy) = crate::AllowBuildPolicy::from_config(config) else {
+        return true;
+    };
+    ignored.iter().any(|dep_path| policy.check(dep_path.as_str()) == Some(true))
+}
+
 /// Assemble the [`Modules`] payload for [`write_modules_manifest`].
 ///
 /// Mirrors upstream's literal at
 /// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1608-L1630>.
 /// Fields pacquet does not populate yet (`pendingBuilds`,
-/// `injectedDeps`, `ignoredBuilds`, `allowBuilds`) default to empty
-/// / unset.
+/// `injectedDeps`, `allowBuilds`) default to empty / unset.
 ///
 /// `hoistedDependencies` is produced by the isolated-linker hoist
 /// pass in [`crate::InstallFrozenLockfile::run`] and threaded in
@@ -1695,8 +1726,16 @@ fn build_modules_manifest(
     hoisted_dependencies: HoistedDependencies,
     hoisted_locations: BTreeMap<String, Vec<String>>,
     skipped: &crate::SkippedSnapshots,
+    ignored_builds: &[String],
 ) -> Modules {
     Modules {
+        // The `name@version` keys whose build scripts were blocked, so a
+        // later install can re-run any that an `allowBuilds` change now
+        // allows (see [`has_newly_allowed_ignored_builds`]). `None` when
+        // empty, matching pnpm's omit-when-empty encoding.
+        ignored_builds: (!ignored_builds.is_empty()).then(|| {
+            ignored_builds.iter().cloned().map(pacquet_modules_yaml::DepPath::from).collect()
+        }),
         hoist_pattern: config.hoist_pattern.clone(),
         hoisted_dependencies,
         // `Some(empty)` would round-trip on disk as

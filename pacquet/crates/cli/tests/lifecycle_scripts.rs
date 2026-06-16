@@ -1,27 +1,9 @@
 mod dependency_build_scripts {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pacquet_testing_utils::{
-        allow_known_failure,
-        bin::{AddMockedRegistry, CommandTempCwd},
-        known_failure::{KnownFailure, KnownResult},
-    };
+    use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
     use pipe_trait::Pipe;
     use std::{fmt::Write as _, fs, path::Path};
-
-    /// Gate for the warm `--frozen-lockfile` rebuild after an
-    /// `allowBuilds` change. pacquet's deps-status check does not yet
-    /// track the build-approval policy, so a warm reinstall
-    /// short-circuits as up-to-date and never rebuilds a newly-allowed
-    /// package (clearing `node_modules` first forces it). This is a
-    /// workspace-state gap, separate from the lifecycle-script feature.
-    fn warm_reinstall_detects_allow_builds_change() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "a warm `--frozen-lockfile` reinstall does not yet detect an \
-             `allowBuilds` policy change; the deps-status check short-circuits \
-             as up-to-date so the newly-allowed package is not rebuilt",
-        ))
-    }
 
     /// Set `strictDepBuilds` in the workspace's `pnpm-workspace.yaml`.
     /// Tests that intentionally leave some builds ignored and then
@@ -542,8 +524,6 @@ mod dependency_build_scripts {
             .with_args(["install", "--frozen-lockfile"])
             .assert()
             .success();
-
-        allow_known_failure!(warm_reinstall_detects_allow_builds_change());
 
         eprintln!("Checking all scripts ran after allowBuilds change...");
         assert!(install_pkg.join("generated-by-install.js").exists());
