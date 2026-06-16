@@ -125,3 +125,41 @@ test('getOptionsFromPnpmSettings() rejects non-object overrides values', () => {
     message: 'The overrides field should be an object, but got array',
   }))
 })
+
+test('getOptionsFromPnpmSettings() rejects non-string patchedDependencies values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    patchedDependencies: {
+      foo: null,
+    } as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_PATCHED_DEPENDENCY',
+    message: 'The value of patchedDependencies.foo should be a string, but got null',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects array patchedDependencies', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    patchedDependencies: [] as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_PATCHED_DEPENDENCY',
+    message: 'The patchedDependencies field should be an object, but got array',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects null patchedDependencies', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    patchedDependencies: null as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_PATCHED_DEPENDENCY',
+    message: 'The patchedDependencies field should be an object, but got null',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects string patchedDependencies', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    patchedDependencies: 'foo' as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_PATCHED_DEPENDENCY',
+    message: 'The patchedDependencies field should be an object, but got string',
+  }))
+})
