@@ -192,7 +192,12 @@ fn run_build_script(project_dir: &Path, script_name: &str, log_path: &Path) -> R
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| format!("no `{script_name}` script in {manifest_path:?}"))?;
 
-    let mut process = sandboxed_command("sh");
+    // Absolute `/bin/sh`, not `sh`: the child's PATH is prepended with the
+    // project's `node_modules/.bin`, and Rust resolves a bare program name
+    // against that child PATH — a dependency shipping a `.bin/sh` would
+    // otherwise run in place of the system shell. The script the shell runs
+    // still resolves framework bins from `.bin` via that PATH.
+    let mut process = sandboxed_command("/bin/sh");
     process.current_dir(project_dir).arg("-c").arg(script).env("PATH", bin_path(project_dir)?);
     run(&format!("run {script_name}: {script}"), &mut process, log_path)
 }
