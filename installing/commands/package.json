@@ -35,6 +35,7 @@
     "@inquirer/prompts": "catalog:",
     "@pnpm/building.after-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
+    "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",

@@ -1,6 +1,8 @@
 import path from 'node:path'
 
 import { buildProjects } from '@pnpm/building.after-install'
+import { mergeCatalogs } from '@pnpm/catalogs.config'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
 import {
   readProjectManifestOnly,
@@ -426,7 +428,7 @@ export async function installDeps (
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
         allProjects,
-        settings: opts,
+        settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfiles: opts.pnpmfile,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
@@ -485,7 +487,7 @@ export async function installDeps (
       selectedProjectsGraph,
       workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understand that is not undefined
       runPacquet,
-    }, 'install')
+    }, 'install', updatedCatalogs)
 
     if (opts.ignoreScripts) return
 
@@ -508,7 +510,7 @@ export async function installDeps (
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
         allProjects,
-        settings: opts,
+        settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfiles: opts.pnpmfile,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
@@ -528,20 +530,36 @@ async function recursiveInstallThenUpdateWorkspaceState (
   allProjects: Project[],
   params: string[],
   opts: RecursiveOptions & WorkspaceStateSettings,
-  cmdFullName: CommandFullName
+  cmdFullName: CommandFullName,
+  updatedCatalogs?: Catalogs
 ): Promise<boolean | string> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
   if (!opts.lockfileOnly) {
     await updateWorkspaceState({
       allProjects,
-      settings: opts,
+      settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
       workspaceDir: opts.workspaceDir,
       pnpmfiles: opts.pnpmfile,
       filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
       configDependencies: opts.configDependencies,
     })
   }
-  return recursiveResult
+  return recursiveResult.passed
+}
+
+/**
+ * Folds the catalog entries written to `pnpm-workspace.yaml` during this
+ * install into the catalogs read at startup. The workspace state cache records
+ * these so a later install detects when a catalog entry was reverted; without
+ * this, the cache would keep the stale pre-install catalogs and report
+ * "Already up to date" even though the manifest changed.
+ */
+function withUpdatedCatalogs<T extends { catalogs?: Catalogs }> (
+  settings: T,
+  ...updatedCatalogs: Array<Catalogs | undefined>
+): T {
+  if (updatedCatalogs.every((catalogs) => catalogs == null)) return settings
+  return { ...settings, catalogs: mergeCatalogs(settings.catalogs, ...updatedCatalogs) }
 }
 
 function severityStringToNumber (severity: VulnerabilitySeverity): number {

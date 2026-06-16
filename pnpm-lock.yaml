@@ -5246,6 +5246,9 @@ importers:
       '@pnpm/building.policy':
         specifier: workspace:*
         version: link:../../building/policy
+      '@pnpm/catalogs.config':
+        specifier: workspace:*
+        version: link:../../catalogs/config
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
