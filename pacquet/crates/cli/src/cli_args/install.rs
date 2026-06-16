@@ -140,6 +140,19 @@ pub struct InstallArgs {
     #[clap(long = "no-runtime")]
     pub no_runtime: bool,
 
+    /// Don't run lifecycle scripts of the project or its dependencies.
+    /// Dependency build scripts that would otherwise be reported as
+    /// ignored are skipped silently, so the install doesn't fail with
+    /// `ERR_PNPM_IGNORED_BUILDS` under `strictDepBuilds`. Mirrors pnpm's
+    /// `--ignore-scripts`.
+    ///
+    /// Merged into `config.ignore_scripts` at the CLI dispatch in
+    /// `cli_args.rs` (it only ever enables, never toggles a yaml `true`
+    /// back off), so the install reads it from the config like every
+    /// other build-script setting.
+    #[clap(long = "ignore-scripts")]
+    pub ignore_scripts: bool,
+
     /// Override `nodeLinker` from `pnpm-workspace.yaml` /
     /// `.npmrc`. Mirrors upstream pnpm's `--node-linker` flag.
     /// `None` (flag not passed) leaves the config's value
@@ -334,6 +347,9 @@ impl InstallArgs {
             no_prefer_frozen_lockfile,
             ignore_manifest_check,
             no_runtime,
+            // Read from `config.ignore_scripts` (the CLI flag was already
+            // merged in by the dispatch in `cli_args.rs`), not from here.
+            ignore_scripts: _,
             node_linker,
             offline: _,
             // Read from `config.frozen_store` (the CLI flag was already

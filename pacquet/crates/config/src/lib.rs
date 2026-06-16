@@ -1021,6 +1021,19 @@ pub struct Config {
     #[default(true)]
     pub strict_dep_builds: bool,
 
+    /// `ignoreScripts` (`--ignore-scripts`). When `true`, no lifecycle
+    /// scripts run — neither dependency build scripts
+    /// (`preinstall`/`install`/`postinstall`) nor the project's own
+    /// lifecycle scripts. Dependency builds that would otherwise be
+    /// reported as ignored are not collected, so the install does not
+    /// fail with `ERR_PNPM_IGNORED_BUILDS` under `strictDepBuilds`.
+    /// Mirrors pnpm's `ignoreScripts`: the during-install build loop
+    /// skips its allow-build gate entirely when set, leaving
+    /// `ignoredBuilds` empty
+    /// (<https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L137-L150>).
+    /// Default `false`.
+    pub ignore_scripts: bool,
+
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Controls
     /// whether `dirname(node_execpath)` is prepended to `PATH` when
     /// running lifecycle scripts. Default `Never` to match pnpm's

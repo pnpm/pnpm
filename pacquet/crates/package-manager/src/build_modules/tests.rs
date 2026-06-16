@@ -353,6 +353,7 @@ fn build_modules_collects_ignored_builds() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -365,6 +366,66 @@ fn build_modules_collects_ignored_builds() {
         vec!["aaa@2.0.0".to_string(), "zzz@1.0.0".to_string()],
         "ignored set must be sorted lexicographically: {ignored:?}",
     );
+}
+
+/// Under `ignore_scripts`, the same default-deny build candidates that
+/// `build_modules_collects_ignored_builds` reports as ignored are
+/// instead silently skipped: no script runs and the returned set is
+/// empty, so the install does not fail with `ERR_PNPM_IGNORED_BUILDS`.
+/// Mirrors pnpm leaving `ignoredBuilds` empty when `ignoreScripts` is
+/// set.
+#[test]
+fn ignore_scripts_skips_build_without_collecting_ignored() {
+    let snapshots = HashMap::from([
+        (key("zzz", "1.0.0"), SnapshotEntry::default()),
+        (key("aaa", "2.0.0"), SnapshotEntry::default()),
+    ]);
+    let importers = root_importers(&[("zzz", "1.0.0"), ("aaa", "2.0.0")]);
+    let policy = AllowBuildPolicy::default(); // empty → default-deny
+
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    let modules_dir = tempdir().expect("create temp dir");
+    let lockfile_dir = tempdir().expect("create temp dir");
+
+    create_buildable_pkg(virtual_store_dir.path(), &key("zzz", "1.0.0"));
+    create_buildable_pkg(virtual_store_dir.path(), &key("aaa", "2.0.0"));
+
+    let ignored = BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        importers: &importers,
+        packages: None,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
+        engine_name: None,
+        side_effects_cache: true,
+        side_effects_cache_write: false,
+        store_dir: None,
+        store_index_writer: None,
+        patches: None,
+
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_root_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: false,
+        ignore_scripts: true,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
+    }
+    .run::<SilentReporter>()
+    .expect("run BuildModules");
+    dbg!(&ignored);
+
+    assert!(ignored.is_empty(), "ignore_scripts must not collect ignored builds: {ignored:?}");
 }
 
 #[test]
@@ -408,6 +469,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -479,6 +541,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -543,6 +606,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -630,6 +694,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -790,6 +855,7 @@ fn using_side_effects_cache_skips_rebuild() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -913,6 +979,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -1029,6 +1096,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -1094,6 +1162,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -1158,6 +1227,7 @@ fn fail_when_failing_postinstall_is_required() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -1244,6 +1314,7 @@ fn frozen_backstop_run(
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -1566,6 +1637,7 @@ async fn write_path_populates_side_effects_row() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -1684,6 +1756,7 @@ async fn write_path_disabled_skips_upload() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -1810,6 +1883,7 @@ async fn upload_error_does_not_interrupt_install() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -2047,6 +2121,7 @@ new file mode 100644
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -2160,6 +2235,7 @@ new file mode 100644
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }
@@ -2244,6 +2320,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         pkg_root_by_key: None,
         gather_ancestor_bin_paths: false,
         frozen_store: false,
+        ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
     }

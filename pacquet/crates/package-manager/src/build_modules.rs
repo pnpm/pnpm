@@ -415,6 +415,17 @@ pub struct BuildModules<'a> {
     /// live in the writable project store.
     pub frozen_store: bool,
 
+    /// Mirrors `config.ignore_scripts`. When `true`, no lifecycle
+    /// script runs and the allow-build gate is bypassed entirely, so a
+    /// package not in `allowBuilds` is *not* added to the returned
+    /// ignored-builds set — matching pnpm, where the during-install
+    /// loop skips its `ignoredBuilds.add(...)` branch under
+    /// `ignoreScripts`
+    /// (<https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L137-L150>).
+    /// Patches still apply, since pnpm applies a patch even when scripts
+    /// are suppressed.
+    pub ignore_scripts: bool,
+
     /// Mirrors `config.package_import_method`. Used by the
     /// side-effects-cache `is_built` gate to re-materialize a cached
     /// build's output into the already-linked slot — the warm link
@@ -461,6 +472,7 @@ impl BuildModules<'_> {
             pkg_root_by_key,
             gather_ancestor_bin_paths,
             frozen_store,
+            ignore_scripts,
             import_method,
             logged_methods,
         } = self;
@@ -607,6 +619,7 @@ impl BuildModules<'_> {
                         scripts_prepend_node_path,
                         unsafe_perm,
                         frozen_store,
+                        ignore_scripts,
                         import_method,
                         logged_methods,
                     )
@@ -661,6 +674,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     scripts_prepend_node_path: ScriptsPrependNodePath,
     unsafe_perm: bool,
     frozen_store: bool,
+    ignore_scripts: bool,
     import_method: PackageImportMethod,
     logged_methods: &std::sync::atomic::AtomicU8,
 ) -> Result<(), BuildModulesError> {
@@ -692,8 +706,15 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // false` (NOT early-return), so the patch still gets applied
     // even when scripts are disallowed. Matches upstream's
     // `ignoreScripts = true; break` pattern.
-    let mut should_run_scripts = requires_build;
-    if requires_build {
+    //
+    // Under `ignore_scripts` the whole gate is bypassed: scripts never
+    // run and the package is *not* recorded as an ignored build, so the
+    // install doesn't fail with `ERR_PNPM_IGNORED_BUILDS`. The patch
+    // application below still runs (a patch is applied even when scripts
+    // are suppressed). Mirrors pnpm's top-level
+    // `let ignoreScripts = Boolean(buildDepOpts.ignoreScripts); if (!ignoreScripts) { ... }`.
+    let mut should_run_scripts = requires_build && !ignore_scripts;
+    if should_run_scripts {
         let dep_path = metadata_key.to_string();
         match allow_build_policy.check(&dep_path) {
             Some(false) => {

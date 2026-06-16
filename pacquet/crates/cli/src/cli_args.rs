@@ -321,6 +321,9 @@ impl CliArgs {
                 cfg.offline = cfg.offline || args.offline;
                 cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
                 cfg.frozen_store = cfg.frozen_store || args.frozen_store;
+                // `--ignore-scripts` enables (never toggles off) the
+                // config value, matching the "enable" CLI flags above.
+                cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
                 cfg.workspace_concurrency =
                     args.resolve_workspace_concurrency(cfg.workspace_concurrency);
                 // Network overrides: a passed `--network-concurrency` /
