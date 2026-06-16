@@ -18,7 +18,7 @@
 use std::collections::HashSet;
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
@@ -111,43 +111,53 @@ pub fn prune_virtual_store<'a>(
         if needed.contains(&entry_name) {
             continue;
         }
-        try_remove_pkg(&virtual_store_dir.join(entry_name));
-        removed += 1;
+        if try_remove_pkg(&virtual_store_dir.join(entry_name)) {
+            removed += 1;
+        }
     }
     Some(removed)
 }
 
-/// Whether `virtual_store_dir` is a safe prune target: it must resolve to
-/// a strict descendant of `modules_dir`. The sweep deletes directories,
-/// and `virtual_store_dir` can come from repo-controlled workspace
-/// config, so a path that escapes `node_modules` (via `..`, an absolute
-/// location, or a symlink) — or that *is* `node_modules` itself — is
-/// refused to avoid destructive deletes outside the managed tree.
+/// The canonical directory the sweep is allowed to delete from, or `None`
+/// when `virtual_store_dir` is not a safe prune target. A safe target must
+/// resolve to a strict descendant of `modules_dir`. The sweep deletes
+/// directories, and `virtual_store_dir` can come from repo-controlled
+/// workspace config, so a path that escapes `node_modules` (via `..`, an
+/// absolute location, or a symlink) — or that *is* `node_modules` itself —
+/// is refused to avoid destructive deletes outside the managed tree.
 ///
-/// Both paths are canonicalized so symlinked escapes are caught. A
-/// `virtual_store_dir` that does not exist yet is safe: there is nothing
-/// to delete, and the sweep enumerates it as empty.
+/// Both paths are canonicalized so symlinked escapes are caught, and the
+/// returned canonical path is what the caller must enumerate and delete
+/// from: validating one path and then operating on the original
+/// (still-symlinkable) path would leave a time-of-check/time-of-use gap.
+///
+/// A `virtual_store_dir` that does not exist yet is safe: there is nothing
+/// to delete, the sweep enumerates it as empty, and the original path is
+/// returned unchanged.
 #[must_use]
-pub fn prune_target_within_modules(virtual_store_dir: &Path, modules_dir: &Path) -> bool {
-    let Ok(modules_dir) = fs::canonicalize(modules_dir) else {
-        return false;
-    };
-    let virtual_store_dir = match fs::canonicalize(virtual_store_dir) {
-        Ok(dir) => dir,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return true,
-        Err(_) => return false,
-    };
-    virtual_store_dir != modules_dir && virtual_store_dir.starts_with(&modules_dir)
+pub fn prune_target_within_modules(
+    virtual_store_dir: &Path,
+    modules_dir: &Path,
+) -> Option<PathBuf> {
+    let modules_dir = fs::canonicalize(modules_dir).ok()?;
+    match fs::canonicalize(virtual_store_dir) {
+        Ok(dir) if dir != modules_dir && dir.starts_with(&modules_dir) => Some(dir),
+        Ok(_) => None,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Some(virtual_store_dir.to_path_buf())
+        }
+        Err(_) => None,
+    }
 }
 
 /// Whether two paths refer to the same directory. Compares canonicalized
 /// forms when both resolve (so symlinks and `.`/`..` segments don't hide
 /// a match), falling back to a lexical comparison otherwise.
 #[must_use]
-pub fn same_dir(a: &Path, b: &Path) -> bool {
-    match (fs::canonicalize(a), fs::canonicalize(b)) {
-        (Ok(a), Ok(b)) => a == b,
-        _ => a == b,
+pub fn same_dir(left: &Path, right: &Path) -> bool {
+    match (fs::canonicalize(left), fs::canonicalize(right)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
     }
 }
 
@@ -208,26 +218,30 @@ fn read_virtual_store_dir(virtual_store_dir: &Path) -> Option<Vec<String>> {
     )
 }
 
-/// `rimraf` a surplus virtual-store entry. Mirrors pnpm's `tryRemovePkg`
+/// `rimraf` a surplus virtual-store entry, returning whether the entry is
+/// gone afterwards. Mirrors pnpm's `tryRemovePkg`
 /// (<https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L219-L231>):
 /// a removal failure is logged and swallowed — a leftover entry is less
-/// harmful than aborting the install, and the next sweep retries.
+/// harmful than aborting the install, and the next sweep retries. A `false`
+/// return lets the caller keep its removed count accurate (it must not
+/// count an entry a swallowed error left behind).
 ///
 /// Surplus entries are normally package directories, but a stray file or
 /// symlink could appear; upstream's `rimraf` removes any of them, so this
 /// does too. `symlink_metadata` keeps the file/symlink branch from
 /// following a link into a real directory.
-fn try_remove_pkg(path: &Path) {
+fn try_remove_pkg(path: &Path) -> bool {
     let result = match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.is_dir() => fs::remove_dir_all(path),
         Ok(_) => fs::remove_file(path),
         Err(error) => Err(error),
     };
     match result {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Ok(()) => true,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => true,
         Err(error) => {
             tracing::warn!(?error, path = %path.display(), "failed to remove virtual store entry");
+            false
         }
     }
 }

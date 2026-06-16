@@ -140,21 +140,28 @@ fn prune_target_must_be_inside_node_modules() {
     let modules = root.path().join("node_modules");
     fs::create_dir_all(&modules).unwrap();
 
-    // A strict descendant (the default `.pnpm`/`.pacquet` layout) is allowed.
+    // A strict descendant (the default `.pnpm`/`.pacquet` layout) is allowed,
+    // and the canonical target is returned so the caller deletes from the
+    // validated path.
     let inside = modules.join(".pacquet");
     fs::create_dir_all(&inside).unwrap();
-    assert!(prune_target_within_modules(&inside, &modules));
+    assert_eq!(
+        prune_target_within_modules(&inside, &modules),
+        Some(fs::canonicalize(&inside).unwrap()),
+    );
 
     // node_modules itself is refused (would sweep the whole tree).
-    assert!(!prune_target_within_modules(&modules, &modules));
+    assert_eq!(prune_target_within_modules(&modules, &modules), None);
 
     // A sibling that escapes node_modules is refused.
     let outside = root.path().join("elsewhere");
     fs::create_dir_all(&outside).unwrap();
-    assert!(!prune_target_within_modules(&outside, &modules));
+    assert_eq!(prune_target_within_modules(&outside, &modules), None);
 
-    // A not-yet-created store under node_modules is safe (nothing to delete).
-    assert!(prune_target_within_modules(&modules.join("not-created-yet"), &modules));
+    // A not-yet-created store under node_modules is safe (nothing to delete);
+    // the original path is returned since there is nothing to canonicalize.
+    let not_created = modules.join("not-created-yet");
+    assert_eq!(prune_target_within_modules(&not_created, &modules), Some(not_created));
 }
 
 #[test]

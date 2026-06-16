@@ -1384,29 +1384,32 @@ where
             now,
         ) {
             match fresh_lockfile.as_ref().or(lockfile) {
-                Some(wanted)
-                    if crate::prune_virtual_store::prune_target_within_modules(
+                // Sweep the canonicalized prune target returned by the
+                // containment check, never the raw configured path: deleting
+                // from the validated path closes the time-of-check/time-of-use
+                // gap a symlink swap would otherwise open.
+                Some(wanted) => {
+                    if let Some(prune_dir) = crate::prune_virtual_store::prune_target_within_modules(
                         effective_virtual_store_dir,
                         &config.modules_dir,
-                    ) =>
-                {
-                    crate::prune_virtual_store::prune_virtual_store(
-                        effective_virtual_store_dir,
-                        wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
-                        &frozen_skipped,
-                        config.virtual_store_dir_max_length as usize,
-                    )
-                    .is_some()
-                }
-                // A wanted lockfile exists but the store path is unsafe
-                // (escapes node_modules); refuse the destructive sweep.
-                Some(_) => {
-                    tracing::warn!(
-                        virtual_store_dir = %effective_virtual_store_dir.display(),
-                        modules_dir = %config.modules_dir.display(),
-                        "skipping virtual-store prune: the virtual store is not inside node_modules",
-                    );
-                    false
+                    ) {
+                        crate::prune_virtual_store::prune_virtual_store(
+                            &prune_dir,
+                            wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+                            &frozen_skipped,
+                            config.virtual_store_dir_max_length as usize,
+                        )
+                        .is_some()
+                    } else {
+                        // A wanted lockfile exists but the store path is unsafe
+                        // (escapes node_modules); refuse the destructive sweep.
+                        tracing::warn!(
+                            virtual_store_dir = %effective_virtual_store_dir.display(),
+                            modules_dir = %config.modules_dir.display(),
+                            "skipping virtual-store prune: the virtual store is not inside node_modules",
+                        );
+                        false
+                    }
                 }
                 None => false,
             }
