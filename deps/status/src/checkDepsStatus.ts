@@ -701,6 +701,9 @@ function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDepen
         // than throw — checkDepsStatus() must never crash.
         if (typeof spec !== 'string') continue
         if (isLocalFileSpec(spec)) return depName
+        // Only catalog: specs consult the catalogs, so skip the lookup for
+        // everything else to keep the optimistic fast path cheap.
+        if (!spec.startsWith('catalog:')) continue
         const catalogResult = resolveFromCatalog(catalogs ?? {}, { alias: depName, bareSpecifier: spec })
         if (catalogResult.type === 'found' && isLocalFileSpec(catalogResult.resolution.specifier)) return depName
       }
