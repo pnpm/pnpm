@@ -970,7 +970,7 @@ catalogs:
       version: 5.0.0
     tinyglobby:
       specifier: ^0.2.16
-      version: 0.2.17
+      version: 0.2.16
     touch:
       specifier: 3.1.1
       version: 3.1.1
@@ -1473,7 +1473,7 @@ importers:
         version: 7.5.16
       tinyglobby:
         specifier: 'catalog:'
-        version: 0.2.17
+        version: 0.2.16
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -1712,7 +1712,7 @@ importers:
         version: 2.0.0
       tinyglobby:
         specifier: 'catalog:'
-        version: 0.2.17
+        version: 0.2.16
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2075,7 +2075,7 @@ importers:
         version: 3.0.1
       tinyglobby:
         specifier: 'catalog:'
-        version: 0.2.17
+        version: 0.2.16
     devDependencies:
       '@pnpm/cache.api':
         specifier: workspace:*
@@ -7535,7 +7535,7 @@ importers:
         version: 5.0.0
       tinyglobby:
         specifier: 'catalog:'
-        version: 0.2.17
+        version: 0.2.16
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -8411,7 +8411,7 @@ importers:
         version: 3.0.0
       tinyglobby:
         specifier: 'catalog:'
-        version: 0.2.17
+        version: 0.2.16
       validate-npm-package-name:
         specifier: 'catalog:'
         version: 7.0.2
@@ -9900,7 +9900,7 @@ importers:
         version: 4.1.0
       tinyglobby:
         specifier: 'catalog:'
-        version: 0.2.17
+        version: 0.2.16
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -16691,6 +16691,10 @@ packages:
   tinyexec@1.2.4:
     resolution: {integrity: sha512-SHf/r48b7vOrjve9PxJo3MN5v5yuyjHvdUcrQffT3WXMUfnGmHDVbC4k3sHJaJTgZCwpUplIaAo5ANtMyp3YHg==}
     engines: {node: '>=18'}
+
+  tinyglobby@0.2.16:
+    resolution: {integrity: sha512-pn99VhoACYR8nFHhxqix+uvsbXineAasWm5ojXoN8xEwK5Kd3/TrhNn1wByuD52UxWRLy8pu+kRMniEi6Eq9Zg==}
+    engines: {node: '>=12.0.0'}
 
   tinyglobby@0.2.17:
     resolution: {integrity: sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==}
@@ -25014,6 +25018,11 @@ snapshots:
       - react-native-b4a
 
   tinyexec@1.2.4: {}
+
+  tinyglobby@0.2.16:
+    dependencies:
+      fdir: 6.5.0(picomatch@4.0.4)
+      picomatch: 4.0.4
 
   tinyglobby@0.2.17:
     dependencies:

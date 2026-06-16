@@ -346,8 +346,11 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
       // throwing) for an importer whose manifest is gone (e.g. a stale lockfile),
       // and skips the installability check that would otherwise abort the SBOM.
       const lockfileRoot = await realpath(lockfileDir)
+      // Bound the fan-out: a large workspace can have many importers, and
+      // reading every manifest at once would spike open file descriptors.
+      const limitManifestReads = pLimit(16)
       await Promise.all(
-        Object.keys(lockfile.importers).map(async (importerId) => {
+        Object.keys(lockfile.importers).map((importerId) => limitManifestReads(async () => {
           // A crafted lockfile could carry an importer key that escapes the
           // project, via `..` segments or a symlinked directory. Canonicalize
           // with realpath and skip anything resolving outside the project root,
@@ -364,7 +367,7 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
           if (importerManifest) {
             byImporter[importerId] = peerNamesFromManifest(importerManifest)
           }
-        })
+        }))
       )
     }
     excludePeerNamesByImporter = byImporter
