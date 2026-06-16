@@ -3,9 +3,9 @@ name: Rust CI
 # This workflow covers every Rust crate in the repo — pacquet and
 # pnpr alike. They share the same cargo workspace, so `just test`,
 # dylint, doc, etc. all see both stacks in one pass; running two
-# workflows would just duplicate the work. Keep path filtering out
-# of the workflow trigger so required checks are created and can
-# report skipped.
+# workflows would just duplicate the work. Path filtering stays out
+# of the workflow trigger so the `success` gate always runs; branch
+# protection requires only that gate, which folds in every job below.
 
 permissions:
   contents: read
@@ -399,3 +399,29 @@ jobs:
         env:
           RUSTFLAGS: '-D warnings'
         run: cargo dylint --all -- --all-targets --workspace
+
+  # Single aggregate gate — the only Rust CI context branch protection
+  # needs to require. Listing the individual jobs as required checks does
+  # not work: most of them skip on non-Rust PRs, and a matrix job skipped
+  # at the job level never expands its `${{ matrix.* }}` name, so the
+  # per-OS contexts it would report never appear and the PR blocks forever
+  # waiting for them. This job always runs (it reports under a static name
+  # in every state) and fails only if a dependency actually failed or was
+  # cancelled — skipped dependencies count as a pass.
+  success:
+    name: Rust CI / Success
+    if: ${{ always() }}
+    needs:
+      - changes
+      - test
+      - clippy
+      - doc
+      - typos
+      - deny
+      - format
+      - dylint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
