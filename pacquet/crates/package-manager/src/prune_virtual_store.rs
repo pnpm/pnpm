@@ -11,7 +11,7 @@
 //! Only the virtual-store sweep is ported here. The rest of upstream's
 //! `prune` — removing changed direct dependencies from importer
 //! `node_modules`, the hoisted-dependency removal (pacquet handles that
-//! in [`crate::link_hoisted_modules`]), and the `pnpm:stats` `removed`
+//! in [`crate::link_hoisted_modules()`]), and the `pnpm:stats` `removed`
 //! count derived from the current-vs-wanted orphan diff — is not part
 //! of this slice.
 
@@ -119,7 +119,7 @@ pub fn prune_virtual_store<'a>(
     Some(removed)
 }
 
-/// The canonical directory the sweep is allowed to delete from, or `None`
+/// The resolved directory the sweep is allowed to delete from, or `None`
 /// when `virtual_store_dir` is not a safe prune target. A safe target must
 /// resolve to a strict descendant of `modules_dir`. The sweep deletes
 /// directories, and `virtual_store_dir` can come from repo-controlled
@@ -127,27 +127,42 @@ pub fn prune_virtual_store<'a>(
 /// absolute location, or a symlink) — or that *is* `node_modules` itself —
 /// is refused to avoid destructive deletes outside the managed tree.
 ///
-/// Both paths are canonicalized so symlinked escapes are caught, and the
-/// returned canonical path is what the caller must enumerate and delete
-/// from: validating one path and then operating on the original
-/// (still-symlinkable) path would leave a time-of-check/time-of-use gap.
+/// Paths are resolved to a symlink-free, absolute form so symlinked
+/// escapes are caught, and the returned resolved path is what the caller
+/// must enumerate and delete from: validating one path and then operating
+/// on the original (still-symlinkable) path would leave a
+/// time-of-check/time-of-use gap.
 ///
-/// A `virtual_store_dir` that does not exist yet is safe: there is nothing
-/// to delete, the sweep enumerates it as empty, and the original path is
-/// returned unchanged.
+/// A `virtual_store_dir` that does not exist yet (e.g. a first install) is
+/// resolved through its nearest existing ancestor and still containment-
+/// checked, so a missing path that points outside `node_modules` is
+/// refused even though it could be created mid-install.
 #[must_use]
 pub fn prune_target_within_modules(
     virtual_store_dir: &Path,
     modules_dir: &Path,
 ) -> Option<PathBuf> {
     let modules_dir = fs::canonicalize(modules_dir).ok()?;
-    match fs::canonicalize(virtual_store_dir) {
-        Ok(dir) if dir != modules_dir && dir.starts_with(&modules_dir) => Some(dir),
-        Ok(_) => None,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            Some(virtual_store_dir.to_path_buf())
+    let virtual_store_dir = resolve_through_existing_ancestor(virtual_store_dir)?;
+    (virtual_store_dir != modules_dir && virtual_store_dir.starts_with(&modules_dir))
+        .then_some(virtual_store_dir)
+}
+
+/// Resolve `path` to an absolute, symlink-free form even when its trailing
+/// components don't exist yet: canonicalize the deepest existing ancestor
+/// and re-append the missing tail. Returns `None` when no ancestor can be
+/// canonicalized, or when a trailing component is not a normal name (e.g.
+/// `..`), so an unprovable path is refused rather than trusted.
+fn resolve_through_existing_ancestor(path: &Path) -> Option<PathBuf> {
+    let mut tail = Vec::new();
+    let mut current = path;
+    loop {
+        if let Ok(mut base) = fs::canonicalize(current) {
+            base.extend(tail.iter().rev());
+            return Some(base);
         }
-        Err(_) => None,
+        tail.push(current.file_name()?.to_owned());
+        current = current.parent()?;
     }
 }
 

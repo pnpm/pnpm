@@ -160,10 +160,19 @@ fn prune_target_must_be_inside_node_modules() {
     fs::create_dir_all(&outside).unwrap();
     assert_eq!(prune_target_within_modules(&outside, &modules), None);
 
-    // A not-yet-created store under node_modules is safe (nothing to delete);
-    // the original path is returned since there is nothing to canonicalize.
+    // A not-yet-created store under node_modules is allowed; it is resolved
+    // through its nearest existing ancestor (node_modules) so the caller
+    // deletes from a containment-checked path.
     let not_created = modules.join("not-created-yet");
-    assert_eq!(prune_target_within_modules(&not_created, &modules), Some(not_created));
+    assert_eq!(
+        prune_target_within_modules(&not_created, &modules),
+        Some(fs::canonicalize(&modules).unwrap().join("not-created-yet")),
+    );
+
+    // A not-yet-created path that escapes node_modules is refused even though
+    // it is absent at check time: it could be created/swapped in mid-install.
+    let outside_missing = root.path().join("not-created-outside");
+    assert_eq!(prune_target_within_modules(&outside_missing, &modules), None);
 }
 
 #[test]
