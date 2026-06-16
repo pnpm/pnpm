@@ -957,8 +957,9 @@ where
             // (`preferFrozenLockfile`) + `--lockfile-only`: the freshness
             // gate folded into `take_frozen_path` already validated the
             // on-disk lockfile (a stale one surfaced `OutdatedLockfile`).
-            // Re-persist it so a brand-new project still lands a file, then
-            // return without touching `node_modules`.
+            // Re-persist it on the auto-frozen path so a synthesized lockfile
+            // still lands a file, then return without touching
+            // `node_modules`.
             let lockfile = lockfile.expect("frozen dispatch verified lockfile is present");
             // This path materializes nothing, so there's no fetch to overlap;
             // verify eagerly to keep the gate before the early return.
@@ -973,7 +974,14 @@ where
                 )
                 .await?;
             }
-            if config.lockfile {
+            // `--frozen-lockfile` (and `--dry-run`, which implies it) means
+            // "validate without changing the lockfile." The freshness gate
+            // already proved the on-disk lockfile is up to date, so re-saving
+            // it would only touch its mtime. Skip the write so `--dry-run`
+            // stays side-effect-free. Mirrors pnpm's `if (!frozenLockfile)`
+            // gate at
+            // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L979-L986>.
+            if config.lockfile && !frozen_lockfile {
                 lockfile
                     .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
                     .map_err(InstallError::SaveWantedLockfile)?;

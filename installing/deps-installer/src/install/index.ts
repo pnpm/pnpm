@@ -1044,6 +1044,11 @@ Note that in CI environments, this setting is enabled by default.`,
       }
     }
     if (opts.lockfileOnly) {
+      // `frozenLockfile` (set by `--frozen-lockfile`, and by `--dry-run`,
+      // which implies it) means "validate without changing the lockfile."
+      // The freshness gates above already proved the on-disk lockfile is up
+      // to date, so re-writing it would only touch its mtime (and risk
+      // normalizing it). Skip the write to keep dry-run side-effect-free.
       if (!frozenLockfile) {
         await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
       }

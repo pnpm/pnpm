@@ -427,6 +427,10 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
       throw new PnpmError('CONFIG_CONFLICT_DRY_RUN_WITH_RESOLUTION_ONLY',
         'Cannot use --dry-run with --resolution-only')
     }
+    if (opts.pnprServer) {
+      throw new PnpmError('CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER',
+        'Cannot use --dry-run with a configured pnpr server because pnpr installs resolve through the server and write the lockfile and store')
+    }
     installDepsOptions.frozenLockfile = true
     installDepsOptions.lockfileOnly = true
   }

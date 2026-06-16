@@ -27,6 +27,25 @@ test('dry run succeeds when lockfile is up-to-date', async () => {
   }))
 })
 
+test('dry run does not rewrite an up-to-date lockfile', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults())
+
+  const lockfileBefore = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, testDefaults({
+    frozenLockfile: true,
+    lockfileOnly: true,
+  }))
+
+  expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toBe(lockfileBefore)
+})
+
 test('dry run fails when lockfile is not up-to-date with package.json', async () => {
   prepareEmpty()
 

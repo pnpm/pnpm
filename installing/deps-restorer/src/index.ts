@@ -116,8 +116,6 @@ export interface HeadlessOptions {
     pnpmVersion: string
   }
   dedupeDirectDeps?: boolean
-  /** When true, skip writing to disk (lockfile and node_modules). */
-  dryRun?: boolean
   enablePnp?: boolean
   engineStrict: boolean
   excludeLinksFromLockfile?: boolean
@@ -257,7 +255,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     storeController: opts.storeController,
     unsafePerm: opts.unsafePerm || false,
     userAgent: opts.userAgent,
-    dryRun: opts.dryRun || false,
   }
 
   if (opts.virtualStoreOnly && opts.enableModulesDir === false && !opts.enableGlobalVirtualStore) {
@@ -287,7 +284,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         {
           currentLockfile,
           dedupeDirectDeps: opts.dedupeDirectDeps,
-          dryRun: opts.dryRun,
+          dryRun: false,
           hoistedDependencies: opts.hoistedDependencies,
           hoistedModulesDir: (opts.hoistPattern == null) ? undefined : hoistedModulesDir,
           include: opts.include,

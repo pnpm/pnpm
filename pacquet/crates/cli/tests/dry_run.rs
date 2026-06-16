@@ -32,12 +32,21 @@ fn dry_run_succeeds_when_lockfile_is_fresh() {
     // Seed a lockfile.
     pacquet.with_args(["install", "--lockfile-only"]).assert().success();
 
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile_before = fs::read_to_string(&lockfile_path).expect("read seeded lockfile");
+
     // --dry-run against the fresh lockfile must succeed.
     pacquet_at(&workspace).with_args(["install", "--dry-run"]).assert().success();
 
     assert!(
         !workspace.join("node_modules").exists(),
         "node_modules must not be created by --dry-run",
+    );
+
+    let lockfile_after = fs::read_to_string(&lockfile_path).expect("read lockfile after --dry-run");
+    assert_eq!(
+        lockfile_before, lockfile_after,
+        "--dry-run must not rewrite pnpm-lock.yaml when it is already fresh",
     );
 
     drop((root, mock_instance));
@@ -72,6 +81,34 @@ fn dry_run_rejects_stale_lockfile() {
     assert!(
         stderr.contains("outdated_lockfile"),
         "stderr must name the outdated-lockfile diagnostic; got:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `--dry-run` cannot honor its no-write contract when a pnpr server is
+/// configured (the pnpr path resolves through the server and persists the
+/// lockfile + store), so the combination is refused up front.
+#[test]
+fn dry_run_rejects_pnpr_server() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet
+        .with_args(["install", "--dry-run", "--pnpr-server", "http://localhost:1"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        stderr.contains("Cannot use --dry-run with a configured pnpr server"),
+        "stderr must name the dry-run/pnpr conflict; got:\n{stderr}",
     );
 
     drop((root, mock_instance));

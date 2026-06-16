@@ -286,7 +286,11 @@ impl InstallArgs {
         config: &pacquet_config::Config,
         emit: fn(&pacquet_reporter::LogEvent),
     ) -> bool {
-        if self.frozen_lockfile || self.lockfile_only || self.pnpr_server.is_some() {
+        // `--dry-run` implies `--frozen-lockfile --lockfile-only`, so it must
+        // take the full validation path rather than this optimistic
+        // short-circuit, exactly as the two flags it desugars to would.
+        if self.frozen_lockfile || self.lockfile_only || self.dry_run || self.pnpr_server.is_some()
+        {
             return false;
         }
         if config.pnpr_server.is_some() {
@@ -415,6 +419,13 @@ impl InstallArgs {
         // server-produced lockfile via the normal frozen install. Mirrors
         // pnpm's `install()` delegating to `installFromPnpmRegistry`.
         if let Some(pnpr_server) = config.pnpr_server.as_deref() {
+            // `--dry-run` must validate locally without writing; the pnpr path
+            // resolves through the server and persists the lockfile + store, so
+            // refuse the combination up front. Mirrors pnpm's
+            // CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER guard.
+            if dry_run {
+                return Err(DryRunWithPnprServer.into());
+            }
             return install_via_pnpr::<Reporter>(
                 &state,
                 pnpr_server,
@@ -540,6 +551,23 @@ struct PnprLink<'a> {
     )
 )]
 struct FrozenStoreIncompatibleWithPnpr;
+
+/// `--dry-run` was requested together with a configured `pnprServer`.
+/// `--dry-run` promises to validate the lockfile without writing to disk,
+/// but the pnpr path resolves through the server and writes the lockfile
+/// and store, so the combination can't honor that contract. Mirrors pnpm's
+/// `ERR_PNPM_CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER`.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Cannot use --dry-run with a configured pnpr server because pnpr installs resolve through the server and write the lockfile and store."
+)]
+#[diagnostic(
+    code(ERR_PNPM_CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER),
+    help(
+        "Unset the pnpr server (`--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) to validate the lockfile locally, or drop --dry-run."
+    )
+)]
+struct DryRunWithPnprServer;
 
 /// Resolve a single project through a `pnpr` server, then link it.
 ///

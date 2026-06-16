@@ -225,3 +225,16 @@ test('install --dry-run fails when lockfile is not up-to-date', async () => {
     })
   ).rejects.toThrow(/frozen-lockfile/)
 })
+
+test('install --dry-run is rejected when a pnpr server is configured', async () => {
+  prepareEmpty()
+
+  await expect(
+    install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      dryRun: true,
+      pnprServer: 'http://localhost:1234',
+    })
+  ).rejects.toThrow('Cannot use --dry-run with a configured pnpr server')
+})
