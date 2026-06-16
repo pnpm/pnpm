@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
 import {
@@ -144,21 +145,31 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 
 export type CommandFullName = 'install' | 'add' | 'remove' | 'update' | 'import'
 
+export interface RecursiveResult {
+  passed: boolean | string
+  /**
+   * Catalog entries written to `pnpm-workspace.yaml` during this install.
+   * The caller folds these into the catalogs recorded in the workspace state
+   * cache so that reverting a catalog entry is detected as an outdated state.
+   */
+  updatedCatalogs?: Catalogs
+}
+
 export async function recursive (
   allProjects: Project[],
   params: string[],
   opts: RecursiveOptions,
   cmdFullName: CommandFullName
-): Promise<boolean | string> {
+): Promise<RecursiveResult> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
-    return false
+    return { passed: false }
   }
 
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
 
   if (pkgs.length === 0) {
-    return false
+    return { passed: false }
   }
   const manifestsByPath = getManifestsByPath(allProjects)
 
@@ -225,7 +236,7 @@ export async function recursive (
     const calculatedRepositoryRoot = await fs.realpath(calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDirRealPath }) => isFromWorkspace(rootDirRealPath))
-    if (importers.length === 0) return true
+    if (importers.length === 0) return { passed: true }
     let mutation: 'install' | 'installSome' | 'uninstallSome'
     switch (cmdFullName) {
       case 'remove':
@@ -341,7 +352,7 @@ export async function recursive (
       await Promise.all(promises)
     }
     await handleIgnoredBuilds(opts, ignoredBuilds)
-    return true
+    return { passed: true, updatedCatalogs }
   }
 
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
@@ -459,8 +470,10 @@ export async function recursive (
         if (opts.save !== false) {
           await writeProjectManifest(newManifest)
           if (newCatalogsAddition) {
-            updatedCatalogs ??= {}
-            Object.assign(updatedCatalogs, newCatalogsAddition)
+            // Per-project additions are partial maps keyed by catalog name then
+            // dependency. Merge at the dependency level so two projects updating
+            // different entries of the same catalog don't clobber each other.
+            updatedCatalogs = mergeCatalogs(updatedCatalogs, newCatalogsAddition)
           }
         }
         if (ignoredBuilds?.size) {
@@ -527,7 +540,7 @@ export async function recursive (
       'None of the specified packages were found in the dependencies of any of the projects.')
   }
 
-  return true
+  return { passed: true, updatedCatalogs }
 }
 
 function calculateRepositoryRoot (

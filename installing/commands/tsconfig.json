@@ -28,6 +28,9 @@
       "path": "../../building/policy"
     },
     {
+      "path": "../../catalogs/config"
+    },
+    {
       "path": "../../catalogs/types"
     },
     {
