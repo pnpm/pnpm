@@ -171,8 +171,14 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   // (the only one setting this flag) "up-to-date" would skip the install
   // and break the local-file-deps guarantee.
   if (opts.treatLocalFileDepsAsOutdated) {
-    const manifests = allProjects?.map(({ manifest }) => manifest) ??
-      (rootProjectManifest ? [rootProjectManifest] : [])
+    const manifests = allProjects?.map(({ manifest }) => manifest) ?? []
+    // `rootProjectManifest` is tracked separately from `allProjects` and the
+    // recursive project list can omit the workspace root (for example when
+    // `includeWorkspaceRoot` is false), so scan it too unless `allProjects`
+    // already covers it.
+    if (rootProjectManifest != null && !allProjects?.some(({ rootDir }) => rootDir === rootProjectManifestDir)) {
+      manifests.push(rootProjectManifest)
+    }
     const localFileDep = findLocalFileDep(manifests, opts.include, catalogs)
     if (localFileDep != null) {
       return {
