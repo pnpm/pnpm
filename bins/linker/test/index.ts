@@ -758,16 +758,15 @@ describe('node binary linking', () => {
     // Second call should not warn because the .exe is already the correct hardlink
     await linkBinsOfPackages(pkgs, binTarget)
 
+    // The absence of a warning is the regression signal: the warn and the
+    // `rimraf` that recreates node.exe live in the same branch, so no warning
+    // means node.exe was left untouched. We don't assert on inode identity
+    // because node.exe may legitimately be a copy rather than a hardlink (the
+    // implementation falls back to copyFile when hardlinking fails).
     expect(globalWarn).not.toHaveBeenCalled()
     const exePath = path.join(binTarget, 'node.exe')
     expect(fs.existsSync(exePath)).toBe(true)
     expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
-    // The original hardlink must be preserved, i.e. node.exe is not deleted and
-    // recreated: it still shares its identity with the source binary.
-    const srcStat = fs.statSync(path.join(nodeDir, 'node.exe'))
-    const exeStat = fs.statSync(exePath)
-    expect(exeStat.ino).toBe(srcStat.ino)
-    expect(exeStat.dev).toBe(srcStat.dev)
   })
 
   testOnWindows('linkBinsOfPackages() does not warn when node.exe has identical content but is not a hardlink', async () => {

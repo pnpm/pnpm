@@ -420,6 +420,10 @@ async function haveEqualContents (pathA: string, pathB: string): Promise<boolean
       }
       position += readA.bytesRead
     }
+  } catch {
+    // A transient read error must not abort bin linking: treat the files as
+    // different so the caller falls back to the warn + remove + relink path.
+    return false
   } finally {
     await fhA.close().catch(() => {})
     await fhB.close().catch(() => {})
