@@ -208,6 +208,13 @@ where
     /// [`lockfileOnly`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L170)
     /// (`like npm's --package-lock-only`).
     pub lockfile_only: bool,
+    /// `--dry-run`: resolve fully but write nothing, then report what a
+    /// real install would change. Forces the fresh-resolve path (so the
+    /// would-be lockfile is always computed), suppresses every write —
+    /// `pnpm-lock.yaml`, `node_modules`, `.modules.yaml`, the current
+    /// lockfile, the workspace-state file — and exits 0 regardless of
+    /// whether changes were found. Mirrors pnpm's `install --dry-run`.
+    pub dry_run: bool,
     /// Which lockfile pins to withhold from the preferred-versions seed.
     /// [`UpdateSeedPolicy::KeepAll`] for `install` / `add`; the `DropAll`
     /// / `DropOnly` variants drive `pacquet update`'s compatible bump by
@@ -470,11 +477,17 @@ where
             supported_architectures,
             node_linker,
             lockfile_only,
+            dry_run,
             update_seed_policy,
             auth_override,
             resolution_observer,
             catalogs_override,
         } = self;
+
+        // `--dry-run` resolves but never materializes, so it borrows the
+        // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
+        // workspace-state) while additionally skipping the lockfile write.
+        let resolve_only = lockfile_only || dry_run;
 
         // `--lockfile-only` with `lockfile: false` (pnpm's
         // `useLockfile: false`) is a config conflict: the only output the
@@ -755,6 +768,11 @@ where
                 None
             };
         let lockfile_synthesized_from_current = synthesized_lockfile.is_some();
+        // The dry-run diff baseline is the actual on-disk `pnpm-lock.yaml`
+        // (`None` when it is absent), captured before the synthesized-from-
+        // current fallback below. Diffing against the synthesized lockfile
+        // would hide the change of a real install creating `pnpm-lock.yaml`.
+        let existing_wanted_lockfile = lockfile;
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
 
         // One per-install packument cache shared with both the
@@ -879,7 +897,15 @@ where
         // for both state 1 (--frozen-lockfile) and state 2 (auto-frozen
         // via prefer-frozen-lockfile). The freshness check fires for both
         // — fatal for state 1, fall-through for state 2.
-        let take_frozen_path = if frozen_lockfile {
+        //
+        // `--dry-run` always takes the fresh-resolve path: it must compute
+        // the would-be lockfile to diff against the existing one, and the
+        // frozen freshness gate would otherwise abort on a stale lockfile
+        // instead of reporting the change. Mirrors pnpm disabling its
+        // frozen fast path whenever the lockfile-check callback is set.
+        let take_frozen_path = if dry_run {
+            false
+        } else if frozen_lockfile {
             let Some(lockfile) = lockfile else {
                 return Err(InstallError::NoLockfile);
             };
@@ -1167,7 +1193,7 @@ where
             // filter is irrelevant to its output. Mirrors pnpm gating its
             // lockfileOnly-specific handling on `!opts.lockfileOnly` at
             // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1957>.
-            if !lockfile_only && skip_runtimes {
+            if !resolve_only && skip_runtimes {
                 return Err(InstallError::UnsupportedFreshInstallSkipRuntimes);
             }
 
@@ -1241,7 +1267,8 @@ where
                 wanted_lockfile: lockfile,
                 node_linker,
                 supported_architectures: supported_architectures.as_ref(),
-                lockfile_only,
+                lockfile_only: resolve_only,
+                dry_run,
                 update_seed_policy,
                 auth_override,
                 resolution_observer,
@@ -1287,7 +1314,21 @@ where
         // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1784>
         // and skipping `updateWorkspaceState` when `lockfileOnly` at
         // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/commands/src/installDeps.ts#L515>.
-        if lockfile_only {
+        if resolve_only {
+            // `--dry-run` resolved a fresh lockfile but wrote nothing. Diff
+            // it against the existing on-disk lockfile and print a report,
+            // then exit 0 — npm-style preview semantics.
+            if dry_run {
+                use std::io::Write as _;
+                let report =
+                    crate::dry_run::render_dry_run_report(&crate::dry_run::diff_lockfiles(
+                        existing_wanted_lockfile,
+                        fresh_lockfile.as_ref(),
+                    ));
+                let mut stdout = std::io::stdout();
+                let _ = writeln!(stdout, "{report}");
+                let _ = stdout.flush();
+            }
             Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
             return Ok(());
         }
@@ -1298,6 +1339,93 @@ where
         // subsequent `pnpm:lifecycle` events render after the import
         // progress display has closed. Mirrors upstream's emit point in
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>.
+
+        // Remove surplus virtual-store directories the wanted lockfile
+        // no longer references, throttled by `modulesCacheMaxAge`.
+        // Mirrors upstream's `pruneVirtualStore` gate at
+        // <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L471-L473>
+        // and the virtual-store sweep inside `prune` at
+        // <https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L173-L191>.
+        // The wanted lockfile is `fresh_lockfile` on the resolve path and
+        // `lockfile` on the frozen path; its `snapshots:` keys name the
+        // virtual-store subdirectories that must survive.
+        // A genuine read/parse failure (not `NotFound`) is treated as
+        // "no prior manifest" — the safe direction (prune + fresh
+        // `prunedAt`) — but logged rather than silently swallowed.
+        let prior_modules = match read_modules_manifest::<Host>(&config.modules_dir) {
+            Ok(modules) => modules,
+            Err(error) => {
+                tracing::warn!(?error, "failed to read .modules.yaml; treating as a fresh install");
+                None
+            }
+        };
+        let now = SystemTime::now();
+        let effective_virtual_store_dir = config.effective_virtual_store_dir();
+        // Decide "this is the global store" from the resolved paths, not
+        // the `enableGlobalVirtualStore` flag alone: the global store is
+        // shared across projects, so a config that points `virtualStoreDir`
+        // at it must not be pruned even when the flag is off.
+        let is_global_virtual_store = crate::prune_virtual_store::same_dir(
+            effective_virtual_store_dir,
+            &config.global_virtual_store_dir,
+        );
+        // `did_prune` tracks whether the sweep actually ran (enumerated the
+        // store), not just whether the throttle allowed it. It stays false
+        // when there is no wanted lockfile to derive the needed set from
+        // (e.g. `config.lockfile == false` leaves both `fresh_lockfile` and
+        // a loaded `lockfile` absent), when the target is refused as unsafe,
+        // or when enumeration failed. `prunedAt` must not advance on a run
+        // where nothing was swept, or the next real sweep is throttled off
+        // for `modulesCacheMaxAge`.
+        let did_prune = if crate::prune_virtual_store::should_prune_virtual_store(
+            is_global_virtual_store,
+            prior_modules.as_ref().map(|modules| modules.pruned_at.as_str()),
+            config.modules_cache_max_age,
+            now,
+        ) {
+            match fresh_lockfile.as_ref().or(lockfile) {
+                // Sweep the canonicalized prune target returned by the
+                // containment check, never the raw configured path: deleting
+                // from the validated path closes the time-of-check/time-of-use
+                // gap a symlink swap would otherwise open.
+                Some(wanted) => {
+                    if let Some(prune_dir) = crate::prune_virtual_store::prune_target_within_modules(
+                        effective_virtual_store_dir,
+                        &config.modules_dir,
+                    ) {
+                        crate::prune_virtual_store::prune_virtual_store(
+                            &prune_dir,
+                            wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+                            &frozen_skipped,
+                            config.virtual_store_dir_max_length as usize,
+                        )
+                        .is_some()
+                    } else {
+                        // A wanted lockfile exists but the store path is unsafe
+                        // (escapes node_modules); refuse the destructive sweep.
+                        tracing::warn!(
+                            virtual_store_dir = %effective_virtual_store_dir.display(),
+                            modules_dir = %config.modules_dir.display(),
+                            "skipping virtual-store prune: the virtual store is not inside node_modules",
+                        );
+                        false
+                    }
+                }
+                None => false,
+            }
+        } else {
+            false
+        };
+
+        // Stamp `prunedAt` only when the sweep ran (or there was no prior
+        // `.modules.yaml`); otherwise preserve the recorded timestamp so
+        // the throttle keeps counting from the last real prune. Mirrors
+        // upstream's write at
+        // <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L1828-L1830>.
+        let pruned_at = match (&prior_modules, did_prune) {
+            (Some(prior), false) => prior.pruned_at.clone(),
+            _ => httpdate::fmt_http_date(now),
+        };
 
         // Write `node_modules/.modules.yaml`. Mirrors upstream's
         // `writeModulesManifest` call at
@@ -1317,6 +1445,7 @@ where
                 hoisted_locations,
                 &frozen_skipped,
                 &ignored_builds,
+                pruned_at,
             ),
         )
         .map_err(InstallError::WriteModules)?;
@@ -1394,7 +1523,11 @@ where
         // Skipped for partial installs (`pacquet add`): pnpm filters
         // to `mutation === 'install'` so a named install does not fire
         // the project's own scripts (see [`Install::is_full_install`]).
-        if is_full_install {
+        //
+        // Also skipped under `--ignore-scripts`: pnpm suppresses the
+        // project's own lifecycle scripts alongside dependency build
+        // scripts when `ignoreScripts` is set.
+        if is_full_install && !config.ignore_scripts {
             run_projects_lifecycle_scripts::<Reporter>(
                 &project_manifests,
                 config,
@@ -1804,6 +1937,10 @@ fn unapproved_recorded_ignored_builds(
 ///
 /// [`PackageKey`]: pacquet_lockfile::PackageKey
 /// [`write_modules_manifest`]: pacquet_modules_yaml::write_modules_manifest
+#[expect(
+    clippy::too_many_arguments,
+    reason = "assembles every field of the .modules.yaml manifest from the install's resolved state"
+)]
 fn build_modules_manifest(
     config: &Config,
     node_linker: NodeLinker,
@@ -1812,6 +1949,7 @@ fn build_modules_manifest(
     hoisted_locations: BTreeMap<String, Vec<String>>,
     skipped: &crate::SkippedSnapshots,
     ignored_builds: &[String],
+    pruned_at: String,
 ) -> Modules {
     Modules {
         // The `name@version` keys whose build scripts were blocked, so a
@@ -1835,9 +1973,10 @@ fn build_modules_manifest(
         // resolves at compile time to this crate's package version.
         package_manager: concat!("pacquet@", env!("CARGO_PKG_VERSION")).to_string(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
-        // RFC 1123 / `toUTCString()` format, matching upstream's
-        // `new Date().toUTCString()` at line 1622.
-        pruned_at: httpdate::fmt_http_date(SystemTime::now()),
+        // RFC 1123 / `toUTCString()` format. The caller decides whether
+        // this is a fresh timestamp (a prune ran or first install) or the
+        // preserved prior value, per upstream's `prunedAt` write logic.
+        pruned_at,
         registries: Some(config.resolved_registries()),
         // `iter_installability` excludes fetch-failure entries so they
         // don't get persisted across installs — matches upstream's
@@ -1876,7 +2015,9 @@ fn load_workspace_projects(
 ) -> Result<Option<Vec<pacquet_workspace::Project>>, pacquet_workspace::FindWorkspaceProjectsError>
 {
     let Some(manifest) = workspace_manifest else { return Ok(None) };
-    let opts = pacquet_workspace::FindWorkspaceProjectsOpts { patterns: manifest.packages.clone() };
+    let opts = pacquet_workspace::FindWorkspaceProjectsOpts {
+        patterns: Some(pacquet_workspace::workspace_package_patterns(manifest)),
+    };
     pacquet_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
 }
 

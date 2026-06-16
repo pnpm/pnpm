@@ -289,6 +289,7 @@ where
             supported_architectures,
             node_linker: config.node_linker,
             lockfile_only,
+            dry_run: false,
             // `add` keeps every lockfile pin; the freshly-added range
             // is the only thing that re-resolves. `update`'s bump is a
             // separate operation.

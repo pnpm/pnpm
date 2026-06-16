@@ -474,7 +474,8 @@ impl CreateVirtualStore<'_> {
         type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, Option<String>);
         let snapshot_entries: Vec<SnapshotWithCacheKey<'_>> = survivors
             .map(|(snapshot_key, snapshot)| {
-                snapshot_cache_key(snapshot_key, packages).map(|key| (snapshot_key, snapshot, key))
+                snapshot_cache_key(snapshot_key, packages, config.ignore_scripts)
+                    .map(|key| (snapshot_key, snapshot, key))
             })
             .collect::<Result<_, _>>()?;
 
@@ -500,7 +501,9 @@ impl CreateVirtualStore<'_> {
             // here.
             .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
             .map(|(snapshot_key, snapshot)| {
-                let cache_key = snapshot_cache_key(snapshot_key, packages).ok().flatten();
+                let cache_key = snapshot_cache_key(snapshot_key, packages, config.ignore_scripts)
+                    .ok()
+                    .flatten();
                 (snapshot_key, snapshot, cache_key)
             })
             .collect();
@@ -1094,6 +1097,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
 fn snapshot_cache_key(
     snapshot_key: &PackageKey,
     packages: &HashMap<PackageKey, PackageMetadata>,
+    ignore_scripts: bool,
 ) -> Result<Option<String>, CreateVirtualStoreError> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = packages.get(&metadata_key).ok_or_else(|| {
@@ -1110,10 +1114,10 @@ fn snapshot_cache_key(
             // row is written under `gitHostedStoreIndexKey(pkg_id,
             // built)` rather than the integrity-based key. Use the
             // same key shape here so the warm prefetch finds the
-            // row on a re-install. `built = true` matches the
-            // dispatcher's `!ignore_scripts` default — when ignore-
-            // scripts becomes configurable both sites flip together.
-            Ok(Some(git_hosted_store_index_key(&pkg_id, true)))
+            // row on a re-install. `built` tracks `!ignore_scripts`
+            // in lock-step with the dispatcher's write key, so the
+            // prefetch and write address the same slot.
+            Ok(Some(git_hosted_store_index_key(&pkg_id, !ignore_scripts)))
         }
         LockfileResolution::Tarball(t) => {
             let integrity = t
@@ -1152,8 +1156,10 @@ fn snapshot_cache_key(
             // lets the warm prefetch reuse a previous install's
             // clone + checkout + prepare + packlist work — without
             // this, every git install cold-paths regardless of
-            // whether the snapshot is already in `index.db`.
-            Ok(Some(git_hosted_store_index_key(&pkg_id, true)))
+            // whether the snapshot is already in `index.db`. `built`
+            // tracks `!ignore_scripts` to match the dispatcher's
+            // write key.
+            Ok(Some(git_hosted_store_index_key(&pkg_id, !ignore_scripts)))
         }
         // Runtime artifacts (Node.js / Bun / Deno): the per-archive
         // integrity is the warm-cache key, same shape as the

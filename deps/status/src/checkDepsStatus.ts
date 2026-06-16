@@ -2,14 +2,18 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
-import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
+import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
+  getGitBranchLockfileNamesSync,
   getLockfileImporterId,
+  getWantedLockfileName,
   type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
@@ -27,11 +31,13 @@ import {
 } from '@pnpm/lockfile.verification'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import type {
-  DependencyManifest,
-  Project,
-  ProjectId,
-  ProjectManifest,
+import {
+  DEPENDENCIES_FIELDS,
+  type DependencyManifest,
+  type IncludedDependencies,
+  type Project,
+  type ProjectId,
+  type ProjectManifest,
 } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { loadWorkspaceState, updateWorkspaceState, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
@@ -49,6 +55,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
 | 'lockfileDir'
+| 'mergeGitBranchLockfiles'
 | 'nodeLinker'
 | 'patchedDependencies'
 | 'peersSuffixMaxLength'
@@ -68,6 +75,26 @@ export type CheckDepsStatusOptions = Pick<Config,
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
   pnpmfile: string[]
+  /**
+   * The checks below only track manifest and lockfile mtimes, so edits inside
+   * a local file dependency's directory (or a repacked local tarball) go
+   * unnoticed. Callers that skip the install entirely when this check reports
+   * up-to-date must set this so that projects with local file dependencies
+   * (`file:` and bare local path/tarball specifiers) always run a real
+   * install, which refetches those dependencies
+   * (https://github.com/pnpm/pnpm/issues/11795).
+   */
+  treatLocalFileDepsAsOutdated?: boolean
+  /**
+   * Which dependency groups the current install materializes. Local file
+   * dependencies in an excluded group (for example `devDependencies` under
+   * `--prod`) are not installed, so they don't force the
+   * `treatLocalFileDepsAsOutdated` bail-out. A change to these flags between
+   * installs is caught separately by the workspace state settings comparison
+   * (`dev`/`optional`/`production` are part of
+   * `WORKSPACE_STATE_SETTING_KEYS`).
+   */
+  include?: IncludedDependencies
   /**
    * When git-branch lockfiles are enabled, the wanted lockfile lives at
    * `pnpm-lock.<branch>.yaml`, so a missing `pnpm-lock.yaml` is the steady
@@ -141,6 +168,46 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     workspaceDir,
   } = opts
 
+  // This check must run before the node-linker=pnp early return below:
+  // that return reports up-to-date because verify-deps-before-run cannot
+  // inspect a PnP install, but for the optimistic repeat-install caller
+  // (the only one setting this flag) "up-to-date" would skip the install
+  // and break the local-file-deps guarantee.
+  if (opts.treatLocalFileDepsAsOutdated) {
+    const manifests = allProjects?.map(({ manifest }) => manifest) ?? []
+    // `rootProjectManifest` is tracked separately from `allProjects` and the
+    // recursive project list can omit the workspace root (for example when
+    // `includeWorkspaceRoot` is false), so scan it too unless `allProjects`
+    // already covers it.
+    if (rootProjectManifest != null && !allProjects?.some(({ rootDir }) => rootDir === rootProjectManifestDir)) {
+      manifests.push(rootProjectManifest)
+    }
+    const localFileDep = findLocalFileDep(manifests, opts.include, catalogs)
+    if (localFileDep != null) {
+      return {
+        upToDate: false,
+        issue: `The dependency "${localFileDep}" is a local file dependency and its contents may have changed`,
+        workspaceState,
+      }
+    }
+    const localFileOverride = findLocalFileOverride(opts.overrides, catalogs)
+    if (localFileOverride != null) {
+      return {
+        upToDate: false,
+        issue: `The override "${localFileOverride}" maps to a local file dependency and its contents may have changed`,
+        workspaceState,
+      }
+    }
+    const localFileExtension = findLocalFilePackageExtension(opts.packageExtensions, opts.include, catalogs)
+    if (localFileExtension != null) {
+      return {
+        upToDate: false,
+        issue: `The package extension "${localFileExtension}" injects a local file dependency and its contents may have changed`,
+        workspaceState,
+      }
+    }
+  }
+
   if (nodeLinker === 'pnp') {
     globalWarn('verify-deps-before-run does not work with node-linker=pnp')
     return { upToDate: true, workspaceState: undefined }
@@ -178,13 +245,22 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     }
   }
 
-  const conflictedLockfileDir = findConflictedLockfileDir(getWantedLockfileDirs({
+  const lockfileDirs = getWantedLockfileDirs({
     allProjects,
     lockfileDir,
     rootProjectManifestDir,
     sharedWorkspaceLockfile,
     workspaceDir,
-  }), workspaceState.lastValidatedTimestamp)
+  })
+  const wantedLockfileName = await getWantedLockfileName({
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    cwd: workspaceDir ?? lockfileDir ?? rootProjectManifestDir,
+  })
+  const { conflictedDir: conflictedLockfileDir, anyModified: lockfilesModified, anyMissing: lockfilesMissing } = scanWantedLockfiles(lockfileDirs, workspaceState.lastValidatedTimestamp, {
+    wantedLockfileName,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+  })
   if (conflictedLockfileDir != null) {
     return {
       upToDate: false,
@@ -274,15 +350,21 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
     )
 
-    if (modifiedProjects.length === 0) {
-      logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
-      const wantedLockfileToRestore = sharedWorkspaceLockfile && !opts.useGitBranchLockfile
-        ? await missingWantedLockfileStandIn(workspaceDir)
+    if ((modifiedProjects.length === 0) && !lockfilesModified) {
+      const wantedLockfileToRestore = lockfilesMissing && sharedWorkspaceLockfile && !opts.useGitBranchLockfile
+        ? await missingWantedLockfileStandIn(workspaceDir, wantedLockfileName)
         : undefined
-      return { upToDate: true, workspaceState, wantedLockfileToRestore }
+      // A missing wanted lockfile only skips the full check when the current
+      // lockfile can stand in for it. Otherwise fall through so the checks
+      // below throw RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND instead of silently
+      // reporting "up to date".
+      if (!lockfilesMissing || wantedLockfileToRestore != null) {
+        logger.debug({ msg: 'No manifest files or lockfiles were modified since the last validation. Exiting check.' })
+        return { upToDate: true, workspaceState, wantedLockfileToRestore }
+      }
     }
 
-    logger.debug({ msg: 'Some manifest files were modified since the last validation. Continuing check.' })
+    logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
 
     let wantedLockfileToRestore: CheckDepsStatusResult['wantedLockfileToRestore']
     let readWantedLockfileAndDir: (projectDir: string) => Promise<{
@@ -292,7 +374,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (sharedWorkspaceLockfile) {
       let wantedLockfileStats: fs.Stats | undefined
       try {
-        wantedLockfileStats = fs.statSync(path.join(workspaceDir, WANTED_LOCKFILE))
+        wantedLockfileStats = fs.statSync(path.join(workspaceDir, wantedLockfileName))
       } catch (error) {
         if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
           wantedLockfileStats = undefined
@@ -318,7 +400,11 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
           wantedLockfileDir: workspaceDir,
         })
       } else {
-        const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
+        const wantedLockfilePromise = readWantedLockfile(workspaceDir, {
+          ignoreIncompatible: false,
+          useGitBranchLockfile: opts.useGitBranchLockfile,
+          mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+        })
         if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
           const currentLockfile = await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
@@ -331,8 +417,12 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
     } else {
       readWantedLockfileAndDir = async wantedLockfileDir => {
-        const wantedLockfilePromise = readWantedLockfile(wantedLockfileDir, { ignoreIncompatible: false })
-        const wantedLockfileStats = await safeStat(path.join(wantedLockfileDir, WANTED_LOCKFILE))
+        const wantedLockfilePromise = readWantedLockfile(wantedLockfileDir, {
+          ignoreIncompatible: false,
+          useGitBranchLockfile: opts.useGitBranchLockfile,
+          mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+        })
+        const wantedLockfileStats = await safeStat(path.join(wantedLockfileDir, wantedLockfileName))
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
         if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
@@ -368,7 +458,8 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     }
 
     try {
-      await Promise.all(modifiedProjects.map(async ({ project }) => {
+      const projectsToCheck = lockfilesModified ? allManifestStats : modifiedProjects
+      await Promise.all(projectsToCheck.map(async ({ project }) => {
         const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
         await assertWantedLockfileUpToDate(assertCtx, {
           projectDir: project.rootDir,
@@ -418,14 +509,18 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   if (rootProjectManifest && rootProjectManifestDir) {
     const internalPnpmDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
     const currentLockfilePromise = readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
-    const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, { ignoreIncompatible: false })
+    const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, {
+      ignoreIncompatible: false,
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    })
     const [
       currentLockfileStats,
       wantedLockfileStats,
       manifestStats,
     ] = await Promise.all([
       safeStat(path.join(internalPnpmDir, 'lock.yaml')),
-      safeStat(path.join(rootProjectManifestDir, WANTED_LOCKFILE)),
+      safeStat(path.join(rootProjectManifestDir, wantedLockfileName)),
       statManifestFile(rootProjectManifestDir),
     ])
 
@@ -622,6 +717,117 @@ async function assertWantedLockfileUpToDate (
   }
 }
 
+/**
+ * Returns the name of the first dependency declared with a local file
+ * specifier in any of the given manifests, or `undefined` when there is none.
+ * `link:` dependencies are excluded: they are symlinked, so changes inside
+ * them flow through without a reinstall. Dependency groups excluded from the
+ * current install (per `include`) are skipped: their local file dependencies
+ * are not installed, so their contents cannot be stale. `catalog:` specs are
+ * dereferenced through the catalogs config: the catalog resolver only bans
+ * the `workspace:`, `link:`, and `file:` protocols, so a catalog entry can
+ * still hold a bare local path (`../lib`, `vendor/pkg.tgz`) that resolves to
+ * a local file dependency.
+ */
+function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDependencies, catalogs?: Catalogs): string | undefined {
+  for (const manifest of manifests) {
+    for (const depField of DEPENDENCIES_FIELDS) {
+      if (include?.[depField] === false) continue
+      const depName = findLocalFileDepInRecord(manifest[depField], catalogs)
+      if (depName != null) return depName
+    }
+  }
+  return undefined
+}
+
+/**
+ * Returns the name of the first dependency in `deps` declared with (or
+ * resolving through a catalog to) a local file specifier, or `undefined`.
+ */
+function findLocalFileDepInRecord (deps: Record<string, string> | undefined, catalogs?: Catalogs): string | undefined {
+  if (deps == null) return undefined
+  for (const [depName, spec] of Object.entries(deps)) {
+    // A malformed manifest may carry a non-string spec; skip it rather
+    // than throw — checkDepsStatus() must never crash.
+    if (typeof spec !== 'string') continue
+    if (isLocalFileSpec(spec)) return depName
+    // Only catalog: specs consult the catalogs, so skip the lookup for
+    // everything else to keep the optimistic fast path cheap.
+    if (!spec.startsWith('catalog:')) continue
+    const catalogResult = resolveFromCatalog(catalogs ?? {}, { alias: depName, bareSpecifier: spec })
+    if (catalogResult.type === 'found' && isLocalFileSpec(catalogResult.resolution.specifier)) return depName
+  }
+  return undefined
+}
+
+/**
+ * Returns the selector of the first `packageExtensions` entry that injects a
+ * local file dependency, or `undefined` when there is none. Package
+ * extensions are merged into matching packages' manifests by a read-package
+ * hook during install, so a `file:`/local-path/tarball spec added there has
+ * the same content-change blind spot as a direct local file dependency
+ * without appearing in any project manifest. Only `dependencies` and
+ * `optionalDependencies` are scanned: peer dependencies are resolved from the
+ * graph rather than fetched, so a local spec there is never installed.
+ */
+function findLocalFilePackageExtension (packageExtensions: CheckDepsStatusOptions['packageExtensions'], include?: IncludedDependencies, catalogs?: Catalogs): string | undefined {
+  if (packageExtensions == null) return undefined
+  for (const [selector, extension] of Object.entries(packageExtensions)) {
+    if (findLocalFileDepInRecord(extension.dependencies, catalogs) != null) return selector
+    if (include?.optionalDependencies === false) continue
+    if (findLocalFileDepInRecord(extension.optionalDependencies, catalogs) != null) return selector
+  }
+  return undefined
+}
+
+/**
+ * Returns the selector of the first override that maps to a local file
+ * specifier, or `undefined` when there is none. An override redirects every
+ * matching dependency in the graph to its specifier, so a local file override
+ * makes the installed contents depend on that directory or tarball the same
+ * way a direct local file dependency does. Overrides are run through
+ * `parseOverrides` so `catalog:` specs are dereferenced before the check.
+ * `parseOverrides` throws on a misconfigured catalog or invalid selector;
+ * that propagates to the outer catch in `checkDepsStatus`, which reports
+ * not-up-to-date, and the resulting full install surfaces the same error.
+ */
+function findLocalFileOverride (overrides: Record<string, string> | undefined, catalogs?: Catalogs): string | undefined {
+  if (overrides == null || isEmpty(overrides)) return undefined
+  return parseOverrides(overrides, catalogs)
+    .find(({ newBareSpecifier }) => isLocalFileSpec(newBareSpecifier))?.selector
+}
+
+const LOCAL_PATH_PREFIX = /^(?:[./\\]|~[/\\]|[a-z]:)/i
+const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar)$/i
+
+/**
+ * Whether the specifier resolves to a local directory or tarball whose
+ * contents can change without any manifest or lockfile mtime moving: the
+ * `file:` protocol, path-prefixed specs (`./`, `../`, `~/`, absolute POSIX
+ * paths, and Windows drive paths — including drive-relative ones like
+ * `C:dir`, matching the local resolver's `isFilespec`), and bare tarball
+ * file names.
+ *
+ * Deliberately narrower than the local resolver's bare-path matching: a bare
+ * `dir/file.tgz`-less path like `user/repo` is statically indistinguishable
+ * from a git shorthand at this layer, and matching it would disable the
+ * repeat-install fast path for every project with git dependencies. Such
+ * specs (and anything else carrying a protocol or URL) stay on the fast
+ * path. `catalog:` specs also return false here — callers dereference them
+ * through the catalogs config first, because a catalog entry may hold a
+ * bare local path (the catalog resolver only bans the `workspace:`,
+ * `link:`, and `file:` protocols).
+ */
+function isLocalFileSpec (spec: string): boolean {
+  if (spec.startsWith('file:')) return true
+  if (LOCAL_PATH_PREFIX.test(spec)) return true
+  if (spec.includes(':')) return false
+  // A `#` here means a hosted-git shorthand committish (`user/repo#release.tgz`),
+  // not a local tarball — the `file:` and path-prefixed cases already returned above.
+  if (spec.includes('#')) return false
+  return LOCAL_TARBALL_EXTENSION.test(spec)
+}
+
 function throwLockfileNotFound (wantedLockfileDir: string): never {
   throw new PnpmError('RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND', `Cannot find a lockfile in ${wantedLockfileDir}`, {
     hint: 'Run `pnpm install` to create the lockfile',
@@ -634,8 +840,8 @@ function throwLockfileNotFound (wantedLockfileDir: string): never {
  * `pnpm-lock.yaml` from it. `undefined` when the wanted lockfile is present
  * (nothing to restore) or when there is no current lockfile to restore from.
  */
-async function missingWantedLockfileStandIn (lockfileDir: string): Promise<CheckDepsStatusResult['wantedLockfileToRestore']> {
-  if (safeStatSync(path.join(lockfileDir, WANTED_LOCKFILE)) != null) return undefined
+async function missingWantedLockfileStandIn (lockfileDir: string, wantedLockfileName: string): Promise<CheckDepsStatusResult['wantedLockfileToRestore']> {
+  if (safeStatSync(path.join(lockfileDir, wantedLockfileName)) != null) return undefined
   const currentLockfile = await readCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
   if (currentLockfile == null) return undefined
   return { lockfile: currentLockfile, lockfileDir }
@@ -654,21 +860,60 @@ function getWantedLockfileDirs (opts: {
   return [opts.lockfileDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir]
 }
 
-function findConflictedLockfileDir (lockfileDirs: string[], lastValidatedTimestamp: number): string | undefined {
+function scanWantedLockfiles (lockfileDirs: string[], lastValidatedTimestamp: number, opts: {
+  wantedLockfileName: string
+  mergeGitBranchLockfiles?: boolean
+}): {
+  conflictedDir: string | undefined
+  anyModified: boolean
+  anyMissing: boolean
+} {
+  let conflictedDir: string | undefined
+  let anyModified = false
+  let anyMissing = false
   for (const lockfileDir of lockfileDirs) {
-    let mtime: number
-    try {
-      mtime = fs.statSync(path.join(lockfileDir, WANTED_LOCKFILE)).mtime.valueOf()
-    } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
+    // With `mergeGitBranchLockfiles`, `readWantedLockfile` merges every
+    // `pnpm-lock.*.yaml`, so a change in any of them changes the wanted
+    // lockfile and must be detected here.
+    const lockfileNames = opts.mergeGitBranchLockfiles
+      ? gitBranchLockfileNames(lockfileDir, opts.wantedLockfileName)
+      : [opts.wantedLockfileName]
+    let foundInDir = false
+    for (const lockfileName of lockfileNames) {
+      let mtime: number
+      try {
+        mtime = fs.statSync(path.join(lockfileDir, lockfileName)).mtime.valueOf()
+      } catch (err: unknown) {
+        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
+        throw err
+      }
+      foundInDir = true
+      if (mtime <= lastValidatedTimestamp) continue
+      anyModified = true
+      if (wantedLockfileHasMergeConflictsSync(lockfileDir, lockfileName)) {
+        conflictedDir = lockfileDir
+        return { conflictedDir, anyModified, anyMissing }
+      }
+    }
+    if (!foundInDir) anyMissing = true
+  }
+  return { conflictedDir, anyModified, anyMissing }
+}
+
+function gitBranchLockfileNames (lockfileDir: string, wantedLockfileName: string): string[] {
+  let branchLockfileNames: string[]
+  try {
+    branchLockfileNames = getGitBranchLockfileNamesSync(lockfileDir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      branchLockfileNames = []
+    } else {
       throw err
     }
-    // If the lockfile hasn't been modified since the last successful install, it can't have
-    // grown conflict markers — skip the read to preserve the optimistic fast-path.
-    if (mtime <= lastValidatedTimestamp) continue
-    if (wantedLockfileHasMergeConflictsSync(lockfileDir)) return lockfileDir
   }
-  return undefined
+  return branchLockfileNames.includes(wantedLockfileName)
+    ? branchLockfileNames
+    : [wantedLockfileName, ...branchLockfileNames]
 }
 
 async function patchesOrHooksAreModified (opts: {

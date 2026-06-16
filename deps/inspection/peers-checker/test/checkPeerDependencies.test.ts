@@ -58,6 +58,19 @@ test('reports no issues for satisfied peer dependencies', async () => {
   expect(Object.keys(projectIssues.missing)).toHaveLength(0)
 })
 
+test('reports no issues for satisfied loose peer dependency ranges', async () => {
+  const fixture = f.find('with-loose-peer-range')
+  const issues = await checkPeerDependencies([fixture], {
+    lockfileDir: fixture,
+    checkWantedLockfileOnly: true,
+  })
+
+  const projectIssues = issues['.']
+  expect(projectIssues).toBeDefined()
+  expect(Object.keys(projectIssues.bad)).toHaveLength(0)
+  expect(Object.keys(projectIssues.missing)).toHaveLength(0)
+})
+
 test('respects peerDependencyRules.allowAny', async () => {
   const fixture = f.find('with-unmet-peers')
   const issues = await checkPeerDependencies([fixture], {

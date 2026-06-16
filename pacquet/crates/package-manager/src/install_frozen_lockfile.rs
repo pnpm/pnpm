@@ -468,6 +468,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         pkg_root_by_key: hoisted_pkg_root_by_key,
         gather_ancestor_bin_paths: is_hoisted,
         frozen_store: config.frozen_store,
+        ignore_scripts: config.ignore_scripts,
         import_method: config.package_import_method,
         logged_methods,
     }

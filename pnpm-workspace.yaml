@@ -193,6 +193,7 @@ catalog:
   didyoumean2: ^7.0.4
   dint: ^5.1.0
   dir-is-case-sensitive: ^3.0.0
+  empathic: ^2.0.0
   encode-registry: ^3.0.1
   esbuild: ^0.28.1
   escape-string-regexp: ^5.0.0
@@ -207,7 +208,6 @@ catalog:
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
   fast-glob: ^3.3.3
-  find-up: ^8.0.0
   fs-extra: ^11.3.5
   fuse-native: ^2.2.6
   get-npm-tarball-url: ^2.1.0

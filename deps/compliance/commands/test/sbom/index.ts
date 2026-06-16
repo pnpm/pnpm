@@ -186,6 +186,30 @@ test('pnpm sbom --prod excludes devDependencies', async () => {
   expect(componentNames).not.toContain('typescript')
 })
 
+test('pnpm sbom marks dev-only components with scope "excluded" (cyclonedx)', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-dev-dependency', workspaceDir)
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const typescript = parsed.components.find((c: { name: string }) => c.name === 'typescript')
+  expect(typescript.scope).toBe('excluded')
+
+  // Prod components default to "required"; scope is omitted
+  const isPositive = parsed.components.find((c: { name: string }) => c.name === 'is-positive')
+  expect(isPositive.scope).toBeUndefined()
+})
+
 test('pnpm sbom invalid --sbom-type throws', async () => {
   const workspaceDir = tempDir()
   f.copy('simple-sbom', workspaceDir)

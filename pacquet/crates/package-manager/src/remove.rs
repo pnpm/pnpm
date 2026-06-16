@@ -135,6 +135,7 @@ impl Remove<'_> {
             supported_architectures,
             node_linker: config.node_linker,
             lockfile_only,
+            dry_run: false,
             // Removing a dependency must not bump the survivors: keep
             // every remaining lockfile pin in the preferred-versions
             // seed, same as `install` / `add`.

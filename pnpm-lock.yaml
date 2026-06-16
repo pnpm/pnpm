@@ -620,6 +620,9 @@ catalogs:
     dir-is-case-sensitive:
       specifier: ^3.0.0
       version: 3.0.0
+    empathic:
+      specifier: ^2.0.0
+      version: 2.0.1
     encode-registry:
       specifier: ^3.0.1
       version: 3.0.1
@@ -662,9 +665,6 @@ catalogs:
     fast-glob:
       specifier: ^3.3.3
       version: 3.3.3
-    find-up:
-      specifier: ^8.0.0
-      version: 8.0.0
     fs-extra:
       specifier: ^11.3.5
       version: 11.3.5
@@ -3443,6 +3443,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
+      '@pnpm/workspace.project-manifest-reader':
+        specifier: workspace:*
+        version: link:../../../workspace/project-manifest-reader
       '@zkochan/table':
         specifier: 'catalog:'
         version: 2.0.1
@@ -3833,6 +3836,12 @@ importers:
 
   deps/status:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/config.parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
@@ -5312,6 +5321,9 @@ importers:
       '@pnpm/installing.dedupe.check':
         specifier: workspace:*
         version: link:../dedupe/check
+      '@pnpm/installing.dedupe.issues-renderer':
+        specifier: workspace:*
+        version: link:../dedupe/issues-renderer
       '@pnpm/installing.deps-installer':
         specifier: workspace:*
         version: link:../deps-installer
@@ -9303,9 +9315,6 @@ importers:
       memoize:
         specifier: 'catalog:'
         version: 11.0.0
-      path-temp:
-        specifier: 'catalog:'
-        version: 3.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -9788,12 +9797,12 @@ importers:
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: link:../workspace-manifest-reader
+      empathic:
+        specifier: 'catalog:'
+        version: 2.0.1
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
-      find-up:
-        specifier: 'catalog:'
-        version: 8.0.0
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
@@ -9940,9 +9949,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
-      find-up:
+      empathic:
         specifier: 'catalog:'
-        version: 8.0.0
+        version: 2.0.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -13471,6 +13480,10 @@ packages:
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
 
+  empathic@2.0.1:
+    resolution: {integrity: sha512-YGRs8knHhKHVShLkFET/rWAU8kmHbOV5LwN938RHI0pljAJ1Gf6SzXsSmRaEzcXTtOOmVqJ5+WtQPL5uigY50Q==}
+    engines: {node: '>=14'}
+
   encode-registry@3.0.1:
     resolution: {integrity: sha512-6qOwkl1g0fv0DN3Y3ggr2EaZXN71aoAqPp3p/pVaWSBSIo+YjLOWN61Fva43oVyQNPf7kgm8lkudzlzojwE2jw==}
     engines: {node: '>=10'}
@@ -13852,10 +13865,6 @@ packages:
   find-up@6.3.0:
     resolution: {integrity: sha512-v2ZsoEuVHYy8ZIlYqwPe/39Cy+cFDzp4dXPaxNvkEuouymu+2Jbz0PxpKarJHYJTmv2HWT3O382qY8l4jMWthw==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
-
-  find-up@8.0.0:
-    resolution: {integrity: sha512-JGG8pvDi2C+JxidYdIwQDyS/CgcrIdh18cvgxcBge3wSHRQOrooMD3GlFBcmMJAN9M42SAZjDp5zv1dglJjwww==}
-    engines: {node: '>=20'}
 
   find-yarn-workspace-root2@1.2.16:
     resolution: {integrity: sha512-hr6hb1w8ePMpPVUK39S4RlwJzi+xPLuVuG8XlwXU3KD5Yn3qgBWVfy3AzNlDhWvE1EORCE65/Qm26rFQt3VLVA==}
@@ -14875,10 +14884,6 @@ packages:
   locate-path@7.2.0:
     resolution: {integrity: sha512-gvVijfZvn7R+2qyPX8mAuKcFGDf6Nc61GdvGafQsHL0sBIxfKzA+usWn4GFC/bk+QdwPUD4kWFJLhElipq+0VA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
-
-  locate-path@8.0.0:
-    resolution: {integrity: sha512-XT9ewWAC43tiAV7xDAPflMkG0qOPn2QjHqlgX8FOqmWa/rxnyYDulF9T0F7tRy1u+TVTmK/M//6VIOye+2zDXg==}
-    engines: {node: '>=20'}
 
   lodash._baseclone@4.5.7:
     resolution: {integrity: sha512-nOtLg6tdIdD+TehqBv0WI7jbkLaohHhKSwLmS/UXSFWMWWUxdJc9EVtAfD4L0mV15vV+lZVfF4LEo363VdrMBw==}
@@ -21328,6 +21333,8 @@ snapshots:
 
   emoji-regex@8.0.0: {}
 
+  empathic@2.0.1: {}
+
   encode-registry@3.0.1:
     dependencies:
       mem: 8.1.1
@@ -21845,11 +21852,6 @@ snapshots:
     dependencies:
       locate-path: 7.2.0
       path-exists: 5.0.0
-
-  find-up@8.0.0:
-    dependencies:
-      locate-path: 8.0.0
-      unicorn-magic: 0.3.0
 
   find-yarn-workspace-root2@1.2.16:
     dependencies:
@@ -23136,10 +23138,6 @@ snapshots:
       p-locate: 5.0.0
 
   locate-path@7.2.0:
-    dependencies:
-      p-locate: 6.0.0
-
-  locate-path@8.0.0:
     dependencies:
       p-locate: 6.0.0
 

@@ -48,7 +48,7 @@ export function help (): string {
 export async function handler (
   opts: install.InstallCommandOptions
 ): Promise<void> {
-  return install.handler({
+  await install.handler({
     ...opts,
     modulesCacheMaxAge: 0,
     pruneDirectDependencies: true,

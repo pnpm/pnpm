@@ -27,6 +27,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_workspace::{
     FindWorkspaceProjectsOpts, find_workspace_projects, read_workspace_manifest,
+    workspace_package_patterns,
 };
 use pacquet_workspace_projects_graph::{CreateProjectsGraphOptions, create_projects_graph};
 use std::{
@@ -87,7 +88,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     let patterns = read_workspace_manifest(workspace_root)
         .into_diagnostic()
         .wrap_err("reading pnpm-workspace.yaml")?
-        .and_then(|manifest| manifest.packages);
+        .map(|manifest| workspace_package_patterns(&manifest));
     let projects = find_workspace_projects(workspace_root, &FindWorkspaceProjectsOpts { patterns })
         .wrap_err("finding workspace projects")?;
 

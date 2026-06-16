@@ -31,8 +31,15 @@
 //! the pnpmfile branch of `patchesOrHooksAreModified` (an added, removed,
 //! or edited workspace pnpmfile invalidates the fast path; plugin
 //! pnpmfiles from config dependencies are covered by the
-//! `config_dependencies` comparison instead of the mtime check). The
-//! `isLocalFileDepUpdated` branch of `linkedPackagesAreUpToDate` is NOT
+//! `config_dependencies` comparison instead of the mtime check), and the
+//! local-file-dependency bail (upstream's `treatLocalFileDepsAsOutdated`
+//! option, set by `installDeps`): no tracked mtime covers the *contents*
+//! of a local file dependency (a `file:` specifier or a bare local
+//! path/tarball spec, declared directly or through a `pnpm.overrides`
+//! entry), so projects declaring one always take the
+//! full install path, which refetches those dependencies
+//! (pnpm/pnpm#11795). The `isLocalFileDepUpdated` branch of
+//! `linkedPackagesAreUpToDate` is NOT
 //! ported here. When this function returns `Decision::Skipped` the caller
 //! proceeds with the full install path, which still has its own freshness
 //! guards (`check_lockfile_freshness`, the no-op short-circuit). Remaining
@@ -54,6 +61,7 @@ use std::{
     time::SystemTime,
 };
 
+use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker};
 use pacquet_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
@@ -152,6 +160,29 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
 
+    // Unconditional where upstream gates it behind
+    // `treatLocalFileDepsAsOutdated`: the only caller here is the
+    // install command — the one consumer that sets the flag upstream.
+    if has_local_file_dep(project_manifests, included, catalogs) {
+        return Decision::Skipped {
+            reason: "a dependency is a local file dependency and its contents may have changed",
+        };
+    }
+    match has_local_file_override(config, catalogs) {
+        Ok(true) => {
+            return Decision::Skipped {
+                reason: "an override maps to a local file dependency and its contents may have changed",
+            };
+        }
+        Err(reason) => return Decision::Skipped { reason },
+        Ok(false) => {}
+    }
+    if has_local_file_package_extension(config, included, catalogs) {
+        return Decision::Skipped {
+            reason: "a package extension injects a local file dependency and its contents may have changed",
+        };
+    }
+
     if !settings_match(&state, config, node_linker, included) {
         return Decision::Skipped { reason: "settings drift" };
     }
@@ -191,11 +222,11 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     // can run against it and `pnpm-lock.yaml` is regenerated from it
     // on success — the same substitution the full install path makes
     // when it synthesizes the wanted lockfile from the current one.
-    // Workspace installs skip this gate — pnpm's workspace branch
-    // returns `upToDate: true` purely off the manifest-mtime check
-    // (its only lockfile probe, `findConflictedLockfileDir`, silently
-    // `continue`s on ENOENT at
-    // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L593-L596>).
+    // Workspace installs skip this existence gate — pnpm's workspace
+    // branch tolerates a missing `pnpm-lock.yaml` (its `scanWantedLockfiles`
+    // probe `continue`s on ENOENT, and the missing lockfile is restored
+    // from the current one rather than throwing). The mtime side of that
+    // probe is handled by `wanted_lockfile_modified` below.
     if !is_workspace_install
         && !workspace_root.join(Lockfile::FILE_NAME).exists()
         && !config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists()
@@ -234,7 +265,17 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         .iter()
         .filter(|stat| stat.mtime_ms > state.last_validated_timestamp)
         .collect();
-    if modified.is_empty() {
+
+    // A lockfile-only change — `git checkout`/stash-restore of just
+    // `pnpm-lock.yaml`, or an external rewrite — leaves every manifest
+    // untouched but still invalidates the install. Probe the wanted
+    // lockfile's mtime before the manifest-mtime exit, mirroring
+    // upstream's `scanWantedLockfiles` + `!lockfilesModified` early-return
+    // guard (pnpm/pnpm#12100).
+    let lockfile_modified =
+        wanted_lockfile_modified(workspace_root, state.last_validated_timestamp);
+
+    if modified.is_empty() && !lockfile_modified {
         return match regenerate_wanted_lockfile_if_missing(check, None) {
             Ok(()) => Decision::UpToDate,
             Err(reason) => Decision::Skipped { reason },
@@ -245,8 +286,13 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     // modified-manifests branch re-checks the *content* against the
     // wanted lockfile (`assertWantedLockfileUpToDate`) so a rewrite
     // that left the dependency fields intact — `touch`, a `scripts`
-    // edit, `npm pkg set/delete` — still reports up to date.
-    match modified_manifests_match_lockfile(check, &state, &modified) {
+    // edit, `npm pkg set/delete` — still reports up to date. When only
+    // the lockfile changed, upstream validates every project rather than
+    // just the modified ones (`projectsToCheck = lockfilesModified ?
+    // allManifestStats : modifiedProjects`).
+    let projects_to_check: Vec<&ManifestStat<'_>> =
+        if lockfile_modified { manifest_stats.iter().collect() } else { modified };
+    match modified_manifests_match_lockfile(check, &state, &projects_to_check) {
         Ok(loaded_current) => {
             if let Err(reason) = regenerate_wanted_lockfile_if_missing(check, loaded_current) {
                 return Decision::Skipped { reason };
@@ -280,6 +326,182 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         }
         Err(reason) => Decision::Skipped { reason },
     }
+}
+
+/// Whether any project declares a dependency with a local file
+/// specifier in `dependencies`, `devDependencies`, or
+/// `optionalDependencies`. Port of upstream's `findLocalFileDep` in
+/// `deps/status/src/checkDepsStatus.ts`
+/// (<https://github.com/pnpm/pnpm/issues/11795>). `link:` specifiers
+/// don't count: they are symlinked, so changes inside them flow
+/// through without a reinstall. Groups excluded from the current
+/// install (per `included`) are skipped: their local file dependencies
+/// are not installed, so their contents cannot be stale. A change to
+/// the include flags between installs is caught separately by
+/// `settings_match`. `catalog:` specs are dereferenced through the
+/// workspace catalogs: the catalog resolver only bans the `workspace:`,
+/// `link:`, and `file:` protocols, so a catalog entry can still hold a
+/// bare local path (`../lib`, `vendor/pkg.tgz`) that resolves to a
+/// local file dependency.
+fn has_local_file_dep(
+    project_manifests: &[(PathBuf, &PackageManifest)],
+    included: IncludedDependencies,
+    catalogs: &Catalogs,
+) -> bool {
+    let fields: [(&str, bool); 3] = [
+        ("dependencies", included.dependencies),
+        ("devDependencies", included.dev_dependencies),
+        ("optionalDependencies", included.optional_dependencies),
+    ];
+    project_manifests.iter().any(|(_, manifest)| {
+        fields.iter().any(|(field, group_included)| {
+            *group_included
+                && manifest.value().get(*field).and_then(|value| value.as_object()).is_some_and(
+                    |deps| {
+                        deps.iter().any(|(alias, spec)| {
+                            spec.as_str().is_some_and(|spec| {
+                                is_local_file_spec(spec)
+                                    || catalog_resolves_to_local_file(catalogs, alias, spec)
+                            })
+                        })
+                    },
+                )
+        })
+    })
+}
+
+/// Whether a `catalog:` spec dereferences (through the workspace
+/// catalogs) to a local file specifier. Non-catalog specs and
+/// misconfigured catalog entries return `false`: the former never
+/// consult the catalogs, and the latter fail the full install with the
+/// proper error anyway — the fast path only needs to not report
+/// up-to-date for a *valid* catalog entry holding a local path.
+fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, spec: &str) -> bool {
+    // `resolve_from_catalog` returns `Unused` for any non-`catalog:` spec, so
+    // short-circuit before allocating the owned `WantedDependency` it needs.
+    if !spec.starts_with("catalog:") {
+        return false;
+    }
+    match resolve_from_catalog(
+        catalogs,
+        &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
+    ) {
+        CatalogResolutionResult::Found(found) => is_local_file_spec(&found.resolution.specifier),
+        _ => false,
+    }
+}
+
+/// Whether any `pnpm.overrides` entry maps to a local file specifier.
+/// Port of upstream's `findLocalFileOverride` in
+/// `deps/status/src/checkDepsStatus.ts`: an override redirects every
+/// matching dependency in the graph to its specifier, so a local file
+/// override makes the installed contents depend on that directory or
+/// tarball the same way a direct local file dependency does. Overrides
+/// are run through `parse_config_overrides` so `catalog:` specs are
+/// dereferenced before the check. A parse failure (misconfigured
+/// catalog, invalid selector) bails to the full install path with its
+/// own distinct reason — not the local-file reason, which would
+/// misattribute the cause — mirroring upstream, where `parseOverrides`
+/// throws to `checkDepsStatus`'s outer catch and the caller falls back
+/// to a full install.
+fn has_local_file_override(config: &Config, catalogs: &Catalogs) -> Result<bool, &'static str> {
+    match crate::install::parse_config_overrides(config, catalogs) {
+        Ok(Some(overrides)) => {
+            Ok(overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier)))
+        }
+        Ok(None) => Ok(false),
+        Err(_) => Err("pnpm.overrides cannot be parsed"),
+    }
+}
+
+/// Whether any `packageExtensions` entry injects a dependency with a
+/// local file specifier. Package extensions are merged into matching
+/// packages' manifests by the read-package hook during the full
+/// install, so a `file:`/local-path/tarball spec added there has the
+/// same content-change blind spot as a direct local file dependency
+/// without appearing in any project manifest. Only `dependencies` and
+/// `optionalDependencies` are scanned: peer dependencies are resolved
+/// from the graph rather than fetched, so a local spec there is never
+/// installed. `optionalDependencies` are skipped when the install
+/// excludes them, mirroring `has_local_file_dep`.
+fn has_local_file_package_extension(
+    config: &Config,
+    included: IncludedDependencies,
+    catalogs: &Catalogs,
+) -> bool {
+    let Some(extensions) = config.package_extensions.as_ref() else {
+        return false;
+    };
+    extensions.values().any(|extension| {
+        let optional = included
+            .optional_dependencies
+            .then_some(extension.optional_dependencies.as_ref())
+            .flatten();
+        [extension.dependencies.as_ref(), optional].into_iter().flatten().any(|deps| {
+            deps.iter().any(|(alias, spec)| {
+                is_local_file_spec(spec) || catalog_resolves_to_local_file(catalogs, alias, spec)
+            })
+        })
+    })
+}
+
+/// Whether the specifier resolves to a local directory or tarball whose
+/// contents can change without any manifest or lockfile mtime moving:
+/// the `file:` protocol, path-prefixed specs (`./`, `../`, `~/`,
+/// absolute POSIX paths, and Windows drive paths including
+/// drive-relative ones like `c:dir`), and bare tarball file names.
+/// Port of upstream's `isLocalFileSpec` in
+/// `deps/status/src/checkDepsStatus.ts`.
+///
+/// Deliberately narrower than the local resolver's bare-path matching:
+/// a bare path like `user/repo` is statically indistinguishable from a
+/// git shorthand at this layer, and matching it would disable the
+/// repeat-install fast path for every project with git dependencies.
+/// Such specs (and anything else carrying a protocol or URL) stay on
+/// the fast path. `catalog:` specs also return `false` here — callers
+/// dereference them through the workspace catalogs first, because a
+/// catalog entry may hold a bare local path (the catalog resolver only
+/// bans the `workspace:`, `link:`, and `file:` protocols).
+fn is_local_file_spec(spec: &str) -> bool {
+    if spec.starts_with("file:") {
+        return true;
+    }
+    if spec.starts_with(['.', '/', '\\'])
+        || spec.starts_with("~/")
+        || spec.starts_with(r"~\")
+        || is_windows_drive_path(spec)
+    {
+        return true;
+    }
+    if spec.contains(':') {
+        return false;
+    }
+    // A `#` here means a hosted-git shorthand committish
+    // (`user/repo#release.tgz`), not a local tarball — the `file:` and
+    // path-prefixed cases already returned above.
+    if spec.contains('#') {
+        return false;
+    }
+    ends_with_ignore_ascii_case(spec, ".tgz")
+        || ends_with_ignore_ascii_case(spec, ".tar.gz")
+        || ends_with_ignore_ascii_case(spec, ".tar")
+}
+
+/// Case-insensitive (ASCII) suffix check that, unlike
+/// `spec.to_ascii_lowercase().ends_with(suffix)`, does not allocate.
+fn ends_with_ignore_ascii_case(spec: &str, suffix: &str) -> bool {
+    let spec = spec.as_bytes();
+    let suffix = suffix.as_bytes();
+    spec.len() >= suffix.len() && spec[spec.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+}
+
+/// `c:/...`, `c:\...`, or drive-relative `c:foo` — a Windows drive
+/// path. No separator is required after the colon, matching the local
+/// resolver's `isFilespec` (`resolving/local-resolver/src/parseBareSpecifier.ts`);
+/// no registry protocol is a single letter, so `[a-z]:` is unambiguous.
+fn is_windows_drive_path(spec: &str) -> bool {
+    let bytes = spec.as_bytes();
+    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
 }
 
 /// Restore a missing `pnpm-lock.yaml` from the current lockfile before
@@ -691,6 +913,17 @@ fn mtime_ms(path: &Path) -> Option<i64> {
     let modified = fs::metadata(path).and_then(|metadata| metadata.modified()).ok()?;
     let elapsed = modified.duration_since(SystemTime::UNIX_EPOCH).ok()?;
     Some(i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX))
+}
+
+/// Whether `<workspace_root>/pnpm-lock.yaml` has an mtime newer than the
+/// last validation. Mirrors upstream's `scanWantedLockfiles` modification
+/// probe: a lockfile-only change leaves every manifest untouched but must
+/// still defeat the manifest-mtime fast path (pnpm/pnpm#12100). A missing
+/// lockfile reports `false` here — it is handled by the existence and
+/// stand-in gates, not treated as a modification.
+fn wanted_lockfile_modified(workspace_root: &Path, last_validated_timestamp: i64) -> bool {
+    mtime_ms(&workspace_root.join(Lockfile::FILE_NAME))
+        .is_some_and(|mtime| mtime > last_validated_timestamp)
 }
 
 /// Compare today's settings against what the previous install

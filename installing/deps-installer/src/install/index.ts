@@ -169,6 +169,8 @@ export interface InstallResult {
   ignoredBuilds: IgnoredBuilds | undefined
   /** Forwarded from {@link MutateModulesResult.resolutionPolicyViolations}. */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
+  /** Forwarded from {@link MutateModulesResult.dryRunResult}. */
+  dryRunResult?: DryRunInstallResult
 }
 
 export async function install (
@@ -183,7 +185,7 @@ export async function install (
     return installViaPnprServer(manifest, rootDir, opts)
   }
 
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -205,7 +207,7 @@ export async function install (
       }],
     }
   )
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, resolutionPolicyViolations }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, resolutionPolicyViolations, dryRunResult }
 }
 
 interface ProjectToBeInstalled {
@@ -231,6 +233,8 @@ export interface MutateModulesInSingleProjectResult {
   ignoredBuilds: IgnoredBuilds | undefined
   /** Forwarded from {@link MutateModulesResult.resolutionPolicyViolations}. */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
+  /** Forwarded from {@link MutateModulesResult.dryRunResult}. */
+  dryRunResult?: DryRunInstallResult
 }
 
 export async function mutateModulesInSingleProject (
@@ -265,6 +269,7 @@ export async function mutateModulesInSingleProject (
     updatedProject: result.updatedProjects[0],
     ignoredBuilds: result.ignoredBuilds,
     resolutionPolicyViolations: result.resolutionPolicyViolations,
+    dryRunResult: result.dryRunResult,
   }
 }
 
@@ -283,6 +288,11 @@ export interface MutateModulesResult {
    * verifier reported a violation or no policy was active.
    */
   resolutionPolicyViolations: ResolutionPolicyViolation[]
+  /**
+   * Present only for a `dryRun` install: the before/after wanted lockfiles
+   * the resolve produced without writing, for the caller to diff.
+   */
+  dryRunResult?: DryRunInstallResult
 }
 
 const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
@@ -392,7 +402,7 @@ export async function mutateModules (
     opts.useLockfile &&
     !opts.useGitBranchLockfile &&
     !opts.mergeGitBranchLockfiles &&
-    opts.lockfileCheck == null &&
+    !isCheckOnlyInstall(opts) &&
     opts.enableModulesDir &&
     installsOnly &&
     !opts.lockfileOnly &&
@@ -555,6 +565,7 @@ export async function mutateModules (
     depsRequiringBuild: result.depsRequiringBuild,
     ignoredBuilds,
     resolutionPolicyViolations: result.resolutionPolicyViolations ?? [],
+    dryRunResult: result.dryRunResult,
   }
 
   interface InnerInstallResult {
@@ -563,6 +574,7 @@ export async function mutateModules (
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
     readonly ignoredBuilds: IgnoredBuilds | undefined
+    readonly dryRunResult?: DryRunInstallResult
     readonly resolutionPolicyViolations?: ResolutionPolicyViolation[]
   }
 
@@ -939,6 +951,7 @@ export async function mutateModules (
       depsRequiringBuild: result.depsRequiringBuild,
       ignoredBuilds: result.ignoredBuilds,
       resolutionPolicyViolations: result.resolutionPolicyViolations,
+      dryRunResult: result.dryRunResult,
     }
   }
 
@@ -983,6 +996,12 @@ export async function mutateModules (
       !ctx.lockfileHadConflicts &&
       !opts.fixLockfile &&
       !opts.dedupe &&
+
+      // A check-only install (`lockfileCheck`, used by `--dry-run` and
+      // `dedupe --check`) must always run a full resolution so the wanted
+      // lockfile can be compared, and must never materialize anything. The
+      // frozen path would skip resolution and/or perform a real install.
+      !isCheckOnlyInstall(opts) &&
 
       installsOnly &&
       (
@@ -1082,7 +1101,7 @@ Note that in CI environments, this setting is enabled by default.`,
     } else {
       logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
     }
-    if (opts.runPacquet != null && opts.useLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && opts.lockfileCheck == null && opts.enableModulesDir) {
+    if (opts.runPacquet != null && opts.useLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
       try {
         await opts.runPacquet.run()
       } catch (err) {
@@ -1377,6 +1396,26 @@ export interface UpdatedProject {
   rootDir: ProjectRootDir
 }
 
+/**
+ * The before/after wanted lockfiles a `dryRun` install resolved without
+ * writing. The caller diffs them to report what a real install would change.
+ */
+export interface DryRunInstallResult {
+  originalLockfile: LockfileObject
+  wantedLockfile: LockfileObject
+}
+
+/**
+ * A "check-only" install resolves fully but writes nothing: `dryRun`
+ * (`pnpm install --dry-run`) and `lockfileCheck` (`pnpm dedupe --check`)
+ * both take this path. The shared flag suppresses every write and forces a
+ * full resolution (the frozen/headless fast paths are skipped) so the wanted
+ * lockfile can always be compared.
+ */
+function isCheckOnlyInstall (opts: { lockfileCheck?: unknown, dryRun?: boolean }): boolean {
+  return opts.lockfileCheck != null || opts.dryRun === true
+}
+
 interface InstallFunctionResult {
   updatedCatalogs?: Catalogs
   newLockfile: LockfileObject
@@ -1385,6 +1424,7 @@ interface InstallFunctionResult {
   depsRequiringBuild: DepPath[]
   ignoredBuilds?: IgnoredBuilds
   resolutionPolicyViolations: ResolutionPolicyViolation[]
+  dryRunResult?: DryRunInstallResult
 }
 
 type InstallFunction = (
@@ -1407,18 +1447,19 @@ type InstallFunction = (
 ) => Promise<InstallFunctionResult>
 
 const _installInContext: InstallFunction = async (projects, ctx, opts) => {
+  // Aliasing for clarity in boolean expressions below. True for both
+  // `--dry-run` and `dedupe --check`: resolve fully, write nothing.
+  const isInstallationOnlyForLockfileCheck = isCheckOnlyInstall(opts)
+
   // The wanted lockfile is mutated during installation. To compare changes, a
   // deep copy before installation is needed. This copy should represent the
   // original wanted lockfile on disk as close as possible.
   //
   // This object can be quite large. Intentionally avoiding an expensive copy
-  // if no lockfileCheck option was passed in.
-  const originalLockfileForCheck = opts.lockfileCheck != null
+  // unless this is a check-only install that needs the comparison.
+  const originalLockfileForCheck = isInstallationOnlyForLockfileCheck
     ? clone(ctx.wantedLockfile)
     : null
-
-  // Aliasing for clarity in boolean expressions below.
-  const isInstallationOnlyForLockfileCheck = opts.lockfileCheck != null
 
   ctx.wantedLockfile.importers = ctx.wantedLockfile.importers || {}
   for (const { id } of projects) {
@@ -1952,6 +1993,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     depsRequiringBuild,
     ignoredBuilds,
     resolutionPolicyViolations,
+    dryRunResult: (opts.dryRun && originalLockfileForCheck != null)
+      ? { originalLockfile: originalLockfileForCheck, wantedLockfile: newLockfile }
+      : undefined,
   }
 }
 
@@ -2031,7 +2075,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     if (!opts.frozenLockfile && opts.useLockfile) {
       const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects)
         .filter((project) => isPathInsideWorkspace(project.rootDirRealPath ?? project.rootDir))
-      if (allProjectsLocatedInsideWorkspace.length > projects.length && opts.lockfileCheck == null && opts.enableModulesDir) {
+      if (allProjectsLocatedInsideWorkspace.length > projects.length && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
         const newProjects = [...projects]
         const getWantedDepsOpts = {
           autoInstallPeers: opts.autoInstallPeers,
@@ -2083,7 +2127,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
       }
     }
-    if (opts.nodeLinker === 'hoisted' && !opts.lockfileOnly && opts.lockfileCheck == null && opts.enableModulesDir) {
+    if (opts.nodeLinker === 'hoisted' && !opts.lockfileOnly && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
       const result = await _installInContext(projects, ctx, {
         ...opts,
         lockfileOnly: true,
@@ -2112,7 +2156,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     // Isolated `nodeLinker` (the default) with a non-frozen install.
     // The frozen branch is handled earlier in `tryFrozenInstall`; the
     // hoisted branch above runs a resolve-then-materialize sequence.
-    if (opts.runPacquet != null && opts.useLockfile && opts.saveLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !opts.lockfileOnly && opts.lockfileCheck == null && opts.enableModulesDir) {
+    if (opts.runPacquet != null && opts.useLockfile && opts.saveLockfile && !opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles && !opts.lockfileOnly && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
       // pacquet >= 0.11.7 resolves itself: hand it the whole install
       // (resolve + fetch + import + link + build, writing the lockfile)
       // in a single non-frozen pass. Only for plain installs — `add` /

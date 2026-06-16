@@ -1,6 +1,69 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 reviews:
+  # Skip generated, vendored, and snapshot files so reviews focus on hand-written code.
+  path_filters:
+    - "!pnpm-lock.yaml"
+    - "!Cargo.lock"
+    - "!**/dist/**"
+    - "!**/__fixtures__/**"
+    - "!**/*.snap"
+    - "!**/CHANGELOG.md"
   path_instructions:
     - path: "**/*"
       instructions: |
         Apply the "AI Review Guidance" section in AGENTS.md. Security vulnerabilities are the first review priority; performance regressions in pnpm, pacquet, and pnpr are the second priority. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
+  # Walkthrough poem adds no review value.
+  poem: false
+  # PRs are squash-merged, so the PR title becomes the commit message; enforce Conventional Commits on it
+  # (the commit-msg hook only sees per-commit messages, not the squash title).
+  pre_merge_checks:
+    title:
+      mode: warning
+      requirements: |
+        The title must follow the Conventional Commits specification (e.g. feat:, fix:, docs:, refactor:, perf:, test:, chore:),
+        matching the prefixes documented in AGENTS.md.
+  # Actually attach the chosen labels to the PR, not just suggest them in the walkthrough.
+  auto_apply_labels: true
+  # Custom labels assigned based on which product the diff touches. More than one may apply to a single PR.
+  labeling_instructions:
+    - label: "product: pnpm"
+      instructions: "Apply when changes affect the TypeScript pnpm CLI (any code outside pacquet/ and pnpr/)."
+    - label: "product: pacquet"
+      instructions: "Apply when changes affect pacquet, the Rust port of the pnpm CLI (the pacquet/ directory)."
+    - label: "product: pnpr"
+      instructions: "Apply when changes affect pnpr, the pnpm registry server (the pnpr/ directory and pacquet/crates/pnpr-* crates)."
+
+knowledge_base:
+  learnings:
+    # Only apply learnings from this repository, not shared across other orgs/repos.
+    scope: local
+
+# Auto-label issues, where a durable area/type taxonomy actually pays off (issues are long-lived and searched).
+issue_enrichment:
+  labeling:
+    auto_apply_labels: true
+    labeling_instructions:
+      - label: "type: bug"
+        instructions: "Apply when the issue reports incorrect or unexpected behavior."
+      - label: "type: feature"
+        instructions: "Apply when the issue requests new functionality or an enhancement."
+      - label: "type: question"
+        instructions: "Apply when the issue is a usage question rather than a bug or feature request."
+      - label: "area: lockfile"
+        instructions: "Apply when the issue concerns pnpm-lock.yaml parsing, format, or handling."
+      - label: "area: monorepo"
+        instructions: "Apply when the issue concerns the pnpm workspace feature."
+      - label: "area: lifecycle-scripts"
+        instructions: "Apply when the issue concerns running package lifecycle/build scripts."
+      - label: "area: peers"
+        instructions: "Apply when the issue concerns peer dependency resolution."
+      - label: "area: catalogs"
+        instructions: "Apply when the issue concerns the catalogs feature."
+      - label: "area: patching"
+        instructions: "Apply when the issue concerns patching packages (pnpm patch / patchedDependencies)."
+      - label: "area: resolution"
+        instructions: "Apply when the issue concerns dependency resolution."
+      - label: "area: supply chain security"
+        instructions: "Apply when the issue concerns minimumReleaseAge, blockExoticSubdeps, build-script safety, or trust policies."
+      - label: "area: config dependencies"
+        instructions: "Apply when the issue concerns configDependencies."
