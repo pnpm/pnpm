@@ -1194,6 +1194,10 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
+    // Allow the transitive `failing-postinstall` build to actually run so
+    // the optional-failure tolerance is exercised (an ignored build would
+    // instead trip `strictDepBuilds`, which is unrelated to this test).
+    config.dangerously_allow_all_builds = true;
     let config = config.leak();
 
     Install {

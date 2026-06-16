@@ -23,6 +23,22 @@ mod dependency_build_scripts {
         ))
     }
 
+    /// Set `strictDepBuilds` in the workspace's `pnpm-workspace.yaml`.
+    /// Tests that intentionally leave some builds ignored and then
+    /// inspect the filesystem set it to `false` so the install completes
+    /// instead of failing with `ERR_PNPM_IGNORED_BUILDS` (the default).
+    /// Must be called before [`allow_builds`] so its block survives the
+    /// `allowBuilds:` truncation on re-calls.
+    fn set_strict_dep_builds(workspace: &Path, strict: bool) {
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let mut yaml = fs::read_to_string(&yaml_path).unwrap_or_default();
+        if !yaml.is_empty() && !yaml.ends_with('\n') {
+            yaml.push('\n');
+        }
+        writeln!(yaml, "strictDepBuilds: {strict}").expect("format strictDepBuilds");
+        fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    }
+
     /// Set an `allowBuilds:` block in the workspace's
     /// `pnpm-workspace.yaml`, replacing any block a previous phase
     /// wrote. pnpm v11 (and pacquet) read build approval from
@@ -100,6 +116,7 @@ mod dependency_build_scripts {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
         allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
         eprintln!("Running pacquet install...");
@@ -242,6 +259,10 @@ mod dependency_build_scripts {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        // No `allowBuilds`: scripts are intentionally ignored. Disable
+        // strict mode so the install completes and the bins can still be
+        // inspected (strict would fail with `ERR_PNPM_IGNORED_BUILDS`).
+        set_strict_dep_builds(&workspace, false);
 
         eprintln!("Running pacquet install...");
         pacquet.with_arg("install").assert().success();
@@ -286,6 +307,7 @@ mod dependency_build_scripts {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
         allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
         eprintln!("Running pacquet install...");
@@ -327,6 +349,7 @@ mod dependency_build_scripts {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
         allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
         eprintln!("Running pacquet install...");
@@ -401,6 +424,7 @@ mod dependency_build_scripts {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
         allow_builds(&workspace, &[("@pnpm.e2e/install-script-example@1.0.0", true)]);
 
         eprintln!("Running pacquet install...");
@@ -479,6 +503,7 @@ mod dependency_build_scripts {
             },
         });
         fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
         allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
         eprintln!("Running pacquet install...");
@@ -562,40 +587,81 @@ mod dependency_build_scripts {
 
     /// Regression test for the user-reported gap: `pacquet add <pkg>`
     /// takes the fresh-lockfile path, which never ran the build phase —
-    /// so a blocked dependency build script was silently ignored with
-    /// no warning, unlike `pnpm add`. The fresh path now runs the build
-    /// phase, blocks the unapproved script, and reports it.
+    /// so a blocked dependency build script was silently ignored, and
+    /// the install exited 0, unlike `pnpm add`. Under the default
+    /// `strictDepBuilds`, the install now fails with
+    /// `ERR_PNPM_IGNORED_BUILDS` after adding the dependency.
     #[test]
-    fn add_reports_ignored_build_scripts() {
+    fn add_fails_under_strict_dep_builds_when_a_build_is_ignored() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
         fs::write(workspace.join("package.json"), "{}\n").expect("write package.json");
 
-        // No `allowBuilds`: the dependency's lifecycle scripts are
-        // blocked, and the block must be reported on stdout just like
+        // No `allowBuilds` and `strictDepBuilds` defaults to true, so the
+        // blocked build must fail the install with a non-zero exit, like
         // `pnpm add`.
         let output = pacquet
             .with_args(["add", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"])
             .output()
             .expect("run pacquet add");
-        assert!(output.status.success(), "pacquet add should succeed");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("pacquet add stdout:\n{stdout}\nstderr:\n{stderr}");
+        assert!(!output.status.success(), "strict add with an ignored build must exit non-zero");
+        let combined = format!("{stdout}{stderr}");
+        assert!(
+            combined.contains("ERR_PNPM_IGNORED_BUILDS")
+                && combined.contains("Ignored build scripts")
+                && combined.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
+            "expected ERR_PNPM_IGNORED_BUILDS naming the package; got:\n{combined}",
+        );
+
+        // The dependency was still added and materialized; only its
+        // blocked scripts did not run. Mirrors pnpm, which writes the
+        // artifacts before failing.
+        let pkg_dir = workspace.join(
+            "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+             /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+        );
+        assert!(pkg_dir.join("package.json").exists(), "dependency should be materialized");
+        assert!(!pkg_dir.join("generated-by-preinstall.js").exists());
+        assert!(!pkg_dir.join("generated-by-postinstall.js").exists());
+
+        drop((root, mock_instance));
+    }
+
+    /// With `strictDepBuilds: false`, an ignored build is a non-fatal
+    /// warning printed to stdout and the install exits 0 — mirroring
+    /// pnpm's `reportIgnoredBuilds` box.
+    #[test]
+    fn add_warns_without_strict_dep_builds_when_a_build_is_ignored() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), "{}\n").expect("write package.json");
+        set_strict_dep_builds(&workspace, false);
+
+        let output = pacquet
+            .with_args(["add", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"])
+            .output()
+            .expect("run pacquet add");
         let stdout = String::from_utf8_lossy(&output.stdout);
         eprintln!("pacquet add stdout:\n{stdout}");
+        assert!(output.status.success(), "non-strict add must exit zero");
         assert!(
             stdout.contains("Ignored build scripts")
                 && stdout.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
             "expected an ignored-build-scripts warning naming the package; got:\n{stdout}",
         );
 
-        // The blocked scripts must not have run.
         let pkg_dir = workspace.join(
             "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
              /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
         );
         assert!(!pkg_dir.join("generated-by-preinstall.js").exists());
-        assert!(!pkg_dir.join("generated-by-postinstall.js").exists());
 
         drop((root, mock_instance));
     }

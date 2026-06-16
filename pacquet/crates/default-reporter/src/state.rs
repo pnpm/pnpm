@@ -847,6 +847,13 @@ impl ReporterState {
         if log.package_names.is_empty() {
             return;
         }
+        // Under `strictDepBuilds` (the default) the install fails with
+        // `ERR_PNPM_IGNORED_BUILDS`, so suppress this warning to avoid
+        // duplicating the error. Mirrors pnpm's `reportIgnoredBuilds`,
+        // which is gated on `!strictDepBuilds`.
+        if crate::strict_dep_builds() {
+            return;
+        }
         let list = log.package_names.join(", ");
         self.push_block(format!(
             "Ignored build scripts: {list}.\nRun \"pnpm approve-builds\" to pick which dependencies should be allowed to run scripts.",

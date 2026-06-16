@@ -424,6 +424,12 @@ pub struct InstallWithFreshLockfileResult {
     /// typed model tracks, so the caller must not record a verification
     /// cache entry for that case.
     pub can_record_lockfile_verification: bool,
+    /// Sorted `name@version` keys whose build scripts were blocked by
+    /// the `allowBuilds` policy. The caller raises
+    /// `ERR_PNPM_IGNORED_BUILDS` from this list when `strictDepBuilds`
+    /// is on (the default). Empty on the `lockfile_only` path, which
+    /// never materializes or builds.
+    pub ignored_builds: Vec<String>,
 }
 
 impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
@@ -1286,6 +1292,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 hoisted_locations: BTreeMap::new(),
                 wanted_lockfile,
                 can_record_lockfile_verification,
+                // `lockfile_only` never materializes node_modules, so no
+                // build phase ran and nothing was ignored.
+                ignored_builds: Vec::new(),
             });
         }
 
@@ -1761,7 +1770,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // is the real lockfile dir (sets each script's `INIT_CWD`); the
         // post-build bin link anchors on `symlink_root` to match where
         // this path placed `node_modules`.
-        crate::install_frozen_lockfile::run_build_phase::<Reporter>(
+        let ignored_builds = crate::install_frozen_lockfile::run_build_phase::<Reporter>(
             &crate::install_frozen_lockfile::BuildPhaseInputs {
                 config,
                 workspace_root: lockfile_dir,
@@ -1844,6 +1853,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             hoisted_locations,
             wanted_lockfile,
             can_record_lockfile_verification,
+            ignored_builds,
         })
     }
 }

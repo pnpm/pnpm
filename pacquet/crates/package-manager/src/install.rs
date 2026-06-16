@@ -251,6 +251,24 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
 
+    /// pnpm's `ERR_PNPM_IGNORED_BUILDS`: with `strictDepBuilds` on (the
+    /// default), an install that blocked any dependency build script
+    /// fails so the user explicitly approves the builds. The package
+    /// list is the sorted set of `name@version` keys whose scripts were
+    /// ignored; the `help` hint matches pnpm's.
+    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/src/install/index.ts#L2193>
+    #[display("Ignored build scripts: {}", package_names.join(", "))]
+    #[diagnostic(
+        code(ERR_PNPM_IGNORED_BUILDS),
+        help(
+            r#"Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts."#
+        )
+    )]
+    IgnoredBuilds {
+        #[error(not(source))]
+        package_names: Vec<String>,
+    },
+
     /// A custom resolver hook failed (loading the pnpmfile's resolvers
     /// or running `shouldRefreshResolution`) while deciding whether the
     /// frozen-path optimization may run. Mirrors pnpm, where a throwing
@@ -997,6 +1015,11 @@ where
             return Ok(());
         }
 
+        // Sorted `name@version` keys whose builds were blocked; assigned
+        // by whichever path runs and consumed by the `strictDepBuilds`
+        // gate at the tail. Kept out of the tuple below to avoid a
+        // `clippy::type_complexity` annotation.
+        let ignored_builds: Vec<String>;
         let (hoisted_dependencies, hoisted_locations, frozen_skipped, fresh_lockfile): (
             HoistedDependencies,
             BTreeMap<String, Vec<String>>,
@@ -1041,6 +1064,7 @@ where
             // is the same gate, just run alongside the fetch.
             .map_err(map_frozen_lockfile_error)?;
 
+            ignored_builds = frozen_result.ignored_builds;
             (
                 frozen_result.hoisted_dependencies,
                 frozen_result.hoisted_locations,
@@ -1182,6 +1206,7 @@ where
                 );
             }
 
+            ignored_builds = fresh_result.ignored_builds;
             (
                 fresh_result.hoisted_dependencies,
                 fresh_result.hoisted_locations,
@@ -1344,6 +1369,16 @@ where
         // come after `importing_done`, matching pnpm's ordering at
         // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1663>.
         Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+
+        // Mirror pnpm's `handleIgnoredBuilds`: when `strictDepBuilds` is on
+        // (the default), an install that blocked any dependency build
+        // script fails with `ERR_PNPM_IGNORED_BUILDS` *after* the artifacts
+        // are written, so the package is still added/installed and the user
+        // approves the builds and reinstalls.
+        // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/commands/src/handleIgnoredBuilds.ts#L22>
+        if config.strict_dep_builds && !ignored_builds.is_empty() {
+            return Err(InstallError::IgnoredBuilds { package_names: ignored_builds });
+        }
 
         Ok(())
     }

@@ -178,6 +178,7 @@ impl WorkspaceSettings {
         json_field!(patched_dependencies, "PATCHED_DEPENDENCIES");
         json_field!(allow_builds, "ALLOW_BUILDS");
         json_field!(dangerously_allow_all_builds, "DANGEROUSLY_ALLOW_ALL_BUILDS");
+        json_field!(strict_dep_builds, "STRICT_DEP_BUILDS");
         enum_field!(scripts_prepend_node_path, "SCRIPTS_PREPEND_NODE_PATH", ScriptsPrependNodePath);
         json_field!(enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
         tri_string_field!(script_shell, "SCRIPT_SHELL");

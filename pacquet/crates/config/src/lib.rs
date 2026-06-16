@@ -1013,6 +1013,14 @@ pub struct Config {
     /// `allow_builds`. Default `false` to match pnpm v11.
     pub dangerously_allow_all_builds: bool,
 
+    /// `strictDepBuilds` from `pnpm-workspace.yaml`. When `true` (the
+    /// default), an install that ignores any dependency build script
+    /// fails with `ERR_PNPM_IGNORED_BUILDS` instead of only warning.
+    /// Mirrors pnpm's default at
+    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L196>.
+    #[default(true)]
+    pub strict_dep_builds: bool,
+
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Controls
     /// whether `dirname(node_execpath)` is prepended to `PATH` when
     /// running lifecycle scripts. Default `Never` to match pnpm's
