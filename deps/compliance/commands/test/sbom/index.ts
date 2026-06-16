@@ -344,7 +344,8 @@ test('pnpm sbom --filter uses workspace manifest for root component', async () =
   expect(exitCode).toBe(0)
 
   const parsed = JSON.parse(output)
-  expect(parsed.metadata.component.name).toBe('@test/app-a')
+  expect(parsed.metadata.component.name).toBe('app-a')
+  expect(parsed.metadata.component.group).toBe('@test')
   expect(parsed.metadata.component.version).toBe('1.0.0')
 
   const componentNames = parsed.components.map((c: { name: string }) => c.name)
@@ -549,7 +550,8 @@ test('pnpm sbom --lockfile-only skips workspace dep resolution', async () => {
   expect(exitCode).toBe(0)
 
   const parsed = JSON.parse(output)
-  expect(parsed.metadata.component.name).toBe('@test/app-a')
+  expect(parsed.metadata.component.name).toBe('app-a')
+  expect(parsed.metadata.component.group).toBe('@test')
 
   const componentNames = parsed.components.map((c: { name: string }) => c.name)
   // lockfile-only mode: workspace deps are not resolved (no manifest reads)
@@ -634,7 +636,8 @@ test('pnpm sbom --out with %s writes per-package files', async () => {
   expect(files).toContain('shared-lib.cdx.json')
 
   const appA = JSON.parse(fs.readFileSync(path.join(outDir, 'test-app-a.cdx.json'), 'utf8'))
-  expect(appA.metadata.component.name).toBe('@test/app-a')
+  expect(appA.metadata.component.name).toBe('app-a')
+  expect(appA.metadata.component.group).toBe('@test')
   expect(appA.metadata.component.version).toBe('1.0.0')
 
   const appB = JSON.parse(fs.readFileSync(path.join(outDir, 'app-b.cdx.json'), 'utf8'))
@@ -678,7 +681,10 @@ test('pnpm sbom --split outputs NDJSON to stdout', async () => {
   const lines = output.trim().split('\n')
   expect(lines).toHaveLength(4)
 
-  const names = lines.map((line) => JSON.parse(line).metadata.component.name).sort()
+  const names = lines.map((line) => {
+    const component = JSON.parse(line).metadata.component
+    return component.group ? `${component.group}/${component.name}` : component.name
+  }).sort()
   expect(names).toContain('@test/app-a')
   expect(names).toContain('app-b')
   expect(names).toContain('shared-lib')

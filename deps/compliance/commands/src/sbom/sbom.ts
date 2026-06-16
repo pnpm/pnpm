@@ -272,6 +272,7 @@ async function handleSplit (
 interface SharedContext {
   lockfile: Exclude<Awaited<ReturnType<typeof readWantedLockfile>>, null>
   rootManifest: Awaited<ReturnType<typeof readProjectManifestOnly>>
+  rootManifestDir: string
   storeDir: string | undefined
 }
 
@@ -287,7 +288,8 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
     )
   }
 
-  const rootManifest = await readProjectManifestOnly(opts.dir)
+  const rootManifestDir = opts.rootProjectManifestDir ?? opts.dir
+  const rootManifest = opts.rootProjectManifest ?? await readProjectManifestOnly(rootManifestDir)
 
   let storeDir: string | undefined
   if (!opts.lockfileOnly) {
@@ -298,7 +300,7 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
     })
   }
 
-  return { lockfile, rootManifest, storeDir }
+  return { lockfile, rootManifest, rootManifestDir, storeDir }
 }
 
 async function generateSbomForProject (
@@ -307,7 +309,7 @@ async function generateSbomForProject (
   ctx: SharedContext,
   compact?: boolean
 ): Promise<{ output: string, exitCode: number, rootName: string, rootVersion: string }> {
-  const { lockfile, rootManifest } = ctx
+  const { lockfile, rootManifest, rootManifestDir } = ctx
 
   const include = {
     dependencies: opts.production !== false,
@@ -327,16 +329,18 @@ async function generateSbomForProject (
     : rootManifest
   const projectDir = singleProject
     ? singleProject[0]
-    : opts.dir
+    : rootManifestDir
 
   const rootName = manifest.name ?? 'unknown'
   const rootVersion = manifest.version ?? '0.0.0'
   const rootLicense = await resolveRootLicense(manifest, projectDir)
-    ?? (singleProject ? await resolveRootLicense(rootManifest, opts.dir) : undefined)
+    ?? (singleProject ? await resolveRootLicense(rootManifest, rootManifestDir) : undefined)
   const rootAuthor = extractAuthor(manifest)
     ?? (singleProject ? extractAuthor(rootManifest) : undefined)
   const rootRepository = extractRepository(manifest)
     ?? (singleProject ? extractRepository(rootManifest) : undefined)
+  const rootDescription = manifest.description
+    ?? (singleProject ? rootManifest.description : undefined)
 
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const includedImporterIds = opts.selectedProjectsGraph
@@ -364,7 +368,7 @@ async function generateSbomForProject (
     rootName,
     rootVersion,
     rootLicense,
-    rootDescription: manifest.description,
+    rootDescription,
     rootAuthor,
     rootRepository,
     sbomType: serialOpts.sbomType,
