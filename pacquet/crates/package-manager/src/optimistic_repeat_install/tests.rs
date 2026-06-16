@@ -393,7 +393,7 @@ fn returns_up_to_date_when_overrides_are_not_local_paths() {
     assert_eq!(decision, Decision::UpToDate);
 }
 
-/// An unparseable `pnpm.overrides` (here a `catalog:` reference with no
+/// An unparsable `pnpm.overrides` (here a `catalog:` reference with no
 /// matching catalog entry) bails to the full install with the
 /// parse-error reason, not the local-file reason: the cause is a
 /// misconfiguration, and attributing it to a local file dependency
