@@ -6,7 +6,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { calcDedupeCheckIssues, countDedupeCheckIssues } from '@pnpm/installing.dedupe.check'
 import { renderDedupeCheckIssues } from '@pnpm/installing.dedupe.issues-renderer'
-import type { LockfileObject } from '@pnpm/lockfile.types'
+import type { DryRunInstallResult } from '@pnpm/installing.deps-installer'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -428,7 +428,7 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
   if (opts.dryRun) {
     return dryRunInstall(installDepsOptions, opts)
   }
-  return installDeps(installDepsOptions, [])
+  await installDeps(installDepsOptions, [])
 }
 
 /**
@@ -442,32 +442,28 @@ async function dryRunInstall (installDepsOptions: InstallDepsOptions, opts: Inst
     throw new PnpmError('CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER',
       'Cannot use --dry-run with a configured pnpr server because the pnpr install path resolves and links through the server')
   }
-  // `lockfileCheck` makes the installer resolve fully but skip the lockfile
-  // write and hand back the wanted lockfile before and after resolution.
-  // `lockfileOnly` suppresses every other write — node_modules linking, the
-  // workspace-state file, and even the metadata cache (resolution skips
-  // fetching). Together they make the run side-effect-free. The optimistic
-  // fast path is disabled so the comparison always runs.
+  // `dryRun` makes the installer resolve fully and return the before/after
+  // wanted lockfile without writing anything. `lockfileOnly` keeps it from
+  // materializing `node_modules` and skips the metadata cache (resolution
+  // skips fetching). The optimistic fast path is disabled so resolution
+  // always runs.
   installDepsOptions.optimisticRepeatInstall = false
   installDepsOptions.lockfileOnly = true
-  const changes: ReturnType<typeof calcDedupeCheckIssues>[] = []
-  installDepsOptions.lockfileCheck = (prev: LockfileObject, next: LockfileObject) => {
-    changes.push(calcDedupeCheckIssues(prev, next))
-  }
-  await installDeps(installDepsOptions, [])
-  return renderDryRunReport(changes)
+  installDepsOptions.dryRun = true
+  const dryRunResult = await installDeps(installDepsOptions, [])
+  return renderDryRunReport(dryRunResult)
 }
 
-function renderDryRunReport (changes: Array<ReturnType<typeof calcDedupeCheckIssues>>): string {
-  const reports = changes
-    .filter((issues) => countDedupeCheckIssues(issues) > 0)
-    .map(renderDedupeCheckIssues)
-  if (reports.length === 0) {
+function renderDryRunReport (dryRunResult: DryRunInstallResult | undefined): string {
+  const issues = dryRunResult != null
+    ? calcDedupeCheckIssues(dryRunResult.originalLockfile, dryRunResult.wantedLockfile)
+    : undefined
+  if (issues == null || countDedupeCheckIssues(issues) === 0) {
     return `Dry run complete. ${WANTED_LOCKFILE} is up to date; a real install would make no changes.`
   }
   return [
     'Dry run complete. A real install would make the following changes (nothing was written to disk):',
     '',
-    ...reports,
+    renderDedupeCheckIssues(issues),
   ].join('\n')
 }

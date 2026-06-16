@@ -61,7 +61,7 @@ export async function handler (opts: DedupeCommandOptions, _params?: string[], c
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  return installDeps({
+  await installDeps({
     ...opts,
     rebuildHandler: commands?.rebuild,
     dedupe: true,

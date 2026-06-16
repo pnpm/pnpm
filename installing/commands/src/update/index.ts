@@ -316,7 +316,7 @@ async function update (
   ) {
     updateMatching = createMatcher(dependencies)
   }
-  return installDeps({
+  await installDeps({
     ...opts,
     rebuildHandler,
     allowNew: false,

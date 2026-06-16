@@ -13,6 +13,7 @@ import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
+  type DryRunInstallResult,
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
@@ -175,12 +176,12 @@ export type InstallDepsOptions = Pick<Config,
    * subcommand — see `runPacquet.ts`'s `noRuntime` opt.
    */
   isInstallCommand?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile'>>
+} & Partial<Pick<Config, 'dryRun' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
-): Promise<void> {
+): Promise<DryRunInstallResult | undefined> {
   if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
       ...opts,
@@ -408,7 +409,7 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
       // Only pick entries when we'll actually persist. Otherwise the
       // info log would claim we added entries the workspace manifest
@@ -436,10 +437,10 @@ export async function installDeps (
       })
     }
     await handleIgnoredBuilds(opts, ignoredBuilds)
-    return
+    return dryRunResult
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations } = await install(manifest, {
+  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await install(manifest, {
     ...installOpts,
     updatePackageManifest,
     updateMatching,
@@ -518,6 +519,7 @@ export async function installDeps (
       })
     }
   }
+  return dryRunResult
 }
 
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {

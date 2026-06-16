@@ -305,7 +305,7 @@ export async function handler (
     for (const pkg of opts.allowBuild) {
       mergedAllowBuilds[pkg] = true
     }
-    return installDeps({
+    await installDeps({
       ...opts,
       allowBuilds: mergedAllowBuilds,
       rebuildHandler: commands?.rebuild,
@@ -313,8 +313,9 @@ export async function handler (
       include,
       includeDirect: include,
     }, params)
+    return
   }
-  return installDeps({
+  await installDeps({
     ...opts,
     rebuildHandler: commands?.rebuild,
     fetchFullMetadata: getFetchFullMetadata(opts),
