@@ -43,6 +43,9 @@ export interface CollectSbomComponentsOptions {
   virtualStoreDirMaxLength?: number
   workspacePackages?: Record<ProjectId, WorkspacePackageInfo>
   resolvedWorkspaceDeps?: ReturnType<typeof resolveWorkspaceDeps>
+  // With auto-install-peers, peers resolve into the importer's `dependencies`
+  // and are indistinguishable from real deps in the lockfile.
+  excludePeerNamesByImporter?: Record<string, Set<string>>
 }
 
 const IMPORTER_WALK_CONCURRENCY = 8
@@ -135,14 +138,21 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
       let parentPurl = rootPurl
       if (!importerIdSet.has(importerId as ProjectId)) {
         const info = opts.workspacePackages?.[importerId as ProjectId]
-        // A reachable workspace importer with no resolved package info (e.g. its
-        // manifest could not be read) is skipped entirely; walking it would
-        // misattribute its dependencies to the root component.
         if (!info) return
         parentPurl = buildPurl({ name: info.name, version: info.version })
       }
+      const peerNames = opts.excludePeerNamesByImporter?.[importerId]
+      const filteredStep = (peerNames?.size)
+        ? {
+          ...step,
+          dependencies: step.dependencies.filter((dep) => {
+            const { name } = nameVerFromPkgSnapshot(dep.depPath, dep.pkgSnapshot)
+            return !name || !peerNames.has(name)
+          }),
+        }
+        : step
       await walkStep(
-        step,
+        filteredStep,
         parentPurl,
         depTypes,
         componentsMap,
