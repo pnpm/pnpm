@@ -280,15 +280,23 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   } catch {}
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
-    if (existsSync(exePath)) {
-      globalWarn(`The target bin directory already contains an exe called ${cmd.name}, so removing ${exePath}`)
-      await rimraf(exePath)
-    }
-    // node.exe must exist as a real executable, not a cmd-shim wrapper.
+    // node.exe is the only bin pnpm links directly as a real executable rather
+    // than through a cmd-shim, so the existing-exe handling only applies to it.
     // We could update our own cmd shims to support node.cmd, but we can't
     // control npm's cmd shims, which break when node resolves to node.cmd.
     // npm's cmd shims use `IF EXIST "%~dp0\node.exe"` to find the node binary.
-    if (cmd.name === 'node' && cmd.path.toLowerCase().endsWith('.exe')) {
+    const isNodeExe = cmd.name === 'node' && cmd.path.toLowerCase().endsWith('.exe')
+    if (existsSync(exePath)) {
+      // Skip warning and re-linking when the existing node.exe already matches
+      // the target, otherwise every command that re-links node would spam the
+      // warning below on warm installs.
+      if (isNodeExe && await isSameFile(exePath, cmd.path)) {
+        return
+      }
+      globalWarn(`The target bin directory already contains an exe called ${cmd.name}, so removing ${exePath}`)
+      await rimraf(exePath)
+    }
+    if (isNodeExe) {
       try {
         await fs.link(cmd.path, exePath)
       } catch {
@@ -358,6 +366,67 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     await ensureExecutable(cmd.path, 0o755)
+  }
+}
+
+// Reports whether two paths refer to the same file. A matching inode/device
+// pair (read as BigInts to avoid the precision loss of NTFS 64-bit file IDs)
+// proves a hard link cheaply. Whenever identity can't be established that way —
+// because the inodes genuinely differ or because Windows reports an unreliable
+// zero inode — we fall back to comparing the file contents after a quick size
+// check, which also treats a byte-identical copy as the same file.
+async function isSameFile (pathA: string, pathB: string): Promise<boolean> {
+  const [statA, statB] = await Promise.all([
+    fs.stat(pathA, { bigint: true }).catch(() => null),
+    fs.stat(pathB, { bigint: true }).catch(() => null),
+  ])
+  if (statA == null || statB == null) return false
+  if (statA.ino && statB.ino && statA.ino === statB.ino && statA.dev === statB.dev) {
+    return true
+  }
+  if (statA.size !== statB.size) return false
+  return haveEqualContents(pathA, pathB)
+}
+
+const FILE_COMPARE_CHUNK_SIZE = 64 * 1024
+
+// Compares two equally-sized files chunk by chunk, so an executable is never
+// fully buffered in memory and a mismatch returns as early as possible.
+async function haveEqualContents (pathA: string, pathB: string): Promise<boolean> {
+  const [fhA, fhB] = await Promise.all([
+    fs.open(pathA, 'r').catch(() => null),
+    fs.open(pathB, 'r').catch(() => null),
+  ])
+  if (fhA == null || fhB == null) {
+    await fhA?.close().catch(() => {})
+    await fhB?.close().catch(() => {})
+    return false
+  }
+  try {
+    const bufA = Buffer.alloc(FILE_COMPARE_CHUNK_SIZE)
+    const bufB = Buffer.alloc(FILE_COMPARE_CHUNK_SIZE)
+    let position = 0
+    for (;;) {
+      // Reading sequentially is intentional: each iteration compares one chunk
+      // and stops early on a mismatch or EOF.
+      const [readA, readB] = await Promise.all([ // eslint-disable-line no-await-in-loop
+        fhA.read(bufA, 0, FILE_COMPARE_CHUNK_SIZE, position),
+        fhB.read(bufB, 0, FILE_COMPARE_CHUNK_SIZE, position),
+      ])
+      if (readA.bytesRead !== readB.bytesRead) return false
+      if (readA.bytesRead === 0) return true
+      if (!bufA.subarray(0, readA.bytesRead).equals(bufB.subarray(0, readB.bytesRead))) {
+        return false
+      }
+      position += readA.bytesRead
+    }
+  } catch {
+    // A transient read error must not abort bin linking: treat the files as
+    // different so the caller falls back to the warn + remove + relink path.
+    return false
+  } finally {
+    await fhA.close().catch(() => {})
+    await fhB.close().catch(() => {})
   }
 }
 

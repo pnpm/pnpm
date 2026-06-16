@@ -588,6 +588,13 @@ fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsE
         return Ok(false);
     }
     let exe_path = with_extension_appended(shim_path, "exe");
+    // Skip the remove + relink churn on warm installs when `node.exe`
+    // already refers to the source binary. Mirrors pnpm's same-file
+    // early-return in
+    // [`bins/linker/src/index.ts`](https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/src/index.ts#L281-L308).
+    if is_same_file(&exe_path, target_path) {
+        return Ok(true);
+    }
     remove_stale_bin(&exe_path)?;
     if fs::hard_link(target_path, &exe_path).is_err() {
         fs::copy(target_path, &exe_path).map_err(|error| LinkBinsError::LinkNodeBin {
@@ -597,6 +604,72 @@ fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsE
         })?;
     }
     Ok(true)
+}
+
+/// Whether `a` and `b` are the same file. [`same_file::Handle`] proves a hard
+/// link cheaply via the OS file identity (device + inode on Unix, file index +
+/// volume serial on Windows). When that identity can't be obtained — a missing
+/// file, or a filesystem that doesn't expose a stable index — we fall back to
+/// comparing the file contents after a quick size check, which also treats a
+/// byte-identical copy as the same file. Mirrors `isSameFile` in pnpm's
+/// `bins.linker`.
+#[cfg(windows)]
+fn is_same_file(a: &Path, b: &Path) -> bool {
+    if let (Ok(handle_a), Ok(handle_b)) =
+        (same_file::Handle::from_path(a), same_file::Handle::from_path(b))
+        && handle_a == handle_b
+    {
+        return true;
+    }
+    match (std::fs::metadata(a), std::fs::metadata(b)) {
+        (Ok(meta_a), Ok(meta_b)) => meta_a.len() == meta_b.len() && have_equal_contents(a, b),
+        _ => false,
+    }
+}
+
+/// Compare two equally-sized files chunk by chunk, so an executable is never
+/// fully buffered in memory and a mismatch returns as early as possible.
+#[cfg(windows)]
+fn have_equal_contents(a: &Path, b: &Path) -> bool {
+    const CHUNK_SIZE: usize = 64 * 1024;
+    let (Ok(mut file_a), Ok(mut file_b)) = (std::fs::File::open(a), std::fs::File::open(b)) else {
+        return false;
+    };
+    let mut buf_a = vec![0u8; CHUNK_SIZE];
+    let mut buf_b = vec![0u8; CHUNK_SIZE];
+    loop {
+        let (Ok(read_a), Ok(read_b)) =
+            (read_chunk(&mut file_a, &mut buf_a), read_chunk(&mut file_b, &mut buf_b))
+        else {
+            return false;
+        };
+        if read_a != read_b {
+            return false;
+        }
+        if read_a == 0 {
+            return true;
+        }
+        if buf_a[..read_a] != buf_b[..read_b] {
+            return false;
+        }
+    }
+}
+
+/// Read up to `buf.len()` bytes, looping over short reads so a full chunk is
+/// only short at end of file. Like [`std::io::Read::read_exact`] but tolerant
+/// of EOF.
+#[cfg(windows)]
+fn read_chunk(reader: &mut impl std::io::Read, buf: &mut [u8]) -> io::Result<usize> {
+    let mut filled = 0;
+    while filled < buf.len() {
+        match reader.read(&mut buf[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(filled)
 }
 
 /// Remove an existing dirent at `path`, swallowing `NotFound`. Used by

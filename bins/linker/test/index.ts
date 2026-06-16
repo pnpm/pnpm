@@ -733,6 +733,70 @@ describe('node binary linking', () => {
     // No cmd-shim should be created since we return early
     expect(fs.existsSync(path.join(binTarget, `node${CMD_EXTENSION}`))).toBe(false)
   })
+
+  testOnWindows('linkBinsOfPackages() does not warn when node.exe is already the correct hardlink', async () => {
+    const binTarget = temporaryDirectory()
+    const nodeDir = temporaryDirectory()
+
+    fs.writeFileSync(path.join(nodeDir, 'node.exe'), 'fake-node-binary', 'utf8')
+
+    const pkgs = [
+      {
+        location: nodeDir,
+        manifest: {
+          name: 'node',
+          version: '20.0.0',
+          bin: { node: 'node.exe' },
+        },
+      },
+    ]
+
+    // First call creates the hardlink
+    await linkBinsOfPackages(pkgs, binTarget)
+    jest.mocked(globalWarn).mockClear()
+
+    // Second call should not warn because the .exe is already the correct hardlink
+    await linkBinsOfPackages(pkgs, binTarget)
+
+    // The absence of a warning is the regression signal: the warn and the
+    // `rimraf` that recreates node.exe live in the same branch, so no warning
+    // means node.exe was left untouched. We don't assert on inode identity
+    // because node.exe may legitimately be a copy rather than a hardlink (the
+    // implementation falls back to copyFile when hardlinking fails).
+    expect(globalWarn).not.toHaveBeenCalled()
+    const exePath = path.join(binTarget, 'node.exe')
+    expect(fs.existsSync(exePath)).toBe(true)
+    expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
+  })
+
+  testOnWindows('linkBinsOfPackages() does not warn when node.exe has identical content but is not a hardlink', async () => {
+    const binTarget = temporaryDirectory()
+    const nodeDir = temporaryDirectory()
+
+    fs.writeFileSync(path.join(nodeDir, 'node.exe'), 'fake-node-binary', 'utf8')
+    // Pre-place an independent copy with identical content (different inode), as
+    // happens on filesystems where Windows reports a zero inode and the previous
+    // link fell back to a copy.
+    fs.writeFileSync(path.join(binTarget, 'node.exe'), 'fake-node-binary', 'utf8')
+
+    const pkgs = [
+      {
+        location: nodeDir,
+        manifest: {
+          name: 'node',
+          version: '20.0.0',
+          bin: { node: 'node.exe' },
+        },
+      },
+    ]
+
+    await linkBinsOfPackages(pkgs, binTarget)
+
+    expect(globalWarn).not.toHaveBeenCalled()
+    const exePath = path.join(binTarget, 'node.exe')
+    expect(fs.existsSync(exePath)).toBe(true)
+    expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
+  })
 })
 
 test('linkBins() resolves conflicts using BIN_OWNER_OVERRIDES (npx owned by npm)', async () => {
