@@ -645,6 +645,56 @@ mod dependency_build_scripts {
 
         drop((root, mock_instance));
     }
+
+    /// `strictDepBuilds` must stay enforced across reruns: after a strict
+    /// install fails with `ERR_PNPM_IGNORED_BUILDS`, a warm rerun must
+    /// fail again rather than short-circuit to exit 0 via an up-to-date
+    /// fast path — otherwise rerunning install would bypass the gate.
+    #[test]
+    fn strict_install_keeps_failing_on_warm_rerun() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+
+        // First install (strict default, no `allowBuilds`): fails, but
+        // still materializes the dep and records the ignored build in
+        // `.modules.yaml`.
+        let first = pacquet.with_arg("install").output().expect("run pacquet install");
+        assert!(!first.status.success(), "first strict install with an ignored build must fail");
+
+        // Warm rerun: the lockfile and `.modules.yaml` are unchanged, so
+        // the up-to-date fast path would normally exit 0 — but strict mode
+        // must keep failing until the build is approved.
+        let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let rerun_out = rerun
+            .with_current_dir(&workspace)
+            .with_arg("install")
+            .output()
+            .expect("run pacquet install again");
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&rerun_out.stdout),
+            String::from_utf8_lossy(&rerun_out.stderr),
+        );
+        eprintln!("rerun output:\n{combined}");
+        assert!(
+            !rerun_out.status.success(),
+            "a warm rerun must not bypass strictDepBuilds; got:\n{combined}",
+        );
+        assert!(
+            combined.contains("ERR_PNPM_IGNORED_BUILDS"),
+            "rerun should still report ERR_PNPM_IGNORED_BUILDS; got:\n{combined}",
+        );
+
+        drop((root, mock_instance, rerun_root));
+    }
 }
 
 /// Project (workspace/root) lifecycle scripts run during

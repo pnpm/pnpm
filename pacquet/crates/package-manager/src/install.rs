@@ -607,6 +607,19 @@ where
                 catalogs: &catalogs,
             }) == OptimisticRepeatInstallDecision::UpToDate;
         if optimistic_decision {
+            // Keep `strictDepBuilds` enforced across reruns: an install
+            // that already recorded unapproved ignored builds must keep
+            // failing until they are approved, not exit 0 via the fast
+            // path. An `allowBuilds` change that newly permits one is
+            // already caught by `settings_match` (the policy is part of
+            // the workspace state), which reports drift and skips this
+            // branch, so the full install runs and rebuilds it.
+            if config.strict_dep_builds
+                && let Some(package_names) =
+                    unapproved_recorded_ignored_builds(&config.modules_dir, config)
+            {
+                return Err(InstallError::IgnoredBuilds { package_names });
+            }
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,
                 message: "Already up to date".to_string(),
@@ -987,6 +1000,19 @@ where
                     &config.cache_dir,
                 )
                 .await?;
+            }
+            // Keep `strictDepBuilds` enforced on the up-to-date path: a
+            // rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not
+            // exit 0 just because the lockfile and layout are unchanged.
+            // Mirrors pnpm, which seeds `ignoredBuilds` from `.modules.yaml`
+            // and still throws from `handleIgnoredBuilds`. Checked after
+            // verification (a tampered lockfile fails first) and before the
+            // "up to date" log so the command doesn't claim success.
+            if config.strict_dep_builds
+                && let Some(package_names) =
+                    unapproved_recorded_ignored_builds(&config.modules_dir, config)
+            {
+                return Err(InstallError::IgnoredBuilds { package_names });
             }
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,
@@ -1682,6 +1708,31 @@ fn has_newly_allowed_ignored_builds(modules_dir: &Path, config: &Config) -> bool
     ignored.iter().any(|dep_path| policy.check(dep_path.as_str()) == Some(true))
 }
 
+/// The sorted `name@version` keys `.modules.yaml` recorded as ignored
+/// builds that the current `allowBuilds` policy still leaves unapproved
+/// (`None`), or `None` when there are none.
+///
+/// The frozen no-op fast path uses this to keep `strictDepBuilds`
+/// enforced across reruns: pnpm seeds `ignoredBuilds` from `.modules.yaml`
+/// on the up-to-date path and `handleIgnoredBuilds` still throws, so a
+/// rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not exit 0.
+/// Packages a later policy explicitly denies (`Some(false)`) are excluded
+/// — those are silently skipped, never reported — matching a full
+/// install's `BuildModules`. Newly-allowed packages are handled upstream
+/// by [`has_newly_allowed_ignored_builds`], which skips the fast path.
+fn unapproved_recorded_ignored_builds(modules_dir: &Path, config: &Config) -> Option<Vec<String>> {
+    let modules = read_modules_manifest::<Host>(modules_dir).ok().flatten()?;
+    let ignored = modules.ignored_builds.filter(|set| !set.is_empty())?;
+    let policy = crate::AllowBuildPolicy::from_config(config).ok()?;
+    let mut names: Vec<String> = ignored
+        .iter()
+        .filter(|dep_path| policy.check(dep_path.as_str()).is_none())
+        .map(|dep_path| dep_path.as_str().to_string())
+        .collect();
+    names.sort();
+    (!names.is_empty()).then_some(names)
+}
+
 /// Assemble the [`Modules`] payload for [`write_modules_manifest`].
 ///
 /// Mirrors upstream's literal at
@@ -1911,6 +1962,16 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
     } else {
         LazyLockfile::disabled()
     };
+    // Under `strictDepBuilds`, a recorded-and-still-unapproved ignored
+    // build must keep the install failing — never let the pre-runtime
+    // fast path report up-to-date and exit 0. Returning `None` falls
+    // through to the full `Install::run`, whose optimistic branch raises
+    // `ERR_PNPM_IGNORED_BUILDS`.
+    if config.strict_dep_builds
+        && unapproved_recorded_ignored_builds(&config.modules_dir, config).is_some()
+    {
+        return None;
+    }
     (check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: &workspace_root,
         config,
