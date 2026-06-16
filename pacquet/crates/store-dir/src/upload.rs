@@ -17,7 +17,6 @@ use miette::Diagnostic;
 use std::{
     collections::{BTreeSet, HashMap},
     path::Path,
-    sync::Arc,
 };
 
 /// Error type of [`upload()`].
@@ -61,7 +60,7 @@ pub fn upload(
     built_pkg_location: &Path,
     files_index_file: &str,
     side_effects_cache_key: &str,
-    writer: &Arc<StoreIndexWriter>,
+    writer: &StoreIndexWriter,
 ) -> Result<(), UploadError> {
     let added =
         add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
