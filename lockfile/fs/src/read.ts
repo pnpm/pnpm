@@ -84,9 +84,9 @@ export async function readWantedLockfileFile (
   return (await _readWantedLockfile(pkgPath, opts)).lockfileFile
 }
 
-export function wantedLockfileHasMergeConflictsSync (pkgPath: string): boolean {
+export function wantedLockfileHasMergeConflictsSync (pkgPath: string, lockfileName: string = WANTED_LOCKFILE): boolean {
   try {
-    const lockfileRawContent = stripBom(fs.readFileSync(path.join(pkgPath, WANTED_LOCKFILE), 'utf8'))
+    const lockfileRawContent = stripBom(fs.readFileSync(path.join(pkgPath, lockfileName), 'utf8'))
     return isDiff(extractMainDocument(lockfileRawContent))
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {

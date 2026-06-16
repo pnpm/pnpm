@@ -222,11 +222,11 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     // can run against it and `pnpm-lock.yaml` is regenerated from it
     // on success — the same substitution the full install path makes
     // when it synthesizes the wanted lockfile from the current one.
-    // Workspace installs skip this gate — pnpm's workspace branch
-    // returns `upToDate: true` purely off the manifest-mtime check
-    // (its only lockfile probe, `findConflictedLockfileDir`, silently
-    // `continue`s on ENOENT at
-    // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L593-L596>).
+    // Workspace installs skip this existence gate — pnpm's workspace
+    // branch tolerates a missing `pnpm-lock.yaml` (its `scanWantedLockfiles`
+    // probe `continue`s on ENOENT, and the missing lockfile is restored
+    // from the current one rather than throwing). The mtime side of that
+    // probe is handled by `wanted_lockfile_modified` below.
     if !is_workspace_install
         && !workspace_root.join(Lockfile::FILE_NAME).exists()
         && !config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists()
@@ -265,7 +265,17 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         .iter()
         .filter(|stat| stat.mtime_ms > state.last_validated_timestamp)
         .collect();
-    if modified.is_empty() {
+
+    // A lockfile-only change — `git checkout`/stash-restore of just
+    // `pnpm-lock.yaml`, or an external rewrite — leaves every manifest
+    // untouched but still invalidates the install. Probe the wanted
+    // lockfile's mtime before the manifest-mtime exit, mirroring
+    // upstream's `scanWantedLockfiles` + `!lockfilesModified` early-return
+    // guard (pnpm/pnpm#12100).
+    let lockfile_modified =
+        wanted_lockfile_modified(workspace_root, state.last_validated_timestamp);
+
+    if modified.is_empty() && !lockfile_modified {
         return match regenerate_wanted_lockfile_if_missing(check, None) {
             Ok(()) => Decision::UpToDate,
             Err(reason) => Decision::Skipped { reason },
@@ -276,8 +286,13 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     // modified-manifests branch re-checks the *content* against the
     // wanted lockfile (`assertWantedLockfileUpToDate`) so a rewrite
     // that left the dependency fields intact — `touch`, a `scripts`
-    // edit, `npm pkg set/delete` — still reports up to date.
-    match modified_manifests_match_lockfile(check, &state, &modified) {
+    // edit, `npm pkg set/delete` — still reports up to date. When only
+    // the lockfile changed, upstream validates every project rather than
+    // just the modified ones (`projectsToCheck = lockfilesModified ?
+    // allManifestStats : modifiedProjects`).
+    let projects_to_check: Vec<&ManifestStat<'_>> =
+        if lockfile_modified { manifest_stats.iter().collect() } else { modified };
+    match modified_manifests_match_lockfile(check, &state, &projects_to_check) {
         Ok(loaded_current) => {
             if let Err(reason) = regenerate_wanted_lockfile_if_missing(check, loaded_current) {
                 return Decision::Skipped { reason };
@@ -898,6 +913,17 @@ fn mtime_ms(path: &Path) -> Option<i64> {
     let modified = fs::metadata(path).and_then(|metadata| metadata.modified()).ok()?;
     let elapsed = modified.duration_since(SystemTime::UNIX_EPOCH).ok()?;
     Some(i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX))
+}
+
+/// Whether `<workspace_root>/pnpm-lock.yaml` has an mtime newer than the
+/// last validation. Mirrors upstream's `scanWantedLockfiles` modification
+/// probe: a lockfile-only change leaves every manifest untouched but must
+/// still defeat the manifest-mtime fast path (pnpm/pnpm#12100). A missing
+/// lockfile reports `false` here — it is handled by the existence and
+/// stand-in gates, not treated as a modification.
+fn wanted_lockfile_modified(workspace_root: &Path, last_validated_timestamp: i64) -> bool {
+    mtime_ms(&workspace_root.join(Lockfile::FILE_NAME))
+        .is_some_and(|mtime| mtime > last_validated_timestamp)
 }
 
 /// Compare today's settings against what the previous install

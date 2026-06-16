@@ -1,7 +1,7 @@
 export { createEnvLockfile, readEnvLockfile, writeEnvLockfile } from './envLockfile.js'
 export { existsNonEmptyWantedLockfile } from './existsWantedLockfile.js'
 export { getLockfileImporterId } from './getLockfileImporterId.js'
-export { cleanGitBranchLockfiles } from './gitBranchLockfile.js'
+export { cleanGitBranchLockfiles, getGitBranchLockfileNamesSync } from './gitBranchLockfile.js'
 export { convertToLockfileFile, convertToLockfileObject } from './lockfileFormatConverters.js'
 export { getWantedLockfileName } from './lockfileName.js'
 export * from './read.js'

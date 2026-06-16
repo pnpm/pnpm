@@ -1940,6 +1940,28 @@ fn returns_skipped_when_wanted_lockfile_diverged_from_current() {
     );
 }
 
+/// Only the wanted lockfile changed (a `git checkout` / stash-restore of
+/// just `pnpm-lock.yaml`), with every manifest left untouched. The
+/// manifest-mtime fast path must not skip the lockfile change. Regression
+/// for pnpm/pnpm#12100.
+#[test]
+fn returns_skipped_when_only_the_lockfile_changed() {
+    let (dir, config) = setup_content_check_project();
+
+    // Rewrite only the wanted lockfile; package.json keeps its original
+    // (pre-state) mtime, so `modifiedProjects` is empty.
+    fs::write(dir.path().join(Lockfile::FILE_NAME), FOO_LOCKFILE.replace("1.0.0", "1.0.1"))
+        .unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("not up to date")),
+        "expected Skipped(outdated deps), got {decision:?}",
+    );
+}
+
 /// Workspace branch: a passing content check refreshes
 /// `lastValidatedTimestamp` so the next run exits on the pure-mtime
 /// path. Mirrors upstream's `updateWorkspaceState` call at
