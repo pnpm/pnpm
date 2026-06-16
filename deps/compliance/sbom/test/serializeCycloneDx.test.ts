@@ -236,6 +236,33 @@ describe('serializeCycloneDx', () => {
     expect(distRef).toBeUndefined()
   })
 
+  it('should emit an issue-tracker external reference from bugsUrl', () => {
+    const result = makeSbomResult()
+    result.components[0].bugsUrl = 'https://github.com/lodash/lodash/issues'
+    result.rootComponent.bugsUrl = 'https://github.com/acme/sbom-app/issues'
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    const lodashRef = parsed.components[0].externalReferences.find(
+      (r: { type: string }) => r.type === 'issue-tracker'
+    )
+    expect(lodashRef.url).toBe('https://github.com/lodash/lodash/issues')
+
+    const rootRef = parsed.metadata.component.externalReferences.find(
+      (r: { type: string }) => r.type === 'issue-tracker'
+    )
+    expect(rootRef.url).toBe('https://github.com/acme/sbom-app/issues')
+  })
+
+  it('should omit the issue-tracker reference when bugsUrl is absent', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    const ref = parsed.components[0].externalReferences?.find(
+      (r: { type: string }) => r.type === 'issue-tracker'
+    )
+    expect(ref).toBeUndefined()
+  })
+
   it('should use license.id for known SPDX identifiers', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeCycloneDx(result))

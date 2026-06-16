@@ -13,6 +13,7 @@ export interface SbomComponent {
   author?: string
   homepage?: string
   repository?: string
+  bugsUrl?: string
 }
 
 export interface SbomRelationship {
@@ -29,6 +30,7 @@ export interface SbomResult {
     description?: string
     author?: string
     repository?: string
+    bugsUrl?: string
   }
   components: SbomComponent[]
   relationships: SbomRelationship[]

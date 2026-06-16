@@ -1,4 +1,5 @@
 export { collectSbomComponents, type CollectSbomComponentsOptions, gitDownloadUrl, resolveWorkspaceDeps, type WorkspacePackageInfo } from './collectComponents.js'
+export { bugsUrlFromField } from './getPkgMetadata.js'
 export { integrityToHashes } from './integrity.js'
 export { buildPurl, encodePurlName } from './purl.js'
 export { type CycloneDxOptions, serializeCycloneDx } from './serializeCycloneDx.js'

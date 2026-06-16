@@ -96,6 +96,13 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
       })
     }
 
+    if (comp.bugsUrl) {
+      externalRefs.push({
+        type: 'issue-tracker',
+        url: comp.bugsUrl,
+      })
+    }
+
     if (externalRefs.length > 0) {
       cdxComp.externalReferences = externalRefs
     }
@@ -142,11 +149,15 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
   if (rootComponent.description) {
     rootCdxComponent.description = rootComponent.description
   }
+  const rootExternalRefs: Array<Record<string, unknown>> = []
   if (rootComponent.repository) {
-    rootCdxComponent.externalReferences = [{
-      type: 'vcs',
-      url: rootComponent.repository,
-    }]
+    rootExternalRefs.push({ type: 'vcs', url: rootComponent.repository })
+  }
+  if (rootComponent.bugsUrl) {
+    rootExternalRefs.push({ type: 'issue-tracker', url: rootComponent.bugsUrl })
+  }
+  if (rootExternalRefs.length > 0) {
+    rootCdxComponent.externalReferences = rootExternalRefs
   }
 
   const toolComponents: Array<Record<string, unknown>> = []

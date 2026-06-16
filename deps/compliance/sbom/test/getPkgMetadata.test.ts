@@ -7,7 +7,7 @@ import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 
-import { getPkgMetadata } from '../lib/getPkgMetadata.js'
+import { bugsUrlFromField, getPkgMetadata } from '../lib/getPkgMetadata.js'
 
 const DEFAULT_REGISTRIES = {
   default: 'https://registry.npmjs.org/',
@@ -131,5 +131,24 @@ describe('getPkgMetadata', () => {
     )
 
     expect(result).toEqual({})
+  })
+})
+
+describe('bugsUrlFromField', () => {
+  it('keeps well-formed http(s) URLs, including uppercase schemes', () => {
+    expect(bugsUrlFromField('https://github.com/a/b/issues')).toBe('https://github.com/a/b/issues')
+    expect(bugsUrlFromField('http://example.com/bugs')).toBe('http://example.com/bugs')
+    expect(bugsUrlFromField('HTTPS://github.com/a/b/issues')).toBe('HTTPS://github.com/a/b/issues')
+    expect(bugsUrlFromField('  https://github.com/a/b/issues  ')).toBe('https://github.com/a/b/issues')
+    expect(bugsUrlFromField({ url: 'https://github.com/a/b/issues' })).toBe('https://github.com/a/b/issues')
+  })
+
+  it('drops malformed URLs, non-http schemes, emails, and missing values', () => {
+    expect(bugsUrlFromField('https://')).toBeUndefined()
+    expect(bugsUrlFromField('not a url')).toBeUndefined()
+    expect(bugsUrlFromField('bugs@example.com')).toBeUndefined()
+    expect(bugsUrlFromField('mailto:bugs@example.com')).toBeUndefined()
+    expect(bugsUrlFromField({ email: 'bugs@example.com' })).toBeUndefined()
+    expect(bugsUrlFromField(undefined)).toBeUndefined()
   })
 })
