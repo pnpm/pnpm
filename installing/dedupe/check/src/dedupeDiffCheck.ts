@@ -10,14 +10,15 @@ import { DedupeCheckIssuesError } from './DedupeCheckIssuesError.js'
 
 const PACKAGE_SNAPSHOT_DEP_FIELDS = ['dependencies', 'optionalDependencies'] as const
 
-// A direct dependency's manifest `specifier` is the reliable signal of a
-// would-be importer change: it always reflects the current `package.json`,
-// whereas the resolved-version fields are cleared in memory for any dep whose
-// specifier no longer matches the lockfile (they're about to be re-resolved).
-// For a direct dependency the resolved version only changes when the
-// specifier does, so comparing specifiers captures every importer-level
-// change a real install would persist.
-const IMPORTER_DRY_RUN_FIELDS = ['specifiers'] as const
+// Dry-run diffs importers by both the per-group dependency fields and the
+// flat `specifiers` map, so it catches every importer rewrite a real install
+// would persist: the per-group fields surface a dependency moving between
+// `dependencies`/`devDependencies`/`optionalDependencies`, while `specifiers`
+// surfaces a specifier-only edit (same resolved version). `specifiers` is
+// last so that on a per-alias collision its update wins — rendering the
+// specifier delta rather than the re-resolved version, which is cleared in
+// memory for a specifier-mismatched dep.
+const IMPORTER_DRY_RUN_FIELDS = [...DEPENDENCIES_FIELDS, 'specifiers'] as const
 
 /**
  * Compute the changes between two lockfiles, as added/removed/updated
@@ -25,8 +26,8 @@ const IMPORTER_DRY_RUN_FIELDS = ['specifiers'] as const
  * throws — callers that only want to report the diff (e.g. `install
  * --dry-run`) consume the result directly.
  *
- * `includeImporterSpecifiers` diffs each importer by its direct dependencies'
- * `specifier` instead of their resolved versions. `pnpm install --dry-run`
+ * `includeImporterSpecifiers` also diffs each importer's direct-dependency
+ * `specifier`s, not just their resolved versions. `pnpm install --dry-run`
  * sets it so a specifier-only manifest edit (which a real install would
  * persist to the lockfile) is reported; `dedupe --check` leaves it off
  * because a specifier change is irrelevant to deduplication.

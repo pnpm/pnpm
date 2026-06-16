@@ -282,6 +282,37 @@ test('install --dry-run reports a specifier-only change to a direct dependency',
   expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfileBefore)
 })
 
+test('install --dry-run reports a direct dependency moving between groups', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  // Move is-positive from dependencies to devDependencies; the specifier and
+  // resolved version are unchanged, but a real install rewrites the importer
+  // section of the lockfile.
+  fs.writeFileSync('package.json', JSON.stringify({
+    devDependencies: { 'is-positive': '1.0.0' },
+  }))
+  const lockfileBefore = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+
+  const output = await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    dryRun: true,
+  })
+
+  expect(output).not.toContain('up to date')
+  expect(output).toContain('is-positive')
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfileBefore)
+})
+
 test('install --dry-run reports changes in a workspace without writing', async () => {
   preparePackages([
     {
