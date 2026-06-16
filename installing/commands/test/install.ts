@@ -250,3 +250,33 @@ test('install --dry-run reports no changes when the project is already up to dat
 
   expect(output).toContain('up to date')
 })
+
+test('install --dry-run reports a specifier-only change to a direct dependency', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  // Change only the specifier; it still resolves to the same version.
+  fs.writeFileSync('package.json', JSON.stringify({
+    dependencies: { 'is-positive': '~1.0.0' },
+  }))
+  const lockfileBefore = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+
+  const output = await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    dryRun: true,
+  })
+
+  // A real install would rewrite the lockfile's specifier, so this is a change.
+  expect(output).not.toContain('up to date')
+  expect(output).toContain('is-positive')
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfileBefore)
+})

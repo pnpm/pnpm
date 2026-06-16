@@ -91,11 +91,11 @@ fn group_move_is_reported_even_when_version_is_unchanged() {
     assert!(!diff.is_empty(), "a dev -> prod move must register as a change: {diff:?}");
 }
 
-/// A specifier-only change (same group, same resolved version) is *not*
-/// reported. pnpm's diff ignores specifiers too — they live in a separate
-/// map outside the diffed dependency fields — so pacquet matches it.
+/// A specifier-only change (same group, same resolved version) is reported:
+/// a real install would rewrite the lockfile's specifier, so `--dry-run`
+/// surfaces it as a direct-dependency change.
 #[test]
-fn specifier_only_change_is_not_reported() {
+fn specifier_only_change_is_reported() {
     let old = ProjectSnapshot {
         dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0")])),
         ..Default::default()
@@ -105,8 +105,5 @@ fn specifier_only_change_is_not_reported() {
         ..Default::default()
     };
     let diff = diff_importer(".", Some(&old), Some(&new));
-    assert!(
-        diff.is_empty(),
-        "a specifier-only change must match pnpm and report nothing: {diff:?}",
-    );
+    assert!(!diff.is_empty(), "a specifier-only change must be reported: {diff:?}");
 }

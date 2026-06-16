@@ -456,7 +456,7 @@ async function dryRunInstall (installDepsOptions: InstallDepsOptions, opts: Inst
 
 function renderDryRunReport (dryRunResult: DryRunInstallResult | undefined): string {
   const issues = dryRunResult != null
-    ? calcDedupeCheckIssues(dryRunResult.originalLockfile, dryRunResult.wantedLockfile)
+    ? calcDedupeCheckIssues(dryRunResult.originalLockfile, dryRunResult.wantedLockfile, { includeImporterSpecifiers: true })
     : undefined
   if (issues == null || countDedupeCheckIssues(issues) === 0) {
     return `Dry run complete. ${WANTED_LOCKFILE} is up to date; a real install would make no changes.`

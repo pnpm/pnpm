@@ -25,15 +25,16 @@ pub struct LockfileDiff {
     pub updated_packages: Vec<String>,
 }
 
-/// Direct-dependency changes for a single importer.
+/// Direct-dependency changes for a single importer, keyed by manifest
+/// specifier.
 #[derive(Debug)]
 pub struct ImporterDiff {
     pub id: String,
-    /// `(alias, version)` pairs newly added.
+    /// `(alias, specifier)` pairs newly added.
     pub added: Vec<(String, String)>,
-    /// `(alias, version)` pairs removed.
+    /// `(alias, specifier)` pairs removed.
     pub removed: Vec<(String, String)>,
-    /// `(alias, old_version, new_version)` pairs whose resolution changed.
+    /// `(alias, old_specifier, new_specifier)` pairs whose specifier changed.
     pub updated: Vec<(String, String, String)>,
 }
 
@@ -131,24 +132,27 @@ fn diff_importer(
     // Diff each dependency group independently so a dependency that moves
     // between groups (e.g. dev -> prod) registers as a change. Mirrors
     // pnpm's `dedupeDiffCheck`, which diffs `dependencies`,
-    // `devDependencies`, and `optionalDependencies` separately. The
-    // `specifier` field is intentionally not compared: pnpm's diff ignores
-    // it too (specifiers live in a separate map outside its diff fields).
+    // `devDependencies`, and `optionalDependencies` separately. The diff key
+    // is each direct dependency's manifest `specifier`, not its resolved
+    // version: a real install rewrites the lockfile whenever a specifier
+    // changes (even if it still resolves to the same version), and for a
+    // direct dependency the resolved version only changes when the specifier
+    // does — so the specifier captures every importer-level change.
     for group in 0..3 {
-        let old_deps = group_versions(old, group);
-        let new_deps = group_versions(new, group);
-        for (alias, new_version) in &new_deps {
+        let old_deps = group_specifiers(old, group);
+        let new_deps = group_specifiers(new, group);
+        for (alias, new_specifier) in &new_deps {
             match old_deps.get(alias) {
-                None => added.push((alias.clone(), new_version.clone())),
-                Some(old_version) if old_version != new_version => {
-                    updated.push((alias.clone(), old_version.clone(), new_version.clone()));
+                None => added.push((alias.clone(), new_specifier.clone())),
+                Some(old_specifier) if old_specifier != new_specifier => {
+                    updated.push((alias.clone(), old_specifier.clone(), new_specifier.clone()));
                 }
                 Some(_) => {}
             }
         }
-        for (alias, old_version) in &old_deps {
+        for (alias, old_specifier) in &old_deps {
             if !new_deps.contains_key(alias) {
-                removed.push((alias.clone(), old_version.clone()));
+                removed.push((alias.clone(), old_specifier.clone()));
             }
         }
     }
@@ -156,9 +160,9 @@ fn diff_importer(
     ImporterDiff { id: id.to_string(), added, removed, updated }
 }
 
-/// The `alias -> resolved version` map for one dependency group of an
-/// importer (0 = prod, 1 = dev, 2 = optional).
-fn group_versions(snapshot: Option<&ProjectSnapshot>, group: usize) -> BTreeMap<String, String> {
+/// The `alias -> specifier` map for one dependency group of an importer
+/// (0 = prod, 1 = dev, 2 = optional).
+fn group_specifiers(snapshot: Option<&ProjectSnapshot>, group: usize) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
     let Some(snapshot) = snapshot else {
         return map;
@@ -170,7 +174,7 @@ fn group_versions(snapshot: Option<&ProjectSnapshot>, group: usize) -> BTreeMap<
     };
     if let Some(deps) = deps {
         for (name, spec) in deps {
-            map.insert(name.to_string(), spec.version.to_string());
+            map.insert(name.to_string(), spec.specifier.clone());
         }
     }
     map
