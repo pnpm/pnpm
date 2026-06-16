@@ -550,6 +550,83 @@ describe('checkDepsStatus - lockfile conflicts', () => {
       await fs.rm(workspaceDir, { force: true, recursive: true })
     }
   })
+
+  it('detects merge conflicts in the git-branch lockfile when useGitBranchLockfile is enabled', async () => {
+    const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-git-branch-conflict-'))
+    try {
+      const branchLockfileName = 'pnpm-lock.main.yaml'
+      await writeConflictedLockfile(projectDir, branchLockfileName)
+      const mockWorkspaceState: WorkspaceState = {
+        lastValidatedTimestamp: Date.now() - 10_000,
+        pnpmfiles: [],
+        settings: {
+          excludeLinksFromLockfile: false,
+          linkWorkspacePackages: true,
+          preferWorkspacePackages: true,
+        },
+        projects: {},
+        filteredInstall: false,
+      }
+
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+      jest.mocked(lockfileFs.getWantedLockfileName).mockResolvedValueOnce(branchLockfileName)
+
+      const opts: CheckDepsStatusOptions = {
+        rootProjectManifest: {},
+        rootProjectManifestDir: projectDir,
+        pnpmfile: [],
+        useGitBranchLockfile: true,
+        ...mockWorkspaceState.settings,
+      }
+      const result = await checkDepsStatus(opts)
+
+      expect(result.upToDate).toBe(false)
+      expect(result.issue).toBe(`The lockfile in ${projectDir} has merge conflicts`)
+    } finally {
+      await fs.rm(projectDir, { force: true, recursive: true })
+    }
+  })
+
+  it('detects merge conflicts in a branch lockfile when mergeGitBranchLockfiles is enabled', async () => {
+    const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-merge-branch-conflict-'))
+    try {
+      // The merged wanted lockfile is `pnpm-lock.yaml` + every `pnpm-lock.*.yaml`.
+      // Leave `pnpm-lock.yaml` unmodified, but introduce a conflict in a branch
+      // lockfile and assert it is still detected.
+      const unmodifiedMtime = (Date.now() - 20_000) / 1000
+      await fs.writeFile(path.join(projectDir, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n")
+      await fs.utimes(path.join(projectDir, 'pnpm-lock.yaml'), unmodifiedMtime, unmodifiedMtime)
+      await writeConflictedLockfile(projectDir, 'pnpm-lock.feature.yaml')
+      const mockWorkspaceState: WorkspaceState = {
+        lastValidatedTimestamp: Date.now() - 10_000,
+        pnpmfiles: [],
+        settings: {
+          excludeLinksFromLockfile: false,
+          linkWorkspacePackages: true,
+          preferWorkspacePackages: true,
+        },
+        projects: {},
+        filteredInstall: false,
+      }
+
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+      const opts: CheckDepsStatusOptions = {
+        rootProjectManifest: {},
+        rootProjectManifestDir: projectDir,
+        pnpmfile: [],
+        useGitBranchLockfile: true,
+        mergeGitBranchLockfiles: true,
+        ...mockWorkspaceState.settings,
+      }
+      const result = await checkDepsStatus(opts)
+
+      expect(result.upToDate).toBe(false)
+      expect(result.issue).toBe(`The lockfile in ${projectDir} has merge conflicts`)
+    } finally {
+      await fs.rm(projectDir, { force: true, recursive: true })
+    }
+  })
 })
 
 describe('checkDepsStatus - lockfile modification', () => {
@@ -757,8 +834,8 @@ describe('checkDepsStatus - lockfile modification', () => {
   })
 })
 
-async function writeConflictedLockfile (lockfileDir: string): Promise<void> {
-  await fs.writeFile(path.join(lockfileDir, 'pnpm-lock.yaml'), [
+async function writeConflictedLockfile (lockfileDir: string, lockfileName: string = 'pnpm-lock.yaml'): Promise<void> {
+  await fs.writeFile(path.join(lockfileDir, lockfileName), [
     "lockfileVersion: '9.0'",
     '<<<<<<< HEAD',
     'settings:',

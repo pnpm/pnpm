@@ -9,6 +9,7 @@ import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
+  getGitBranchLockfileNamesSync,
   getLockfileImporterId,
   getWantedLockfileName,
   type LockfileObject,
@@ -192,7 +193,10 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
     cwd: workspaceDir ?? lockfileDir ?? rootProjectManifestDir,
   })
-  const { conflictedDir: conflictedLockfileDir, anyModified: lockfilesModified } = scanWantedLockfiles(lockfileDirs, workspaceState.lastValidatedTimestamp, wantedLockfileName)
+  const { conflictedDir: conflictedLockfileDir, anyModified: lockfilesModified } = scanWantedLockfiles(lockfileDirs, workspaceState.lastValidatedTimestamp, {
+    wantedLockfileName,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+  })
   if (conflictedLockfileDir != null) {
     return {
       upToDate: false,
@@ -675,28 +679,51 @@ function getWantedLockfileDirs (opts: {
   return [opts.lockfileDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir]
 }
 
-function scanWantedLockfiles (lockfileDirs: string[], lastValidatedTimestamp: number, wantedLockfileName: string): {
+function scanWantedLockfiles (lockfileDirs: string[], lastValidatedTimestamp: number, opts: {
+  wantedLockfileName: string
+  mergeGitBranchLockfiles?: boolean
+}): {
   conflictedDir: string | undefined
   anyModified: boolean
 } {
   let conflictedDir: string | undefined
   let anyModified = false
   for (const lockfileDir of lockfileDirs) {
-    let mtime: number
-    try {
-      mtime = fs.statSync(path.join(lockfileDir, wantedLockfileName)).mtime.valueOf()
-    } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
-      throw err
-    }
-    if (mtime <= lastValidatedTimestamp) continue
-    anyModified = true
-    if (wantedLockfileHasMergeConflictsSync(lockfileDir)) {
-      conflictedDir = lockfileDir
-      break
+    // With `mergeGitBranchLockfiles`, `readWantedLockfile` merges every
+    // `pnpm-lock.*.yaml`, so a change in any of them changes the wanted
+    // lockfile and must be detected here.
+    const lockfileNames = opts.mergeGitBranchLockfiles
+      ? gitBranchLockfileNames(lockfileDir, opts.wantedLockfileName)
+      : [opts.wantedLockfileName]
+    for (const lockfileName of lockfileNames) {
+      let mtime: number
+      try {
+        mtime = fs.statSync(path.join(lockfileDir, lockfileName)).mtime.valueOf()
+      } catch (err: unknown) {
+        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
+        throw err
+      }
+      if (mtime <= lastValidatedTimestamp) continue
+      anyModified = true
+      if (wantedLockfileHasMergeConflictsSync(lockfileDir, lockfileName)) {
+        conflictedDir = lockfileDir
+        return { conflictedDir, anyModified }
+      }
     }
   }
   return { conflictedDir, anyModified }
+}
+
+function gitBranchLockfileNames (lockfileDir: string, wantedLockfileName: string): string[] {
+  let branchLockfileNames: string[]
+  try {
+    branchLockfileNames = getGitBranchLockfileNamesSync(lockfileDir)
+  } catch {
+    branchLockfileNames = []
+  }
+  return branchLockfileNames.includes(wantedLockfileName)
+    ? branchLockfileNames
+    : [wantedLockfileName, ...branchLockfileNames]
 }
 
 async function patchesOrHooksAreModified (opts: {

@@ -43,6 +43,7 @@ test('getCurrentBranch returns null for detached HEAD', async () => {
   await execa('git', ['checkout', '-b', 'main'], { cwd: tempDir })
   await execa('git', ['config', 'user.email', 'test@test.com'], { cwd: tempDir })
   await execa('git', ['config', 'user.name', 'test'], { cwd: tempDir })
+  await execa('git', ['config', 'commit.gpgsign', 'false'], { cwd: tempDir })
   await execa('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: tempDir })
   await execa('git', ['checkout', '--detach', 'HEAD'], { cwd: tempDir })
 

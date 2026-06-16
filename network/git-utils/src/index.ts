@@ -63,7 +63,7 @@ export async function isRemoteHistoryClean (opts: GitCwdOptions = {}): Promise<b
  * - `string` — the branch name extracted from `ref: refs/heads/<name>`
  * - `null` — HEAD is detached (a raw commit SHA, not a symbolic ref)
  * - `undefined` — `.git/HEAD` could not be read (not a git repo, worktree
- *   layout not recognised, permissions error, etc.); caller should fall
+ *   layout not recognized, permissions error, etc.); caller should fall
  *   back to `git symbolic-ref`.
  */
 function readBranchFromHeadFile (cwd?: string): string | null | undefined {
