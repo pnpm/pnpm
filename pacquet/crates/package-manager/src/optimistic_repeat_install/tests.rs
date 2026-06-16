@@ -293,7 +293,7 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
         included,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
     });
     assert_eq!(decision, Decision::UpToDate);
@@ -330,7 +330,7 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
         included,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
     });
     assert!(
@@ -418,7 +418,7 @@ fn returns_skipped_when_a_catalog_dependency_resolves_to_a_local_path() {
         included: isolated_included(),
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &catalogs,
     });
     assert!(
@@ -442,6 +442,22 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
         "default".to_string(),
         BTreeMap::from([("foo".to_string(), "^1.0.0".to_string())]),
     )]);
+    // Record the catalogs in the state so the catalog-cache comparison
+    // passes and the spec-deref path is what gets exercised, not the
+    // "catalogs cache outdated" bail.
+    let settings = current_settings_with_catalogs(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &catalogs,
+    );
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
@@ -449,7 +465,7 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
         included: isolated_included(),
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &catalogs,
     });
     assert_eq!(decision, Decision::UpToDate);
@@ -482,7 +498,7 @@ fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
         included: isolated_included(),
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &catalogs,
     });
     assert!(
