@@ -68,6 +68,12 @@ fn catalog_snapshot(workspace: &Path, name: &str) -> (String, String) {
     (entry.specifier.clone(), entry.version.clone())
 }
 
+fn lockfile_override(workspace: &Path, selector: &str) -> Option<String> {
+    let lockfile: Lockfile =
+        serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
+    lockfile.overrides.as_ref().and_then(|overrides| overrides.get(selector).cloned())
+}
+
 fn run_ok(workspace: &Path, args: &[&str]) {
     let output = pacquet(workspace, args).output().expect("run pacquet");
     assert!(
@@ -209,6 +215,55 @@ fn update_latest_named_catalog_bumps_the_entry() {
         !lockfile.contains("specifier: 1.0.0"),
         "the lockfile catalog snapshot should have been bumped off 1.0.0:\n{lockfile}",
     );
+
+    drop((root, anchor));
+}
+
+/// `update --latest` bumping a catalog that an override resolves through
+/// must keep `pnpm-lock.yaml`'s `overrides` in sync with the bumped
+/// catalog. A scoped selector is used so the override does not shadow the
+/// direct `catalog:` dependency. If the override is not re-resolved against
+/// the bumped catalog, lockfile `overrides` lags `catalogs` and the
+/// follow-up `--frozen-lockfile` install fails with an overrides/catalogs
+/// mismatch. Ported from pnpm's "overrides that reference a catalog are
+/// updated in the lockfile when the catalog is updated".
+#[test]
+fn update_latest_keeps_catalog_referencing_override_in_sync() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    let override_selector = format!("@pnpm.e2e/foobar>{FOO}");
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "catalogMode: prefer\ncatalog:\n  '{FOO}': '^1.0.0'\noverrides:\n  '{override_selector}': 'catalog:'\n",
+        ),
+    );
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    // The override resolves through the catalog, so it records the catalog's
+    // specifier rather than a literal version.
+    let (initial_spec, _) = catalog_snapshot(&workspace, FOO);
+    assert_eq!(
+        lockfile_override(&workspace, &override_selector).as_deref(),
+        Some(initial_spec.as_str()),
+        "override should track the catalog specifier before the update",
+    );
+
+    run_ok(&workspace, &["update", "--latest", "--lockfile-only", FOO]);
+
+    let (bumped_spec, _) = catalog_snapshot(&workspace, FOO);
+    assert_ne!(bumped_spec, initial_spec, "update --latest should bump the catalog entry");
+    assert_eq!(
+        lockfile_override(&workspace, &override_selector).as_deref(),
+        Some(bumped_spec.as_str()),
+        "lockfile override must be re-resolved against the bumped catalog",
+    );
+
+    // The bumped catalog is written back to pnpm-workspace.yaml, so a
+    // follow-up frozen install reads it and must not fail with an
+    // overrides/catalogs mismatch.
+    run_ok(&workspace, &["install", "--frozen-lockfile"]);
 
     drop((root, anchor));
 }
