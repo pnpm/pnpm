@@ -26,6 +26,24 @@ ignore_pr_authors = [
 # are already covered by ignore_pr_authors above.
 # ignore_pr_title = ["^chore", "^ci"]
 
+# Let the describe tool pick from the custom_labels set below.
+enable_custom_labels = true
+
+[pr_description]
+# Actually attach the chosen labels to the PR (not just list them in the body).
+publish_labels = true
+
+# Custom labels assigned by /agentic_describe based on which product the diff touches.
+# More than one may apply to a single PR.
+[custom_labels."product: pnpm"]
+description = "Changes affect the TypeScript pnpm CLI (any code outside pacquet/ and pnpr/)."
+
+[custom_labels."product: pacquet"]
+description = "Changes affect pacquet, the Rust port of the pnpm CLI (the pacquet/ directory)."
+
+[custom_labels."product: pnpr"]
+description = "Changes affect pnpr, the pnpm registry server (the pnpr/ directory and pacquet/crates/pnpr-* crates)."
+
 [review_agent]
 comments_location_policy = "both"
 inline_comments_severity_threshold = 2
@@ -35,3 +53,11 @@ Apply the "AI Review Guidance" section in AGENTS.md. Security vulnerabilities ar
 compliance_user_guidelines = """
 Enforce the security-sensitive and performance-sensitive contracts described in AGENTS.md's "AI Review Guidance" section.
 """
+
+[pr_reviewer]
+# Auto-approve a PR when the review finds no issues to fix.
+# enable_auto_approval is the required master switch (off by default);
+# auto_approve_for_no_suggestions approves when the review yields zero suggestions.
+# These only take effect from the config file on the default branch.
+enable_auto_approval = true
+auto_approve_for_no_suggestions = true
