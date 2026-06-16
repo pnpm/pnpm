@@ -166,6 +166,11 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// `dryRun: opts.lockfileOnly` resolve pass. See
     /// [`crate::Install::lockfile_only`].
     pub lockfile_only: bool,
+    /// `--dry-run`: build the would-be lockfile but do not write it to
+    /// disk. Implies [`Self::lockfile_only`] (nothing is materialized);
+    /// the caller diffs the returned [`InstallWithFreshLockfileResult::wanted_lockfile`]
+    /// against the existing one and reports the changes.
+    pub dry_run: bool,
     /// Which lockfile pins to withhold from the preferred-versions seed
     /// so the affected names re-resolve to the highest version
     /// satisfying their manifest range. Drives `pacquet update`'s
@@ -476,6 +481,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             node_linker,
             supported_architectures,
             lockfile_only,
+            dry_run,
             update_seed_policy,
             auth_override,
             resolution_observer,
@@ -1251,7 +1257,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 pnpmfile_checksum: pnpmfile_checksum.as_deref(),
                 patched_dependency_hashes: patched_dependency_hashes.as_ref(),
             });
-            let (wanted_lockfile, can_record_lockfile_verification) = if config.lockfile {
+            // `--dry-run` builds the would-be lockfile so the caller can
+            // diff it, but never persists it. A plain `--lockfile-only`
+            // writes it (unless `lockfile: false`).
+            let (wanted_lockfile, can_record_lockfile_verification) = if dry_run {
+                (Some(built_lockfile), false)
+            } else if config.lockfile {
                 let can_record_lockfile_verification = save_wanted_lockfile(
                     &built_lockfile,
                     &lockfile_dir.join(Lockfile::FILE_NAME),

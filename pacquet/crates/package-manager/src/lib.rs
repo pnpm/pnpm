@@ -12,6 +12,7 @@ mod create_virtual_store;
 mod current_lockfile;
 mod dependencies_graph_to_lockfile;
 mod deps_graph;
+mod dry_run;
 mod graph_sequencer;
 mod hoist;
 mod hoisted_dep_graph;

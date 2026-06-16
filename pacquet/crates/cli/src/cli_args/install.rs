@@ -95,6 +95,13 @@ pub struct InstallArgs {
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
 
+    /// Report what an install would change without writing anything to
+    /// disk (no `pnpm-lock.yaml`, no `node_modules`). Resolution still
+    /// runs against the registry. Exits 0 whether or not changes were
+    /// found. Mirrors pnpm's `install --dry-run`.
+    #[clap(long = "dry-run")]
+    pub dry_run: bool,
+
     /// Force-enable `preferFrozenLockfile` for this invocation.
     /// Overrides `pnpm-workspace.yaml` / `PNPM_CONFIG_PREFER_FROZEN_LOCKFILE`.
     /// Mirrors pnpm's `--prefer-frozen-lockfile`. Conflicts with
@@ -330,6 +337,7 @@ impl InstallArgs {
             supported_architectures,
             frozen_lockfile,
             lockfile_only,
+            dry_run,
             prefer_frozen_lockfile,
             no_prefer_frozen_lockfile,
             ignore_manifest_check,
@@ -446,6 +454,7 @@ impl InstallArgs {
             supported_architectures,
             node_linker,
             lockfile_only,
+            dry_run,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
@@ -685,6 +694,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             supported_architectures: link.supported_architectures,
             node_linker: link.node_linker,
             lockfile_only: false,
+            dry_run: false,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
@@ -812,6 +822,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         supported_architectures: link.supported_architectures,
         node_linker: link.node_linker,
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
