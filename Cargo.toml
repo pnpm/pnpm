@@ -56,6 +56,7 @@ pacquet-store-dir                         = { path = "pacquet/crates/store-dir" 
 pacquet-reporter                          = { path = "pacquet/crates/reporter" }
 pacquet-patching                          = { path = "pacquet/crates/patching" }
 pacquet-real-hoist                        = { path = "pacquet/crates/real-hoist" }
+pacquet-resolving-aqua-resolver           = { path = "pacquet/crates/resolving-aqua-resolver" }
 pacquet-resolving-default-resolver        = { path = "pacquet/crates/resolving-default-resolver" }
 pacquet-resolving-deps-resolver           = { path = "pacquet/crates/resolving-deps-resolver" }
 pacquet-resolving-git-resolver            = { path = "pacquet/crates/resolving-git-resolver" }

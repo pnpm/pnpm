@@ -40,6 +40,7 @@ pacquet-patching                          = { workspace = true }
 pacquet-real-hoist                        = { workspace = true }
 pacquet-registry                          = { workspace = true }
 pacquet-reporter                          = { workspace = true }
+pacquet-resolving-aqua-resolver           = { workspace = true }
 pacquet-resolving-default-resolver        = { workspace = true }
 pacquet-resolving-deps-resolver           = { workspace = true }
 pacquet-resolving-git-resolver            = { workspace = true }
