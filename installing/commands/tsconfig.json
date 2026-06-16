@@ -172,6 +172,9 @@
       "path": "../dedupe/check"
     },
     {
+      "path": "../dedupe/issues-renderer"
+    },
+    {
       "path": "../deps-installer"
     },
     {

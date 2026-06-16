@@ -4,6 +4,9 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { calcDedupeCheckIssues, countDedupeCheckIssues } from '@pnpm/installing.dedupe.check'
+import { renderDedupeCheckIssues } from '@pnpm/installing.dedupe.issues-renderer'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -84,6 +87,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
+  'dry-run': Boolean,
   'fix-lockfile': Boolean,
   'update-checksums': Boolean,
   'resolution-only': Boolean,
@@ -137,6 +141,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Skip reinstall if the workspace state is up-to-date',
             name: '--optimistic-repeat-install',
+          },
+          {
+            description: 'Report what an install would change without writing anything to disk (no lockfile, no node_modules). Resolution still runs against the registry.',
+            name: '--dry-run',
           },
           {
             description: '`optionalDependencies` are not installed',
@@ -304,6 +312,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'deployAllFiles'
 | 'depth'
 | 'dev'
+| 'dryRun'
 | 'enableGlobalVirtualStore'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
@@ -389,7 +398,7 @@ export type InstallCommandOptions = Pick<Config,
   pnpmfile: string[]
 } & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'strictDepBuilds' | 'useLockfile' | 'symlink'>>
 
-export async function handler (opts: InstallCommandOptions & { _calledFromLink?: boolean }, _params?: string[], commands?: CommandHandlerMap): Promise<void> {
+export async function handler (opts: InstallCommandOptions & { _calledFromLink?: boolean }, _params?: string[], commands?: CommandHandlerMap): Promise<void | string> {
   if (opts.global && !opts._calledFromLink) {
     throw new PnpmError('GLOBAL_INSTALL_NOT_SUPPORTED',
       '"pnpm install -g" is not supported. Use "pnpm add -g <pkg>" to install global packages.')
@@ -416,5 +425,49 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
     installDepsOptions.lockfileOnly = true
     installDepsOptions.forceFullResolution = true
   }
+  if (opts.dryRun) {
+    return dryRunInstall(installDepsOptions, opts)
+  }
   return installDeps(installDepsOptions, [])
+}
+
+/**
+ * Runs a full resolution but writes nothing to disk (no lockfile, no
+ * `node_modules`), then reports what a real install would change. Exits
+ * successfully regardless of whether changes were found — mirroring the
+ * preview semantics of `npm install --dry-run`.
+ */
+async function dryRunInstall (installDepsOptions: InstallDepsOptions, opts: InstallCommandOptions): Promise<string> {
+  if (opts.pnprServer) {
+    throw new PnpmError('CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER',
+      'Cannot use --dry-run with a configured pnpr server because the pnpr install path resolves and links through the server')
+  }
+  // `lockfileCheck` makes the installer resolve fully but skip the lockfile
+  // write and hand back the wanted lockfile before and after resolution.
+  // `lockfileOnly` suppresses every other write — node_modules linking, the
+  // workspace-state file, and even the metadata cache (resolution skips
+  // fetching). Together they make the run side-effect-free. The optimistic
+  // fast path is disabled so the comparison always runs.
+  installDepsOptions.optimisticRepeatInstall = false
+  installDepsOptions.lockfileOnly = true
+  const changes: ReturnType<typeof calcDedupeCheckIssues>[] = []
+  installDepsOptions.lockfileCheck = (prev: LockfileObject, next: LockfileObject) => {
+    changes.push(calcDedupeCheckIssues(prev, next))
+  }
+  await installDeps(installDepsOptions, [])
+  return renderDryRunReport(changes)
+}
+
+function renderDryRunReport (changes: Array<ReturnType<typeof calcDedupeCheckIssues>>): string {
+  const reports = changes
+    .filter((issues) => countDedupeCheckIssues(issues) > 0)
+    .map(renderDedupeCheckIssues)
+  if (reports.length === 0) {
+    return `Dry run complete. ${WANTED_LOCKFILE} is up to date; a real install would make no changes.`
+  }
+  return [
+    'Dry run complete. A real install would make the following changes (nothing was written to disk):',
+    '',
+    ...reports,
+  ].join('\n')
 }

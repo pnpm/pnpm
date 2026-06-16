@@ -984,6 +984,12 @@ export async function mutateModules (
       !opts.fixLockfile &&
       !opts.dedupe &&
 
+      // A check-only install (`lockfileCheck`, used by `--dry-run` and
+      // `dedupe --check`) must always run a full resolution so the wanted
+      // lockfile can be compared, and must never materialize anything. The
+      // frozen path would skip resolution and/or perform a real install.
+      opts.lockfileCheck == null &&
+
       installsOnly &&
       (
         // If the user explicitly requested a frozen lockfile install, attempt

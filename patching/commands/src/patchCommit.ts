@@ -112,11 +112,12 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
   })
 
-  return install.handler({
+  await install.handler({
     ...opts,
     patchedDependencies,
     frozenLockfile: false,
-  }) as Promise<undefined>
+  })
+  return undefined
 }
 
 interface GetPatchContentContext {

@@ -5312,6 +5312,9 @@ importers:
       '@pnpm/installing.dedupe.check':
         specifier: workspace:*
         version: link:../dedupe/check
+      '@pnpm/installing.dedupe.issues-renderer':
+        specifier: workspace:*
+        version: link:../dedupe/issues-renderer
       '@pnpm/installing.deps-installer':
         specifier: workspace:*
         version: link:../deps-installer

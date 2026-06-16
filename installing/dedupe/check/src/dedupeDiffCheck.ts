@@ -10,17 +10,30 @@ import { DedupeCheckIssuesError } from './DedupeCheckIssuesError.js'
 
 const PACKAGE_SNAPSHOT_DEP_FIELDS = ['dependencies', 'optionalDependencies'] as const
 
-export function dedupeDiffCheck (prev: LockfileObject, next: LockfileObject): void {
-  const issues: DedupeCheckIssues = {
+/**
+ * Compute the changes between two lockfiles, as added/removed/updated
+ * importer and package snapshots. Unlike {@link dedupeDiffCheck} this never
+ * throws — callers that only want to report the diff (e.g. `install
+ * --dry-run`) consume the result directly.
+ */
+export function calcDedupeCheckIssues (prev: LockfileObject, next: LockfileObject): DedupeCheckIssues {
+  return {
     importerIssuesByImporterId: diffSnapshots(prev.importers, next.importers, DEPENDENCIES_FIELDS),
     packageIssuesByDepPath: diffSnapshots(prev.packages ?? {}, next.packages ?? {}, PACKAGE_SNAPSHOT_DEP_FIELDS),
   }
+}
 
-  const changesCount =
+export function countDedupeCheckIssues (issues: DedupeCheckIssues): number {
+  return (
     countChangedSnapshots(issues.importerIssuesByImporterId) +
     countChangedSnapshots(issues.packageIssuesByDepPath)
+  )
+}
 
-  if (changesCount > 0) {
+export function dedupeDiffCheck (prev: LockfileObject, next: LockfileObject): void {
+  const issues = calcDedupeCheckIssues(prev, next)
+
+  if (countDedupeCheckIssues(issues) > 0) {
     throw new DedupeCheckIssuesError(issues)
   }
 }

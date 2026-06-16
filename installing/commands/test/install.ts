@@ -199,3 +199,54 @@ test('install restores a deleted pnpm-lock.yaml from the current lockfile withou
 
   expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(originalLockfile)
 })
+
+test('install --dry-run reports the changes a real install would make, without writing anything', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  // Add a new dependency so a real install would change the lockfile and node_modules.
+  fs.writeFileSync('package.json', JSON.stringify({
+    dependencies: { 'is-positive': '1.0.0', 'is-negative': '1.0.0' },
+  }))
+  const lockfileBefore = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+
+  const output = await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    dryRun: true,
+  })
+
+  expect(output).toContain('is-negative')
+  // Nothing is written: the lockfile is untouched and the new dependency is not linked.
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfileBefore)
+  project.hasNot('is-negative')
+})
+
+test('install --dry-run reports no changes when the project is already up to date', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  const output = await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    dryRun: true,
+  })
+
+  expect(output).toContain('up to date')
+})
