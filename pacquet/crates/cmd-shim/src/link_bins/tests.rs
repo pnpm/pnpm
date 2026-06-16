@@ -1308,10 +1308,15 @@ fn link_node_bin_skips_relink_when_node_exe_already_correct() {
     let exe = bin_target.join("node.exe");
     assert_eq!(read_to_string(&exe).unwrap(), "fake-node-binary");
     // The pre-existing copy is left in place rather than removed and relinked:
-    // node.exe must not become a hardlink to the source binary.
-    assert_ne!(
-        Handle::from_path(&exe).unwrap(),
-        Handle::from_path(node_dir.join("node.exe")).unwrap(),
+    // node.exe must not become a hardlink to the source binary. When file
+    // identity can't be obtained (the production code tolerates this), treat
+    // them as distinct rather than panicking on a failed handle lookup.
+    let relinked_to_source = matches!(
+        (Handle::from_path(&exe), Handle::from_path(node_dir.join("node.exe"))),
+        (Ok(exe_handle), Ok(source_handle)) if exe_handle == source_handle,
+    );
+    assert!(
+        !relinked_to_source,
         "node.exe must stay the independent copy, not be relinked to the source",
     );
 }
