@@ -281,8 +281,14 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
     if (existsSync(exePath)) {
-      const exeStat = await fs.stat(exePath).catch(() => null)
-      const targetStat = await fs.stat(cmd.path).catch(() => null)
+      // If the existing exe is already a hard link to the target, there is
+      // nothing to do. We read inode/device numbers as BigInts to avoid the
+      // precision loss that NTFS 64-bit file IDs suffer when cast to a Number.
+      // A zero inode means the filesystem doesn't expose a reliable identity
+      // (common on Windows), so we fall through to warn and replace instead of
+      // trusting a potentially colliding match.
+      const exeStat = await fs.stat(exePath, { bigint: true }).catch(() => null)
+      const targetStat = await fs.stat(cmd.path, { bigint: true }).catch(() => null)
       if (exeStat?.ino && targetStat?.ino && exeStat.ino === targetStat.ino && exeStat.dev === targetStat.dev) {
         return
       }
