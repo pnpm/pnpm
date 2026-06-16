@@ -126,6 +126,21 @@ fetchRetryMaxtimeout: 4000
     assert_eq!(config.fetch_retry_maxtimeout, 4000);
 }
 
+/// `ignoreScripts` parses from `pnpm-workspace.yaml` as a camelCase
+/// key and `apply_to` pushes it onto [`Config::ignore_scripts`], so
+/// `ignoreScripts: true` in the workspace manifest suppresses lifecycle
+/// scripts the same way the `--ignore-scripts` CLI flag does.
+#[test]
+fn parses_ignore_scripts_from_yaml_and_applies() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("ignoreScripts: true\n").unwrap();
+    assert_eq!(settings.ignore_scripts, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.ignore_scripts, "default is false");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.ignore_scripts);
+}
+
 /// `networkConcurrency` / `fetchTimeout` / `userAgent` parse from
 /// `pnpm-workspace.yaml` as camelCase keys and `apply_to` pushes them
 /// onto the `Config`, matching pnpm.
