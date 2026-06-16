@@ -177,6 +177,11 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         Err(reason) => return Decision::Skipped { reason },
         Ok(false) => {}
     }
+    if has_local_file_package_extension(config, included, catalogs) {
+        return Decision::Skipped {
+            reason: "a package extension injects a local file dependency and its contents may have changed",
+        };
+    }
 
     if !settings_match(&state, config, node_linker, included) {
         return Decision::Skipped { reason: "settings drift" };
@@ -392,6 +397,37 @@ fn has_local_file_override(config: &Config, catalogs: &Catalogs) -> Result<bool,
         Ok(None) => Ok(false),
         Err(_) => Err("pnpm.overrides cannot be parsed"),
     }
+}
+
+/// Whether any `packageExtensions` entry injects a dependency with a
+/// local file specifier. Package extensions are merged into matching
+/// packages' manifests by the read-package hook during the full
+/// install, so a `file:`/local-path/tarball spec added there has the
+/// same content-change blind spot as a direct local file dependency
+/// without appearing in any project manifest. Only `dependencies` and
+/// `optionalDependencies` are scanned: peer dependencies are resolved
+/// from the graph rather than fetched, so a local spec there is never
+/// installed. `optionalDependencies` are skipped when the install
+/// excludes them, mirroring `has_local_file_dep`.
+fn has_local_file_package_extension(
+    config: &Config,
+    included: IncludedDependencies,
+    catalogs: &Catalogs,
+) -> bool {
+    let Some(extensions) = config.package_extensions.as_ref() else {
+        return false;
+    };
+    extensions.values().any(|extension| {
+        let optional = included
+            .optional_dependencies
+            .then_some(extension.optional_dependencies.as_ref())
+            .flatten();
+        [extension.dependencies.as_ref(), optional].into_iter().flatten().any(|deps| {
+            deps.iter().any(|(alias, spec)| {
+                is_local_file_spec(spec) || catalog_resolves_to_local_file(catalogs, alias, spec)
+            })
+        })
+    })
 }
 
 /// Whether the specifier resolves to a local directory or tarball whose

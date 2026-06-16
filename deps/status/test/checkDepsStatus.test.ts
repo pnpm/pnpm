@@ -1203,4 +1203,54 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     expect(result.upToDate).toBe(false)
     expect(result.issue).toBe('The override "bar" maps to a local file dependency and its contents may have changed')
   })
+
+  it('returns upToDate: false when a packageExtension injects a local file dependency', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: { foo: '^1.0.0' },
+      },
+      rootProjectManifestDir: '/project',
+      packageExtensions: {
+        'foo@1': { dependencies: { bar: 'file:../bar' } },
+      },
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      ...mockWorkspaceState(lastValidatedTimestamp).settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The package extension "foo@1" injects a local file dependency and its contents may have changed')
+  })
+
+  it('does not report a packageExtension optionalDependency as outdated when optionals are excluded', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const packageExtensions = { 'foo@1': { optionalDependencies: { bar: 'file:../bar' } } }
+    const workspaceState = mockWorkspaceState(lastValidatedTimestamp)
+    workspaceState.settings = { ...workspaceState.settings, packageExtensions }
+    jest.mocked(loadWorkspaceState).mockReturnValue(workspaceState)
+    mockUpToDateSingleProjectStats(lastValidatedTimestamp)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {
+        dependencies: { foo: '^1.0.0' },
+      },
+      rootProjectManifestDir: '/project',
+      packageExtensions,
+      pnpmfile: [],
+      treatLocalFileDepsAsOutdated: true,
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: false,
+      },
+      ...workspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(true)
+  })
 })

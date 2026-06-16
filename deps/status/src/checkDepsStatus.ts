@@ -195,6 +195,14 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         workspaceState,
       }
     }
+    const localFileExtension = findLocalFilePackageExtension(opts.packageExtensions, opts.include, catalogs)
+    if (localFileExtension != null) {
+      return {
+        upToDate: false,
+        issue: `The package extension "${localFileExtension}" injects a local file dependency and its contents may have changed`,
+        workspaceState,
+      }
+    }
   }
 
   if (nodeLinker === 'pnp') {
@@ -694,20 +702,49 @@ function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDepen
   for (const manifest of manifests) {
     for (const depField of DEPENDENCIES_FIELDS) {
       if (include?.[depField] === false) continue
-      const deps = manifest[depField]
-      if (deps == null) continue
-      for (const [depName, spec] of Object.entries(deps)) {
-        // A malformed manifest may carry a non-string spec; skip it rather
-        // than throw — checkDepsStatus() must never crash.
-        if (typeof spec !== 'string') continue
-        if (isLocalFileSpec(spec)) return depName
-        // Only catalog: specs consult the catalogs, so skip the lookup for
-        // everything else to keep the optimistic fast path cheap.
-        if (!spec.startsWith('catalog:')) continue
-        const catalogResult = resolveFromCatalog(catalogs ?? {}, { alias: depName, bareSpecifier: spec })
-        if (catalogResult.type === 'found' && isLocalFileSpec(catalogResult.resolution.specifier)) return depName
-      }
+      const depName = findLocalFileDepInRecord(manifest[depField], catalogs)
+      if (depName != null) return depName
     }
+  }
+  return undefined
+}
+
+/**
+ * Returns the name of the first dependency in `deps` declared with (or
+ * resolving through a catalog to) a local file specifier, or `undefined`.
+ */
+function findLocalFileDepInRecord (deps: Record<string, string> | undefined, catalogs?: Catalogs): string | undefined {
+  if (deps == null) return undefined
+  for (const [depName, spec] of Object.entries(deps)) {
+    // A malformed manifest may carry a non-string spec; skip it rather
+    // than throw — checkDepsStatus() must never crash.
+    if (typeof spec !== 'string') continue
+    if (isLocalFileSpec(spec)) return depName
+    // Only catalog: specs consult the catalogs, so skip the lookup for
+    // everything else to keep the optimistic fast path cheap.
+    if (!spec.startsWith('catalog:')) continue
+    const catalogResult = resolveFromCatalog(catalogs ?? {}, { alias: depName, bareSpecifier: spec })
+    if (catalogResult.type === 'found' && isLocalFileSpec(catalogResult.resolution.specifier)) return depName
+  }
+  return undefined
+}
+
+/**
+ * Returns the selector of the first `packageExtensions` entry that injects a
+ * local file dependency, or `undefined` when there is none. Package
+ * extensions are merged into matching packages' manifests by a read-package
+ * hook during install, so a `file:`/local-path/tarball spec added there has
+ * the same content-change blind spot as a direct local file dependency
+ * without appearing in any project manifest. Only `dependencies` and
+ * `optionalDependencies` are scanned: peer dependencies are resolved from the
+ * graph rather than fetched, so a local spec there is never installed.
+ */
+function findLocalFilePackageExtension (packageExtensions: CheckDepsStatusOptions['packageExtensions'], include?: IncludedDependencies, catalogs?: Catalogs): string | undefined {
+  if (packageExtensions == null) return undefined
+  for (const [selector, extension] of Object.entries(packageExtensions)) {
+    if (findLocalFileDepInRecord(extension.dependencies, catalogs) != null) return selector
+    if (include?.optionalDependencies === false) continue
+    if (findLocalFileDepInRecord(extension.optionalDependencies, catalogs) != null) return selector
   }
   return undefined
 }

@@ -393,6 +393,92 @@ fn returns_up_to_date_when_overrides_are_not_local_paths() {
     assert_eq!(decision, Decision::UpToDate);
 }
 
+/// A `packageExtensions` entry injecting a local file dependency must
+/// bail: extensions are merged into matching packages' manifests during
+/// the full install, so the spec never appears in a project manifest.
+#[test]
+fn returns_skipped_when_a_package_extension_injects_a_local_file_dependency() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.package_extensions = Some(IndexMap::from([(
+                "foo@1".to_string(),
+                pacquet_config::PackageExtension {
+                    dependencies: Some(BTreeMap::from([(
+                        "bar".to_string(),
+                        "file:../bar".to_string(),
+                    )])),
+                    ..Default::default()
+                },
+            )]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("package extension")),
+        "decision was {decision:?}",
+    );
+}
+
+/// A local file dependency injected via a packageExtension's
+/// optionalDependencies does not bail when optionals are excluded from
+/// the install — they aren't installed, so their contents can't be stale.
+#[test]
+fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.package_extensions = Some(IndexMap::from([(
+                "foo@1".to_string(),
+                pacquet_config::PackageExtension {
+                    optional_dependencies: Some(BTreeMap::from([(
+                        "bar".to_string(),
+                        "file:../bar".to_string(),
+                    )])),
+                    ..Default::default()
+                },
+            )]));
+        },
+    );
+
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: false,
+    };
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included,
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
 /// An unparsable `pnpm.overrides` (here a `catalog:` reference with no
 /// matching catalog entry) bails to the full install with the
 /// parse-error reason, not the local-file reason: the cause is a
