@@ -6,8 +6,8 @@ on:
   pull_request_review:
     types: [submitted]
 
-permissions:
-  pull-requests: write
+# No permissions by default; each job grants only what it needs.
+permissions: {}
 
 jobs:
   on-coderabbit-approval:
@@ -15,6 +15,8 @@ jobs:
       github.event.review.state == 'approved' &&
       github.event.review.user.login == 'coderabbitai[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     env:
       # Webhook URL is optional; the Discord step is skipped when the secret is unset.
       DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
@@ -33,18 +35,29 @@ jobs:
       - name: Announce on Discord
         if: ${{ env.DISCORD_WEBHOOK != '' }}
         run: |
+          # allowed_mentions parse:[] stops a PR title like "@everyone" from pinging the Discord server.
           payload="$(jq -n \
             --arg n "$PR_NUMBER" \
             --arg t "$PR_TITLE" \
             --arg u "$PR_URL" \
-            '{content: ("✅ CodeRabbit approved PR #" + $n + ": " + $t + "\n" + $u)}')"
-          curl -fsS -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK"
+            '{content: ("✅ CodeRabbit approved PR #" + $n + ": " + $t + "\n" + $u), allowed_mentions: {parse: []}}')"
+          curl -fsS \
+            --connect-timeout 5 \
+            --max-time 20 \
+            --retry 3 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$DISCORD_WEBHOOK"
 
   on-maintainer-approval:
     if: >-
       github.event.review.state == 'approved' &&
       github.event.review.user.login == 'zkochan'
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
