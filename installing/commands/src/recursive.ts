@@ -22,6 +22,7 @@ import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   addDependenciesToPackage,
+  type DryRunInstallResult,
   install,
   type InstallOptions,
   type MutatedProject,
@@ -153,6 +154,11 @@ export interface RecursiveResult {
    * cache so that reverting a catalog entry is detected as an outdated state.
    */
   updatedCatalogs?: Catalogs
+  /**
+   * Present only for a `dryRun` install over a shared workspace lockfile:
+   * the before/after wanted lockfiles for the caller to diff.
+   */
+  dryRunResult?: DryRunInstallResult
 }
 
 export async function recursive (
@@ -329,6 +335,7 @@ export async function recursive (
       updatedProjects: mutatedPkgs,
       ignoredBuilds,
       resolutionPolicyViolations,
+      dryRunResult,
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
@@ -352,7 +359,7 @@ export async function recursive (
       await Promise.all(promises)
     }
     await handleIgnoredBuilds(opts, ignoredBuilds)
-    return { passed: true, updatedCatalogs }
+    return { passed: true, updatedCatalogs, dryRunResult }
   }
 
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()

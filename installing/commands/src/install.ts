@@ -451,14 +451,20 @@ async function dryRunInstall (installDepsOptions: InstallDepsOptions, opts: Inst
   installDepsOptions.lockfileOnly = true
   installDepsOptions.dryRun = true
   const dryRunResult = await installDeps(installDepsOptions, [])
+  if (dryRunResult == null) {
+    // Fail closed rather than render "up to date": a missing comparison means
+    // this install configuration's resolve path doesn't yet surface the
+    // dry-run lockfiles (e.g. a workspace without a shared lockfile), so we
+    // can't tell whether the lockfile would change.
+    throw new PnpmError('DRY_RUN_UNSUPPORTED',
+      '--dry-run is not supported for this install configuration (no shared lockfile to compare)')
+  }
   return renderDryRunReport(dryRunResult)
 }
 
-function renderDryRunReport (dryRunResult: DryRunInstallResult | undefined): string {
-  const issues = dryRunResult != null
-    ? calcDedupeCheckIssues(dryRunResult.originalLockfile, dryRunResult.wantedLockfile, { includeImporterSpecifiers: true })
-    : undefined
-  if (issues == null || countDedupeCheckIssues(issues) === 0) {
+function renderDryRunReport (dryRunResult: DryRunInstallResult): string {
+  const issues = calcDedupeCheckIssues(dryRunResult.originalLockfile, dryRunResult.wantedLockfile, { includeImporterSpecifiers: true })
+  if (countDedupeCheckIssues(issues) === 0) {
     return `Dry run complete. ${WANTED_LOCKFILE} is up to date; a real install would make no changes.`
   }
   return [

@@ -291,7 +291,7 @@ export async function installDeps (
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 
-      await recursiveInstallThenUpdateWorkspaceState(allProjects,
+      return recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
@@ -304,7 +304,6 @@ export async function installDeps (
         },
         opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
       )
-      return
     }
   }
   // `pnpm install ""` is going to be just `pnpm install`
@@ -534,7 +533,7 @@ async function recursiveInstallThenUpdateWorkspaceState (
   opts: RecursiveOptions & WorkspaceStateSettings,
   cmdFullName: CommandFullName,
   updatedCatalogs?: Catalogs
-): Promise<boolean | string> {
+): Promise<DryRunInstallResult | undefined> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
   if (!opts.lockfileOnly) {
     await updateWorkspaceState({
@@ -546,7 +545,7 @@ async function recursiveInstallThenUpdateWorkspaceState (
       configDependencies: opts.configDependencies,
     })
   }
-  return recursiveResult.passed
+  return recursiveResult.dryRunResult
 }
 
 /**

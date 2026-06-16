@@ -4,7 +4,8 @@ import path from 'node:path'
 import { describe, expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
 import { add, install } from '@pnpm/installing.commands'
-import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { rimrafSync } from '@zkochan/rimraf'
 import delay from 'delay'
 import { loadJsonFileSync } from 'load-json-file'
@@ -278,5 +279,57 @@ test('install --dry-run reports a specifier-only change to a direct dependency',
   // A real install would rewrite the lockfile's specifier, so this is a change.
   expect(output).not.toContain('up to date')
   expect(output).toContain('is-positive')
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfileBefore)
+})
+
+test('install --dry-run reports changes in a workspace without writing', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+  ])
+
+  const selectWorkspace = () => filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  {
+    const { allProjects, selectedProjectsGraph } = await selectWorkspace()
+    await install.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      lockfileDir: process.cwd(),
+      sharedWorkspaceLockfile: true,
+      workspaceDir: process.cwd(),
+    })
+  }
+
+  // Add a dependency to a workspace project so the shared lockfile is stale.
+  fs.writeFileSync('project-1/package.json', JSON.stringify({
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0', 'is-negative': '1.0.0' },
+  }))
+  const lockfileBefore = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+
+  const { allProjects, selectedProjectsGraph } = await selectWorkspace()
+  const output = await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+    dryRun: true,
+  })
+
+  // The recursive path must surface the change rather than mask it as up to date.
+  expect(output).not.toContain('up to date')
+  expect(output).toContain('is-negative')
   expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfileBefore)
 })
