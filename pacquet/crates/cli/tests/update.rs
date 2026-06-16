@@ -116,6 +116,75 @@ fn update_bumps_within_range() {
     drop((root, anchor));
 }
 
+/// Mixing a transitive selector with a direct dependency selector must
+/// still update the matching transitive package. Ports pnpm's regression
+/// test for <https://github.com/pnpm/pnpm/issues/12103>, where a direct
+/// selector wrongly suppressed recursive transitive updates. pacquet
+/// matches every bare-name selector against direct deps and locked
+/// package names alike, so the direct selector never gates the
+/// transitive one.
+#[test]
+fn update_transitive_mixed_with_direct_selector() {
+    let (root, workspace, anchor) = setup();
+
+    // Pin the transitive dep-of-pkg-with-1-dep at 100.0.0 (via a direct
+    // exact entry), then drop it to a pure transitive of pkg-with-1-dep.
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#),
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0" }}"#));
+
+    // DEP is a transitive selector; FOO is a direct dependency selector.
+    pacquet(&workspace, ["update", DEP, FOO]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(
+        virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+        "the transitive selector should bump even alongside a direct selector",
+    );
+
+    drop((root, anchor));
+}
+
+/// The glob form of the mixed-selector case — the shape from
+/// <https://github.com/pnpm/pnpm/issues/12103> (`pnpm up "@babel/*" uuid`).
+/// A glob that names only a transitive
+/// dependency must still bump it when a direct selector rides alongside.
+/// The glob is matched against locked package names through the same
+/// `create_matcher` path as a bare name, so the direct selector cannot
+/// gate it.
+#[test]
+fn update_transitive_glob_mixed_with_direct_selector() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#),
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0" }}"#));
+
+    // "@pnpm.e2e/dep-of-*" matches the transitive dep-of-pkg-with-1-dep
+    // only; FOO is a direct dependency selector.
+    pacquet(&workspace, ["update", "@pnpm.e2e/dep-of-*", FOO]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(
+        virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+        "the transitive glob selector should bump even alongside a direct selector",
+    );
+
+    drop((root, anchor));
+}
+
 /// `pacquet update --latest` ignores the manifest range, bumps to the
 /// `latest` dist-tag, and rewrites `package.json`.
 #[test]
