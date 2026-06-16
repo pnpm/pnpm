@@ -1,6 +1,7 @@
-name: CodeRabbit approval
+name: PR review automation
 
-# Label and announce a PR when CodeRabbit submits an approving review.
+# React to PR review submissions: announce CodeRabbit approvals and flag
+# maintainer-approved PRs for automerge.
 on:
   pull_request_review:
     types: [submitted]
@@ -38,3 +39,17 @@ jobs:
             --arg u "$PR_URL" \
             '{content: ("✅ CodeRabbit approved PR #" + $n + ": " + $t + "\n" + $u)}')"
           curl -fsS -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK"
+
+  on-maintainer-approval:
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.review.user.login == 'zkochan'
+    runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Flag for automerge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "state: automerge"
