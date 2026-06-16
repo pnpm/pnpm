@@ -159,7 +159,7 @@ test('readme added to published manifest', async () => {
   })
 })
 
-test('readme is not embedded when README.md is a symlink pointing outside the project', async () => {
+;(process.platform === 'win32' ? test.skip : test)('readme is not embedded when README.md is a symlink pointing outside the project', async () => {
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
   try {
     const secretFile = path.join(tmpDir, 'secret.txt')
