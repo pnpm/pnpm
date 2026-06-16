@@ -762,6 +762,12 @@ describe('node binary linking', () => {
     const exePath = path.join(binTarget, 'node.exe')
     expect(fs.existsSync(exePath)).toBe(true)
     expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
+    // The original hardlink must be preserved, i.e. node.exe is not deleted and
+    // recreated: it still shares its identity with the source binary.
+    const srcStat = fs.statSync(path.join(nodeDir, 'node.exe'))
+    const exeStat = fs.statSync(exePath)
+    expect(exeStat.ino).toBe(srcStat.ino)
+    expect(exeStat.dev).toBe(srcStat.dev)
   })
 
   testOnWindows('linkBinsOfPackages() does not warn when node.exe has identical content but is not a hardlink', async () => {

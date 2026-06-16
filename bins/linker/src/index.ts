@@ -371,9 +371,10 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
 
 // Reports whether two paths refer to the same file. A matching inode/device
 // pair (read as BigInts to avoid the precision loss of NTFS 64-bit file IDs)
-// detects a hard link cheaply, but Windows often reports a zero inode, so when
-// the identity is unreliable we fall back to comparing the file contents after
-// a quick size check.
+// proves a hard link cheaply. Whenever identity can't be established that way —
+// because the inodes genuinely differ or because Windows reports an unreliable
+// zero inode — we fall back to comparing the file contents after a quick size
+// check, which also treats a byte-identical copy as the same file.
 async function isSameFile (pathA: string, pathB: string): Promise<boolean> {
   const [statA, statB] = await Promise.all([
     fs.stat(pathA, { bigint: true }).catch(() => null),
