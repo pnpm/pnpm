@@ -382,3 +382,38 @@ test('a config-level dryRun does not turn add into a no-op', async () => {
   const pkg = loadJsonFileSync<{ dependencies?: Record<string, string> }>(path.resolve('package.json'))
   expect(pkg.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/11795
+test('repeat install refetches a file: dependency after its contents change', async () => {
+  prepareEmpty()
+
+  const localDepDir = path.resolve('..', 'local-dep')
+  fs.mkdirSync(localDepDir, { recursive: true })
+  fs.writeFileSync(path.join(localDepDir, 'package.json'), JSON.stringify({ name: 'local-dep', version: '1.0.0' }), 'utf8')
+  fs.writeFileSync(path.join(localDepDir, 'index.js'), 'v1', 'utf8')
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: { 'local-dep': 'file:../local-dep' },
+  }), 'utf8')
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    optimisticRepeatInstall: true,
+  })
+  expect(fs.readFileSync('node_modules/local-dep/index.js', 'utf8')).toBe('v1')
+
+  // A short delay so the edited file's mtime is unambiguously newer.
+  await delay(200)
+  fs.writeFileSync(path.join(localDepDir, 'index.js'), 'v2', 'utf8')
+
+  // Without the local-file-deps guard the optimistic fast path would
+  // report "Already up to date" here and leave node_modules at v1.
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    optimisticRepeatInstall: true,
+  })
+  expect(fs.readFileSync('node_modules/local-dep/index.js', 'utf8')).toBe('v2')
+})

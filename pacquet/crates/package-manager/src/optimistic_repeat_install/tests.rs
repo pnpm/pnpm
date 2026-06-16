@@ -2,6 +2,7 @@ use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install, current_settings,
     current_settings_with_catalogs,
 };
+use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -101,6 +102,25 @@ fn setup_fresh_install(
     project_version: &str,
     manifest_extra_json: &str,
 ) -> (tempfile::TempDir, &'static Config, PackageManifest) {
+    setup_fresh_install_with_config(
+        config_kind,
+        project_name,
+        project_version,
+        manifest_extra_json,
+        |_| {},
+    )
+}
+
+/// Same as [`setup_fresh_install`] but applies `configure` to the
+/// `Config` before the workspace-state snapshot is taken, so the
+/// settings comparison sees the configured values as unchanged.
+fn setup_fresh_install_with_config(
+    config_kind: pacquet_config::NodeLinker,
+    project_name: &str,
+    project_version: &str,
+    manifest_extra_json: &str,
+    configure: impl FnOnce(&mut Config),
+) -> (tempfile::TempDir, &'static Config, PackageManifest) {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
     let manifest_path = workspace_root.join("package.json");
@@ -130,6 +150,7 @@ fn setup_fresh_install(
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
+    configure(&mut config);
     let config = Box::leak(Box::new(config));
     // Pre-create the modules dir so the "missing node_modules" guard
     // doesn't fire on the happy-path tests.
@@ -153,6 +174,490 @@ fn setup_fresh_install(
 fn returns_up_to_date_when_state_and_manifests_agree() {
     let (dir, config, manifest) =
         setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// A `file:` dependency must never short-circuit: nothing the fast
+/// path stats covers the dependency's *contents*, so the full install
+/// path has to run and refetch it
+/// (<https://github.com/pnpm/pnpm/issues/11795>).
+#[test]
+fn returns_skipped_when_a_project_has_a_file_dependency() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"file:../foo"}"#,
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+    );
+}
+
+/// Same bail for a `file:` *tarball* in any dependency group — a
+/// repacked `.tgz` bumps no manifest mtime either.
+#[test]
+fn returns_skipped_when_a_project_has_a_file_tarball_dev_dependency() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""devDependencies":{"tar":"file:./vendor/tar.tgz"}"#,
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+    );
+}
+
+/// Bare local path and tarball specs resolve to local file dependencies
+/// too — same bail as `file:`, for the same reason.
+#[test]
+fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
+    for spec in
+        ["vendor/pkg.tgz", "../sibling-dir", "~/pkgs/foo", "/abs/path/foo", "c:/pkgs/foo", "c:pkgs"]
+    {
+        let (dir, config, manifest) = setup_fresh_install(
+            pacquet_config::NodeLinker::Isolated,
+            "root",
+            "1.0.0",
+            &format!(r#""dependencies":{{"foo":"{spec}"}}"#),
+        );
+
+        let decision = check(
+            dir.path(),
+            config,
+            pacquet_config::NodeLinker::Isolated,
+            &[(dir.path().to_path_buf(), &manifest)],
+        );
+        assert!(
+            matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+            "spec {spec:?} must bail",
+        );
+    }
+}
+
+/// A local file dependency in a group excluded from the install must
+/// not bail: the group isn't materialized, so its contents can't be
+/// stale. A change to the include flags themselves is caught by the
+/// settings comparison instead.
+#[test]
+fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""optionalDependencies":{"foo":"file:../foo"}"#,
+    );
+
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: false,
+    };
+    // Re-stamp the state with the same include flags the check runs
+    // under, so the settings comparison passes and the include gate is
+    // what gets exercised.
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included,
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// The include gate is per-group: a local file dependency in a group
+/// that *is* installed still bails even when other groups are excluded.
+#[test]
+fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"file:../foo"}"#,
+    );
+
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included,
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+    });
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+    );
+}
+
+/// A `pnpm.overrides` entry mapping to a local file spec must bail the
+/// same way a direct local file dependency does: the override redirects
+/// every matching dependency in the graph to that directory, and
+/// nothing the fast path stats covers its contents.
+#[test]
+fn returns_skipped_when_an_override_maps_to_a_local_file_dependency() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides =
+                Some(IndexMap::from([("bar".to_string(), "file:../bar".to_string())]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("override")),
+        "decision was {decision:?}",
+    );
+}
+
+/// Registry and `link:` overrides keep the fast path: neither redirects
+/// a dependency to contents only a refetch would pick up.
+#[test]
+fn returns_up_to_date_when_overrides_are_not_local_paths() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides = Some(IndexMap::from([
+                ("bar".to_string(), "^2.0.0".to_string()),
+                ("baz".to_string(), "link:../baz".to_string()),
+            ]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// A `packageExtensions` entry injecting a local file dependency must
+/// bail: extensions are merged into matching packages' manifests during
+/// the full install, so the spec never appears in a project manifest.
+#[test]
+fn returns_skipped_when_a_package_extension_injects_a_local_file_dependency() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.package_extensions = Some(IndexMap::from([(
+                "foo@1".to_string(),
+                pacquet_config::PackageExtension {
+                    dependencies: Some(BTreeMap::from([(
+                        "bar".to_string(),
+                        "file:../bar".to_string(),
+                    )])),
+                    ..Default::default()
+                },
+            )]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("package extension")),
+        "decision was {decision:?}",
+    );
+}
+
+/// A local file dependency injected via a packageExtension's
+/// optionalDependencies does not bail when optionals are excluded from
+/// the install — they aren't installed, so their contents can't be stale.
+#[test]
+fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.package_extensions = Some(IndexMap::from([(
+                "foo@1".to_string(),
+                pacquet_config::PackageExtension {
+                    optional_dependencies: Some(BTreeMap::from([(
+                        "bar".to_string(),
+                        "file:../bar".to_string(),
+                    )])),
+                    ..Default::default()
+                },
+            )]));
+        },
+    );
+
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: false,
+    };
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included,
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// An unparsable `pnpm.overrides` (here a `catalog:` reference with no
+/// matching catalog entry) bails to the full install with the
+/// parse-error reason, not the local-file reason: the cause is a
+/// misconfiguration, and attributing it to a local file dependency
+/// would mislead troubleshooting.
+#[test]
+fn returns_skipped_with_parse_error_reason_when_overrides_cannot_be_parsed() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides = Some(IndexMap::from([("bar".to_string(), "catalog:".to_string())]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("cannot be parsed")),
+        "decision was {decision:?}",
+    );
+}
+
+/// A `catalog:` dependency whose catalog entry holds a bare local path
+/// is a local file dependency after dereferencing — the catalog
+/// resolver only bans the `workspace:`, `link:`, and `file:` protocols,
+/// so the bare-path spelling reaches the local resolver. Same bail as
+/// a direct local path.
+#[test]
+fn returns_skipped_when_a_catalog_dependency_resolves_to_a_local_path() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"catalog:"}"#,
+    );
+
+    let catalogs: Catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("foo".to_string(), "../foo".to_string())]),
+    )]);
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &catalogs,
+    });
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+        "decision was {decision:?}",
+    );
+}
+
+/// A `catalog:` dependency resolving to a registry range keeps the
+/// fast path: the dereferenced specifier is not a local path.
+#[test]
+fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"catalog:"}"#,
+    );
+
+    let catalogs: Catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("foo".to_string(), "^1.0.0".to_string())]),
+    )]);
+    // Record the catalogs in the state so the catalog-cache comparison
+    // passes and the spec-deref path is what gets exercised, not the
+    // "catalogs cache outdated" bail.
+    let settings = current_settings_with_catalogs(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &catalogs,
+    );
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &catalogs,
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// A `pnpm.overrides` entry spelled `catalog:` whose catalog entry
+/// holds a local path bails like a direct local file override —
+/// overrides are dereferenced through `parse_config_overrides` before
+/// the check.
+#[test]
+fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides = Some(IndexMap::from([("bar".to_string(), "catalog:".to_string())]));
+        },
+    );
+
+    let catalogs: Catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("bar".to_string(), "./vendor/bar".to_string())]),
+    )]);
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &catalogs,
+    });
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("override")),
+        "decision was {decision:?}",
+    );
+}
+
+/// Specs the git, remote-tarball, and registry resolvers claim must not
+/// bail — matching them would disable the fast path for every project
+/// with git dependencies.
+#[test]
+fn returns_up_to_date_when_specs_are_not_local_paths() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        concat!(
+            r#""dependencies":{"foo":"user/repo","bar":"github:user/repo","#,
+            // `quux` is a git shorthand whose committish ends in .tgz — it
+            // must not be mistaken for a local tarball.
+            r#""baz":"https://example.com/pkg.tgz","qux":"~1.2.3","quux":"user/repo#release.tgz"}"#,
+        ),
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// `link:` dependencies are symlinked — changes inside them flow
+/// through without a reinstall, so they don't invalidate the fast path.
+#[test]
+fn returns_up_to_date_when_a_project_has_only_link_dependencies() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"link:../foo"}"#,
+    );
 
     let decision = check(
         dir.path(),
