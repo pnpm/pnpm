@@ -288,7 +288,7 @@ impl Update<'_> {
                 if is_ignored(name) {
                     continue;
                 }
-                if latest {
+                if latest && !is_workspace_local_path_specifier(prev) {
                     let version = fetch_latest(name, http_client, config).await?;
                     let pin =
                         latest_pin(&mut catalog_ctx, manifest, config, prev, name, pinned_version)?;
@@ -390,7 +390,7 @@ impl Update<'_> {
             } else {
                 for (name, group, prev) in &matched_direct {
                     drop_names.insert(name.clone());
-                    if latest {
+                    if latest && !is_workspace_local_path_specifier(prev) {
                         let version = fetch_latest(name, http_client, config).await?;
                         let pin = latest_pin(
                             &mut catalog_ctx,
@@ -700,6 +700,28 @@ async fn fetch_latest(
     )
     .await
     .map_err(|error| UpdateError::ResolveLatest { name: name.to_string(), error })
+}
+
+/// Whether `bare_specifier` is a `workspace:` spec that points at a local
+/// path (e.g. `workspace:../packages/foo/dist`) rather than a version range
+/// (`workspace:*`, `workspace:^1.0.0`). Such specs are preserved verbatim on
+/// `--latest` instead of being resolved against the registry, since the path
+/// may target a publish directory that a normalized range would drop.
+///
+/// pnpm keeps these out of the registry-resolution path via
+/// `preserveWorkspaceProtocol`, which is always on under `update --latest`
+/// (the override that derives it from `linkWorkspacePackages` only runs under
+/// `--workspace`, and `--workspace` cannot be combined with `--latest`).
+/// Mirrors [`isWorkspaceLocalPathSpecifier`](https://github.com/pnpm/pnpm/blob/fddb8a4032/installing/deps-resolver/src/updateProjectManifest.ts#L72-L76).
+fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
+    let Some(pref) = bare_specifier.strip_prefix("workspace:") else {
+        return false;
+    };
+    let is_windows_drive = {
+        let mut chars = pref.chars();
+        chars.next().is_some_and(|first| first.is_ascii_alphabetic()) && chars.next() == Some(':')
+    };
+    pref.starts_with('.') || pref.starts_with('/') || pref.starts_with("~/") || is_windows_drive
 }
 
 #[cfg(test)]

@@ -188,6 +188,46 @@ fn update_latest_preserves_exact() {
     drop((root, anchor));
 }
 
+/// `--latest` must not rewrite a `workspace:` dependency that points at a
+/// local path. Resolving it against the registry would either fail (the
+/// package is workspace-only, not published) or replace the path — which can
+/// target a publish directory — with a version range. Regression test for
+/// <https://github.com/pnpm/pnpm/issues/3902>.
+#[test]
+fn update_latest_preserves_workspace_local_path_specifier() {
+    let (root, workspace, anchor) = setup();
+
+    // A workspace-only sibling package, not published to the mocked
+    // registry, referenced by a `workspace:` local path.
+    let sibling = workspace.join("local-dep");
+    fs::create_dir_all(&sibling).expect("mkdir local-dep");
+    fs::write(sibling.join("package.json"), r#"{ "name": "local-dep", "version": "1.0.0" }"#)
+        .expect("write local-dep/package.json");
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    // Fail loudly if the harness ever starts writing `packages:` — appending a
+    // second top-level mapping key produces invalid YAML.
+    assert!(
+        !yaml.contains("packages:"),
+        "pnpm-workspace.yaml already has a `packages:` key — update this test",
+    );
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("packages:\n  - 'local-dep'\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+
+    write_manifest(&workspace, r#"{ "local-dep": "workspace:./local-dep" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "local-dep").as_deref(), Some("workspace:./local-dep"));
+
+    drop((root, anchor));
+}
+
 /// A package selector only updates the matched dependency; others keep
 /// their manifest ranges.
 #[test]
