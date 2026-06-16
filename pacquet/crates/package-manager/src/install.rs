@@ -2015,7 +2015,9 @@ fn load_workspace_projects(
 ) -> Result<Option<Vec<pacquet_workspace::Project>>, pacquet_workspace::FindWorkspaceProjectsError>
 {
     let Some(manifest) = workspace_manifest else { return Ok(None) };
-    let opts = pacquet_workspace::FindWorkspaceProjectsOpts { patterns: manifest.packages.clone() };
+    let opts = pacquet_workspace::FindWorkspaceProjectsOpts {
+        patterns: Some(pacquet_workspace::workspace_package_patterns(manifest)),
+    };
     pacquet_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
 }
 

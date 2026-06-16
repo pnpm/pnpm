@@ -28,7 +28,7 @@ pub use api::{EnvVarOs, Host};
 pub use importer_id::importer_id_from_root_dir;
 pub use manifest::{
     InvalidWorkspaceManifestError, ReadWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceManifest, read_workspace_manifest,
+    WorkspaceManifest, read_workspace_manifest, workspace_package_patterns,
 };
 pub use project_manifest::{
     ReadProjectManifestError, ReadProjectManifestOnlyError, read_exact_project_manifest,
