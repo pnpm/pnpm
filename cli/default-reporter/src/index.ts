@@ -13,6 +13,11 @@ import { formatWarn } from './reporterForClient/utils/formatWarn.js'
 
 export { formatWarn }
 
+// ANSI "erase to end of line". Appended after each rendered line so that
+// remnants from external processes (e.g. SSH passphrase prompts) that write to
+// the terminal between progress updates don't bleed into the progress line.
+const ERASE_EOL = '\x1b[K'
+
 export function initDefaultReporter (
   opts: {
     useStderr?: boolean
@@ -85,10 +90,7 @@ export function initDefaultReporter (
     // Without a new line the prompt will be joined with the previous output.
     // An example of such prompt may be seen by running: pnpm update --interactive
     if (!view.endsWith(EOL)) view += EOL
-    // Erase to end of line on every line so that remnants from external
-    // processes (e.g. SSH passphrase prompts) don't bleed through.
-    const ERASE_EOL = '\x1b[K'
-    write(diff.update(view).split('\n').join(`${ERASE_EOL}\n`))
+    write(diff.update(view).toString().replaceAll('\n', `${ERASE_EOL}\n`))
   }
   return () => {
     subscription.unsubscribe()
