@@ -85,6 +85,9 @@ pub fn run_cell(
     let cell_dir = cells_root.join(cell.id());
     let project_dir = cell_dir.join(PROJECT_DIR);
     let log_path = cell_dir.join("cell.log");
+    // Start each run with a fresh log so reruns (notably under `--keep`) don't
+    // interleave with stale output.
+    let _ = fs::remove_file(&log_path);
 
     let outcome = |stage: &'static str, result: Result<(), String>| -> Option<Outcome> {
         result.err().map(|message| Outcome {
@@ -197,8 +200,8 @@ fn run_build_script(project_dir: &Path, script_name: &str, log_path: &Path) -> R
 /// Environment variables an install/build/serve subprocess legitimately
 /// needs. Everything else is scrubbed, so a lifecycle script from an
 /// untrusted package can't read ambient CI secrets (`GITHUB_TOKEN`, npm auth
-/// tokens, etc.). Build/serve callers override `PATH` with a
-/// `node_modules/.bin`-prefixed one; the rest inherit it from here.
+/// tokens, etc.) out of the environment. Build/serve callers override `PATH`
+/// with a `node_modules/.bin`-prefixed one; the rest inherit it from here.
 const ENV_PASSTHROUGH: &[&str] = &[
     "PATH",
     "HOME",
@@ -225,7 +228,7 @@ const ENV_PASSTHROUGH: &[&str] = &[
 /// A [`Command`] whose environment is scrubbed down to [`ENV_PASSTHROUGH`].
 /// Used for every launch that runs third-party code — scaffolding,
 /// installs, and the build/serve scripts — so unattended lifecycle scripts
-/// can't exfiltrate secrets from the parent environment.
+/// can't read ambient secrets out of the parent environment.
 fn sandboxed_command(program: &str) -> Command {
     let mut command = Command::new(program);
     command.env_clear();
@@ -257,26 +260,28 @@ fn bin_path(project_dir: &Path) -> Result<OsString, String> {
 /// returning, whatever the outcome.
 fn run_serve(project_dir: &Path, serve: &Serve, log_path: &Path) -> Result<(), String> {
     let port = pick_free_port()?;
-    let command = serve
-        .command
-        .iter()
-        .map(|token| token.replace("{port}", &port.to_string()))
-        .collect::<Vec<_>>()
-        .join(" ");
+    let args: Vec<String> =
+        serve.command.iter().map(|token| token.replace("{port}", &port.to_string())).collect();
+    let (program, rest) = args.split_first().ok_or("serve command is empty")?;
+    // Run the argv directly off the project's `.bin` instead of joining it
+    // into a `sh -c` string, so tokens keep their boundaries and don't need
+    // shell quoting. The spawned PID is the server itself, so it's killable.
+    let program_path = project_dir.join("node_modules").join(".bin").join(program);
 
     let mut log = OpenOptions::new()
         .append(true)
         .open(log_path)
         .map_err(|error| format!("open log {log_path:?}: {error}"))?;
-    let _ =
-        writeln!(log, "\n$ serve: {command} (probe http://127.0.0.1:{port}{})", serve.ready_path);
+    let _ = writeln!(
+        log,
+        "\n$ serve: {} (probe http://127.0.0.1:{port}{})",
+        args.join(" "),
+        serve.ready_path,
+    );
 
-    let mut child = sandboxed_command("sh")
+    let mut child = sandboxed_command(&program_path.to_string_lossy())
         .current_dir(project_dir)
-        .arg("-c")
-        // `exec` replaces the shell with the server so the spawned PID is the
-        // server itself, killable directly without a leftover shell wrapper.
-        .arg(format!("exec {command}"))
+        .args(rest)
         .env("PATH", bin_path(project_dir)?)
         // Servers that take their port via env rather than a flag (nitro,
         // react-router-serve, etc.) honor these; for the rest the explicit
@@ -287,7 +292,7 @@ fn run_serve(project_dir: &Path, serve: &Serve, log_path: &Path) -> Result<(), S
         .stdout(clone_handle(&log, log_path)?)
         .stderr(clone_handle(&log, log_path)?)
         .spawn()
-        .map_err(|error| format!("spawn server `{command}`: {error}"))?;
+        .map_err(|error| format!("spawn server `{}`: {error}", args.join(" ")))?;
 
     let result = wait_until_serving(&mut child, port, serve);
     let _ = child.kill();
