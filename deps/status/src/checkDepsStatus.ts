@@ -4,12 +4,13 @@ import util from 'node:util'
 
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
-import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
+import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   getLockfileImporterId,
+  getWantedLockfileName,
   type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
@@ -49,6 +50,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
 | 'lockfileDir'
+| 'mergeGitBranchLockfiles'
 | 'nodeLinker'
 | 'patchedDependencies'
 | 'peersSuffixMaxLength'
@@ -185,7 +187,11 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     sharedWorkspaceLockfile,
     workspaceDir,
   })
-  const conflictedLockfileDir = findConflictedLockfileDir(lockfileDirs, workspaceState.lastValidatedTimestamp)
+  const wantedLockfileName = await getWantedLockfileName({
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+  })
+  const { conflictedDir: conflictedLockfileDir, anyModified: lockfilesModified } = scanWantedLockfiles(lockfileDirs, workspaceState.lastValidatedTimestamp, wantedLockfileName)
   if (conflictedLockfileDir != null) {
     return {
       upToDate: false,
@@ -274,15 +280,11 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       ({ manifestStats }) =>
         manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
     )
-    const lockfilesModified = lockfileDirs.some((wantedLockfileDir) => {
-      const wantedLockfileStats = safeStatSync(path.join(wantedLockfileDir, WANTED_LOCKFILE))
-      return wantedLockfileStats != null && wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
-    })
 
     if ((modifiedProjects.length === 0) && !lockfilesModified) {
       logger.debug({ msg: 'No manifest files or lockfiles were modified since the last validation. Exiting check.' })
       const wantedLockfileToRestore = sharedWorkspaceLockfile && !opts.useGitBranchLockfile
-        ? await missingWantedLockfileStandIn(workspaceDir)
+        ? await missingWantedLockfileStandIn(workspaceDir, wantedLockfileName)
         : undefined
       return { upToDate: true, workspaceState, wantedLockfileToRestore }
     }
@@ -297,7 +299,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (sharedWorkspaceLockfile) {
       let wantedLockfileStats: fs.Stats | undefined
       try {
-        wantedLockfileStats = fs.statSync(path.join(workspaceDir, WANTED_LOCKFILE))
+        wantedLockfileStats = fs.statSync(path.join(workspaceDir, wantedLockfileName))
       } catch (error) {
         if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
           wantedLockfileStats = undefined
@@ -323,7 +325,11 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
           wantedLockfileDir: workspaceDir,
         })
       } else {
-        const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
+        const wantedLockfilePromise = readWantedLockfile(workspaceDir, {
+          ignoreIncompatible: false,
+          useGitBranchLockfile: opts.useGitBranchLockfile,
+          mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+        })
         if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
           const currentLockfile = await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
@@ -336,8 +342,12 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
     } else {
       readWantedLockfileAndDir = async wantedLockfileDir => {
-        const wantedLockfilePromise = readWantedLockfile(wantedLockfileDir, { ignoreIncompatible: false })
-        const wantedLockfileStats = await safeStat(path.join(wantedLockfileDir, WANTED_LOCKFILE))
+        const wantedLockfilePromise = readWantedLockfile(wantedLockfileDir, {
+          ignoreIncompatible: false,
+          useGitBranchLockfile: opts.useGitBranchLockfile,
+          mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+        })
+        const wantedLockfileStats = await safeStat(path.join(wantedLockfileDir, wantedLockfileName))
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
         if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
@@ -424,14 +434,18 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   if (rootProjectManifest && rootProjectManifestDir) {
     const internalPnpmDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
     const currentLockfilePromise = readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
-    const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, { ignoreIncompatible: false })
+    const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, {
+      ignoreIncompatible: false,
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    })
     const [
       currentLockfileStats,
       wantedLockfileStats,
       manifestStats,
     ] = await Promise.all([
       safeStat(path.join(internalPnpmDir, 'lock.yaml')),
-      safeStat(path.join(rootProjectManifestDir, WANTED_LOCKFILE)),
+      safeStat(path.join(rootProjectManifestDir, wantedLockfileName)),
       statManifestFile(rootProjectManifestDir),
     ])
 
@@ -640,8 +654,8 @@ function throwLockfileNotFound (wantedLockfileDir: string): never {
  * `pnpm-lock.yaml` from it. `undefined` when the wanted lockfile is present
  * (nothing to restore) or when there is no current lockfile to restore from.
  */
-async function missingWantedLockfileStandIn (lockfileDir: string): Promise<CheckDepsStatusResult['wantedLockfileToRestore']> {
-  if (safeStatSync(path.join(lockfileDir, WANTED_LOCKFILE)) != null) return undefined
+async function missingWantedLockfileStandIn (lockfileDir: string, wantedLockfileName: string): Promise<CheckDepsStatusResult['wantedLockfileToRestore']> {
+  if (safeStatSync(path.join(lockfileDir, wantedLockfileName)) != null) return undefined
   const currentLockfile = await readCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
   if (currentLockfile == null) return undefined
   return { lockfile: currentLockfile, lockfileDir }
@@ -660,21 +674,28 @@ function getWantedLockfileDirs (opts: {
   return [opts.lockfileDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir]
 }
 
-function findConflictedLockfileDir (lockfileDirs: string[], lastValidatedTimestamp: number): string | undefined {
+function scanWantedLockfiles (lockfileDirs: string[], lastValidatedTimestamp: number, wantedLockfileName: string): {
+  conflictedDir: string | undefined
+  anyModified: boolean
+} {
+  let conflictedDir: string | undefined
+  let anyModified = false
   for (const lockfileDir of lockfileDirs) {
     let mtime: number
     try {
-      mtime = fs.statSync(path.join(lockfileDir, WANTED_LOCKFILE)).mtime.valueOf()
+      mtime = fs.statSync(path.join(lockfileDir, wantedLockfileName)).mtime.valueOf()
     } catch (err: unknown) {
       if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
       throw err
     }
-    // If the lockfile hasn't been modified since the last successful install, it can't have
-    // grown conflict markers — skip the read to preserve the optimistic fast-path.
     if (mtime <= lastValidatedTimestamp) continue
-    if (wantedLockfileHasMergeConflictsSync(lockfileDir)) return lockfileDir
+    anyModified = true
+    if (wantedLockfileHasMergeConflictsSync(lockfileDir)) {
+      conflictedDir = lockfileDir
+      break
+    }
   }
-  return undefined
+  return { conflictedDir, anyModified }
 }
 
 async function patchesOrHooksAreModified (opts: {

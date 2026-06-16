@@ -35,6 +35,7 @@ import type { WorkspaceState } from '@pnpm/workspace.state'
   const original = await import('@pnpm/lockfile.fs')
   jest.unstable_mockModule('@pnpm/lockfile.fs', () => ({
     ...original,
+    getWantedLockfileName: jest.fn(original.getWantedLockfileName),
     readCurrentLockfile: jest.fn(),
     readWantedLockfile: jest.fn(),
   }))
@@ -646,6 +647,71 @@ describe('checkDepsStatus - lockfile modification', () => {
 
       expect(result.upToDate).toBe(false)
       expect(result.issue).toBe(`The installed dependencies in the modules directory is not up-to-date with the lockfile in ${workspaceDir}.`)
+    } finally {
+      await fs.rm(workspaceDir, { force: true, recursive: true })
+    }
+  })
+
+  it('does not throw when pnpm-lock.yaml is absent but a git-branch lockfile exists', async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-git-branch-'))
+    try {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      const beforeLastValidation = lastValidatedTimestamp - 10_000
+      const projectRootDir = workspaceDir as ProjectRootDir
+      const projectRootDirRealPath = await fs.realpath(workspaceDir) as ProjectRootDirRealPath
+      const branchLockfileName = 'pnpm-lock.main.yaml'
+      const mockWorkspaceState: WorkspaceState = {
+        lastValidatedTimestamp,
+        pnpmfiles: [],
+        settings: {
+          excludeLinksFromLockfile: false,
+          linkWorkspacePackages: true,
+          preferWorkspacePackages: true,
+        },
+        projects: {
+          [projectRootDir]: {
+            name: 'project',
+            version: '1.0.0',
+          },
+        },
+        filteredInstall: false,
+      }
+
+      await fs.writeFile(path.join(workspaceDir, branchLockfileName), "lockfileVersion: '9.0'\n")
+      const branchLockfilePath = path.join(workspaceDir, branchLockfileName)
+      await fs.utimes(branchLockfilePath, beforeLastValidation / 1000, beforeLastValidation / 1000)
+
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+      jest.mocked(lockfileFs.getWantedLockfileName).mockResolvedValueOnce(branchLockfileName)
+      jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+      jest.mocked(fsUtils.safeStat).mockResolvedValue(undefined)
+      jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue({
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats)
+
+      const opts: CheckDepsStatusOptions = {
+        allProjects: [{
+          rootDir: projectRootDir,
+          rootDirRealPath: projectRootDirRealPath,
+          manifest: {
+            name: 'project',
+            version: '1.0.0',
+          },
+          writeProjectManifest: async () => {},
+        }],
+        workspaceDir,
+        sharedWorkspaceLockfile: true,
+        useGitBranchLockfile: true,
+        rootProjectManifest: {},
+        rootProjectManifestDir: workspaceDir,
+        pnpmfile: [],
+        ...mockWorkspaceState.settings,
+      }
+      const result = await checkDepsStatus(opts)
+
+      expect(result.upToDate).toBe(true)
+      expect(result.issue).toBeUndefined()
     } finally {
       await fs.rm(workspaceDir, { force: true, recursive: true })
     }
