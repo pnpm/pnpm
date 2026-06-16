@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
 import {
@@ -469,8 +470,10 @@ export async function recursive (
         if (opts.save !== false) {
           await writeProjectManifest(newManifest)
           if (newCatalogsAddition) {
-            updatedCatalogs ??= {}
-            Object.assign(updatedCatalogs, newCatalogsAddition)
+            // Per-project additions are partial maps keyed by catalog name then
+            // dependency. Merge at the dependency level so two projects updating
+            // different entries of the same catalog don't clobber each other.
+            updatedCatalogs = mergeCatalogs(updatedCatalogs, newCatalogsAddition)
           }
         }
         if (ignoredBuilds?.size) {

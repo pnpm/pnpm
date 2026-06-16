@@ -39,3 +39,15 @@ test('skips nullish catalog arguments and nullish named catalogs', () => {
     default: { foo: '1.0.0' },
   })
 })
+
+test('treats dangerous catalog and dependency names as ordinary own properties', () => {
+  // Catalogs parsed from YAML/JSON can carry `__proto__` as an own property,
+  // unlike an object literal where `{ __proto__: ... }` sets the prototype.
+  const malicious = JSON.parse('{"__proto__":{"polluted":"yes"},"default":{"__proto__":"1.0.0","constructor":"2.0.0"}}')
+  const merged = mergeCatalogs(malicious)
+  expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+  expect(Object.prototype.hasOwnProperty.call(merged, '__proto__')).toBe(true)
+  expect(Object.prototype.hasOwnProperty.call(merged.default, '__proto__')).toBe(true)
+  expect((merged.default as Record<string, unknown>).__proto__).toBe('1.0.0')
+  expect((merged.default as Record<string, unknown>).constructor).toBe('2.0.0')
+})
