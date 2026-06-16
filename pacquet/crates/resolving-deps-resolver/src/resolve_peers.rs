@@ -402,9 +402,6 @@ pub fn resolve_peers_workspace(
         );
     }
 
-    // Runs after the injected-deps dedupe (matching upstream's ordering)
-    // so a `file:`→`link:` rewrite is already reflected in the graph
-    // before peer-dependent variants collapse.
     if dedupe_peer_dependents_enabled {
         dedupe_peer_dependents(&mut graph, &mut direct_dependencies_by_importer);
     }
@@ -1164,7 +1161,20 @@ impl Walker<'_> {
         // visit with a compatible parent context can short-circuit
         // via [`Self::find_hit`]. Mirrors upstream's
         // [post-walk cache-population block](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L507-L522).
-        if is_pure {
+        //
+        // A cycle re-entry resolves against truncated children (the cycle is
+        // broken by dropping the repeated package's subtree), so its empty or
+        // partial peer sets are not authoritative for the package as a whole.
+        // Caching that verdict would let it short-circuit other occurrences
+        // that can see the full subtree, dropping their
+        // `transitivePeerDependencies` depending on traversal order and
+        // churning the lockfile (https://github.com/pnpm/pnpm/issues/5108).
+        let resolved_through_cycle = parent_pkg_ids_chain.contains(&pkg.id);
+        if resolved_through_cycle {
+            // Leave both caches untouched so later occurrences re-resolve (or
+            // hit the authoritative entry of the same package) instead of
+            // reusing this partial one.
+        } else if is_pure {
             self.pure_pkgs.insert(pkg.id.clone());
         } else {
             self.peers_cache.entry(pkg.id.clone()).or_default().push(PeersCacheItem {
