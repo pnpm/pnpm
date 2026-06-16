@@ -461,19 +461,24 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
     .run::<Reporter>()
     .map_err(BuildPhaseError::BuildModules)?;
 
-    // Mirrors upstream's single emit at the end of the build phase
-    // (always, with an empty list when nothing was ignored):
-    // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L526>.
-    // The default reporter renders the "Ignored build scripts" warning box
-    // only when `strictDepBuilds` is off; under the default (strict), the
-    // install instead fails with `ERR_PNPM_IGNORED_BUILDS` raised by the
-    // caller from the returned list. Mirrors pnpm's split between
-    // `reportIgnoredBuilds` (display gated on `!strictDepBuilds`) and
-    // `handleIgnoredBuilds` (throws when `strictDepBuilds`).
-    Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
-        level: LogLevel::Debug,
-        package_names: ignored_builds.clone(),
-    }));
+    // Emit the `pnpm:ignored-scripts` event so the reporter can render
+    // the "Ignored build scripts" warning box, mirroring pnpm's
+    // `reportIgnoredBuilds`. The empty-list event is always emitted
+    // (pnpm fires `ignoredScriptsLogger.debug({ packageNames: [] })`
+    // unconditionally at
+    // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L526>),
+    // but a non-empty list is suppressed under `strictDepBuilds`: there
+    // the install fails with `ERR_PNPM_IGNORED_BUILDS` (raised by the
+    // caller from the returned list), so the box would only duplicate
+    // the error. Gating here — where `config` is the final, post-`updateConfig`
+    // value the strict-failure check also reads — keeps the warning and
+    // the error decision consistent without a reporter-side flag.
+    if ignored_builds.is_empty() || !config.strict_dep_builds {
+        Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
+            level: LogLevel::Debug,
+            package_names: ignored_builds.clone(),
+        }));
+    }
 
     // Post-`BuildModules` per-importer top-level bin link
     // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and

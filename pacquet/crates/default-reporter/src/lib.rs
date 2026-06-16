@@ -35,7 +35,6 @@ use crate::{
 static CWD: OnceLock<String> = OnceLock::new();
 static PACKAGE_VERSION: OnceLock<String> = OnceLock::new();
 static FORCE_APPEND_ONLY: OnceLock<bool> = OnceLock::new();
-static STRICT_DEP_BUILDS: OnceLock<bool> = OnceLock::new();
 
 /// Set the project root the reporter renders paths relative to. Call once
 /// before the first event; ignored if already set.
@@ -57,19 +56,6 @@ pub(crate) fn package_version() -> &'static str {
 /// backing `--reporter=append-only`. Call once before the first event.
 pub fn force_append_only() {
     let _ = FORCE_APPEND_ONLY.set(true);
-}
-
-/// Record the `strictDepBuilds` setting so the reporter can suppress the
-/// "Ignored build scripts" warning box when it is on — under strict mode
-/// the install fails with `ERR_PNPM_IGNORED_BUILDS` instead, and pnpm's
-/// `reportIgnoredBuilds` gates the box on `!strictDepBuilds`. Call once
-/// before the first event; defaults to non-strict (box shown) when unset.
-pub fn set_strict_dep_builds(strict: bool) {
-    let _ = STRICT_DEP_BUILDS.set(strict);
-}
-
-pub(crate) fn strict_dep_builds() -> bool {
-    STRICT_DEP_BUILDS.get().copied().unwrap_or(false)
 }
 
 fn cwd() -> String {

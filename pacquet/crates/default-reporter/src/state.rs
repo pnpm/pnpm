@@ -844,14 +844,12 @@ impl ReporterState {
     // --- misc one-liners --------------------------------------------------
 
     fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
+        // The emitter suppresses a non-empty list under `strictDepBuilds`
+        // (the install fails with `ERR_PNPM_IGNORED_BUILDS` instead), so
+        // a non-empty event reaching here is always meant to render —
+        // mirroring pnpm's `reportIgnoredBuilds`. An empty list is a
+        // no-op marker carried for the NDJSON contract.
         if log.package_names.is_empty() {
-            return;
-        }
-        // Under `strictDepBuilds` (the default) the install fails with
-        // `ERR_PNPM_IGNORED_BUILDS`, so suppress this warning to avoid
-        // duplicating the error. Mirrors pnpm's `reportIgnoredBuilds`,
-        // which is gated on `!strictDepBuilds`.
-        if crate::strict_dep_builds() {
             return;
         }
         let list = log.package_names.join(", ");

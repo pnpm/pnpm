@@ -268,12 +268,8 @@ impl CliArgs {
         // must not be silently dropped because `lockfile=false` was set
         // (or defaulted) in config.
         let state = |require_lockfile: bool| -> miette::Result<State> {
-            let config = config()?;
-            // The default reporter suppresses the "Ignored build scripts"
-            // warning box under `strictDepBuilds` (the install fails with
-            // `ERR_PNPM_IGNORED_BUILDS` instead). Seed it before any event.
-            pacquet_default_reporter::set_strict_dep_builds(config.strict_dep_builds);
-            State::init(manifest_path(), config, require_lockfile).wrap_err("initialize the state")
+            State::init(manifest_path(), config()?, require_lockfile)
+                .wrap_err("initialize the state")
         };
 
         match command {
@@ -322,7 +318,6 @@ impl CliArgs {
                 // mutable through `Config::leak`'s
                 // `&'static mut Config` return.
                 let cfg = config()?;
-                pacquet_default_reporter::set_strict_dep_builds(cfg.strict_dep_builds);
                 cfg.offline = cfg.offline || args.offline;
                 cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
                 cfg.frozen_store = cfg.frozen_store || args.frozen_store;
