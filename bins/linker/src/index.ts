@@ -384,11 +384,45 @@ async function isSameFile (pathA: string, pathB: string): Promise<boolean> {
     return true
   }
   if (statA.size !== statB.size) return false
-  const [contentA, contentB] = await Promise.all([
-    fs.readFile(pathA).catch(() => null),
-    fs.readFile(pathB).catch(() => null),
+  return haveEqualContents(pathA, pathB)
+}
+
+const FILE_COMPARE_CHUNK_SIZE = 64 * 1024
+
+// Compares two equally-sized files chunk by chunk, so an executable is never
+// fully buffered in memory and a mismatch returns as early as possible.
+async function haveEqualContents (pathA: string, pathB: string): Promise<boolean> {
+  const [fhA, fhB] = await Promise.all([
+    fs.open(pathA, 'r').catch(() => null),
+    fs.open(pathB, 'r').catch(() => null),
   ])
-  return contentA != null && contentB != null && contentA.equals(contentB)
+  if (fhA == null || fhB == null) {
+    await fhA?.close().catch(() => {})
+    await fhB?.close().catch(() => {})
+    return false
+  }
+  try {
+    const bufA = Buffer.alloc(FILE_COMPARE_CHUNK_SIZE)
+    const bufB = Buffer.alloc(FILE_COMPARE_CHUNK_SIZE)
+    let position = 0
+    for (;;) {
+      // Reading sequentially is intentional: each iteration compares one chunk
+      // and stops early on a mismatch or EOF.
+      const [readA, readB] = await Promise.all([ // eslint-disable-line no-await-in-loop
+        fhA.read(bufA, 0, FILE_COMPARE_CHUNK_SIZE, position),
+        fhB.read(bufB, 0, FILE_COMPARE_CHUNK_SIZE, position),
+      ])
+      if (readA.bytesRead !== readB.bytesRead) return false
+      if (readA.bytesRead === 0) return true
+      if (!bufA.subarray(0, readA.bytesRead).equals(bufB.subarray(0, readB.bytesRead))) {
+        return false
+      }
+      position += readA.bytesRead
+    }
+  } finally {
+    await fhA.close().catch(() => {})
+    await fhB.close().catch(() => {})
+  }
 }
 
 // `fixBin` chmods the bin's source file (which lives inside the store) to make
