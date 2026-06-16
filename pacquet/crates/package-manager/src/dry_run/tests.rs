@@ -1,4 +1,35 @@
-use super::{ImporterDiff, LockfileDiff, render_dry_run_report};
+use std::str::FromStr;
+
+use pacquet_lockfile::{
+    ImporterDepVersion, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
+    ResolvedDependencySpec,
+};
+
+use super::{ImporterDiff, LockfileDiff, diff_importer, render_dry_run_report};
+
+fn pkg(name: &str) -> PkgName {
+    PkgName::from_str(name).expect("parse PkgName")
+}
+
+fn ver(version: &str) -> PkgVerPeer {
+    version.parse().expect("parse PkgVerPeer")
+}
+
+/// Build an importer dependency map from `(alias, specifier, version)` triples.
+fn importer_map(entries: &[(&str, &str, &str)]) -> ResolvedDependencyMap {
+    entries
+        .iter()
+        .map(|(alias, specifier, version)| {
+            (
+                pkg(alias),
+                ResolvedDependencySpec {
+                    specifier: (*specifier).to_string(),
+                    version: ImporterDepVersion::Regular(ver(version)),
+                },
+            )
+        })
+        .collect()
+}
 
 #[test]
 fn empty_diff_reports_no_changes() {
@@ -23,4 +54,41 @@ fn non_empty_diff_lists_importer_and_package_changes() {
     assert!(report.contains("+ is-negative 1.0.0"), "got: {report}");
     assert!(report.contains("is-positive 1.0.0 -> 2.0.0"), "got: {report}");
     assert!(report.contains("+ is-negative@1.0.0"), "got: {report}");
+}
+
+/// A dependency moving between groups (dev -> prod) with the same resolved
+/// version must register as a change, because a real install would rewrite
+/// the lockfile. The groups are diffed independently, matching pnpm.
+#[test]
+fn group_move_is_reported_even_when_version_is_unchanged() {
+    let old = ProjectSnapshot {
+        dev_dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0")])),
+        ..Default::default()
+    };
+    let new = ProjectSnapshot {
+        dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0")])),
+        ..Default::default()
+    };
+    let diff = diff_importer(".", Some(&old), Some(&new));
+    assert!(!diff.is_empty(), "a dev -> prod move must register as a change: {diff:?}");
+}
+
+/// A specifier-only change (same group, same resolved version) is *not*
+/// reported. pnpm's diff ignores specifiers too — they live in a separate
+/// map outside the diffed dependency fields — so pacquet matches it.
+#[test]
+fn specifier_only_change_is_not_reported() {
+    let old = ProjectSnapshot {
+        dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0")])),
+        ..Default::default()
+    };
+    let new = ProjectSnapshot {
+        dependencies: Some(importer_map(&[("is-positive", "~1.0.0", "1.0.0")])),
+        ..Default::default()
+    };
+    let diff = diff_importer(".", Some(&old), Some(&new));
+    assert!(
+        diff.is_empty(),
+        "a specifier-only change must match pnpm and report nothing: {diff:?}",
+    );
 }

@@ -768,6 +768,11 @@ where
                 None
             };
         let lockfile_synthesized_from_current = synthesized_lockfile.is_some();
+        // The dry-run diff baseline is the actual on-disk `pnpm-lock.yaml`
+        // (`None` when it is absent), captured before the synthesized-from-
+        // current fallback below. Diffing against the synthesized lockfile
+        // would hide the change of a real install creating `pnpm-lock.yaml`.
+        let existing_wanted_lockfile = lockfile;
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
 
         // One per-install packument cache shared with both the
@@ -1315,9 +1320,11 @@ where
             // then exit 0 — npm-style preview semantics.
             if dry_run {
                 use std::io::Write as _;
-                let report = crate::dry_run::render_dry_run_report(
-                    &crate::dry_run::diff_lockfiles(lockfile, fresh_lockfile.as_ref()),
-                );
+                let report =
+                    crate::dry_run::render_dry_run_report(&crate::dry_run::diff_lockfiles(
+                        existing_wanted_lockfile,
+                        fresh_lockfile.as_ref(),
+                    ));
                 let mut stdout = std::io::stdout();
                 let _ = writeln!(stdout, "{report}");
                 let _ = stdout.flush();

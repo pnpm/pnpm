@@ -92,41 +92,51 @@ fn diff_importer(
     old: Option<&ProjectSnapshot>,
     new: Option<&ProjectSnapshot>,
 ) -> ImporterDiff {
-    let old_deps = collect_direct_deps(old);
-    let new_deps = collect_direct_deps(new);
-
     let mut added = Vec::new();
+    let mut removed = Vec::new();
     let mut updated = Vec::new();
-    for (alias, new_version) in &new_deps {
-        match old_deps.get(alias) {
-            None => added.push((alias.clone(), new_version.clone())),
-            Some(old_version) if old_version != new_version => {
-                updated.push((alias.clone(), old_version.clone(), new_version.clone()));
+
+    // Diff each dependency group independently so a dependency that moves
+    // between groups (e.g. dev -> prod) registers as a change. Mirrors
+    // pnpm's `dedupeDiffCheck`, which diffs `dependencies`,
+    // `devDependencies`, and `optionalDependencies` separately. The
+    // `specifier` field is intentionally not compared: pnpm's diff ignores
+    // it too (specifiers live in a separate map outside its diff fields).
+    for group in 0..3 {
+        let old_deps = group_versions(old, group);
+        let new_deps = group_versions(new, group);
+        for (alias, new_version) in &new_deps {
+            match old_deps.get(alias) {
+                None => added.push((alias.clone(), new_version.clone())),
+                Some(old_version) if old_version != new_version => {
+                    updated.push((alias.clone(), old_version.clone(), new_version.clone()));
+                }
+                Some(_) => {}
             }
-            Some(_) => {}
+        }
+        for (alias, old_version) in &old_deps {
+            if !new_deps.contains_key(alias) {
+                removed.push((alias.clone(), old_version.clone()));
+            }
         }
     }
-    let removed = old_deps
-        .iter()
-        .filter(|(alias, _)| !new_deps.contains_key(*alias))
-        .map(|(alias, version)| (alias.clone(), version.clone()))
-        .collect();
 
     ImporterDiff { id: id.to_string(), added, removed, updated }
 }
 
-/// Flatten an importer's prod / dev / optional dependency maps into a
-/// single `alias -> version` map.
-fn collect_direct_deps(snapshot: Option<&ProjectSnapshot>) -> BTreeMap<String, String> {
+/// The `alias -> resolved version` map for one dependency group of an
+/// importer (0 = prod, 1 = dev, 2 = optional).
+fn group_versions(snapshot: Option<&ProjectSnapshot>, group: usize) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
     let Some(snapshot) = snapshot else {
         return map;
     };
-    for deps in
-        [&snapshot.dependencies, &snapshot.dev_dependencies, &snapshot.optional_dependencies]
-            .into_iter()
-            .flatten()
-    {
+    let deps = match group {
+        0 => &snapshot.dependencies,
+        1 => &snapshot.dev_dependencies,
+        _ => &snapshot.optional_dependencies,
+    };
+    if let Some(deps) = deps {
         for (name, spec) in deps {
             map.insert(name.to_string(), spec.version.to_string());
         }
