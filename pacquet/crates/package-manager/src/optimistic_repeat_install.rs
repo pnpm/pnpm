@@ -168,10 +168,14 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
             reason: "a dependency is a local file dependency and its contents may have changed",
         };
     }
-    if has_local_file_override(config, catalogs) {
-        return Decision::Skipped {
-            reason: "an override maps to a local file dependency and its contents may have changed",
-        };
+    match has_local_file_override(config, catalogs) {
+        Ok(true) => {
+            return Decision::Skipped {
+                reason: "an override maps to a local file dependency and its contents may have changed",
+            };
+        }
+        Err(reason) => return Decision::Skipped { reason },
+        Ok(false) => {}
     }
 
     if !settings_match(&state, config, node_linker, included) {
@@ -353,6 +357,11 @@ fn has_local_file_dep(
 /// proper error anyway — the fast path only needs to not report
 /// up-to-date for a *valid* catalog entry holding a local path.
 fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, spec: &str) -> bool {
+    // `resolve_from_catalog` returns `Unused` for any non-`catalog:` spec, so
+    // short-circuit before allocating the owned `WantedDependency` it needs.
+    if !spec.starts_with("catalog:") {
+        return false;
+    }
     match resolve_from_catalog(
         catalogs,
         &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
@@ -370,17 +379,18 @@ fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, spec: &str) 
 /// tarball the same way a direct local file dependency does. Overrides
 /// are run through `parse_config_overrides` so `catalog:` specs are
 /// dereferenced before the check. A parse failure (misconfigured
-/// catalog, invalid selector) bails to the full install path, which
-/// surfaces the same error — mirroring upstream, where `parseOverrides`
+/// catalog, invalid selector) bails to the full install path with its
+/// own distinct reason — not the local-file reason, which would
+/// misattribute the cause — mirroring upstream, where `parseOverrides`
 /// throws to `checkDepsStatus`'s outer catch and the caller falls back
 /// to a full install.
-fn has_local_file_override(config: &Config, catalogs: &Catalogs) -> bool {
+fn has_local_file_override(config: &Config, catalogs: &Catalogs) -> Result<bool, &'static str> {
     match crate::install::parse_config_overrides(config, catalogs) {
         Ok(Some(overrides)) => {
-            overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier))
+            Ok(overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier)))
         }
-        Ok(None) => false,
-        Err(_) => true,
+        Ok(None) => Ok(false),
+        Err(_) => Err("pnpm.overrides cannot be parsed"),
     }
 }
 
@@ -415,8 +425,17 @@ fn is_local_file_spec(spec: &str) -> bool {
     if spec.contains(':') {
         return false;
     }
-    let spec = spec.to_ascii_lowercase();
-    spec.ends_with(".tgz") || spec.ends_with(".tar.gz") || spec.ends_with(".tar")
+    ends_with_ignore_ascii_case(spec, ".tgz")
+        || ends_with_ignore_ascii_case(spec, ".tar.gz")
+        || ends_with_ignore_ascii_case(spec, ".tar")
+}
+
+/// Case-insensitive (ASCII) suffix check that, unlike
+/// `spec.to_ascii_lowercase().ends_with(suffix)`, does not allocate.
+fn ends_with_ignore_ascii_case(spec: &str, suffix: &str) -> bool {
+    let spec = spec.as_bytes();
+    let suffix = suffix.as_bytes();
+    spec.len() >= suffix.len() && spec[spec.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
 }
 
 /// `c:/...`, `c:\...`, or drive-relative `c:foo` — a Windows drive
