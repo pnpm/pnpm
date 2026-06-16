@@ -74,12 +74,16 @@ function readBranchFromHeadFile (cwd?: string): string | null | undefined {
     const stat = fs.statSync(dotGitPath)
     if (stat.isDirectory()) {
       gitDir = dotGitPath
-    } else {
+    } else if (stat.isFile()) {
       // `.git` is a file — worktree or submodule. It contains `gitdir: <path>`.
       const content = fs.readFileSync(dotGitPath, 'utf8').trim()
       const match = content.match(/^gitdir:\s*(.+)/)
       if (!match) return undefined
       gitDir = path.isAbsolute(match[1]!) ? match[1]! : path.resolve(baseDir, match[1]!)
+    } else {
+      // `.git` is neither a directory nor a regular file (e.g. a FIFO or
+      // device); don't read it. Fall back to `git symbolic-ref`.
+      return undefined
     }
   } catch {
     return undefined

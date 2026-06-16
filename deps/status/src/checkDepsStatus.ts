@@ -729,8 +729,12 @@ function gitBranchLockfileNames (lockfileDir: string, wantedLockfileName: string
   let branchLockfileNames: string[]
   try {
     branchLockfileNames = getGitBranchLockfileNamesSync(lockfileDir)
-  } catch {
-    branchLockfileNames = []
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      branchLockfileNames = []
+    } else {
+      throw err
+    }
   }
   return branchLockfileNames.includes(wantedLockfileName)
     ? branchLockfileNames
