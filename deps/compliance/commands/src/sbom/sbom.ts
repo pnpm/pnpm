@@ -248,6 +248,15 @@ async function handleSplit (
       const filePath = opts.out
         .replaceAll('%s', sanitizePathSegment(sanitizePackageName(manifest.name)))
         .replaceAll('%v', sanitizePathSegment(manifest.version ?? '0.0.0'))
+      // Sanitizing package names is lossy (e.g. "@a/b" and "a-b" both map to "a-b"),
+      // so two packages can resolve to the same path. Fail loudly instead of letting
+      // one SBOM silently overwrite another.
+      if (files.includes(filePath)) {
+        throw new PnpmError(
+          'SBOM_OUT_PATH_COLLISION',
+          `Multiple workspace packages resolve to the same output path "${filePath}". Include %v in the --out pattern to disambiguate.`
+        )
+      }
       const fileDir = path.dirname(filePath)
       if (!createdDirs.has(fileDir)) {
         fs.mkdirSync(fileDir, { recursive: true })

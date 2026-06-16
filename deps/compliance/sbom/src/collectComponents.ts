@@ -237,8 +237,8 @@ export function resolveWorkspaceDeps (
   const queue = [...importerIds]
   const additionalImporterIds: ProjectId[] = []
 
-  while (queue.length > 0) {
-    const importerId = queue.shift()!
+  for (let head = 0; head < queue.length; head++) {
+    const importerId = queue[head]
     const snapshot = lockfile.importers[importerId]
     if (!snapshot) continue
 
