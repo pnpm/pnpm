@@ -4,7 +4,9 @@ use std::time::{Duration, SystemTime};
 
 use pacquet_lockfile::PkgNameVerPeer;
 
-use super::{prune_virtual_store, should_prune_virtual_store};
+use super::{
+    prune_target_within_modules, prune_virtual_store, same_dir, should_prune_virtual_store,
+};
 use crate::SkippedSnapshots;
 
 const SEVEN_DAYS_MINUTES: u64 = 7 * 24 * 60;
@@ -60,7 +62,7 @@ fn expired_cache_prunes() {
 /// `NaN > maxAge` is `false`, so pnpm does not prune on a corrupt,
 /// non-empty timestamp.
 #[test]
-fn unparseable_pruned_at_is_kept() {
+fn unparsable_pruned_at_is_kept() {
     assert!(!should_prune_virtual_store(false, Some("not a date"), SEVEN_DAYS_MINUTES, now()));
 }
 
@@ -100,7 +102,7 @@ fn sweep_keeps_needed_removes_surplus_and_skipped() {
 
     // The surplus dir and the skipped snapshot's dir are removed; the two
     // live snapshots, `node_modules`, and `lock.yaml` survive.
-    assert_eq!(removed, 2);
+    assert_eq!(removed, Some(2));
     assert!(vsdir.join(keep.to_virtual_store_name(max)).exists());
     assert!(vsdir.join(keep_peer.to_virtual_store_name(max)).exists());
     assert!(vsdir.join("node_modules").exists());
@@ -115,5 +117,52 @@ fn sweep_on_missing_dir_is_a_noop() {
     let vsdir = store.path().join("does-not-exist");
     let keep: PkgNameVerPeer = "foo@1.0.0".parse().unwrap();
     let removed = prune_virtual_store(&vsdir, [keep].iter(), &SkippedSnapshots::new(), 120);
-    assert_eq!(removed, 0);
+    // A missing store enumerates as empty: the sweep ran, removing nothing.
+    assert_eq!(removed, Some(0));
+}
+
+#[test]
+fn sweep_on_unreadable_dir_returns_none() {
+    // A path that is a file, not a directory: `read_dir` fails with an
+    // error other than `NotFound`, so the sweep reports it didn't run
+    // (rather than deleting nothing and looking successful).
+    let store = tempfile::tempdir().unwrap();
+    let not_a_dir = store.path().join("file");
+    fs::write(&not_a_dir, "x").unwrap();
+    let keep: PkgNameVerPeer = "foo@1.0.0".parse().unwrap();
+    let removed = prune_virtual_store(&not_a_dir, [keep].iter(), &SkippedSnapshots::new(), 120);
+    assert_eq!(removed, None);
+}
+
+#[test]
+fn prune_target_must_be_inside_node_modules() {
+    let root = tempfile::tempdir().unwrap();
+    let modules = root.path().join("node_modules");
+    fs::create_dir_all(&modules).unwrap();
+
+    // A strict descendant (the default `.pnpm`/`.pacquet` layout) is allowed.
+    let inside = modules.join(".pacquet");
+    fs::create_dir_all(&inside).unwrap();
+    assert!(prune_target_within_modules(&inside, &modules));
+
+    // node_modules itself is refused (would sweep the whole tree).
+    assert!(!prune_target_within_modules(&modules, &modules));
+
+    // A sibling that escapes node_modules is refused.
+    let outside = root.path().join("elsewhere");
+    fs::create_dir_all(&outside).unwrap();
+    assert!(!prune_target_within_modules(&outside, &modules));
+
+    // A not-yet-created store under node_modules is safe (nothing to delete).
+    assert!(prune_target_within_modules(&modules.join("not-created-yet"), &modules));
+}
+
+#[test]
+fn same_dir_matches_equivalent_paths() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = dir.path().join("store");
+    fs::create_dir_all(&a).unwrap();
+    // `a` and `a/.` canonicalize to the same real path.
+    assert!(same_dir(&a, &a.join(".")));
+    assert!(!same_dir(&a, dir.path()));
 }

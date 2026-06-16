@@ -1360,26 +1360,56 @@ where
             }
         };
         let now = SystemTime::now();
-        // `did_prune` tracks whether the sweep actually ran, not just
-        // whether the throttle allowed it: the sweep is skipped when there
-        // is no wanted lockfile to derive the needed set from (e.g.
-        // `config.lockfile == false` leaves both `fresh_lockfile` and a
-        // loaded `lockfile` absent), and `prunedAt` must not advance on a
-        // run where nothing was pruned, or the next real sweep is throttled
-        // off for `modulesCacheMaxAge`.
-        let did_prune = crate::prune_virtual_store::should_prune_virtual_store(
-            config.enable_global_virtual_store,
+        let effective_virtual_store_dir = config.effective_virtual_store_dir();
+        // Decide "this is the global store" from the resolved paths, not
+        // the `enableGlobalVirtualStore` flag alone: the global store is
+        // shared across projects, so a config that points `virtualStoreDir`
+        // at it must not be pruned even when the flag is off.
+        let is_global_virtual_store = crate::prune_virtual_store::same_dir(
+            effective_virtual_store_dir,
+            &config.global_virtual_store_dir,
+        );
+        // `did_prune` tracks whether the sweep actually ran (enumerated the
+        // store), not just whether the throttle allowed it. It stays false
+        // when there is no wanted lockfile to derive the needed set from
+        // (e.g. `config.lockfile == false` leaves both `fresh_lockfile` and
+        // a loaded `lockfile` absent), when the target is refused as unsafe,
+        // or when enumeration failed. `prunedAt` must not advance on a run
+        // where nothing was swept, or the next real sweep is throttled off
+        // for `modulesCacheMaxAge`.
+        let did_prune = if crate::prune_virtual_store::should_prune_virtual_store(
+            is_global_virtual_store,
             prior_modules.as_ref().map(|modules| modules.pruned_at.as_str()),
             config.modules_cache_max_age,
             now,
-        ) && if let Some(wanted) = fresh_lockfile.as_ref().or(lockfile) {
-            crate::prune_virtual_store::prune_virtual_store(
-                config.effective_virtual_store_dir(),
-                wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
-                &frozen_skipped,
-                config.virtual_store_dir_max_length as usize,
-            );
-            true
+        ) {
+            match fresh_lockfile.as_ref().or(lockfile) {
+                Some(wanted)
+                    if crate::prune_virtual_store::prune_target_within_modules(
+                        effective_virtual_store_dir,
+                        &config.modules_dir,
+                    ) =>
+                {
+                    crate::prune_virtual_store::prune_virtual_store(
+                        effective_virtual_store_dir,
+                        wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+                        &frozen_skipped,
+                        config.virtual_store_dir_max_length as usize,
+                    )
+                    .is_some()
+                }
+                // A wanted lockfile exists but the store path is unsafe
+                // (escapes node_modules); refuse the destructive sweep.
+                Some(_) => {
+                    tracing::warn!(
+                        virtual_store_dir = %effective_virtual_store_dir.display(),
+                        modules_dir = %config.modules_dir.display(),
+                        "skipping virtual-store prune: the virtual store is not inside node_modules",
+                    );
+                    false
+                }
+                None => false,
+            }
         } else {
             false
         };
@@ -1904,6 +1934,10 @@ fn unapproved_recorded_ignored_builds(
 ///
 /// [`PackageKey`]: pacquet_lockfile::PackageKey
 /// [`write_modules_manifest`]: pacquet_modules_yaml::write_modules_manifest
+#[expect(
+    clippy::too_many_arguments,
+    reason = "assembles every field of the .modules.yaml manifest from the install's resolved state"
+)]
 fn build_modules_manifest(
     config: &Config,
     node_linker: NodeLinker,

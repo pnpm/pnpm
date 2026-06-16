@@ -29,19 +29,25 @@ use crate::SkippedSnapshots;
 ///
 /// Port of pnpm's `pruneVirtualStore` gate at
 /// <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L471-L473>:
-/// never prune under the global virtual store; otherwise prune unless a
+/// never prune the shared global virtual store; otherwise prune unless a
 /// recorded `prunedAt` is still within `modules_cache_max_age`. A
 /// missing prior `.modules.yaml` (`prior_pruned_at == None`), an empty
 /// timestamp, or a non-positive max-age each force a prune, matching the
 /// upstream falsy checks.
+///
+/// `is_global_virtual_store` is decided by the caller from the resolved
+/// paths (see [`same_dir`]), not the `enableGlobalVirtualStore` flag
+/// alone: the global store is shared across projects, so a config that
+/// points `virtualStoreDir` at it must not be pruned even when the flag
+/// is off.
 #[must_use]
 pub fn should_prune_virtual_store(
-    enable_global_virtual_store: bool,
+    is_global_virtual_store: bool,
     prior_pruned_at: Option<&str>,
     modules_cache_max_age: u64,
     now: SystemTime,
 ) -> bool {
-    if enable_global_virtual_store {
+    if is_global_virtual_store {
         return false;
     }
     match prior_pruned_at {
@@ -56,7 +62,7 @@ pub fn should_prune_virtual_store(
 /// pnpm's `cacheExpired` at
 /// <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L1180-L1182>.
 ///
-/// An unparseable timestamp counts as *not* expired, matching upstream:
+/// An unparsable timestamp counts as *not* expired, matching upstream:
 /// `new Date("garbage").valueOf()` is `NaN`, and `NaN > max_age` is
 /// `false`, so pnpm skips the prune. A timestamp in the future also
 /// counts as fresh (upstream's subtraction goes negative there, never
@@ -72,7 +78,13 @@ fn cache_expired(pruned_at: &str, max_age_minutes: u64, now: SystemTime) -> bool
 }
 
 /// Remove every `<virtual_store_dir>/<dir>` the wanted lockfile no
-/// longer needs, returning the number of directories removed.
+/// longer needs.
+///
+/// Returns `Some(removed)` with the number of directories removed when
+/// the store was enumerated, or `None` when enumeration failed (a real
+/// `read_dir` error other than `NotFound`). The caller uses `None` to
+/// avoid stamping a fresh `prunedAt` for a sweep that never actually
+/// ran, which would otherwise throttle the next real sweep.
 ///
 /// Port of the virtual-store sweep in pnpm's `prune`
 /// (<https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L180-L190>):
@@ -91,17 +103,52 @@ pub fn prune_virtual_store<'a>(
     snapshot_keys: impl Iterator<Item = &'a PkgNameVerPeer>,
     skipped: &SkippedSnapshots,
     virtual_store_dir_max_length: usize,
-) -> usize {
+) -> Option<usize> {
+    let entries = read_virtual_store_dir(virtual_store_dir)?;
     let needed = needed_virtual_store_names(snapshot_keys, skipped, virtual_store_dir_max_length);
     let mut removed = 0;
-    for entry_name in read_virtual_store_dir(virtual_store_dir) {
+    for entry_name in entries {
         if needed.contains(&entry_name) {
             continue;
         }
         try_remove_pkg(&virtual_store_dir.join(entry_name));
         removed += 1;
     }
-    removed
+    Some(removed)
+}
+
+/// Whether `virtual_store_dir` is a safe prune target: it must resolve to
+/// a strict descendant of `modules_dir`. The sweep deletes directories,
+/// and `virtual_store_dir` can come from repo-controlled workspace
+/// config, so a path that escapes `node_modules` (via `..`, an absolute
+/// location, or a symlink) — or that *is* `node_modules` itself — is
+/// refused to avoid destructive deletes outside the managed tree.
+///
+/// Both paths are canonicalized so symlinked escapes are caught. A
+/// `virtual_store_dir` that does not exist yet is safe: there is nothing
+/// to delete, and the sweep enumerates it as empty.
+#[must_use]
+pub fn prune_target_within_modules(virtual_store_dir: &Path, modules_dir: &Path) -> bool {
+    let Ok(modules_dir) = fs::canonicalize(modules_dir) else {
+        return false;
+    };
+    let virtual_store_dir = match fs::canonicalize(virtual_store_dir) {
+        Ok(dir) => dir,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return true,
+        Err(_) => return false,
+    };
+    virtual_store_dir != modules_dir && virtual_store_dir.starts_with(&modules_dir)
+}
+
+/// Whether two paths refer to the same directory. Compares canonicalized
+/// forms when both resolve (so symlinks and `.`/`..` segments don't hide
+/// a match), falling back to a lexical comparison otherwise.
+#[must_use]
+pub fn same_dir(a: &Path, b: &Path) -> bool {
+    match (fs::canonicalize(a), fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
 }
 
 /// Build the set of virtual-store subdirectory names the wanted
@@ -137,26 +184,28 @@ fn needed_virtual_store_names<'a>(
 /// Mirrors pnpm's `readVirtualStoreDir`
 /// (<https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L204-L217>):
 /// a missing directory yields an empty list (a first install has
-/// nothing to prune); any other read error is logged and treated as
-/// empty so a transient failure can't delete packages it failed to
-/// enumerate.
-fn read_virtual_store_dir(virtual_store_dir: &Path) -> Vec<String> {
+/// nothing to prune). Any other read error returns `None` so the sweep
+/// can't delete packages it failed to enumerate, and the caller knows
+/// the sweep didn't run.
+fn read_virtual_store_dir(virtual_store_dir: &Path) -> Option<Vec<String>> {
     let entries = match fs::read_dir(virtual_store_dir) {
         Ok(entries) => entries,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Vec::new(),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Some(Vec::new()),
         Err(error) => {
             tracing::warn!(
                 ?error,
                 virtual_store_dir = %virtual_store_dir.display(),
                 "failed to read virtual store directory",
             );
-            return Vec::new();
+            return None;
         }
     };
-    entries
-        .filter_map(Result::ok)
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
-        .collect()
+    Some(
+        entries
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect(),
+    )
 }
 
 /// `rimraf` a surplus virtual-store entry. Mirrors pnpm's `tryRemovePkg`
