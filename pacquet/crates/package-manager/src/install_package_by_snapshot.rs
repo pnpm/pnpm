@@ -368,19 +368,19 @@ impl InstallPackageBySnapshot<'_> {
                 if let LockfileResolution::Tarball(t) = &metadata.resolution
                     && t.git_hosted == Some(true)
                 {
-                    // `built = true` matches the dispatcher's default
-                    // (`ignore_scripts: false` everywhere). When
-                    // pacquet adds a configurable ignore-scripts mode
-                    // this `true` flips to `!ignore_scripts`, in lock-
-                    // step with the key shape `snapshot_cache_key`
-                    // produces — otherwise the prefetch and the write
-                    // would address different slots.
-                    let files_index_file = git_hosted_store_index_key(&package_id, true);
+                    // `built` tracks `!ignore_scripts`, in lock-step
+                    // with the key shape `snapshot_cache_key` produces —
+                    // otherwise the prefetch and the write would address
+                    // different slots. Under `--ignore-scripts` the
+                    // git-hosted `prepare` is suppressed too, matching
+                    // pnpm's `ignoreScripts`.
+                    let built = !config.ignore_scripts;
+                    let files_index_file = git_hosted_store_index_key(&package_id, built);
                     let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
                         cas_paths: raw_cas_paths,
                         path: t.path.as_deref(),
                         allow_build: &allow_build_closure,
-                        ignore_scripts: false,
+                        ignore_scripts: config.ignore_scripts,
                         unsafe_perm: config.unsafe_perm,
                         user_agent: None,
                         scripts_prepend_node_path,
@@ -515,17 +515,18 @@ impl InstallPackageBySnapshot<'_> {
                 .await?
             }
             LockfileResolution::Git(git_resolution) => {
-                // Same `built = true` rationale as the git-hosted
-                // tarball branch above — key shape stays in lock-step
-                // with `snapshot_cache_key`.
-                let files_index_file = git_hosted_store_index_key(&package_id, true);
+                // Same `built = !ignore_scripts` rationale as the
+                // git-hosted tarball branch above — key shape stays in
+                // lock-step with `snapshot_cache_key`.
+                let built = !config.ignore_scripts;
+                let files_index_file = git_hosted_store_index_key(&package_id, built);
                 let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
                     repo: &git_resolution.repo,
                     commit: &git_resolution.commit,
                     path: git_resolution.path.as_deref(),
                     git_shallow_hosts: &config.git_shallow_hosts,
                     allow_build: &allow_build_closure,
-                    ignore_scripts: false,
+                    ignore_scripts: config.ignore_scripts,
                     unsafe_perm: config.unsafe_perm,
                     user_agent: None,
                     scripts_prepend_node_path,

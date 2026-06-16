@@ -612,6 +612,55 @@ mod dependency_build_scripts {
         drop((root, mock_instance));
     }
 
+    /// `pacquet install --ignore-scripts` must exit 0 even under the
+    /// default `strictDepBuilds`, with no `allowBuilds`: `--ignore-scripts`
+    /// suppresses every dependency build, so nothing is reported as an
+    /// ignored build and the strict gate never fires. The dependency is
+    /// still materialized, but its lifecycle scripts do not run. Mirrors
+    /// pnpm's `--ignore-scripts`, which leaves `ignoredBuilds` empty.
+    #[test]
+    fn install_ignore_scripts_does_not_fail_under_strict_dep_builds() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let manifest_path = workspace.join("package.json");
+        let package_json = serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+            },
+        });
+        fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+
+        // No `allowBuilds` and `strictDepBuilds` defaults to true: a plain
+        // `pacquet install` would fail with `ERR_PNPM_IGNORED_BUILDS`.
+        // `--ignore-scripts` must make it exit 0 instead.
+        let output = pacquet
+            .with_args(["install", "--ignore-scripts"])
+            .output()
+            .expect("run pacquet install --ignore-scripts");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("pacquet install --ignore-scripts stdout:\n{stdout}\nstderr:\n{stderr}");
+        assert!(output.status.success(), "install --ignore-scripts must exit zero");
+        assert!(
+            !format!("{stdout}{stderr}").contains("ERR_PNPM_IGNORED_BUILDS"),
+            "--ignore-scripts must not report ignored builds",
+        );
+
+        // The dependency is materialized, but its blocked lifecycle
+        // scripts did not run.
+        let pkg_dir = workspace.join(
+            "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+             /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+        );
+        assert!(pkg_dir.join("package.json").exists(), "dependency should be materialized");
+        assert!(!pkg_dir.join("generated-by-preinstall.js").exists());
+        assert!(!pkg_dir.join("generated-by-postinstall.js").exists());
+
+        drop((root, mock_instance));
+    }
+
     /// With `strictDepBuilds: false`, an ignored build is a non-fatal
     /// warning printed to stdout and the install exits 0 — mirroring
     /// pnpm's `reportIgnoredBuilds` box.
@@ -951,6 +1000,29 @@ mod project_scripts {
         assert!(
             !workspace.join("order.txt").exists(),
             "named install (`add`) must not run the project's own lifecycle scripts",
+        );
+
+        drop((root, mock_instance));
+    }
+
+    /// `--ignore-scripts` suppresses the project's own lifecycle scripts:
+    /// none of them run, so `order.txt` is never created. Mirrors pnpm,
+    /// which skips the project lifecycle hooks alongside dependency build
+    /// scripts under `ignoreScripts`.
+    #[test]
+    fn ignore_scripts_skips_project_lifecycle_scripts() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(workspace.join("package.json"), project_with_lifecycle_scripts().to_string())
+            .expect("write package.json");
+
+        pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+
+        assert!(
+            !workspace.join("order.txt").exists(),
+            "no project lifecycle script should run under --ignore-scripts",
         );
 
         drop((root, mock_instance));

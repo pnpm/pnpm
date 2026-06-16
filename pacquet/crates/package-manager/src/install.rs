@@ -1394,7 +1394,11 @@ where
         // Skipped for partial installs (`pacquet add`): pnpm filters
         // to `mutation === 'install'` so a named install does not fire
         // the project's own scripts (see [`Install::is_full_install`]).
-        if is_full_install {
+        //
+        // Also skipped under `--ignore-scripts`: pnpm suppresses the
+        // project's own lifecycle scripts alongside dependency build
+        // scripts when `ignoreScripts` is set.
+        if is_full_install && !config.ignore_scripts {
             run_projects_lifecycle_scripts::<Reporter>(
                 &project_manifests,
                 config,

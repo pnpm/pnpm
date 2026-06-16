@@ -389,7 +389,8 @@ fn snapshot_cache_key_for_git_resolution_uses_git_hosted_key() {
     let pkg = key("ts-pipe-compose", "0.2.1");
     let packages = HashMap::from([(pkg.clone(), git_metadata())]);
 
-    let received = snapshot_cache_key(&pkg, &packages).expect("snapshot_cache_key must not error");
+    let received =
+        snapshot_cache_key(&pkg, &packages, false).expect("snapshot_cache_key must not error");
     assert_eq!(
         received,
         Some(format!("{pkg}\tbuilt")),
@@ -405,7 +406,8 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
     let pkg = key("foo", "1.0.0");
     let packages = HashMap::from([(pkg.clone(), git_hosted_tarball_metadata())]);
 
-    let received = snapshot_cache_key(&pkg, &packages).expect("snapshot_cache_key must not error");
+    let received =
+        snapshot_cache_key(&pkg, &packages, false).expect("snapshot_cache_key must not error");
     assert_eq!(
         received,
         Some(format!("{pkg}\tbuilt")),
@@ -422,8 +424,8 @@ fn snapshot_cache_key_rejects_tarball_without_integrity() {
     let pkg = key("foo", "1.0.0");
     let packages = HashMap::from([(pkg.clone(), tarball_metadata_without_integrity())]);
 
-    let err =
-        snapshot_cache_key(&pkg, &packages).expect_err("missing integrity must reject upfront");
+    let err = snapshot_cache_key(&pkg, &packages, false)
+        .expect_err("missing integrity must reject upfront");
     assert!(
         matches!(
             &err,

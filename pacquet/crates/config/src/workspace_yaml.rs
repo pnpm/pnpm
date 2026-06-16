@@ -247,6 +247,12 @@ pub struct WorkspaceSettings {
     /// fails instead of only warning. Default `true`.
     pub strict_dep_builds: Option<bool>,
 
+    /// `ignoreScripts` from `pnpm-workspace.yaml`. When `true`, no
+    /// lifecycle scripts run and ignored dependency builds aren't
+    /// collected. See [`Config::ignore_scripts`]. The `--ignore-scripts`
+    /// CLI flag ORs on top of this. Default `false`.
+    pub ignore_scripts: Option<bool>,
+
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Tri-state
     /// — yaml accepts `true` / `false` / `"warn-only"`. Custom serde
     /// shape, see [`ScriptsPrependNodePath`]'s `Deserialize` impl.
@@ -840,6 +846,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.strict_dep_builds {
             config.strict_dep_builds = v;
+        }
+        if let Some(v) = self.ignore_scripts {
+            config.ignore_scripts = v;
         }
         if let Some(v) = self.scripts_prepend_node_path {
             config.scripts_prepend_node_path = v;
