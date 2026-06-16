@@ -169,9 +169,9 @@ fn prune_target_must_be_inside_node_modules() {
 #[test]
 fn same_dir_matches_equivalent_paths() {
     let dir = tempfile::tempdir().unwrap();
-    let a = dir.path().join("store");
-    fs::create_dir_all(&a).unwrap();
-    // `a` and `a/.` canonicalize to the same real path.
-    assert!(same_dir(&a, &a.join(".")));
-    assert!(!same_dir(&a, dir.path()));
+    let store = dir.path().join("store");
+    fs::create_dir_all(&store).unwrap();
+    // `store` and `store/.` canonicalize to the same real path.
+    assert!(same_dir(&store, &store.join(".")));
+    assert!(!same_dir(&store, dir.path()));
 }
