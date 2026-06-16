@@ -277,6 +277,24 @@ describe('"packageManager" / "devEngines.packageManager" conflict warning', () =
     })
     expect(warnings).toContain(`"packageManager" (yarn) and "devEngines.packageManager" (pnpm) specify different package managers in package.json${IGNORED}`)
   })
+
+  test('strips control characters from package.json values embedded in the warning', async () => {
+    prepare({
+      packageManager: 'ev\u001b[31mi\nl@1.2.3',
+      devEngines: {
+        packageManager: { name: 'pnpm', version: '1.2.3', onFail: 'ignore' },
+      },
+    })
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.2.3' },
+    })
+    const warning = warnings.find(w => w.includes('different package managers'))
+    expect(warning).toBeDefined()
+    // eslint-disable-next-line no-control-regex
+    expect(warning).not.toMatch(/[\u0000-\u001f\u007f]/)
+    expect(warning).toContain('"packageManager" (evi l)')
+  })
 })
 
 describe('parsePackageManager', () => {

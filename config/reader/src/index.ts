@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { stripVTControlCharacters } from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
@@ -904,7 +905,7 @@ function getPackageManagerConflictWarning (legacy: ParsedPackageManager, devEngi
   const ignoredSuffix = '. "packageManager" will be ignored'
   const genericWarning = `Cannot use both "packageManager" and "devEngines.packageManager" in package.json${ignoredSuffix}`
   if (legacy.name !== devEngines.name) {
-    return `"packageManager" (${legacy.name}) and "devEngines.packageManager" (${devEngines.name}) specify different package managers in package.json${ignoredSuffix}`
+    return `"packageManager" (${sanitizeManifestValue(legacy.name)}) and "devEngines.packageManager" (${sanitizeManifestValue(devEngines.name)}) specify different package managers in package.json${ignoredSuffix}`
   }
   if (legacy.version !== devEngines.version) {
     // "different versions" only makes sense when both sides are concrete
@@ -912,19 +913,30 @@ function getPackageManagerConflictWarning (legacy: ParsedPackageManager, devEngi
     // URL or a bare name — fall back to the generic notice rather than claiming
     // a version mismatch.
     if (legacy.version == null || devEngines.version == null) return genericWarning
-    return `"packageManager" and "devEngines.packageManager" specify different versions of ${legacy.name} in package.json${ignoredSuffix}`
+    return `"packageManager" and "devEngines.packageManager" specify different versions of ${sanitizeManifestValue(legacy.name)} in package.json${ignoredSuffix}`
   }
   if (legacy.hash !== devEngines.hash) {
     // Same name and version, but the integrity hashes differ. Two distinct
     // hashes for one version is a likely wrong-hash mistake, so call it out
     // specifically; a hash on only one side is a softer mismatch (the version
     // still agrees) and gets the generic notice.
-    if (legacy.hash != null && devEngines.hash != null) {
-      return `"packageManager" and "devEngines.packageManager" specify ${legacy.name}@${legacy.version} with different integrity hashes in package.json${ignoredSuffix}`
+    if (legacy.hash != null && devEngines.hash != null && legacy.version != null) {
+      return `"packageManager" and "devEngines.packageManager" specify ${sanitizeManifestValue(legacy.name)}@${sanitizeManifestValue(legacy.version)} with different integrity hashes in package.json${ignoredSuffix}`
     }
     return genericWarning
   }
   return undefined
+}
+
+/**
+ * Renders a package.json-controlled value safe to embed in a warning printed to
+ * the terminal. Strips ANSI escape sequences and replaces remaining control
+ * characters (including newlines) with spaces so a malicious manifest cannot
+ * forge or rewrite terminal/CI log output.
+ */
+function sanitizeManifestValue (value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return stripVTControlCharacters(value).replace(/[\u0000-\u001f\u007f]/g, ' ')
 }
 
 /**
