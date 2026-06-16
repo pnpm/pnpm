@@ -68,5 +68,7 @@ export async function handler (opts: DedupeCommandOptions, _params?: string[], c
     include,
     includeDirect: include,
     lockfileCheck: opts.check ? dedupeDiffCheck : undefined,
+    // `--dry-run` is an `install`-only preview; `dedupe` has its own `--check`.
+    dryRun: false,
   }, [])
 }

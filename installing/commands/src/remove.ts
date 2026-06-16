@@ -191,6 +191,9 @@ export async function handler (
     storeDir: store.dir,
     resolutionVerifiers: store.resolutionVerifiers,
     include,
+    // `--dry-run` is an `install`-only preview; never let a config-level
+    // `dry-run` turn `remove` into a no-op check.
+    dryRun: false,
   })
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir

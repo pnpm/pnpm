@@ -312,6 +312,9 @@ export async function handler (
       fetchFullMetadata: getFetchFullMetadata(opts),
       include,
       includeDirect: include,
+      // `--dry-run` is an `install`-only preview; never let a config-level
+      // `dry-run` turn `add` into a no-op check.
+      dryRun: false,
     }, params)
     return
   }
@@ -321,5 +324,6 @@ export async function handler (
     fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,
+    dryRun: false,
   }, params)
 }

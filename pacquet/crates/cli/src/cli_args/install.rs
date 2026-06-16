@@ -411,6 +411,12 @@ impl InstallArgs {
         // server-produced lockfile via the normal frozen install. Mirrors
         // pnpm's `install()` delegating to `installFromPnpmRegistry`.
         if let Some(pnpr_server) = config.pnpr_server.as_deref() {
+            // The pnpr path resolves and links through the server, so it
+            // can't honor `--dry-run`'s no-write contract. Reject up front,
+            // mirroring pnpm's CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER.
+            if dry_run {
+                return Err(DryRunIncompatibleWithPnpr.into());
+            }
             return install_via_pnpr::<Reporter>(
                 &state,
                 pnpr_server,
@@ -537,6 +543,22 @@ struct PnprLink<'a> {
     )
 )]
 struct FrozenStoreIncompatibleWithPnpr;
+
+/// `--dry-run` was requested with a configured `pnprServer`. The pnpr path
+/// resolves and links through the server, so it can't honor the dry-run
+/// "writes nothing" contract. Mirrors pnpm's
+/// `ERR_PNPM_CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER`.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Cannot use --dry-run with a configured pnpr server because the pnpr install path resolves and links through the server."
+)]
+#[diagnostic(
+    code(ERR_PNPM_CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER),
+    help(
+        "Unset the pnpr server (`--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) to preview locally, or drop --dry-run."
+    )
+)]
+struct DryRunIncompatibleWithPnpr;
 
 /// Resolve a single project through a `pnpr` server, then link it.
 ///

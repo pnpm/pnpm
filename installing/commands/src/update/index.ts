@@ -329,6 +329,9 @@ async function update (
     updateMatching,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
+    // `--dry-run` is an `install`-only preview; never let a config-level
+    // `dry-run` turn `update` into a no-op check.
+    dryRun: false,
   }, dependencies)
 }
 

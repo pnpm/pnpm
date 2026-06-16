@@ -367,3 +367,18 @@ test('install --dry-run reports changes in a workspace without writing', async (
   expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfileBefore)
   expect(fs.readFileSync('project-1/package.json', 'utf8')).toBe(projectManifestBefore)
 })
+
+test('a config-level dryRun does not turn add into a no-op', async () => {
+  prepareEmpty()
+
+  // `--dry-run` is install-only; a config-level `dry-run` (it is a real config
+  // key) must not silently make `add` a check-only no-op.
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    dryRun: true,
+  }, ['is-positive@1.0.0'])
+
+  const pkg = loadJsonFileSync<{ dependencies?: Record<string, string> }>(path.resolve('package.json'))
+  expect(pkg.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+})

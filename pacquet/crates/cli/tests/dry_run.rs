@@ -127,3 +127,36 @@ fn dry_run_reports_no_changes_when_up_to_date() {
 
     drop((root, mock_instance));
 }
+
+/// `--dry-run` is rejected when a pnpr server is configured: that path
+/// resolves and links through the server, so it can't honor the no-write
+/// contract. Mirrors pnpm's `CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER`.
+#[test]
+fn dry_run_rejects_pnpr_server() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet
+        .with_args(["install", "--dry-run", "--pnpr-server", "http://localhost:1"])
+        .output()
+        .expect("spawn pacquet");
+    assert!(
+        !output.status.success(),
+        "--dry-run with a pnpr server must fail (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Cannot use --dry-run with a configured pnpr server"),
+        "stderr must name the dry-run/pnpr conflict; got:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}

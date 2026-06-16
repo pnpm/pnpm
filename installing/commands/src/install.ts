@@ -452,12 +452,11 @@ async function dryRunInstall (installDepsOptions: InstallDepsOptions, opts: Inst
   installDepsOptions.dryRun = true
   const dryRunResult = await installDeps(installDepsOptions, [])
   if (dryRunResult == null) {
-    // Fail closed rather than render "up to date": a missing comparison means
-    // this install configuration's resolve path doesn't yet surface the
-    // dry-run lockfiles (e.g. a workspace without a shared lockfile), so we
-    // can't tell whether the lockfile would change.
-    throw new PnpmError('DRY_RUN_UNSUPPORTED',
-      '--dry-run is not supported for this install configuration (no shared lockfile to compare)')
+    // No comparison was produced — this install configuration's resolve path
+    // doesn't surface the dry-run lockfiles (e.g. a workspace without a
+    // shared lockfile). Report that explicitly instead of claiming "up to
+    // date", but keep `--dry-run`'s exit-0 contract.
+    return 'Dry run complete. Could not compute the changes for this install configuration (no shared lockfile to compare).'
   }
   return renderDryRunReport(dryRunResult)
 }
