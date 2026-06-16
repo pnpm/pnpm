@@ -101,6 +101,29 @@ describe('serializeCycloneDx', () => {
     expect(parsed.metadata.component.purl).toBe('pkg:npm/%40acme/sbom-app@1.0.0')
   })
 
+  it('should mark dev-only components with scope "excluded" and leave prod components scopeless', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    const babel = parsed.components.find((c: { name: string }) => c.name === 'core')
+    expect(babel.scope).toBe('excluded')
+    expect(babel.properties).toContainEqual({ name: 'cdx:npm:package:development', value: 'true' })
+
+    const lodash = parsed.components.find((c: { name: string }) => c.name === 'lodash')
+    expect(lodash.scope).toBeUndefined()
+    expect(lodash.properties).toBeUndefined()
+  })
+
+  it('should leave dev-and-prod components scopeless without the development marker', () => {
+    const result = makeSbomResult()
+    result.components[1].depType = DepType.DevAndProd
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    const babel = parsed.components.find((c: { name: string }) => c.name === 'core')
+    expect(babel.scope).toBeUndefined()
+    expect(babel.properties).toBeUndefined()
+  })
+
   it('should include root component metadata', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeCycloneDx(result))
