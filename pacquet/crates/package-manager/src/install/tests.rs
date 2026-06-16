@@ -150,6 +150,155 @@ async fn should_install_dependencies() {
     drop((dir, mock_instance)); // cleanup
 }
 
+/// A first install (no prior `.modules.yaml`, so the prune throttle
+/// always fires) sweeps a surplus `.pacquet` directory the wanted
+/// lockfile doesn't reference, while keeping the slot it does. Drives
+/// the [`crate::prune_virtual_store`] wiring through the real install
+/// path; mirrors the surplus-cleanup behavior of pnpm's `prune` at
+/// <https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L180-L190>.
+#[tokio::test]
+async fn install_prunes_surplus_virtual_store_dir() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    // Seed a surplus virtual-store directory that no lockfile entry
+    // references. The install must sweep it.
+    let surplus = virtual_store_dir.join("surplus-pkg@9.9.9");
+    std::fs::create_dir_all(&surplus).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    assert!(
+        virtual_store_dir.join("@pnpm.e2e+hello-world-js-bin@1.0.0").exists(),
+        "the installed package's virtual-store dir must survive the prune",
+    );
+    assert!(!surplus.exists(), "the surplus virtual-store dir must be pruned on install");
+
+    drop((dir, mock_instance)); // cleanup
+}
+
+/// The prune deletes directories under `virtual_store_dir`, which can be
+/// set by repo-controlled workspace config. When that path escapes the
+/// project's `node_modules` (here, a sibling directory), the sweep is
+/// refused so a malicious config can't redirect destructive deletes
+/// outside the managed tree. Regression guard for the path-containment
+/// check in [`crate::prune_virtual_store::prune_target_within_modules`].
+#[tokio::test]
+async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    // The virtual store is pointed *outside* node_modules, as a malicious
+    // workspace config could do.
+    let virtual_store_dir = dir.path().join("escaped-store");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    // A surplus entry the wanted lockfile doesn't reference. Because the
+    // store escapes node_modules, the sweep must leave it untouched.
+    let surplus = virtual_store_dir.join("surplus-pkg@9.9.9");
+    std::fs::create_dir_all(&surplus).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    assert!(
+        surplus.exists(),
+        "prune must be skipped when the virtual store is outside node_modules",
+    );
+
+    drop((dir, mock_instance)); // cleanup
+}
+
 #[tokio::test]
 async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
     let dir = tempdir().unwrap();
@@ -2974,6 +3123,7 @@ fn build_modules_manifest_serializes_skipped_set() {
         Default::default(),
         &skipped,
         &[],
+        "Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
     );
 
     // Compare as sets — `build_modules_manifest` does not sort.
@@ -3011,6 +3161,7 @@ fn build_modules_manifest_skipped_is_empty_on_empty_set() {
         Default::default(),
         &SkippedSnapshots::new(),
         &[],
+        "Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
     );
     assert!(manifest.skipped.is_empty());
     // Empty `hoisted_locations` is dropped to `None` so an

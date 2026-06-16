@@ -1340,6 +1340,93 @@ where
         // progress display has closed. Mirrors upstream's emit point in
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>.
 
+        // Remove surplus virtual-store directories the wanted lockfile
+        // no longer references, throttled by `modulesCacheMaxAge`.
+        // Mirrors upstream's `pruneVirtualStore` gate at
+        // <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L471-L473>
+        // and the virtual-store sweep inside `prune` at
+        // <https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L173-L191>.
+        // The wanted lockfile is `fresh_lockfile` on the resolve path and
+        // `lockfile` on the frozen path; its `snapshots:` keys name the
+        // virtual-store subdirectories that must survive.
+        // A genuine read/parse failure (not `NotFound`) is treated as
+        // "no prior manifest" — the safe direction (prune + fresh
+        // `prunedAt`) — but logged rather than silently swallowed.
+        let prior_modules = match read_modules_manifest::<Host>(&config.modules_dir) {
+            Ok(modules) => modules,
+            Err(error) => {
+                tracing::warn!(?error, "failed to read .modules.yaml; treating as a fresh install");
+                None
+            }
+        };
+        let now = SystemTime::now();
+        let effective_virtual_store_dir = config.effective_virtual_store_dir();
+        // Decide "this is the global store" from the resolved paths, not
+        // the `enableGlobalVirtualStore` flag alone: the global store is
+        // shared across projects, so a config that points `virtualStoreDir`
+        // at it must not be pruned even when the flag is off.
+        let is_global_virtual_store = crate::prune_virtual_store::same_dir(
+            effective_virtual_store_dir,
+            &config.global_virtual_store_dir,
+        );
+        // `did_prune` tracks whether the sweep actually ran (enumerated the
+        // store), not just whether the throttle allowed it. It stays false
+        // when there is no wanted lockfile to derive the needed set from
+        // (e.g. `config.lockfile == false` leaves both `fresh_lockfile` and
+        // a loaded `lockfile` absent), when the target is refused as unsafe,
+        // or when enumeration failed. `prunedAt` must not advance on a run
+        // where nothing was swept, or the next real sweep is throttled off
+        // for `modulesCacheMaxAge`.
+        let did_prune = if crate::prune_virtual_store::should_prune_virtual_store(
+            is_global_virtual_store,
+            prior_modules.as_ref().map(|modules| modules.pruned_at.as_str()),
+            config.modules_cache_max_age,
+            now,
+        ) {
+            match fresh_lockfile.as_ref().or(lockfile) {
+                // Sweep the canonicalized prune target returned by the
+                // containment check, never the raw configured path: deleting
+                // from the validated path closes the time-of-check/time-of-use
+                // gap a symlink swap would otherwise open.
+                Some(wanted) => {
+                    if let Some(prune_dir) = crate::prune_virtual_store::prune_target_within_modules(
+                        effective_virtual_store_dir,
+                        &config.modules_dir,
+                    ) {
+                        crate::prune_virtual_store::prune_virtual_store(
+                            &prune_dir,
+                            wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+                            &frozen_skipped,
+                            config.virtual_store_dir_max_length as usize,
+                        )
+                        .is_some()
+                    } else {
+                        // A wanted lockfile exists but the store path is unsafe
+                        // (escapes node_modules); refuse the destructive sweep.
+                        tracing::warn!(
+                            virtual_store_dir = %effective_virtual_store_dir.display(),
+                            modules_dir = %config.modules_dir.display(),
+                            "skipping virtual-store prune: the virtual store is not inside node_modules",
+                        );
+                        false
+                    }
+                }
+                None => false,
+            }
+        } else {
+            false
+        };
+
+        // Stamp `prunedAt` only when the sweep ran (or there was no prior
+        // `.modules.yaml`); otherwise preserve the recorded timestamp so
+        // the throttle keeps counting from the last real prune. Mirrors
+        // upstream's write at
+        // <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L1828-L1830>.
+        let pruned_at = match (&prior_modules, did_prune) {
+            (Some(prior), false) => prior.pruned_at.clone(),
+            _ => httpdate::fmt_http_date(now),
+        };
+
         // Write `node_modules/.modules.yaml`. Mirrors upstream's
         // `writeModulesManifest` call at
         // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1608-L1630>,
@@ -1358,6 +1445,7 @@ where
                 hoisted_locations,
                 &frozen_skipped,
                 &ignored_builds,
+                pruned_at,
             ),
         )
         .map_err(InstallError::WriteModules)?;
@@ -1849,6 +1937,10 @@ fn unapproved_recorded_ignored_builds(
 ///
 /// [`PackageKey`]: pacquet_lockfile::PackageKey
 /// [`write_modules_manifest`]: pacquet_modules_yaml::write_modules_manifest
+#[expect(
+    clippy::too_many_arguments,
+    reason = "assembles every field of the .modules.yaml manifest from the install's resolved state"
+)]
 fn build_modules_manifest(
     config: &Config,
     node_linker: NodeLinker,
@@ -1857,6 +1949,7 @@ fn build_modules_manifest(
     hoisted_locations: BTreeMap<String, Vec<String>>,
     skipped: &crate::SkippedSnapshots,
     ignored_builds: &[String],
+    pruned_at: String,
 ) -> Modules {
     Modules {
         // The `name@version` keys whose build scripts were blocked, so a
@@ -1880,9 +1973,10 @@ fn build_modules_manifest(
         // resolves at compile time to this crate's package version.
         package_manager: concat!("pacquet@", env!("CARGO_PKG_VERSION")).to_string(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
-        // RFC 1123 / `toUTCString()` format, matching upstream's
-        // `new Date().toUTCString()` at line 1622.
-        pruned_at: httpdate::fmt_http_date(SystemTime::now()),
+        // RFC 1123 / `toUTCString()` format. The caller decides whether
+        // this is a fresh timestamp (a prune ran or first install) or the
+        // preserved prior value, per upstream's `prunedAt` write logic.
+        pruned_at,
         registries: Some(config.resolved_registries()),
         // `iter_installability` excludes fetch-failure entries so they
         // don't get persisted across installs — matches upstream's
