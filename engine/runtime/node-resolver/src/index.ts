@@ -64,7 +64,7 @@ export async function resolveNodeRuntime (
     throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
   }
   const variants = await readNodeAssets(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version, releaseChannel)
-  const range = version === versionSpec ? version : `^${version}`
+  const range = createNodeRuntimeVersionSpec(versionSpec, version, wantedDependency)
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
     normalizedBareSpecifier: `runtime:${range}`,
@@ -94,6 +94,23 @@ export async function resolveLatestNodeRuntime (
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
   if (!version) return {}
   return { latestManifest: { name: 'node', version } }
+}
+
+function createNodeRuntimeVersionSpec (
+  versionSpec: string,
+  resolvedVersion: string,
+  wantedDependency: WantedDependency
+): string {
+  if (resolvedVersion === versionSpec || semver.parse(resolvedVersion)?.prerelease.length) {
+    return resolvedVersion
+  }
+  const source = wantedDependency.prevSpecifier?.startsWith('runtime:')
+    ? wantedDependency.prevSpecifier.substring('runtime:'.length)
+    : versionSpec
+  const spec = source.includes('/') ? source.split('/', 2)[1] : source
+  if (spec.startsWith('^')) return `^${resolvedVersion}`
+  if (spec.startsWith('~')) return `~${resolvedVersion}`
+  return resolvedVersion
 }
 
 async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string, releaseChannel: string): Promise<PlatformAssetResolution[]> {

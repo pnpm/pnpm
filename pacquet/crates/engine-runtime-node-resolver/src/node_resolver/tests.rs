@@ -5,8 +5,8 @@ use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency
 use pretty_assertions::assert_eq;
 
 use super::{
-    NodeResolver, NodeResolverError, bin_spec_for_platform, parse_node_file_name,
-    read_node_assets_from_mirror,
+    NodeResolver, NodeResolverError, bin_spec_for_platform,
+    normalize_node_runtime_version_specifier, parse_node_file_name, read_node_assets_from_mirror,
 };
 
 fn resolver() -> NodeResolver {
@@ -103,6 +103,27 @@ fn bin_spec_is_a_named_map() {
         bin_spec_for_platform("win32"),
         BinarySpec::Map(BTreeMap::from([("node".to_string(), "node.exe".to_string())])),
     );
+}
+
+#[test]
+fn normalized_runtime_spec_preserves_version_prefix() {
+    let cases = [
+        ("22", None, "22.11.0"),
+        ("^22", None, "^22.11.0"),
+        ("22", Some("runtime:~22.0.0"), "~22.11.0"),
+        ("^22", Some("runtime:22.0.0"), "22.11.0"),
+        ("rc/^22", None, "^22.11.0"),
+        ("22", Some("runtime:^22.0.0-rc.0"), "^22.11.0"),
+    ];
+    for (version_spec, prev_specifier, expected) in cases {
+        assert_eq!(
+            normalize_node_runtime_version_specifier(version_spec, "22.11.0", prev_specifier),
+            expected,
+            "version_spec={version_spec:?}, prev_specifier={prev_specifier:?}",
+        );
+    }
+
+    assert_eq!(normalize_node_runtime_version_specifier("^22", "22.0.0-rc.0", None), "22.0.0-rc.0");
 }
 
 #[tokio::test]
