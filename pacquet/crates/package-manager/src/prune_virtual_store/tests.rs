@@ -1,6 +1,8 @@
-use std::collections::HashSet;
-use std::fs;
-use std::time::{Duration, SystemTime};
+use std::{
+    collections::HashSet,
+    fs,
+    time::{Duration, SystemTime},
+};
 
 use pacquet_lockfile::PkgNameVerPeer;
 

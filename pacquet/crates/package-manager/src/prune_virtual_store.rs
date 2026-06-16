@@ -15,11 +15,12 @@
 //! count derived from the current-vs-wanted orphan diff — is not part
 //! of this slice.
 
-use std::collections::HashSet;
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::{
+    collections::HashSet,
+    fs, io,
+    path::{Path, PathBuf},
+    time::{Duration, SystemTime},
+};
 
 use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
 
