@@ -556,6 +556,8 @@ test('pnpm sbom --lockfile-only skips workspace dep resolution', async () => {
   const componentNames = parsed.components.map((c: { name: string }) => c.name)
   // lockfile-only mode: workspace deps are not resolved (no manifest reads)
   expect(componentNames).not.toContain('shared-lib')
+  // Transitive deps reachable only through workspace links are not traversed either
+  expect(componentNames).not.toContain('is-odd')
   // External deps from the selected importer are still present
   expect(componentNames).toContain('is-positive')
 })

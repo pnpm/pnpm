@@ -52,7 +52,10 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
   const relationships: SbomRelationship[] = []
   const rootPurl = `pkg:npm/${encodePurlName(opts.rootName)}@${opts.rootVersion}`
 
-  const workspaceDeps = opts.resolvedWorkspaceDeps ?? resolveWorkspaceDeps(opts.lockfile, importerIds, opts.include)
+  const workspaceDeps = opts.resolvedWorkspaceDeps
+    ?? (opts.lockfileOnly
+      ? { links: [], additionalImporterIds: [] }
+      : resolveWorkspaceDeps(opts.lockfile, importerIds, opts.include))
   const allImporterIds = [...importerIds, ...workspaceDeps.additionalImporterIds]
 
   const importerWalkers = lockfileWalkerGroupImporterSteps(
@@ -256,6 +259,10 @@ export function resolveWorkspaceDeps (
       const targetId = path.posix.normalize(
         importerId === ('.' as ProjectId) ? linkPath : path.posix.join(importerId, linkPath)
       ) as ProjectId
+
+      // A crafted lockfile can point a `link:` target outside the workspace root;
+      // such importer IDs must never be followed, as they later become filesystem reads.
+      if (path.posix.isAbsolute(targetId) || targetId === '..' || targetId.startsWith('../')) continue
 
       if (!(targetId in lockfile.importers)) continue
 

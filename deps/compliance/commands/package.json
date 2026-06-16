@@ -63,6 +63,7 @@
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
     "memoize": "catalog:",
+    "p-limit": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:"

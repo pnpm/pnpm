@@ -20,6 +20,7 @@ import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { getStorePath } from '@pnpm/store.path'
 import type { ProjectId } from '@pnpm/types'
+import pLimit from 'p-limit'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -444,6 +445,8 @@ function extractRepository (manifest: { repository?: string | { url?: string } }
   return manifest.repository?.url
 }
 
+const WORKSPACE_MANIFEST_READ_CONCURRENCY = 8
+
 async function buildWorkspacePackagesMap (
   reachableImporterIds: ProjectId[],
   lockfileDir: string,
@@ -458,24 +461,27 @@ async function buildWorkspacePackagesMap (
     }
   }
 
+  const readManifest = pLimit(WORKSPACE_MANIFEST_READ_CONCURRENCY)
   const entries = await Promise.all(
-    reachableImporterIds.map(async (importerId): Promise<[ProjectId, WorkspacePackageInfo] | null> => {
+    reachableImporterIds.map((importerId) => readManifest(async (): Promise<[ProjectId, WorkspacePackageInfo] | null> => {
       const selected = selectedEntriesMap.get(importerId)
       const manifest = selected
         ? selected.manifest
-        : await readManifestSafe(path.join(lockfileDir, importerId))
+        : isInsideDir(lockfileDir, importerId)
+          ? await readManifestSafe(path.join(lockfileDir, importerId))
+          : undefined
 
-      if (!manifest?.name || !manifest.version) return null
+      if (!manifest?.name) return null
 
       return [importerId, {
         name: manifest.name,
-        version: manifest.version,
+        version: manifest.version ?? '0.0.0',
         license: typeof manifest.license === 'string' ? manifest.license : undefined,
         description: manifest.description,
         author: extractAuthor(manifest),
         repository: extractRepository(manifest),
       }]
-    })
+    }))
   )
 
   return Object.fromEntries(entries.filter((e) => e !== null)) as Record<ProjectId, WorkspacePackageInfo>
@@ -494,5 +500,13 @@ function sanitizePackageName (name: string): string {
 }
 
 function sanitizePathSegment (value: string): string {
-  return value.replace(/[/\\:*?"<>|]/g, '-')
+  const sanitized = value.replace(/[/\\:*?"<>|]/g, '-')
+  // `.`, `..`, or a blank value would let a crafted name/version escape or replace
+  // the intended output directory once interpolated into an `--out` template.
+  return sanitized === '.' || sanitized === '..' || sanitized.trim() === '' ? '-' : sanitized
+}
+
+function isInsideDir (parentDir: string, childRelativePath: string): boolean {
+  const rel = path.relative(parentDir, path.resolve(parentDir, childRelativePath))
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
 }
