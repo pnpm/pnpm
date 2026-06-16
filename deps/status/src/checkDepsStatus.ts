@@ -193,7 +193,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
     cwd: workspaceDir ?? lockfileDir ?? rootProjectManifestDir,
   })
-  const { conflictedDir: conflictedLockfileDir, anyModified: lockfilesModified } = scanWantedLockfiles(lockfileDirs, workspaceState.lastValidatedTimestamp, {
+  const { conflictedDir: conflictedLockfileDir, anyModified: lockfilesModified, anyMissing: lockfilesMissing } = scanWantedLockfiles(lockfileDirs, workspaceState.lastValidatedTimestamp, {
     wantedLockfileName,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   })
@@ -287,11 +287,17 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     )
 
     if ((modifiedProjects.length === 0) && !lockfilesModified) {
-      logger.debug({ msg: 'No manifest files or lockfiles were modified since the last validation. Exiting check.' })
-      const wantedLockfileToRestore = sharedWorkspaceLockfile && !opts.useGitBranchLockfile
+      const wantedLockfileToRestore = lockfilesMissing && sharedWorkspaceLockfile && !opts.useGitBranchLockfile
         ? await missingWantedLockfileStandIn(workspaceDir, wantedLockfileName)
         : undefined
-      return { upToDate: true, workspaceState, wantedLockfileToRestore }
+      // A missing wanted lockfile only skips the full check when the current
+      // lockfile can stand in for it. Otherwise fall through so the checks
+      // below throw RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND instead of silently
+      // reporting "up to date".
+      if (!lockfilesMissing || wantedLockfileToRestore != null) {
+        logger.debug({ msg: 'No manifest files or lockfiles were modified since the last validation. Exiting check.' })
+        return { upToDate: true, workspaceState, wantedLockfileToRestore }
+      }
     }
 
     logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
@@ -685,9 +691,11 @@ function scanWantedLockfiles (lockfileDirs: string[], lastValidatedTimestamp: nu
 }): {
   conflictedDir: string | undefined
   anyModified: boolean
+  anyMissing: boolean
 } {
   let conflictedDir: string | undefined
   let anyModified = false
+  let anyMissing = false
   for (const lockfileDir of lockfileDirs) {
     // With `mergeGitBranchLockfiles`, `readWantedLockfile` merges every
     // `pnpm-lock.*.yaml`, so a change in any of them changes the wanted
@@ -695,6 +703,7 @@ function scanWantedLockfiles (lockfileDirs: string[], lastValidatedTimestamp: nu
     const lockfileNames = opts.mergeGitBranchLockfiles
       ? gitBranchLockfileNames(lockfileDir, opts.wantedLockfileName)
       : [opts.wantedLockfileName]
+    let foundInDir = false
     for (const lockfileName of lockfileNames) {
       let mtime: number
       try {
@@ -703,15 +712,17 @@ function scanWantedLockfiles (lockfileDirs: string[], lastValidatedTimestamp: nu
         if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
         throw err
       }
+      foundInDir = true
       if (mtime <= lastValidatedTimestamp) continue
       anyModified = true
       if (wantedLockfileHasMergeConflictsSync(lockfileDir, lockfileName)) {
         conflictedDir = lockfileDir
-        return { conflictedDir, anyModified }
+        return { conflictedDir, anyModified, anyMissing }
       }
     }
+    if (!foundInDir) anyMissing = true
   }
-  return { conflictedDir, anyModified }
+  return { conflictedDir, anyModified, anyMissing }
 }
 
 function gitBranchLockfileNames (lockfileDir: string, wantedLockfileName: string): string[] {
