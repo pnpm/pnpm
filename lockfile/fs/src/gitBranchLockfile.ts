@@ -1,8 +1,10 @@
 import fs, { promises as fsp } from 'node:fs'
 import path from 'node:path'
 
-// eslint-disable-next-line regexp/no-useless-non-capturing-group
-const GIT_BRANCH_LOCKFILE_NAME = /^pnpm-lock.(?:.*).yaml$/
+// Branch lockfiles are written as `pnpm-lock.<branch>.yaml` with literal
+// dots and a non-empty branch segment. Escaping the dots keeps unrelated
+// files out of the matches that feed scanning and `cleanGitBranchLockfiles`.
+const GIT_BRANCH_LOCKFILE_NAME = /^pnpm-lock\..+\.yaml$/
 
 export async function getGitBranchLockfileNames (lockfileDir: string): Promise<string[]> {
   const files = await fsp.readdir(lockfileDir)
