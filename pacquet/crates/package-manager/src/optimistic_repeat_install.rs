@@ -425,6 +425,12 @@ fn is_local_file_spec(spec: &str) -> bool {
     if spec.contains(':') {
         return false;
     }
+    // A `#` here means a hosted-git shorthand committish
+    // (`user/repo#release.tgz`), not a local tarball — the `file:` and
+    // path-prefixed cases already returned above.
+    if spec.contains('#') {
+        return false;
+    }
     ends_with_ignore_ascii_case(spec, ".tgz")
         || ends_with_ignore_ascii_case(spec, ".tar.gz")
         || ends_with_ignore_ascii_case(spec, ".tar")

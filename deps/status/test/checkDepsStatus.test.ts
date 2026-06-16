@@ -1035,6 +1035,9 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
           bar: 'github:user/repo',
           baz: 'https://example.com/pkg.tgz',
           qux: '~1.2.3',
+          // A git shorthand whose committish ends in .tgz must not be
+          // mistaken for a local tarball.
+          quux: 'user/repo#release.tgz',
         },
       },
       rootProjectManifestDir: '/project',

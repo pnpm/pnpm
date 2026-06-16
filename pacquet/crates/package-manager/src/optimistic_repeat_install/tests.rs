@@ -547,7 +547,9 @@ fn returns_up_to_date_when_specs_are_not_local_paths() {
         "1.0.0",
         concat!(
             r#""dependencies":{"foo":"user/repo","bar":"github:user/repo","#,
-            r#""baz":"https://example.com/pkg.tgz","qux":"~1.2.3"}"#,
+            // `quux` is a git shorthand whose committish ends in .tgz — it
+            // must not be mistaken for a local tarball.
+            r#""baz":"https://example.com/pkg.tgz","qux":"~1.2.3","quux":"user/repo#release.tgz"}"#,
         ),
     );
 

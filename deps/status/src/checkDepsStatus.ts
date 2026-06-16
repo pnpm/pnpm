@@ -754,6 +754,9 @@ function isLocalFileSpec (spec: string): boolean {
   if (spec.startsWith('file:')) return true
   if (LOCAL_PATH_PREFIX.test(spec)) return true
   if (spec.includes(':')) return false
+  // A `#` here means a hosted-git shorthand committish (`user/repo#release.tgz`),
+  // not a local tarball — the `file:` and path-prefixed cases already returned above.
+  if (spec.includes('#')) return false
   return LOCAL_TARBALL_EXTENSION.test(spec)
 }
 
