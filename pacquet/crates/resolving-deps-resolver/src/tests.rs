@@ -768,11 +768,23 @@ mod peers {
     async fn cycle_reentry_does_not_drop_sibling_occurrence_transitive_peers() {
         let mut table = HashMap::new();
         for (name, manifest) in [
-            ("p", serde_json::json!({ "name": "p", "version": "1.0.0", "dependencies": { "q": "1.0.0" } })),
-            ("q", serde_json::json!({ "name": "q", "version": "1.0.0", "dependencies": { "p": "1.0.0" }, "peerDependencies": { "e": "1.0.0" }, "peerDependenciesMeta": { "e": { "optional": true } } })),
-            ("w", serde_json::json!({ "name": "w", "version": "1.0.0", "dependencies": { "p": "1.0.0" } })),
+            (
+                "p",
+                serde_json::json!({ "name": "p", "version": "1.0.0", "dependencies": { "q": "1.0.0" } }),
+            ),
+            (
+                "q",
+                serde_json::json!({ "name": "q", "version": "1.0.0", "dependencies": { "p": "1.0.0" }, "peerDependencies": { "e": "1.0.0" }, "peerDependenciesMeta": { "e": { "optional": true } } }),
+            ),
+            (
+                "w",
+                serde_json::json!({ "name": "w", "version": "1.0.0", "dependencies": { "p": "1.0.0" } }),
+            ),
         ] {
-            table.insert((name.to_string(), "1.0.0".to_string()), fake_result(name, "1.0.0", manifest));
+            table.insert(
+                (name.to_string(), "1.0.0".to_string()),
+                fake_result(name, "1.0.0", manifest),
+            );
         }
         let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "p": "1.0.0", "w": "1.0.0" }));
@@ -795,8 +807,7 @@ mod peers {
 
         let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
         for name in ["p@1.0.0", "w@1.0.0"] {
-            let entry =
-                result.graph.get(&DepPath::from(name.to_string())).expect("entry in graph");
+            let entry = result.graph.get(&DepPath::from(name.to_string())).expect("entry in graph");
             assert!(
                 entry.transitive_peer_dependencies.contains("e"),
                 "{name} should carry transitive peer 'e', got {:?}",
