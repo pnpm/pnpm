@@ -130,7 +130,6 @@ export const excludedPnpmKeys = [
   'production',
   'public-hoist-pattern',
   'publish-branch',
-  'recursive',
   'recursive-install',
   'resolve-peers-from-workspace-root',
   'runtime',

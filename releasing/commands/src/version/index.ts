@@ -6,7 +6,6 @@ import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import type { ProjectsGraph } from '@pnpm/types'
-import { filterProjectsFromDir, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -151,46 +150,7 @@ export async function handler (
   const changes: VersionChange[] = []
 
   if (opts.recursive) {
-    const workspaceDir = opts.workspaceDir || opts.dir
-    let pkgDirs: string[]
-    const graphDirs =
-      opts.selectedProjectsGraph != null
-        ? Object.keys(opts.selectedProjectsGraph)
-        : []
-
-    if (graphDirs.length > 0) {
-      pkgDirs = graphDirs
-    } else {
-      const filters: WorkspaceFilter[] = []
-
-      if (opts.filter && opts.filter.length > 0) {
-        opts.filter.forEach(filterPattern => {
-          filters.push({
-            filter: filterPattern,
-            followProdDepsOnly: !!opts.filterProd && opts.filterProd.length > 0,
-          })
-        })
-      }
-
-      const result = await filterProjectsFromDir(
-        workspaceDir,
-        filters,
-        {
-          workspaceDir,
-          prefix: opts.dir,
-          patterns: opts.workspacePackagePatterns,
-          engineStrict: opts.engineStrict,
-          nodeVersion: opts.nodeVersion,
-          sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
-          linkWorkspacePackages: !!opts.linkWorkspacePackages,
-          testPattern: opts.testPattern,
-          changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
-          useGlobDirFiltering: !opts.legacyDirFiltering,
-        }
-      )
-
-      pkgDirs = Object.keys(result.selectedProjectsGraph)
-    }
+    const pkgDirs = Object.keys(opts.selectedProjectsGraph ?? {})
     const bumpResults = await Promise.all(
       pkgDirs.map(pkgDir => bumpPackageVersion(pkgDir, rawBump, explicitVersion, opts))
     )
