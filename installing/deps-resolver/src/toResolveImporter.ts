@@ -77,7 +77,7 @@ export async function toResolveImporter (
           ? updateLocalTarballs
           : (dep) => ({ ...dep, updateDepth: defaultUpdateDepth })),
       ...existingDeps.map(
-        opts.noDependencySelectors && project.updateMatching != null
+        project.updateMatching != null
           ? updateLocalTarballs
           : (dep) => ({ ...dep, updateDepth: -1 })
       ),

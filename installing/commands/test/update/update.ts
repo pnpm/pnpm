@@ -105,6 +105,40 @@ test('update with negation pattern', async () => {
   expect(lockfile.packages['@pnpm.e2e/foo@2.0.0']).toBeTruthy()
 })
 
+test('update transitive dependency when mixed with a direct dependency selector', async () => {
+  // Pin the transitive @pnpm.e2e/dep-of-pkg-with-1-dep to 100.0.0 at install
+  // time, so the later update has an older version to bump from.
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '1.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  expect(project.readLockfile().packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeTruthy()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  // @pnpm.e2e/dep-of-pkg-with-1-dep is a transitive selector (matched via
+  // updateMatching); @pnpm.e2e/foo is a direct dependency selector. The
+  // presence of the direct selector must not block the transitive update.
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep', '@pnpm.e2e/foo'])
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
+})
+
 test('update: fail when both "latest" and "workspace" are true', async () => {
   preparePackages([
     {
