@@ -462,8 +462,12 @@ async function iterateLockfileViolations (
       // same (name, version).
       try {
         for (const verifier of verifiers) {
+          if (aborted) return
           // eslint-disable-next-line no-await-in-loop
           const result = await verifier.verify(resolution, { name, version, nonSemverVersion })
+          // Another task may have aborted during the await — don't push
+          // violations or continue work after the first unexpected failure.
+          if (aborted) return
           if (!result.ok) {
             violations.push({ name, version, resolution, code: result.code, reason: result.reason })
             break

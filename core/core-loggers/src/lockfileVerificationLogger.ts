@@ -33,8 +33,8 @@ export interface LockfileVerificationDoneMessage extends LockfileVerificationMes
   status: 'done'
   /** Number of distinct (name, version, resolution) entries in this verification run. */
   entries: number
-  /** Number of entries that completed verification before finishing. */
-  checked: number
+  /** Number of entries verified (equals `entries` on success when provided). */
+  checked?: number
   /** Milliseconds elapsed between the matching `started` event and `done`. */
   elapsedMs: number
 }
@@ -52,7 +52,7 @@ export interface LockfileVerificationFailedMessage extends LockfileVerificationM
   /** Number of distinct (name, version, resolution) entries in this verification run. */
   entries: number
   /** Number of entries that were checked before the failure. */
-  checked: number
+  checked?: number
   /** Milliseconds elapsed between the matching `started` event and `failed`. */
   elapsedMs: number
 }

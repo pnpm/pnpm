@@ -37,9 +37,6 @@ export function reportLockfileVerification (
       const progress = formatProgress(log)
       switch (log.status) {
         case 'started':
-          return {
-            msg: `${chalk.cyan('?')} Verifying lockfile${path_} against supply-chain policies (${progress})...`,
-          }
         case 'progress':
           return {
             msg: `${chalk.cyan('?')} Verifying lockfile${path_} against supply-chain policies (${progress})...`,
