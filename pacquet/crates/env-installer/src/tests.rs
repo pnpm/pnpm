@@ -611,6 +611,13 @@ async fn rejects_config_dep_with_path_traversal_version() {
         matches!(error, ConfigDepError::InvalidConfigDepVersion { .. }),
         "unexpected error: {error:?}",
     );
+    // The version is wrapped in single quotes in the message; guard against a
+    // doubled quote so the diagnostic stays well-formed.
+    let message = error.to_string();
+    assert_eq!(
+        message,
+        r#"The config dependency "@pnpm.e2e/foo" has an invalid version "../../../PWNED""#,
+    );
 
     assert!(!contains_entry_named(root.path(), "PWNED"));
     assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED"));
