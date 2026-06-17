@@ -8352,9 +8352,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      '@pnpm/workspace.projects-filter':
-        specifier: workspace:*
-        version: link:../../workspace/projects-filter
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
@@ -8458,6 +8455,9 @@ importers:
       '@pnpm/testing.registry-mock':
         specifier: workspace:*
         version: link:../../testing/registry-mock
+      '@pnpm/workspace.projects-filter':
+        specifier: workspace:*
+        version: link:../../workspace/projects-filter
       '@types/cross-spawn':
         specifier: 'catalog:'
         version: 6.0.6

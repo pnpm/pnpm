@@ -5,7 +5,7 @@ import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
-import { filterProjectsFromDir, type WorkspaceFilter } from '@pnpm/workspace.projects-filter'
+import type { ProjectsGraph } from '@pnpm/types'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -119,6 +119,7 @@ interface VersionHandlerOptions extends Config {
   message?: string
   preid?: string
   recursive?: boolean
+  selectedProjectsGraph?: ProjectsGraph
   signGitTag?: boolean
   tagVersionPrefix?: string
 }
@@ -149,28 +150,7 @@ export async function handler (
   const changes: VersionChange[] = []
 
   if (opts.recursive) {
-    const workspaceDir = opts.workspaceDir || opts.dir
-    const filters: WorkspaceFilter[] = []
-
-    if (opts.filter && opts.filter.length > 0) {
-      opts.filter.forEach(filterPattern => {
-        filters.push({
-          filter: filterPattern,
-          followProdDepsOnly: !!opts.filterProd && opts.filterProd.length > 0,
-        })
-      })
-    }
-
-    const result = await filterProjectsFromDir(
-      workspaceDir,
-      filters,
-      {
-        workspaceDir,
-        prefix: opts.dir,
-      }
-    )
-
-    const pkgDirs = Object.keys(result.selectedProjectsGraph)
+    const pkgDirs = Object.keys(opts.selectedProjectsGraph ?? {})
     const bumpResults = await Promise.all(
       pkgDirs.map(pkgDir => bumpPackageVersion(pkgDir, rawBump, explicitVersion, opts))
     )
