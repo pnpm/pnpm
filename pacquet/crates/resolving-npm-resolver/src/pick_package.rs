@@ -938,12 +938,11 @@ fn get_file_mtime(path: &Path) -> Option<DateTime<Utc>> {
 /// ordered eviction via `shift_remove_index(0)`, matching upstream's
 /// JS `Set` which iterates in insertion order.
 const MAX_WARNED_MISSING_TIME: usize = 1024;
-static WARNED_MISSING_TIME: std::sync::OnceLock<Mutex<indexmap::IndexSet<String>>> =
-    std::sync::OnceLock::new();
+static WARNED_MISSING_TIME: std::sync::LazyLock<Mutex<indexmap::IndexSet<String>>> =
+    std::sync::LazyLock::new(|| Mutex::new(indexmap::IndexSet::new()));
 
 fn warn_missing_time_once(pkg_name: &str) {
-    let lock = WARNED_MISSING_TIME.get_or_init(|| Mutex::new(indexmap::IndexSet::new()));
-    let mut warned = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut warned = WARNED_MISSING_TIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if warned.contains(pkg_name) {
         return;
     }

@@ -6,18 +6,18 @@ use crate::error::PreparePackageError;
 use pacquet_executor::ScriptsPrependNodePath;
 use pacquet_reporter::SilentReporter;
 use serde_json::json;
-use std::{collections::HashMap, fs, path::Path, sync::OnceLock};
+use std::{collections::HashMap, fs, path::Path, sync::LazyLock};
 use tempfile::tempdir;
 
 /// A single process-wide empty env map shared across every test
-/// invocation. `OnceLock` avoids the per-call `Box::leak(Box::new(...))`
+/// invocation. `LazyLock` avoids the per-call `Box::leak(Box::new(...))`
 /// that an earlier version of this helper used — the leak was benign
 /// because the test binary exits quickly, but accumulating one fresh
 /// allocation per test isn't necessary when every site wants the same
 /// value.
 fn empty_env() -> &'static HashMap<String, String> {
-    static EMPTY_ENV: OnceLock<HashMap<String, String>> = OnceLock::new();
-    EMPTY_ENV.get_or_init(HashMap::new)
+    static EMPTY_ENV: LazyLock<HashMap<String, String>> = LazyLock::new(HashMap::new);
+    &EMPTY_ENV
 }
 
 fn write_manifest(dir: &Path, manifest: &serde_json::Value) {

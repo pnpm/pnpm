@@ -108,14 +108,15 @@ fn parse_node_version_output(stdout: &str) -> Option<u32> {
 ///
 /// Delegates to [`pacquet_detect_libc::detect()`] for the
 /// actual detection; see that function for the fallback chain. The
-/// result is cached after the first call via [`std::sync::OnceLock`].
+/// result is cached after the first call via [`std::sync::LazyLock`].
+#[must_use]
 pub fn host_libc() -> &'static str {
-    use std::sync::OnceLock;
+    use std::sync::LazyLock;
 
-    static CACHED: OnceLock<&'static str> = OnceLock::new();
-    CACHED.get_or_init(|| {
+    static CACHED: LazyLock<&'static str> = LazyLock::new(|| {
         pacquet_detect_libc::detect().map_or("unknown", pacquet_detect_libc::Implementation::as_str)
-    })
+    });
+    *CACHED
 }
 
 #[cfg(test)]

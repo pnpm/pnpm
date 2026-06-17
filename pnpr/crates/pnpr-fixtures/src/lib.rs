@@ -9,7 +9,7 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
     sync::{
-        OnceLock,
+        LazyLock,
         atomic::{AtomicU64, Ordering},
     },
 };
@@ -20,9 +20,9 @@ const GENERATED_DIR: &str = "pnpr-fixtures";
 const COMPLETE_FILE: &str = ".complete";
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+#[must_use]
 pub fn ensure_storage() -> &'static Path {
-    static STORAGE: OnceLock<PathBuf> = OnceLock::new();
-    STORAGE.get_or_init(|| {
+    static STORAGE: LazyLock<PathBuf> = LazyLock::new(|| {
         let workspace = workspace_root();
         let packages = workspace.join(PACKAGES_DIR);
         let generated = target_dir(&workspace).join(GENERATED_DIR);
@@ -30,7 +30,8 @@ pub fn ensure_storage() -> &'static Path {
         let storage = generated.join("storage").join(&fingerprint);
         ensure_storage_for_fingerprint(&packages, &generated, &storage);
         storage
-    })
+    });
+    STORAGE.as_path()
 }
 
 #[must_use]
