@@ -247,7 +247,7 @@ function parseYarn2Yaml (lockFileContents: string): YarnLockYaml {
   })
   if (parseYarnLock == null) return {}
   if (typeof parseYarnLock !== 'object' || Array.isArray(parseYarnLock)) {
-    throw new PnpmError('YARN_LOCKFILE_PARSE_FAILED', `Expected an indexed object, got a ${Array.isArray(parseYarnLock) ? 'array' : typeof parseYarnLock} instead. Does your file follow Yaml's rules?`)
+    throw new PnpmError('YARN_LOCKFILE_PARSE_FAILED', `Expected an indexed object, got ${Array.isArray(parseYarnLock) ? 'an array' : `a ${typeof parseYarnLock}`} instead. Does your file follow YAML's rules?`)
   }
   return parseYarnLock as YarnLockYaml
 }

@@ -15,8 +15,14 @@ export function makeNodePackageMapOption (packageMapPath: string, env?: Record<s
   return { NODE_OPTIONS }
 }
 
+// Node's NODE_OPTIONS tokenizer splits on whitespace, treats `'` and `"` as
+// quote delimiters, and uses `\` as an escape character. A bare path with a
+// space, quote, or backslash (e.g. any Windows path) would therefore be
+// mis-parsed. Wrap such paths in double quotes and escape `\` and `"` so the
+// tokenizer reconstructs the literal path.
 function quotePathIfNeeded (path: string): string {
-  return /\s/.test(path) ? JSON.stringify(path) : path
+  if (!/[\s"'\\]/.test(path)) return path
+  return `"${path.replace(/(["\\])/g, '\\$1')}"`
 }
 
 function removeNodePackageMapOption (nodeOptions: string): string {

@@ -223,7 +223,7 @@ export async function handler (
   const result = createEmptyRecursiveSummary(chunks)
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
-  const existsPackageMap = existsInDir.bind(null, path.join('node_modules', '.package-map.json'))
+  const existsPackageMap = existsInDir.bind(null, path.join(opts.modulesDir ?? 'node_modules', '.package-map.json'))
   const workspacePackageMapPath = opts.nodeExperimentalPackageMap && opts.workspaceDir && existsPackageMap(opts.workspaceDir)
 
   let exitCode = 0

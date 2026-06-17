@@ -36,6 +36,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'syncInjectedDepsAfterScripts'
 | 'workspaceDir'
 | 'nodeExperimentalPackageMap'
+| 'modulesDir'
 > & Pick<ConfigContext, 'rootProjectManifest'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
@@ -76,7 +77,7 @@ export async function runRecursive (
       : 'pipe'
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
-  const existsPackageMap = existsInDir.bind(null, path.join('node_modules', '.package-map.json'))
+  const existsPackageMap = existsInDir.bind(null, path.join(opts.modulesDir ?? 'node_modules', '.package-map.json'))
   const workspacePackageMapPath = opts.nodeExperimentalPackageMap && opts.workspaceDir && existsPackageMap(opts.workspaceDir)
 
   const requiredScripts = opts.requiredScripts ?? []

@@ -76,7 +76,10 @@ export function lockfileToPackageMap (
   opts: PackageMapOptions
 ): PackageMap {
   const isLoose = opts.packageMapType === 'loose'
-  const packages: PackageMap['packages'] = {}
+  // Keyed by filesystem-derived IDs (importer ids, `link:` targets), so a
+  // dependency or project literally named `__proto__` must not reach the
+  // object prototype. A null-prototype map keeps those keys as plain entries.
+  const packages: PackageMap['packages'] = Object.create(null)
   const packageLocationsByModulesDir = isLoose ? new Map<string, Map<string, string>>() : undefined
   const packageDirsById = isLoose ? new Map<string, string>() : undefined
 
@@ -208,7 +211,8 @@ export function dependenciesGraphToPackageMap (
   opts: DependenciesGraphPackageMapOptions
 ): PackageMap {
   const isLoose = opts.packageMapType === 'loose'
-  const packages: PackageMap['packages'] = {}
+  // See `lockfileToPackageMap`: null-prototype guard against `__proto__` ids.
+  const packages: PackageMap['packages'] = Object.create(null)
   const packageIdsByGraphKey = new Map<string, string>()
   const packageDirsById = isLoose ? new Map<string, string>() : undefined
   const packageLocationsByModulesDir = isLoose ? new Map<string, Map<string, string>>() : undefined

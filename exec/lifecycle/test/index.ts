@@ -63,6 +63,19 @@ test('makeNodePackageMapOption() quotes paths with whitespace', () => {
   })
 })
 
+test('makeNodePackageMapOption() quotes and escapes paths with backslashes or quotes', () => {
+  expect(makeNodePackageMapOption('C:\\project\\node_modules\\.package-map.json', {
+    NODE_OPTIONS: '',
+  })).toStrictEqual({
+    NODE_OPTIONS: '--experimental-package-map="C:\\\\project\\\\node_modules\\\\.package-map.json"',
+  })
+  expect(makeNodePackageMapOption('/quo"te/.package-map.json', {
+    NODE_OPTIONS: '',
+  })).toStrictEqual({
+    NODE_OPTIONS: '--experimental-package-map="/quo\\"te/.package-map.json"',
+  })
+})
+
 test('makeNodePackageMapOption() replaces existing package-map option', () => {
   const nodeOptions = [
     '--experimental-package-map=/old/node_modules/.package-map.json',

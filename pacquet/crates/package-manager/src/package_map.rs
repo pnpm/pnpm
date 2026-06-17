@@ -800,8 +800,14 @@ fn split_node_options(node_options: &str) -> Vec<String> {
 }
 
 fn quote_path_if_needed(path: &str) -> String {
-    if path.chars().any(char::is_whitespace) {
-        serde_json::to_string(path).expect("serializing a string cannot fail")
+    // Node's NODE_OPTIONS tokenizer treats whitespace as a separator, `'`/`"`
+    // as quote delimiters, and `\` as an escape character (so a bare Windows
+    // path would lose its separators). Wrap such paths in double quotes,
+    // escaping only `\` and `"`. A full JSON encode is wrong here: Node does
+    // not decode `\uXXXX`, so escaping non-ASCII bytes would corrupt the path.
+    if path.chars().any(|ch| ch.is_whitespace() || matches!(ch, '"' | '\'' | '\\')) {
+        let escaped = path.replace('\\', r"\\").replace('"', r#"\""#);
+        format!("\"{escaped}\"")
     } else {
         path.to_string()
     }

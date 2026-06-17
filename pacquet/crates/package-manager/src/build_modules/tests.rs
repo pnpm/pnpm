@@ -403,6 +403,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -970,6 +971,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1085,6 +1087,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),

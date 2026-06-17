@@ -313,6 +313,15 @@ fn package_map_node_options_replaces_existing_package_map_option() {
         ),
         r#"--experimental-package-map="/repo with spaces/node_modules/.package-map.json""#,
     );
+    // A backslash path (e.g. Windows) must be quoted and the separators escaped
+    // so Node's NODE_OPTIONS parser does not consume them as escapes.
+    assert_eq!(
+        make_node_package_map_option(
+            Path::new(r"C:\repo\node_modules\.package-map.json"),
+            Some(""),
+        ),
+        r#"--experimental-package-map="C:\\repo\\node_modules\\.package-map.json""#,
+    );
 }
 
 #[test]

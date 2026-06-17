@@ -296,7 +296,7 @@ so you may run "pnpm -w run ${scriptName}"`,
       ...makeNodeRequireOption(pnpPath, lifecycleOpts.extraEnv),
     }
   }
-  const existsPackageMap = existsInDir.bind(null, path.join('node_modules', '.package-map.json'))
+  const existsPackageMap = existsInDir.bind(null, path.join(opts.modulesDir ?? 'node_modules', '.package-map.json'))
   const packageMapPath = opts.nodeExperimentalPackageMap
     ? (opts.workspaceDir && existsPackageMap(opts.workspaceDir)) ?? existsPackageMap(dir)
     : undefined
