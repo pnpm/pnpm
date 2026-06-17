@@ -135,12 +135,20 @@ describe('getPkgMetadata', () => {
 })
 
 describe('bugsUrlFromField', () => {
-  it('keeps well-formed http(s) URLs, including uppercase schemes', () => {
+  it('keeps well-formed http(s) URLs and normalizes the scheme', () => {
     expect(bugsUrlFromField('https://github.com/a/b/issues')).toBe('https://github.com/a/b/issues')
     expect(bugsUrlFromField('http://example.com/bugs')).toBe('http://example.com/bugs')
-    expect(bugsUrlFromField('HTTPS://github.com/a/b/issues')).toBe('HTTPS://github.com/a/b/issues')
+    // Uppercase scheme is accepted and normalized to lowercase by `new URL`.
+    expect(bugsUrlFromField('HTTPS://github.com/a/b/issues')).toBe('https://github.com/a/b/issues')
     expect(bugsUrlFromField('  https://github.com/a/b/issues  ')).toBe('https://github.com/a/b/issues')
     expect(bugsUrlFromField({ url: 'https://github.com/a/b/issues' })).toBe('https://github.com/a/b/issues')
+  })
+
+  it('normalizes away control characters and whitespace instead of emitting them raw', () => {
+    // `new URL` strips CR/LF/tab and percent-encodes spaces, so a crafted value
+    // can't push raw whitespace or control chars into the SBOM url field.
+    expect(bugsUrlFromField('https://example.com/\r\nSet-Cookie: x')).toBe('https://example.com/Set-Cookie:%20x')
+    expect(bugsUrlFromField('https://example.com/a b')).toBe('https://example.com/a%20b')
   })
 
   it('drops malformed URLs, non-http schemes, emails, and missing values', () => {

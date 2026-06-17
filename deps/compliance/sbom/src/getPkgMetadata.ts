@@ -118,5 +118,10 @@ export function bugsUrlFromField (field: unknown): string | undefined {
   } catch {
     return undefined
   }
-  return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? candidate : undefined
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined
+  // Emit the normalized URL, not the raw input: `new URL` strips CR/LF/tab and
+  // percent-encodes spaces and control characters, so a crafted `bugs` value
+  // can't push raw whitespace or control chars into the CycloneDX
+  // `externalReferences[].url` (whose format is an `iri-reference`).
+  return parsed.href
 }
