@@ -87,11 +87,13 @@ export function initDefaultReporter (
     // Without a new line the prompt will be joined with the previous output.
     // An example of such prompt may be seen by running: pnpm update --interactive
     if (!view.endsWith(EOL)) view += EOL
-    // Redraw the whole frame in place: move the cursor back to the top of the
-    // previous frame, erase everything below it, then reprint. Doing this in a
-    // single write keeps the redraw atomic (no flicker) and guarantees any
-    // characters written by an external process in between are cleared.
-    const moveToFrameTop = prevRows > 0 ? `\x1b[${prevRows}A` : ''
+    // Redraw the whole frame in place: return the cursor to the top-left of the
+    // previous frame, erase everything below it, then reprint. The `\r` resets
+    // the column to 0 (cursor-up alone keeps the column) so the redraw starts
+    // cleanly even when an external process left the cursor mid-line. Doing it
+    // in a single write keeps the redraw atomic (no flicker) and clears any
+    // characters an external process wrote in between.
+    const moveToFrameTop = prevRows > 0 ? `\x1b[${prevRows}A\r` : '\r'
     write(`${moveToFrameTop}${ERASE_TO_END_OF_DISPLAY}${view}`)
     prevRows = countRows(view)
   }

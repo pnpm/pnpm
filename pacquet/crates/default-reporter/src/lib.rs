@@ -144,6 +144,10 @@ impl Sink {
                 if self.prev_rows > 0 {
                     let _ = write!(buf, "\x1b[{}A", self.prev_rows);
                 }
+                // Reset the column to 0 (cursor-up alone keeps the column) so the
+                // redraw starts cleanly even when an external process left the
+                // cursor mid-line.
+                buf.push('\r');
                 buf.push_str("\x1b[0J");
                 buf.push_str(&frame);
                 buf.push('\n');
