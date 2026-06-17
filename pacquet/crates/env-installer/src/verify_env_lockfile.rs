@@ -8,9 +8,8 @@ use pacquet_lockfile::{EnvLockfile, PackageKey};
 use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use std::path::Path;
 
-/// The single path for persisting an env lockfile: it is verified before it
-/// touches disk, so no code path can write an env lockfile carrying an invalid
-/// config-dependency name or version.
+/// Persist an env lockfile only after verifying it, so no code path can write
+/// one carrying an invalid config-dependency name or version.
 pub fn write_verified_env_lockfile(
     env_lockfile: &EnvLockfile,
     root_dir: &Path,
@@ -19,11 +18,10 @@ pub fn write_verified_env_lockfile(
     env_lockfile.write(root_dir).map_err(ConfigDepError::WriteLockfile)
 }
 
-/// Reject config-dependency (and optional-subdep) names and versions before
-/// they build store paths (`<name>/<version>/<hash>`): names must be valid npm
-/// package names, versions exact semver. Otherwise a traversal-shaped value
-/// from a committed lockfile would escape the install roots. Run before any
-/// path is built or the lockfile is written.
+/// Reject config-dependency and optional-subdep names/versions before they
+/// build store paths (`<name>/<version>/<hash>`): names must be valid npm
+/// package names, versions exact semver — otherwise a traversal-shaped value
+/// would escape the install roots.
 pub fn verify_env_lockfile(env_lockfile: &EnvLockfile) -> Result<(), ConfigDepError> {
     let Some(importer) = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY) else {
         return Ok(());

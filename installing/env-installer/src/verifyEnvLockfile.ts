@@ -3,14 +3,11 @@ import type { EnvLockfile } from '@pnpm/lockfile.fs'
 
 import { assertValidConfigDepVersion } from './assertValidConfigDepVersion.js'
 
-// Offline structural gate for the env lockfile (the config-dependency YAML
-// document), mirroring the always-on alias/shape checks
-// `verifyLockfileResolutions` runs over the main lockfile. Every config
-// dependency and optional-subdependency name and version becomes a store path
-// segment (`node_modules/.pnpm-config/<name>`, `<name>/<version>/<hash>`), so a
-// committed lockfile with a traversal-shaped name or version would escape the
-// install roots. Run it on the in-memory env lockfile before any path is built
-// or any lockfile is written.
+// Offline structural gate for the env lockfile, mirroring the alias/shape
+// checks `verifyLockfileResolutions` runs over the main lockfile. Config
+// dependency and optional-subdependency names and versions become store path
+// segments, so reject any that isn't a valid npm name / exact semver before a
+// path is built from them.
 export function verifyEnvLockfile (envLockfile: EnvLockfile): void {
   const configDeps = envLockfile.importers['.']?.configDependencies
   assertValidDependencyAliases(configDeps, 'The configDependencies in pnpm-lock.yaml')

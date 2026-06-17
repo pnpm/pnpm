@@ -27,9 +27,8 @@ export async function migrateConfigDepsToLockfile (
   opts: MigrateOpts
 ): Promise<Record<string, NormalizedConfigDep>> {
   const envLockfile = createEnvLockfile()
-  // configDependencies is keyed by untrusted names; null-prototype so a
-  // `__proto__` name is an own key verifyEnvLockfile sees below, not a silent
-  // prototype mutation.
+  // Null-prototype so a `__proto__` name lands as an own key verifyEnvLockfile
+  // sees, not a silent prototype mutation.
   envLockfile.importers['.'].configDependencies = Object.create(null)
   const cleanSpecifiers: ConfigDependencySpecifiers = {}
   const normalizedDeps: Record<string, NormalizedConfigDep> = {}

@@ -466,8 +466,8 @@ async fn rejects_optional_subdep_with_path_traversal_name() {
     assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED_SUBDEP"));
 }
 
-/// Pins the JS-parity case: `__proto__` is an invalid npm name (leading `_`),
-/// and Rust's string-keyed maps reject it without the null-prototype dance JS needs.
+/// `__proto__` is an invalid npm name (leading `_`); Rust's string-keyed maps
+/// reject it with none of the null-prototype handling the JS side needs.
 #[tokio::test]
 async fn rejects_config_dep_named_dunder_proto() {
     let harness = harness();
