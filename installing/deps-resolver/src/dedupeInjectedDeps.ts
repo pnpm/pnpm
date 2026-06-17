@@ -61,18 +61,26 @@ function getDedupeMap<T extends PartialResolvedPackage> (
   for (const [id, deps] of injectedDepsByProjects.entries()) {
     const dedupedInjectedDeps = new Map<string, string>()
     for (const [alias, dep] of deps.entries()) {
+      const node = opts.depGraph[dep.depPath]
+      const targetProjectDeps = opts.dependenciesByProjectId[dep.id]
+      // In single-project operations (e.g. `pnpm rm` from inside a workspace package) the target
+      // workspace project isn't being resolved, so its children aren't in
+      // `dependenciesByProjectId`. The injected dep was resolved against the same workspace
+      // package source, so dedupe is safe. The exception is peer-suffixed depPaths, whose
+      // resolution depends on the importer's peer context. A plain `link:` would lose that, so
+      // we skip dedupe for those. A depPath is `${pkgIdWithPatchHash}${peerDepGraphHash}`, so it
+      // carries a peer suffix exactly when it differs from its peer-free `pkgIdWithPatchHash`.
+      if (!targetProjectDeps) {
+        if ((node.pkgIdWithPatchHash as string) === dep.depPath) {
+          dedupedInjectedDeps.set(alias, dep.id)
+        }
+        continue
+      }
       // Check for subgroup not equal.
       // The injected project in the workspace may have dev deps
-      const children = Object.entries(opts.depGraph[dep.depPath].children)
-      const targetProjectDeps = opts.dependenciesByProjectId[dep.id]
-      // When the target project wasn't part of the current resolution (e.g. single-project
-      // operation), its dependencies aren't available. We can only deduplicate safely when the
-      // injected dep has no children (the empty set is always a subset).
-      if (!targetProjectDeps) {
-        if (children.length > 0) continue
-      }
+      const children = Object.entries(node.children)
       const isSubset = children
-        .every(([alias, depPath]) => targetProjectDeps?.get(alias) === depPath)
+        .every(([alias, depPath]) => targetProjectDeps.get(alias) === depPath)
       if (isSubset) {
         dedupedInjectedDeps.set(alias, dep.id)
       }
