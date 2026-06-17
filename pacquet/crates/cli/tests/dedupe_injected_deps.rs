@@ -187,6 +187,106 @@ fn injected_workspace_dep_with_children_stays_link_after_remove() {
     drop((root, mock_instance));
 }
 
+/// `injectWorkspacePackages: true` where workspace dep `b` declares a
+/// peer dependency (`@pnpm.e2e/foo`) that `a` provides. `b`'s injected
+/// resolution then depends on `a`'s peer context, so its importer entry
+/// is the peer-suffixed `file:packages/b(@pnpm.e2e/foo@100.0.0)` and
+/// must *not* collapse to `link:../b` — a plain link would strip the
+/// peer context and change the trust-relevant lockfile identity. The
+/// peer-suffixed form must also survive a `remove` that re-resolves the
+/// whole workspace. Behavioral analog of the peer-suffixed single-project
+/// `pnpm rm` case in pnpm/pnpm#11448; the dedupe pass keeps such an entry
+/// in `file:` form because its children (the resolved peer) are not a
+/// subset of `b`'s own direct deps.
+#[test]
+fn injected_peer_suffixed_workspace_dep_stays_file_after_remove() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "ws-root",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { "@pnpm.e2e/bar": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str(
+        "packages:\n  - 'packages/*'\ninjectWorkspacePackages: true\nautoInstallPeers: false\n",
+    );
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/a")).expect("mkdir packages/a");
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        serde_json::json!({
+            "name": "a",
+            "version": "1.0.0",
+            "dependencies": { "b": "workspace:*", "@pnpm.e2e/foo": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/a/package.json");
+
+    fs::create_dir_all(workspace.join("packages/b")).expect("mkdir packages/b");
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        serde_json::json!({
+            "name": "b",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/foo": ">=100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/b/package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("file:packages/b(@pnpm.e2e/foo@100.0.0)"),
+        "a peer-resolved injected dep must stay in its peer-suffixed file: form, not collapse to a plain link::\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("link:../b"),
+        "the peer-suffixed injected dep must not be deduped to link:../b — that would strip b's peer context:\n{lockfile}",
+    );
+
+    // Removing an unrelated root dependency re-resolves the whole
+    // workspace; the peer-suffixed file: entry must survive intact.
+    Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(&workspace)
+        .with_arg("remove")
+        .with_arg("@pnpm.e2e/bar")
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml after remove");
+    assert!(
+        lockfile.contains("file:packages/b(@pnpm.e2e/foo@100.0.0)"),
+        "the peer-suffixed file: entry must be preserved byte-for-byte after remove:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("link:../b"),
+        "remove must not collapse the peer-suffixed injected dep to link:../b:\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// Same fixture as the dedupe-true test but with
 /// `dedupeInjectedDeps: false` in `pnpm-workspace.yaml`: the injected
 /// snapshot stays as `file:packages/b` in the importer entry, the
