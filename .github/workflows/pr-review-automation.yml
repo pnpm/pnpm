@@ -1,7 +1,7 @@
 name: PR review automation
 
-# React to PR review submissions: announce CodeRabbit approvals and flag
-# maintainer-approved PRs for automerge.
+# React to PR review submissions: announce CodeRabbit approvals, tag PRs that the
+# AI reviewers approved, and flag maintainer-approved PRs for automerge.
 on:
   pull_request_review:
     types: [submitted]
@@ -16,8 +16,8 @@ jobs:
       github.event.review.user.login == 'coderabbitai[bot]'
     runs-on: ubuntu-latest
     permissions:
-      # gh pr edit --add-label uses the GraphQL addLabelsToLabelable mutation,
-      # which is governed by issues: write even when the target is a PR.
+      # Adding a label via the issues REST API is governed by issues: write
+      # even when the target is a PR.
       issues: write
       pull-requests: write
     env:
@@ -33,7 +33,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "reviewed: coderabbit"
+          # gh pr edit --add-label is broken (it errors on the deprecated Projects-v1
+          # GraphQL field), so add the label through the issues REST API instead.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f "labels[]=reviewed: coderabbit"
 
       - name: Announce on Discord
         if: ${{ env.DISCORD_WEBHOOK != '' }}
@@ -54,14 +56,35 @@ jobs:
             -d "$payload" \
             "$DISCORD_WEBHOOK"
 
+  on-qodo-approval:
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.review.user.login == 'qodo-free-for-open-source-projects[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      # Adding a label via the issues REST API is governed by issues: write
+      # even when the target is a PR.
+      issues: write
+      pull-requests: write
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Add the reviewed label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # gh pr edit --add-label is broken (it errors on the deprecated Projects-v1
+          # GraphQL field), so add the label through the issues REST API instead.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f "labels[]=reviewed: qodo"
+
   on-maintainer-approval:
     if: >-
       github.event.review.state == 'approved' &&
       github.event.review.user.login == 'zkochan'
     runs-on: ubuntu-latest
     permissions:
-      # gh pr edit --add-label uses the GraphQL addLabelsToLabelable mutation,
-      # which is governed by issues: write even when the target is a PR.
+      # Adding a label via the issues REST API is governed by issues: write
+      # even when the target is a PR.
       issues: write
       pull-requests: write
     env:
@@ -71,4 +94,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "state: automerge"
+          # gh pr edit --add-label is broken (it errors on the deprecated Projects-v1
+          # GraphQL field), so add the label through the issues REST API instead.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f "labels[]=state: automerge"
