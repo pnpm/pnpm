@@ -54,6 +54,25 @@ jobs:
             -d "$payload" \
             "$DISCORD_WEBHOOK"
 
+  on-qodo-approval:
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.review.user.login == 'qodo-free-for-open-source-projects[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      # gh pr edit --add-label uses the GraphQL addLabelsToLabelable mutation,
+      # which is governed by issues: write even when the target is a PR.
+      issues: write
+      pull-requests: write
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Add the reviewed label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "reviewed: qodo"
+
   on-maintainer-approval:
     if: >-
       github.event.review.state == 'approved' &&
