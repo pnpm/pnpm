@@ -1,4 +1,4 @@
-use super::{InitStateError, apply_resolutions_to_config};
+use super::{InitStateError, apply_resolutions_to_config, apply_root_resolutions_to_config};
 use indexmap::IndexMap;
 use pacquet_config::Config;
 use pacquet_package_manifest::PackageManifest;
@@ -301,4 +301,53 @@ fn test_apply_resolutions_to_config_keeps_env_placeholder_literal() {
     apply(&mut config, &manifest).unwrap();
     let overrides = config.overrides.unwrap();
     assert_eq!(overrides.get("foo").unwrap(), "${PNPM_TEST_VERSION}");
+}
+
+#[test]
+fn test_apply_root_resolutions_to_config_non_workspace_project_is_root() {
+    // Regression test: when there's no `pnpm-workspace.yaml` (so
+    // `Config.workspace_dir` is `None`), the project manifest IS the root
+    // and its `resolutions` must still be promoted to `config.overrides`.
+    // Previously the `None` arm returned no root manifest, silently dropping
+    // the resolutions.
+    let (_dir, manifest) = make_manifest(&json!({
+        "name": "test",
+        "version": "1.0.0",
+        "resolutions": {
+            "foo": "^1.0.0",
+            "bar": "^2.0.0",
+        },
+    }));
+    let mut config = Config::new();
+    // Config::new() leaves workspace_dir unset — no pnpm-workspace.yaml.
+    assert!(config.workspace_dir.is_none());
+    let warnings = apply_root_resolutions_to_config(&mut config, &manifest).unwrap();
+    assert_eq!(warnings.len(), 1, "deprecation warning should fire");
+    let overrides = config.overrides.unwrap();
+    let expected: IndexMap<String, String> =
+        [("foo".to_owned(), "^1.0.0".to_owned()), ("bar".to_owned(), "^2.0.0".to_owned())]
+            .into_iter()
+            .collect();
+    assert_eq!(overrides, expected);
+}
+
+#[test]
+fn test_apply_root_resolutions_to_config_non_workspace_conflict_errors() {
+    // Same regression, but with the conflict path: when both project
+    // resolutions and existing config.overrides exist (still no workspace),
+    // the error must fire rather than silently dropping the resolutions.
+    let (_dir, manifest) = make_manifest(&json!({
+        "name": "test",
+        "version": "1.0.0",
+        "resolutions": {
+            "foo": "^1.0.0",
+        },
+    }));
+    let mut config = Config::new();
+    let mut existing: IndexMap<String, String> = IndexMap::new();
+    existing.insert("bar".to_owned(), "^3.0.0".to_owned());
+    config.overrides = Some(existing);
+    assert!(config.workspace_dir.is_none());
+    let err = apply_root_resolutions_to_config(&mut config, &manifest).unwrap_err();
+    assert!(matches!(err, InitStateError::ResolutionsConflictWithOverrides));
 }

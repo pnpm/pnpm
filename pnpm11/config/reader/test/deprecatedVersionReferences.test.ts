@@ -42,3 +42,16 @@ test('getOptionsFromPnpmSettings() does not warn when no "$" version references 
   })
   expect(globalWarn).not.toHaveBeenCalled()
 })
+
+test('getOptionsFromPnpmSettings() does not warn for "${VAR}" env placeholders in resolutions', () => {
+  // `${VAR}` is the env-placeholder syntax, not a `$dep` version reference.
+  // Manifest resolutions preserve them literally (no env expansion —
+  // secrets must not leak into the lockfile), so the deprecated-`$`-syntax
+  // warning must not fire for them.
+  getOptionsFromPnpmSettings(process.cwd(), {}, {
+    resolutions: {
+      foo: '${SOME_ENV_VAR}',
+    },
+  } as any) // eslint-disable-line
+  expect(globalWarn).not.toHaveBeenCalled()
+})

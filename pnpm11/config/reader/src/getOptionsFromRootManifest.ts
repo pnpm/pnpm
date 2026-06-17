@@ -166,7 +166,15 @@ function hasEnvPlaceholder (value: string): boolean {
 }
 
 function warnAboutDeprecatedVersionReferences (overrides: Record<string, string>): void {
-  const selectors = Object.keys(overrides).filter((selector) => overrides[selector][0] === '$')
+  // `${VAR}` is the env-placeholder syntax (preserved literally — env
+  // expansion is intentionally not applied to manifest resolutions); it
+  // must not trigger the `$dep`-version-reference deprecation warning.
+  // `replaceVersionReferences` applies the same `${` -> literal
+  // disambiguation when resolving.
+  const selectors = Object.keys(overrides).filter((selector) => {
+    const spec = overrides[selector]
+    return spec[0] === '$' && spec[1] !== '{'
+  })
   if (selectors.length === 0) return
   globalWarn(
     `The "$" version reference syntax in overrides is deprecated (used by: ${selectors.join(', ')}). ` +

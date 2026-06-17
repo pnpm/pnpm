@@ -8,10 +8,7 @@ use pacquet_package_manager::ResolvedPackages;
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
 use pacquet_tarball::MemCache;
 use pipe_trait::Pipe;
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 /// Application state when running `pacquet run` or `pacquet install`.
 pub struct State {
@@ -83,14 +80,11 @@ impl State {
     /// it must not be silently dropped because `lockfile` is disabled
     /// (or unset) in config.
     pub fn init(
-        manifest_path: PathBuf,
+        manifest: PackageManifest,
         config: &'static Config,
         require_lockfile: bool,
     ) -> Result<Self, InitStateError> {
         let should_load = config.lockfile || require_lockfile;
-        let manifest = manifest_path
-            .pipe(PackageManifest::create_if_needed)
-            .map_err(InitStateError::Manifest)?;
         let lockfile = if should_load {
             manifest
                 .path()
@@ -129,10 +123,11 @@ impl State {
 /// upstream's
 /// [`addSettingsFromWorkspaceManifestToConfig`].
 ///
+/// Takes the already-read project manifest so the caller can reuse it for
+/// [`State::init`] — `package.json` is parsed once per command, not twice.
 /// Reads the root manifest from `config.workspace_dir` (set when a
-/// `pnpm-workspace.yaml` is found). When the project manifest *is* the root
-/// (no workspace), its own `resolutions` field is used. No-op when there is
-/// no root manifest.
+/// `pnpm-workspace.yaml` is found); when there is no workspace, the project
+/// manifest *is* the root, so its own `resolutions` field is used.
 ///
 /// Returns the user-facing warning strings the caller should surface via
 /// the active reporter's `LogEvent::Pnpm` channel (`level: Warn`). This
@@ -142,18 +137,19 @@ impl State {
 /// [`addSettingsFromWorkspaceManifestToConfig`]: https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L875-L889
 pub fn apply_root_resolutions_to_config(
     config: &mut Config,
-    project_manifest_path: &Path,
+    project_manifest: &PackageManifest,
 ) -> Result<Vec<String>, InitStateError> {
-    let project_manifest = PackageManifest::create_if_needed(project_manifest_path.to_path_buf())
-        .map_err(InitStateError::Manifest)?;
     let root_manifest_path = config.workspace_dir.as_ref().map(|dir| dir.join("package.json"));
     let root_manifest = match root_manifest_path {
+        // Workspace root differs from project root: read the workspace's
+        // package.json separately.
         Some(ref path) if path != project_manifest.path() => {
             pacquet_package_manifest::safe_read_package_json_from_dir(path.parent().unwrap())
                 .map_err(InitStateError::Manifest)?
         }
-        Some(_) => Some(project_manifest.value().clone()),
-        None => None,
+        // Either workspace root matches project root, or there's no
+        // workspace — in both cases the project manifest IS the root.
+        _ => Some(project_manifest.value().clone()),
     };
     let mut warnings = Vec::new();
     if let Some(root_value) = root_manifest {

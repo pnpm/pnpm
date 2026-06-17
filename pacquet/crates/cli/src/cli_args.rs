@@ -16,7 +16,7 @@ pub mod update;
 pub mod update_interactive;
 pub mod why;
 
-use crate::{State, config_deps, config_overrides::ConfigOverrides};
+use crate::{InitStateError, State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use cat_file::CatFileArgs;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -288,8 +288,10 @@ impl CliArgs {
         // (or defaulted) in config.
 
         let state = |require_lockfile: bool| -> miette::Result<State> {
-            State::init(manifest_path(), config()?, require_lockfile)
-                .wrap_err("initialize the state")
+            let manifest = PackageManifest::create_if_needed(manifest_path())
+                .map_err(InitStateError::Manifest)
+                .wrap_err("initialize the state")?;
+            State::init(manifest, config()?, require_lockfile).wrap_err("initialize the state")
         };
 
         // Surface resolutions warnings through the active reporter (rather
@@ -316,11 +318,12 @@ impl CliArgs {
                 let cfg = config()?;
                 cfg.ignore_resolutions_conflict =
                     cfg.ignore_resolutions_conflict || args.ignore_resolutions_conflict;
-                let warnings =
-                    crate::state::apply_root_resolutions_to_config(cfg, &manifest_path())?;
+                let manifest = PackageManifest::create_if_needed(manifest_path())
+                    .map_err(InitStateError::Manifest)
+                    .wrap_err("initialize the state")?;
+                let warnings = crate::state::apply_root_resolutions_to_config(cfg, &manifest)?;
                 emit_resolutions_warnings(warnings);
-                let state =
-                    State::init(manifest_path(), cfg, false).wrap_err("initialize the state")?;
+                let state = State::init(manifest, cfg, false).wrap_err("initialize the state")?;
                 match reporter {
                     ReporterType::Default | ReporterType::AppendOnly => {
                         Box::pin(args.run::<DefaultReporter>(state)).await?;
@@ -333,11 +336,12 @@ impl CliArgs {
                 let cfg = config()?;
                 cfg.ignore_resolutions_conflict =
                     cfg.ignore_resolutions_conflict || args.ignore_resolutions_conflict;
-                let warnings =
-                    crate::state::apply_root_resolutions_to_config(cfg, &manifest_path())?;
+                let manifest = PackageManifest::create_if_needed(manifest_path())
+                    .map_err(InitStateError::Manifest)
+                    .wrap_err("initialize the state")?;
+                let warnings = crate::state::apply_root_resolutions_to_config(cfg, &manifest)?;
                 emit_resolutions_warnings(warnings);
-                let state =
-                    State::init(manifest_path(), cfg, false).wrap_err("initialize the state")?;
+                let state = State::init(manifest, cfg, false).wrap_err("initialize the state")?;
                 match reporter {
                     ReporterType::Default | ReporterType::AppendOnly => {
                         Box::pin(args.run::<DefaultReporter>(state)).await?;
@@ -363,11 +367,12 @@ impl CliArgs {
                 let cfg = config()?;
                 cfg.ignore_resolutions_conflict =
                     cfg.ignore_resolutions_conflict || args.ignore_resolutions_conflict;
-                let warnings =
-                    crate::state::apply_root_resolutions_to_config(cfg, &manifest_path())?;
+                let manifest = PackageManifest::create_if_needed(manifest_path())
+                    .map_err(InitStateError::Manifest)
+                    .wrap_err("initialize the state")?;
+                let warnings = crate::state::apply_root_resolutions_to_config(cfg, &manifest)?;
                 emit_resolutions_warnings(warnings);
-                let state =
-                    State::init(manifest_path(), cfg, false).wrap_err("initialize the state")?;
+                let state = State::init(manifest, cfg, false).wrap_err("initialize the state")?;
                 match reporter {
                     ReporterType::Default | ReporterType::AppendOnly => {
                         Box::pin(args.run::<DefaultReporter>(state)).await?;
@@ -566,7 +571,10 @@ impl InstallPipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        let warnings = crate::state::apply_root_resolutions_to_config(cfg, &manifest_path)?;
+        let manifest = PackageManifest::create_if_needed(manifest_path)
+            .map_err(InitStateError::Manifest)
+            .wrap_err("initialize the state")?;
+        let warnings = crate::state::apply_root_resolutions_to_config(cfg, &manifest)?;
         let prefix = config_root.to_string_lossy().to_string();
         for message in warnings {
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
@@ -577,7 +585,7 @@ impl InstallPipeline {
         }
         let cfg: &'static Config = cfg;
         let state =
-            State::init(manifest_path, cfg, require_lockfile).wrap_err("initialize the state")?;
+            State::init(manifest, cfg, require_lockfile).wrap_err("initialize the state")?;
         args.run::<Reporter>(state).await
     }
 }
