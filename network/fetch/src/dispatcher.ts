@@ -166,6 +166,12 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
   )
 }
 
+// Because the default `fetchTimeout` is non-zero, a timeout alone now forces a
+// custom dispatcher (see needsCustomDispatcher). That would bypass a MockAgent
+// installed globally via setGlobalDispatcher, breaking every test that relies on
+// mocked responses without opting out of the timeout. When timeout is the only
+// customization, defer to the global MockAgent instead: mocked responses never
+// hit the network, so socket-level timeouts are meaningless there anyway.
 function getGlobalMockDispatcherForTimeoutOnly (opts: DispatcherOptions): Dispatcher | undefined {
   if (!hasOnlyTimeoutCustomization(opts)) return undefined
   const globalDispatcher = getGlobalDispatcher()
