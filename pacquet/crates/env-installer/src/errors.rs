@@ -41,6 +41,23 @@ pub enum ConfigDepError {
     #[diagnostic(code(ERR_PNPM_ENV_LOCKFILE_CORRUPTED))]
     EnvLockfileCorrupted { message: String },
 
+    /// Mirrors pnpm's `INVALID_DEPENDENCY_NAME`, thrown by
+    /// [`assertValidDependencyAliases`](https://github.com/pnpm/pnpm/blob/main/installing/deps-resolver/src/validateDependencyAlias.ts).
+    /// A config-dependency name that is not a valid npm package name (a
+    /// traversal-shaped `../../x`, an absolute path, a pnpm-owned alias
+    /// like `.pnpm`) would otherwise let a committed lockfile place
+    /// symlinks outside `node_modules/.pnpm-config`.
+    #[display(r"{description} contains a dependency with an invalid name: {name:?}")]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_DEPENDENCY_NAME),
+        help(
+            "A dependency name must be a valid npm package name — a single `name` or `@scope/name` \
+             consisting of URL-friendly characters, with no leading `.` or `_`, and not equal to \
+             reserved names such as `node_modules`."
+        )
+    )]
+    InvalidDependencyName { description: String, name: String },
+
     #[display("Failed to resolve config dependency {spec}: {error}")]
     #[diagnostic(code(ERR_PNPM_BAD_CONFIG_DEP))]
     Resolve {

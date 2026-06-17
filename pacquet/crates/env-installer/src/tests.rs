@@ -1,6 +1,6 @@
 use crate::{
-    ConfigDepError, ConfigDepsInstallOptions, is_package_manager_resolved, prune_env_lockfile,
-    resolve_and_install_config_deps, resolve_package_manager_integrities,
+    ConfigDepError, ConfigDepsInstallOptions, install_config_deps, is_package_manager_resolved,
+    prune_env_lockfile, resolve_and_install_config_deps, resolve_package_manager_integrities,
 };
 use pacquet_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution,
@@ -367,6 +367,85 @@ async fn rejects_optional_subdep_with_non_exact_version() {
         matches!(error, ConfigDepError::OptionalNotExact { .. }),
         "unexpected error: {error:?}",
     );
+}
+
+#[tokio::test]
+async fn rejects_config_dep_with_path_traversal_name() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    // Resolve a legit config dep so the env lockfile carries a valid
+    // packages entry we can re-key under a traversal-shaped name — the
+    // shape a malicious repository would commit in pnpm-lock.yaml.
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let spec = env.root_importer_mut().config_dependencies.remove("@pnpm.e2e/foo").unwrap();
+    let malicious_name = "../../PWNED_CFGDEP".to_string();
+    env.root_importer_mut().config_dependencies.insert(malicious_name.clone(), spec.clone());
+    let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let pkg = env.packages[&legit_key].clone();
+    let malicious_key: PackageKey = format!("{malicious_name}@{}", spec.version).parse().unwrap();
+    env.packages.insert(malicious_key, pkg);
+
+    let error = install_config_deps::<SilentReporter>(&env, &options(&harness, root.path(), false))
+        .await
+        .expect_err("a traversal-shaped config dep name must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidDependencyName { .. }),
+        "unexpected error: {error:?}",
+    );
+
+    // No symlink escaped node_modules/.pnpm-config.
+    assert!(!root.path().parent().unwrap().join("PWNED_CFGDEP").exists());
+    assert!(!root.path().join("PWNED_CFGDEP").exists());
+}
+
+#[tokio::test]
+async fn rejects_optional_subdep_with_path_traversal_name() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let parent_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let pkg = env.packages[&parent_key].clone();
+    let malicious_name = "../../PWNED_SUBDEP".to_string();
+    let malicious_key: PackageKey = format!("{malicious_name}@100.0.0").parse().unwrap();
+    env.packages.insert(malicious_key, pkg);
+    let subdep_name: pacquet_lockfile::PkgName = malicious_name.parse().unwrap();
+    let subdep_ref: SnapshotDepRef = "100.0.0".parse().unwrap();
+    env.snapshots.entry(parent_key).or_default().optional_dependencies =
+        Some(std::iter::once((subdep_name, subdep_ref)).collect());
+
+    let error = install_config_deps::<SilentReporter>(&env, &options(&harness, root.path(), false))
+        .await
+        .expect_err("a traversal-shaped optional subdep name must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidDependencyName { .. }),
+        "unexpected error: {error:?}",
+    );
+
+    assert!(!root.path().parent().unwrap().join("PWNED_SUBDEP").exists());
 }
 
 #[tokio::test]

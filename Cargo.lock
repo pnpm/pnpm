@@ -3750,6 +3750,7 @@ dependencies = [
  "pacquet-registry",
  "pacquet-reporter",
  "pacquet-resolving-npm-resolver",
+ "pacquet-resolving-parse-wanted-dependency",
  "pacquet-resolving-resolver-base",
  "pacquet-store-dir",
  "pacquet-tarball",

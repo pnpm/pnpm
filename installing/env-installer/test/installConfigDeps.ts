@@ -83,6 +83,61 @@ test('configuration dependency is installed from env lockfile', async () => {
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')).toBeFalsy()
 })
 
+test('a config dependency with a path-traversal name in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const maliciousName = '../../PWNED'
+  const lockfile = makeEnvLockfile({
+    [maliciousName]: { version: '1.0.0', integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
+  })
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid name')
+
+  // No path is created outside node_modules/.pnpm-config.
+  expect(fs.existsSync(path.resolve(process.cwd(), '../../PWNED'))).toBe(false)
+  expect(fs.existsSync(path.resolve(process.cwd(), 'PWNED'))).toBe(false)
+})
+
+test('an optional subdep with a path-traversal name in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const maliciousSubdepName = '../../PWNED_SUBDEP'
+  const subdepVersion = '1.0.0'
+
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  lockfile.snapshots[parentKey] = {
+    optionalDependencies: { [maliciousSubdepName]: subdepVersion },
+  }
+  lockfile.packages[`${maliciousSubdepName}@${subdepVersion}`] = {
+    resolution: { integrity: getIntegrity('@pnpm.e2e/bar', '100.0.0') },
+  }
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid name')
+
+  expect(fs.existsSync(path.resolve(process.cwd(), '../../PWNED_SUBDEP'))).toBe(false)
+})
+
 test('optional subdep matching the current platform is installed and symlinked next to parent', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()

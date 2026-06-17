@@ -7,6 +7,7 @@ import { installingConfigDepsLogger, skippedOptionalDependencyLogger } from '@pn
 import { calcGlobalVirtualStorePathWithSubdeps, calcLeafGlobalVirtualStorePath } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
+import { assertValidDependencyAliases } from '@pnpm/installing.deps-resolver'
 import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import type { StoreController } from '@pnpm/store.controller'
 import type { ConfigDependencies, Registries } from '@pnpm/types'
@@ -35,6 +36,7 @@ export async function installConfigDeps (
   opts: InstallConfigDepsOpts
 ): Promise<void> {
   const normalizedDeps = await normalizeForInstall(configDepsOrLockfile, opts)
+  assertValidConfigDepNames(normalizedDeps)
   const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
 
   const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
@@ -124,6 +126,25 @@ export async function installConfigDeps (
   }))
   if (installedConfigDeps.length) {
     installingConfigDepsLogger.debug({ status: 'done', deps: installedConfigDeps })
+  }
+}
+
+// Config dependency names are read from the committed env lockfile (and the
+// legacy inline format in pnpm-workspace.yaml), so they are attacker-controlled
+// input. Each name becomes a directory entry under node_modules/.pnpm-config and
+// inside the global virtual store, so a traversal-shaped name like
+// `../../PWNED` would let a malicious repository create symlinks outside the
+// config dependency root during install. Reject anything that is not a plain npm
+// package name before any path is built from it.
+function assertValidConfigDepNames (normalizedDeps: Record<string, NormalizedConfigDep>): void {
+  assertValidDependencyAliases(normalizedDeps, 'The configDependencies in the env lockfile (pnpm-lock.yaml)')
+  for (const [pkgName, pkg] of Object.entries(normalizedDeps)) {
+    if (!pkg.optionalSubdeps?.length) continue
+    const subdepsByName: Record<string, true> = {}
+    for (const subdep of pkg.optionalSubdeps) {
+      subdepsByName[subdep.name] = true
+    }
+    assertValidDependencyAliases(subdepsByName, `The optionalDependencies of config dependency "${pkgName}" in the env lockfile (pnpm-lock.yaml)`)
   }
 }
 

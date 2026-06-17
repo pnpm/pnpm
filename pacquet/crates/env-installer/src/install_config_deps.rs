@@ -23,6 +23,7 @@ use pacquet_reporter::{
     InstalledConfigDep, InstallingConfigDepsLog, InstallingConfigDepsStatus, LogEvent, LogLevel,
     Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
 };
+use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use pacquet_store_dir::SharedVerifiedFilesCache;
 use pacquet_tarball::DownloadTarballToStore;
 use ssri::Integrity;
@@ -40,6 +41,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
     let normalized = normalize_from_lockfile(env_lockfile, opts)?;
+    assert_valid_config_dep_names(&normalized)?;
     let global_virtual_store_dir = opts.store_dir.links();
     let config_modules_dir = opts.root_dir.join("node_modules").join(".pnpm-config");
 
@@ -334,6 +336,38 @@ fn is_compatible<Reporter: self::Reporter>(
         // installable rather than aborting the whole config-deps pass.
         Err(_) => true,
     }
+}
+
+/// Reject config-dependency (and optional-subdep) names that aren't
+/// valid npm package names before any filesystem path is built from
+/// them. The names come from the committed env lockfile, so a
+/// traversal-shaped name like `../../PWNED` would otherwise let a
+/// malicious repository create symlinks outside
+/// `node_modules/.pnpm-config` during install. Mirrors the
+/// `assertValidDependencyAliases` gate pnpm runs over the same input.
+fn assert_valid_config_dep_names(
+    normalized: &BTreeMap<String, NormalizedConfigDep>,
+) -> Result<(), ConfigDepError> {
+    for (name, dep) in normalized {
+        if !is_valid_old_npm_package_name(name) {
+            return Err(ConfigDepError::InvalidDependencyName {
+                description: "The configDependencies in the env lockfile (pnpm-lock.yaml)"
+                    .to_string(),
+                name: name.clone(),
+            });
+        }
+        for subdep in &dep.optional_subdeps {
+            if !is_valid_old_npm_package_name(&subdep.name) {
+                return Err(ConfigDepError::InvalidDependencyName {
+                    description: format!(
+                        "The optionalDependencies of config dependency \"{name}\" in the env lockfile (pnpm-lock.yaml)",
+                    ),
+                    name: subdep.name.clone(),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Build the install-set view of `env_lockfile.importers["."]`. Mirrors
