@@ -210,6 +210,35 @@ test('an optional subdep named __proto__ in the env lockfile is rejected', async
     store: storeController,
     storeDir,
   })).rejects.toThrow('invalid name')
+
+  expect(containsEntryNamed(process.cwd(), '__proto__')).toBe(false)
+  expect(containsEntryNamed(storeDir, '__proto__')).toBe(false)
+})
+
+test('an invalid config dependency name in the workspace manifest is rejected before any lockfile is written', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  // Legacy inline-integrity manifest format with no env lockfile yet, so
+  // normalizeForInstall would otherwise migrate (and write pnpm-lock.yaml)
+  // before the name is validated.
+  const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
+  const configDeps: Record<string, string> = {
+    '../../PWNED': `100.0.0+${integrity}`,
+  }
+
+  await expect(installConfigDeps(configDeps, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid name')
+
+  // The invalid name must be refused before any write side effects.
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+  expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
 })
 
 test('optional subdep matching the current platform is installed and symlinked next to parent', async () => {

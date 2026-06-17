@@ -516,6 +516,36 @@ async fn rejects_config_dep_named_dunder_proto() {
 }
 
 #[tokio::test]
+async fn rejects_invalid_manifest_config_dep_name_before_writing_lockfile() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    // Legacy inline-integrity manifest form: migrating it records lockfile
+    // entries and writes pnpm-lock.yaml, so the invalid name must be
+    // refused before that write side effect.
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert(
+        "../../PWNED".to_string(),
+        ConfigDependency::VersionWithIntegrity("100.0.0+sha512-deadbeef".to_string()),
+    );
+
+    let error = resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .expect_err("an invalid manifest config dep name must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidDependencyName { .. }),
+        "unexpected error: {error:?}",
+    );
+
+    assert!(!root.path().join("pnpm-lock.yaml").exists());
+}
+
+#[tokio::test]
 async fn frozen_lockfile_rejects_new_config_dep() {
     let harness = harness();
     let (resolver, _cache) = build_resolver(&harness.registry_url);

@@ -19,6 +19,7 @@ use pacquet_lockfile::{
     SpecifierAndResolution, TarballResolution, npm_tarball_url,
 };
 use pacquet_reporter::Reporter;
+use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pacquet_workspace_state::ConfigDependency;
 use ssri::Integrity;
@@ -31,6 +32,19 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
+    // Validate the manifest-sourced names before any lockfile mutation or
+    // write: migrating the legacy inline format records entries and writes
+    // pnpm-lock.yaml, so an invalid name must be refused first to avoid a
+    // pre-rejection write side effect.
+    for name in config_deps.keys() {
+        if !is_valid_old_npm_package_name(name) {
+            return Err(ConfigDepError::InvalidDependencyName {
+                description: "The configDependencies in pnpm-workspace.yaml".to_string(),
+                name: name.clone(),
+            });
+        }
+    }
+
     let mut env_lockfile = EnvLockfile::read(opts.root_dir)
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);

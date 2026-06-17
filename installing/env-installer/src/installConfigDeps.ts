@@ -35,6 +35,11 @@ export async function installConfigDeps (
   configDepsOrLockfile: ConfigDependencies | EnvLockfile,
   opts: InstallConfigDepsOpts
 ): Promise<void> {
+  // Validate the raw names up front: normalizeForInstall can migrate the
+  // legacy manifest format, which writes pnpm-lock.yaml and workspace
+  // settings to disk. Rejecting invalid names only after that would let a
+  // malicious name trigger those writes before being refused.
+  assertValidRawConfigDepNames(configDepsOrLockfile)
   const normalizedDeps = await normalizeForInstall(configDepsOrLockfile, opts)
   assertValidConfigDepNames(normalizedDeps)
   const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
@@ -136,6 +141,22 @@ export async function installConfigDeps (
 // `../../PWNED` would let a malicious repository create symlinks outside the
 // config dependency root during install. Reject anything that is not a plain npm
 // package name before any path is built from it.
+// Validate the top-level config dependency names straight from the raw
+// input — before normalizeForInstall, which may migrate the legacy
+// manifest format and write pnpm-lock.yaml / workspace settings. Subdep
+// names are only reachable after normalization (the env-lockfile path,
+// which performs no writes before assertValidConfigDepNames runs), so they
+// are validated there.
+function assertValidRawConfigDepNames (configDepsOrLockfile: ConfigDependencies | EnvLockfile): void {
+  const names = isEnvLockfile(configDepsOrLockfile)
+    ? configDepsOrLockfile.importers['.']?.configDependencies
+    : configDepsOrLockfile
+  const source = isEnvLockfile(configDepsOrLockfile)
+    ? 'the env lockfile (pnpm-lock.yaml)'
+    : 'pnpm-workspace.yaml'
+  assertValidDependencyAliases(names, `The configDependencies in ${source}`)
+}
+
 function assertValidConfigDepNames (normalizedDeps: Record<string, NormalizedConfigDep>): void {
   assertValidDependencyAliases(normalizedDeps, 'The configDependencies in the env lockfile (pnpm-lock.yaml)')
   for (const [pkgName, pkg] of Object.entries(normalizedDeps)) {
