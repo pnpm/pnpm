@@ -24,6 +24,26 @@ function makeEnvLockfile (deps: Record<string, { version: string, integrity: str
   return lockfile
 }
 
+// Recursively check whether any entry named `name` exists under `dir`,
+// without following symlinks (so it can't loop through the links a
+// successful install would have created). A traversal-shaped config dep
+// name normalizes to an escape target under the project root (e.g.
+// `<rootDir>/PWNED`) or, for an optional subdep, inside the store links
+// tree — so the traversal regression tests search both roots.
+function containsEntryNamed (dir: string, name: string): boolean {
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return false
+  }
+  for (const entry of entries) {
+    if (entry.name === name) return true
+    if (entry.isDirectory() && containsEntryNamed(path.join(dir, entry.name), name)) return true
+  }
+  return false
+}
+
 test('configuration dependency is installed from env lockfile', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()
@@ -101,9 +121,11 @@ test('a config dependency with a path-traversal name in the env lockfile is reje
     storeDir,
   })).rejects.toThrow('invalid name')
 
-  // No path is created outside node_modules/.pnpm-config.
-  expect(fs.existsSync(path.resolve(process.cwd(), '../../PWNED'))).toBe(false)
-  expect(fs.existsSync(path.resolve(process.cwd(), 'PWNED'))).toBe(false)
+  // `../../PWNED` joined onto <rootDir>/node_modules/.pnpm-config
+  // normalizes to <rootDir>/PWNED. Assert nothing named PWNED was
+  // created anywhere under the project or the store.
+  expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
+  expect(containsEntryNamed(storeDir, 'PWNED')).toBe(false)
 })
 
 test('an optional subdep with a path-traversal name in the env lockfile is rejected', async () => {
@@ -135,7 +157,11 @@ test('an optional subdep with a path-traversal name in the env lockfile is rejec
     storeDir,
   })).rejects.toThrow('invalid name')
 
-  expect(fs.existsSync(path.resolve(process.cwd(), '../../PWNED_SUBDEP'))).toBe(false)
+  // An optional subdep symlink is created inside the parent's store
+  // links leaf, so `../../PWNED_SUBDEP` would escape into the store
+  // tree rather than the project. Search both.
+  expect(containsEntryNamed(process.cwd(), 'PWNED_SUBDEP')).toBe(false)
+  expect(containsEntryNamed(storeDir, 'PWNED_SUBDEP')).toBe(false)
 })
 
 test('optional subdep matching the current platform is installed and symlinked next to parent', async () => {

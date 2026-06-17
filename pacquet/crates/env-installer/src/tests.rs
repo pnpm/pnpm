@@ -369,6 +369,29 @@ async fn rejects_optional_subdep_with_non_exact_version() {
     );
 }
 
+/// Recursively check whether any entry named `name` exists under `dir`,
+/// without following symlinks (so it can't loop through the dir links a
+/// successful install leaves behind). A traversal-shaped config dep name
+/// normalizes to an escape target under the project root (e.g.
+/// `<root>/PWNED_CFGDEP`) or, for an optional subdep, inside the store
+/// links tree — so the traversal regression tests search both roots.
+fn contains_entry_named(dir: &Path, name: &str) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        if entry.file_name() == name {
+            return true;
+        }
+        if entry.file_type().is_ok_and(|file_type| file_type.is_dir())
+            && contains_entry_named(&entry.path(), name)
+        {
+            return true;
+        }
+    }
+    false
+}
+
 #[tokio::test]
 async fn rejects_config_dep_with_path_traversal_name() {
     let harness = harness();
@@ -405,9 +428,11 @@ async fn rejects_config_dep_with_path_traversal_name() {
         "unexpected error: {error:?}",
     );
 
-    // No symlink escaped node_modules/.pnpm-config.
-    assert!(!root.path().parent().unwrap().join("PWNED_CFGDEP").exists());
-    assert!(!root.path().join("PWNED_CFGDEP").exists());
+    // `../../PWNED_CFGDEP` joined onto <root>/node_modules/.pnpm-config
+    // normalizes to <root>/PWNED_CFGDEP. Assert nothing named
+    // PWNED_CFGDEP was created under the project or the store.
+    assert!(!contains_entry_named(root.path(), "PWNED_CFGDEP"));
+    assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED_CFGDEP"));
 }
 
 #[tokio::test]
@@ -445,7 +470,11 @@ async fn rejects_optional_subdep_with_path_traversal_name() {
         "unexpected error: {error:?}",
     );
 
-    assert!(!root.path().parent().unwrap().join("PWNED_SUBDEP").exists());
+    // An optional subdep symlink is created inside the parent's store
+    // links leaf, so `../../PWNED_SUBDEP` would escape into the store
+    // tree rather than the project. Search both.
+    assert!(!contains_entry_named(root.path(), "PWNED_SUBDEP"));
+    assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED_SUBDEP"));
 }
 
 #[tokio::test]
