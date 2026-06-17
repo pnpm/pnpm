@@ -84,12 +84,12 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://bit.cloud/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
+        <a href="https://bit.cloud/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
       </td>
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://openai.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://openai.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/openai_dark.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/openai_light.svg" />
@@ -107,7 +107,7 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://sanity.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://sanity.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/sanity.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/sanity_light.svg" />
@@ -116,7 +116,7 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://discord.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://discord.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/discord.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/discord_light.svg" />
@@ -125,12 +125,12 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/vitejs.svg" width="42" alt="Vite"></a>
+        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/vitejs.svg" width="42" alt="Vite"></a>
       </td>
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://serpapi.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://serpapi.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/serpapi_dark.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/serpapi_light.svg" />
@@ -139,7 +139,7 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
@@ -148,7 +148,7 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/stackblitz_light.svg" />
@@ -159,7 +159,7 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://workleap.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://workleap.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/workleap.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/workleap_light.svg" />
@@ -168,7 +168,7 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://nx.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://nx.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/nx.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/nx_light.svg" />
