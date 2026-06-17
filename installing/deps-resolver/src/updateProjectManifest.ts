@@ -25,7 +25,7 @@ export async function updateProjectManifest (
       return {
         alias: rdd.alias,
         peer: importer.peer,
-        bareSpecifier: rdd.catalogLookup?.userSpecifiedBareSpecifier ?? rdd.normalizedBareSpecifier ?? wantedDep.bareSpecifier,
+        bareSpecifier: getBareSpecifierToSave(wantedDep, rdd, opts.preserveWorkspaceProtocol),
         resolvedVersion: rdd.version,
         pinnedVersion: importer.pinnedVersion,
         saveType: importer.targetDependenciesField,
@@ -53,4 +53,24 @@ export async function updateProjectManifest (
     )
     : undefined
   return [hookedManifest, originalManifest]
+}
+
+function getBareSpecifierToSave (
+  wantedDep: ImporterToResolve['wantedDependencies'][number],
+  resolvedDep: ResolvedDirectDependency,
+  preserveWorkspaceProtocol: boolean
+): string {
+  if (resolvedDep.catalogLookup != null) {
+    return resolvedDep.catalogLookup.userSpecifiedBareSpecifier
+  }
+  if (preserveWorkspaceProtocol && isWorkspaceLocalPathSpecifier(wantedDep.bareSpecifier)) {
+    return wantedDep.bareSpecifier
+  }
+  return resolvedDep.normalizedBareSpecifier ?? wantedDep.bareSpecifier
+}
+
+function isWorkspaceLocalPathSpecifier (bareSpecifier: string): boolean {
+  if (!bareSpecifier.startsWith('workspace:')) return false
+  const pref = bareSpecifier.slice('workspace:'.length)
+  return pref.startsWith('.') || pref.startsWith('/') || pref.startsWith('~/') || /^[A-Z]:/i.test(pref)
 }
