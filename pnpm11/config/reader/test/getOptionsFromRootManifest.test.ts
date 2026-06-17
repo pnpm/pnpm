@@ -135,22 +135,21 @@ test('getOptionsFromPnpmSettings() rejects non-object resolutions values', () =>
   }))
 })
 
-test('getOptionsFromPnpmSettings() replaces env variables in resolutions values', () => {
-  const prev = process.env.PNPM_TEST_VERSION
-  process.env.PNPM_TEST_VERSION = '1.0.0'
+test('getOptionsFromPnpmSettings() keeps ${VAR} placeholders literal in resolutions values', () => {
+  // `package.json` is repo-controlled, and `resolutions` flow into the
+  // lockfile's `overrides` — a shared, persisted artifact. Expanding env
+  // vars here would materialize victim environment secrets into the
+  // lockfile. Users who need env expansion should move the override to
+  // `pnpm-workspace.yaml`, which still expands env vars through
+  // `replaceEnvInSettings`.
   const options = getOptionsFromPnpmSettings(process.cwd(), {}, {
     resolutions: {
       foo: '${PNPM_TEST_VERSION}',
     },
   } as any) // eslint-disable-line
   expect(options.overrides).toStrictEqual({
-    foo: '1.0.0',
+    foo: '${PNPM_TEST_VERSION}',
   })
-  if (prev !== undefined) {
-    process.env.PNPM_TEST_VERSION = prev
-  } else {
-    delete process.env.PNPM_TEST_VERSION
-  }
 })
 
 test('getOptionsFromPnpmSettings() ignores manifest resolutions when workspace overrides exist', () => {

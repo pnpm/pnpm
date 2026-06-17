@@ -60,7 +60,14 @@ export function getOptionsFromPnpmSettings (
   const hasOverrides = settings.overrides != null && Object.keys(settings.overrides).length > 0
   const hasResolutions = resolutions != null && Object.keys(resolutions).length > 0
   if (hasResolutions && !hasOverrides) {
-    settings.overrides = replaceEnvInStringValues(resolutions) as Record<string, string>
+    // Values are copied verbatim — `${VAR}` placeholders are NOT expanded.
+    // Unlike `pnpm-workspace.yaml` overrides (which expand env vars through
+    // `replaceEnvInSettings`), `package.json` is a repo-controlled manifest
+    // and its `resolutions` flow into the lockfile's `overrides`, a shared
+    // and persisted artifact. Expanding env vars here would materialize
+    // victim environment secrets into the lockfile. Users who need env
+    // expansion should move the override to `pnpm-workspace.yaml`.
+    settings.overrides = { ...resolutions }
   }
   if (settings.overrides != null) {
     if (Object.keys(settings.overrides).length === 0) {
@@ -178,7 +185,12 @@ function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: str
 }
 
 function replaceVersionReferences (dep: Record<string, string>, spec: string): string {
-  if (!(spec[0] === '$')) return spec
+  // `${VAR}` is the env-placeholder syntax, not a `$dep` version reference.
+  // The two happen to share a leading `$`, but the brace disambiguates: a
+  // version reference is always `$ident` (no brace). Env placeholders are
+  // preserved literally so they don't materialize victim environment
+  // secrets into the lockfile overrides.
+  if (spec[0] !== '$' || spec[1] === '{') return spec
   const dependencyName = spec.slice(1)
   const newSpec = dep[dependencyName]
   if (newSpec) return newSpec

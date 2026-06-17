@@ -46,6 +46,13 @@ pub struct RemoveArgs {
     /// and `pnpm-lock.yaml` are updated. Mirrors pnpm's `--lockfile-only`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+
+    /// Allow install when both `resolutions` in package.json and
+    /// `overrides` in pnpm-workspace.yaml exist. Overrides take
+    /// precedence; resolutions are ignored. Mirrors upstream pnpm's
+    /// `--ignore-resolutions-conflict`.
+    #[clap(long = "ignore-resolutions-conflict")]
+    pub ignore_resolutions_conflict: bool,
 }
 
 impl RemoveArgs {

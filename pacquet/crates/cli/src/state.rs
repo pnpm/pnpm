@@ -8,7 +8,10 @@ use pacquet_package_manager::ResolvedPackages;
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
 use pacquet_tarball::MemCache;
 use pipe_trait::Pipe;
-use std::{path::{Path, PathBuf}, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Application state when running `pacquet run` or `pacquet install`.
 pub struct State {
@@ -48,9 +51,9 @@ pub enum InitStateError {
     Network(#[error(source)] ForInstallsError),
 
     #[display(
-        "The \"resolutions\" field in package.json conflicts with \"overrides\" in \
-         pnpm-workspace.yaml. Remove \"resolutions\" from package.json. To suppress this \
-         error, use the --ignore-resolutions-conflict flag."
+        r#"The "resolutions" field in package.json conflicts with "overrides" in \
+         pnpm-workspace.yaml. Remove "resolutions" from package.json. To suppress this \
+         error, use the --ignore-resolutions-conflict flag."#
     )]
     #[diagnostic(code(ERR_PNPM_RESOLUTIONS_CONFLICT_WITH_OVERRIDES))]
     ResolutionsConflictWithOverrides,
@@ -64,7 +67,7 @@ pub enum InitStateError {
     InvalidResolutionsType { actual_type: String },
 
     #[display(
-        "Cannot resolve version {spec} in overrides. The direct dependencies don't have dependency \"{dep_name}\"."
+        r#"Cannot resolve version {spec} in overrides. The direct dependencies don't have dependency "{dep_name}"."#
     )]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
     CannotResolveOverrideVersion { spec: String, dep_name: String },
@@ -131,13 +134,18 @@ impl State {
 /// (no workspace), its own `resolutions` field is used. No-op when there is
 /// no root manifest.
 ///
+/// Returns the user-facing warning strings the caller should surface via
+/// the active reporter's `LogEvent::Pnpm` channel (`level: Warn`). This
+/// function does no I/O of its own so `--reporter=silent` can drop the
+/// warnings and `--reporter=ndjson` can serialize them.
+///
 /// [`addSettingsFromWorkspaceManifestToConfig`]: https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L875-L889
 pub fn apply_root_resolutions_to_config(
     config: &mut Config,
     project_manifest_path: &Path,
-) -> Result<(), InitStateError> {
-    let project_manifest =
-        PackageManifest::create_if_needed(project_manifest_path.to_path_buf()).map_err(InitStateError::Manifest)?;
+) -> Result<Vec<String>, InitStateError> {
+    let project_manifest = PackageManifest::create_if_needed(project_manifest_path.to_path_buf())
+        .map_err(InitStateError::Manifest)?;
     let root_manifest_path = config.workspace_dir.as_ref().map(|dir| dir.join("package.json"));
     let root_manifest = match root_manifest_path {
         Some(ref path) if path != project_manifest.path() => {
@@ -147,36 +155,40 @@ pub fn apply_root_resolutions_to_config(
         Some(_) => Some(project_manifest.value().clone()),
         None => None,
     };
+    let mut warnings = Vec::new();
     if let Some(root_value) = root_manifest {
-        apply_resolutions_to_config(config, &root_value)?;
+        warnings = apply_resolutions_to_config(config, &root_value)?;
     }
-    Ok(())
+    Ok(warnings)
 }
 
 /// Read `resolutions` from root `package.json` and either promote them to
 /// `config.overrides` (when no workspace overrides exist), error on conflict
-/// (when both exist), or emit a deprecation warning. Mirrors upstream's
+/// (when both exist), or record a deprecation warning. Mirrors upstream's
 /// [`addSettingsFromWorkspaceManifestToConfig`].
+///
+/// Returns warning strings for the caller to emit; see
+/// [`apply_root_resolutions_to_config`].
 ///
 /// [`addSettingsFromWorkspaceManifestToConfig`]: https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L875-L889
 fn apply_resolutions_to_config(
     config: &mut Config,
     root_manifest: &serde_json::Value,
-) -> Result<(), InitStateError> {
+) -> Result<Vec<String>, InitStateError> {
     let resolutions_raw = match root_manifest.get("resolutions") {
-        None | Some(serde_json::Value::Null) => return Ok(()),
+        None | Some(serde_json::Value::Null) => return Ok(Vec::new()),
         Some(v) => v,
     };
     let resolutions = match resolutions_raw {
         serde_json::Value::Object(map) if !map.is_empty() => map,
-        serde_json::Value::Object(_) => return Ok(()),
+        serde_json::Value::Object(_) => return Ok(Vec::new()),
         other => {
             return Err(InitStateError::InvalidResolutionsType {
                 actual_type: json_value_type_name(other),
             });
         }
     };
-    for (key, value) in resolutions.iter() {
+    for (key, value) in resolutions {
         if !value.is_string() {
             return Err(InitStateError::InvalidResolutionValue {
                 selector: key.clone(),
@@ -187,38 +199,51 @@ fn apply_resolutions_to_config(
     let has_overrides = config.overrides.as_ref().is_some_and(|overrides| !overrides.is_empty());
     if has_overrides {
         if config.ignore_resolutions_conflict {
-            eprintln!(
-                " WARN  The \"resolutions\" field in package.json is ignored because \
-                 \"overrides\" in pnpm-workspace.yaml takes precedence. Remove \
-                 \"resolutions\" from package.json.",
-            );
+            Ok(vec![
+            r#"The "resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence. Remove "resolutions" from package.json."#
+                .to_string(),
+            ])
         } else {
-            return Err(InitStateError::ResolutionsConflictWithOverrides);
+            Err(InitStateError::ResolutionsConflictWithOverrides)
         }
     } else {
-        eprintln!(
-            " WARN  The \"resolutions\" field in package.json is deprecated. Use \
-             the \"overrides\" field in pnpm-workspace.yaml instead.",
-        );
         let overrides: IndexMap<String, String> = resolutions
             .into_iter()
             .map(|(k, v)| {
                 let spec = v.as_str().unwrap();
+                // Values are copied verbatim — `${VAR}` placeholders are NOT
+                // expanded. Unlike `pnpm-workspace.yaml` overrides (which
+                // expand env vars through `replaceEnvInSettings` / our
+                // `substitute_optional_string_map`), `package.json` is a
+                // repo-controlled manifest and its `resolutions` flow into
+                // the lockfile's `overrides`, a shared and persisted
+                // artifact. Expanding env vars here would materialize victim
+                // environment secrets into the lockfile. `$dep` version
+                // references (which start with `$`, not `${`) are still
+                // resolved against the manifest below.
                 resolve_version_reference(spec, root_manifest).map(|resolved| (k.clone(), resolved))
             })
             .collect::<Result<_, _>>()?;
         if !overrides.is_empty() {
             config.overrides = Some(overrides);
         }
+        Ok(vec![
+            r#"The "resolutions" field in package.json is deprecated. Use the "overrides" field in pnpm-workspace.yaml instead."#
+                .to_string(),
+        ])
     }
-    Ok(())
 }
 
 fn resolve_version_reference(
     spec: &str,
     manifest: &serde_json::Value,
 ) -> Result<String, InitStateError> {
-    if !spec.starts_with('$') {
+    // `${VAR}` is the env-placeholder syntax, not a `$dep` version reference.
+    // The two happen to share a leading `$`, but the brace disambiguates: a
+    // version reference is always `$ident` (no brace). Env placeholders are
+    // preserved literally so they don't materialize victim environment
+    // secrets into the lockfile overrides.
+    if !spec.starts_with('$') || spec.starts_with("${") {
         return Ok(spec.to_owned());
     }
     let dep_name = &spec[1..];

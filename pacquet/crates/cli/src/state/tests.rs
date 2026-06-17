@@ -14,7 +14,7 @@ fn make_manifest(contents: &serde_json::Value) -> (TempDir, PackageManifest) {
     (dir, manifest)
 }
 
-fn apply(config: &mut Config, manifest: &PackageManifest) -> Result<(), InitStateError> {
+fn apply(config: &mut Config, manifest: &PackageManifest) -> Result<Vec<String>, InitStateError> {
     apply_resolutions_to_config(config, manifest.value())
 }
 
@@ -280,4 +280,25 @@ fn test_apply_resolutions_to_config_version_reference_deps_win_over_dev() {
     apply(&mut config, &manifest).unwrap();
     let overrides = config.overrides.unwrap();
     assert_eq!(overrides.get("foo").unwrap(), "^2.0.0");
+}
+
+#[test]
+fn test_apply_resolutions_to_config_keeps_env_placeholder_literal() {
+    // `package.json` is repo-controlled, and `resolutions` flow into the
+    // lockfile's `overrides` — a shared, persisted artifact. Expanding env
+    // vars here would materialize victim environment secrets into the
+    // lockfile, so `${VAR}` placeholders must stay literal. Users who need
+    // env expansion should move the override to `pnpm-workspace.yaml`,
+    // which still expands env vars through `substitute_optional_string_map`.
+    let (_dir, manifest) = make_manifest(&json!({
+        "name": "test",
+        "version": "1.0.0",
+        "resolutions": {
+            "foo": "${PNPM_TEST_VERSION}",
+        },
+    }));
+    let mut config = Config::new();
+    apply(&mut config, &manifest).unwrap();
+    let overrides = config.overrides.unwrap();
+    assert_eq!(overrides.get("foo").unwrap(), "${PNPM_TEST_VERSION}");
 }
