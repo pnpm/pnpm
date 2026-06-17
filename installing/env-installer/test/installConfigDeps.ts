@@ -241,6 +241,64 @@ test('an invalid config dependency name in the workspace manifest is rejected be
   expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
 })
 
+test('a config dependency with a path-traversal version in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  // The version is also a global-virtual-store path segment
+  // (`<name>/<version>/<hash>`), so a traversal-shaped version would escape
+  // the store links root during materialization.
+  const maliciousVersion = '../../../PWNED'
+  const lockfile = makeEnvLockfile({
+    '@pnpm.e2e/foo': { version: maliciousVersion, integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
+  })
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid version')
+
+  expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
+  expect(containsEntryNamed(storeDir, 'PWNED')).toBe(false)
+})
+
+test('an optional subdep with a path-traversal version in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepName = '@pnpm.e2e/bar'
+  const maliciousVersion = '../../../PWNED'
+
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  lockfile.snapshots[parentKey] = {
+    optionalDependencies: { [subdepName]: maliciousVersion },
+  }
+  lockfile.packages[`${subdepName}@${maliciousVersion}`] = {
+    resolution: { integrity: getIntegrity(subdepName, '100.0.0') },
+  }
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid version')
+
+  expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
+  expect(containsEntryNamed(storeDir, 'PWNED')).toBe(false)
+})
+
 test('optional subdep matching the current platform is installed and symlinked next to parent', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()

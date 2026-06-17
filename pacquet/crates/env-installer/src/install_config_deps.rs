@@ -41,7 +41,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
     let normalized = normalize_from_lockfile(env_lockfile, opts)?;
-    assert_valid_config_dep_names(&normalized)?;
+    assert_valid_config_deps(&normalized)?;
     let global_virtual_store_dir = opts.store_dir.links();
     let config_modules_dir = opts.root_dir.join("node_modules").join(".pnpm-config");
 
@@ -338,14 +338,17 @@ fn is_compatible<Reporter: self::Reporter>(
     }
 }
 
-/// Reject config-dependency (and optional-subdep) names that aren't
-/// valid npm package names before any filesystem path is built from
-/// them. The names come from the committed env lockfile, so a
-/// traversal-shaped name like `../../PWNED` would otherwise let a
-/// malicious repository create symlinks outside
-/// `node_modules/.pnpm-config` during install. Mirrors the
-/// `assertValidDependencyAliases` gate pnpm runs over the same input.
-fn assert_valid_config_dep_names(
+/// Reject config-dependency (and optional-subdep) names and versions that
+/// aren't safe path segments before any filesystem path is built from
+/// them. They come from the committed env lockfile, and both the name and
+/// the version become global-virtual-store path segments
+/// (`<name>/<version>/<hash>`), so a traversal-shaped name (`../../PWNED`)
+/// or version (`../../../PWNED`) would otherwise let a malicious repository
+/// write outside the intended roots during install. Names must be valid
+/// npm package names (mirrors pnpm's `assertValidDependencyAliases`);
+/// versions resolve to exact semver, so anything that isn't a valid semver
+/// version is rejected.
+fn assert_valid_config_deps(
     normalized: &BTreeMap<String, NormalizedConfigDep>,
 ) -> Result<(), ConfigDepError> {
     for (name, dep) in normalized {
@@ -356,6 +359,7 @@ fn assert_valid_config_dep_names(
                 name: name.clone(),
             });
         }
+        assert_valid_config_dep_version(name, &dep.version)?;
         for subdep in &dep.optional_subdeps {
             if !is_valid_old_npm_package_name(&subdep.name) {
                 return Err(ConfigDepError::InvalidDependencyName {
@@ -365,7 +369,18 @@ fn assert_valid_config_dep_names(
                     name: subdep.name.clone(),
                 });
             }
+            assert_valid_config_dep_version(&subdep.name, &subdep.version)?;
         }
+    }
+    Ok(())
+}
+
+fn assert_valid_config_dep_version(name: &str, version: &str) -> Result<(), ConfigDepError> {
+    if version.parse::<node_semver::Version>().is_err() {
+        return Err(ConfigDepError::InvalidConfigDepVersion {
+            name: name.to_string(),
+            version: version.to_string(),
+        });
     }
     Ok(())
 }

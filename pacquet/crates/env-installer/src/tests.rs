@@ -546,6 +546,86 @@ async fn rejects_invalid_manifest_config_dep_name_before_writing_lockfile() {
 }
 
 #[tokio::test]
+async fn rejects_config_dep_with_path_traversal_version() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    // The version is also a global-virtual-store path segment
+    // (`<name>/<version>/<hash>`), so a traversal-shaped version would
+    // escape the store links root during materialization.
+    let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let malicious_version = "../../../PWNED";
+    env.root_importer_mut().config_dependencies.get_mut("@pnpm.e2e/foo").unwrap().version =
+        malicious_version.to_string();
+    let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let pkg = env.packages[&legit_key].clone();
+    let malicious_key: PackageKey = format!("@pnpm.e2e/foo@{malicious_version}").parse().unwrap();
+    env.packages.insert(malicious_key, pkg);
+
+    let error = install_config_deps::<SilentReporter>(&env, &options(&harness, root.path(), false))
+        .await
+        .expect_err("a traversal-shaped config dep version must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidConfigDepVersion { .. }),
+        "unexpected error: {error:?}",
+    );
+
+    assert!(!contains_entry_named(root.path(), "PWNED"));
+    assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED"));
+}
+
+#[tokio::test]
+async fn rejects_optional_subdep_with_path_traversal_version() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let parent_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let pkg = env.packages[&parent_key].clone();
+    let malicious_version = "../../../PWNED";
+    let subdep_name = "@pnpm.e2e/bar";
+    let malicious_key: PackageKey = format!("{subdep_name}@{malicious_version}").parse().unwrap();
+    env.packages.insert(malicious_key, pkg);
+    let subdep_name_parsed: pacquet_lockfile::PkgName = subdep_name.parse().unwrap();
+    let subdep_ref: SnapshotDepRef = malicious_version.parse().unwrap();
+    env.snapshots.entry(parent_key).or_default().optional_dependencies =
+        Some(std::iter::once((subdep_name_parsed, subdep_ref)).collect());
+
+    let error = install_config_deps::<SilentReporter>(&env, &options(&harness, root.path(), false))
+        .await
+        .expect_err("a traversal-shaped optional subdep version must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidConfigDepVersion { .. }),
+        "unexpected error: {error:?}",
+    );
+
+    assert!(!contains_entry_named(root.path(), "PWNED"));
+    assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED"));
+}
+
+#[tokio::test]
 async fn frozen_lockfile_rejects_new_config_dep() {
     let harness = harness();
     let (resolver, _cache) = build_resolver(&harness.registry_url);

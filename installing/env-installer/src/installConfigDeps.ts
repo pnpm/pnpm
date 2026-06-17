@@ -13,6 +13,7 @@ import type { StoreController } from '@pnpm/store.controller'
 import type { ConfigDependencies, Registries } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import getNpmTarballUrl from 'get-npm-tarball-url'
+import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
 
 import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
@@ -41,7 +42,7 @@ export async function installConfigDeps (
   // malicious name trigger those writes before being refused.
   assertValidRawConfigDepNames(configDepsOrLockfile)
   const normalizedDeps = await normalizeForInstall(configDepsOrLockfile, opts)
-  assertValidConfigDepNames(normalizedDeps)
+  assertValidConfigDeps(normalizedDeps)
   const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
 
   const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
@@ -134,19 +135,12 @@ export async function installConfigDeps (
   }
 }
 
-// Config dependency names are read from the committed env lockfile (and the
-// legacy inline format in pnpm-workspace.yaml), so they are attacker-controlled
-// input. Each name becomes a directory entry under node_modules/.pnpm-config and
-// inside the global virtual store, so a traversal-shaped name like
-// `../../PWNED` would let a malicious repository create symlinks outside the
-// config dependency root during install. Reject anything that is not a plain npm
-// package name before any path is built from it.
 // Validate the top-level config dependency names straight from the raw
 // input — before normalizeForInstall, which may migrate the legacy
 // manifest format and write pnpm-lock.yaml / workspace settings. Subdep
-// names are only reachable after normalization (the env-lockfile path,
-// which performs no writes before assertValidConfigDepNames runs), so they
-// are validated there.
+// names and all versions are only reachable after normalization (the
+// env-lockfile path, which performs no writes before assertValidConfigDeps
+// runs), so they are validated there.
 function assertValidRawConfigDepNames (configDepsOrLockfile: ConfigDependencies | EnvLockfile): void {
   const names = isEnvLockfile(configDepsOrLockfile)
     ? configDepsOrLockfile.importers['.']?.configDependencies
@@ -157,9 +151,19 @@ function assertValidRawConfigDepNames (configDepsOrLockfile: ConfigDependencies 
   assertValidDependencyAliases(names, `The configDependencies in ${source}`)
 }
 
-function assertValidConfigDepNames (normalizedDeps: Record<string, NormalizedConfigDep>): void {
+// Config dependency names and versions are read from the committed env
+// lockfile (and the legacy inline format in pnpm-workspace.yaml), so they are
+// attacker-controlled input. The name becomes a directory entry under
+// node_modules/.pnpm-config, and both name and version become path segments of
+// the global virtual store path (`<name>/<version>/<hash>`), so a
+// traversal-shaped name (`../../PWNED`) or version (`../../../PWNED`) would let
+// a malicious repository write outside the intended roots during install.
+// Reject anything that is not a plain npm package name or an exact semver
+// version before any path is built from it.
+function assertValidConfigDeps (normalizedDeps: Record<string, NormalizedConfigDep>): void {
   assertValidDependencyAliases(normalizedDeps, 'The configDependencies in the env lockfile (pnpm-lock.yaml)')
   for (const [pkgName, pkg] of Object.entries(normalizedDeps)) {
+    assertValidConfigDepVersion(pkgName, pkg.version)
     if (!pkg.optionalSubdeps?.length) continue
     // A null-prototype object so an attacker-controlled name of `__proto__`
     // becomes an enumerable own key the validator rejects, rather than
@@ -169,6 +173,19 @@ function assertValidConfigDepNames (normalizedDeps: Record<string, NormalizedCon
       subdepsByName[subdep.name] = true
     }
     assertValidDependencyAliases(subdepsByName, `The optionalDependencies of config dependency "${pkgName}" in the env lockfile (pnpm-lock.yaml)`)
+    for (const subdep of pkg.optionalSubdeps) {
+      assertValidConfigDepVersion(subdep.name, subdep.version)
+    }
+  }
+}
+
+function assertValidConfigDepVersion (name: string, version: string): void {
+  if (semver.valid(version) == null) {
+    throw new PnpmError(
+      'INVALID_CONFIG_DEP_VERSION',
+      `The config dependency "${name}" has an invalid version "${version}" in the env lockfile (pnpm-lock.yaml)`,
+      { hint: 'A config dependency version must be an exact semver version.' }
+    )
   }
 }
 

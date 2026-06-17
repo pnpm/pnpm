@@ -58,6 +58,18 @@ pub enum ConfigDepError {
     )]
     InvalidDependencyName { description: String, name: String },
 
+    /// A config-dependency `version` is also a global-virtual-store path
+    /// segment (`<name>/<version>/<hash>`), so a traversal-shaped version
+    /// from a committed lockfile would escape the store links root during
+    /// materialization. Versions resolve to exact semver, so anything that
+    /// isn't a valid semver version is rejected.
+    #[display(r#"The config dependency "{name}" has an invalid version "{version}""#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_CONFIG_DEP_VERSION),
+        help("A config dependency version must be an exact semver version.")
+    )]
+    InvalidConfigDepVersion { name: String, version: String },
+
     #[display("Failed to resolve config dependency {spec}: {error}")]
     #[diagnostic(code(ERR_PNPM_BAD_CONFIG_DEP))]
     Resolve {
