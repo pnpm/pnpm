@@ -308,10 +308,16 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       const modulesDirStatsPromise = statModulesDir(project)
       // With a dedicated lockfile per project, a non-root project may have its
       // own pnpm-workspace.yaml whose catalogs (possibly extended from another
-      // workspace manifest) feed that project's lockfile. Editing it must
-      // invalidate the optimistic "nothing changed" exit below, so stat it
+      // workspace manifest) feed that project's lockfile. Editing or adding it
+      // must invalidate the optimistic "nothing changed" exit below, so stat it
       // alongside the project manifest. Shared-lockfile workspaces only honor
       // the root catalogs, so this extra stat is skipped there.
+      //
+      // Deletion is intentionally not caught here: a stat cannot distinguish a
+      // project that never had a workspace manifest from one that just lost it,
+      // and tracking prior presence would mean extending the persisted
+      // workspace-state shape (a cross-implementation contract). The next
+      // `pnpm install` re-resolves the affected project and self-heals.
       const workspaceManifestStatsPromise = !sharedWorkspaceLockfile && project.rootDir !== workspaceDir
         ? safeStat(path.join(project.rootDir, WORKSPACE_MANIFEST_FILENAME))
         : Promise.resolve(undefined)
