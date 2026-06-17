@@ -442,15 +442,18 @@ export async function getConfig (opts: {
       const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
-      if (workspaceManifest) {
-        addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
-          configFromCliOpts,
-          projectManifest: pnpmConfig.rootProjectManifest,
-          warnings,
-          workspaceDir: pnpmConfig.workspaceDir,
-          workspaceManifest,
-        })
-      }
+      // Always run the settings + resolutions handler, even when there's
+      // no `pnpm-workspace.yaml`. Root `package.json#resolutions` still
+      // need to be validated and promoted to `overrides` (or conflict
+      // with workspace `overrides`); the catalog / settings merge inside
+      // the handler is a no-op when `workspaceManifest` is `undefined`.
+      addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+        configFromCliOpts,
+        projectManifest: pnpmConfig.rootProjectManifest,
+        warnings,
+        workspaceDir: pnpmConfig.workspaceDir,
+        workspaceManifest,
+      })
     } else if (cliOptions['global']) {
       // For global installs, read settings from pnpm-workspace.yaml in the global package directory
       const workspaceManifest = await readWorkspaceManifest(pnpmConfig.globalPkgDir)
@@ -463,6 +466,18 @@ export async function getConfig (opts: {
           workspaceManifest,
         })
       }
+    } else {
+      // No `pnpm-workspace.yaml` and not a global install: still process
+      // root `package.json#resolutions` so they get validated, promoted
+      // to `overrides`, or surface `RESOLUTIONS_CONFLICT_WITH_OVERRIDES`.
+      // Catalog / settings merge is a no-op without a workspace manifest.
+      addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+        configFromCliOpts,
+        projectManifest: pnpmConfig.rootProjectManifest,
+        warnings,
+        workspaceDir: undefined,
+        workspaceManifest: undefined,
+      })
     }
   }
 
@@ -1022,9 +1037,14 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   projectManifest: ProjectManifest | undefined
   warnings: string[]
   workspaceDir: string | undefined
-  workspaceManifest: WorkspaceManifest
+  // `undefined` when there is no `pnpm-workspace.yaml`. The handler still
+  // runs so root `package.json#resolutions` get validated / promoted to
+  // overrides (or conflict with workspace `overrides` of an *empty*
+  // manifest, which is just "no overrides"). Catalog / settings merge
+  // is a no-op in that case.
+  workspaceManifest: WorkspaceManifest | undefined
 }): void {
-  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
+  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest ?? {}, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   if (newSettings.resolutionsStatus != null) {
     if (newSettings.resolutionsStatus.ignoredResolutions) {
       if (newSettings.ignoreResolutionsConflict) {

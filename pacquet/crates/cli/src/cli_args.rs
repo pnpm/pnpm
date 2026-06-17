@@ -559,18 +559,13 @@ impl InstallPipeline {
             require_lockfile,
             frozen_lockfile,
         } = self;
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                frozen_lockfile,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        // Validate / promote root `package.json#resolutions` before any
+        // side-effectful work — config-deps sync writes the env lockfile
+        // document into `pnpm-lock.yaml`, and `updateConfig` hooks may
+        // mutate `cfg`. Failing fast on `RESOLUTIONS_CONFLICT_WITH_OVERRIDES`
+        // here keeps a conflicting repo from leaving half-written state
+        // behind. Reads the manifest once and reuses it for `State::init`
+        // below.
         let manifest = PackageManifest::create_if_needed(manifest_path)
             .map_err(InitStateError::Manifest)
             .wrap_err("initialize the state")?;
@@ -583,6 +578,18 @@ impl InstallPipeline {
                 prefix: prefix.clone(),
             }));
         }
+        if let Some(pm) = package_manager_to_sync.as_ref() {
+            config_deps::sync_package_manager_dependencies(
+                cfg,
+                &config_root,
+                &pm.specifier,
+                &pm.version,
+                frozen_lockfile,
+            )
+            .await?;
+        }
+        config_deps::install_config_deps::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
+        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
         let cfg: &'static Config = cfg;
         let state =
             State::init(manifest, cfg, require_lockfile).wrap_err("initialize the state")?;

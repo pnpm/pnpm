@@ -46,6 +46,36 @@ test('resolutions in root package.json are used as overrides when no overrides i
   })
 })
 
+test('resolutions in root package.json are used as overrides without a pnpm-workspace.yaml', async () => {
+  // Regression: the resolutions handler used to run only inside the
+  // `if (workspaceManifest)` branch, so a standalone repo with no
+  // `pnpm-workspace.yaml` silently dropped `resolutions`. The handler is
+  // now always invoked; catalog / settings merge no-ops when there's no
+  // workspace manifest, but `package.json#resolutions` are still
+  // validated and promoted to `overrides`.
+  prepare()
+
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'standalone',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    resolutions: {
+      'is-positive': '3.1.0',
+    },
+  }), 'utf8')
+
+  const result = execPnpmSync(['install'])
+  expect(result.status).toBe(0)
+  expect(result.stderr.toString()).toContain('The "resolutions" field in package.json is deprecated')
+
+  const lockfile = readYamlFileSync(WANTED_LOCKFILE) as any // eslint-disable-line
+  expect(lockfile.overrides).toStrictEqual({
+    'is-positive': '3.1.0',
+  })
+})
+
 test('error when both resolutions and overrides exist', async () => {
   preparePackages([
     {
