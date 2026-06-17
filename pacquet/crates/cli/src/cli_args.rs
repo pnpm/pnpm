@@ -286,6 +286,7 @@ impl CliArgs {
         // pnpm's CLI: `--frozen-lockfile` is the strongest signal and
         // must not be silently dropped because `lockfile=false` was set
         // (or defaulted) in config.
+
         let state = |require_lockfile: bool| -> miette::Result<State> {
             State::init(manifest_path(), config()?, require_lockfile)
                 .wrap_err("initialize the state")
@@ -295,13 +296,21 @@ impl CliArgs {
             CliCommand::Init => {
                 PackageManifest::init(&manifest_path()).wrap_err("initialize package.json")?;
             }
-            CliCommand::Add(args) => match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+            CliCommand::Add(args) => {
+                let cfg = config()?;
+                cfg.ignore_resolutions_conflict =
+                    cfg.ignore_resolutions_conflict || args.ignore_resolutions_conflict;
+                crate::state::apply_root_resolutions_to_config(cfg, &manifest_path())?;
+                let state = State::init(manifest_path(), cfg, false)
+                    .wrap_err("initialize the state")?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(state)).await?;
+                    }
+                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state)).await?,
+                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state)).await?,
                 }
-                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
-                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
-            },
+            }
             CliCommand::Update(args) => match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
                     Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
@@ -364,6 +373,8 @@ impl CliArgs {
                 if let Some(pnpr_server) = args.pnpr_server.clone() {
                     cfg.pnpr_server = Some(pnpr_server);
                 }
+                cfg.ignore_resolutions_conflict =
+                    cfg.ignore_resolutions_conflict || args.ignore_resolutions_conflict;
                 let require_lockfile = args.frozen_lockfile;
                 let frozen_lockfile = args.frozen_lockfile;
                 // Config dependencies are workspace-level state: their
@@ -517,6 +528,7 @@ impl InstallPipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        crate::state::apply_root_resolutions_to_config(cfg, &manifest_path)?;
         let cfg: &'static Config = cfg;
         let state =
             State::init(manifest_path, cfg, require_lockfile).wrap_err("initialize the state")?;
