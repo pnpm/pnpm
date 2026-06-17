@@ -23,6 +23,7 @@ mod prune;
 mod resolve_and_install_config_deps;
 mod resolve_optional_subdeps;
 mod resolve_package_manager_integrities;
+mod verify_env_lockfile;
 
 pub use errors::ConfigDepError;
 pub use install_config_deps::install_config_deps;
@@ -34,6 +35,7 @@ pub use resolve_optional_subdeps::resolve_optional_subdeps;
 pub use resolve_package_manager_integrities::{
     is_package_manager_resolved, resolve_package_manager_integrities,
 };
+pub use verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile};
 
 #[cfg(test)]
 mod tests;

@@ -41,6 +41,29 @@ pub enum ConfigDepError {
     #[diagnostic(code(ERR_PNPM_ENV_LOCKFILE_CORRUPTED))]
     EnvLockfileCorrupted { message: String },
 
+    /// Mirrors pnpm's `INVALID_DEPENDENCY_NAME`, thrown by
+    /// [`assertValidDependencyAliases`](https://github.com/pnpm/pnpm/blob/main/installing/deps-resolver/src/validateDependencyAlias.ts).
+    #[display(r"{description} contains a dependency with an invalid name: {name:?}")]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_DEPENDENCY_NAME),
+        help(
+            "A dependency name must be a valid npm package name — a single `name` or `@scope/name` \
+             consisting of URL-friendly characters, with no leading `.` or `_`, and not equal to \
+             reserved names such as `node_modules`."
+        )
+    )]
+    InvalidDependencyName { description: String, name: String },
+
+    /// A config-dependency version is a store path segment
+    /// (`<name>/<version>/<hash>`), so a non-semver value is rejected to keep a
+    /// traversal-shaped version from escaping the store root.
+    #[display(r#"The config dependency "{name}" has an invalid version "{version}""#)]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_CONFIG_DEP_VERSION),
+        help("A config dependency version must be an exact semver version.")
+    )]
+    InvalidConfigDepVersion { name: String, version: String },
+
     #[display("Failed to resolve config dependency {spec}: {error}")]
     #[diagnostic(code(ERR_PNPM_BAD_CONFIG_DEP))]
     Resolve {

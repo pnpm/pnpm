@@ -1,13 +1,14 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
-import { createEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
+import { createEnvLockfile } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { ConfigDependencies, ConfigDependencySpecifiers, Registries } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 
 import type { NormalizedConfigDep } from './parseIntegrity.js'
 import { parseIntegrity } from './parseIntegrity.js'
+import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 interface MigrateOpts {
   registries: Registries
@@ -26,6 +27,9 @@ export async function migrateConfigDepsToLockfile (
   opts: MigrateOpts
 ): Promise<Record<string, NormalizedConfigDep>> {
   const envLockfile = createEnvLockfile()
+  // Null-prototype so a `__proto__` name lands as an own key verifyEnvLockfile
+  // sees, not a silent prototype mutation.
+  envLockfile.importers['.'].configDependencies = Object.create(null)
   const cleanSpecifiers: ConfigDependencySpecifiers = {}
   const normalizedDeps: Record<string, NormalizedConfigDep> = {}
 
@@ -89,17 +93,14 @@ export async function migrateConfigDepsToLockfile (
     }
   }
 
-  // Write the new env lockfile and clean up workspace manifest
-  await Promise.all([
-    writeEnvLockfile(opts.rootDir, envLockfile),
-    writeSettings({
-      rootProjectManifestDir: opts.rootDir,
-      workspaceDir: opts.rootDir,
-      updatedSettings: {
-        configDependencies: cleanSpecifiers,
-      },
-    }),
-  ])
+  await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
+  await writeSettings({
+    rootProjectManifestDir: opts.rootDir,
+    workspaceDir: opts.rootDir,
+    updatedSettings: {
+      configDependencies: cleanSpecifiers,
+    },
+  })
 
   return normalizedDeps
 }

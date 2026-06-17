@@ -4,7 +4,6 @@ import {
   createEnvLockfile,
   type EnvLockfile,
   readEnvLockfile,
-  writeEnvLockfile,
 } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
@@ -17,6 +16,7 @@ import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDe
 import { parseIntegrity } from './parseIntegrity.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
+import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 export type ResolveAndInstallConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   rootDir: string
@@ -92,7 +92,7 @@ export async function resolveAndInstallConfigDeps (
 
   if (depsToResolve.length === 0) {
     if (lockfileChanged) {
-      await writeEnvLockfile(opts.rootDir, envLockfile)
+      await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
     }
     await installConfigDeps(envLockfile, opts)
     return
@@ -143,6 +143,6 @@ export async function resolveAndInstallConfigDeps (
 
   pruneEnvLockfile(envLockfile)
 
-  await writeEnvLockfile(opts.rootDir, envLockfile)
+  await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
   await installConfigDeps(envLockfile, opts)
 }

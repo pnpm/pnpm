@@ -10,6 +10,7 @@
 
 use crate::{
     ConfigDepError, NormalizedConfigDep, NormalizedSubdep, options::ConfigDepsInstallOptions,
+    verify_env_lockfile::verify_env_lockfile,
 };
 use pacquet_graph_hasher::{
     calc_global_virtual_store_path_with_subdeps, calc_leaf_global_virtual_store_path,
@@ -39,6 +40,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     env_lockfile: &EnvLockfile,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
+    verify_env_lockfile(env_lockfile)?;
     let normalized = normalize_from_lockfile(env_lockfile, opts)?;
     let global_virtual_store_dir = opts.store_dir.links();
     let config_modules_dir = opts.root_dir.join("node_modules").join(".pnpm-config");

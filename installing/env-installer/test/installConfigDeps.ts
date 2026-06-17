@@ -24,6 +24,22 @@ function makeEnvLockfile (deps: Record<string, { version: string, integrity: str
   return lockfile
 }
 
+// Recursively search `dir` for an entry named `name`, without following
+// symlinks (so it can't loop through the links a successful install creates).
+function containsEntryNamed (dir: string, name: string): boolean {
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return false
+  }
+  for (const entry of entries) {
+    if (entry.name === name) return true
+    if (entry.isDirectory() && containsEntryNamed(path.join(dir, entry.name), name)) return true
+  }
+  return false
+}
+
 test('configuration dependency is installed from env lockfile', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()
@@ -81,6 +97,210 @@ test('configuration dependency is installed from env lockfile', async () => {
   })
 
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')).toBeFalsy()
+})
+
+test('a config dependency with a path-traversal name in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const maliciousName = '../../PWNED'
+  const lockfile = makeEnvLockfile({
+    [maliciousName]: { version: '1.0.0', integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
+  })
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid name')
+
+  expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
+  expect(containsEntryNamed(storeDir, 'PWNED')).toBe(false)
+})
+
+test('an optional subdep with a path-traversal name in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const maliciousSubdepName = '../../PWNED_SUBDEP'
+  const subdepVersion = '1.0.0'
+
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  lockfile.snapshots[parentKey] = {
+    optionalDependencies: { [maliciousSubdepName]: subdepVersion },
+  }
+  lockfile.packages[`${maliciousSubdepName}@${subdepVersion}`] = {
+    resolution: { integrity: getIntegrity('@pnpm.e2e/bar', '100.0.0') },
+  }
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid name')
+
+  expect(containsEntryNamed(process.cwd(), 'PWNED_SUBDEP')).toBe(false)
+  expect(containsEntryNamed(storeDir, 'PWNED_SUBDEP')).toBe(false)
+})
+
+test('a config dependency named __proto__ in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const lockfile = createEnvLockfile()
+  // JSON.parse makes `__proto__` an own enumerable key (as on-disk parsing does);
+  // a plain object literal would set the prototype and hide it.
+  lockfile.importers['.'].configDependencies = JSON.parse('{"__proto__":{"specifier":"1.0.0","version":"1.0.0"}}')
+  lockfile.packages['__proto__@1.0.0'] = { resolution: { integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') } }
+  lockfile.snapshots['__proto__@1.0.0'] = {}
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid name')
+
+  expect(containsEntryNamed(process.cwd(), '__proto__')).toBe(false)
+})
+
+test('an optional subdep named __proto__ in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  // JSON.parse so `__proto__` is an own enumerable key.
+  lockfile.snapshots[parentKey] = { optionalDependencies: JSON.parse('{"__proto__":"1.0.0"}') }
+  lockfile.packages['__proto__@1.0.0'] = { resolution: { integrity: getIntegrity('@pnpm.e2e/bar', '100.0.0') } }
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid name')
+
+  expect(containsEntryNamed(process.cwd(), '__proto__')).toBe(false)
+  expect(containsEntryNamed(storeDir, '__proto__')).toBe(false)
+})
+
+test('an invalid config dependency name in the workspace manifest is rejected before any lockfile is written', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
+  const configDeps: Record<string, string> = {
+    '../../PWNED': `100.0.0+${integrity}`,
+  }
+
+  await expect(installConfigDeps(configDeps, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid name')
+
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+  expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
+})
+
+test('an invalid config dependency version in the workspace manifest is rejected before any lockfile is written', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
+  const configDeps: Record<string, string> = {
+    '@pnpm.e2e/foo': `../../../PWNED+${integrity}`,
+  }
+
+  await expect(installConfigDeps(configDeps, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid version')
+
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+  expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
+})
+
+test('a config dependency with a path-traversal version in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const maliciousVersion = '../../../PWNED'
+  const lockfile = makeEnvLockfile({
+    '@pnpm.e2e/foo': { version: maliciousVersion, integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
+  })
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid version')
+
+  expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
+  expect(containsEntryNamed(storeDir, 'PWNED')).toBe(false)
+})
+
+test('an optional subdep with a path-traversal version in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const subdepName = '@pnpm.e2e/bar'
+  const maliciousVersion = '../../../PWNED'
+
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  lockfile.snapshots[parentKey] = {
+    optionalDependencies: { [subdepName]: maliciousVersion },
+  }
+  lockfile.packages[`${subdepName}@${maliciousVersion}`] = {
+    resolution: { integrity: getIntegrity(subdepName, '100.0.0') },
+  }
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid version')
+
+  expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
+  expect(containsEntryNamed(storeDir, 'PWNED')).toBe(false)
 })
 
 test('optional subdep matching the current platform is installed and symlinked next to parent', async () => {

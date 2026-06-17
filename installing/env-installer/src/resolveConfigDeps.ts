@@ -5,7 +5,6 @@ import {
   createEnvLockfile,
   type EnvLockfile,
   readEnvLockfile,
-  writeEnvLockfile,
 } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
@@ -17,6 +16,7 @@ import type { ConfigDependencies, ConfigDependencySpecifiers, RegistryConfig } f
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
+import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies
@@ -81,17 +81,15 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
 
   pruneEnvLockfile(envLockfile)
 
-  await Promise.all([
-    writeSettings({
-      ...opts,
-      rootProjectManifestDir: opts.rootDir,
-      workspaceDir: opts.rootDir,
-      updatedSettings: {
-        configDependencies: configDependencySpecifiers,
-      },
-    }),
-    writeEnvLockfile(opts.rootDir, envLockfile),
-  ])
+  await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
+  await writeSettings({
+    ...opts,
+    rootProjectManifestDir: opts.rootDir,
+    workspaceDir: opts.rootDir,
+    updatedSettings: {
+      configDependencies: configDependencySpecifiers,
+    },
+  })
   await installConfigDeps(envLockfile, opts)
 }
 

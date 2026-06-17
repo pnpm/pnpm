@@ -16,6 +16,7 @@ import { symlinkDir } from 'symlink-dir'
 
 import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
 import type { NormalizedConfigDep, NormalizedSubdep } from './parseIntegrity.js'
+import { verifyEnvLockfile } from './verifyEnvLockfile.js'
 
 export interface InstallConfigDepsOpts {
   frozenLockfile?: boolean
@@ -133,6 +134,7 @@ async function normalizeForInstall (
 ): Promise<Record<string, NormalizedConfigDep>> {
   // If it's a EnvLockfile object (has lockfileVersion), use it directly
   if (isEnvLockfile(configDepsOrLockfile)) {
+    verifyEnvLockfile(configDepsOrLockfile)
     return normalizeFromLockfile(configDepsOrLockfile, opts.registries)
   }
 
@@ -140,6 +142,7 @@ async function normalizeForInstall (
   // Try to read the env lockfile first.
   const envLockfile = await readEnvLockfile(opts.rootDir)
   if (envLockfile) {
+    verifyEnvLockfile(envLockfile)
     return normalizeFromLockfile(envLockfile, opts.registries)
   }
 
