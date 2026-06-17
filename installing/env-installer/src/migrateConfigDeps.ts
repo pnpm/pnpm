@@ -26,8 +26,11 @@ export async function migrateConfigDepsToLockfile (
   opts: MigrateOpts
 ): Promise<Record<string, NormalizedConfigDep>> {
   const envLockfile = createEnvLockfile()
-  const cleanSpecifiers: ConfigDependencySpecifiers = {}
-  const normalizedDeps: Record<string, NormalizedConfigDep> = {}
+  // Null-prototype accumulators: config dep names come from an
+  // attacker-controlled workspace manifest, so a `__proto__` name must
+  // land as an own key the validation gate can see and reject.
+  const cleanSpecifiers: ConfigDependencySpecifiers = Object.create(null)
+  const normalizedDeps: Record<string, NormalizedConfigDep> = Object.create(null)
 
   for (const [pkgName, pkgSpec] of Object.entries(configDeps)) {
     const registry = pickRegistryForPackage(opts.registries, pkgName)

@@ -164,6 +164,54 @@ test('an optional subdep with a path-traversal name in the env lockfile is rejec
   expect(containsEntryNamed(storeDir, 'PWNED_SUBDEP')).toBe(false)
 })
 
+test('a config dependency named __proto__ in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const lockfile = createEnvLockfile()
+  // JSON.parse yields an own enumerable `__proto__` key, as parsing a
+  // lockfile from disk does. A plain assignment would instead mutate the
+  // object's prototype and hide the key from Object.keys/Object.entries.
+  lockfile.importers['.'].configDependencies = JSON.parse('{"__proto__":{"specifier":"1.0.0","version":"1.0.0"}}')
+  lockfile.packages['__proto__@1.0.0'] = { resolution: { integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') } }
+  lockfile.snapshots['__proto__@1.0.0'] = {}
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid name')
+
+  expect(containsEntryNamed(process.cwd(), '__proto__')).toBe(false)
+})
+
+test('an optional subdep named __proto__ in the env lockfile is rejected', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  const parentName = '@pnpm.e2e/foo'
+  const parentVersion = '100.0.0'
+  const lockfile = createEnvLockfile()
+  const parentKey = `${parentName}@${parentVersion}`
+  lockfile.importers['.'].configDependencies[parentName] = { specifier: parentVersion, version: parentVersion }
+  lockfile.packages[parentKey] = { resolution: { integrity: getIntegrity(parentName, parentVersion) } }
+  // JSON.parse so `__proto__` is an own enumerable key.
+  lockfile.snapshots[parentKey] = { optionalDependencies: JSON.parse('{"__proto__":"1.0.0"}') }
+  lockfile.packages['__proto__@1.0.0'] = { resolution: { integrity: getIntegrity('@pnpm.e2e/bar', '100.0.0') } }
+
+  await expect(installConfigDeps(lockfile, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid name')
+})
+
 test('optional subdep matching the current platform is installed and symlinked next to parent', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()

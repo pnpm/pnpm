@@ -63,7 +63,7 @@ export async function installConfigDeps (
     // The parent's GVS hash must incorporate its optional subdeps; otherwise
     // changing a subdep version while keeping the parent pinned would collide
     // on the same leaf and silently overwrite the previous sibling symlinks.
-    const optionalSubdepIds: Record<string, string> = {}
+    const optionalSubdepIds: Record<string, string> = Object.create(null)
     for (const subdep of pkg.optionalSubdeps ?? []) {
       optionalSubdepIds[subdep.name] = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
     }
@@ -140,7 +140,10 @@ function assertValidConfigDepNames (normalizedDeps: Record<string, NormalizedCon
   assertValidDependencyAliases(normalizedDeps, 'The configDependencies in the env lockfile (pnpm-lock.yaml)')
   for (const [pkgName, pkg] of Object.entries(normalizedDeps)) {
     if (!pkg.optionalSubdeps?.length) continue
-    const subdepsByName: Record<string, true> = {}
+    // A null-prototype object so an attacker-controlled name of `__proto__`
+    // becomes an enumerable own key the validator rejects, rather than
+    // silently setting the prototype and slipping past `Object.keys`.
+    const subdepsByName: Record<string, true> = Object.create(null)
     for (const subdep of pkg.optionalSubdeps) {
       subdepsByName[subdep.name] = true
     }
@@ -188,7 +191,10 @@ function normalizeFromLockfile (
   lockfile: EnvLockfile,
   registries: Registries
 ): Record<string, NormalizedConfigDep> {
-  const deps: Record<string, NormalizedConfigDep> = {}
+  // Null-prototype: config dep names are attacker-controlled, and a
+  // `__proto__` key must land as an own key (so the later validation gate
+  // sees and rejects it) instead of mutating the accumulator's prototype.
+  const deps: Record<string, NormalizedConfigDep> = Object.create(null)
   const configDeps = lockfile.importers['.']?.configDependencies ?? {}
   for (const [pkgName, { version }] of Object.entries(configDeps)) {
     const pkgKey = `${pkgName}@${version}`

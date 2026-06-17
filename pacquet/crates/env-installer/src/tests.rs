@@ -477,6 +477,44 @@ async fn rejects_optional_subdep_with_path_traversal_name() {
     assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED_SUBDEP"));
 }
 
+/// A config dep literally named `__proto__` is not a path-traversal name,
+/// but it is still an invalid npm package name (leading `_`). Rust's
+/// string-keyed maps have no prototype semantics, so — unlike JS — it is
+/// rejected without any special handling; this test pins that parity.
+#[tokio::test]
+async fn rejects_config_dep_named_dunder_proto() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let spec = env.root_importer_mut().config_dependencies.remove("@pnpm.e2e/foo").unwrap();
+    let malicious_name = "__proto__".to_string();
+    env.root_importer_mut().config_dependencies.insert(malicious_name.clone(), spec.clone());
+    let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let pkg = env.packages[&legit_key].clone();
+    let malicious_key: PackageKey = format!("{malicious_name}@{}", spec.version).parse().unwrap();
+    env.packages.insert(malicious_key, pkg);
+
+    let error = install_config_deps::<SilentReporter>(&env, &options(&harness, root.path(), false))
+        .await
+        .expect_err("a config dep named __proto__ must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidDependencyName { .. }),
+        "unexpected error: {error:?}",
+    );
+}
+
 #[tokio::test]
 async fn frozen_lockfile_rejects_new_config_dep() {
     let harness = harness();
