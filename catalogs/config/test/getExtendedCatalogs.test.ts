@@ -110,3 +110,106 @@ test('throws when extends references form a cycle', async () => {
     code: 'ERR_PNPM_WORKSPACE_EXTENDS_CYCLE',
   })
 })
+
+test('the <root> token resolves to the nearest ancestor workspace', async () => {
+  const root = createWorkspace({
+    '.': { catalog: { 'is-positive': '^3.1.0' } },
+    'packages/a': { catalog: { 'is-odd': '^3.0.1' } },
+  })
+
+  await expect(getExtendedCatalogs(path.join(root, 'packages/a'), {
+    catalog: { 'is-odd': '^3.0.1' },
+    extends: '<root>',
+  })).resolves.toEqual({
+    default: { 'is-odd': '^3.0.1', 'is-positive': '^3.1.0' },
+  })
+})
+
+test('the <root> token works as a path prefix', async () => {
+  const root = createWorkspace({
+    '.': {},
+    'configs/base': { catalog: { react: '^18.0.0' } },
+    'packages/a': {},
+  })
+
+  await expect(getExtendedCatalogs(path.join(root, 'packages/a'), {
+    extends: '<root>/configs/base',
+  })).resolves.toEqual({
+    default: { react: '^18.0.0' },
+  })
+})
+
+test('throws when <root> has no ancestor workspace', async () => {
+  const root = createWorkspace({ '.': {} })
+
+  await expect(getExtendedCatalogs(root, { extends: '<root>' })).rejects.toMatchObject({
+    code: 'ERR_PNPM_WORKSPACE_EXTENDS_ROOT_NOT_FOUND',
+  })
+})
+
+test('a glob extends every matching workspace manifest and skips directories without one', async () => {
+  const root = createWorkspace({
+    'packages/a': { catalog: { a: '^1.0.0' } },
+    'packages/b': { catalog: { b: '^1.0.0' } },
+  })
+  fs.mkdirSync(path.join(root, 'packages/c-without-manifest'), { recursive: true })
+
+  await expect(getExtendedCatalogs(root, { extends: 'packages/*' })).resolves.toEqual({
+    default: { a: '^1.0.0', b: '^1.0.0' },
+  })
+})
+
+test('later glob matches win on conflicts', async () => {
+  const root = createWorkspace({
+    'packages/a': { catalog: { foo: '^1.0.0' } },
+    'packages/b': { catalog: { foo: '^2.0.0' } },
+  })
+
+  await expect(getExtendedCatalogs(root, { extends: 'packages/*' })).resolves.toEqual({
+    default: { foo: '^2.0.0' },
+  })
+})
+
+test('a glob with no matches contributes nothing', async () => {
+  const root = createWorkspace({ '.': { catalog: { foo: '^1.0.0' } } })
+
+  await expect(getExtendedCatalogs(root, {
+    catalog: { foo: '^1.0.0' },
+    extends: 'packages/*',
+  })).resolves.toEqual({ default: { foo: '^1.0.0' } })
+})
+
+test('extends accepts a direct path to a pnpm-workspace.yaml file', async () => {
+  const root = createWorkspace({
+    '.': { catalog: { foo: '^1.0.0' } },
+    'packages/a': {},
+  })
+
+  await expect(getExtendedCatalogs(path.join(root, 'packages/a'), {
+    extends: '../../pnpm-workspace.yaml',
+  })).resolves.toEqual({
+    default: { foo: '^1.0.0' },
+  })
+})
+
+test('extends accepts an absolute path to a manifest outside the workspace', async () => {
+  const external = createWorkspace({ '.': { catalog: { shared: '^1.0.0' } } })
+  const root = createWorkspace({ '.': {} })
+
+  await expect(getExtendedCatalogs(root, {
+    extends: path.join(external, 'pnpm-workspace.yaml'),
+  })).resolves.toEqual({
+    default: { shared: '^1.0.0' },
+  })
+})
+
+test('throws on a cycle between the root and a package (glob + <root>)', async () => {
+  const root = createWorkspace({
+    '.': { extends: 'packages/*' },
+    'packages/a': { extends: '<root>' },
+  })
+
+  await expect(getExtendedCatalogs(root, { extends: 'packages/*' })).rejects.toMatchObject({
+    code: 'ERR_PNPM_WORKSPACE_EXTENDS_CYCLE',
+  })
+})

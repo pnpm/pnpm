@@ -7,6 +7,17 @@
 "pnpm": minor
 ---
 
-Added an `extends` field to `pnpm-workspace.yaml`. When `sharedWorkspaceLockfile` is `false` (a dedicated lockfile per project), a project may have its own `pnpm-workspace.yaml` that `extends` another workspace manifest (typically the workspace root) by path. The project then inherits the extended catalogs, may add or override catalog entries of its own, and resolves its `catalog:` dependencies against the merged catalogs — recording them in its own lockfile.
+Added an `extends` field to `pnpm-workspace.yaml` that merges catalogs from other workspace manifests into the current one.
 
-Entries defined directly in the extending (child) manifest take precedence over the inherited ones, and `extends` is resolved recursively with circular references reported as errors [#10302](https://github.com/pnpm/pnpm/issues/10302).
+Each `extends` entry may be:
+
+- a directory that contains a `pnpm-workspace.yaml`,
+- a direct path to a `pnpm-workspace.yaml` file (relative, absolute, or outside the workspace),
+- a glob such as `packages/*` (every matching `pnpm-workspace.yaml` is merged; directories without one are skipped), or
+- a path prefixed with the `<root>` token, which resolves to the monorepo root — the nearest ancestor directory that has a `pnpm-workspace.yaml` — so a package can reference the root without counting `../` segments (`<root>`, `<root>/configs/base`).
+
+`extends` works in both directions (a root manifest can extend its packages, and a package manifest can extend the root) and is resolved recursively. Entries defined directly in the extending manifest win over inherited ones, manifests resolved later win over earlier ones, and circular references are reported as errors.
+
+One application: with `sharedWorkspaceLockfile: false` (a dedicated lockfile per project), a package can `extends: <root>` to inherit the root catalogs, add or override its own, resolve its `catalog:` dependencies against the merged result, and record them in its own lockfile.
+
+Related to [#10302](https://github.com/pnpm/pnpm/issues/10302).

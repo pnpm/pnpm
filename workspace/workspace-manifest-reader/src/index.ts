@@ -34,10 +34,16 @@ export interface WorkspaceManifest extends PnpmSettings {
   catalogs?: WorkspaceNamedCatalogs
 
   /**
-   * Paths to directories that contain their own `pnpm-workspace.yaml`. The
-   * catalogs defined in those workspace manifests are merged into this
-   * workspace. Catalog entries defined directly in this manifest take
+   * One or more references to other workspace manifests whose catalogs are
+   * merged into this one. Catalog entries defined directly in this manifest take
    * precedence over the ones coming from the extended manifests.
+   *
+   * Each reference may be a directory that contains a `pnpm-workspace.yaml`, a
+   * direct path to a `pnpm-workspace.yaml` file (relative, absolute, or outside
+   * the workspace), a glob such as `packages/*`, or a path prefixed with the
+   * `<root>` token, which resolves to the monorepo root (the nearest ancestor
+   * directory that contains a `pnpm-workspace.yaml`). References are resolved
+   * recursively and circular references are reported as errors.
    */
   extends?: string | string[]
 }

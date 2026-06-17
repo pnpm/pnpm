@@ -98,3 +98,132 @@ test('a child workspace extends the root catalog and writes a per-project lockfi
     version: '100.0.0',
   })
 })
+
+// The `<root>` token lets a package reference the workspace root without
+// counting `../` segments. It resolves to the nearest ancestor directory that
+// has a pnpm-workspace.yaml.
+test('a child workspace extends the root through the <root> token', async () => {
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' }),
+  ])
+
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', private: true },
+    },
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        private: true,
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:', // overridden by pkg-a's own catalog
+          '@pnpm.e2e/bar': 'catalog:', // defined only in pkg-a's catalog
+        },
+      },
+    },
+    {
+      location: 'packages/pkg-b',
+      package: {
+        name: 'pkg-b',
+        private: true,
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:', // inherited from the root catalog
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+    catalog: {
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+  })
+  writeYamlFileSync('packages/pkg-a/pnpm-workspace.yaml', {
+    extends: '<root>',
+    catalog: {
+      '@pnpm.e2e/foo': '100.1.0', // takes precedence over the inherited entry
+      '@pnpm.e2e/bar': '100.0.0',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const pkgALockfile = projects['pkg-a'].readLockfile()
+  expect(pkgALockfile.catalogs?.default?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '100.1.0',
+    version: '100.1.0',
+  })
+  expect(pkgALockfile.catalogs?.default?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
+
+  const pkgBLockfile = projects['pkg-b'].readLockfile()
+  expect(pkgBLockfile.catalogs?.default?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
+})
+
+// `extends` is not limited to sharedWorkspaceLockfile: false. With the default
+// shared lockfile, a root manifest can extend its packages through a glob, so a
+// catalog entry defined in a package manifest becomes available workspace-wide.
+test('the root aggregates package catalogs through a glob (shared lockfile)', async () => {
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' }),
+  ])
+
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+        dependencies: {
+          '@pnpm.e2e/bar': 'catalog:', // defined in a package manifest, inherited via the glob
+        },
+      },
+    },
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        private: true,
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:', // defined in the root catalog
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    extends: 'packages/*',
+    catalog: {
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+  })
+  writeYamlFileSync('packages/pkg-a/pnpm-workspace.yaml', {
+    catalog: {
+      '@pnpm.e2e/bar': '100.0.0',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const rootLockfile = projects['root'].readLockfile()
+  expect(rootLockfile.catalogs?.default?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
+  expect(rootLockfile.catalogs?.default?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
+})

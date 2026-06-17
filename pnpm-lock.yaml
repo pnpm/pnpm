@@ -2147,6 +2147,9 @@ importers:
       '@pnpm/workspace.workspace-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/workspace-manifest-reader
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.17
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

@@ -34,7 +34,8 @@
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
+    "tinyglobby": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
