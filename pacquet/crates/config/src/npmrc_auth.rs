@@ -42,7 +42,7 @@ use std::{
 /// up.
 ///
 /// [#336]: https://github.com/pnpm/pacquet/issues/336
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
     pub registry: Option<String>,
     pub scoped_registries: BTreeMap<String, String>,

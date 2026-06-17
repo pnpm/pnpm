@@ -1527,3 +1527,108 @@ fn resolved_minimum_release_age_treats_zero_as_disabled() {
     config.minimum_release_age = None;
     assert_eq!(config.resolved_minimum_release_age(), None);
 }
+
+const NPM_DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
+
+/// A project `.npmrc` redirecting the default registry still drives normal
+/// installs, but must NOT steer package-manager bootstrap: that resolves
+/// through the trusted user-level registry instead. Regression test for
+/// GHSA-j2hc-m6cf-6jm8 (`packageManager` auto-switch registry confusion).
+#[test]
+pub fn package_manager_bootstrap_ignores_project_npmrc_registry() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "registry=https://trusted.example.com/\n");
+
+    let config = load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
+
+    assert_eq!(
+        config.registry, "https://attacker.example.com/",
+        "project registry drives normal installs",
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.registry, "https://trusted.example.com/",
+        "package-manager bootstrap ignores the repository-controlled project .npmrc registry",
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.resolved_registries().get("default").map(String::as_str),
+        Some("https://trusted.example.com/"),
+    );
+}
+
+/// A `pnpm-workspace.yaml` `registries:` block is repository-controlled, so
+/// it must not steer package-manager bootstrap either — neither the default
+/// nor a scoped route. Regression test for GHSA-j2hc-m6cf-6jm8.
+#[test]
+pub fn package_manager_bootstrap_ignores_workspace_yaml_registries() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "registry=https://trusted.example.com/\n");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "registries:\n  default: https://attacker.example.com/\n  '@evil': https://attacker-scoped.example.com/\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let config = Config { npmrc_auth_file: Some(user_file), ..Config::default() }
+        .current::<HostNoHome>(project.path())
+        .expect("load config");
+
+    assert_eq!(
+        config.registry, "https://attacker.example.com/",
+        "workspace yaml drives normal installs",
+    );
+    assert_eq!(
+        config.registries.get("@evil").map(String::as_str),
+        Some("https://attacker-scoped.example.com/"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.registry, "https://trusted.example.com/",
+        "package-manager bootstrap ignores the workspace yaml default registry",
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("@evil"),
+        None,
+        "package-manager bootstrap ignores workspace yaml scoped registries",
+    );
+}
+
+/// With no trusted user-level registry configured, package-manager
+/// bootstrap falls back to the public npm registry — never the project's
+/// attacker-controlled registry.
+#[test]
+pub fn package_manager_bootstrap_defaults_to_npm_registry() {
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "registry=https://attacker.example.com/\n");
+    let config = Config::default().current::<HostNoHome>(project.path()).expect("load config");
+
+    assert_eq!(config.registry, "https://attacker.example.com/");
+    assert_eq!(config.package_manager_bootstrap.registry, NPM_DEFAULT_REGISTRY);
+}
+
+/// A directly-constructed `PackageManagerBootstrap` (one not finalized
+/// through `Config::current`) still defaults to the public npm registry,
+/// never an empty registry the resolver would choke on.
+#[test]
+pub fn package_manager_bootstrap_default_registry_is_npm() {
+    assert_eq!(crate::PackageManagerBootstrap::default().registry, NPM_DEFAULT_REGISTRY);
+}
+
+/// `PNPM_CONFIG_REGISTRY` is user-controlled (not repository-controlled), so
+/// it overrides the package-manager bootstrap default registry too,
+/// mirroring pnpm's env/CLI `registry` handling.
+#[test]
+pub fn package_manager_bootstrap_honors_env_registry() {
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "registry=https://attacker.example.com/\n");
+    set_fake_env(&[("PNPM_CONFIG_REGISTRY", "https://env.example.com/")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://env.example.com/", "env registry drives normal installs");
+    assert_eq!(
+        config.package_manager_bootstrap.registry, "https://env.example.com/",
+        "env registry overrides the package-manager bootstrap default",
+    );
+}
