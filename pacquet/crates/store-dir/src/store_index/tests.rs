@@ -13,8 +13,6 @@ use tempfile::tempdir;
 #[cfg(unix)]
 #[test]
 fn immutable_uri_percent_encodes_sqlite_path_delimiters() {
-    // `/` stays literal; `?`, `#`, and `%` (the escape introducer) are
-    // percent-encoded so they cannot truncate the path or inject a query.
     assert_eq!(
         immutable_sqlite_uri(Path::new("/store/index.db")).unwrap(),
         "file:///store/index.db?immutable=1",
@@ -25,9 +23,6 @@ fn immutable_uri_percent_encodes_sqlite_path_delimiters() {
     );
 }
 
-/// A relative store path is absolutized against the current directory
-/// instead of failing — the resolution Node's `pathToFileURL` applies on
-/// the pnpm side.
 #[test]
 fn immutable_uri_absolutizes_a_relative_path() {
     let uri = immutable_sqlite_uri(Path::new("relative-store/index.db")).unwrap();
@@ -97,9 +92,6 @@ fn pick_store_index_key_uses_git_hosted_for_flagged_tarball() {
 
 #[test]
 fn pick_store_index_key_uses_git_hosted_for_missing_integrity() {
-    // pnpm falls through to `gitHostedStoreIndexKey` for any resolution
-    // missing integrity — covers bare `type: git` resolutions and old
-    // lockfile entries that predate integrity for tarballs.
     let key = pick_store_index_key(None, false, "github.com/foo/bar/abc1234", true);
     assert_eq!(key, "github.com/foo/bar/abc1234\tbuilt");
 }
@@ -347,9 +339,6 @@ fn get_many_skips_undecodable_rows() {
     idx.conn
         .execute(
             "INSERT INTO package_index (key, data) VALUES (?1, ?2)",
-            // Bytes that aren't valid msgpack — the decoder will reject
-            // these and `get_many` should drop them rather than fail
-            // the whole batch.
             rusqlite::params![&bad_key, &b"not msgpack"[..]],
         )
         .unwrap();
@@ -361,7 +350,6 @@ fn get_many_skips_undecodable_rows() {
     assert!(!out.contains_key(&bad_key));
 }
 
-/// Exercise the chunking path with more keys than `GET_MANY_CHUNK`.
 /// `SQLite`'s `INSERT OR REPLACE` is fast enough that seeding a few
 /// thousand rows in-process stays cheap.
 #[test]

@@ -18,14 +18,7 @@ pub struct CreateProjectsGraphOptions {
     /// follow production deps only.
     pub ignore_dev_deps: bool,
     /// Whether workspace packages are linked. Maps to upstream's
-    /// tri-state `linkWorkspacePackages`:
-    ///
-    /// - `None` (upstream `undefined`) and `Some(true)`: permissive. A
-    ///   dependency whose specifier resolves to a sibling by name +
-    ///   semver creates an edge.
-    /// - `Some(false)`: strict. Only `workspace:` specifiers create
-    ///   edges; a plain-version dependency that happens to name a
-    ///   sibling is reported in [`Unmatched`] instead.
+    /// tri-state `linkWorkspacePackages`.
     pub link_workspace_packages: Option<bool>,
 }
 
@@ -54,14 +47,6 @@ pub struct CreateProjectsGraphResult<Pkg> {
 /// Each project becomes a node keyed by its root directory; its edges
 /// are the root directories of the workspace siblings its dependencies
 /// resolve to.
-///
-/// Edge resolution mirrors upstream's `createNode`: a `workspace:`
-/// specifier resolves the sibling by name + version (the version token
-/// drives [`resolve_workspace_range`]); a local-path specifier
-/// (`file:` / `link:` / a relative or absolute path) resolves by
-/// directory; a plain semver version or range resolves by name +
-/// version; anything else (registry tag, git URL, `npm:` alias, ...)
-/// contributes no edge.
 ///
 /// One deliberate divergence from upstream: pacquet classifies a
 /// non-`workspace:` specifier with a small local-path / semver check
@@ -175,12 +160,6 @@ fn resolve_edge(
     };
 
     if is_workspace_spec {
-        // Upstream runs the workspace token through
-        // `workspacePrefToNpm` + `npa.resolve`, so a path-style token
-        // (`workspace:../foo`) resolves by directory. The `*` / `^` /
-        // `~` / version / range tokens fall through to name + version
-        // resolution, where `resolve_workspace_range` interprets the
-        // wildcard tokens.
         if let SpecKind::Directory(path) = classify(&effective_spec) {
             return resolve_directory(importer, path, lookups);
         }
@@ -213,9 +192,6 @@ fn resolve_by_name_version(
 ) -> Option<PathBuf> {
     let candidates = lookups.by_name.get(dep_name)?;
 
-    // Strict `linkWorkspacePackages: false` only rejects non-`workspace:`
-    // specifiers, matching upstream's `linkWorkspacePackages === false &&
-    // !isWorkspaceSpec` guard.
     if lookups.link_workspace_packages == Some(false) && !is_workspace_spec {
         unmatched.push(Unmatched { pkg_name: dep_name.to_string(), range: raw_spec.to_string() });
         return None;
@@ -224,16 +200,12 @@ fn resolve_by_name_version(
     let candidate_versions: Vec<&str> =
         candidates.iter().filter_map(|&index| lookups.versions[index].as_deref()).collect();
 
-    // A `workspace:` dependency on a sibling that declares no version
-    // links to that sibling regardless of the version token.
     if is_workspace_spec && candidate_versions.is_empty() {
         let index =
             *candidates.iter().find(|&&index| lookups.names[index].as_deref() == Some(dep_name))?;
         return Some(lookups.node_keys[index].clone());
     }
 
-    // Exact version-string match wins before range resolution, mirroring
-    // upstream's `versions.includes(rawSpec)` short-circuit.
     if candidate_versions.contains(&raw_spec) {
         let index = *candidates
             .iter()

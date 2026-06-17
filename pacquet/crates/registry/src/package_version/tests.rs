@@ -1,8 +1,5 @@
 use super::{AuthHeaders, PackageTag, PackageVersion, ThrottledClient};
 
-/// [`PackageVersion::fetch_from_registry`] must attach the
-/// registry-keyed `Authorization` header on every tag GET, just
-/// like [`crate::Package::fetch_from_registry`].
 #[tokio::test]
 async fn fetch_from_registry_attaches_authorization_header() {
     let mut server = mockito::Server::new_async().await;
@@ -45,14 +42,9 @@ async fn fetch_from_registry_attaches_authorization_header() {
     mock.assert_async().await;
 }
 
-/// The abbreviated registry response (`application/vnd.npm.install-v1+json`)
-/// carries `optionalDependencies` and `peerDependenciesMeta` for any
-/// package that publishes them. Both must round-trip through
-/// [`PackageVersion`] so the resolver's `extract_children` reads the
-/// optional-dep edges and `extract_peer_dependencies` reads the
-/// per-peer `optional` flag. Dropping either field silently treats
-/// optional peers as required (auto-installed via
-/// `autoInstallPeers`) and skips `optionalDependencies` entirely.
+/// Dropping either field would silently treat optional peers as
+/// required (auto-installed via `autoInstallPeers`) and skip
+/// `optionalDependencies` entirely.
 #[test]
 fn deserializes_optional_dependencies_and_peer_dependencies_meta() {
     let body = r#"{

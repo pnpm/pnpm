@@ -63,9 +63,7 @@ pub enum PacklistError {
     },
 }
 
-/// Error type of the git fetcher itself. Reserved for the next patch in
-/// this PR — defined now so `lib.rs` can re-export the full error surface
-/// without churn when the fetcher module lands.
+/// Error type of the git fetcher itself.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum GitFetcherError {

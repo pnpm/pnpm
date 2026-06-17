@@ -2,11 +2,6 @@ use super::SnapshotEntry;
 use crate::serialize_yaml;
 use text_block_macros::text_block;
 
-/// `optional: true` round-trips through YAML deserialize → serialize.
-/// Source of truth is pnpm's v9 lockfile spec at
-/// <https://github.com/pnpm/spec/blob/834f2815cc/lockfile/9.0.md>;
-/// see `snapshots[<key>].optional` in the upstream type at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/lockfile/types/src/index.ts#L34-L39>.
 #[test]
 fn optional_true_round_trips() {
     let yaml = text_block! {
@@ -21,9 +16,6 @@ fn optional_true_round_trips() {
     assert!(out.contains("optional: true"), "serialize must round-trip optional: true:\n{out}");
 }
 
-/// Absent `optional:` defaults to `false`, and `false` does NOT
-/// serialize (matching every other `optional?: true` field in
-/// upstream's lockfile types).
 #[test]
 fn optional_defaults_false_and_omits_when_false() {
     let yaml = text_block! {

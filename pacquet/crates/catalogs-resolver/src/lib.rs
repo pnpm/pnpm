@@ -105,13 +105,6 @@ pub enum CatalogResolutionError {
 
 /// Resolve a wanted dependency through the catalogs map.
 ///
-/// - Non-`catalog:` specifiers return [`CatalogResolutionResult::Unused`]
-///   so the caller falls through to the next resolver.
-/// - Missing entries, recursive entries, and forbidden protocols
-///   (`workspace:`, `link:`, `file:`) return
-///   [`CatalogResolutionResult::Misconfiguration`].
-/// - A valid entry returns [`CatalogResolutionResult::Found`].
-///
 /// Mirrors upstream's `resolveFromCatalog`
 /// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L60-L130)).
 #[must_use]

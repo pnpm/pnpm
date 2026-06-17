@@ -18,21 +18,15 @@ use std::collections::HashMap;
 /// Build a `DepsGraph<PackageKey>` from a v9 lockfile's `snapshots`
 /// + `packages` sections.
 ///
-/// Each output node carries:
-/// - `full_pkg_id` = `<pkg_id>:<integrity>` for registry / tarball
-///   resolutions with an integrity, or `<pkg_id>:<hashObject(resolution)>`
-///   for git / directory / unintegrity-tarball resolutions. Matches
-///   upstream's [`createFullPkgId`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L263-L292).
-/// - `children` = alias → child `PackageKey`, walking the snapshot's
-///   `dependencies` + `optional_dependencies`. The alias key in the
-///   map is the dependency's *alias* (the name under which it gets
-///   linked into the parent's `node_modules`), which can differ
-///   from the resolved package name for npm-alias deps.
+/// The alias key in a node's `children` map is the dependency's
+/// *alias* (the name under which it gets linked into the parent's
+/// `node_modules`), which can differ from the resolved package name
+/// for npm-alias deps.
 ///
 /// Snapshots whose metadata entry is missing from `packages` are
-/// skipped (the lockfile is malformed; surface that as a build
-/// error elsewhere — `BuildModules`'s `is_built` gate will simply
-/// miss the cache lookup for those).
+/// skipped silently. This is safe: the lockfile is malformed, and
+/// `BuildModules`'s `is_built` gate then misses the cache lookup for
+/// that snapshot and falls through to "rebuild".
 #[must_use]
 pub fn build_deps_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
@@ -107,11 +101,6 @@ fn build_node(
 }
 
 /// Mirrors [`createFullPkgId`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L263-L292).
-/// For registry / tarball resolutions the integrity goes verbatim
-/// after the package-id; for everything else (git, directory,
-/// integrity-less tarball) the resolution is serialized to JSON and
-/// run through `hashObject` — pnpm's stable fingerprint for
-/// non-integrity resolutions.
 ///
 /// Returns the `pkg_id:<...>` string used as the `id` field in
 /// `calc_dep_graph_hash`'s `{ id, deps }` object.

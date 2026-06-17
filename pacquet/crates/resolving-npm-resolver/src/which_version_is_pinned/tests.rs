@@ -21,13 +21,10 @@ fn matches_pnpm_which_version_is_pinned() {
         ("npm:@pnpm.e2e/qar@100.0.0", Some(Patch)),
         ("jsr:@foo/foo@1.0.0", Some(Patch)),
         ("jsr:foo@^1.0.0", Some(Major)),
-        // A `catalog:` reference carries no pin of its own, even when the
-        // catalog name parses as a version.
         ("catalog:", None),
         ("catalog:default", None),
         ("catalog:foo", None),
         ("catalog:express4-21", None),
-        // Partial versions report the most specific component present.
         ("~1.2.3", Some(Minor)),
         ("1.2", Some(Minor)),
         ("1", Some(Major)),
@@ -40,7 +37,6 @@ fn matches_pnpm_which_version_is_pinned() {
         ("~1", Some(Minor)),
         ("v1.2.3", Some(Patch)),
         ("1.2.3-alpha.1", Some(Patch)),
-        // Anything that is not a single caret/tilde/exact pin yields None.
         (">=1.0.0", None),
         (">=1.0.0 <2.0.0", None),
         ("1.0.0 || 2.0.0", None),

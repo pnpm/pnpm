@@ -56,10 +56,6 @@ pub fn serialized_according_to_params() {
     assert_eq!(version.serialize(PinnedVersion::None), "^3.2.1");
 }
 
-/// A prerelease resolved version is written to the manifest verbatim,
-/// with no range prefix, regardless of the pinned version. Mirrors pnpm's
-/// `createVersionSpecFromResolvedVersion` prerelease branch
-/// (<https://github.com/pnpm/pnpm/blob/086c5e91e8/pkg-manifest/utils/test/updateProjectManifestObject.test.ts#L122-L140>).
 #[test]
 pub fn serialize_keeps_prerelease_version_without_prefix() {
     let version = PackageVersion {
@@ -82,12 +78,6 @@ pub fn serialize_keeps_prerelease_version_without_prefix() {
     assert_eq!(version.serialize(PinnedVersion::None), "2.1.0-rc.1");
 }
 
-/// [`Package::fetch_from_registry`] must attach the registry-keyed
-/// `Authorization` header on every metadata GET, even for the
-/// abbreviated install-v1 endpoint. `mockito::Matcher::Exact`
-/// rejects the request unless the header arrives verbatim, so a
-/// missing or wrong header would 501 the request and propagate as
-/// a deserialization error.
 #[tokio::test]
 async fn fetch_from_registry_attaches_authorization_header() {
     let mut server = mockito::Server::new_async().await;
@@ -152,11 +142,6 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
     }
 }
 
-/// `Package` equality is by `name` only; the mutex and versions
-/// `HashMap` (whose iteration order is non-deterministic) are
-/// excluded. Two packages with the same name compare equal even
-/// when their `versions` maps differ — this lets call sites
-/// dedupe in-flight metadata fetches against the package name.
 #[test]
 fn package_equality_compares_by_name_only() {
     let lhs = package_with_versions("acme", &["1.0.0"], "1.0.0");
@@ -167,8 +152,6 @@ fn package_equality_compares_by_name_only() {
     assert_ne!(lhs, other);
 }
 
-/// `latest()` looks up the version named under the `latest`
-/// dist-tag and returns the corresponding `PackageVersion`.
 #[test]
 fn latest_returns_version_pointed_to_by_dist_tag() {
     let pkg = package_with_versions("acme", &["1.0.0", "2.0.0", "3.0.0"], "2.0.0");
@@ -176,8 +159,6 @@ fn latest_returns_version_pointed_to_by_dist_tag() {
     assert_eq!(latest.expect("latest manifest decodes").version.to_string(), "2.0.0");
 }
 
-/// `pinned_version` picks the highest version inside the given
-/// range, mirroring `node-semver`'s `maxSatisfying`.
 #[test]
 fn pinned_version_picks_highest_matching() {
     let pkg = package_with_versions("acme", &["1.0.0", "1.2.0", "1.5.3", "2.0.0"], "2.0.0");
@@ -186,20 +167,12 @@ fn pinned_version_picks_highest_matching() {
     assert_eq!(picked.version.to_string(), "1.5.3");
 }
 
-/// `pinned_version` returns `None` when no version satisfies the
-/// range, rather than panicking or falling back to `latest`.
 #[test]
 fn pinned_version_returns_none_when_no_match() {
     let pkg = package_with_versions("acme", &["1.0.0", "1.2.0"], "1.2.0");
     assert!(pkg.pinned_version("^2.0.0").is_none());
 }
 
-/// A real-shape packument carries `time`, `modified`, `_npmUser`,
-/// and `dist.attestations.provenance` — the four bits the
-/// `minimumReleaseAge` + `trustPolicy='no-downgrade'` verifier
-/// consults. All four must round-trip through serde, and the
-/// per-version `time` lookup must resolve through
-/// [`Package::published_at`].
 #[test]
 fn package_deserializes_full_provenance_packument() {
     let body = r#"{
@@ -254,9 +227,6 @@ fn package_deserializes_full_provenance_packument() {
     assert_eq!(provenance.predicate_type.as_deref(), Some("https://slsa.dev/provenance/v1"));
 }
 
-/// A staged publish carries `_npmUser.approver`; that field must
-/// round-trip through serde so the trust check can read it as the
-/// strongest (`stagedPublish`) evidence.
 #[test]
 fn package_deserializes_approver_packument() {
     let body = r#"{
@@ -291,10 +261,6 @@ fn package_deserializes_approver_packument() {
     assert_eq!(approver.email.as_deref(), Some("bob@example.com"));
 }
 
-/// A packument that doesn't ship `_npmUser` or `attestations` (the
-/// common case for older registries) still deserializes; the
-/// trust-evidence fields land as `None` and the trust check that
-/// reads them treats absence as "no evidence".
 #[test]
 fn package_deserializes_without_npm_user_or_attestations() {
     let body = r#"{
@@ -484,11 +450,6 @@ fn package_tolerates_object_valued_dependency_entries() {
     assert_eq!(current_dev.get("mocha").map(String::as_str), Some("^2.0.0"));
 }
 
-/// The reserved `time.unpublished` key carries an object value
-/// (not a string). [`Package::published_at`] must ignore it
-/// instead of returning the object's serialized form. Mirrors the
-/// upstream shape at
-/// <https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/registry/types/src/index.ts#L20-L25>.
 #[test]
 fn published_at_skips_reserved_unpublished_object() {
     let body = r#"{

@@ -106,8 +106,6 @@ fn root_direct_deps(pairs: &[(&str, &str, &str)]) -> DirectDepsByImporter {
     HashMap::from([(".".to_string(), deps)])
 }
 
-/// Sanity: empty graph short-circuits. Mirrors upstream's
-/// `if (Object.keys(opts.graph ?? {}).length === 0) return null`.
 #[test]
 fn empty_graph_returns_none() {
     let graph: HashMap<PackageKey, HoistGraphNode> = HashMap::new();
@@ -123,11 +121,8 @@ fn empty_graph_returns_none() {
     assert!(get_hoisted_dependencies(&input).is_none());
 }
 
-/// Default `hoistPattern: ["*"]` hoists every transitive (privately).
-/// Direct deps don't get hoisted because they're already at the root.
 #[test]
 fn star_pattern_hoists_all_transitives_privately() {
-    // root → a; a → b
     let (snapshots, packages) = make_lockfile_data(&[
         ("a", "1.0.0", &[("b", "b", "1.0.0")], false),
         ("b", "1.0.0", &[], false),
@@ -144,8 +139,6 @@ fn star_pattern_hoists_all_transitives_privately() {
     })
     .expect("non-empty graph");
 
-    // Direct dep `a` is NOT in hoisted (already at the root).
-    // Transitive `b` IS, with kind=private.
     assert_eq!(
         kinds_for(&result.hoisted_dependencies, "b@1.0.0"),
         vec![("b".to_string(), HoistKind::Private)],
@@ -157,9 +150,6 @@ fn star_pattern_hoists_all_transitives_privately() {
     );
 }
 
-/// `publicHoistPattern: ["*"]` hoists every transitive publicly. Once
-/// a transitive is hoisted publicly, its sibling at a deeper level
-/// shouldn't claim the same alias again.
 #[test]
 fn star_public_pattern_hoists_all_publicly() {
     let (snapshots, packages) = make_lockfile_data(&[
@@ -184,9 +174,6 @@ fn star_public_pattern_hoists_all_publicly() {
     );
 }
 
-/// Public pattern wins ties — when both private and public patterns
-/// match the same alias, the alias goes public. Mirrors upstream's
-/// `if (publicMatcher(alias)) return 'public'; if (privateMatcher(alias)) return 'private'`.
 #[test]
 fn public_pattern_wins_ties() {
     let (snapshots, packages) = make_lockfile_data(&[
@@ -205,15 +192,12 @@ fn public_pattern_wins_ties() {
     })
     .expect("non-empty graph");
 
-    // eslint-y matches both `*` and `*eslint*` — public wins.
     assert_eq!(
         kinds_for(&result.hoisted_dependencies, "eslint-y@1.0.0"),
         vec![("eslint-y".to_string(), HoistKind::Public)],
     );
 }
 
-/// Negation in `hoistPattern` — `["*", "!banned"]` hoists everything
-/// except aliases named `banned`.
 #[test]
 fn negation_pattern_excludes_alias() {
     let (snapshots, packages) = make_lockfile_data(&[
@@ -240,11 +224,6 @@ fn negation_pattern_excludes_alias() {
     );
 }
 
-/// First-seen-wins per alias. With `a -> shared@1; b -> shared@2`,
-/// both at depth 1, the lex-first sorted entry decides which one
-/// becomes the hoisted version. Pacquet's sort is by `(depth, key)`
-/// — the depth-1 walks alphabetically by parent (`a` before `b`),
-/// so `shared@1` wins.
 #[test]
 fn first_seen_wins_per_alias() {
     let (snapshots, packages) = make_lockfile_data(&[
@@ -265,8 +244,6 @@ fn first_seen_wins_per_alias() {
     })
     .expect("non-empty graph");
 
-    // `shared@1.0.0` (under `a`) wins because `a` sorts before `b`.
-    // `shared@2.0.0` (under `b`) is NOT hoisted.
     assert!(result.hoisted_dependencies.contains_key("shared@1.0.0"));
     assert!(
         !result.hoisted_dependencies.contains_key("shared@2.0.0"),
@@ -274,13 +251,8 @@ fn first_seen_wins_per_alias() {
     );
 }
 
-/// Direct-dep aliases of the root importer seed `hoistedAliases`,
-/// blocking same-named transitives from being hoisted under different
-/// versions. Mirrors upstream's `currentSpecifiers` parameter.
 #[test]
 fn direct_dep_blocks_same_alias_transitive() {
-    // root → has-shared@1; has-shared@1 → shared@2 (transitive).
-    // Also direct-dep `shared@1` — should block `shared@2` from being hoisted.
     let (snapshots, packages) = make_lockfile_data(&[
         ("has-shared", "1.0.0", &[("shared", "shared", "2.0.0")], false),
         ("shared", "1.0.0", &[], false),
@@ -299,18 +271,12 @@ fn direct_dep_blocks_same_alias_transitive() {
     })
     .expect("non-empty graph");
 
-    // `shared` is a direct dep — its alias is in `currentSpecifiers`.
-    // The transitive `shared@2.0.0` must NOT be hoisted under that
-    // alias, because the root already owns it at v1.
     assert!(
         !result.hoisted_dependencies.contains_key("shared@2.0.0"),
         "direct-dep `shared@1` must block hoisting of transitive `shared@2`",
     );
 }
 
-/// Skipped snapshots are excluded from `hoistedDependencies` even when
-/// the matcher accepts them. Mirrors upstream's
-/// `if (node?.depPath == null || opts.skipped.has(node.depPath)) continue`.
 #[test]
 fn skipped_snapshot_is_excluded() {
     let (snapshots, packages) = make_lockfile_data(&[
@@ -334,26 +300,19 @@ fn skipped_snapshot_is_excluded() {
         !result.hoisted_dependencies.contains_key("opt@1.0.0"),
         "skipped snapshot must not appear in hoistedDependencies",
     );
-    // ...but the symlink-by-node-id map DOES carry the entry —
-    // upstream records it before the skipped check (see
-    // [`hoistGraph`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L207-L267)),
-    // and pacquet preserves that ordering for parity. The symlink
-    // pass [`super::symlink_hoisted_dependencies`] is what actually
-    // filters skipped node IDs out of the symlink work (the
-    // `graph.get(node_id)` guard alone isn't enough — `graph`
-    // contains every snapshot in `snapshots`, skipped or not, since
-    // `build_hoist_graph` only filters by missing metadata). The
-    // entry rides along in the map for any consumer that wants to
-    // inspect what was considered, and the explicit skip check at
-    // the symlink site prevents a dangling slot symlink.
+    // The by-node-id map records the entry before the skip check;
+    // [`super::symlink_hoisted_dependencies`] is what filters skipped
+    // node IDs out of the symlink work (the `graph.get(node_id)` guard
+    // alone isn't enough — `build_hoist_graph` only filters by missing
+    // metadata, so `graph` contains every snapshot, skipped or not).
     assert!(result.hoisted_dependencies_by_node_id.contains_key(&key("opt", "1.0.0")));
 }
 
 /// `symlink_hoisted_dependencies` filters entries whose key is in
-/// the skip set. Regression for PR [#485] Copilot review: without the
-/// filter, a prod dependency with an optional transitive child
-/// would still get a dangling hoist symlink to the child's
-/// virtual-store slot, which `CreateVirtualStore` skipped.
+/// the skip set. Without the filter, a prod dependency with an
+/// optional transitive child would still get a dangling hoist symlink
+/// to the child's virtual-store slot, which `CreateVirtualStore`
+/// skipped. See PR [#485].
 ///
 /// [#485]: https://github.com/pnpm/pacquet/pull/485
 #[test]
@@ -434,9 +393,6 @@ fn symlink_skips_dropped_nodes() {
     );
 }
 
-/// Bins of privately-hoisted aliases land in `hoisted_aliases_with_bins`.
-/// Bins of publicly-hoisted aliases do NOT (they share `<root>/node_modules/.bin`
-/// with direct deps and are linked by the regular direct-deps pass).
 #[test]
 fn private_hoist_with_bins_collected_for_bin_link() {
     let (snapshots, packages) = make_lockfile_data(&[
@@ -460,9 +416,6 @@ fn private_hoist_with_bins_collected_for_bin_link() {
     assert!(!result.hoisted_aliases_with_bins.contains(&"no-bin".to_string()));
 }
 
-/// Public hoist with bin: alias does NOT contribute to
-/// `hoisted_aliases_with_bins` (only private-side hoists do, since
-/// public-side bins are linked by the direct-deps pass).
 #[test]
 fn public_hoist_does_not_contribute_to_bin_aliases() {
     let (snapshots, packages) = make_lockfile_data(&[
@@ -484,9 +437,6 @@ fn public_hoist_does_not_contribute_to_bin_aliases() {
     assert!(result.hoisted_aliases_with_bins.is_empty());
 }
 
-/// `build_direct_deps_by_importer` reads from `importers["."].dependencies`
-/// (and dev/optional per the requested groups) and produces the
-/// alias → key map the hoist pass expects.
 #[test]
 fn build_direct_deps_by_importer_collects_from_importers() {
     let mut importers: HashMap<String, ProjectSnapshot> = HashMap::new();
@@ -508,8 +458,6 @@ fn build_direct_deps_by_importer_collects_from_importers() {
     assert_eq!(dot.get("a"), Some(&key("a", "1.0.0")));
 }
 
-/// Round-trip: `build_hoist_graph` on a tiny snapshot set produces the
-/// expected children map.
 #[test]
 fn build_hoist_graph_walks_dependencies() {
     let (snapshots, packages) = make_lockfile_data(&[

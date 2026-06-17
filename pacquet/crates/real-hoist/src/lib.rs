@@ -569,43 +569,6 @@ pub fn percent_encode_path(text: &str) -> String {
 /// dependency that doesn't collide with an already-hoisted name
 /// surfaces at the root, just like a flat `node_modules`.
 ///
-/// What this models today:
-///
-/// * Free hoist: a transitive dep with no name collision at the
-///   root surfaces at the root.
-/// * Identity dedup: a dep reachable through multiple parents
-///   (same `Rc` thanks to the wrapper's `nodes` cache) collapses
-///   to one node at root.
-/// * Parent-wins on version conflict: when two distinct deps
-///   share an alias but resolve to different snapshot keys, the
-///   first one the DFS reaches takes the root slot and the other
-///   stays under its parent.
-/// * Peer-shadow refusal: a candidate whose `peer_names` would
-///   resolve against an ancestor's dep with a different ident
-///   than the root carries stays nested under its parent. See
-///   [`would_shadow_peer`] for the ancestor-path walk and how
-///   pacquet's DAG-preserving model differs from upstream's
-///   per-path tree clone in rare cross-path mismatch cases.
-/// * Multi-round convergence: when a round refuses a hoist
-///   because of a peer mismatch and a subsequent move shifts the
-///   blocking ident out of the ancestor chain (or into a
-///   compatible root slot), the next round reconsiders the
-///   refused candidate. The outer loop in [`hoist_into_root`]
-///   iterates until a round makes no moves. Bounded by O(N)
-///   rounds since each move is one-way (parent → root).
-///
-/// What this models today (continued):
-///
-/// * `hoistingLimits` borders. Names in
-///   `opts.hoisting_limits[root_locator]` mark hoisting borders: a
-///   bordered node's descendants stay nested beneath it rather than
-///   hoisting to the root (`AbsorbDecision::Border`). Mirrors
-///   upstream's `isHoistBorder` flag.
-/// * `externalDependencies` placeholders — the wrapper adds them
-///   as zero-children `ExternalSoftLink` nodes at the root, and
-///   strips them from the result post-hoist. Same observable
-///   shape as upstream.
-///
 /// What this does *not* model yet:
 ///
 /// * Popularity-based ident preference (upstream's

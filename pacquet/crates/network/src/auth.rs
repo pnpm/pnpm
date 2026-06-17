@@ -323,13 +323,6 @@ fn package_scope(pkg_name: Option<&str>) -> Option<&str> {
 /// Strip protocol, query string, fragment, basic-auth, and any
 /// trailing characters past the path's final `/`, returning the
 /// canonical "nerf-darted" form npm uses as `.npmrc` keys.
-///
-/// Examples:
-/// * `https://reg.com/` → `//reg.com/`
-/// * `https://reg.com:8080/` → `//reg.com:8080/`
-/// * `https://reg.com/foo/-/foo-1.tgz` → `//reg.com/foo/-/`
-/// * `https://user:pw@reg.com/scoped/pkg` → `//reg.com/scoped/`
-/// * `https://npm.pkg.github.com/pnpm` (no trailing slash) → `//npm.pkg.github.com/`
 #[must_use]
 pub fn nerf_dart(url: &str) -> String {
     let Some(parsed) = ParsedUrl::parse(url) else { return String::new() };

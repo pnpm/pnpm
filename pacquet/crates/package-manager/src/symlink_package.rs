@@ -39,10 +39,6 @@ pub enum SymlinkPackageError {
 ///   `symlink_path` is renamed to
 ///   `<parent>/.ignored_<basename>` and the symlink is created.
 ///
-/// The pre-port version silently swallowed `AlreadyExists` from
-/// `pacquet_fs::symlink_dir`, which left stale symlinks in place
-/// across re-installs that retargeted a dependency — a divergence
-/// from upstream's overwrite-by-default behavior.
 /// Returns the [`ForceSymlinkOutcome`], so callers can mirror pnpm's
 /// `if ((await symlinkDependency(...)).reused) return` — the direct-dependency
 /// linker only emits a `pnpm:root added` event for symlinks it actually

@@ -79,11 +79,8 @@ pub struct CliArgs {
     /// consumed by `install`.
     ///
     /// As a global multi-value flag, occurrences collect only within one
-    /// side of the subcommand boundary: `pacquet -F a -F b install` and
-    /// `pacquet install -F a -F b` both yield `[a, b]`, but mixing sides
-    /// (`pacquet -F a install -F b`) keeps only the subcommand-side
-    /// occurrence. This is a clap limitation; pass all selectors on the
-    /// same side.
+    /// side of the subcommand boundary; mixing sides is a clap limitation,
+    /// so pass all selectors on the same side.
     #[clap(short = 'F', long, global = true)]
     pub filter: Vec<String>,
 
@@ -415,10 +412,6 @@ impl CliArgs {
                 }
             },
             CliCommand::Start => {
-                // Runs an arbitrary command specified in the package's start property of its scripts
-                // object. If no start property is specified on the scripts object, it will attempt to
-                // run node server.js as a default, failing if neither are present.
-                // The intended usage of the property is to specify a command that starts your program.
                 let manifest = PackageManifest::from_path(manifest_path())
                     .wrap_err("getting the package.json in current directory")?;
                 let command = manifest.script("start", true)?.unwrap_or("node server.js");

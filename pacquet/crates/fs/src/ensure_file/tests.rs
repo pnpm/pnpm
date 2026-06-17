@@ -8,8 +8,6 @@ use tempfile::tempdir;
 #[cfg(unix)]
 use super::{EMFILE, ENFILE, retry_on_fd_pressure};
 
-/// New-file path: contents land on disk. Mode handling is covered
-/// separately in `unix_mode_is_applied_on_new_files`.
 #[test]
 fn writes_a_new_file() {
     let tmp = tempdir().unwrap();
@@ -20,10 +18,6 @@ fn writes_a_new_file() {
     assert_eq!(fs::read(&path).unwrap(), b"hello");
 }
 
-/// Pre-existing file with matching content short-circuits as
-/// `Ok(())` and does not touch the target. Mirrors pnpm v11's
-/// `verifyFileIntegrity(fileDest, integrity) === true` branch in
-/// `writeBufferToCafs.ts`.
 #[test]
 fn existing_target_with_matching_content_is_preserved() {
     let tmp = tempdir().unwrap();
@@ -35,10 +29,6 @@ fn existing_target_with_matching_content_is_preserved() {
     assert_eq!(fs::read(&path).unwrap(), b"same");
 }
 
-/// Pre-existing file with *wrong* contents is a torn-blob case and
-/// must be atomically replaced with the buffer we were trying to
-/// write. Mirrors the `writeFileAtomic` branch pnpm takes when
-/// `verifyFileIntegrity` fails.
 #[test]
 fn existing_target_with_wrong_content_is_overwritten_atomically() {
     let tmp = tempdir().unwrap();
@@ -48,16 +38,11 @@ fn existing_target_with_wrong_content_is_overwritten_atomically() {
     ensure_file(&path, b"fresh", None).expect("torn blob should be rewritten");
 
     assert_eq!(fs::read(&path).unwrap(), b"fresh");
-    // No leftover temp files in the same directory.
     let siblings: Vec<_> =
         fs::read_dir(tmp.path()).unwrap().map(|entry| entry.unwrap().file_name()).collect();
     assert_eq!(siblings, vec![std::ffi::OsString::from("torn.txt")]);
 }
 
-/// Missing parent directory surfaces as a `CreateFile` error
-/// (kind `NotFound`). Callers are expected to `ensure_parent_dir`
-/// first; this pins that contract so a regression that quietly
-/// created ancestors would fail the test.
 #[test]
 fn missing_parent_dir_errors() {
     let tmp = tempdir().unwrap();
@@ -98,8 +83,6 @@ fn unix_mode_is_applied_on_new_files() {
     assert_eq!(mode, 0o700, "owner rwx bits of 0o755 must survive any reasonable umask");
 }
 
-/// `-exec` suffix becomes `x` in the temp name (pnpm `removeSuffix`
-/// parity). Pins the naming scheme so future tweaks stay explicit.
 #[test]
 fn temp_path_strips_exec_suffix() {
     let store_path = Path::new("/tmp/store/v11/files/ab/cdef-exec");
@@ -108,8 +91,6 @@ fn temp_path_strips_exec_suffix() {
     assert!(name.starts_with("cdefx"), "got {name}");
 }
 
-/// Plain hex basenames go through untouched apart from the pid +
-/// counter suffix.
 #[test]
 fn temp_path_passes_plain_basename_through() {
     let store_path = Path::new("/tmp/store/v11/files/ab/cdef");
@@ -193,15 +174,9 @@ fn symlink_at_cas_path_is_scrubbed_to_a_regular_file() {
         meta.file_type(),
     );
     assert_eq!(fs::read(&cas_path).unwrap(), b"payload");
-    // The file the symlink used to point at is untouched — we
-    // replaced the link, not followed it.
     assert_eq!(fs::read(&real_target).unwrap(), b"payload");
 }
 
-/// Dangling symlink (points nowhere) is also scrubbed to a real
-/// file via the same `symlink_metadata` guard. Without the guard
-/// we'd still end up in `write_atomic` via the `NotFound` branch
-/// on `fs::read`, but this pins the expected control flow.
 #[cfg(unix)]
 #[test]
 fn dangling_symlink_at_cas_path_is_scrubbed_to_a_regular_file() {
@@ -235,11 +210,6 @@ fn rename_with_retry_succeeds_when_no_error() {
     assert!(!src.exists(), "source should be gone after rename");
 }
 
-/// Streaming byte-compare returns `true` iff the file on disk is
-/// identical to `content`. Pins the three cases
-/// `verify_or_rewrite` routes through it: exact match (skip
-/// path), same length but different bytes (atomic rewrite),
-/// different length (atomic rewrite).
 #[test]
 fn file_equals_bytes_classifies_match_mismatch_and_length_mismatch() {
     let tmp = tempdir().unwrap();
@@ -281,11 +251,6 @@ fn file_equals_bytes_handles_multi_chunk_files() {
     assert!(!file_equals_bytes(&path, &perturbed).unwrap());
 }
 
-/// Transient `EMFILE` / `ENFILE` failures must be retried until
-/// the underlying op succeeds. Cell-counts attempts so we can
-/// pin both the predicate ("retries on these errnos") and the
-/// loop control flow ("returns the first `Ok` value the closure
-/// produces").
 #[cfg(unix)]
 #[test]
 fn retry_on_fd_pressure_retries_emfile_and_enfile_until_success() {
@@ -363,9 +328,6 @@ fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
     assert_eq!(final_meta.ino(), first);
 }
 
-/// Errors that aren't fd-pressure must propagate immediately —
-/// retrying would just delay surfacing a real failure (e.g. a
-/// genuine `NotFound` on the parent dir).
 #[cfg(unix)]
 #[test]
 fn retry_on_fd_pressure_propagates_non_fd_errors() {

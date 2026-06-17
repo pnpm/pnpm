@@ -330,19 +330,9 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
 
 /// Whether any project declares a dependency with a local file
 /// specifier in `dependencies`, `devDependencies`, or
-/// `optionalDependencies`. Port of upstream's `findLocalFileDep` in
-/// `deps/status/src/checkDepsStatus.ts`
-/// (<https://github.com/pnpm/pnpm/issues/11795>). `link:` specifiers
-/// don't count: they are symlinked, so changes inside them flow
-/// through without a reinstall. Groups excluded from the current
-/// install (per `included`) are skipped: their local file dependencies
-/// are not installed, so their contents cannot be stale. A change to
-/// the include flags between installs is caught separately by
-/// `settings_match`. `catalog:` specs are dereferenced through the
-/// workspace catalogs: the catalog resolver only bans the `workspace:`,
-/// `link:`, and `file:` protocols, so a catalog entry can still hold a
-/// bare local path (`../lib`, `vendor/pkg.tgz`) that resolves to a
-/// local file dependency.
+/// `optionalDependencies`. Groups excluded from the current install
+/// (per `included`) are skipped. `catalog:` specs are dereferenced
+/// through the workspace catalogs.
 fn has_local_file_dep(
     project_manifests: &[(PathBuf, &PackageManifest)],
     included: IncludedDependencies,
@@ -371,11 +361,10 @@ fn has_local_file_dep(
 }
 
 /// Whether a `catalog:` spec dereferences (through the workspace
-/// catalogs) to a local file specifier. Non-catalog specs and
-/// misconfigured catalog entries return `false`: the former never
-/// consult the catalogs, and the latter fail the full install with the
-/// proper error anyway — the fast path only needs to not report
-/// up-to-date for a *valid* catalog entry holding a local path.
+/// catalogs) to a local file specifier. A misconfigured catalog entry
+/// returns `false`: it fails the full install with the proper error
+/// anyway, so the fast path only needs to not report up-to-date for a
+/// *valid* catalog entry holding a local path.
 fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, spec: &str) -> bool {
     // `resolve_from_catalog` returns `Unused` for any non-`catalog:` spec, so
     // short-circuit before allocating the owned `WantedDependency` it needs.
@@ -392,18 +381,11 @@ fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, spec: &str) 
 }
 
 /// Whether any `pnpm.overrides` entry maps to a local file specifier.
-/// Port of upstream's `findLocalFileOverride` in
-/// `deps/status/src/checkDepsStatus.ts`: an override redirects every
-/// matching dependency in the graph to its specifier, so a local file
-/// override makes the installed contents depend on that directory or
-/// tarball the same way a direct local file dependency does. Overrides
-/// are run through `parse_config_overrides` so `catalog:` specs are
-/// dereferenced before the check. A parse failure (misconfigured
-/// catalog, invalid selector) bails to the full install path with its
-/// own distinct reason — not the local-file reason, which would
-/// misattribute the cause — mirroring upstream, where `parseOverrides`
-/// throws to `checkDepsStatus`'s outer catch and the caller falls back
-/// to a full install.
+/// An override redirects every matching dependency in the graph to its
+/// specifier, so a local file override makes the installed contents
+/// depend on that directory or tarball the same way a direct local file
+/// dependency does. A parse failure returns its own distinct reason —
+/// not the local-file reason, which would misattribute the cause.
 fn has_local_file_override(config: &Config, catalogs: &Catalogs) -> Result<bool, &'static str> {
     match crate::install::parse_config_overrides(config, catalogs) {
         Ok(Some(overrides)) => {
@@ -422,8 +404,7 @@ fn has_local_file_override(config: &Config, catalogs: &Catalogs) -> Result<bool,
 /// without appearing in any project manifest. Only `dependencies` and
 /// `optionalDependencies` are scanned: peer dependencies are resolved
 /// from the graph rather than fetched, so a local spec there is never
-/// installed. `optionalDependencies` are skipped when the install
-/// excludes them, mirroring `has_local_file_dep`.
+/// installed.
 fn has_local_file_package_extension(
     config: &Config,
     included: IncludedDependencies,
@@ -476,9 +457,6 @@ fn is_local_file_spec(spec: &str) -> bool {
     if spec.contains(':') {
         return false;
     }
-    // A `#` here means a hosted-git shorthand committish
-    // (`user/repo#release.tgz`), not a local tarball — the `file:` and
-    // path-prefixed cases already returned above.
     if spec.contains('#') {
         return false;
     }

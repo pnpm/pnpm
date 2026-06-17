@@ -209,15 +209,6 @@ pub enum OutdatedFormat {
 }
 
 /// `--prod` / `--dev` / `--no-optional` for `pacquet outdated`.
-///
-/// Ports pnpm's config normalization
-/// ([`config/reader`](https://github.com/pnpm/pnpm/blob/6f382f42ee/config/reader/src/index.ts#L640-L650))
-/// followed by the `include` map the `outdated` handler builds
-/// ([`outdated.ts`](https://github.com/pnpm/pnpm/blob/6f382f42ee/deps/inspection/commands/src/outdated/outdated.ts#L182-L186)):
-/// `--prod` keeps `dependencies` + `optionalDependencies`, `--dev` keeps
-/// only `devDependencies`, and `--no-optional` drops
-/// `optionalDependencies`. Note this differs from `update`'s include
-/// formula.
 #[derive(Debug, Args)]
 pub struct OutdatedDependencyOptions {
     /// Check only "dependencies" and "optionalDependencies".
@@ -398,13 +389,6 @@ impl OutdatedArgs {
 
 /// The kind of semver bump from `current` to `target`. Drives the default
 /// sort order and the colorized highlight in the `Latest` column.
-///
-/// Ports pnpm's [`@pnpm/semver-diff`](https://www.npmjs.com/package/@pnpm/semver-diff)
-/// change classification: `None` for exactly-equal versions (pnpm's
-/// `change: null`), `Fix` / `Feature` / `Breaking` for a patch / minor /
-/// major difference, and `Unknown` when the versions differ only beyond
-/// the major.minor.patch core (e.g. a prerelease-only bump), matching
-/// pnpm's `change: 'unknown'`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Change {
     None,
@@ -424,8 +408,6 @@ fn classify(current: &Version, target: &Version) -> Change {
     } else if target.patch != current.patch {
         Change::Fix
     } else {
-        // Same major.minor.patch but not equal: a prerelease/build-only
-        // difference. pnpm classifies this as `unknown`.
         Change::Unknown
     }
 }

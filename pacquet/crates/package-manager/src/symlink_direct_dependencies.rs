@@ -129,9 +129,7 @@ pub enum SymlinkDirectDependenciesError {
     },
 
     /// Surfaces a per-package symlink failure (e.g. permission denied,
-    /// disk full, an existing non-symlink file). Replaces the prior
-    /// `expect("symlink pkg")` which panicked inside a rayon task and
-    /// took the whole install down.
+    /// disk full, an existing non-symlink file).
     #[display("Failed to symlink {name:?} for importer {importer_id:?}: {source}")]
     #[diagnostic(code(pacquet_package_manager::symlink_failed))]
     SymlinkPackage {
@@ -429,10 +427,8 @@ fn link_one_importer<Reporter: self::Reporter>(
     let prefix = project_dir.to_string_lossy().into_owned();
 
     // `try_for_each` short-circuits on the first error and returns it
-    // to the caller, replacing the prior `expect("symlink pkg")` that
-    // panicked the rayon worker on any FS failure. The full result
-    // collection forces every task to settle before we surface a
-    // single error.
+    // to the caller. The full result collection forces every task to
+    // settle before we surface a single error.
     entries.par_iter().try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
         let ResolvedEntry { name, spec, group, name_str, target } = entry;
 
@@ -444,11 +440,6 @@ fn link_one_importer<Reporter: self::Reporter>(
             }
         })?;
 
-        // Only a freshly-created symlink is a `pnpm:root added`. A symlink
-        // already pointing at the target is "reused", and pnpm skips the
-        // event for it (`if ((await symlinkDependency(...)).reused) return`
-        // at linkDirectDeps.ts:127-129), so a `pacquet add <new>` summary
-        // lists only the new dependency, not every already-linked one.
         if outcome.reused {
             return Ok(());
         }
@@ -554,19 +545,6 @@ struct ResolvedEntry<'a> {
 /// package, not directly under `node_modules/`), and
 /// [`ProjectSnapshot::get_map_by_group`] also returns `None` for
 /// `Peer` so this filter is belt-and-braces.
-///
-/// First-wins dedup with a `HashSet<&PkgName>`. A v9 lockfile pnpm
-/// itself wrote shouldn't list the same package across multiple
-/// importer sections (pnpm's resolver normalises: a package with
-/// `optional: true` lands in `optionalDependencies` only). But
-/// pacquet ingests user-supplied lockfiles, and a malformed one
-/// with the same key in two sections would race two
-/// `symlink_package` calls to the same `node_modules/<name>` and
-/// emit duplicate `pnpm:root added` events. First-wins picks up
-/// the highest-priority group from the caller-supplied
-/// `dependency_groups` order. The CLI today passes
-/// `[Prod, Dev, Optional]`, matching pnpm's
-/// dependencies-over-optional precedence.
 fn collect_resolved_entries<'a>(
     layout: &VirtualStoreLayout,
     project_snapshot: &'a ProjectSnapshot,

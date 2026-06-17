@@ -33,9 +33,6 @@ fn detect_integration_host() {
     }
 }
 
-/// The Rust→Node mappers must emit Node's spelling, never Rust's
-/// raw `consts::OS` / `consts::ARCH` values, for the targets where
-/// the two naming schemes differ.
 #[test]
 fn host_platform_uses_node_naming() {
     let platform = host_platform();

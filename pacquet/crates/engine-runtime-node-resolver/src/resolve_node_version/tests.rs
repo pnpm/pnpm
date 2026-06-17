@@ -12,7 +12,6 @@ fn make_versions() -> Vec<NodeVersion> {
     ]
 }
 
-/// `lts` selects every entry with a non-`false` lts codename.
 #[test]
 fn lts_selector_picks_every_lts_release() {
     let (picked, range) = filter_versions(&make_versions(), "lts");
@@ -20,8 +19,6 @@ fn lts_selector_picks_every_lts_release() {
     assert_eq!(range, "*");
 }
 
-/// An exact LTS codename narrows to the matching releases. Match is
-/// case-insensitive — upstream lower-cases both sides.
 #[test]
 fn lts_codename_is_case_insensitive() {
     let (picked, range) = filter_versions(&make_versions(), "iron");
@@ -29,8 +26,6 @@ fn lts_codename_is_case_insensitive() {
     assert_eq!(range, "*");
 }
 
-/// A semver range passes through unchanged (`versionRange` is the
-/// selector, `versions` is the full unfiltered list).
 #[test]
 fn semver_range_passes_through() {
     let (picked, range) = filter_versions(&make_versions(), "^20");

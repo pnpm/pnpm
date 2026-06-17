@@ -7,8 +7,7 @@ use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, Signal, System};
 ///
 /// pnpr runs as a single process with no spawned children,
 /// so we send the signal directly to the recorded PID instead of
-/// walking the process tree the way the old verdaccio-backed mock
-/// had to.
+/// walking the process tree.
 pub fn kill_process_by_pid(pid: Pid, signal: Signal) -> bool {
     let system = RefreshKind::nothing()
         .with_processes(ProcessRefreshKind::nothing())

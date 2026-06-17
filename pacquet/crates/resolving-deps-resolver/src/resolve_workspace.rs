@@ -299,17 +299,14 @@ where
 }
 
 /// Resolve every importer's direct dependencies and derive the
-/// `time-based` publish-date cutoff for transitive deps: the newest
-/// direct-dep publication date plus a one-hour delta, clamped by the
-/// `minimumReleaseAge` cutoff (`maximum_published_by`).
+/// `time-based` publish-date cutoff for transitive deps.
 ///
 /// Mirrors pnpm's
 /// [`getPublishedByDate` + clamp](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L506-L517).
-/// Direct deps are resolved with the importer-level options (lowest
-/// pick under `minimumReleaseAge`); only their `published_at` is read,
-/// so the throwaway resolves warm the resolver's packument cache for
-/// the real walk that follows. Resolver errors are ignored here — the
-/// real walk surfaces them.
+/// Only the direct deps' `published_at` is read here, so the throwaway
+/// resolves warm the resolver's packument cache for the real walk that
+/// follows. Resolver errors are ignored here — the real walk surfaces
+/// them.
 async fn compute_time_based_cutoff<Chain>(
     resolver: &Chain,
     importers: &[WorkspaceImporter<'_>],
@@ -350,9 +347,6 @@ where
         }
     }
 
-    // publishedBy = newest + 1h, clamped to the minimumReleaseAge
-    // cutoff. When no direct dep carried a publish date, fall back to
-    // the cutoff alone (which may itself be `None`).
     let candidate = newest.and_then(|date| date.checked_add_signed(Duration::hours(1)));
     match (candidate, maximum_published_by) {
         (Some(candidate), Some(maximum)) => Some(candidate.min(maximum)),

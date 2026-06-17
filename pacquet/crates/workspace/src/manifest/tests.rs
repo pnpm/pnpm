@@ -34,9 +34,6 @@ fn parses_packages_array() {
     assert_eq!(manifest.packages, Some(vec!["packages/*".to_string(), "apps/*".to_string()]));
 }
 
-/// Settings-only manifests (no `packages:`) leave `packages` as
-/// `None` so callers can decide whether to apply pnpm's workspace
-/// package pattern default or the lower-level recursive default.
 #[test]
 fn settings_only_manifest_leaves_packages_none() {
     let tmp = TempDir::new().unwrap();
@@ -61,10 +58,6 @@ fn workspace_package_patterns_preserve_explicit_empty_packages() {
     assert_eq!(workspace_package_patterns(&manifest), Vec::<String>::new());
 }
 
-/// An explicit `packages: []` survives as `Some(vec![])` and is
-/// distinct from the omitted case. Downstream this means "enumerate
-/// only the workspace root project," not "fall back to the recursive
-/// `**` default."
 #[test]
 fn empty_packages_array_preserved_as_some_empty() {
     let tmp = TempDir::new().unwrap();

@@ -22,13 +22,7 @@ pub(crate) const YAML_DOCUMENT_START: &str = "---\n";
 
 /// Extract the main lockfile document (second YAML document) from a
 /// combined file. Mirrors upstream's
-/// [`extractMainDocument`](https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/fs/src/yamlDocuments.ts#L63-L68):
-///
-/// - If the content starts with `---\n`, returns the slice after the
-///   next `\n---\n` separator. An empty slice (no second document
-///   present) means the file is env-only.
-/// - Otherwise the file is single-document and the input is returned
-///   verbatim.
+/// [`extractMainDocument`](https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/fs/src/yamlDocuments.ts#L63-L68).
 #[must_use]
 pub fn extract_main_document(content: &str) -> &str {
     let Some(rest) = content.strip_prefix(YAML_DOCUMENT_START) else {

@@ -189,9 +189,6 @@ async fn workspace_path_form_falls_through_to_local_resolver() {
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    // `workspace:./foo` and `workspace:../foo` are owned by the local
-    // resolver in the chain — `try_resolve_from_workspace` defers on
-    // them so the dispatcher falls through.
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
         bare_specifier: Some("workspace:./acme".to_string()),
@@ -212,10 +209,6 @@ async fn workspace_version_without_workspace_packages_surfaces_error() {
         bare_specifier: Some("workspace:*".to_string()),
         ..WantedDependency::default()
     };
-    // Mirrors pnpm's
-    // [`Cannot resolve package from workspace because opts.workspacePackages is not defined`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L828-L830)
-    // throw when the resolver receives a `workspace:` spec but the
-    // install caller never populated `workspace_packages`.
     let err = resolver
         .resolve(&wanted, &ResolveOptions::default())
         .await
@@ -277,9 +270,6 @@ async fn trust_downgrade_at_resolve_time_fails_under_no_downgrade() {
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    // `^1.0.0` picks 1.1.0 (the max), which has no trust evidence while
-    // the earlier 1.0.0 shipped a trusted publisher — a downgrade. The
-    // resolver-time gate must reject it as a hard error.
     let opts = ResolveOptions {
         trust_policy: Some(TrustPolicy::NoDowngrade),
         ..ResolveOptions::default()
@@ -305,8 +295,6 @@ async fn trust_downgrade_ignored_when_trust_policy_off() {
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    // Same downgrade history, but without `trustPolicy='no-downgrade'`
-    // the gate never runs and 1.1.0 resolves cleanly.
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
         bare_specifier: Some("^1.0.0".to_string()),
@@ -379,9 +367,6 @@ async fn jsr_specifier_routes_through_jsr_registry() {
     let (resolver, _tempdir) = build_resolver_with_registries(registries);
 
     let wanted = WantedDependency {
-        // The user-facing dependency alias is the JSR-style scoped
-        // name. The resolver folds it into `@jsr/foo__bar` for the
-        // metadata fetch but restores `@foo/bar` on the result.
         alias: Some("@foo/bar".to_string()),
         bare_specifier: Some("jsr:@foo/bar@^1.0.0".to_string()),
         ..WantedDependency::default()
@@ -531,12 +516,6 @@ async fn jsr_specifier_with_invalid_scope_propagates_parser_error() {
 /// would propagate one registry's manifest into the other
 /// resolver's `ResolveResult`, breaking the downstream dependency
 /// graph / peer extraction / lockfile metadata.
-///
-/// The fixture for each registry serves a payload that differs by
-/// `dependencies`, so the cache leak shows up as the second
-/// resolver's `manifest.dependencies` being the *first* registry's
-/// when the bug is present. With the registry-scoped key in place
-/// each resolver gets its own manifest.
 #[tokio::test]
 async fn shared_manifest_cache_does_not_leak_across_registries() {
     fn body_with_dep(dep_name: &str, dep_range: &str) -> String {

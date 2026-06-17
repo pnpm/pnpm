@@ -47,7 +47,6 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
 
     let mut started = StartedGate::new();
 
-    // Drop config deps that are no longer declared.
     for name in &existing {
         if !normalized.contains_key(name) {
             started.report::<Reporter>();

@@ -9,7 +9,6 @@ use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMe
 use pacquet_tarball::MemCache;
 use std::{collections::HashSet, fmt::Write as _, sync::Arc};
 
-/// This subroutine does everything `pacquet remove` is supposed to do.
 #[must_use]
 pub struct Remove<'a> {
     pub tarball_mem_cache: Arc<MemCache>,
@@ -20,8 +19,7 @@ pub struct Remove<'a> {
     pub manifest: &'a mut PackageManifest,
     pub lockfile: Option<&'a Lockfile>,
     pub lockfile_path: Option<&'a std::path::Path>,
-    /// Names to remove. Empty is rejected with
-    /// [`RemoveValidationError::MustRemoveSomething`].
+    /// Names to remove.
     pub package_names: &'a [String],
     /// Dependency field to restrict removal to, or `None` to remove from
     /// any field. Derived from the `--save-prod` / `--save-dev` /
@@ -45,17 +43,10 @@ pub struct Remove<'a> {
 /// on the non-async validator.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum RemoveValidationError {
-    /// `pacquet remove` was invoked with no package names. Mirrors pnpm's
-    /// `ERR_PNPM_MUST_REMOVE_SOMETHING` thrown at
-    /// <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>.
     #[display("At least one dependency name should be specified for removal")]
     #[diagnostic(code(ERR_PNPM_MUST_REMOVE_SOMETHING))]
     MustRemoveSomething,
 
-    /// One or more names passed to `pacquet remove` aren't present in the
-    /// targeted dependency field(s). Mirrors pnpm's
-    /// `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS`; the message and hint are
-    /// built to match upstream's `RemoveMissingDepsError`.
     #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS))]
     CannotRemoveMissingDeps {
@@ -171,9 +162,7 @@ impl Remove<'_> {
 /// The up-front guards `pacquet remove` applies before mutating the
 /// manifest or running any install — both fail fast, matching pnpm's
 /// `remove` handler at
-/// <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>:
-/// an empty target list is `MUST_REMOVE_SOMETHING`, and any name absent
-/// from the targeted field(s) is `CANNOT_REMOVE_MISSING_DEPS`.
+/// <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>.
 fn validate_removable(
     manifest: &PackageManifest,
     package_names: &[String],

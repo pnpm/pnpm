@@ -28,8 +28,7 @@ use std::{
 /// install's critical-path tail.
 #[must_use]
 pub struct CreateVirtualDirBySnapshot<'a> {
-    /// Per-install precomputed slot-directory mapping. Replaces the
-    /// previous `virtual_store_dir: &Path` field — the layout already
+    /// Per-install precomputed slot-directory mapping. The layout
     /// holds the root and knows how to resolve a per-snapshot slot
     /// (legacy `<root>/<flat-name>` vs GVS-shaped
     /// `<root>/<scope>/<name>/<version>/<hash>`) through a single
@@ -207,8 +206,7 @@ impl CreateVirtualDirBySnapshot<'_> {
 
 /// Map pacquet's configured [`PackageImportMethod`] to the value
 /// `pnpm:progress imported`'s `method` field carries. pnpm only
-/// distinguishes the three resolved methods; for `Auto` and
-/// `CloneOrCopy` the optimistic first-attempt method is `clone`.
+/// distinguishes the three resolved methods.
 /// See the comment at the emit site for why this is best-effort.
 pub(crate) fn optimistic_wire_method(method: PackageImportMethod) -> WireImportMethod {
     match method {

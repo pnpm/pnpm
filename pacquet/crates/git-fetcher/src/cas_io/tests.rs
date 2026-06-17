@@ -30,8 +30,6 @@ fn join_checked_accepts_normal_segments() {
 
 #[test]
 fn join_checked_strips_current_dir_components() {
-    // `./a` and `a` both produce the same `<root>/a` — leading
-    // `./` is a no-op, matching upstream's `path.normalize`.
     let root = Path::new("/root");
     let joined = join_checked(root, "./a").unwrap();
     let expected: Vec<_> = Path::new("/root/a").components().collect();

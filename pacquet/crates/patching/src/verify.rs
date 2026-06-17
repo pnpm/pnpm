@@ -7,10 +7,6 @@ use std::collections::HashSet;
 ///
 /// Ports upstream's
 /// [`allPatchKeys`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/allPatchKeys.ts).
-/// Order within each group: exact versions first (sorted by version
-/// string thanks to [`BTreeMap`](std::collections::BTreeMap)), then
-/// ranges (input order), then the wildcard. The outer iteration is
-/// alphabetical by package name.
 pub fn all_patch_keys(patched_dependencies: &PatchGroupRecord) -> impl Iterator<Item = &str> + '_ {
     patched_dependencies.values().flat_map(|group| {
         group
@@ -50,14 +46,6 @@ pub struct UnusedPatches {
 ///
 /// Ports upstream's
 /// [`verifyPatches`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/verifyPatches.ts).
-///
-/// When all patches were applied, returns `Ok(None)`. When some
-/// remain unused:
-///
-/// - `allow_unused_patches == true` → returns
-///   `Ok(Some(UnusedPatches))` so the caller can log a warning via
-///   `pacquet-diagnostics`.
-/// - `allow_unused_patches == false` → returns `Err(...)`.
 pub fn verify_patches(
     patched_dependencies: &PatchGroupRecord,
     applied_patches: &HashSet<String>,

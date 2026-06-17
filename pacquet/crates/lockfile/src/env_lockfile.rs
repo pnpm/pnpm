@@ -66,11 +66,7 @@ pub struct EnvImporterSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct EnvLockfile {
     /// A plain string (not the numeric [`crate::LockfileVersion`]),
-    /// matching upstream's `EnvLockfile.lockfileVersion: string`. The
-    /// reader accepts any value (pnpm checks only that it's a string),
-    /// so an env document carrying a non-numeric marker such as
-    /// `env-1.0` round-trips instead of hard-failing config-deps
-    /// installation.
+    /// matching upstream's `EnvLockfile.lockfileVersion: string`.
     pub lockfile_version: String,
 
     #[serde(default, serialize_with = "crate::serialize_yaml::sorted_map")]

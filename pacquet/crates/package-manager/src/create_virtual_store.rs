@@ -301,17 +301,14 @@ impl CreateVirtualStore<'_> {
             };
         let store_index_ref = store_index.as_ref();
 
-        // The batched store-index writer is now owned by the caller
+        // The batched store-index writer is owned by the caller
         // (`InstallFrozenLockfile::run`) so it survives past
         // `CreateVirtualStore::run` and gets reused by the build
-        // phase's side-effects-cache WRITE path. Pacquet's original
-        // pattern was to spawn it here and drain it before returning,
-        // but the build phase needs to queue rows after the install
-        // path finishes — see pnpm/pnpm@7e3145f9fc:building/during-install/src/index.ts:198-216.
+        // phase's side-effects-cache WRITE path, which queues rows
+        // after the install path finishes — see pnpm/pnpm@7e3145f9fc:building/during-install/src/index.ts:198-216.
         //
         // The cold-batch download path uses the same writer through
-        // `InstallPackageBySnapshot.store_index_writer`, so the design
-        // is unchanged from the writer's perspective.
+        // `InstallPackageBySnapshot.store_index_writer`.
         let store_index_writer_ref = Some(store_index_writer);
 
         // Install-scoped `verifiedFilesCache`. One `Arc<DashSet>` lives
@@ -388,11 +385,10 @@ impl CreateVirtualStore<'_> {
         // `snapshot_cache_key`'s `UnsupportedResolution`.
         //
         // Route the slot-existence probe through `layout.slot_dir` so
-        // GVS-on installs check the correct path. The probe used to
-        // hard-code `<config.virtual_store_dir>/<flat-name>`, which is
-        // the legacy layout — under GVS, slots live at
-        // `<global_virtual_store_dir>/<scope>/<name>/<ver>/<hash>` and
-        // the legacy path is empty, so the skip gate would
+        // GVS-on installs check the correct path. Under GVS, slots live
+        // at `<global_virtual_store_dir>/<scope>/<name>/<ver>/<hash>`,
+        // not `<config.virtual_store_dir>/<flat-name>`; probing the
+        // latter would find an empty path, so the skip gate would
         // incorrectly mark every warm slot as "broken" and emit
         // `BrokenModules` for the wrong path.
         let survivors = snapshots
@@ -451,10 +447,9 @@ impl CreateVirtualStore<'_> {
         // Validate every surviving snapshot upfront so a malformed
         // lockfile (missing metadata, missing tarball integrity,
         // currently-unsupported directory / git resolution) errors
-        // out *before* we start the warm batch. Previously we
-        // collapsed those cases into `None` and let them fall through
-        // to the cold batch, which meant the warm rayon batch ran to
-        // completion (~6 s on `alot7`) before the actual error fired.
+        // out *before* we start the warm batch — otherwise the warm
+        // rayon batch runs to completion (~6 s on `alot7`) before the
+        // actual error fires.
         //
         // Cache-key derivation runs in two passes:
         //
@@ -1138,30 +1133,17 @@ fn link_slots_parallel<Reporter: self::Reporter>(
 
 /// Build the store-index cache key for a snapshot.
 ///
-/// Returns:
-/// - `Ok(Some(key))` for tarball / registry resolutions with a valid
-///   integrity, the only shape that participates in the CAFS prefetch
-///   today.
-/// - `Err(...)` for any condition the install was previously going to
-///   fail on anyway — missing metadata, missing tarball integrity, or
-///   a directory / git resolution this build doesn't support yet —
-///   so the orchestrator can short-circuit *before* the warm rayon
-///   batch runs (Copilot review on [#292]). The previous shape collapsed
-///   these into `None` and shoved them into the cold batch, which
-///   meant a malformed lockfile would do up to ~6 s of warm-batch
-///   linking before the actual error fired.
-/// - `Ok(None)` is currently unused but reserved for any future
-///   resolution variant that legitimately doesn't go through CAFS
-///   (e.g. workspace `link:`-style deps when those land); without
-///   it, adding such a variant later would force a wider refactor.
+/// Returns `Err` for any condition the install would fail on anyway
+/// (missing metadata, missing tarball integrity) so the orchestrator
+/// can short-circuit *before* the warm rayon batch runs; otherwise a
+/// malformed lockfile does up to ~6 s of warm-batch linking before the
+/// actual error fires.
 ///
 /// Shared by the upfront prefetch-keys loop and the warm/cold
 /// partition in [`CreateVirtualStore::run`], so a future change to
 /// the resolution-type handling or key shape stays in one place.
 /// A drift between the two loops would silently misclassify warm
 /// entries as cold and quietly halve install speed.
-///
-/// [#292]: https://github.com/pnpm/pacquet/pull/292
 fn snapshot_cache_key(
     snapshot_key: &PackageKey,
     packages: &HashMap<PackageKey, PackageMetadata>,
@@ -1270,13 +1252,7 @@ fn snapshot_cache_key(
 
 /// Two snapshots agree on dependency wiring when both their
 /// `dependencies` and `optionalDependencies` maps are equal in
-/// upstream's sense — an absent map and an empty map are equivalent
-/// (`equals({}, undefined)` and `isEmpty({}) === isEmpty(undefined)`
-/// both hold in Ramda). Mirrors the AND-pair in
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L246-L260>:
-/// the deps check is the `depIsPresent && equals(...)` arm and the
-/// optional-deps check is the `isEmpty(...) && isEmpty(...) ||
-/// equals(...)` arm folded together.
+/// upstream's sense.
 fn snapshot_deps_equal(current: &SnapshotEntry, wanted: &SnapshotEntry) -> bool {
     fn maps_equal<Key, Value>(
         lhs: Option<&HashMap<Key, Value>>,
@@ -1296,30 +1272,13 @@ fn snapshot_deps_equal(current: &SnapshotEntry, wanted: &SnapshotEntry) -> bool 
         && maps_equal(current.optional_dependencies.as_ref(), wanted.optional_dependencies.as_ref())
 }
 
-/// Compare the `integrity` field on two `packages:` entries. Mirrors
-/// upstream's `isIntegrityEqual` helper at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L366>:
-/// only the tarball/registry-style integrity participates in the
-/// check; directory and git resolutions yield `None` on both sides,
-/// which we treat as "unchanged" so the existing slot is reused.
+/// Compare the `integrity` field on two `packages:` entries.
 fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMetadata>) -> bool {
     let current_integrity = current.and_then(|meta| meta.resolution.integrity());
     let wanted_integrity = wanted.and_then(|meta| meta.resolution.integrity());
     current_integrity == wanted_integrity
 }
 
-/// `pnpm:progress resolved` for a warm-batch snapshot, plus
-/// `found_in_store` when no earlier fetch path already emitted the
-/// package status. Resolve-time prefetches report `fetched` or
-/// `found_in_store` as soon as their fetch/cache-hit outcome is known;
-/// the warm batch then supplies the later `resolved` event without
-/// double-counting the package status.
-///
-/// Pulled out of the warm-batch closure in
-/// [`CreateVirtualStore::run`] so the event-construction code is
-/// unit-testable; the call site stays in the warm-batch hot path
-/// where setting up a non-empty prefetched-cas test would require a
-/// full lockfile + populated CAFS.
 /// True for the [`InstallPackageBySnapshotError`] variants pacquet
 /// classifies as **fetch-side** — the surface inside upstream's
 /// catch at

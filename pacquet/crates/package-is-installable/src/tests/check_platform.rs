@@ -126,7 +126,6 @@ fn accept_another_cpu() {
     let supported_platform =
         supported(Some(&["current"]), Some(&["current", "x64"]), Some(&["current"]));
     let wanted_platform = wanted(Some(&["any"]), Some(&["x64"]), Some(&["any"]));
-    // Host arch is arm64, but `supported.cpu` adds `x64`.
     let err = check_platform_w(
         PACKAGE_ID,
         &wanted_platform,
@@ -234,10 +233,6 @@ fn reject_negated_os_when_any_supported_value_matches_negation() {
 
 #[test]
 fn libc_check_skipped_when_current_libc_is_unknown() {
-    // Pacquet-specific port of upstream's `currentLibc !== 'unknown'`
-    // guard. On non-Linux hosts (or any host where libc detection
-    // failed), libc constraints are unconditionally satisfied —
-    // mirrors `checkPlatform.ts:38`.
     let wanted_platform = wanted(Some(&["any"]), Some(&["any"]), Some(&["glibc"]));
     let err = check_platform_w(PACKAGE_ID, &wanted_platform, None, "darwin", FAKE_X64, "unknown");
     assert!(err.is_none());

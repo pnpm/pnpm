@@ -73,14 +73,8 @@ async fn partial_commit_matches_single_ref() {
 
 #[tokio::test]
 async fn ambiguous_partial_commit_mismatch_errors() {
-    // Single ref tip starts with `deadbe` but not `deadbf` →
-    // resolves to the matching commit, then trips the
-    // partial-prefix sanity check (matched commit does not start
-    // with `deadbf`).
     let stub = stub("deadbeef1234567890123456789012345678abcd\trefs/heads/x\n");
     let err = resolve_ref(&stub, "repo", "deadbf12", None).await.expect_err("ambig");
-    // First the lookup falls through (no exact ref match), then
-    // partial-commit search finds zero matches → UnknownRef.
     assert!(matches!(err, GitResolveRefError::UnknownRef { .. }));
 }
 

@@ -314,12 +314,6 @@ pub fn check_lockfile_settings_with_catalogs(
         });
     }
 
-    // Upstream checks `overrides` before `ignoredOptionalDependencies`,
-    // so an install that changed both surfaces the overrides drift
-    // first — preserving that for parity with pnpm error reports.
-    // `BTreeMap` normalizes ordering so the order-insensitive `equals`
-    // upstream uses lines up with `==` here, and the `Display` impl
-    // renders the diff stably.
     let empty: HashMap<String, String> = HashMap::new();
     let lockfile_overrides: BTreeMap<String, String> = lockfile
         .overrides
@@ -335,10 +329,6 @@ pub fn check_lockfile_settings_with_catalogs(
         });
     }
 
-    // Upstream checks `packageExtensionsChecksum` next, before
-    // `ignoredOptionalDependencies`. The check is `!==` on the two
-    // optional strings: absent on both sides is equivalent (no
-    // extensions ever configured), and absent vs. present is drift.
     if lockfile.package_extensions_checksum.as_deref() != package_extensions_checksum {
         return Err(StalenessReason::PackageExtensionsChecksumChanged {
             lockfile: lockfile.package_extensions_checksum.clone(),
@@ -346,10 +336,6 @@ pub fn check_lockfile_settings_with_catalogs(
         });
     }
 
-    // Comparison is order-insensitive — upstream sorts both sides
-    // before calling Ramda's `equals`. Empty `None` and empty `[]`
-    // are equivalent (matches upstream's `?? []` default on both
-    // sides).
     let mut lockfile_set: Vec<String> =
         lockfile.ignored_optional_dependencies.clone().unwrap_or_default();
     let mut config_set: Vec<String> = ignored_optional_dependencies.unwrap_or(&[]).to_vec();
@@ -362,14 +348,9 @@ pub fn check_lockfile_settings_with_catalogs(
         });
     }
 
-    // Upstream checks `patchedDependencies` right after
-    // `ignoredOptionalDependencies` via
-    // `!equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})`.
-    // Both maps are already key-sorted (`BTreeMap`), so `==` reproduces
-    // the order-insensitive `equals`; absent on either side normalizes
-    // to an empty map. A changed patch file changes its hash here, so
-    // this is what invalidates a lockfile whose `(patch_hash=...)` depPath
-    // suffixes would otherwise go stale.
+    // A changed patch file changes its hash here, which is what
+    // invalidates a lockfile whose `(patch_hash=...)` depPath suffixes
+    // would otherwise go stale.
     let empty_patches: BTreeMap<String, String> = BTreeMap::new();
     let lockfile_patches = lockfile.patched_dependencies.as_ref().unwrap_or(&empty_patches);
     let config_patches = patched_dependencies.unwrap_or(&empty_patches);
@@ -380,13 +361,6 @@ pub fn check_lockfile_settings_with_catalogs(
         });
     }
 
-    // `Boolean(lockfile.settings?.injectWorkspacePackages) !==
-    // Boolean(injectWorkspacePackages)` at upstream's
-    // [`getOutdatedLockfileSetting.ts:80-82`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L80-L82).
-    // Pacquet's wire format omits the key when `false` (see
-    // [`LockfileSettings`]'s `skip_serializing_if`), so an absent
-    // settings block or a missing key both deserialize as `false`
-    // here and the `Boolean(...)` normalization is automatic.
     let lockfile_inject =
         lockfile.settings.as_ref().is_some_and(|settings| settings.inject_workspace_packages);
     if lockfile_inject != inject_workspace_packages {
@@ -396,10 +370,6 @@ pub fn check_lockfile_settings_with_catalogs(
         });
     }
 
-    // An unset `peersSuffixMaxLength` in the lockfile means the writer
-    // used the default (1000) — pnpm strips the field on serialization
-    // when it equals the default. So drift here is "lockfile's
-    // recorded-or-default value != current config's value".
     let lockfile_peers_suffix_max_length = lockfile
         .settings
         .as_ref()
@@ -511,23 +481,7 @@ pub fn satisfies_package_manifest(
         });
     }
 
-    // Phase 4: per-field name-set + specifier match. The flat-record
-    // diff catches added/removed/modified specifiers across the
-    // *union*, but doesn't catch the case where a dep keeps its
-    // specifier but moves between fields (e.g. `react` moved from
-    // `dependencies` to `devDependencies`) — the union stays the
-    // same in both. Run the per-field comparison unconditionally
-    // here to catch that and the same-cardinality cross-field-swap
-    // case (lockfile prod={a}, dev={b} vs manifest prod={b}, dev={a}).
-    //
-    // A dep listed in *multiple* manifest fields is counted only in
-    // the highest-precedence one: `optionalDependencies` >
-    // `dependencies` > `devDependencies`. Matches upstream's
-    // `pkgDepNames` filter at
-    // <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts#L69-L84>.
-    // Without this, a manifest with the same dep in both `deps` and
-    // `devDeps` would fail the `devDeps` check even though the
-    // lockfile records it under `deps` only.
+    // Phase 4: per-field name-set + specifier match.
     let manifest_prod: BTreeMap<&str, &str> = manifest
         .dependencies([DependencyGroup::Prod])
         .filter(|(name, _)| !is_ignored_optional(name))
@@ -540,24 +494,11 @@ pub fn satisfies_package_manifest(
         let field_name = <&'static str>::from(field);
         let manifest_field: BTreeMap<&str, &str> = manifest
             .dependencies([field])
-            // `ignoredOptionalDependencies` (umbrella <https://github.com/pnpm/pacquet/issues/434> slice 7):
-            // upstream's read-package-hook strips matching entries
-            // from `optionalDependencies` AND `dependencies` before
-            // the resolver sees the manifest, so the lockfile never
-            // carries them. `devDependencies` is intentionally
-            // untouched by the hook — see
-            // <https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts>:
-            // the hook iterates `optionalDependencies` keys and
-            // deletes from `optionalDependencies` plus
-            // `dependencies` only.
             .filter(|(name, _)| {
                 !matches!(field, DependencyGroup::Prod | DependencyGroup::Optional)
                     || !is_ignored_optional(name)
             })
             .filter(|(name, _)| match field {
-                // `dev` deps are dropped if also listed in `prod` or
-                // `optional`. `prod` deps are dropped if also in
-                // `optional`. `optional` always wins.
                 DependencyGroup::Dev => {
                     !manifest_prod.contains_key(*name) && !manifest_optional.contains_key(*name)
                 }
@@ -655,15 +596,6 @@ fn flat_manifest_specs(
     let mut out = BTreeMap::new();
     for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
         for (name, spec) in manifest.dependencies([group]) {
-            // `ignoredOptionalDependencies` filter — only applies to
-            // `Prod` and `Optional`, matching upstream's
-            // [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts).
-            // The hook iterates `optionalDependencies` and deletes
-            // matches from there AND from `dependencies`, but
-            // leaves `devDependencies` untouched. Mirroring that
-            // exactly: the same name listed in `devDependencies`
-            // is kept here so the lockfile-side dev entry doesn't
-            // falsely surface as drift.
             if matches!(group, DependencyGroup::Prod | DependencyGroup::Optional)
                 && is_ignored_optional(name)
             {

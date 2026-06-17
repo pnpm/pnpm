@@ -65,9 +65,6 @@ fn passes_through_non_workspace_specs() {
     assert_eq!(rewrite("foo", "npm:bar@1", dir.path()), "npm:bar@1");
 }
 
-/// Workspace fixture mirrors upstream's `dependencies` field in the
-/// `workspace deps are replaced` test. Each line exercises one of the
-/// branches inside `replaceWorkspaceProtocol`.
 #[test]
 fn workspace_dep_rewrites_match_upstream() {
     let (_fixture, project) = workspace_fixture();
@@ -89,8 +86,6 @@ fn workspace_dep_rewrites_match_upstream() {
     assert_eq!(rewrite("garply", "workspace:plugh@2.0.0", dir), "npm:plugh@2.0.0");
 }
 
-/// Peer-dependency variant. The compound `||` cases exercise the
-/// in-place rewriting branch of upstream's regex.
 #[test]
 fn peer_workspace_dep_rewrites_match_upstream() {
     let (_fixture, project) = workspace_fixture();
@@ -107,9 +102,7 @@ fn peer_workspace_dep_rewrites_match_upstream() {
 }
 
 /// Upstream uses JS `String.prototype.replace('workspace:', '')`, which
-/// strips only the first occurrence. Locks the parity: a compound
-/// peer spec carrying two `workspace:` segments must leave the second
-/// segment untouched.
+/// strips only the first occurrence.
 #[test]
 fn peer_workspace_strip_only_removes_first_occurrence() {
     let (_fixture, project) = workspace_fixture();
@@ -155,9 +148,7 @@ fn missing_dependency_surfaces_cannot_resolve_error_for_peer() {
 /// `workspace:*` doesn't reach into the manifest for the version
 /// token (the version comes from the lookup), so when the dep name
 /// doesn't match the resolved manifest's name the output is an
-/// `npm:`-aliased reference. The unaliased case is covered by
-/// [`workspace_dep_rewrites_match_upstream`]; this case locks the
-/// aliased branch.
+/// `npm:`-aliased reference.
 #[test]
 fn dep_name_mismatch_routes_to_npm_alias() {
     let fixture = TempDir::new().unwrap();

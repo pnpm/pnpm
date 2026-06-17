@@ -88,8 +88,7 @@ impl Drop for LinkConcurrencyGuard<'_> {
 
 /// `optimistic_wire_method` is the source of truth for the
 /// configured-method → wire-method mapping the `imported` event
-/// reports. `Auto` and `CloneOrCopy` collapse to `Clone` (the
-/// optimistic first attempt); the explicit settings pass through.
+/// reports.
 /// A future change to pacquet's `PackageImportMethod` set must
 /// either extend this match or fail this test.
 #[test]
@@ -101,13 +100,9 @@ fn optimistic_wire_method_collapses_auto_and_clone_or_copy_to_clone() {
     assert_eq!(optimistic_wire_method(PackageImportMethod::Copy), WireImportMethod::Copy);
 }
 
-/// `CreateVirtualDirBySnapshot::run` emits `pnpm:progress imported`
-/// after `import_indexed_dir` succeeds. Driving with an empty
-/// `cas_paths` map exercises the success path without hitting the
-/// network: `import_indexed_dir` mkdirs the empty directory and
-/// returns Ok, then the imported emit fires. Asserts the wire
-/// fields (`method`, `requester`, `to`) match what the install
-/// layer threaded down.
+/// Driving with an empty `cas_paths` map exercises the success path
+/// without hitting the network: `import_indexed_dir` mkdirs the empty
+/// directory and returns Ok, then the imported emit fires.
 #[tokio::test]
 async fn run_emits_imported_event_after_import_indexed_dir() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

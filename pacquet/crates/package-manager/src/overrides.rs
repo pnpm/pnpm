@@ -216,13 +216,6 @@ impl VersionsOverrider {
         }
     }
 
-    /// The `peerDependencies` arm of upstream's
-    /// [`overrideDepsOfPkg`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/hooks/read-package-hook/src/createVersionsOverrider.ts#L68-L129):
-    /// a matched peer is deleted on `-`, rewritten in place when the
-    /// override value is a valid peer range, and otherwise written
-    /// into `dependencies` (the peer entry stays as declared, and the
-    /// concrete `link:` / `file:` / alias spec is installed as a
-    /// regular dependency).
     fn override_peer_group(
         &self,
         value: &mut Value,

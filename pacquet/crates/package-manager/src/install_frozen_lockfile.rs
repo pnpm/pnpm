@@ -608,9 +608,7 @@ where
         // [`compute_skipped_snapshots`] entirely. Spawning
         // `node --version` here would otherwise serialize the
         // node-binary startup with `CreateVirtualStore::run` (the
-        // dominant cost of a cold install), giving up the overlap
-        // pacquet had before — see the previous benchmark regression
-        // on this PR.
+        // dominant cost of a cold install), giving up the overlap.
         //
         // When constraints DO exist, the host is needed before
         // extraction (so `CreateVirtualStore` can suppress slots for
@@ -1179,14 +1177,10 @@ where
             link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
                 .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
             // Stash the public-hoist alias list for the
-            // post-`BuildModules` top-level bin link. The
-            // previous in-place `link_direct_dep_bins(&public_dir,
-            // ...)` pass would have written shims with no
-            // knowledge of direct-dep candidates, so a
-            // hoisted bin could shadow a direct one when the
-            // hoisted package's name was lexically smaller.
-            // The post-build pass re-links with the
-            // [`BinOrigin`] tier so direct wins outright.
+            // post-`BuildModules` top-level bin link, which re-links
+            // with the [`BinOrigin`] tier so a direct dep's bin wins
+            // outright over a publicly-hoisted bin with a lexically
+            // smaller name.
             // Mirrors upstream's
             // [`linkBinsOfImporter`](https://github.com/pnpm/pnpm/blob/4750fd370c/installing/deps-installer/src/install/index.ts#L1539)
             // which runs after `buildModules`.
@@ -1719,10 +1713,6 @@ pub(crate) fn find_runtime_node_major(
 pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u32> {
     let deps = snapshot.dependencies.as_ref()?;
     for (alias, dep_ref) in deps {
-        // Match upstream's per-snapshot extraction rule — only the
-        // unscoped `node` alias counts, and only when the resolved
-        // ref-value's prefix is `runtime:` (bun/deno runtimes don't
-        // contribute to the Node-shaped engine string).
         if alias.scope.is_some() || alias.bare != "node" {
             continue;
         }

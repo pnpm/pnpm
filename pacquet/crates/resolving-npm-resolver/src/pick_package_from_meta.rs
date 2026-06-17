@@ -164,12 +164,8 @@ where
                 .published_by_exclude
                 .map_or(PolicyMatch::No, |policy| policy.matches(&meta.name));
             if matches!(exclude_result, PolicyMatch::AnyVersion) {
-                // Bare-name match — every version of this package is
-                // covered by the exclude, so the maturity filter is
-                // a no-op. Borrow the input through.
                 meta
             } else if meta.time.is_some() {
-                // Full metadata — filter by per-version `time`.
                 let trusted = match &exclude_result {
                     PolicyMatch::ExactVersions(versions) => Some(versions.as_slice()),
                     _ => None,
@@ -177,13 +173,9 @@ where
                 filtered = filter_pkg_metadata_by_publish_date(meta, cutoff, trusted);
                 &filtered
             } else {
-                // Abbreviated metadata — no per-version `time`. Fall
-                // back to the package-level `modified` shortcut: if
-                // the registry says the whole package hasn't been
-                // touched since the cutoff, every version is old
-                // enough. Otherwise we can't decide and have to
-                // signal a missing-time error to the orchestrator,
-                // which then upgrades the fetch to full metadata.
+                // Abbreviated metadata has no per-version `time`. The
+                // missing-time error signals the orchestrator, which
+                // then upgrades the fetch to full metadata.
                 //
                 // Cutoff is inclusive (`<=`) to match the per-version
                 // filter in `filter_pkg_metadata_by_publish_date`: a
@@ -205,9 +197,6 @@ where
     };
 
     if meta_ref.versions.is_empty() && opts.published_by.is_none() {
-        // Mirrors upstream: with publishedBy off, an empty versions
-        // map is either "unpublished" (when the `time.unpublished`
-        // marker is present) or "no versions at all."
         if has_unpublished_versions(meta_ref) {
             return Err(PickPackageFromMetaError::Unpublished { pkg_name: spec.name.clone() });
         }
@@ -329,10 +318,10 @@ pub fn pick_version_by_version_range(
     }
 
     if let Some(latest) = latest {
-        // The `*` short-circuit matches upstream — `semver.satisfies`
-        // rejects prereleases for `*`, so a package whose only
-        // version is `1.0.0-beta.1` would have `*` return nothing
-        // without this branch. See pnpm/pnpm#865.
+        // `*` is special-cased because `semver.satisfies` rejects
+        // prereleases for `*`: a package whose only version is
+        // `1.0.0-beta.1` would otherwise return nothing for `*`.
+        // See pnpm/pnpm#865.
         if opts.version_range == "*" || semver_satisfies_loose(latest, opts.version_range) {
             return Some(latest.to_string());
         }
@@ -341,10 +330,6 @@ pub fn pick_version_by_version_range(
     let all_versions: Vec<&str> = opts.meta.versions.keys().map(String::as_str).collect();
     let max_pick = max_satisfying(&all_versions, opts.version_range);
 
-    // Deprecated-fallback: if the picked max is deprecated AND the
-    // packument has another version, try again with only the
-    // non-deprecated subset. Matches upstream's loop at
-    // pickPackageFromMeta.ts#L194-L201.
     if let Some(ref picked) = max_pick {
         let picked_is_deprecated = opts.meta.versions.is_deprecated(picked);
         if picked_is_deprecated && all_versions.len() > 1 {

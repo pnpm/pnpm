@@ -96,7 +96,6 @@ async fn finalize_direct_returns_spec_unchanged() {
     let spec = kind.finalize(&probe).await;
     assert_eq!(spec.fetch_spec, "https://example.com/repo.git");
     assert_eq!(spec.git_committish.as_deref(), Some("abc"));
-    // Direct spec shouldn't probe.
     assert!(probe.calls.lock().unwrap().is_empty());
 }
 

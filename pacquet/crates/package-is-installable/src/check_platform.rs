@@ -168,9 +168,6 @@ pub fn check_platform(
     if let Some(wanted_cpu) = wanted.cpu {
         cpu_ok = check_list(&current.cpu, wanted_cpu);
     }
-    // Upstream skips the libc check when the host returned 'unknown'
-    // from `detect-libc.familySync()`. Mirror that — non-Linux hosts
-    // (and any Linux host where detection failed) bypass libc.
     if let Some(wanted_libc) = wanted.libc
         && current_libc != "unknown"
     {
@@ -214,15 +211,6 @@ fn dedupe_current(current: &str, supported: &[String]) -> Vec<String> {
 ///
 /// Ports `checkList` at
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/checkPlatform.ts#L56-L86>.
-///
-/// Semantics:
-/// - `list == ["any"]`: always accept.
-/// - A `"!foo"` entry rejects when any element of `value` equals
-///   `foo` (negation short-circuits to "fail").
-/// - A bare `"foo"` entry accepts when any element of `value` equals
-///   `foo`.
-/// - Empty positive set with all negations passing: accept (matches
-///   upstream's `match || list.every(entry => entry[0] === '!')`).
 fn check_list(value: &[String], list: &[String]) -> bool {
     if list.len() == 1 && list[0] == "any" {
         return true;

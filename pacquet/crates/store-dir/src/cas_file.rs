@@ -52,9 +52,7 @@ impl StoreDir {
         // Same executable-bit rule the write side uses
         // (`pacquet_fs::file_mode::is_executable`, matching pnpm's
         // `modeIsExecutable`), so a blob written as `-exec` is read back
-        // as `-exec` and vice versa. Using a raw `0o111` literal here
-        // silently diverged from the write side for modes like `0o744`
-        // and turned every lookup of such a file into a cache miss.
+        // as `-exec` and vice versa.
         let suffix = if is_executable(mode) { "-exec" } else { "" };
         Some(self.file_path_by_hex_str(hex, suffix))
     }

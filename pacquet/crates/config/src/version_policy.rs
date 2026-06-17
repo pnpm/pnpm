@@ -67,22 +67,12 @@ pub enum VersionPolicyError {
 }
 
 /// Expand each spec into one or more `name` / `name@version` literal
-/// strings.
-///
-/// Output shape:
-///
-/// - Bare `foo` → `{"foo"}`.
-/// - `foo@1.0.0` → `{"foo@1.0.0"}`.
-/// - `foo@1.0.0 || 2.0.0` → `{"foo@1.0.0", "foo@2.0.0"}`.
-/// - `@scope/foo@1.0.0` → `{"@scope/foo@1.0.0"}`.
-///
-/// Ports upstream's
+/// strings. Ports upstream's
 /// [`expandPackageVersionSpecs`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/version-policy/src/index.ts#L59-L72).
+///
 /// Callers feed the result into a `HashSet::contains` check, so a
-/// pattern like `is-*` lands in the set as the literal string
-/// `"is-*"` and never matches a real package name (matches upstream
-/// behavior exactly — see `should not allow patterns in allowBuilds`
-/// in `building/policy/test/index.ts`).
+/// pattern like `is-*` lands in the set as a literal string and never
+/// matches a real package name.
 pub fn expand_package_version_specs<Iter, Spec>(
     specs: Iter,
 ) -> Result<HashSet<String>, VersionPolicyError>
@@ -176,13 +166,6 @@ impl PackageVersionPolicy {
 /// Compile a list of `<name-pattern>[@<version>||<version>...]` rules
 /// into a [`PackageVersionPolicy`]. Port of upstream's
 /// [`createPackageVersionPolicy`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/version-policy/src/index.ts#L6-L13).
-///
-/// Errors mirror upstream:
-///
-/// - A `||` union that contains a non-semver value →
-///   [`VersionPolicyError::InvalidVersionUnion`].
-/// - A `*` wildcard in the name combined with a version part →
-///   [`VersionPolicyError::NamePatternInVersionUnion`].
 pub fn create_package_version_policy<Iter, Spec>(
     patterns: Iter,
 ) -> Result<PackageVersionPolicy, VersionPolicyError>

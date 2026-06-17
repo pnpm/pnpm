@@ -28,12 +28,6 @@ fn fast_retry_opts() -> RetryOpts {
     }
 }
 
-/// Fetches against a real `mockito` server that asserts the request
-/// arrives with the *full*-metadata `Accept` header
-/// (`application/json`) and the registry-keyed `Authorization`
-/// header. The 200 body carries `time`, `_npmUser`, and
-/// `dist.attestations` so the test also confirms the deserialization
-/// surfaces those fields end-to-end.
 #[tokio::test]
 async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     let mut server = mockito::Server::new_async().await;
@@ -152,11 +146,6 @@ async fn fetch_full_metadata_uses_package_scope_auth() {
     mock.assert_async().await;
 }
 
-/// A 5xx response propagates as a [`super::FetchMetadataError::Network`]
-/// rather than panicking or silently returning a default-valued
-/// `Package`. Mirrors upstream's `fetchFullMetadataCached`
-/// fail-closed behavior — the verifier surfaces the underlying
-/// message as the violation reason.
 #[tokio::test]
 async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
     let mut server = mockito::Server::new_async().await;
@@ -232,11 +221,6 @@ async fn fetch_full_metadata_retries_transient_status() {
     second.assert_async().await;
 }
 
-/// Scoped names percent-encode the `/` between the `@scope` prefix
-/// and the bare name so the registry routes the request as a
-/// single path segment — matches upstream's `toUri`. The mockito
-/// `match` rule below uses the encoded path; if the encoding
-/// regresses (raw slash), mockito returns 501 and the test fails.
 #[tokio::test]
 async fn fetch_full_metadata_encodes_scoped_name() {
     let mut server = mockito::Server::new_async().await;
@@ -285,11 +269,6 @@ async fn fetch_full_metadata_encodes_scoped_name() {
     mock.assert_async().await;
 }
 
-/// A 200 response with a malformed body surfaces as
-/// [`super::FetchMetadataError::Decode`] (not `Network`), so the
-/// install-side diagnostic code routes to `decode_error` rather
-/// than `network_error`. Mirrors upstream's split between transport
-/// and decode failures.
 #[tokio::test]
 async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
     let mut server = mockito::Server::new_async().await;
@@ -322,14 +301,6 @@ async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
     mock.assert_async().await;
 }
 
-/// When the caller supplies `etag` / `modified`, the request carries
-/// `If-None-Match` / `If-Modified-Since` and a registry `304` answers
-/// with [`FetchFullMetadataOutcome::NotModified`] instead of a body.
-/// Matches upstream's
-/// [`notModified`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/network/fetch/src/fetchFromRegistry.ts#L41-L86)
-/// short-circuit, which `maybeUpgradeAbbreviatedMetaForReleaseAge`
-/// relies on to coalesce the upgrade fetch against the registry's
-/// representation cache.
 #[tokio::test]
 async fn fetch_full_metadata_returns_not_modified_on_304() {
     let mut server = mockito::Server::new_async().await;

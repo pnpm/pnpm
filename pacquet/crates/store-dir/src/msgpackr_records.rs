@@ -180,9 +180,7 @@ pub fn transcode_to_plain_msgpack(bytes: &[u8]) -> Result<Vec<u8>, DecodeError> 
 ///
 /// Slot schemas live under `Rc<[String]>` so reference-path decoding
 /// can bump a refcount instead of deep-cloning the field-name vector
-/// on every record instance. A row with 200 files used to allocate
-/// 200 `Vec<String>`s plus one `String` per field name per clone; now
-/// it allocates once at definition time.
+/// on every record instance.
 #[derive(Default)]
 struct TranscodeState {
     slots: HashMap<u8, Rc<[String]>>,
@@ -636,12 +634,6 @@ fn write_str(writer: &mut Vec<u8>, text: &str) {
 ///   each is included in the schema only when `Some`. The four
 ///   possible shapes (`{added}`, `{deleted}`, `{added, deleted}`,
 ///   `{}`) each get their own slot on first use.
-///
-/// Matching msgpackr's omit-when-absent convention (rather than
-/// padding with `nil`) means pnpm's reader sees the same JS object
-/// shape regardless of which tool wrote the row — a `SideEffectsDiff
-/// { added: Some, deleted: None }` decodes to `{ added: Map }`, not
-/// `{ added: Map, deleted: null }`.
 pub fn encode_package_files_index(index: &PackageFilesIndex) -> Result<Vec<u8>, EncodeError> {
     let mut state = EncodeState::default();
     let mut out = Vec::with_capacity(256);
@@ -908,12 +900,6 @@ fn encode_cafs_file_info(
     if let Some(slot) = state.cafs_slots[shape as usize] {
         writer.push(slot); // bare slot = record reference; no def needed
     } else {
-        // New shape for this stream — allocate a slot and emit a
-        // record def inline. `digest`, `mode`, `size` are required;
-        // `checkedAt` is included only when `Some`, matching msgpackr's
-        // field-omit-when-absent behaviour so pnpm's reader sees the
-        // same object shape on round-trip. Field order matches pnpm's
-        // own output.
         let slot = state.allocate_slot()?;
         state.cafs_slots[shape as usize] = Some(slot);
         let fields: &[&str] = if info.checked_at.is_some() {
@@ -949,11 +935,6 @@ fn encode_side_effects_diff(
     if let Some(slot) = state.side_effects_slots[shape as usize] {
         writer.push(slot);
     } else {
-        // Msgpackr omits absent `added` / `deleted` from the schema
-        // rather than writing them as explicit `null`. Match that so
-        // downstream JS code checking `diff.added != null` /
-        // `diff.deleted != null` sees the same shape regardless of
-        // which tool wrote the row.
         let slot = state.allocate_slot()?;
         state.side_effects_slots[shape as usize] = Some(slot);
         let fields: &[&str] = match (diff.added.is_some(), diff.deleted.is_some()) {

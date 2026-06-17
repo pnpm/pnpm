@@ -13,12 +13,6 @@ use std::path::{Component, Path, PathBuf};
 /// `path.relative` on write and `path.join` on read in pnpm) must run
 /// the joined path through this helper to match upstream output.
 ///
-/// Semantics:
-/// - `foo/../bar` → `bar` (pop a real segment).
-/// - `/..` → `/` (POSIX rule: root has no parent).
-/// - `../foo` → `../foo` (preserve leading `..` in relative paths).
-/// - `foo/./bar` → `foo/bar` (drop `.`).
-///
 /// Filesystem-free: callers run this against paths whose targets may
 /// not exist yet, where [`std::fs::canonicalize`] cannot help.
 #[must_use]

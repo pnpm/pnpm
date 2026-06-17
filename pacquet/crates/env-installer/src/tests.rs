@@ -248,7 +248,6 @@ async fn records_optional_subdeps_with_platform_fields() {
         .expect("optional subdeps recorded");
     assert_eq!(optionals.len(), 8, "all eight platform variants are recorded");
 
-    // Every recorded subdep keeps its platform fields in `packages:`.
     let only_linux = "@pnpm.e2e/only-linux-x64-glibc@1.0.0".parse().unwrap();
     let metadata = env.packages.get(&only_linux).expect("platform subdep recorded in packages");
     assert_eq!(metadata.os.as_deref(), Some(["linux".to_string()].as_slice()));
@@ -454,8 +453,6 @@ async fn migrates_old_inline_integrity_format() {
     );
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
     let entry = &env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["@pnpm.e2e/foo"];
-    // The migrated specifier collapses to the bare version (the integrity
-    // moves into the lockfile's packages entry).
     assert_eq!(entry.specifier, "100.0.0");
     assert_eq!(entry.version, "100.0.0");
     assert!(env.packages.contains_key(&"@pnpm.e2e/foo@100.0.0".parse().unwrap()));
@@ -479,8 +476,6 @@ async fn frozen_lockfile_succeeds_when_up_to_date() {
     .await
     .unwrap();
 
-    // A second install under --frozen-lockfile needs no changes, so it
-    // succeeds rather than raising FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE.
     resolve_and_install_config_deps::<SilentReporter>(
         &config_deps,
         &resolver,
@@ -496,10 +491,9 @@ async fn frozen_lockfile_rejects_old_format_migration() {
     let (resolver, _cache) = build_resolver(&harness.registry_url);
     let root = TempDir::new().unwrap();
 
-    // An old inline-integrity entry that isn't yet in the env lockfile
-    // needs migrating — which mutates the lockfile, so --frozen-lockfile
-    // must reject it (the `lockfile_changed` branch, distinct from the
-    // clean-specifier resolve branch).
+    // Migrating an old-format entry mutates the lockfile via the
+    // `lockfile_changed` branch, distinct from the clean-specifier
+    // resolve branch that `frozen_lockfile_rejects_new_config_dep` covers.
     let integrity = integrity_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
     let mut config_deps = BTreeMap::new();
     config_deps.insert(
@@ -549,8 +543,7 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     )
     .await
     .unwrap();
-    // First install does work: exactly `started` then `done`, in that
-    // order (the channel is order-sensitive for pnpm compatibility).
+    // The channel is order-sensitive for pnpm compatibility.
     let first = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
     assert_eq!(
         first,
@@ -565,7 +558,6 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     )
     .await
     .unwrap();
-    // Everything is already in place — no events on the second install.
     let second = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
     assert!(second.is_empty(), "a no-op install emits nothing: {second:?}");
 }
@@ -642,8 +634,7 @@ async fn removed_config_dep_is_pruned_from_lockfile_and_pnpm_config() {
     .unwrap();
     assert!(root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists());
 
-    // Re-resolve with the dep no longer declared: it must be dropped from
-    // the env lockfile and unlinked from `.pnpm-config`.
+    // Re-resolve with the dep no longer declared.
     let empty = BTreeMap::new();
     resolve_and_install_config_deps::<SilentReporter>(
         &empty,

@@ -63,12 +63,10 @@ fn dry_run_reports_added_dependency_without_touching_the_lockfile() {
     )
     .expect("write package.json");
 
-    // Seed a lockfile.
     pacquet.with_args(["install", "--lockfile-only"]).assert().success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile_before = fs::read_to_string(&lockfile_path).expect("read seeded lockfile");
 
-    // Drift the manifest: add a dependency.
     fs::write(
         &manifest_path,
         serde_json::json!({ "dependencies": { "is-positive": "1.0.0", "is-negative": "1.0.0" } })

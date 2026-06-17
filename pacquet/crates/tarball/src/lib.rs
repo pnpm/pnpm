@@ -527,10 +527,8 @@ fn write_cas_entry(
 /// each file payload as a slice of that buffer instead of allocating a
 /// fresh `Vec<u8>` and `read_to_end`-ing every entry.
 ///
-/// Every tar-side failure — a corrupt entries iterator, a mangled
-/// header (bad mode, bad size), an invalid file offset, a path decode
-/// error, a path whose components would escape the CAFS root — comes
-/// back as [`TarballError::ReadTarballEntries`] instead of panicking.
+/// Every tar-side failure comes back as
+/// [`TarballError::ReadTarballEntries`] instead of panicking.
 /// Non-UTF-8 entry paths are coerced via
 /// [`std::path::Path::to_string_lossy`], matching pnpm's string-based
 /// handling so a mixed install against the shared `index.db` stays
@@ -548,9 +546,7 @@ fn extract_tarball_entries(
         // Keep only regular-file `Ok` entries; anything else in the
         // `Ok` arm (directories, symlinks, hardlinks, pax/gnu
         // extension headers, ...) is dropped. `Err` entries fall
-        // through so the `?` inside the loop below propagates them —
-        // previously this branch did `entry.as_ref().unwrap()` which
-        // panicked on any iterator-level error.
+        // through so the `?` inside the loop below propagates them.
         .filter(|entry| match entry {
             Ok(entry) => entry.header().entry_type().is_file(),
             Err(_) => true,
@@ -709,11 +705,11 @@ fn extract_tarball_entries(
     }
 
     // Phase 2: hash and write every file into the content-addressed
-    // store. A tarball used to extract on a single blocking thread, so a
-    // package with thousands of files (e.g. `core-js`) pinned one core
-    // while the rest sat idle — most costly at the makespan tail, when
-    // it's the last extraction still running. `write_cas_entry` is safe
-    // to run concurrently, so large tarballs fan out across the dedicated
+    // store. Extracting a package with thousands of files (e.g.
+    // `core-js`) on a single blocking thread pins one core while the
+    // rest sit idle — most costly at the makespan tail, when it's the
+    // last extraction still running. `write_cas_entry` is safe to run
+    // concurrently, so large tarballs fan out across the dedicated
     // [`cas_write_pool`]; small ones stay serial to skip rayon's per-job
     // dispatch cost when there's nothing to gain. The dedicated pool
     // keeps this off the global pool the linker uses, so an extraction
@@ -734,8 +730,7 @@ fn extract_tarball_entries(
 
     // Phase 3 (serial): assemble the output maps. `written` preserves
     // `pending` order, so a tarball with duplicate paths keeps the last
-    // entry — matching the previous insert-in-order behavior and pnpm's
-    // last-wins `filesIndex.set`.
+    // entry — matching pnpm's last-wins `filesIndex.set`.
     let mut cas_paths = HashMap::<String, PathBuf>::with_capacity(written.len());
     let mut files = HashMap::with_capacity(written.len());
     for (path, file_path, info) in written {
@@ -972,12 +967,8 @@ fn extract_zip_entries(
 /// filesystem work — missing / corrupt CAFS blobs surface lazily when
 /// the caller tries to import them.
 ///
-/// The previous pacquet implementation unconditionally ran a
-/// `symlink_metadata` per referenced file and rejected any non-regular
-/// dirent outright. That cost a stat syscall per file on every warm
-/// install ([#260]) and still diverged from pnpm: the upstream
-/// [`checkPkgFilesIntegrity`][1] catches corruption via the content hash
-/// and doesn't gate on dirent type.
+/// Corruption is caught via the content hash, not by gating on the
+/// dirent type, matching upstream's [`checkPkgFilesIntegrity`][1].
 ///
 /// [1]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts
 ///
@@ -988,10 +979,7 @@ fn extract_zip_entries(
 /// Values are `Arc`-wrapped so the cold-batch fallback can hand a hit
 /// back as a cheap pointer-clone rather than memcpy-ing the whole
 /// per-file map (each entry is a `HashMap<String, PathBuf>` with up
-/// to ~hundred entries, and Copilot reasonably flagged the deep clone
-/// as a hot-path cost).
-///
-/// [#260]: https://github.com/pnpm/pacquet/issues/260
+/// to ~hundred entries, so the deep clone is a hot-path cost).
 pub type PrefetchedCasPaths = HashMap<String, Arc<HashMap<String, PathBuf>>>;
 
 /// Bundled package manifests recovered from the `SQLite` store index,
@@ -1060,7 +1048,7 @@ pub struct PrefetchResult {
 /// `cache_key → Arc<cas_paths>` map the per-snapshot futures can hit
 /// synchronously.
 ///
-/// **Locking shape (per Copilot review on [#292]):** the `SQLite` mutex
+/// **Locking shape (see [#292]):** the `SQLite` mutex
 /// is held only for the SELECT loop. Integrity checks (`fs::metadata`
 /// per file, optional re-hash) happen after the guard drops, so a
 /// concurrent reader on the same `SharedReadonlyStoreIndex` doesn't
@@ -1487,16 +1475,10 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
 }
 
 /// Whether a [`TarballError`] from one tarball-fetch attempt should be
-/// retried. Matches pnpm's
-/// [`remoteTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L76-L84)
-/// policy *exactly*: only HTTP 401, 403, 404 (and the git-prepare
-/// failure code, which doesn't apply to registry tarballs) fail fast.
-/// Every other failure — arbitrary 4xx, 5xx, network reset, timeout,
-/// integrity mismatch, gzip / tar parse error, CAFS write hiccup —
-/// retries until the budget is exhausted.
+/// retried.
 ///
-/// In particular this means we retry integrity mismatches and decode
-/// errors. pnpm wraps the body fetch *and* the post-download
+/// We retry integrity mismatches and decode errors. pnpm wraps the
+/// body fetch *and* the post-download
 /// `addFilesFromTarball` (integrity check + extraction) in one retried
 /// closure for the same reason: a corrupted byte on the wire that
 /// happens to escape TCP framing can break either the integrity check
@@ -1730,11 +1712,10 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
 
     // Move the CPU-bound work (SHA-512, gzip inflate, per-file SHA-512,
-    // CAFS writes) onto the blocking pool. Same reasoning as before the
-    // retry refactor: a plain `tokio::spawn` pinned a reactor worker for
-    // each tarball — on a 2-core runner only two tarballs could make
-    // progress at a time. The post-download semaphore caps concurrency
-    // here.
+    // CAFS writes) onto the blocking pool. A plain `tokio::spawn` would
+    // pin a reactor worker for each tarball — on a 2-core runner only
+    // two tarballs could make progress at a time. The post-download
+    // semaphore caps concurrency here.
     let expected_integrity = expected_integrity.cloned();
     let package_url_owned = package_url.to_string();
     let result = tokio::task::spawn_blocking(

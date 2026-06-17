@@ -8,11 +8,7 @@
 //!
 //! Today the chain is empty until the per-protocol resolvers
 //! (npm/jsr/git/tarball/local/runtimes/named-registry/workspace) land
-//! in subsequent PRs. A [`DefaultResolver`] built without any
-//! resolvers always returns [`SpecNotSupportedByAnyResolverError`],
-//! mirroring pnpm's
-//! [`SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/default-resolver/src/index.ts#L152-L156)
-//! error code.
+//! in subsequent PRs.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -25,12 +21,9 @@ use pacquet_resolving_resolver_base::{
 /// [`createResolver`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/default-resolver/src/index.ts#L97-L173)
 /// return value. Wraps an ordered list of per-protocol resolvers.
 ///
-/// Order matters: each resolver in the chain gets the chance to claim
-/// the wanted dependency in declaration order, mirroring the `??`
-/// chain upstream uses inside `createResolver`. Wiring of the actual
-/// resolvers (npm, jsr, git, tarball, local, runtimes, named-registry,
-/// workspace) lands in subsequent PRs as each per-protocol crate is
-/// ported.
+/// Wiring of the actual resolvers (npm, jsr, git, tarball, local,
+/// runtimes, named-registry, workspace) lands in subsequent PRs as
+/// each per-protocol crate is ported.
 pub struct DefaultResolver {
     chain: Vec<Box<dyn Resolver>>,
 }

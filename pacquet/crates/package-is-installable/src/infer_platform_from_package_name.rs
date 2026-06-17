@@ -43,11 +43,10 @@ fn libc_for_token(token: &str) -> Option<&'static str> {
     }
 }
 
-/// Infers the supported platforms of a package from the tokens of its name,
-/// e.g. `@nx/nx-win32-arm64-msvc` produces `os: ["win32"], cpu: ["arm64"]`.
+/// Infers the supported platforms of a package from the tokens of its name.
 /// Platform-specific binary packages follow this naming convention, which is
 /// the only platform signal left when their os/cpu/libc manifest fields are
-/// absent. Returns `None` when no platform token is recognized in the name.
+/// absent.
 pub fn infer_platform_from_package_name(name: &str) -> Option<WantedPlatform> {
     let name_without_scope = name.find('/').map_or(name, |idx| &name[idx + 1..]);
     let lowercase = name_without_scope.to_lowercase();
@@ -79,11 +78,7 @@ fn pick_token_values(
 /// The platform fields of an optional dependency may be incomplete: some
 /// registries strip os/cpu/libc (or just libc) from the metadata they serve,
 /// and lockfile entries written from such metadata lack them too. For a
-/// platform-specific binary the package name carries the same information, so
-/// each missing field is filled from the name's tokens. A package that
-/// declares no platform fields at all is treated as platform-specific only
-/// when an operating system is recognized in its name — a generic name
-/// segment (e.g. `arm` on its own) never marks it as such.
+/// platform-specific binary the package name carries the same information.
 ///
 /// Returns `None` when the declared fields stand as-is. The `optional` gate
 /// stays at the call site, mirroring upstream's `effectivePlatform` at

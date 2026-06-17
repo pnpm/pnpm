@@ -99,13 +99,6 @@ impl PackageManifest {
     fn read_from_file(path: &Path) -> Result<Value, PackageManifestError> {
         let contents = fs::read_to_string(path)?;
         let mut value: Value = serde_json::from_str(&contents)?;
-        // Mirror upstream pnpm's `convertManifestAfterRead` at
-        // <https://github.com/pnpm/pnpm/blob/9cad8274fd/workspace/project-manifest-reader/src/index.ts#L227-L231>:
-        // declarations under `devEngines.runtime` / `engines.runtime`
-        // with `onFail: "download"` are reified into the matching
-        // dependencies bucket so the lockfile entry the resolver writes
-        // (e.g. `node@runtime:24.6.0`) lines up with the manifest's
-        // flat-record view during the frozen-lockfile staleness check.
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
         convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
         Ok(value)
@@ -333,14 +326,6 @@ const RUNTIME_NAMES: [&str; 3] = ["node", "deno", "bun"];
 /// own dependency map. Without this step a manifest that declares its
 /// runtime exclusively through `devEngines.runtime` fails the frozen-
 /// lockfile staleness check as a spurious "dependency was removed".
-///
-/// Runtime entries are skipped when:
-/// - the target dependency slot already has an explicit entry (the
-///   user-declared specifier wins),
-/// - the runtime is declared with `onFail` other than `"download"` (the
-///   download is opt-in upstream), or
-/// - no `version` is set (upstream warns and skips; pacquet skips
-///   silently — the staleness check still surfaces the gap downstream).
 ///
 /// `WebContainer`'s "no runtime download" branch upstream is intentionally
 /// omitted: pacquet does not run in `WebContainer`.

@@ -33,7 +33,6 @@ fn copy_materializes_the_file_contents() {
         .expect("link_file should succeed");
 
     assert_eq!(fs::read(&dst).unwrap(), b"hello");
-    // A plain copy leaves the two files as independent inodes.
     let src_ino = fs::metadata(&src).unwrap();
     let dst_ino = fs::metadata(&dst).unwrap();
     #[cfg(unix)]
@@ -89,8 +88,7 @@ fn copy_does_not_widen_non_exec_mode() {
 }
 
 /// Hardlinking in the same directory on the same filesystem works on
-/// every mainstream OS the project supports. We verify the post-link
-/// inodes match (on unix) or that the contents match (otherwise).
+/// every mainstream OS the project supports.
 #[test]
 fn hardlink_shares_contents_with_source() {
     let tmp = tempdir().unwrap();

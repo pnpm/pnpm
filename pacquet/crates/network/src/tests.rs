@@ -84,8 +84,6 @@ fn no_proxy_none_matches_nothing() {
 
 #[test]
 fn parse_proxy_url_auto_prefixes_missing_scheme() {
-    // pnpm-parity: `proxy.example:8080` is treated as
-    // `http://proxy.example:8080`.
     let url = parse_proxy_url("proxy.example:8080").expect("parses with retry");
     assert_eq!(url.scheme(), "http");
     assert_eq!(url.host_str(), Some("proxy.example"));
@@ -155,8 +153,6 @@ fn strip_userinfo_returns_none_when_absent() {
 
 #[test]
 fn for_installs_with_empty_proxy_config_builds() {
-    // The legacy `new_for_installs` is now a wrapper around this — assert
-    // the default `ProxyConfig` round-trips without error.
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &TlsConfig::default(),
@@ -543,11 +539,9 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
     // calls can interleave under concurrency.
     //
     // We can't compare `Client` instances directly — reqwest's
-    // `Client` doesn't implement `PartialEq`. Use `Client::user_agent`
-    // round-trip via the request builder? No — both share the
-    // default builder. Instead, compare the underlying pointer:
-    // `&Client` is what the guard derefs to, and two distinct
-    // builds produce two distinct `Client` allocations.
+    // `Client` doesn't implement `PartialEq`. Compare the underlying
+    // pointer instead: `&Client` is what the guard derefs to, and two
+    // distinct builds produce two distinct `Client` allocations.
     use crate::RegistryTls;
     use std::collections::HashMap;
     let mut map = HashMap::new();

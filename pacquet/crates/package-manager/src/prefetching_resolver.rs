@@ -195,7 +195,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // absent → present spawns; everyone else returns. The
         // `MemCache` is *not* atomic for this purpose — its
         // `contains_key` + `insert` is a TOCTOU pair under racing
-        // resolvers (P3 from the code review).
+        // resolvers.
         if !self.ctx.spawned_urls.insert(package_url.to_string()) {
             return;
         }

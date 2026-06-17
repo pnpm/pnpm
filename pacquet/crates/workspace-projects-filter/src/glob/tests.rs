@@ -34,8 +34,6 @@ fn trailing_slash_is_ignored() {
 
 #[test]
 fn trailing_star_consumes_after_exact_prefix() {
-    // `foo*` vs `foo`: after the text is exhausted by exact matches, the
-    // trailing `*` matches the empty remainder.
     assert!(is_match("/a/foo", "/a/foo*"));
     assert!(is_match("/a/foobar", "/a/foo*"));
 }
@@ -49,8 +47,6 @@ fn multiple_stars_in_one_segment_backtrack() {
 
 #[test]
 fn backslash_separators_are_normalized_in_both_candidate_and_pattern() {
-    // A Windows `ProjectRootDir` rendered with backslashes still matches
-    // a `/`-separated pattern, and vice versa.
     assert!(is_match(r"C:\packages\project-0", "C:/packages/*"));
     assert!(is_match("C:/packages/project-0", r"C:\packages\*"));
     assert!(is_match(r"C:\packages\project-0\", r"C:\packages\*"));

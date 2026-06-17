@@ -18,9 +18,6 @@ fn segments(path: &OsString) -> Vec<String> {
 /// Ports `test('the path to node-gyp should be added after the path
 /// to node_modules/.bin')` from
 /// <https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/test/extendPath.test.js#L5-L8>.
-///
-/// The only upstream test for extendPath; assertion is purely
-/// ordering between `node_modules/.bin` and the bundled `node-gyp`.
 #[test]
 fn node_gyp_comes_after_node_modules_dot_bin() {
     let wd = Path::new("/Users/x/project");
@@ -48,10 +45,8 @@ fn node_gyp_comes_after_node_modules_dot_bin() {
     );
 }
 
-/// `wd` with no `node_modules` segment yields exactly one
-/// `<wd>/node_modules/.bin` entry — no ancestor walk happens. Mirrors
-/// the upstream split where `wd.split('/node_modules/')` returns a
-/// single-element array and the loop body never runs.
+/// Mirrors the upstream split where `wd.split('/node_modules/')`
+/// returns a single-element array and the loop body never runs.
 #[test]
 fn no_ancestors_when_wd_has_no_node_modules_segment() {
     let wd = Path::new("/home/me/project");
@@ -62,10 +57,6 @@ fn no_ancestors_when_wd_has_no_node_modules_segment() {
     assert!(parts[0].ends_with(".bin"), "must be a .bin path: {:?}", parts[0]);
 }
 
-/// Two-level pnpm virtual store wd:
-/// `<root>/node_modules/.pnpm/foo@1.0.0/node_modules/foo`. The walk
-/// must produce three `.bin` paths, ordered deepest-first.
-///
 /// Unix-only because `path::absolute("/proj")` on Windows resolves
 /// against the current drive (`C:\proj`), which makes the hard-coded
 /// expected values racy. The structural invariants (count + deepest-
@@ -88,10 +79,9 @@ fn pnpm_virtual_store_layout_yields_three_bins_deepest_first() {
     );
 }
 
-/// Platform-neutral version of the virtual-store walk test: assert
-/// the count and the deepest-first ordering (each entry must be a
-/// strict prefix of the entry before it after stripping the trailing
-/// `node_modules/.bin`) without anchoring to any absolute root.
+/// Platform-neutral counterpart to
+/// [`pnpm_virtual_store_layout_yields_three_bins_deepest_first`],
+/// anchoring to no absolute root.
 #[test]
 fn virtual_store_walk_orders_deepest_first() {
     let wd = Path::new("proj")
@@ -112,7 +102,6 @@ fn virtual_store_walk_orders_deepest_first() {
     }
 }
 
-/// `extra_bin_paths` slot in after the .bin walk and after node-gyp.
 /// Upstream order at lib/extendPath.js:6-19:
 ///   `pathArr = [...extraBinPaths]` then unshift node-gyp, then
 ///   unshift each .bin → final order [bins..., nodeGyp, ...extraBinPaths].
@@ -136,9 +125,6 @@ fn extra_bin_paths_come_after_bins_and_node_gyp() {
     );
 }
 
-/// `original_path` is appended verbatim at the end of the joined
-/// PATH. The system PATH thus stays lowest-priority while the
-/// .bin walk and node-gyp take precedence.
 #[test]
 fn original_path_is_appended_last() {
     let wd = Path::new("/proj");
@@ -157,8 +143,6 @@ fn original_path_is_appended_last() {
     assert_eq!(parts[2], "/usr/bin");
 }
 
-/// `scripts_prepend_node_path: Always` appends `dirname(node)` after
-/// `extra_bin_paths` but before originalPath.
 #[test]
 fn scripts_prepend_node_path_always_appends_dirname_of_node() {
     let wd = Path::new("/proj");
@@ -199,11 +183,9 @@ fn separator_in_path_component_does_not_drop_other_entries() {
     assert!(text.contains("/tmp/a:b/.bin"), "the weird extra path must survive verbatim: {text:?}");
 }
 
-/// Tri-state: `Never` and `WarnOnly` both skip the actual prepend
-/// (mirroring the `cfgsetting === true` gate at lib/extendPath.js:32).
 /// `WarnOnly` would emit a warning upstream; pacquet's reporter-side
 /// emission is decoupled from extendPath, so this function just
-/// skips.
+/// skips the prepend like `Never`.
 #[test]
 fn scripts_prepend_node_path_never_and_warn_only_do_not_prepend() {
     let wd = Path::new("/proj");

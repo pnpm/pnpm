@@ -3,10 +3,7 @@ use serde_json::json;
 
 #[test]
 fn version_like_floats_are_single_quoted() {
-    // `9.0` resolves as a YAML float, so it must be quoted; `11.5.2` and
-    // `1.0.0` are plain strings.
     let yaml = to_string(&json!({ "a": "9.0", "b": "11.5.2", "c": "1.0.0" })).unwrap();
-    // Top-level entries are blank-line separated.
     assert_eq!(yaml, "a: '9.0'\n\nb: 11.5.2\n\nc: 1.0.0\n");
 }
 
@@ -17,7 +14,6 @@ fn leading_indicator_and_at_force_single_quotes() {
         "name": "@scope/pkg@1.0.0",
     }))
     .unwrap();
-    // Keys are sorted (`name` before `node`).
     assert_eq!(yaml, "name: '@scope/pkg@1.0.0'\n\nnode: '>=10'\n");
 }
 
@@ -30,9 +26,6 @@ fn booleans_and_numbers_render_plain() {
 #[test]
 fn ambiguous_words_are_quoted() {
     let yaml = to_string(&json!({ "a": "true", "b": "null", "c": "yes", "d": "no" })).unwrap();
-    // `true`/`null` are reserved words and get quoted; `yes`/`no` are plain in
-    // the core schema (no legacy-bool resolving), matching pnpm's noCompatMode
-    // dumper.
     assert_eq!(yaml, "a: 'true'\n\nb: 'null'\n\nc: yes\n\nd: no\n");
 }
 
@@ -61,8 +54,6 @@ fn single_line_keys_render_flow() {
         "os": ["darwin", "linux"],
     }))
     .unwrap();
-    // Keys are sorted (cpu, engines, os, resolution); array elements keep their
-    // order.
     assert_eq!(
         yaml,
         "cpu: [x64]\n\nengines: {node: '>=10'}\n\nos: [darwin, linux]\n\nresolution: {integrity: sha512-abc}\n",
@@ -71,7 +62,6 @@ fn single_line_keys_render_flow() {
 
 #[test]
 fn variations_resolution_renders_block_not_flow() {
-    // `resolution` is single-line except when its `type` is variations/binary.
     let yaml = to_string(&json!({
         "resolution": { "type": "variations", "variants": ["a"] },
     }))

@@ -2,26 +2,6 @@ use pacquet_crypto_hash::shorten_virtual_store_name;
 
 /// Turn a depPath into a filesystem-safe directory name. Mirrors pnpm's
 /// [`depPathToFilename`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L169-L180).
-///
-/// Pipeline:
-///
-/// 1. **Escape the scheme prefix.** A `file:` prefix has its `:`
-///    rewritten to `+`. The unescape branch upstream calls
-///    `depPathToFilenameUnescaped`.
-/// 2. **Strip a leading `/`** for the relative-depPath shape (legacy
-///    pre-v9 lockfiles), then re-join the `@version` half so the
-///    resulting name still has the `name@version` shape — upstream's
-///    `${first}@${rest}` rebuild is a no-op for already-flat depPaths
-///    and pacquet's port matches it directly.
-/// 3. **Replace path-unsafe characters** (`\\ / : * ? " < > | #`) with
-///    `+`.
-/// 4. **Flatten parens** — strip the trailing `)`, then rewrite `)(`,
-///    `(`, and `)` to `_`. After this step a depPath like
-///    `foo@1.0.0(bar@2.0.0)` becomes `foo@1.0.0_bar@2.0.0`.
-/// 5. **Cap length / case** via
-///    [`pacquet_crypto_hash::shorten_virtual_store_name`]. Same trailing
-///    branch the flat-name call sites already consume — single source of
-///    truth for the truncation arithmetic and `file+` carve-out.
 #[must_use]
 pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> String {
     let mut filename = dep_path_to_filename_unescaped(dep_path);

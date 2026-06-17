@@ -76,11 +76,6 @@ pub enum UpdateWorkspaceManifestError {
 
 /// Merge `updated_catalogs` into `dir`'s `pnpm-workspace.yaml`, writing the
 /// file back only when something actually changed.
-///
-/// Mirrors pnpm's `updateWorkspaceManifest(dir, { updatedCatalogs })`:
-/// entries already present with the same specifier are left untouched, so a
-/// no-op call performs no write. A brand-new default catalog is written under
-/// the top-level `catalog:` shorthand; named catalogs under `catalogs:`.
 pub fn update_workspace_manifest(
     dir: &Path,
     updated_catalogs: &Catalogs,

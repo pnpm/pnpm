@@ -94,9 +94,6 @@ struct BunAssetName {
 }
 
 /// Match upstream's `^bun-([^-.]+)-([^-.]+)(-musl)?\.zip$` regex.
-///
-/// `windows` → `win32` and `aarch64` → `arm64` to align with pnpm's
-/// canonical `process.platform` / `process.arch` strings.
 fn parse_asset_name(file_name: &str) -> Option<BunAssetName> {
     let stem = file_name.strip_suffix(".zip")?;
     let body = stem.strip_prefix("bun-")?;

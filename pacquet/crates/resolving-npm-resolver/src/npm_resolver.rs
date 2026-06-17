@@ -155,13 +155,6 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let default_tag = opts.default_tag.as_deref().unwrap_or("latest");
 
-        // `workspace:` is intercepted before the npm pick — only the
-        // path-relative forms (`workspace:./foo`, `workspace:../bar`)
-        // fall through here so the local-resolver in the chain claims
-        // them. Everything else routes through
-        // [`try_resolve_from_workspace`], mirroring upstream's
-        // [`resolveNpm`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L412-L429)
-        // gate.
         if let Some(bare) = wanted_dependency.bare_specifier.as_deref()
             && bare.starts_with("workspace:")
         {
@@ -226,11 +219,6 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         };
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        // `link-workspace-packages` gate. Mirrors upstream's
-        // [`opts.alwaysTryWorkspacePackages !== false`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L435)
-        // collapse: when the install caller has flipped the flag off,
-        // the registry pick is the only path and the workspace map is
-        // ignored entirely.
         let workspace_packages_active = opts
             .always_try_workspace_packages
             .then_some(opts.workspace_packages.as_ref())
@@ -240,11 +228,6 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let picked = match pick_result {
             Ok(Some(picked)) => picked,
             Ok(None) => {
-                // Registry returned a packument but no version
-                // satisfies the spec. Mirrors upstream's
-                // [`pickedPackage == null` branch](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L527-L545)
-                // — fall back to the workspace before reporting "no
-                // matching version".
                 if let Some(workspace_packages) = workspace_packages_active
                     && let Some(result) =
                         try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
@@ -254,11 +237,6 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 return Ok(None);
             }
             Err(err) => {
-                // Registry fetch errored (404, network failure, ...).
-                // Mirrors upstream's
-                // [`try { pickPackage } catch`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L506-L524)
-                // — swallow the error if the workspace can satisfy
-                // the request; otherwise surface the original.
                 if let Some(workspace_packages) = workspace_packages_active
                     && let Some(result) =
                         try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
@@ -269,19 +247,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             }
         };
 
-        // Resolver-time `trustPolicy='no-downgrade'` gate. Runs on the
-        // registry pick before the workspace shadow, matching upstream's
-        // [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/index.ts#L548-L550)
-        // call site. A downgrade is a hard error that aborts the
-        // install, so it propagates as a `ResolveError` rather than the
-        // soft [`ResolveResult::policy_violation`] used for
-        // `minimumReleaseAge`.
         fail_if_trust_downgraded_for_pick(opts, &picked)?;
 
-        // Registry pick succeeded — prefer the workspace copy when it
-        // matches (or is newer, or `preferWorkspacePackages` is on).
-        // Mirrors upstream's
-        // [registry-pick + workspace shadow](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L550-L582).
         if let Some(workspace_packages) = workspace_packages_active
             && let Some(mut result) = try_workspace_shadow(
                 workspace_packages,

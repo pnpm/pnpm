@@ -45,7 +45,6 @@ fn converts_mbps_to_bytes_per_second() {
 /// delay in each direction, so its round trip is ≈ `2 × one_way`.
 #[test]
 fn injects_round_trip_latency() {
-    // Upstream: read the request, echo a fixed reply.
     let upstream = TcpListener::bind(("127.0.0.1", 0)).expect("bind upstream");
     let upstream_addr = upstream.local_addr().expect("upstream addr");
     thread::spawn(move || {
@@ -84,7 +83,6 @@ fn caps_throughput_to_the_rate_limit() {
     const PAYLOAD: usize = 256 * 1024;
     const RATE: u64 = 1_000_000; // 1 MB/s
 
-    // Upstream: ignore the request, stream a fixed-size payload back.
     let upstream = TcpListener::bind(("127.0.0.1", 0)).expect("bind upstream");
     let upstream_addr = upstream.local_addr().expect("upstream addr");
     thread::spawn(move || {

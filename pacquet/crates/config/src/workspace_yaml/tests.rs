@@ -832,7 +832,7 @@ fn find_propagates_when_manifest_path_is_a_directory() {
         "expected ReadFile, got {err:?}",
     );
 
-    drop(tmp); // clean up
+    drop(tmp);
 }
 
 /// A `pnpm-workspace.yaml` whose contents do not parse as YAML must
@@ -853,7 +853,7 @@ fn find_propagates_parse_yaml_error_on_malformed_manifest() {
     };
     assert_eq!(path, manifest);
 
-    drop(tmp); // clean up
+    drop(tmp);
 }
 
 #[test]
@@ -948,7 +948,6 @@ supportedArchitectures:
 /// all three for both sides plus the `apply_to` plumbing.
 #[test]
 fn hoist_patterns_tri_state_round_trip() {
-    // Case 1: keys absent → defaults preserved.
     let yaml = "registry: https://example.test\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.hoist_pattern, None);
@@ -958,10 +957,6 @@ fn hoist_patterns_tri_state_round_trip() {
     settings.apply_to(&mut config, Path::new("/anywhere"));
     assert_eq!((config.hoist_pattern.clone(), config.public_hoist_pattern.clone()), defaults);
 
-    // Case 2: explicit null → `Config.* = None`. Verifies the
-    // upstream `!= null` semantics — null disables that side, and
-    // the install-time `is_some() || is_some()` guard short-circuits
-    // when both sides are None.
     let yaml = "hoistPattern: null\npublicHoistPattern: null\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.hoist_pattern, Some(None));
@@ -971,7 +966,6 @@ fn hoist_patterns_tri_state_round_trip() {
     assert_eq!(config.hoist_pattern, None);
     assert_eq!(config.public_hoist_pattern, None);
 
-    // Case 3: explicit list → wraps the inner Vec in `Some`.
     let yaml = "hoistPattern:\n  - 'foo*'\npublicHoistPattern: []\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.hoist_pattern, Some(Some(vec!["foo*".to_string()])));
@@ -993,7 +987,6 @@ fn hoist_patterns_tri_state_round_trip() {
 /// (upstream doesn't nullify it either).
 #[test]
 fn hoist_false_disables_private_hoist_pattern() {
-    // `hoist: false` alone — the default `hoist_pattern` should drop.
     let yaml = "hoist: false\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::default();
@@ -1006,8 +999,6 @@ fn hoist_false_disables_private_hoist_pattern() {
         "hoist:false must NOT touch public_hoist_pattern",
     );
 
-    // `hoist: false` wins over an explicit `hoistPattern` — yaml
-    // sets a pattern, but `hoist: false` then nullifies it.
     let yaml = "hoist: false\nhoistPattern:\n  - 'foo*'\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::default();
@@ -1469,9 +1460,6 @@ peerDependencyRules:
     assert_eq!(allowed.get("xxx>@foo/bar").map(String::as_str), Some("2"));
 }
 
-/// `scriptShell` and `nodeOptions` parse from `pnpm-workspace.yaml` as
-/// camelCase keys and `apply_to` writes them to the corresponding
-/// `Config` fields. A present string deserializes to `Some(Some(_))`.
 #[test]
 fn parses_script_shell_and_node_options_from_yaml_and_applies() {
     let yaml = r"
@@ -1494,7 +1482,6 @@ nodeOptions: --max-old-space-size=4096
 /// the inherited value untouched.
 #[test]
 fn script_shell_and_node_options_null_clears_inherited_value() {
-    // An absent key parses to `None` and `apply_to` keeps the inherited value.
     let absent: WorkspaceSettings = serde_saphyr::from_str("hoist: true").unwrap();
     assert_eq!(absent.script_shell, None);
     assert_eq!(absent.node_options, None);
@@ -1506,7 +1493,6 @@ fn script_shell_and_node_options_null_clears_inherited_value() {
     assert_eq!(config.script_shell.as_deref(), Some("/inherited/sh"), "absent must inherit");
     assert_eq!(config.node_options.as_deref(), Some("--inherited"), "absent must inherit");
 
-    // An explicit `null` parses to `Some(None)` and `apply_to` clears it.
     let cleared: WorkspaceSettings =
         serde_saphyr::from_str("scriptShell: null\nnodeOptions: null").unwrap();
     assert_eq!(cleared.script_shell, Some(None));
@@ -1527,7 +1513,6 @@ fn script_shell_and_node_options_null_clears_inherited_value() {
 /// the disabled `index.db` writer.
 #[test]
 fn parses_frozen_store_from_yaml_and_applies() {
-    // Absent → config default stays `false`.
     let absent: WorkspaceSettings = serde_saphyr::from_str("hoist: true").unwrap();
     assert_eq!(absent.frozen_store, None);
     let mut config = Config::new();
@@ -1535,7 +1520,6 @@ fn parses_frozen_store_from_yaml_and_applies() {
     absent.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(!config.frozen_store, "absent frozenStore must leave the default in place");
 
-    // Explicit `true` parses and applies.
     let enabled: WorkspaceSettings = serde_saphyr::from_str("frozenStore: true").unwrap();
     assert_eq!(enabled.frozen_store, Some(true));
     let mut config = Config::new();

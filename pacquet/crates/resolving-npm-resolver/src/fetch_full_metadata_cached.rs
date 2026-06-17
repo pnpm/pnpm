@@ -67,34 +67,6 @@ pub struct FetchFullMetadataCachedOptions<'a> {
 /// the shared on-disk mirror when `cache_dir` is supplied. Ports
 /// upstream's
 /// [`fetchFullMetadataCached`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts#L30-L36).
-///
-/// Flow:
-///
-/// 1. **Compute mirror path** (when `cache_dir` is set). Failures
-///    in this step degrade silently — a malformed registry URL or
-///    other path-encoding error just disables the cache for this
-///    call; the fetch still issues an unconditional GET.
-/// 2. **Read cache headers** off the mirror's first line via the
-///    internal `load_meta_headers` helper. Missing file /
-///    unreadable / malformed → no conditional headers; the GET is
-///    unconditional.
-/// 3. **Issue the GET** with `If-None-Match` /
-///    `If-Modified-Since` headers when both ETag/Last-Modified were
-///    available, plus the per-URL `Authorization` header from
-///    [`AuthHeaders`].
-/// 4. **On `304 Not Modified`**: re-read the mirror via the
-///    internal `load_meta` helper.
-///    A 304 with no mirror present propagates as [`FetchMetadataError::NotModifiedWithoutCache`]
-///    (matches upstream's `META_NOT_MODIFIED_WITHOUT_CACHE`);
-///    a 304 whose mirror vanishes between the headers read and the
-///    full read propagates as [`FetchMetadataError::CacheMissingAfter304`]
-///    (matches `META_CACHE_MISSING_AFTER_304`).
-/// 5. **On `2xx`**: parse the response into [`Package`], write the
-///    body + new headers to the mirror best-effort (a cache-write
-///    failure logs at debug but never fails the call — the install
-///    proceeds without the speedup on the next run), and return.
-/// 6. **On non-2xx / non-304**: surface
-///    [`FetchMetadataError::Network`].
 pub async fn fetch_full_metadata_cached(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
@@ -216,10 +188,6 @@ pub async fn fetch_full_metadata_cached(
                 save_meta_indexed(path, &meta, etag.as_deref())
             };
             if let Err(error) = save_result {
-                // Fire-and-forget — a read-only cache dir or a
-                // shared-store contention shouldn't fail the
-                // install. The user just won't see the warm-cache
-                // speedup next time.
                 tracing::debug!(
                     target: "pacquet_resolving_npm_resolver::cache",
                     ?error,

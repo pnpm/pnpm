@@ -47,5 +47,5 @@ fn store_path_should_return_store_dir_from_pnpm_workspace_yaml() {
             .pipe_as_ref(normalize),
     );
 
-    drop(root); // cleanup
+    drop(root);
 }

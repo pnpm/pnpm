@@ -101,25 +101,7 @@ pub enum ImportIndexedDirError {
 /// pnpm v11's `importIndexedDir` does at
 /// `fs/indexed-pkg-importer/src/importIndexedDir.ts`. The same function
 /// services both node-linkers; behavior at the destination is
-/// controlled by [`ImportIndexedDirOpts`]:
-///
-/// * **Default opts (isolated linker).** If `dir_path` already exists,
-///   short-circuit; otherwise mkdir parents and link each file in
-///   parallel via `import_into_fresh_target()`. Matches pnpm's
-///   `importIndexedPackage` when called without `force`.
-/// * **`opts.force` (hoisted linker).** Re-import even when `dir_path`
-///   exists. The new contents are staged in a sibling directory so the
-///   final rename stays on one filesystem, the old directory is
-///   removed, and the staging directory is renamed into place. A
-///   regular file or symlink occupying `dir_path` is unlinked first.
-/// * **`opts.force` + `opts.keep_modules_dir` (hoisted linker).**
-///   Before the swap, `dir_path/node_modules/` is moved into the
-///   staging directory so nested deps survive the rebuild. On any
-///   failure after the move, the staged copy is restored to
-///   `dir_path/node_modules/` before the staging directory is
-///   cleaned up — staging never holds the user's only copy of nested
-///   deps. Required by the hoisted linker's interleaved orphan-removal
-///   and insert passes.
+/// controlled by [`ImportIndexedDirOpts`].
 ///
 /// Files in `cas_paths` are materialized by `import_into_fresh_target()`
 /// using `import_method`'s preference order
@@ -155,8 +137,6 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, opts.force) {
-        // Fresh target — populate it. Both linkers take this path on
-        // first install.
         (None, _) => populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
             .inspect(|()| unquarantine()),
         // Short-circuit only when the completion marker is present
@@ -184,7 +164,6 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
                 .inspect(|()| unquarantine())
         }
-        // Existing directory with force=true — stage and swap.
         (Some(_), true) => stage_and_swap::<Reporter>(
             logged_methods,
             import_method,

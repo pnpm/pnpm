@@ -64,9 +64,7 @@ pub struct GraphToLockfileOptions<'a> {
     /// so a subsequent pnpm install can compare its own settings via
     /// `@pnpm/lockfile.settings-checker`'s `getOutdatedLockfileSetting`.
     pub auto_install_peers: bool,
-    /// When `true`, the resolver ran with `dedupePeers` on and the
-    /// lockfile records `dedupePeers: true` in its `settings:` block.
-    /// When `false`, the key is omitted from the lockfile, mirroring
+    /// When `true`, the resolver ran with `dedupePeers` on. Mirrors
     /// pnpm's
     /// [`opts.dedupePeers || undefined`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/src/install/index.ts#L602)
     /// shorthand.
@@ -238,12 +236,6 @@ fn build_catalog_snapshots(
 /// The concrete version `alias` resolved to in `importer`, read from whichever
 /// dependency group carries it. Returns the peer-stripped version, matching
 /// pnpm's `dep.version` in a catalog snapshot.
-///
-/// Uses [`ImporterDepVersion::ver_peer`] rather than `as_regular` so a catalog
-/// entry resolved through an `npm:` alias (e.g. `js-yaml: npm:@zkochan/js-yaml@0.0.11`,
-/// stored as [`ImporterDepVersion::Alias`]) still records its version (`0.0.11`)
-/// — `as_regular` returns `None` for aliases, which silently dropped aliased
-/// catalog entries from the `catalogs:` snapshot.
 fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<String> {
     let key = PkgName::parse(alias).ok()?;
     [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
@@ -381,25 +373,7 @@ fn read_manifest_specifier(manifest: &PackageManifest, alias: &str) -> Option<St
 }
 
 /// Build the version cell for an importer-level dependency, mirroring
-/// pnpm's [`depPathToRef`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/depPathToRef.ts):
-///
-/// - When the depPath is a workspace-link id (`link:<rel-path>`), emit
-///   the [`ImporterDepVersion::Link`] arm so the lockfile records the
-///   sibling project's relative path instead of trying to parse it as
-///   `name@version`.
-/// - When the depPath is an injected workspace id (`file:<rel-path>`
-///   plus optional `(peer@suffix)`), emit the
-///   [`ImporterDepVersion::File`] arm so the importer entry records
-///   the `file:` snapshot key instead of trying to parse it as
-///   `name@version`. The injected workspace dep didn't dedupe back to
-///   `link:` because its children weren't a subset of the target
-///   project's direct deps (or `dedupeInjectedDeps` is off).
-/// - When the resolved real name equals the manifest alias and the
-///   depPath starts with `<name>@`, drop the prefix so the importer
-///   carries just the version-with-peer string.
-/// - Otherwise — npm-alias entries, where the alias and real name
-///   differ — keep the full `<real>@<version-with-peer>` string so the
-///   snapshot key the importer points at is unambiguous.
+/// pnpm's [`depPathToRef`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/depPathToRef.ts).
 fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDepVersion {
     let dep_path_str = node.dep_path.as_str();
 
@@ -407,6 +381,9 @@ fn importer_dep_version(alias: &str, node: &DependenciesGraphNode) -> ImporterDe
         return ImporterDepVersion::Link(target.to_string());
     }
     if let Some(target) = dep_path_str.strip_prefix("file:") {
+        // An injected workspace dep reaches the `file:` arm (rather than
+        // deduping back to `link:`) because its children weren't a subset
+        // of the target project's direct deps, or `dedupeInjectedDeps` is off.
         return ImporterDepVersion::File(target.to_string());
     }
 

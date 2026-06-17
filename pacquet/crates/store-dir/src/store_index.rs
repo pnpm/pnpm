@@ -537,8 +537,8 @@ impl StoreIndex {
     ///    — pacquet matches pnpm's on-wire shape so the two tools can
     ///    share `index.db`.
     /// 3. **Legacy pacquet-written**: plain `MessagePack` maps from the
-    ///    `rmp_serde::to_vec_named` path used before this PR. These
-    ///    may still live in caches that predate the cutover.
+    ///    `rmp_serde::to_vec_named` path. These may still live in
+    ///    caches written by older pacquet versions.
     ///
     /// All three route through
     /// [`transcode_to_plain_msgpack`][crate::msgpackr_records::transcode_to_plain_msgpack],
@@ -606,9 +606,9 @@ impl StoreIndex {
 
     /// Batched read that returns the **undecoded** value bytes for each
     /// hit. Callers run `decode_index_value` themselves — either inline
-    /// (matching the old [`Self::get_many`] shape) or, more usefully,
-    /// in parallel across a rayon pool after releasing the
-    /// [`SharedReadonlyStoreIndex`] mutex.
+    /// (like [`Self::get_many`]) or, more usefully, in parallel across
+    /// a rayon pool after releasing the [`SharedReadonlyStoreIndex`]
+    /// mutex.
     ///
     /// The decode is the dominant CPU cost of [`Self::get_many`] for
     /// rows that carry a `manifest` field — msgpackr-records transcode
@@ -831,14 +831,6 @@ pub fn git_hosted_store_index_key(pkg_id: &str, built: bool) -> String {
 }
 
 /// Pick the store-index key for a tarball-shaped resolution.
-///
-/// Mirrors pnpm's `pickStoreIndexKey` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/store/index/src/index.ts#L85-L94>:
-///
-/// - Tarballs flagged `git_hosted: true`, or any tarball entry missing
-///   integrity, use [`git_hosted_store_index_key`] — the cached content
-///   depends on whether the build ran.
-/// - All other integrity-carrying tarballs use [`store_index_key`].
 ///
 /// The `built` flag must match the build decision the caller will make at
 /// fetch time (upstream sets it to `!opts.ignoreScripts`).

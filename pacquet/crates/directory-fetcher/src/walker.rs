@@ -112,11 +112,7 @@ struct ResolvedEntry {
     metadata: Metadata,
 }
 
-/// Stat a single entry. Returns `Ok(None)` when the entry is a broken
-/// symlink (`ENOENT` after `realpath`) or — under non-`resolve_symlinks`
-/// mode — when `fs::metadata` fails with `ENOENT`. Mirrors upstream's
-/// `fileStat` / `realFileStat` at
-/// [`directory-fetcher/src/index.ts:113-148`](https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts#L113-L148).
+/// Stat a single entry.
 fn resolve_entry(
     path: &Path,
     resolve_symlinks: bool,

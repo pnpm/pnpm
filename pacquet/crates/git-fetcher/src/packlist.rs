@@ -219,11 +219,9 @@ fn packlist_inner(
     // Pass 3: force-include `main` / `bin` paths, which always ship
     // regardless of `.npmignore`. (`files`-field rejection is already
     // overridden in pass 1.) Still consult `should_always_exclude`
-    // first — a manifest declaring e.g. `"main": "package-lock.json"`
-    // would otherwise re-add the lockfile we just refused above. The
-    // always-excluded set wins over manifest fields; npm-packlist
-    // does the same and emits no warning, so we stay silent too
-    // (a `tracing::debug!` would be lost in install logs).
+    // first so the always-excluded set wins over manifest fields;
+    // npm-packlist does the same and emits no warning, so we stay
+    // silent too (a `tracing::debug!` would be lost in install logs).
     if let Some(main) = main_path {
         let main_norm = normalize_field_path(main);
         if !main_norm.is_empty()
@@ -332,12 +330,7 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
 
 /// `true` when `rel` matches the `files`-field allowlist. The matcher
 /// was built with the `files` entries as gitignore-style include
-/// patterns. Two cases must succeed:
-///
-/// - The path itself matches a pattern (`files: ["cli"]` includes a
-///   file named `cli` at any depth).
-/// - An ancestor directory matches (`files: ["cli"]` includes
-///   `lib/cli/index.js` because `cli` matches `lib/cli`).
+/// patterns.
 ///
 /// `Gitignore::matched_path_or_any_parents` walks the path's ancestor
 /// chain and returns `Ignore` when any segment matches — exactly the

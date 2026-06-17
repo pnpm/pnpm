@@ -26,9 +26,6 @@ fn classify_detects_each_bump_kind() {
     assert_eq!(classify(&v("1.0.0"), &v("2.0.0")), Change::Breaking);
     assert_eq!(classify(&v("1.0.0"), &v("1.1.0")), Change::Feature);
     assert_eq!(classify(&v("1.0.0"), &v("1.0.1")), Change::Fix);
-    // Exactly equal -> no change; a prerelease-only difference with the
-    // same major.minor.patch is `Unknown` (pnpm's `change: 'unknown'`),
-    // not `None`.
     assert_eq!(classify(&v("1.0.0"), &v("1.0.0")), Change::None);
     assert_eq!(classify(&v("1.0.0-alpha.1"), &v("1.0.0")), Change::Unknown);
 }

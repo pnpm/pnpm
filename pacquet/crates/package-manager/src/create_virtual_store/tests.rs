@@ -310,9 +310,6 @@ fn snapshot_deps_equal_distinguishes_different_dependency_values() {
     assert!(!snapshot_deps_equal(&entry_a, &entry_b));
 }
 
-/// `optionalDependencies` participate in the comparison the same way
-/// `dependencies` do — both upstream `equals` calls have to agree
-/// before the skip fires.
 #[test]
 fn snapshot_deps_equal_distinguishes_different_optional_dependency_values() {
     let dep_ref: SnapshotDepRef = "1.0.0".parse().expect("parse dep ref");
@@ -327,10 +324,6 @@ fn snapshot_deps_equal_distinguishes_different_optional_dependency_values() {
     assert!(!snapshot_deps_equal(&entry_a, &entry_b));
 }
 
-/// `integrity_equal` mirrors upstream's `isIntegrityEqual` —
-/// identical `integrity` strings on both sides means the cached
-/// tarball is still valid, mismatched (or one-sided) integrities
-/// force a re-fetch.
 #[test]
 fn integrity_equal_matches_when_integrities_agree() {
     let entry_a = metadata_with_integrity(
@@ -443,9 +436,6 @@ fn snapshot_cache_key_for_git_resolution_uses_git_hosted_key() {
     );
 }
 
-/// `Tarball { gitHosted: true }` mirrors the bare-`Git` arm — same
-/// key shape, so the warm prefetch picks up both fetchers' rows
-/// the same way.
 #[test]
 fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
     let pkg = key("foo", "1.0.0");

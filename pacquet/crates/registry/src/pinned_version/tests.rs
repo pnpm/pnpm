@@ -10,8 +10,6 @@ fn from_save_options_matches_pnpm_get_pinned_version() {
     assert_eq!(PinnedVersion::from_save_options(false, Some("^")), PinnedVersion::Major);
 }
 
-/// An absent `--save-prefix` falls through to the default caret range, and
-/// `--save-exact` wins over any `--save-prefix` value.
 #[test]
 fn from_save_options_default_and_precedence() {
     assert_eq!(PinnedVersion::from_save_options(false, None), PinnedVersion::Major);

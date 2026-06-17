@@ -4,17 +4,6 @@
 //! Port of upstream's
 //! [`findWorkspaceDir`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/root-finder/src/index.ts).
 //!
-//! Three behaviors must match upstream:
-//!
-//! 1. Honor the `NPM_CONFIG_WORKSPACE_DIR` env var (also the lowercase
-//!    spelling) as an override — when set, the workspace dir is taken
-//!    verbatim and the upward walk is skipped.
-//! 2. Walk up from `cwd` looking for `pnpm-workspace.yaml` (and the
-//!    "looks like a workspace manifest but is misnamed" variants below).
-//! 3. If a misnamed variant is found before the correct file, raise
-//!    `BAD_WORKSPACE_MANIFEST_NAME` rather than silently treating the
-//!    project as non-workspace.
-//!
 //! Pacquet does not yet realpath the start dir like upstream does (used
 //! for case-insensitive filesystems on Windows / macOS). Tracked as a
 //! known divergence — typical workspace installs on those platforms
@@ -71,15 +60,6 @@ pub enum FindWorkspaceDirError {
 
 /// Resolve the workspace directory for the given `cwd`.
 ///
-/// Returns:
-///
-/// - `Ok(Some(dir))` — the directory containing `pnpm-workspace.yaml`.
-/// - `Ok(None)`      — no workspace manifest in any ancestor.
-/// - `Err(BadName)`  — a misnamed variant (e.g. `pnpm-workspace.yml`)
-///   was found and rejected.
-///
-/// Mirrors upstream's
-/// [`findWorkspaceDir`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/root-finder/src/index.ts).
 /// The env-var override is read through [`find_workspace_dir_from_env`]
 /// so tests can opt out of process-global state.
 pub fn find_workspace_dir(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspaceDirError> {

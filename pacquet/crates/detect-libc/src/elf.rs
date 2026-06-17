@@ -2,10 +2,6 @@ use crate::Implementation;
 
 /// Detect libc implementation from the ELF interpreter
 /// (`/proc/self/exe` `PT_INTERP`).
-///
-/// Returns `Some(Implementation::Musl)` when the interpreter path
-/// contains `"/ld-musl-"`, `Some(Implementation::Glibc)` when it
-/// contains `"/ld-linux-"`, `None` otherwise.
 pub fn detect() -> Option<Implementation> {
     let exe_path = std::fs::read_link("/proc/self/exe").ok()?;
     let data = std::fs::read(&exe_path).ok()?;

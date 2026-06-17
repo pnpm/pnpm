@@ -10,9 +10,7 @@ use pacquet_reporter::Reporter;
 /// Ports pnpm's
 /// [`makeIncludeDependenciesFromCLI`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/update/index.ts#L330-L340),
 /// which reads the *raw* CLI flags (not the rc-merged config) so an
-/// absent flag is `undefined` rather than a default. The quirk that
-/// `--no-optional` only excludes `optionalDependencies` when combined
-/// with `--prod` or `--dev` is preserved verbatim.
+/// absent flag is `undefined` rather than a default.
 #[derive(Debug, Args)]
 pub struct UpdateDependencyOptions {
     /// Update packages only in "dependencies" and "optionalDependencies".
@@ -109,7 +107,6 @@ pub struct UpdateArgs {
 }
 
 impl UpdateArgs {
-    /// Execute the subcommand.
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,

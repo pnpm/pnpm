@@ -348,13 +348,6 @@ impl NpmrcAuth {
                     continue;
                 }
                 "strict-ssl" => {
-                    // pnpm/nopt parses `true` / `false` case-sensitively.
-                    // Anything else resets the slot to `None` so the
-                    // build-site `unwrap_or(true)` default kicks in —
-                    // matters when the same `.npmrc` has multiple
-                    // `strict-ssl=` lines and a later invalid token
-                    // would otherwise leave an earlier `false`
-                    // silently active.
                     auth.strict_ssl = parse_bool(&value);
                     continue;
                 }

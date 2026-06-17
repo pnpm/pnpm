@@ -27,7 +27,6 @@ fn expands_packages_glob() {
         .iter()
         .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
-    // Sorted lex by rootDir → root then alpha then beta.
     assert_eq!(names, vec!["root".to_string(), "alpha".to_string(), "beta".to_string()]);
 }
 
@@ -85,8 +84,6 @@ fn dedupes_overlapping_patterns() {
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "packages/alpha", "alpha");
 
-    // Two patterns that both match `packages/alpha/package.json` should
-    // produce exactly one entry.
     let projects = find_workspace_projects(
         tmp.path(),
         &FindWorkspaceProjectsOpts {
@@ -115,11 +112,9 @@ fn default_patterns_when_packages_omitted() {
         .iter()
         .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
-    // `.` + `**` enumerates everything.
     assert_eq!(names, vec!["root".to_string(), "web".to_string()]);
 }
 
-/// Negation patterns exclude matching workspace projects.
 #[test]
 fn negation_pattern_excludes_matching_projects() {
     let tmp = TempDir::new().unwrap();
@@ -150,7 +145,6 @@ fn negation_pattern_excludes_matching_projects() {
     );
 }
 
-/// A negation starting with `!/` is a no-op for relative workspace paths.
 #[test]
 fn negation_pattern_with_leading_slash_is_noop() {
     let tmp = TempDir::new().unwrap();
@@ -199,6 +193,5 @@ fn empty_patterns_array_enumerates_root_only() {
         .iter()
         .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
-    // Only the workspace root surfaces — `web` is not enumerated.
     assert_eq!(names, vec!["root".to_string()]);
 }

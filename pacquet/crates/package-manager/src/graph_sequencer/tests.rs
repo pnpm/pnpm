@@ -25,7 +25,6 @@ fn empty_graph() {
 
 #[test]
 fn linear_chain_runs_leaf_first() {
-    // a -> b -> c. c must build first, then b, then a.
     let graph_map = graph(&[("a", &["b"]), ("b", &["c"]), ("c", &[])]);
     let nodes = included(&["a", "b", "c"]);
     let result = graph_sequencer(&graph_map, &nodes);
@@ -39,7 +38,6 @@ fn linear_chain_runs_leaf_first() {
 
 #[test]
 fn parallel_siblings_share_chunk() {
-    // root -> {a, b, c}; siblings have no edges among themselves.
     let graph_map = graph(&[("root", &["a", "b", "c"]), ("a", &[]), ("b", &[]), ("c", &[])]);
     let nodes = included(&["root", "a", "b", "c"]);
     let result = graph_sequencer(&graph_map, &nodes);
@@ -54,7 +52,6 @@ fn parallel_siblings_share_chunk() {
 
 #[test]
 fn diamond_dag() {
-    // a -> {b, c}; both b and c -> d.
     let graph_map = graph(&[("a", &["b", "c"]), ("b", &["d"]), ("c", &["d"]), ("d", &[])]);
     let nodes = included(&["a", "b", "c", "d"]);
     let result = graph_sequencer(&graph_map, &nodes);
@@ -70,14 +67,11 @@ fn diamond_dag() {
 
 #[test]
 fn excluded_nodes_are_ignored() {
-    // a -> b -> c, but only sequence {a, c}; b is not in `included`.
     let graph_map = graph(&[("a", &["b"]), ("b", &["c"]), ("c", &[])]);
     let nodes = included(&["a", "c"]);
     let result = graph_sequencer(&graph_map, &nodes);
     dbg!(&result);
     assert!(result.safe, "excluded-edge subgraph must sort safely: {result:?}");
-    // a's only outgoing edge is to b which is excluded, so a has degree 0.
-    // c also has degree 0.
     assert_eq!(result.chunks.len(), 1);
     let mut only = result.chunks[0].clone();
     only.sort();
@@ -86,14 +80,12 @@ fn excluded_nodes_are_ignored() {
 
 #[test]
 fn cycle_marks_unsafe_and_groups_cycle_nodes() {
-    // a -> b -> a. Cycle of length 2: not safe.
     let graph_map = graph(&[("a", &["b"]), ("b", &["a"])]);
     let nodes = included(&["a", "b"]);
     let result = graph_sequencer(&graph_map, &nodes);
     dbg!(&result);
     assert!(!result.safe, "length-2 cycle must mark unsafe: {result:?}");
     assert!(!result.cycles.is_empty(), "cycle list must record the cycle: {result:?}");
-    // Both nodes still appear in some chunk.
     let flat: Vec<String> = result.chunks.into_iter().flatten().collect();
     let mut sorted = flat;
     sorted.sort();
@@ -102,7 +94,6 @@ fn cycle_marks_unsafe_and_groups_cycle_nodes() {
 
 #[test]
 fn self_loop_not_safe_flag() {
-    // a -> a. A self-loop has cycle length 1; pnpm does not mark length-1 as unsafe.
     let graph_map = graph(&[("a", &["a"])]);
     let nodes = included(&["a"]);
     let result = graph_sequencer(&graph_map, &nodes);
@@ -114,7 +105,6 @@ fn self_loop_not_safe_flag() {
 
 #[test]
 fn deterministic_order_follows_included() {
-    // Three independent leaves; chunk order should follow the `included` slice.
     let graph_map = graph(&[("x", &[]), ("y", &[]), ("z", &[])]);
     let r1 = graph_sequencer(&graph_map, &included(&["x", "y", "z"]));
     let r2 = graph_sequencer(&graph_map, &included(&["z", "y", "x"]));

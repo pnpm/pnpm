@@ -3,9 +3,8 @@
 //!
 //! Classifies a manifest specifier as a concrete `Version`, a semver
 //! `Range`, or a dist-tag `Tag`. Returns `None` for anything that
-//! isn't one of those (git URLs, `file:` paths, `link:` paths,
-//! `workspace:` protocol entries) — those have no place in the
-//! version-picker tie-break table the preferred-versions map feeds.
+//! isn't one of those — those have no place in the version-picker
+//! tie-break table the preferred-versions map feeds.
 
 use node_semver::{Range, Version};
 use pacquet_resolving_resolver_base::VersionSelectorType;

@@ -620,11 +620,6 @@ fn partition_missing_peers(
             .map(|entry| entry.wanted_range.as_str())
             .collect();
         if required_ranges.is_empty() {
-            // Meta-only peers don't feed the optional hoist: upstream's
-            // resolution-stage `getMissingPeers` reads `peerDependencies`
-            // entries only, so a peer declared solely via
-            // `peerDependenciesMeta` is never auto-resolved against an
-            // in-tree version.
             let mut seen: BTreeSet<String> = BTreeSet::new();
             let mut ordered: Vec<String> = Vec::new();
             for entry in entries {

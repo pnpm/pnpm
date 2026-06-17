@@ -85,28 +85,10 @@ pub enum FetchFullMetadataOutcome {
 /// Fetch the registry metadata document for `pkg_name`. The
 /// `full_metadata` flag on [`FetchFullMetadataOptions`] picks
 /// between the full and abbreviated packument forms.
-///
-/// When [`FetchFullMetadataOptions::etag`] or
-/// [`FetchFullMetadataOptions::modified`] is set, the request
-/// includes `If-None-Match` / `If-Modified-Since` headers and the
-/// registry may answer `304 Not Modified` — the fetcher returns
-/// [`FetchFullMetadataOutcome::NotModified`] without a body in that
-/// case. Mirrors upstream's
-/// [`fetchFromRegistry`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/network/fetch/src/fetchFromRegistry.ts#L41-L86)
-/// 304 short-circuit, used by
-/// [`maybeUpgradeAbbreviatedMetaForReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L488-L499)
-/// so the upgrade fetch coalesces against the registry's
-/// representation cache.
 pub async fn fetch_full_metadata(
     pkg_name: &str,
     opts: &FetchFullMetadataOptions<'_>,
 ) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
-    // Format once and reuse for the request, the auth-header lookup,
-    // and the error mapper. Mirrors upstream's
-    // [`toUri`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts)
-    // — scoped names get the `/` after the `@scope` percent-encoded
-    // so the registry routes the request to the package as a single
-    // path segment, not two.
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     let (client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
@@ -130,11 +112,6 @@ pub async fn fetch_full_metadata(
     let response = response
         .error_for_status()
         .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-    // Decode in two steps so a JSON-shape mismatch surfaces as
-    // `FetchMetadataError::Decode` (with the serde_json error), not
-    // as `Network` (which `.json::<T>()` would do, conflating
-    // transport and parse failures and losing the
-    // `decode_error` diagnostic code).
     let raw_body = response
         .text()
         .await

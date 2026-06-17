@@ -16,10 +16,6 @@ use crate::api::LinkProbe;
 #[cfg(unix)]
 use std::sync::Mutex;
 
-/// `next_path` walks one path segment at a time from `from` toward
-/// `to`. Mirrors the upstream
-/// [`next-path` tests](https://github.com/zkochan/packages/blob/main/next-path/test.js)
-/// without depending on the npm package.
 #[test]
 fn next_path_walks_one_segment_toward_target() {
     assert_eq!(
@@ -47,8 +43,6 @@ fn next_path_returns_from_when_not_an_ancestor() {
     );
 }
 
-/// `filesystem_root` extracts the root prefix of an absolute path —
-/// `/` on Unix; the windows-prefix test is gated separately.
 #[test]
 #[cfg(unix)]
 fn filesystem_root_unix_is_slash() {
@@ -62,12 +56,6 @@ fn filesystem_root_windows_keeps_drive_prefix() {
     assert_eq!(filesystem_root(Path::new(r"C:\Users\proj")), PathBuf::from(r"C:\"));
 }
 
-/// Real-fixture happy path: project and home are on the same volume
-/// (both inside the same `tempdir`), so the Host impl observes a
-/// successful hardlink and `resolve_store_dir` returns the
-/// `home_default` unchanged. This is the dominant branch on a single-
-/// volume developer setup and the one the `SmartDefault` used to
-/// short-circuit to without checking.
 #[test]
 fn resolve_store_dir_same_volume_uses_home_default() {
     use crate::api::Host;
@@ -130,13 +118,6 @@ impl LinkProbe for PrefixProbe {
     }
 }
 
-/// Cross-volume scenario: home volume is unreachable, so the
-/// algorithm walks from `/` toward `pkg_root` until it hits the
-/// project's mount point (here a fake `/Volumes/src`), then returns
-/// `<mountpoint>/.pnpm-store`. Mirrors pnpm's
-/// [`'a link can be created to the a subdir in the root of the
-/// drive'`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/test/index.ts#L84-L88)
-/// test.
 #[test]
 #[cfg(unix)]
 fn resolve_store_dir_cross_volume_walks_to_mountpoint() {
@@ -159,12 +140,6 @@ fn resolve_store_dir_cross_volume_walks_to_mountpoint() {
     assert_eq!(resolved, mount_canon.join(".pnpm-store"));
 }
 
-/// When the algorithm walks toward `pkg_root` and the *parent* of the
-/// first linkable directory is also linkable, prefer the parent.
-/// Mirrors pnpm's `mountpointParent` short-walk at
-/// [`index.ts:60-64`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L60-L64)
-/// — the macOS case where `/Volumes` is writable even though the
-/// volume mount is `/Volumes/src`.
 #[test]
 #[cfg(unix)]
 fn resolve_store_dir_prefers_parent_when_parent_is_also_linkable() {
@@ -179,19 +154,12 @@ fn resolve_store_dir_prefers_parent_when_parent_is_also_linkable() {
     let home_default = PathBuf::from("/home/test-user/Library/pnpm/store");
     let pnpm_home = PathBuf::from("/home/test-user/Library/pnpm");
 
-    // Both the mount and its parent accept the link → algorithm
-    // prefers the parent.
     let resolved = PrefixProbe::with_allow(&[&parent_canon], || {
         resolve_store_dir::<PrefixProbe>(home_default, &pnpm_home, &pkg_root_canon)
     });
     assert_eq!(resolved, parent_canon.join(".pnpm-store"));
 }
 
-/// When the only directory that accepts the hardlink is `pkg_root`
-/// itself (i.e. linkability is confined to the project folder), the
-/// algorithm falls back to the home default — putting the store
-/// *inside* the project would be wrong. Pnpm makes the same call at
-/// [`index.ts:67-68`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L67-L68).
 #[test]
 #[cfg(unix)]
 fn resolve_store_dir_falls_back_when_only_pkg_root_is_linkable() {
@@ -208,12 +176,6 @@ fn resolve_store_dir_falls_back_when_only_pkg_root_is_linkable() {
     assert_eq!(resolved, home_default);
 }
 
-/// When *nothing* on the way from filesystem root to `pkg_root` is
-/// linkable (e.g. the volume holding `pkg_root` rejects every probe),
-/// the algorithm cannot identify a mount point and falls back to
-/// home. Matches pnpm's outer `try`/`catch` at
-/// [`index.ts:56-77`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L56-L77):
-/// any algorithm failure collapses to `storeInHomeDir`.
 #[test]
 #[cfg(unix)]
 fn resolve_store_dir_falls_back_when_no_mountpoint_is_linkable() {
@@ -224,7 +186,6 @@ fn resolve_store_dir_falls_back_when_no_mountpoint_is_linkable() {
     let home_default = PathBuf::from("/home/test-user/Library/pnpm/store");
     let pnpm_home = PathBuf::from("/home/test-user/Library/pnpm");
 
-    // Empty allowlist — every probe returns false.
     let resolved = PrefixProbe::with_allow(&[], || {
         resolve_store_dir::<PrefixProbe>(home_default.clone(), &pnpm_home, &pkg_root_canon)
     });
@@ -246,11 +207,6 @@ fn resolve_store_dir_falls_back_when_pkg_root_does_not_exist() {
     assert_eq!(resolved, home_default);
 }
 
-/// `host_can_link_between_dirs` returns `true` between two directories
-/// on the same tempdir-volume (the common case). This is the
-/// production primitive [`Host`][crate::api::Host] threads through the
-/// [`LinkProbe`] trait; same-volume happiness is exercised here so a
-/// future refactor that broke the linker would be caught directly.
 #[test]
 fn host_can_link_between_dirs_same_volume_is_true() {
     let tmp = tempdir().expect("create tempdir");

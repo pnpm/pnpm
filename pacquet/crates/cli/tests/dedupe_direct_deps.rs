@@ -71,7 +71,6 @@ fn dedupes_direct_deps_against_workspace_root() {
 
     pacquet.with_arg("install").assert().success();
 
-    // Root still has the dep linked.
     let root_dep = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     let root_dep_linked = is_symlink_or_junction(&root_dep).expect("query root symlink");
     eprintln!("root_dep={root_dep:?} linked={root_dep_linked}");
@@ -572,7 +571,6 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
 
     pacquet_at(&workspace).with_arg("install").with_arg("--frozen-lockfile").assert().success();
 
-    // Root has both direct + hoisted entries.
     let root_direct = workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep");
     let root_direct_linked = is_symlink_or_junction(&root_direct).expect("query root direct dep");
     eprintln!("root_direct={root_direct:?} linked={root_direct_linked}");
@@ -656,7 +654,6 @@ fn dedupe_under_shamefully_hoist() {
 
     pacquet.with_arg("install").assert().success();
 
-    // Root has every direct dep + every shamefully-hoisted transitive.
     for alias in [
         "@pnpm.e2e/pkg-with-1-dep",
         "@pnpm.e2e/dep-of-pkg-with-1-dep",

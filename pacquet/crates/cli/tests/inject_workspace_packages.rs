@@ -137,10 +137,6 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     // — not relative to each consumer project. So `project-2`'s
     // recorded dep on project-1 reads `project-1@file:project-1(...)`
     // even though project-2 lives a directory away.
-    //
-    // Parse the YAML and inspect the consumer importer's recorded
-    // version directly through pacquet's own lockfile model, rather than
-    // string-slicing importer blocks out of the serialized file.
     let parsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
         .map_err(|err| {
             format!(
@@ -188,22 +184,7 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
          got version={p3_dep_on_p2:?}",
     );
 
-    // (3) Virtual store cardinality: eight slots, matching upstream's
-    // `expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(8)`.
-    // The Bourne-of-truth count derives from the dependency graph:
-    //   - is-negative@1.0.0
-    //   - is-positive@1.0.0
-    //   - is-positive@2.0.0
-    //   - @pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0
-    //   - @pnpm.e2e/dep-of-pkg-with-1-dep's single transitive
-    //     registry dep
-    //   - project-1 peer-resolved with is-positive@1.0.0
-    //     (consumed via project-2)
-    //   - project-1 peer-resolved with is-positive@2.0.0
-    //     (consumed via project-3 through the injected project-2)
-    //   - project-2 peer-resolved with is-positive@2.0.0
-    //     (consumed via project-3)
-    // Virtual store cardinality: seven slot dirs + the sibling
+    // (3) Virtual store cardinality: seven slot dirs + the sibling
     // `lock.yaml` (recording what was materialised) + the private-
     // hoist target `node_modules/` (default `hoistPattern: ["*"]`
     // privately hoists every transitive to `<vs>/node_modules/`).

@@ -64,9 +64,6 @@ fn hashed(text: &str) -> impl FnMut() -> String + use<'_> {
     move || format!("hash-of-{text}")
 }
 
-/// Cold cache (no file) → miss. The function returns hit=false
-/// with a populated `stat` (the lockfile is real); `hash` may be
-/// `None` since no work needs the hash yet.
 #[test]
 fn cold_cache_misses_with_populated_stat() {
     let dir = TempDir::new().expect("tempdir");
@@ -76,9 +73,6 @@ fn cold_cache_misses_with_populated_stat() {
     assert!(result.precomputed.stat.is_some(), "stat populated on cold miss");
 }
 
-/// After a successful `record_verification`, a follow-up lookup at
-/// the same path hits the stat shortcut — same size + `mtime_ns` +
-/// inode → no rehash. Verifies the `byPath` index.
 #[test]
 fn stat_shortcut_hits_same_path_same_stat() {
     let dir = TempDir::new().expect("tempdir");
@@ -105,9 +99,6 @@ fn stat_shortcut_hits_same_path_same_stat() {
     assert_eq!(calls, 0, "stat shortcut skipped the hash call");
 }
 
-/// The content-hash index hits the same lockfile content at a
-/// different path. The first install records under path A; the
-/// second install at path B (with the same bytes) hits via hash.
 #[test]
 fn content_hash_lookup_finds_same_lockfile_at_different_path() {
     let dir = TempDir::new().expect("tempdir");
@@ -123,7 +114,6 @@ fn content_hash_lookup_finds_same_lockfile_at_different_path() {
     let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
         vec![Stub::new(true) as Arc<dyn ResolutionVerifier>];
 
-    // Record under path A with the canonical hash.
     record_verification(
         dir.path(),
         &lockfile_a,
@@ -132,16 +122,12 @@ fn content_hash_lookup_finds_same_lockfile_at_different_path() {
         CachePrecomputed::default(),
     );
 
-    // Lookup at path B yields the same hash → hit via byHash.
     let result = try_lockfile_verification_cache(dir.path(), &lockfile_b, &verifiers, || {
         "shared-hash".to_string()
     });
     assert!(result.hit, "byHash hit at different path: {result:?}");
 }
 
-/// A verifier whose policy snapshot stops being trustworthy (e.g.
-/// the user tightened the cutoff) invalidates the hit, even when
-/// stat shortcut would otherwise have matched.
 #[test]
 fn policy_invalidation_misses_even_when_stat_matches() {
     let dir = TempDir::new().expect("tempdir");
@@ -156,8 +142,6 @@ fn policy_invalidation_misses_even_when_stat_matches() {
         CachePrecomputed::default(),
     );
 
-    // Same path + stat, but the verifier now rejects the cached
-    // snapshot (tightened policy).
     let strict_verifier: Vec<Arc<dyn ResolutionVerifier>> =
         vec![Stub::new(false) as Arc<dyn ResolutionVerifier>];
     let result = try_lockfile_verification_cache(dir.path(), &lockfile, &strict_verifier, || {
@@ -166,8 +150,6 @@ fn policy_invalidation_misses_even_when_stat_matches() {
     assert!(!result.hit);
 }
 
-/// `record_verification` merges every active verifier's `policy()`
-/// into one bag — same-key conflicts go to the last verifier.
 #[test]
 fn record_verification_merges_policies() {
     let dir = TempDir::new().expect("tempdir");
@@ -177,7 +159,6 @@ fn record_verification_merges_policies() {
     policy_a.insert("minimumReleaseAge".to_string(), 60.into());
     let mut policy_b = serde_json::Map::new();
     policy_b.insert("trustPolicy".to_string(), JsonValue::String("no-downgrade".into()));
-    // `minimumReleaseAge` collides — the later verifier wins.
     policy_b.insert("minimumReleaseAge".to_string(), 120.into());
 
     let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
@@ -197,10 +178,6 @@ fn record_verification_merges_policies() {
     assert_eq!(record.policy.get("trustPolicy").and_then(JsonValue::as_str), Some("no-downgrade"));
 }
 
-/// `record_verification` is idempotent on the same `(path, hash)`
-/// in the sense that every successful call appends a fresh record
-/// — the byHash / byPath indexes always see the latest one on
-/// read. Two distinct hashes produce two records.
 #[test]
 fn append_only_log_records_each_call() {
     let dir = TempDir::new().expect("tempdir");
@@ -220,20 +197,15 @@ fn append_only_log_records_each_call() {
     assert_eq!(contents.lines().filter(|line| !line.is_empty()).count(), 3);
 }
 
-/// Compaction kicks in past the byte threshold: a poisoned log full
-/// of duplicate-key records gets reduced to the latest record per
-/// `(path, hash)` and trimmed to `MAX_CACHE_ENTRIES`.
 #[test]
 fn compaction_dedupes_by_path_and_hash() {
     let dir = TempDir::new().expect("tempdir");
     let lockfile = touch_lockfile(dir.path(), "lockfileVersion: '9.0'\n");
     let cache_path = dir.path().join(CACHE_FILE_NAME);
 
-    // Pre-seed with a >1.5 MB file of duplicate records (same path,
-    // same hash). After the next `record_verification`, compaction
-    // kicks in and trims to the latest entry. Serialize each record
-    // through serde so the path field round-trips correctly across
-    // platforms (Windows backslashes need JSON escaping).
+    // Serialize each record through serde so the path field
+    // round-trips correctly across platforms (Windows backslashes
+    // need JSON escaping).
     let mut seed = String::with_capacity(2 * 1024 * 1024);
     let mut counter: u64 = 0;
     while (seed.len() as u64) <= super::COMPACT_TRIGGER_BYTES {
@@ -268,14 +240,9 @@ fn compaction_dedupes_by_path_and_hash() {
     let contents = fs::read_to_string(&cache_path).expect("read post-compact");
     let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
     assert!(lines.len() <= MAX_CACHE_ENTRIES + 1, "trimmed past cap: {}", lines.len());
-    // Original duplicates collapsed to one (path, hash="dup"), plus
-    // the freshly-recorded line with hash="new-hash".
     assert!(lines.len() <= 2, "duplicates collapsed: got {} lines", lines.len());
 }
 
-/// Malformed JSONL lines are skipped without failing the lookup
-/// (other lines still parse). Mirrors upstream's "skip; the next
-/// clean append will still work" tolerance.
 #[test]
 fn malformed_lines_are_tolerated_on_read() {
     let dir = TempDir::new().expect("tempdir");
@@ -309,9 +276,6 @@ fn malformed_lines_are_tolerated_on_read() {
     assert!(result.hit, "good record found despite surrounding garbage");
 }
 
-/// `CacheLockfile` round-trips through serde with the camelCase
-/// field names upstream uses, so pacquet writes records pnpm can
-/// read (and vice versa).
 #[test]
 fn cache_lockfile_serializes_with_camelcase_fields() {
     let record = CacheRecord {

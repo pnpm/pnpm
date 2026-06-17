@@ -12,8 +12,6 @@ fn hash_is_sha256_base64_with_prefix() {
     assert_ne!(create_hash("pacquet"), create_hash("pacquet "));
 }
 
-/// CRLF line endings are normalized to LF before hashing, so a file
-/// checked out on Windows hashes the same as its LF copy.
 #[test]
 fn hash_from_file_normalizes_crlf() {
     let dir = tempfile::TempDir::new().unwrap();
