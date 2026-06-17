@@ -264,6 +264,30 @@ test('pnpm sbom --exclude-peers drops peers declared in workspace sub-packages',
   expect(componentNames).not.toContain('is-number')
 })
 
+test('pnpm sbom --exclude-peers tolerates a malformed importer manifest', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-workspace', workspaceDir)
+  // Simulate an untrusted/broken importer: a sub-package with unparsable JSON.
+  // The peer scan reads every importer manifest, and one bad file must not
+  // abort the whole SBOM.
+  fs.writeFileSync(path.join(workspaceDir, 'packages/pkg-a/package.json'), '{ not valid json')
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+    excludePeers: true,
+  })
+
+  expect(exitCode).toBe(0)
+  const parsed = JSON.parse(output)
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive')
+})
+
 test('pnpm sbom marks dev-only components with scope "excluded" (cyclonedx)', async () => {
   const workspaceDir = tempDir()
   f.copy('with-dev-dependency', workspaceDir)

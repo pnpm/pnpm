@@ -45,7 +45,7 @@ export interface CollectSbomComponentsOptions {
   resolvedWorkspaceDeps?: ReturnType<typeof resolveWorkspaceDeps>
   // With auto-install-peers, peers resolve into the importer's `dependencies`
   // and are indistinguishable from real deps in the lockfile.
-  excludePeerNamesByImporter?: Record<string, Set<string>>
+  excludePeerNamesByImporter?: Map<string, Set<string>>
 }
 
 const IMPORTER_WALK_CONCURRENCY = 8
@@ -141,7 +141,7 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
         if (!info) return
         parentPurl = buildPurl({ name: info.name, version: info.version })
       }
-      const peerNames = opts.excludePeerNamesByImporter?.[importerId]
+      const peerNames = opts.excludePeerNamesByImporter?.get(importerId)
       const filteredStep = (peerNames?.size)
         ? {
           ...step,

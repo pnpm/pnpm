@@ -306,7 +306,7 @@ interface SharedContext {
   /** Workspace package manifests keyed by lockfile importer id, read once from the
    * project graph so split mode does not re-read them for every emitted SBOM. */
   workspaceManifestsByImporterId: Map<string, ManifestLike>
-  excludePeerNamesByImporter?: Record<string, Set<string>>
+  excludePeerNamesByImporter?: Map<string, Set<string>>
 }
 
 async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedContext> {
@@ -330,13 +330,15 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
   // auto-install-peers they resolve into the importer's `dependencies` with no
   // distinguishing marker. Map every walked importer to its peer names so the
   // collector can drop them.
-  let excludePeerNamesByImporter: Record<string, Set<string>> | undefined
+  // Keyed by a Map, not a plain object: importer ids come from the lockfile
+  // (attacker-controlled in an untrusted clone), and a key like `__proto__`
+  // would corrupt a plain object's prototype.
+  let excludePeerNamesByImporter: Map<string, Set<string>> | undefined
   if (opts.excludePeers) {
-    const byImporter: Record<string, Set<string>> = {}
+    const byImporter = new Map<string, Set<string>>()
     if (opts.selectedProjectsGraph) {
       for (const [projectDir, { package: project }] of Object.entries(opts.selectedProjectsGraph)) {
-        byImporter[getLockfileImporterId(lockfileDir, projectDir)] =
-          peerNamesFromManifest(project.manifest)
+        byImporter.set(getLockfileImporterId(lockfileDir, projectDir), peerNamesFromManifest(project.manifest))
       }
     } else {
       // No project graph was selected, so collectSbomComponents walks every
@@ -363,9 +365,18 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
           }
           const rel = path.relative(lockfileRoot, importerDir)
           if (rel !== '' && (rel.startsWith('..') || path.isAbsolute(rel))) return
-          const importerManifest = await safeReadProjectManifestOnly(importerDir)
+          // safeReadProjectManifestOnly tolerates a missing manifest but still
+          // throws on a malformed one (parse error). In an untrusted clone a
+          // single junk package.json must not abort the whole SBOM, so skip it
+          // (fail-open: an unparseable importer's peers just aren't filtered).
+          let importerManifest: ProjectManifest | null
+          try {
+            importerManifest = await safeReadProjectManifestOnly(importerDir)
+          } catch {
+            return
+          }
           if (importerManifest) {
-            byImporter[importerId] = peerNamesFromManifest(importerManifest)
+            byImporter.set(importerId, peerNamesFromManifest(importerManifest))
           }
         }))
       )
