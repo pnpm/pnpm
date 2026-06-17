@@ -398,36 +398,9 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
   })
 
   describe('recursive mode', () => {
-    it('should bump packages from selectedProjectsGraph when recursive', async () => {
-      const pkgADir = path.join(tempDir, 'packages', 'pkg-a')
-      const pkgBDir = path.join(tempDir, 'packages', 'pkg-b')
-      fs.mkdirSync(pkgADir, { recursive: true })
-      fs.mkdirSync(pkgBDir, { recursive: true })
-
-      fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'my-workspace', version: '1.0.0' }))
-      fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
-      fs.writeFileSync(path.join(pkgADir, 'package.json'), JSON.stringify({ name: 'pkg-a', version: '1.0.0' }))
-      fs.writeFileSync(path.join(pkgBDir, 'package.json'), JSON.stringify({ name: 'pkg-b', version: '2.3.0' }))
-
-      const selectedProjectsGraph = {
-        [pkgADir]: { dependencies: [], package: {} },
-        [pkgBDir]: { dependencies: [], package: {} },
-      }
-
-      await handler({
-        dir: tempDir,
-        workspaceDir: tempDir,
-        gitChecks: false,
-        gitTagVersion: false,
-        recursive: true,
-        selectedProjectsGraph,
-      } as any, ['minor']) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-      expect(JSON.parse(fs.readFileSync(path.join(pkgADir, 'package.json'), 'utf-8')).version).toBe('1.1.0')
-      expect(JSON.parse(fs.readFileSync(path.join(pkgBDir, 'package.json'), 'utf-8')).version).toBe('2.4.0')
-      expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8')).version).toBe('1.0.0')
-    })
-
+    // The happy path (which packages a recursive run selects) is covered end to
+    // end in pnpm/test/version.ts against the real CLI. The cases below exercise
+    // handler branches that do not depend on the CLI selection wiring.
     it('should honor an empty selectedProjectsGraph and bump nothing', async () => {
       const pkgADir = path.join(tempDir, 'packages', 'pkg-a')
       fs.mkdirSync(pkgADir, { recursive: true })
@@ -447,38 +420,6 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
 
       expect(JSON.parse(fs.readFileSync(path.join(pkgADir, 'package.json'), 'utf-8')).version).toBe('1.0.0')
       expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8')).version).toBe('1.0.0')
-    })
-
-    it('should return JSON output in recursive mode with --json', async () => {
-      const pkgDir = path.join(tempDir, 'packages', 'pkg-a')
-      fs.mkdirSync(pkgDir, { recursive: true })
-
-      fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({ name: 'my-workspace', version: '1.0.0' }))
-      fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
-      fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pkg-a', version: '1.0.0' }))
-
-      const result = await handler({
-        dir: tempDir,
-        workspaceDir: tempDir,
-        gitChecks: false,
-        gitTagVersion: false,
-        recursive: true,
-        json: true,
-        selectedProjectsGraph: {
-          [pkgDir]: { dependencies: [], package: {} },
-        },
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-      const parsed = JSON.parse(result as string)
-      expect(parsed).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            name: 'pkg-a',
-            currentVersion: '1.0.0',
-            newVersion: '1.0.1',
-          }),
-        ])
-      )
     })
 
     it('should skip workspace packages without name or version', async () => {
