@@ -33,7 +33,14 @@ test('relinks only changed child edges for existing packages after dependency up
   }
   const project = prepare(manifest)
 
-  const initialOpts = testDefaults()
+  // Pin the child to an older version first so the update below is a
+  // real edge change. With the fixture's `*` range both installs would
+  // otherwise resolve to the same highest version and nothing relinks.
+  const initialOpts = testDefaults({
+    overrides: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+    },
+  })
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
@@ -64,6 +71,11 @@ test('relinks only changed child edges for existing packages after dependency up
   const pkgCalls = symlinkAllModulesCalls
     .flat()
     .filter((dep) => dep.name === '@pnpm.e2e/pkg-with-good-optional')
+
+  // The package must actually be relinked for the changed child edge,
+  // otherwise the `every` assertion below would pass vacuously on an
+  // empty array and prove nothing.
+  expect(pkgCalls.some(({ children }) => children.includes('@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBe(true)
 
   // Existing packages with only one changed child edge should not be passed
   // through the broad worker relinking path with unchanged aliases.
