@@ -594,31 +594,33 @@ function getChangedChildren (
   }
 ): { changedChildren: Record<string, DepPath>, removedAliases: string[] } {
   const { currentOptionalDependencies, wantedOptionalDependencies, allChildren } = opts
-  const currentChildren = {
-    ...opts.currentDependencies,
-    ...currentOptionalDependencies,
-  }
-  const wantedChildren = {
-    ...opts.wantedDependencies,
-    ...wantedOptionalDependencies,
-  }
+  // Use null-prototype maps so a child literally named `constructor`,
+  // `toString`, `__proto__`, etc. is treated as a normal alias instead
+  // of colliding with an inherited `Object.prototype` key during the
+  // `in`/index lookups below.
+  const currentChildren: Record<string, string> = Object.assign(Object.create(null), opts.currentDependencies, currentOptionalDependencies)
+  const wantedChildren: Record<string, string> = Object.assign(Object.create(null), opts.wantedDependencies, wantedOptionalDependencies)
   const changedChildren: Record<string, DepPath> = {}
   const removedAliases: string[] = []
   for (const [alias, wantedChildDepPath] of Object.entries(wantedChildren)) {
-    const optionalityChanged = Boolean(currentOptionalDependencies?.[alias]) !== Boolean(wantedOptionalDependencies?.[alias])
+    const optionalityChanged = hasOwn(wantedOptionalDependencies, alias) !== hasOwn(currentOptionalDependencies, alias)
     if (currentChildren[alias] !== wantedChildDepPath || optionalityChanged) {
-      const resolvedChildDepPath = allChildren[alias]
+      const resolvedChildDepPath = hasOwn(allChildren, alias) ? allChildren[alias] : undefined
       if (resolvedChildDepPath != null) {
         changedChildren[alias] = resolvedChildDepPath
       }
     }
   }
   for (const alias of Object.keys(currentChildren)) {
-    if (!(alias in wantedChildren)) {
+    if (!hasOwn(wantedChildren, alias)) {
       removedAliases.push(alias)
     }
   }
   return { changedChildren, removedAliases }
+}
+
+function hasOwn (obj: Record<string, unknown> | undefined, key: string): boolean {
+  return obj != null && Object.hasOwn(obj, key)
 }
 
 async function getActualChildrenDiff (
