@@ -546,6 +546,37 @@ async fn rejects_invalid_manifest_config_dep_name_before_writing_lockfile() {
 }
 
 #[tokio::test]
+async fn rejects_invalid_manifest_config_dep_version_before_writing_lockfile() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    // Legacy inline-integrity manifest form with a valid name but a
+    // traversal-shaped version extracted from `<version>+<integrity>`. The
+    // version must be refused before the migration writes pnpm-lock.yaml.
+    let integrity = integrity_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert(
+        "@pnpm.e2e/foo".to_string(),
+        ConfigDependency::VersionWithIntegrity(format!("../../../PWNED+{integrity}")),
+    );
+
+    let error = resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .expect_err("an invalid manifest config dep version must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidConfigDepVersion { .. }),
+        "unexpected error: {error:?}",
+    );
+
+    assert!(!root.path().join("pnpm-lock.yaml").exists());
+}
+
+#[tokio::test]
 async fn rejects_config_dep_with_path_traversal_version() {
     let harness = harness();
     let (resolver, _cache) = build_resolver(&harness.registry_url);

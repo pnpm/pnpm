@@ -10,8 +10,11 @@
 //!    registry when it isn't already pinned in the lockfile.
 
 use crate::{
-    ConfigDepError, install_config_deps::install_config_deps, options::ConfigDepsInstallOptions,
-    parse_integrity::parse_integrity, prune::prune_env_lockfile,
+    ConfigDepError,
+    install_config_deps::{assert_valid_config_dep_version, install_config_deps},
+    options::ConfigDepsInstallOptions,
+    parse_integrity::parse_integrity,
+    prune::prune_env_lockfile,
     resolve_optional_subdeps::resolve_optional_subdeps,
 };
 use pacquet_lockfile::{
@@ -68,6 +71,10 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
             ConfigDependency::Detailed(detail) => {
                 if !has_config_dep(&env_lockfile, name) {
                     let (version, integrity) = parse_integrity(name, &detail.integrity)?;
+                    // The migrated version is extracted from attacker-controlled
+                    // inline integrity and becomes a store path segment; validate
+                    // it before recording lockfile entries that get written below.
+                    assert_valid_config_dep_version(name, &version)?;
                     let registry = opts.pick_registry(name);
                     let tarball = detail
                         .tarball
@@ -87,6 +94,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
             ConfigDependency::VersionWithIntegrity(value) if value.contains('+') => {
                 if !has_config_dep(&env_lockfile, name) {
                     let (version, integrity) = parse_integrity(name, value)?;
+                    assert_valid_config_dep_version(name, &version)?;
                     let registry = opts.pick_registry(name);
                     let tarball = npm_tarball_url(name, &version, registry);
                     migrate_into_lockfile(

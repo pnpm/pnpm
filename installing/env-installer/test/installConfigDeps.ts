@@ -241,6 +241,31 @@ test('an invalid config dependency name in the workspace manifest is rejected be
   expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
 })
 
+test('an invalid config dependency version in the workspace manifest is rejected before any lockfile is written', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  // Legacy inline-integrity manifest format: the version is extracted from
+  // `<version>+<integrity>` and would otherwise be written into
+  // pnpm-lock.yaml by the migration before being validated.
+  const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
+  const configDeps: Record<string, string> = {
+    '@pnpm.e2e/foo': `../../../PWNED+${integrity}`,
+  }
+
+  await expect(installConfigDeps(configDeps, {
+    registries: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    store: storeController,
+    storeDir,
+  })).rejects.toThrow('invalid version')
+
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+  expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
+})
+
 test('a config dependency with a path-traversal version in the env lockfile is rejected', async () => {
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()

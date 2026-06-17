@@ -6,6 +6,7 @@ import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { ConfigDependencies, ConfigDependencySpecifiers, Registries } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 
+import { assertValidConfigDepVersion } from './assertValidConfigDepVersion.js'
 import type { NormalizedConfigDep } from './parseIntegrity.js'
 import { parseIntegrity } from './parseIntegrity.js'
 
@@ -37,6 +38,10 @@ export async function migrateConfigDepsToLockfile (
 
     if (typeof pkgSpec === 'object') {
       const { version, integrity } = parseIntegrity(pkgName, pkgSpec.integrity)
+      // The migrated version is extracted from attacker-controlled inline
+      // integrity and becomes a store path segment; validate it before the
+      // env lockfile / workspace settings are written below.
+      assertValidConfigDepVersion(pkgName, version)
       const tarball = pkgSpec.tarball ?? getNpmTarballUrl(pkgName, version, { registry })
 
       cleanSpecifiers[pkgName] = version
@@ -73,6 +78,7 @@ export async function migrateConfigDepsToLockfile (
         )
       }
       const { version, integrity } = parseIntegrity(pkgName, pkgSpec)
+      assertValidConfigDepVersion(pkgName, version)
       const tarball = getNpmTarballUrl(pkgName, version, { registry })
 
       cleanSpecifiers[pkgName] = version

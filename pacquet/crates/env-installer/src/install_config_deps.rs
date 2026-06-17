@@ -375,7 +375,10 @@ fn assert_valid_config_deps(
     Ok(())
 }
 
-fn assert_valid_config_dep_version(name: &str, version: &str) -> Result<(), ConfigDepError> {
+pub(crate) fn assert_valid_config_dep_version(
+    name: &str,
+    version: &str,
+) -> Result<(), ConfigDepError> {
     if version.parse::<node_semver::Version>().is_err() {
         return Err(ConfigDepError::InvalidConfigDepVersion {
             name: name.to_string(),

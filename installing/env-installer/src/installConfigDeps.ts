@@ -13,9 +13,9 @@ import type { StoreController } from '@pnpm/store.controller'
 import type { ConfigDependencies, Registries } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
 
+import { assertValidConfigDepVersion } from './assertValidConfigDepVersion.js'
 import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
 import type { NormalizedConfigDep, NormalizedSubdep } from './parseIntegrity.js'
 
@@ -176,16 +176,6 @@ function assertValidConfigDeps (normalizedDeps: Record<string, NormalizedConfigD
     for (const subdep of pkg.optionalSubdeps) {
       assertValidConfigDepVersion(subdep.name, subdep.version)
     }
-  }
-}
-
-function assertValidConfigDepVersion (name: string, version: string): void {
-  if (semver.valid(version) == null) {
-    throw new PnpmError(
-      'INVALID_CONFIG_DEP_VERSION',
-      `The config dependency "${name}" has an invalid version "${version}" in the env lockfile (pnpm-lock.yaml)`,
-      { hint: 'A config dependency version must be an exact semver version.' }
-    )
   }
 }
 
