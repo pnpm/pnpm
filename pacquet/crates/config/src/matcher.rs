@@ -250,12 +250,8 @@ impl Glob {
 
     fn matches(&self, input: &str) -> bool {
         if !self.had_wildcard {
-            // `segments.len() == 1`. Pattern is a literal — exact
-            // string equality.
             return self.segments[0] == input;
         }
-        // First segment is a prefix; last segment is a suffix; in
-        // between, each segment must appear in order, non-overlapping.
         let first = &self.segments[0];
         let last = &self.segments[self.segments.len() - 1];
         let Some(rest) = input.strip_prefix(first.as_str()) else { return false };

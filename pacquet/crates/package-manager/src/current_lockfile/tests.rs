@@ -375,7 +375,6 @@ fn orphan_snapshots_are_pruned() {
 
     let mut snapshots = HashMap::new();
     snapshots.insert(key("a", "1.0.0"), SnapshotEntry::default());
-    // Unreachable from any importer — orphan.
     snapshots.insert(key("orphan", "1.0.0"), SnapshotEntry::default());
 
     let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };

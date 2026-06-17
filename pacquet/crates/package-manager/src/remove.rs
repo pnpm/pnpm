@@ -9,7 +9,6 @@ use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMe
 use pacquet_tarball::MemCache;
 use std::{collections::HashSet, fmt::Write as _, sync::Arc};
 
-/// This subroutine does everything `pacquet remove` is supposed to do.
 #[must_use]
 pub struct Remove<'a> {
     pub tarball_mem_cache: Arc<MemCache>,

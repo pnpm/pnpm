@@ -10,11 +10,7 @@ use std::{collections::HashMap, fs, path::Path, sync::LazyLock};
 use tempfile::tempdir;
 
 /// A single process-wide empty env map shared across every test
-/// invocation. `LazyLock` avoids the per-call `Box::leak(Box::new(...))`
-/// that an earlier version of this helper used — the leak was benign
-/// because the test binary exits quickly, but accumulating one fresh
-/// allocation per test isn't necessary when every site wants the same
-/// value.
+/// invocation.
 fn empty_env() -> &'static HashMap<String, String> {
     static EMPTY_ENV: LazyLock<HashMap<String, String>> = LazyLock::new(HashMap::new);
     &EMPTY_ENV
@@ -24,10 +20,6 @@ fn write_manifest(dir: &Path, manifest: &serde_json::Value) {
     fs::write(dir.join("package.json"), serde_json::to_string(manifest).unwrap()).unwrap();
 }
 
-/// Build an `Options` value whose `allow_build` closure routes through
-/// the bool the test specifies. Other knobs default to "noop, no
-/// scripts run" so the test doesn't actually spawn anything unless we
-/// want it to.
 fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {

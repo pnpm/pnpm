@@ -5,8 +5,6 @@ use super::{
 use crate::dep_state::DepsGraphNode;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-/// Scoped packages don't get the `@/` prefix — they already start
-/// with `@<scope>/`. Unscoped packages do.
 #[test]
 fn format_prefixes_unscoped_with_at_slash() {
     assert_eq!(
@@ -19,9 +17,8 @@ fn format_prefixes_unscoped_with_at_slash() {
     );
 }
 
-/// Two graphs with identical structure and `full_pkg_id`s produce
-/// the same hash — same as upstream's design where the GVS path is
-/// the deduplication key.
+/// The GVS path is upstream's deduplication key: identical structure
+/// and `full_pkg_id`s must produce the same hash.
 #[test]
 fn identical_leaves_hash_identically() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -53,10 +50,8 @@ fn identical_leaves_hash_identically() {
     assert_eq!(first.len(), 64, "sha256 hex digest is 64 chars");
 }
 
-/// Different engines produce different hashes when the engine
-/// is included. Mirrors upstream's contribution of `ENGINE_NAME`
-/// (vs `null`) to the hash payload at
-/// `deps/graph-hasher/src/index.ts:140-146`.
+/// Mirrors upstream's contribution of `ENGINE_NAME` (vs `null`) to
+/// the hash payload at `deps/graph-hasher/src/index.ts:140-146`.
 #[test]
 fn engine_string_changes_hash() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();

@@ -149,11 +149,6 @@ fn multi_segment_glob_in_order() {
     assert!(!matcher.matches("axbcx"));
 }
 
-/// `is_empty` is the static fast-path check callers use to skip
-/// graph walks. Only `MatcherImpl::Never` (built from an empty
-/// pattern list) reports `true`; non-empty pattern lists report
-/// `false` even if no realistic input would match — the check
-/// is on the pattern list, not on regex shape.
 #[test]
 fn is_empty_only_for_empty_pattern_list() {
     assert!(create_matcher(&[]).is_empty());

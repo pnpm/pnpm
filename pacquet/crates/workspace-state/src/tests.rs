@@ -79,11 +79,9 @@ fn omits_settings_that_are_none() {
         settings: WorkspaceStateSettings { auto_install_peers: Some(true), ..Default::default() },
     };
     let serialized = serde_json::to_string(&state).expect("serialize");
-    // Only the populated setting should show up.
     assert!(serialized.contains(r#""autoInstallPeers":true"#), "got: {serialized}");
     assert!(!serialized.contains("dedupePeerDependents"), "got: {serialized}");
     assert!(!serialized.contains("nodeLinker"), "got: {serialized}");
-    // Top-level optional keys should also be omitted.
     assert!(!serialized.contains("configDependencies"), "got: {serialized}");
 }
 
@@ -173,7 +171,6 @@ fn load_surfaces_read_file_error_when_target_is_a_directory() {
     let workspace_dir = tmp.path();
     let target = get_file_path(workspace_dir);
     std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-    // Plant a directory where the state file should be.
     std::fs::create_dir(&target).expect("seed directory at state path");
 
     let err =

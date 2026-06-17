@@ -4,11 +4,7 @@ use super::{GetNodeArtifactAddressOptions, NodeArtifactAddress, get_node_artifac
 
 /// Mirrors the
 /// [`getNodeArtifactAddress`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/test/getNodeArtifactAddress.test.ts)
-/// table-driven upstream test: every `(version, mirror, platform, arch)`
-/// combination produces the same three-part address — including the
-/// pre-16 `darwin/arm64 → x64` Rosetta fall-back the upstream test
-/// exercises, the `win32/ia32 → x86` quirk, and the `linux/arm →
-/// armv7l` Raspberry-Pi mapping.
+/// table-driven upstream test.
 #[test]
 fn matches_upstream_address_table() {
     let cases: &[(&str, &str, &str, &str, NodeArtifactAddress)] = &[
@@ -80,8 +76,7 @@ fn matches_upstream_address_table() {
     }
 }
 
-/// `libc=Some("musl")` appends the `-musl` suffix to the basename and
-/// keeps everything else identical. Mirrors upstream's
+/// Mirrors upstream's
 /// `getNodeArtifactAddress with libc=musl appends -musl suffix to arch`
 /// test.
 #[test]

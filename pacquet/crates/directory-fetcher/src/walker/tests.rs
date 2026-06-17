@@ -160,7 +160,6 @@ fn walk_all_files_resolves_symlinks_when_requested() {
     let out = walk_all_files(root, true).unwrap();
     assert_eq!(out.len(), 1);
     let src = out.get("link.txt").expect("link.txt entry");
-    // The source path must be the realpath, not the symlink path.
     assert_eq!(
         fs::canonicalize(src).unwrap(),
         fs::canonicalize(&target).unwrap(),

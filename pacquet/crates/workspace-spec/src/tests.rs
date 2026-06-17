@@ -75,8 +75,7 @@ fn empty_version_is_preserved() {
 }
 
 /// Upstream's regex rejects aliases that start with `.`, `_`, or `/`
-/// — those characters get rolled into the version instead. Locks the
-/// behavior so future refactors don't drift.
+/// — those characters get rolled into the version instead.
 #[test]
 fn alias_first_char_class_excludes_dot_underscore_slash() {
     assert_eq!(WorkspaceSpec::parse("workspace:./foo"), Some(ws("./foo", None)));

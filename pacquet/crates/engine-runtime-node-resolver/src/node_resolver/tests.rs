@@ -86,10 +86,9 @@ fn parses_node_file_names() {
     assert!(parse_node_file_name("node-v22.0.0-headers.tar.gz", version).is_none());
 }
 
-/// A variant's `bin` is a named map keyed by the executable name — pnpm
-/// writes `bin: { node: bin/node }` on unix and `bin: { node: node.exe }`
-/// on win32, never a bare string. Mirrors the `variants[].resolution.bin`
-/// block in pnpm's runtime lockfile entry.
+/// pnpm writes `bin: { node: bin/node }` on unix and
+/// `bin: { node: node.exe }` on win32, never a bare string. Mirrors the
+/// `variants[].resolution.bin` block in pnpm's runtime lockfile entry.
 #[test]
 fn bin_spec_is_a_named_map() {
     use pacquet_lockfile::BinarySpec;

@@ -157,7 +157,6 @@ async fn auto_installs_missing_required_peer() {
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
     assert!(direct_aliases.contains(&"react"), "react should be hoisted: {direct_aliases:?}");
     assert!(direct_aliases.contains(&"react-dom"));
-    // Peer is resolved — the issue list is empty for react.
     assert!(
         !result.peers_result.peer_dependency_issues.missing.contains_key("react"),
         "react should no longer be missing after hoisting",
@@ -288,8 +287,6 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
         .unwrap();
 
     let calls = resolver.calls.lock().unwrap();
-    // No `react` re-resolve via a different range — the only react
-    // request was the direct dep at "18.2.0".
     let react_call_count = calls.iter().filter(|(name, _)| name == "react").count();
     assert_eq!(react_call_count, 1, "should not re-resolve react via a hoisted spec");
 
@@ -484,7 +481,6 @@ async fn auto_install_dedupes_via_range_intersection_when_identical() {
     let direct: Vec<&str> =
         result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
     assert!(direct.contains(&"peer-c"), "single intersected peer-c should be hoisted: {direct:?}");
-    // Exactly one peer-c@1.0.0 in the graph — the two consumers share it.
     let peer_c_entries: Vec<&DepPath> = result
         .peers_result
         .graph
@@ -1148,7 +1144,6 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
         resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
     assert_eq!(result.resolved_tree.direct.len(), 1);
     assert_eq!(result.resolved_tree.direct[0].alias, "foo");
-    // The resolver chain only sees the catalog-rewritten range.
     let calls = resolver.calls.lock().unwrap();
     assert_eq!(&*calls, &[("foo".to_string(), "^1.0.0".to_string())]);
 }
@@ -1214,7 +1209,6 @@ fn aliased_fake_result(
 #[tokio::test]
 async fn aliased_install_with_transitive_mutual_peer_cycle_terminates() {
     let mut table = HashMap::new();
-    // Root install: `a@npm:a-real@1.0.0`.
     table.insert(
         ("a".to_string(), "npm:a-real@1.0.0".to_string()),
         aliased_fake_result(
@@ -1231,8 +1225,6 @@ async fn aliased_install_with_transitive_mutual_peer_cycle_terminates() {
             }),
         ),
     );
-    // `b@npm:b-real@1.0.0`: depends on `x`, peer-depends on the aliased
-    // root.
     table.insert(
         ("b".to_string(), "npm:b-real@1.0.0".to_string()),
         aliased_fake_result(
@@ -1247,8 +1239,6 @@ async fn aliased_install_with_transitive_mutual_peer_cycle_terminates() {
             }),
         ),
     );
-    // `c@npm:c-real@1.0.0`: depends on `y`, peer-depends on the aliased
-    // root.
     table.insert(
         ("c".to_string(), "npm:c-real@1.0.0".to_string()),
         aliased_fake_result(
@@ -1263,7 +1253,6 @@ async fn aliased_install_with_transitive_mutual_peer_cycle_terminates() {
             }),
         ),
     );
-    // `x` ↔ `y` mutual peer cycle.
     table.insert(
         ("x".to_string(), "1.0.0".to_string()),
         fake_result(
@@ -1302,7 +1291,6 @@ async fn aliased_install_with_transitive_mutual_peer_cycle_terminates() {
     assert!(direct.contains(&"x"), "missing peer x must be auto-installed: {direct:?}");
     assert!(direct.contains(&"y"), "missing peer y must be auto-installed: {direct:?}");
 
-    // The aliased root's dep path resolves to the real package id.
     let a_dep_path = result
         .peers_result
         .direct_dependencies_by_alias
@@ -1314,7 +1302,6 @@ async fn aliased_install_with_transitive_mutual_peer_cycle_terminates() {
         "aliased dep path must start with the real package id, got {a_dep_path}",
     );
 
-    // Both mutually-peer-depending leaves land in the graph.
     let dep_paths: std::collections::HashSet<String> =
         result.peers_result.graph.keys().map(ToString::to_string).collect();
     assert!(

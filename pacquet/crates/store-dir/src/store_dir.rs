@@ -33,9 +33,7 @@ pub const STORE_VERSION: &str = "v11";
 // `#[serde(from = "PathBuf", into = "PathBuf")]` routes both
 // directions through the `PathBuf` boundary so deserialization goes
 // back through [`From<PathBuf>`] and the [`STORE_VERSION`] suffix
-// invariant holds for persisted unsuffixed paths too — the previous
-// `#[serde(transparent)]` derive deserialised straight into the
-// `root` field and bypassed the auto-append.
+// invariant holds for persisted unsuffixed paths too.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(from = "PathBuf", into = "PathBuf")]
 pub struct StoreDir {

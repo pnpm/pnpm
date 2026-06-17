@@ -86,7 +86,6 @@ fn non_default_port_strips_for_fallback_lookup() {
 fn nerf_dart_strips_default_ports_when_keying() {
     assert_eq!(nerf_dart("https://reg.com:443/"), "//reg.com/");
     assert_eq!(nerf_dart("http://reg.com:80/"), "//reg.com/");
-    // Non-default ports are preserved.
     assert_eq!(nerf_dart("https://reg.com:8080/"), "//reg.com:8080/");
 }
 
@@ -340,7 +339,6 @@ fn slash_append_branch_lets_path_segment_match() {
 fn nerf_dart_returns_empty_for_malformed_url() {
     assert_eq!(nerf_dart("not-a-url"), "");
     assert_eq!(nerf_dart(""), "");
-    // No URL → no match in any non-empty map.
     let headers = build(&[("//reg.com/", "Bearer abc123")]);
     assert_eq!(headers.for_url("not-a-url"), None);
 }

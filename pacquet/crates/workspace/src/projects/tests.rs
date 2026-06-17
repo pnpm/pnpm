@@ -199,6 +199,5 @@ fn empty_patterns_array_enumerates_root_only() {
         .iter()
         .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
-    // Only the workspace root surfaces — `web` is not enumerated.
     assert_eq!(names, vec!["root".to_string()]);
 }

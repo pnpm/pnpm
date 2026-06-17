@@ -1,9 +1,4 @@
 //! Tests for [`super::link_hoisted_modules`].
-//!
-//! The linker is sync and consumes a fully-populated CAS index.
-//! Each test plants synthetic CAS files in a tempdir, builds a
-//! graph + hierarchy by hand, and asserts the on-disk tree
-//! after `link_hoisted_modules` runs.
 
 use super::{
     CasPathsByPkgId, LinkHoistedModulesError, LinkHoistedModulesOpts, link_hoisted_modules,
@@ -113,8 +108,6 @@ fn flat_layout(
     (graph, hierarchy, cas_paths)
 }
 
-/// Each node in `graph` should produce a populated directory
-/// containing the planted CAS files. Single-package smoke test.
 #[test]
 fn import_pass_creates_package_directory() {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -143,9 +136,6 @@ fn import_pass_creates_package_directory() {
     assert_eq!(fs::read(&installed).unwrap(), b"module.exports = 1;");
 }
 
-/// A directory present in `prev_graph` but not in `graph` is
-/// rimraf'd before the import pass. The directory and its
-/// contents are gone after the linker runs.
 #[test]
 fn orphan_directory_is_removed() {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -153,7 +143,6 @@ fn orphan_directory_is_removed() {
     let lockfile_dir = tmp.path().join("repo");
     let modules = lockfile_dir.join("node_modules");
 
-    // Plant a stale directory from the "previous" install.
     let orphan_dir = modules.join("orphan");
     fs::create_dir_all(&orphan_dir).expect("create orphan dir");
     fs::write(orphan_dir.join("stale.txt"), b"old data").expect("write stale file");
@@ -189,9 +178,8 @@ fn orphan_directory_is_removed() {
     assert!(modules.join("a").join("package").join("index.js").exists(), "a is imported");
 }
 
-/// A nested hierarchy materializes the inner package under
-/// `<outer>/node_modules/<inner>`. Mirrors the version-conflict
-/// case where Slice 4's walker nests a losing version.
+/// Mirrors the version-conflict case where Slice 4's walker nests
+/// a losing version.
 #[test]
 fn nested_hierarchy_materializes_inner_node_modules() {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -245,8 +233,6 @@ fn nested_hierarchy_materializes_inner_node_modules() {
     assert!(inner_dir.join("package").join("inner.js").exists(), "nested inner imported");
 }
 
-/// Missing CAS for a required package surfaces as
-/// `LinkHoistedModulesError::MissingCasPaths` instead of crashing.
 #[test]
 fn missing_cas_for_required_dep_errors() {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -262,7 +248,6 @@ fn missing_cas_for_required_dep_errors() {
     let mut hierarchy = BTreeMap::new();
     hierarchy.insert(lockfile_dir.clone(), DepHierarchy(hierarchy_children));
 
-    // No CAS entries planted at all.
     let cas_paths = CasPathsByPkgId::new();
 
     let logged = AtomicU8::new(0);
@@ -284,9 +269,8 @@ fn missing_cas_for_required_dep_errors() {
     }
 }
 
-/// Missing CAS for an optional package is silently skipped —
-/// the directory isn't created and no error surfaces. Mirrors
-/// upstream's `if (depNode.optional) return` on fetch failure.
+/// Mirrors upstream's `if (depNode.optional) return` on fetch
+/// failure.
 #[test]
 fn missing_cas_for_optional_dep_skips_silently() {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -321,9 +305,8 @@ fn missing_cas_for_optional_dep_skips_silently() {
     assert!(!dir.exists(), "optional dir with no CAS not created");
 }
 
-/// `prev_graph: None` is a no-op for orphan removal. Sanity check
-/// that fresh installs (no prior lockfile) don't fail on the
-/// orphan pass.
+/// Fresh installs (no prior lockfile) must not fail on the orphan
+/// pass.
 #[test]
 fn no_prev_graph_skips_orphan_pass() {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -363,8 +346,6 @@ fn orphan_already_removed_is_tolerated() {
     let lockfile_dir = tmp.path().join("repo");
     let modules = lockfile_dir.join("node_modules");
 
-    // prev_graph references a directory that doesn't exist on
-    // disk — a prior install pass already removed it.
     let phantom_orphan = modules.join("phantom");
     let mut prev_graph = DependenciesGraph::new();
     prev_graph.insert(
@@ -391,12 +372,9 @@ fn orphan_already_removed_is_tolerated() {
     link_hoisted_modules::<SilentReporter>(&opts).expect("phantom orphan tolerated");
 }
 
-/// A hierarchy entry whose directory has no matching graph node
-/// surfaces as `MissingGraphNode` rather than being silently
-/// skipped. Pinning fail-fast on internal inconsistency between
-/// the hierarchy and graph — Slice 4's walker keeps the two in
-/// sync, but a future bug there shouldn't yield a partial
-/// install layout.
+/// Pins fail-fast on internal inconsistency between the hierarchy
+/// and graph — Slice 4's walker keeps the two in sync, but a
+/// future bug there shouldn't yield a partial install layout.
 #[test]
 fn hierarchy_entry_missing_from_graph_errors() {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -404,7 +382,6 @@ fn hierarchy_entry_missing_from_graph_errors() {
     let modules = lockfile_dir.join("node_modules");
     let dir = modules.join("phantom");
 
-    // Hierarchy references `phantom`, but the graph is empty.
     let mut hierarchy_children = BTreeMap::new();
     hierarchy_children.insert(dir.clone(), DepHierarchy::default());
     let mut hierarchy = BTreeMap::new();

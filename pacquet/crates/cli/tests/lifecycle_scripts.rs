@@ -648,8 +648,6 @@ mod dependency_build_scripts {
             "--ignore-scripts must not report ignored builds",
         );
 
-        // The dependency is materialized, but its blocked lifecycle
-        // scripts did not run.
         let pkg_dir = workspace.join(
             "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
              /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
@@ -859,13 +857,10 @@ mod project_scripts {
         fs::write(workspace.join("package.json"), project_with_lifecycle_scripts().to_string())
             .expect("write package.json");
 
-        // First install resolves and writes pnpm-lock.yaml (and runs
-        // the scripts once).
         pacquet.with_arg("install").assert().success();
         assert!(workspace.join("pnpm-lock.yaml").exists(), "first install should write a lockfile");
         fs::remove_file(workspace.join("order.txt")).expect("clear order.txt between installs");
 
-        // Frozen reinstall must re-run the project scripts.
         Command::cargo_bin("pacquet")
             .expect("find the pacquet binary")
             .with_current_dir(&workspace)

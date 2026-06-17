@@ -196,6 +196,5 @@ fn tarball_under_unrelated_prefix_does_not_match() {
         "foo",
         Some("https://npm.pkg.github.com-evil/foo-1.0.0.tgz"),
     );
-    // Falls through to default since the prefix doesn't match.
     assert_eq!(picked, "https://registry.npmjs.org/");
 }

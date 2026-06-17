@@ -27,15 +27,11 @@ fn root_only() -> HashMap<String, ProjectSnapshot> {
     importers
 }
 
-/// `none` (the default) produces no borders, so the hoister
-/// flattens as far as possible.
 #[test]
 fn none_mode_yields_no_borders() {
     assert!(get_hoisting_limits(&root_only(), HoistingLimits::None).is_empty());
 }
 
-/// For a single root project, every mode that limits hoisting
-/// borders the root's direct deps at the `.@` locator.
 #[test]
 fn root_direct_deps_are_bordered_under_dependencies_mode() {
     let limits = get_hoisting_limits(&root_only(), HoistingLimits::Dependencies);
@@ -43,9 +39,6 @@ fn root_direct_deps_are_bordered_under_dependencies_mode() {
     assert_eq!(limits[".@"], BTreeSet::from(["a".to_string(), "b".to_string()]));
 }
 
-/// `workspaces` mode borders each workspace package (encoded id)
-/// and the root's direct deps at the root locator, with no
-/// per-importer entry.
 #[test]
 fn workspaces_mode_borders_packages_at_root() {
     let mut importers = HashMap::new();
@@ -57,8 +50,6 @@ fn workspaces_mode_borders_packages_at_root() {
     assert_eq!(limits[".@"], BTreeSet::from(["a".to_string(), "packages%2Ffoo".to_string()]));
 }
 
-/// `dependencies` mode additionally borders each non-root
-/// importer's own direct deps under its workspace locator.
 #[test]
 fn dependencies_mode_borders_each_importer() {
     let mut importers = HashMap::new();

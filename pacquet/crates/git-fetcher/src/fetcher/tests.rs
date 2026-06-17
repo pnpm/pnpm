@@ -32,7 +32,6 @@ fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (Path
     // Manifest with no dependencies so the synthesized `<pm>-install`
     // step has nothing to fetch from a network registry — the test
     // stays self-contained even without verdaccio / a mock registry.
-    // The prepare script is plumbed straight in.
     let manifest = format!(
         r#"{{"name":"x","version":"1.0.0","main":"index.js","scripts":{{"prepare":{prepare_script:?}}}}}"#,
     );
@@ -237,9 +236,6 @@ async fn fetcher_rejects_commit_mismatch() {
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_blocks_build_when_not_allowed() {
     let tmp = tempdir().unwrap();
-    // A repo whose manifest declares a `prepare` script — exercises
-    // the `allow_build` gate without actually spawning the script
-    // (the policy is denying-all here).
     let work = tmp.path().join("work");
     let bare = tmp.path().join("repo.git");
     fs::create_dir_all(&work).unwrap();

@@ -79,8 +79,6 @@ async fn ambiguous_partial_commit_mismatch_errors() {
     // with `deadbf`).
     let stub = stub("deadbeef1234567890123456789012345678abcd\trefs/heads/x\n");
     let err = resolve_ref(&stub, "repo", "deadbf12", None).await.expect_err("ambig");
-    // First the lookup falls through (no exact ref match), then
-    // partial-commit search finds zero matches → UnknownRef.
     assert!(matches!(err, GitResolveRefError::UnknownRef { .. }));
 }
 

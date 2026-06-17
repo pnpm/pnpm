@@ -451,10 +451,6 @@ impl WorkEnv {
 
         // hyperfine runs `--prepare` before *each* timed invocation, so
         // cleanup must cover every bench dir we're about to measure.
-        // Previously this only wiped the pacquet revisions — if
-        // `--with-pnpm` was set, pnpm's `node_modules` survived between
-        // iterations, and after the warmup pnpm just hit a no-op
-        // "already installed" code path instead of doing real work.
         //
         // Per-iteration cleanup paths come from the scenario: cold-cache
         // scenarios wipe `node_modules` and `store-dir`, hot-cache wipes
@@ -1359,9 +1355,8 @@ fn create_npmrc(dir: &Path, registry: &str, scenario: BenchmarkScenario) {
     // pnpm and pacquet, not from `.npmrc`. Pacquet's `.npmrc` parser
     // (`crates/npmrc/src/npmrc_auth.rs`) explicitly ignores `store-dir`
     // and a test there pins that behaviour. The static fixture's
-    // `storeDir: ./store-dir` already resolves to `{bench_dir}/store-dir`
-    // under each per-revision CWD, which gives the same per-revision
-    // isolation the redundant `.npmrc` line was supposedly providing.
+    // `storeDir: ./store-dir` resolves to `{bench_dir}/store-dir`
+    // under each per-revision CWD, which gives per-revision isolation.
     writeln!(file, "auto-install-peers=true").unwrap();
     writeln!(file, "ignore-scripts=true").unwrap();
     writeln!(file, "{}", scenario.npmrc_lockfile_setting()).unwrap();

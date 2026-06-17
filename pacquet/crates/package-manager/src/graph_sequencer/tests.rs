@@ -25,7 +25,7 @@ fn empty_graph() {
 
 #[test]
 fn linear_chain_runs_leaf_first() {
-    // a -> b -> c. c must build first, then b, then a.
+    // a -> b -> c
     let graph_map = graph(&[("a", &["b"]), ("b", &["c"]), ("c", &[])]);
     let nodes = included(&["a", "b", "c"]);
     let result = graph_sequencer(&graph_map, &nodes);
@@ -114,7 +114,6 @@ fn self_loop_not_safe_flag() {
 
 #[test]
 fn deterministic_order_follows_included() {
-    // Three independent leaves; chunk order should follow the `included` slice.
     let graph_map = graph(&[("x", &[]), ("y", &[]), ("z", &[])]);
     let r1 = graph_sequencer(&graph_map, &included(&["x", "y", "z"]));
     let r2 = graph_sequencer(&graph_map, &included(&["z", "y", "x"]));

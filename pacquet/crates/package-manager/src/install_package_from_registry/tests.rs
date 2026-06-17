@@ -303,7 +303,6 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     .expect("first visit installs cleanly");
     EVENTS.lock().unwrap().clear();
 
-    // Second edge: same `(name, version)`, different parent dir.
     InstallPackageFromRegistry {
         tarball_mem_cache: &Default::default(),
         config,
@@ -340,7 +339,6 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         .collect();
     assert!(kinds.is_empty(), "second visit must not emit progress events, got {kinds:?}");
 
-    // The second-parent symlink must exist after the call.
     let symlink_path = second_parent_dir.path().join("second-alias");
     assert!(symlink_path.exists() || symlink_path.is_symlink(), "per-parent symlink missing");
 

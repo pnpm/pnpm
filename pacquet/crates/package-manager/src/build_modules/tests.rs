@@ -127,10 +127,7 @@ fn unlisted_returns_none() {
 /// Upstream checks `expandedDisallowed` before `expandedAllowed`
 /// in [`createAllowBuildFunction`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts#L36-L43),
 /// so a bare-name disallow wins over an exact-version allow.
-/// Pacquet matches that order — pre-[#397]-item-5, the matcher
-/// checked exact-version first, which diverged from upstream.
-///
-/// [#397]: https://github.com/pnpm/pacquet/issues/397
+/// Pacquet matches that order.
 #[test]
 fn disallow_bare_name_wins_over_allow_exact_version() {
     let policy =
@@ -226,12 +223,6 @@ fn from_config_propagates_name_pattern_in_version_union() {
         "got: {err:?}",
     );
 }
-
-// The next two tests exercise `from_config` end-to-end: an empty Config
-// folds to the default policy (deny everything), and a Config populated by
-// `pnpm-workspace.yaml` round-trips through the same logic the in-memory
-// tests above cover. The `package.json` reader was removed in pacquet
-// pnpm/pacquet#397 item 5 — settings come from `pnpm-workspace.yaml` only.
 
 #[test]
 fn empty_config_denies_all() {

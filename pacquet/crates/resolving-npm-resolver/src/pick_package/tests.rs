@@ -78,8 +78,6 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
     }
 }
 
-/// Cold-cache pick fetches the registry, populates the in-memory
-/// cache, and returns the max satisfying version.
 #[tokio::test]
 async fn cold_pick_fetches_and_picks_max_in_range() {
     let mut server = mockito::Server::new_async().await;
@@ -120,10 +118,6 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
     assert_eq!(picked.version.to_string(), "1.1.0");
     mock.assert_async().await;
 
-    // In-memory cache populated for the next call. Key is
-    // registry-scoped (`<registry>\x00<name>`) so two registries
-    // can't contaminate each other; we just check that *some* key
-    // landed.
     let key = format!("{registry}\x00acme");
     assert!(meta_cache.get(&key).is_some(), "in-memory cache populated");
 }
@@ -164,8 +158,6 @@ async fn filtered_full_metadata_reads_pnpm_jsonl_mirror_for_lowest_pick() {
     assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
 }
 
-/// Warm in-memory cache: no network call, picker reads the cached
-/// packument directly.
 #[tokio::test]
 async fn warm_in_memory_cache_skips_network() {
     let mut server = mockito::Server::new_async().await;
@@ -180,8 +172,6 @@ async fn warm_in_memory_cache_skips_network() {
 
     let preloaded: pacquet_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
-    // Cache key is `<registry>\x00<name>` — pre-seed at the same
-    // key the orchestrator will look up on the first call.
     meta_cache.set(format!("{registry}\x00acme"), std::sync::Arc::new(preloaded));
 
     let ctx = PickPackageContext {
@@ -423,7 +413,6 @@ async fn dry_run_skips_in_memory_cache() {
     assert!(meta_cache.get(&key).is_none(), "dry_run must not poison the in-memory cache");
 }
 
-/// `pick_lowest_version=true` picks the min satisfying version.
 #[tokio::test]
 async fn pick_lowest_version_picks_min() {
     let mut server = mockito::Server::new_async().await;
@@ -762,13 +751,9 @@ async fn cache_key_separates_abbreviated_from_full() {
         retry_opts: RetryOpts::default(),
     };
 
-    // First call: default (abbreviated).
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
         .await
         .expect("first");
-    // Second call: optional=true (full). Cache key has `:full`
-    // suffix so it must NOT hit the abbreviated slot — the
-    // network mock for full must fire.
     let mut opts = default_opts(&registry);
     opts.optional = true;
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second");
@@ -1024,7 +1009,6 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
 #[tokio::test]
 async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates() {
     let mut server = mockito::Server::new_async().await;
-    // Fresh network metadata has 1.1.0 as latest.
     let network_mock = server
         .mock("GET", "/acme")
         .with_status(200)
@@ -1118,10 +1102,6 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
 #[tokio::test]
 async fn concurrent_picks_for_same_key_share_one_network_fetch() {
     let mut server = mockito::Server::new_async().await;
-    // `expect(1)` is the assertion: at most one GET reaches the
-    // registry for the 20-way concurrent fan-out below. Without the
-    // per-key serializer, all 20 would race past the empty in-memory
-    // cache and each fire its own GET.
     let mock = server
         .mock("GET", "/acme")
         .with_status(200)

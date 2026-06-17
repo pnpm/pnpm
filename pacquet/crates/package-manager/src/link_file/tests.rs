@@ -89,8 +89,7 @@ fn copy_does_not_widen_non_exec_mode() {
 }
 
 /// Hardlinking in the same directory on the same filesystem works on
-/// every mainstream OS the project supports. We verify the post-link
-/// inodes match (on unix) or that the contents match (otherwise).
+/// every mainstream OS the project supports.
 #[test]
 fn hardlink_shares_contents_with_source() {
     let tmp = tempdir().unwrap();

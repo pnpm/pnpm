@@ -114,7 +114,6 @@ async fn ssh_url_falls_back_to_git_resolution() {
         }
         other => panic!("expected Git, got {other:?}"),
     }
-    // id is git+ssh:// shaped via create_git_hosted_pkg_id.
     assert!(result.id.as_str().starts_with("git+ssh://git@example.com/org/repo.git#"));
 }
 

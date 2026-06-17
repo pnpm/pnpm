@@ -183,7 +183,7 @@ async fn should_install_dependencies() {
 
     insta::assert_debug_snapshot!(get_all_folders(&project_root));
 
-    drop((dir, mock_instance)); // cleanup
+    drop((dir, mock_instance));
 }
 
 /// A first install (no prior `.modules.yaml`, so the prune throttle
@@ -257,7 +257,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
     );
     assert!(!surplus.exists(), "the surplus virtual-store dir must be pruned on install");
 
-    drop((dir, mock_instance)); // cleanup
+    drop((dir, mock_instance));
 }
 
 /// The prune deletes directories under `virtual_store_dir`, which can be
@@ -332,7 +332,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
         "prune must be skipped when the virtual store is outside node_modules",
     );
 
-    drop((dir, mock_instance)); // cleanup
+    drop((dir, mock_instance));
 }
 
 #[tokio::test]
@@ -3120,8 +3120,8 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
 /// `write_modules_manifest`'s sort-on-write.
 ///
 /// An empty set produces an empty list — covers the fresh-install
-/// case while pinning that the field is no longer
-/// `..Default::default()`'d away from the manifest.
+/// case while pinning that the field is always present on the
+/// manifest.
 ///
 /// [`SkippedSnapshots`]: super::super::SkippedSnapshots
 /// [`PackageKey`]: pacquet_lockfile::PackageKey
@@ -5212,8 +5212,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
 /// not frozen) installs successfully and records the hoisted linker
 /// in `.modules.yaml`. With an empty manifest there is nothing to
 /// materialize, so the assertion focuses on the dispatch reaching
-/// the hoisted-linker pipeline rather than bailing — the previous
-/// hard-refusal at this site ([#11871](https://github.com/pnpm/pnpm/issues/11871)) is gone.
+/// the hoisted-linker pipeline rather than bailing.
 #[tokio::test]
 async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
     let dir = tempdir().unwrap();

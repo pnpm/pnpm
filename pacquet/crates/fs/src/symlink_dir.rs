@@ -192,7 +192,6 @@ fn force_symlink_inner(
 
     match initial_err.kind() {
         io::ErrorKind::NotFound => {
-            // Parent directory missing — `create_dir_all` and retry.
             // Wrap the mkdir failure so callers see *which* step
             // tripped, the same way pnpm's `forceSymlink` does.
             if let Some(parent) = link.parent() {
@@ -213,7 +212,6 @@ fn force_symlink_inner(
         _ => return Err(initial_err),
     }
 
-    // Path exists. Is it already a symlink pointing where we want?
     if let Ok(existing) = read_symlink_dir(link) {
         if existing_symlink_up_to_date(target, link, &existing) {
             return Ok(ForceSymlinkOutcome { reused: true, warning: None });

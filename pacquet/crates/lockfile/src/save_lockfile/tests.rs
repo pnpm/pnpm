@@ -155,7 +155,6 @@ fn workspace_lockfile_with_link_dep_round_trips() {
         serde_saphyr::from_str(WORKSPACE_YAML).expect("parse workspace lockfile");
     assert_eq!(original.importers.len(), 2);
 
-    // The `link:` dep landed in the typed enum's `Link` variant.
     let web = original.importers.get("packages/web").expect("web importer present");
     let shared_dep = web
         .dependencies
@@ -167,7 +166,6 @@ fn workspace_lockfile_with_link_dep_round_trips() {
         .expect("shared dep present");
     assert_eq!(shared_dep.version.as_link_target(), Some("../shared"));
 
-    // Save and reparse — the `link:` value must round-trip unchanged.
     let tmp = tempdir().expect("create tempdir");
     let path = tmp.path().join("pnpm-lock.yaml");
     original.save_to_path(&path).expect("save lockfile");
@@ -322,9 +320,6 @@ fn save_fails_with_wrapped_io_error_when_path_is_invalid() {
     );
 }
 
-/// `write_current` creates the virtual-store directory if needed and
-/// reading it back yields the same lockfile. Verifies the read/write
-/// round-trip across the new `lock.yaml` path.
 #[test]
 fn write_current_round_trips_through_read_current() {
     let original: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");

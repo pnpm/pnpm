@@ -33,7 +33,6 @@ be127be1d98cad94c56f46245d0f2de89934d300028694456861a6d5ac558bf3  foo.msi
     );
 }
 
-/// Empty lines anywhere in the body are dropped.
 #[test]
 fn skips_empty_lines() {
     let body = "\n\nabc def\n";

@@ -56,8 +56,6 @@ fn registry_resolution_full_pkg_id_uses_integrity_verbatim() {
 
     let graph = build_deps_graph(&snapshots, &packages);
     let node = graph.get(&pkg).expect("graph node");
-    // `PackageKey`'s `Display` impl renders `<name>@<ver>`; the
-    // `full_pkg_id` prefixes that with the integrity verbatim.
     let expected_prefix = "@scope/foo@1.0.0:sha512-";
     assert!(
         node.full_pkg_id.starts_with(expected_prefix),

@@ -193,7 +193,6 @@ async fn verifies_tarball_url_when_no_policy_active() {
         .with_body(packument.to_string())
         .create_async()
         .await;
-    // No minimumReleaseAge, no trustPolicy.
     let opts = default_opts(&registry);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Tarball(TarballResolution {

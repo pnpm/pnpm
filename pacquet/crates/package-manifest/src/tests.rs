@@ -180,7 +180,6 @@ fn resolve_registry_dependency_handles_pinned_version() {
 
 #[test]
 fn resolve_registry_dependency_unversioned_npm_alias_defaults_to_latest() {
-    // `npm:foo` and `npm:@scope/foo` mean "latest" in pnpm.
     assert_eq!(
         PackageManifest::resolve_registry_dependency("foo-cjs", "npm:foo"),
         ("foo", "latest"),
@@ -201,8 +200,6 @@ fn resolve_registry_dependency_picks_last_at_for_alias() {
     );
 }
 
-/// `devEngines.runtime` with `onFail: "download"` and an explicit
-/// version is reified into `devDependencies` as `runtime:<version>`.
 /// This is the v11 install path: a manifest that declares its node
 /// version through `devEngines.runtime` must produce the same flat-
 /// record specifier set as the lockfile entry the resolver wrote.
@@ -224,8 +221,8 @@ fn convert_engines_runtime_lifts_devengines_runtime_into_devdependencies() {
     );
 }
 
-/// Skip when no `version` is set. Upstream warns and skips; pacquet
-/// skips silently. The staleness check still surfaces the gap.
+/// Upstream warns and skips; pacquet skips silently. The staleness
+/// check still surfaces the gap.
 /// Mirrors upstream's
 /// [`convertEnginesRuntimeToDependencies() skips runtime entries without a version`](https://github.com/pnpm/pnpm/blob/9cad8274fd/pkg-manifest/utils/test/convertEnginesRuntimeToDependencies.test.ts#L8-L21).
 #[test]
@@ -242,7 +239,6 @@ fn convert_engines_runtime_skips_entries_without_a_version() {
     assert!(manifest.get("devDependencies").is_none(), "manifest: {manifest}");
 }
 
-/// Skip when `onFail` is anything other than `"download"` (or absent).
 /// Upstream gates the runtime reification on that flag, so an `error`
 /// or `warn` setup must not silently morph into a `runtime:` dep.
 #[test]
@@ -290,9 +286,6 @@ fn convert_engines_runtime_preserves_explicit_user_dep() {
     );
 }
 
-/// `devEngines.runtime` accepts an array of entries (one per runtime
-/// alias). Each `RUNTIME_NAMES` entry is matched by `name` and reified
-/// independently — `node` and `bun` together is a valid declaration.
 #[test]
 fn convert_engines_runtime_handles_array_form_with_multiple_runtimes() {
     let mut manifest = json!({
@@ -384,7 +377,6 @@ fn from_path_errors_no_importer_when_missing() {
 fn add_dependency_errors_when_field_is_not_an_object() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json");
-    // Pre-seed `dependencies` as a string instead of an object.
     let raw = json!({
         "name": "fixture",
         "version": "1.0.0",
@@ -415,10 +407,6 @@ fn manifest_from_json(value: serde_json::Value) -> (PackageManifest, tempfile::T
     (PackageManifest::from_path(path).unwrap(), dir)
 }
 
-/// Without a `save_type`, `available_dependency_names` reports the union
-/// of `dependencies`, `devDependencies`, and `optionalDependencies`
-/// (peer excluded) in dev → prod → optional order, deduplicated — the
-/// set `pnpm remove` validates against.
 #[test]
 fn available_dependency_names_unions_all_fields_without_save_type() {
     let (manifest, _dir) = manifest_from_json(json!({
@@ -438,7 +426,6 @@ fn available_dependency_names_unions_all_fields_without_save_type() {
     );
 }
 
-/// With a `save_type`, only that field's keys are reported.
 #[test]
 fn available_dependency_names_restricts_to_save_type() {
     let (manifest, _dir) = manifest_from_json(json!({
@@ -451,8 +438,6 @@ fn available_dependency_names_restricts_to_save_type() {
     );
 }
 
-/// Without a `save_type`, `remove_dependencies` drops the name from every
-/// dependency field, including `peerDependencies` and `dependenciesMeta`.
 /// Mirrors pnpm's `removeDeps`.
 #[test]
 fn remove_dependencies_clears_all_fields_without_save_type() {
@@ -525,7 +510,6 @@ fn convert_engines_ignores_non_array_non_object_runtime_entries() {
     let mut manifest = json!({
         "name": "x",
         "version": "1.0.0",
-        // `runtime` is a bare string — neither an object nor an array.
         "devEngines": { "runtime": "not-supported" },
     });
     let before = manifest.clone();

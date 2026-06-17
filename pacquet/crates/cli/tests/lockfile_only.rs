@@ -61,7 +61,6 @@ fn writes_lockfile_without_downloading_or_linking() {
 
     pacquet.with_args(["install", "--lockfile-only"]).assert().success();
 
-    // `pnpm-lock.yaml` records the direct dep and its transitive dep.
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
@@ -77,7 +76,6 @@ fn writes_lockfile_without_downloading_or_linking() {
         "lockfile must record the transitive dependency:\n{lockfile}",
     );
 
-    // Nothing materialized: no `node_modules`, no tarball in the store.
     assert!(
         !workspace.join("node_modules").exists(),
         "node_modules must not be created by --lockfile-only",

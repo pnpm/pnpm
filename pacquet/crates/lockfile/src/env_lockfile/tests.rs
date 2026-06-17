@@ -87,7 +87,6 @@ fn write_preserves_existing_main_document() {
     assert!(extract_env_document(&raw).is_some());
     assert!(raw.contains("is-odd:"), "main document content must survive the env write");
 
-    // The main loader strips the env document and reads the project lockfile.
     let loaded =
         Lockfile::load_wanted_from_dir(dir.path()).unwrap().expect("main lockfile present");
     assert!(loaded.root_project().is_some());

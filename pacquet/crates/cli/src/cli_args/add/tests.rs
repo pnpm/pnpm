@@ -7,7 +7,6 @@ fn dependency_options_to_dependency_groups() {
     use DependencyGroup::{Dev, Optional, Peer, Prod};
     let create_list = |opts: AddDependencyOptions| opts.dependency_groups().collect::<Vec<_>>();
 
-    // no flags -> prod
     assert_eq!(
         create_list(AddDependencyOptions {
             save_prod: false,
@@ -18,7 +17,6 @@ fn dependency_options_to_dependency_groups() {
         [Prod],
     );
 
-    // --save-prod -> prod
     assert_eq!(
         create_list(AddDependencyOptions {
             save_prod: true,
@@ -29,7 +27,6 @@ fn dependency_options_to_dependency_groups() {
         [Prod],
     );
 
-    // --save-dev -> dev
     assert_eq!(
         create_list(AddDependencyOptions {
             save_prod: false,
@@ -40,7 +37,6 @@ fn dependency_options_to_dependency_groups() {
         [Dev],
     );
 
-    // --save-optional -> optional
     assert_eq!(
         create_list(AddDependencyOptions {
             save_prod: false,
@@ -51,7 +47,6 @@ fn dependency_options_to_dependency_groups() {
         [Optional],
     );
 
-    // --save-peer -> dev + peer
     assert_eq!(
         create_list(AddDependencyOptions {
             save_prod: false,
@@ -62,7 +57,6 @@ fn dependency_options_to_dependency_groups() {
         [Dev, Peer],
     );
 
-    // --save-prod --save-peer -> prod + peer
     assert_eq!(
         create_list(AddDependencyOptions {
             save_prod: true,
@@ -73,7 +67,6 @@ fn dependency_options_to_dependency_groups() {
         [Prod, Peer],
     );
 
-    // --save-dev --save-peer -> dev + peer
     assert_eq!(
         create_list(AddDependencyOptions {
             save_prod: false,
@@ -84,7 +77,6 @@ fn dependency_options_to_dependency_groups() {
         [Dev, Peer],
     );
 
-    // --save-optional --save-peer -> optional + peer
     assert_eq!(
         create_list(AddDependencyOptions {
             save_prod: false,

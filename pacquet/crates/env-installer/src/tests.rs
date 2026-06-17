@@ -248,7 +248,6 @@ async fn records_optional_subdeps_with_platform_fields() {
         .expect("optional subdeps recorded");
     assert_eq!(optionals.len(), 8, "all eight platform variants are recorded");
 
-    // Every recorded subdep keeps its platform fields in `packages:`.
     let only_linux = "@pnpm.e2e/only-linux-x64-glibc@1.0.0".parse().unwrap();
     let metadata = env.packages.get(&only_linux).expect("platform subdep recorded in packages");
     assert_eq!(metadata.os.as_deref(), Some(["linux".to_string()].as_slice()));
@@ -565,7 +564,6 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     )
     .await
     .unwrap();
-    // Everything is already in place — no events on the second install.
     let second = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
     assert!(second.is_empty(), "a no-op install emits nothing: {second:?}");
 }

@@ -109,7 +109,6 @@ pub struct UpdateArgs {
 }
 
 impl UpdateArgs {
-    /// Execute the subcommand.
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,

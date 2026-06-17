@@ -364,10 +364,8 @@ fn bundle_dependencies_rejects_path_traversal() {
 
 #[test]
 fn always_excluded_dir_segments_only_match_vcs() {
-    // Regression for the over-eager segment walk that used to match
-    // anything in `ALWAYS_EXCLUDED_NAMES` at any depth — including
-    // file-typed entries (`.npmrc`, `package-lock.json`). A literal
-    // VCS dir segment still excludes everything under it.
+    // A literal VCS dir segment excludes everything under it, but a
+    // file whose basename merely contains a VCS name is not excluded.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
@@ -401,8 +399,7 @@ fn files_field_bare_basename_matches_at_depth() {
     // pattern, so it matches both root-level `cli` and a nested
     // `bin/cli`. The `Gitignore::matched` call already handles this
     // because gitignore patterns without a leading slash are
-    // unanchored — drop the previously-present leaf fallback once
-    // this test pins the behavior.
+    // unanchored.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
@@ -480,10 +477,9 @@ fn bundle_dependencies_self_cycle_is_caught() {
 
 #[test]
 fn main_field_pointing_at_always_excluded_basename_is_refused() {
-    // Regression: pass 3 force-includes `main` / `bin` only after
-    // running them through `should_always_exclude`. A manifest with
-    // `"main": "package-lock.json"` previously would have re-added
-    // the lockfile despite the basename-cruft filter.
+    // Pass 3 force-includes `main` / `bin` only after running them
+    // through `should_always_exclude`, so the always-excluded set wins
+    // over a `"main": "package-lock.json"`.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");

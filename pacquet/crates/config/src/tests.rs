@@ -601,12 +601,10 @@ pub fn auth_ini_without_registry_falls_back_to_npmjs_default() {
 
 /// `default_store_dir`'s `PNPM_HOME` branch, exercised through the
 /// generic capability seam — no process-environment mutation, no
-/// `EnvGuard` lock, no `unsafe` block. The earlier shape of this
-/// test set `PNPM_HOME` via `std::env::set_var` and called
-/// `Config::new()`; with the DI seam from pnpm/pacquet#339 +
-/// pnpm/pnpm#11708 the same precedence is checked by passing a
-/// per-test unit struct that satisfies [`EnvVar`], [`GetHomeDir`],
-/// and [`GetCurrentDir`].
+/// `EnvGuard` lock, no `unsafe` block. With the DI seam from
+/// pnpm/pacquet#339 + pnpm/pnpm#11708 the precedence is checked by
+/// passing a per-test unit struct that satisfies [`EnvVar`],
+/// [`GetHomeDir`], and [`GetCurrentDir`].
 ///
 /// The `home_dir` and `current_dir` capability impls both call
 /// `unreachable!` because `default_store_dir` short-circuits on
@@ -717,7 +715,6 @@ pub fn fetch_retry_keys_in_npmrc_are_ignored() {
 #[test]
 pub fn test_current_folder_for_invalid_npmrc() {
     let tmp = tempdir().unwrap();
-    // write invalid utf-8 value to npmrc
     fs::write(tmp.path().join(".npmrc"), b"Hello \xff World").expect("write to .npmrc");
     let config =
         Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
@@ -1039,9 +1036,7 @@ pub fn workspace_subdir_anchors_modules_at_workspace_root() {
 ///
 /// [`HostNoHome`] already pins the `NPM_CONFIG_WORKSPACE_DIR`
 /// lookup to `None`, so the test never reads the host's real
-/// environment. Replaces the earlier shape that snapshotted both
-/// spellings of the env variable through `EnvGuard` and called
-/// `unsafe { env::remove_var(...) }`.
+/// environment.
 #[test]
 pub fn single_project_anchors_modules_at_cwd() {
     let tmp = tempdir().unwrap();
@@ -1056,8 +1051,7 @@ pub fn single_project_anchors_modules_at_cwd() {
 /// virtual store would land in the cwd while the per-importer
 /// `SymlinkDirectDependencies` writes land under the env-var
 /// path, producing two `node_modules` layouts for the same
-/// install. Matches the consistency guarantee Copilot flagged
-/// during PR [#443](https://github.com/pnpm/pacquet/pull/443) review.
+/// install. See PR [#443](https://github.com/pnpm/pacquet/pull/443).
 ///
 /// Exercises the [`EnvVarOs`] DI seam: a per-test fake returns the
 /// `env_workspace` path for the `NPM_CONFIG_WORKSPACE_DIR` lookup.

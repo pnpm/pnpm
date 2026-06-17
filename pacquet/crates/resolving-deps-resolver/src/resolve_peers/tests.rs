@@ -36,7 +36,6 @@ fn satisfies_accepts_prerelease_against_non_prerelease_range() {
     // pairing, so the prerelease-strip retry has to catch it.
     assert!(satisfies_with_prereleases("18.0.0-rc.1", "^18.0.0"));
     assert!(satisfies_with_prereleases("1.2.3-beta.0", "^1.2.0"));
-    // Out-of-range prereleases still fail.
     assert!(!satisfies_with_prereleases("19.0.0-rc.1", "^18.0.0"));
 }
 

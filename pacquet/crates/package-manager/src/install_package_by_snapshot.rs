@@ -433,10 +433,6 @@ impl InstallPackageBySnapshot<'_> {
                 .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
                 output.files_map
             }
-            // Slice A of <https://github.com/pnpm/pacquet/issues/437> wires the lockfile types; the install
-            // dispatch for `Binary` / `Variations` lands in Slice D.
-            // Until then, surface the kind via the typed
-            // `UnsupportedResolution` error so a v11 lockfile with a
             // Runtime artifacts (Node.js / Bun / Deno) — `Binary`
             // and `Variations` carry a `BinaryResolution` describing
             // the archive to fetch. `Variations` is the multi-
@@ -750,12 +746,6 @@ fn archive_filter_for(package_key: &PackageKey) -> Option<Arc<IgnoreEntryFilter>
 ///   archive's top-level wrapper (e.g.
 ///   `node-v22.0.0-darwin-arm64/`) is stripped before the CAS keys
 ///   are written.
-///
-/// The Node-runtime `NODE_EXTRAS_IGNORE_PATTERN` filter that strips
-/// bundled `npm` / `corepack` from the archive will land in Slice
-/// D2; for now the filter slot stays `None` and the full archive
-/// contents are imported. Bin-link cmd-shims for the runtime
-/// executables likewise wait for Slice D2.
 #[expect(
     clippy::too_many_arguments,
     reason = "matches the field set DownloadTarballToStore / DownloadZipArchiveToStore need"

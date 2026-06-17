@@ -180,9 +180,7 @@ pub fn transcode_to_plain_msgpack(bytes: &[u8]) -> Result<Vec<u8>, DecodeError> 
 ///
 /// Slot schemas live under `Rc<[String]>` so reference-path decoding
 /// can bump a refcount instead of deep-cloning the field-name vector
-/// on every record instance. A row with 200 files used to allocate
-/// 200 `Vec<String>`s plus one `String` per field name per clone; now
-/// it allocates once at definition time.
+/// on every record instance.
 #[derive(Default)]
 struct TranscodeState {
     slots: HashMap<u8, Rc<[String]>>,

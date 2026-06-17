@@ -1,9 +1,10 @@
 //! Multi-importer fresh-resolve coverage for `pacquet install` in a
 //! `pnpm-workspace.yaml` monorepo.
 //!
-//! Issue [#11901](https://github.com/pnpm/pnpm/issues/11901): before
-//! the fix, only the workspace root manifest got walked, so sibling
-//! projects' deps never landed in the lockfile or on disk. This test
+//! Regression test for issue
+//! [#11901](https://github.com/pnpm/pnpm/issues/11901), where only the
+//! workspace root manifest got walked, so sibling projects' deps never
+//! landed in the lockfile or on disk. This test
 //! installs a two-project workspace from scratch (no lockfile, no
 //! `--frozen-lockfile`) and asserts every importer has its own
 //! lockfile entry, every direct dep is symlinked under each
@@ -81,8 +82,6 @@ fn fresh_resolve_walks_every_workspace_importer() {
     // lockfile → fresh-resolve path.
     pacquet.with_arg("install").assert().success();
 
-    // Each sibling has its own direct-dep symlink. Before the fix,
-    // these were absent because pacquet only walked the root.
     let a_dep = workspace.join("packages/a/node_modules/@pnpm.e2e/hello-world-js-bin-parent");
     assert!(
         is_symlink_or_junction(&a_dep).expect("query packages/a symlink"),
@@ -105,8 +104,6 @@ fn fresh_resolve_walks_every_workspace_importer() {
         "hello-world-js-bin virtual-store entry missing",
     );
 
-    // Lockfile records every importer. Before the fix, only `.`
-    // appeared.
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
@@ -139,11 +136,7 @@ fn fresh_resolve_walks_every_workspace_importer() {
 /// same workspace package via `workspace:*`, each importer's resolved
 /// `link:` target is relative to *its own* directory — pnpm writes
 /// `link:packages/lib` for the root and `link:../lib` for
-/// `packages/app`. A prior bug seeded pacquet's workspace-wide
-/// resolution cache with the first importer's relative path and reused
-/// it for every other importer, so `packages/app` got the root's
-/// `link:packages/lib` and its symlink dangled at
-/// `packages/app/packages/lib`.
+/// `packages/app`.
 #[test]
 fn shared_workspace_dep_link_is_relative_to_each_importer() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

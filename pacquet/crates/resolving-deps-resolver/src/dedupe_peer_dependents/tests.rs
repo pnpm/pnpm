@@ -234,7 +234,6 @@ fn direct_dep_collapses_but_parent_edge_keeps_incompatible_peer_variant() {
 #[test]
 fn incompatible_variants_do_not_collapse() {
     let mut graph = build_graph();
-    // Drop the subset so only the two incompatible variants remain.
     graph.remove(&dp(SUBSET));
 
     let mut direct: DirectByImporter = BTreeMap::new();

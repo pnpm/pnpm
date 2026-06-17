@@ -340,12 +340,10 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
 }
 
 /// An empty `importers` map is a valid (if degenerate) lockfile —
-/// nothing to link, no events emitted, no error. After per-importer
-/// iteration landed for [#431], the old "missing root importer is a
-/// hard error" contract is gone: each importer is now installed
-/// independently, and a lockfile with zero importers simply produces
-/// zero pnpm:root events. Pin this so the iteration loop never
-/// regresses into requiring a root.
+/// nothing to link, no events emitted, no error. Each importer is
+/// installed independently ([#431]), so a lockfile with zero
+/// importers produces zero pnpm:root events; pin this so the
+/// iteration loop never regresses into requiring a root.
 ///
 /// [#431]: https://github.com/pnpm/pacquet/issues/431
 #[test]

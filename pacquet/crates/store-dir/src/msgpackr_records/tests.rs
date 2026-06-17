@@ -521,9 +521,8 @@ fn encode_side_effects_roundtrip() {
 #[test]
 fn encode_side_effects_with_only_added_omits_deleted_field() {
     // A `SideEffectsDiff` with `deleted: None` must not emit a
-    // `deleted` field name in the record schema. This is the case
-    // Copilot flagged: the fixed-schema encoder used to write
-    // `deleted: nil` here, producing a JS shape (`{ added, deleted:
+    // `deleted` field name in the record schema. Emitting
+    // `deleted: nil` would produce a JS shape (`{ added, deleted:
     // null }`) different from what msgpackr itself produces for
     // the same Rust input (`{ added }`).
     let mut added = HashMap::new();
@@ -598,8 +597,7 @@ fn allocate_slot_returns_error_past_0x7f() {
 }
 
 /// A `manifest: Some(_)` must round-trip through encode →
-/// transcode → `rmp_serde::from_slice` unchanged. This is the basic
-/// "the encoder doesn't drop or mangle JSON values" smoke test.
+/// transcode → `rmp_serde::from_slice` unchanged.
 #[test]
 fn encode_roundtrips_simple_manifest() {
     let manifest = serde_json::json!({

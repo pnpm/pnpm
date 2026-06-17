@@ -90,11 +90,7 @@ fn build_resolver(
 
 #[tokio::test]
 async fn resolves_via_builtin_gh_alias() {
-    // The `gh:` alias is built in; configure a mock server and tell
-    // `merge_named_registries` to redirect `gh` at it. Mirrors
-    // upstream's first test in `resolveNamedRegistry.test.ts` —
-    // confirms the resolver picks up the built-in entry without the
-    // user having to declare it.
+    // Mirrors upstream's first test in `resolveNamedRegistry.test.ts`.
     let mut server = mockito::Server::new_async().await;
     let _mock = server
         .mock("GET", "/@acme%2Fprivate")
@@ -122,12 +118,8 @@ async fn resolves_via_builtin_gh_alias() {
 
 #[tokio::test]
 async fn preserves_scoped_pkg_name_when_alias_differs() {
-    // `my-private` is the local manifest alias; the registry serves
-    // the package under `@acme/private`. The resolver records the
-    // resolution under the registry name so the lockfile / install
-    // tree match how the package is published. Mirrors upstream's
-    // "preserves the scoped package name when the alias is a
-    // different name" test.
+    // Mirrors upstream's "preserves the scoped package name when the
+    // alias is a different name" test.
     let mut server = mockito::Server::new_async().await;
     let _mock = server
         .mock("GET", "/@acme%2Fprivate")
@@ -158,8 +150,7 @@ async fn preserves_scoped_pkg_name_when_alias_differs() {
 
 #[tokio::test]
 async fn user_config_overrides_builtin_gh_alias() {
-    // GHES users point `gh` at their enterprise host. The user-
-    // supplied entry overrides the built-in default. Mirrors
+    // GHES users point `gh` at their enterprise host. Mirrors
     // upstream's "allows user config to override the built-in gh
     // alias (GHES)" test.
     let mut server = mockito::Server::new_async().await;
@@ -208,8 +199,6 @@ async fn resolves_user_defined_named_registry() {
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
     assert_eq!(result.resolved_via, "named-registry");
     assert_eq!(result.id.as_str(), "@acme/private@2.1.0");
-    // The resolver records the dependency under the scoped package
-    // name the registry serves, not the local alias.
     assert_eq!(result.alias.as_deref(), Some("@acme/private"));
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
 }

@@ -199,7 +199,6 @@ async fn all_ok_emits_started_then_done() {
     }
 
     let lockfile = parse(SINGLE_PKG_LOCKFILE);
-    // Verifier that always returns Ok.
     let verifier = FailFor::new("UNUSED", "n/a", vec![]);
     let lockfile_path = Path::new("/p/lock.yaml");
     let opts = VerifyLockfileResolutionsOptions {

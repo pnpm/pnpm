@@ -114,8 +114,6 @@ fn version_scoped_target_only_matches_intersecting_range() {
     );
 }
 
-/// Parent-scoped overrides only fire when the *manifest's* name (and,
-/// if specified, version) matches the `parentPkg` half.
 #[test]
 fn parent_scoped_override_only_fires_on_matching_parent() {
     let overrides = parsed(&[("parent>foo", "9.9.9")]);
@@ -178,7 +176,6 @@ fn parent_scoped_override_takes_precedence_over_generic() {
     );
 }
 
-/// A `link:` override against an absolute path is written verbatim.
 #[test]
 fn link_protocol_override_absolute_path_written_verbatim() {
     let abs = if cfg!(windows) { r"C:\workspace\local-foo" } else { "/tmp/local-foo" };
@@ -203,11 +200,6 @@ fn link_protocol_override_absolute_path_written_verbatim() {
     assert_eq!(stripped, normalized_abs);
 }
 
-/// A `link:` override given as a relative path is anchored against
-/// the rootDir at construction time and re-relativized against the
-/// importing package's `pkg_dir` on apply. For the root manifest
-/// where `pkg_dir == root_dir`, the result is the same string the
-/// user wrote.
 #[test]
 fn link_protocol_override_relative_path_reanchored_against_pkg_dir() {
     let overrides = parsed(&[("foo", "link:./local-foo")]);
@@ -242,7 +234,6 @@ fn file_protocol_override_rewrites_with_file_prefix() {
     assert!(rewritten.contains("vendor/foo"), "got {rewritten}");
 }
 
-/// No-op: with no overrides, the manifest passes through unchanged.
 #[test]
 fn empty_overrides_leaves_manifest_untouched() {
     let overrides = parsed(&[]);
@@ -259,8 +250,8 @@ fn empty_overrides_leaves_manifest_untouched() {
     assert_eq!(manifest.value(), &before);
 }
 
-/// Override target that the manifest doesn't list: no-op (nothing to
-/// add — upstream's hook only rewrites *existing* dep entries).
+/// Upstream's hook only rewrites *existing* dep entries, so an
+/// override for a dep the manifest doesn't list is a no-op.
 #[test]
 fn override_for_missing_dep_does_not_add_entry() {
     let overrides = parsed(&[("foo", "1.0.0")]);

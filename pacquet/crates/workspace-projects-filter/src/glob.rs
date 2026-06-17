@@ -36,7 +36,6 @@ fn match_segments(pattern: &[&str], candidate: &[&str]) -> bool {
     match pattern.split_first() {
         None => candidate.is_empty(),
         Some((&"**", rest)) => {
-            // Globstar matches zero or more whole segments.
             (0..=candidate.len()).any(|skip| match_segments(rest, &candidate[skip..]))
         }
         Some((&segment, rest)) => match candidate.split_first() {

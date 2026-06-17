@@ -8,16 +8,6 @@
 //! ([`getInfoFromLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1199-L1248));
 //! pacquet ports that so a re-install with the registry gone still
 //! succeeds for the unchanged subtree.
-//!
-//! The proof, modeled on `tarball_url_dependency.rs`'s
-//! `remote_tarball_reresolves_from_warm_store_without_refetch`: a fresh
-//! install against the live mock registry warms the store and records
-//! the lockfile (a direct dep plus its one transitive dep); the registry
-//! is then repointed at a dead port; finally a non-frozen install — which
-//! goes through the fresh-lockfile resolution path because the manifest
-//! changed — must succeed. It can only succeed by reusing the unchanged
-//! subtree from the lockfile, because re-resolving either package would
-//! hit the dead registry and fail.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -115,10 +105,6 @@ fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
 /// The discriminating test above proves reuse *fires*; this proves it's
 /// *correct* — that reusing an unchanged subtree yields the same tree a
 /// fresh resolve would, so reuse can never silently drift the resolution.
-/// Reaching the same final manifest two ways:
-///   A. install `pkg-with-1-dep`, then add `foo` — the second install
-///      reuses `pkg-with-1-dep`'s subtree and resolves only `foo`;
-///   B. install both from scratch — no prior lockfile, nothing reused.
 ///
 /// Compared **byte-for-byte**: the writer sorts every lockfile map by its
 /// rendered key (matching pnpm's
@@ -134,7 +120,6 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
     })
     .to_string();
 
-    // Scenario A: reuse path.
     let reused = CommandTempCwd::init().add_mocked_registry();
     let reused_manifest = reused.workspace.join("package.json");
     fs::write(
@@ -149,7 +134,6 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
     let reused_lockfile =
         fs::read_to_string(reused.workspace.join("pnpm-lock.yaml")).expect("read reused lockfile");
 
-    // Scenario B: fresh resolve of the same final manifest.
     let fresh = CommandTempCwd::init().add_mocked_registry();
     fs::write(fresh.workspace.join("package.json"), &both).expect("write the fresh manifest");
     pacquet_at(&fresh.workspace).with_arg("install").assert().success();
@@ -166,10 +150,10 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
 }
 
 /// Re-installing an unchanged manifest must leave `pnpm-lock.yaml`
-/// byte-identical. Before the lockfile maps were sorted at emit time, the
-/// `importers` / `packages` / `snapshots` / dependency maps serialized in
-/// `HashMap` iteration order — a per-instance random seed — so a no-op
-/// re-install could reorder the file and produce a spurious git diff
+/// byte-identical: the lockfile maps are sorted at emit time, so the
+/// `importers` / `packages` / `snapshots` / dependency maps don't
+/// serialize in `HashMap` iteration order and a no-op re-install can't
+/// reorder the file into a spurious git diff
 /// ([#12117](https://github.com/pnpm/pnpm/issues/12117)). The manifest
 /// carries several dependencies so at least one map holds multiple keys,
 /// giving order a chance to differ.

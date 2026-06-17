@@ -22,7 +22,7 @@ fn should_create_package_json() {
     eprintln!("Created files");
     assert_eq!(get_filenames_in_folder(&workspace), ["package.json"]);
 
-    drop(root); // cleanup
+    drop(root);
 }
 
 #[test]
@@ -45,5 +45,5 @@ fn should_throw_on_existing_file() {
     eprintln!("Stderr");
     insta::assert_snapshot!(String::from_utf8_lossy(&output.stderr).trim_end());
 
-    drop(root); // cleanup
+    drop(root);
 }

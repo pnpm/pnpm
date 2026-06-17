@@ -162,8 +162,7 @@ new file mode 100644
 ///
 /// The patch context here is the U+FFFD chars themselves, so we
 /// can construct a real patch that applies cleanly against the
-/// lossy-decoded target. Flagged by Copilot during review of
-/// pacquet#427.
+/// lossy-decoded target.
 #[test]
 fn modify_target_with_invalid_utf8_bytes_does_not_error() {
     let patched = tempdir().unwrap();
@@ -190,8 +189,7 @@ diff --git a/blob.txt b/blob.txt
 
 /// `..` in a patch path is rejected — a malicious or
 /// misconfigured patch must not be able to read/write/delete
-/// outside `patched_dir`. `CodeRabbit` flagged this as Critical
-/// during review of pacquet#427.
+/// outside `patched_dir`.
 #[test]
 fn parent_dir_segment_in_modify_errors() {
     let patched = tempdir().unwrap();
@@ -259,8 +257,7 @@ deleted file mode 100644
 }
 
 /// `Create` refuses to overwrite an existing file. Matches `patch`
-/// and `git apply` semantics for `--- /dev/null` hunks. Flagged by
-/// Copilot during review of pacquet#427.
+/// and `git apply` semantics for `--- /dev/null` hunks.
 #[test]
 fn create_on_existing_file_errors() {
     let patched = tempdir().unwrap();
@@ -289,8 +286,7 @@ new file mode 100644
 
 /// `Delete` validates hunks before unlinking. A stale patch (one
 /// whose `-` lines don't match the actual file content) must NOT
-/// silently remove the file. Flagged by Copilot during review of
-/// pacquet#427.
+/// silently remove the file.
 #[test]
 fn delete_with_mismatching_hunks_errors_without_unlinking() {
     let patched = tempdir().unwrap();
@@ -516,14 +512,9 @@ diff --git a/file.txt b/file.txt
 /// addressable store into `node_modules/.pnpm/<slot>/node_modules/<pkg>`,
 /// so a plain truncating `fs::write` on the patched target would
 /// silently corrupt the store copy and leak patched content into every
-/// sibling snapshot that shares the same store inode. The fix is to
-/// unlink the target before writing — the rewritten file gets a fresh
-/// inode and the other hardlinks (the store, sibling snapshots) keep
-/// the original content. This was the root cause of the
-/// `error applying hunk #1` failure reported against pacquet's
-/// configDependencies preview engine for `msw@2.12.14`: worker A
-/// patched its slot's hardlink, mutating the store, and worker B
-/// then read already-patched content from its own hardlinked slot.
+/// sibling snapshot that shares the same store inode. The rewrite gives
+/// the target a fresh inode so the other hardlinks (the store, sibling
+/// snapshots) keep the original content.
 #[cfg(unix)]
 #[test]
 fn modify_does_not_mutate_hardlinked_store_file() {
@@ -594,8 +585,6 @@ fn modify_preserves_executable_mode() {
 /// with its original content. Mirrors the crash-safety guarantee of
 /// the atomic-replace pattern in
 /// [`pacquet_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs).
-/// `CodeRabbit` flagged the prior `unlink → write` ordering as a
-/// data-loss risk during review of pnpm/pnpm#11782.
 #[cfg(unix)]
 #[test]
 fn modify_does_not_destroy_target_on_write_failure() {

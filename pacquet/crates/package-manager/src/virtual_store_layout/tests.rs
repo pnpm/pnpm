@@ -22,9 +22,8 @@ fn make_config(gvs: bool, virtual_store_dir: PathBuf, gvs_dir: PathBuf) -> Confi
     config
 }
 
-/// With GVS off, the layout reproduces today's flat-name layout
-/// (`<virtual_store_dir>/<flat-name>`) — proving the helper is a
-/// drop-in for the legacy path.
+/// With GVS off, the layout produces the flat-name layout
+/// (`<virtual_store_dir>/<flat-name>`).
 #[test]
 fn slot_dir_uses_flat_name_when_gvs_off() {
     let config = make_config(
@@ -84,7 +83,6 @@ fn slot_dir_uses_gvs_layout_when_gvs_on() {
         None,
     );
     let slot = layout.slot_dir(&key);
-    // Shape: `/tmp/store/links/@scope/foo/1.2.3/<64-hex>`.
     let stripped = slot
         .strip_prefix("/tmp/store/links/@scope/foo/1.2.3/")
         .expect("slot dir must live under <root>/<scope>/<name>/<version>/ when GVS is on");

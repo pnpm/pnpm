@@ -611,8 +611,6 @@ fn pick_rejects_default_variant_for_musl_host() {
 /// (e.g., listing a preferred build before a fallback).
 #[test]
 fn pick_returns_first_when_multiple_variants_match() {
-    // Both variants list the same darwin-arm64 target. The first one
-    // is identified by its URL via the inner `BinaryResolution`.
     let variants = vec![
         variant("first-darwin-arm64", vec![target("darwin", "arm64", None)]),
         variant("second-darwin-arm64", vec![target("darwin", "arm64", None)]),

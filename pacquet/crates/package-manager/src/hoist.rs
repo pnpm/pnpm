@@ -312,15 +312,13 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
         let node = &input.graph[node_id];
         entries.push(BfsEntry {
             depth,
-            // Stringifying the node id matches the previous
-            // implementation's lex-on-formatted-key tiebreaker so
-            // sort output stays byte-identical. `PackageKey` itself
-            // doesn't impl `Ord` (lockfile-crate types deliberately
-            // don't carry semantic ordering), and switching to
-            // component-wise lex would diverge from the old order
-            // for scoped names. The dominant per-node cost is the
-            // children HashMap, which is now borrowed; this single
-            // String per node is the cheap part.
+            // Stringify the node id for a lex-on-formatted-key
+            // tiebreaker. `PackageKey` itself doesn't impl `Ord`
+            // (lockfile-crate types deliberately don't carry semantic
+            // ordering), and component-wise lex would diverge for
+            // scoped names. The dominant per-node cost is the children
+            // HashMap, which is borrowed; this single String per node
+            // is the cheap part.
             sort_key: node_id.to_string(),
             children: &node.children,
         });
@@ -438,11 +436,10 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
 /// Internal BFS row. `children` borrows from the input graph (or the
 /// importer's direct-deps map for the depth=-1 pseudo-nodes) so the
 /// BFS allocates one `Vec<BfsEntry>` plus the `visited`/`queue`
-/// collections — no per-node `HashMap` clones, which was the dominant
-/// allocation hotspot pre-optimization. `sort_key` is still a
+/// collections — no per-node `HashMap` clones. `sort_key` is a
 /// `String` because `PackageKey` doesn't carry an `Ord` impl that
-/// would match the old `to_string()` lex order; that single
-/// allocation per node is cheap relative to what was a `HashMap` clone.
+/// would match the `to_string()` lex order; that single allocation
+/// per node is cheap relative to a `HashMap` clone.
 struct BfsEntry<'a> {
     depth: i32,
     sort_key: String,
@@ -476,10 +473,9 @@ struct BfsEntry<'a> {
 ///    pair plus the set of scope-dir parents (`<root>/@scope`)
 ///    needed by scoped aliases.
 /// 2. `create_dir_all` the two hoisted-modules roots and each
-///    distinct scope dir — once per dir, not per symlink. The
-///    previous version called `create_dir_all` inside
-///    [`crate::symlink_package()`] on every symlink, so a 1k-alias install
-///    paid 1k redundant stats on the same handful of parents.
+///    distinct scope dir — once per dir, not per symlink, so a
+///    1k-alias install doesn't pay 1k redundant stats on the same
+///    handful of parents.
 /// 3. `par_iter` the pair list and issue `symlinkat()` syscalls in
 ///    parallel via rayon. Each pair is now a single syscall — no
 ///    parent-dir prep — so the only contention is the kernel's

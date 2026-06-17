@@ -54,7 +54,6 @@ fn extension_fallback_picks_node_for_js() {
 
 #[test]
 fn relative_target_traverses_into_sibling_package() {
-    // shim at .../node_modules/.bin/cli; target at .../node_modules/foo/bin/cli.js
     let target = Path::new("/proj/node_modules/foo/bin/cli.js");
     let shim = Path::new("/proj/node_modules/.bin/cli");
     assert_eq!(relative_target(target, shim), "../foo/bin/cli.js");
@@ -417,11 +416,9 @@ fn search_script_runtime_reads_zero_bytes_then_falls_through() {
             Ok(0)
         }
     }
-    // `.js` extension still resolves to `node` even with empty content.
     let rt = search_script_runtime::<EmptyRead>(Path::new("/x.js")).unwrap().expect("ext fallback");
     assert_eq!(rt.prog.as_deref(), Some("node"));
 
-    // No extension and no shebang → Ok(None).
     let rt = search_script_runtime::<EmptyRead>(Path::new("/x")).unwrap();
     assert_eq!(rt, None);
 }

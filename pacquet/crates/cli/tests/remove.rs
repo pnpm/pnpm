@@ -29,7 +29,7 @@ fn should_remove_from_package_json() {
     eprintln!("the dependency is gone from package.json#dependencies");
     assert!(!manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn should_remove_only_from_targeted_field() {
         .success();
     assert!(!manifest_has(&workspace, DependencyGroup::Dev, "@pnpm.e2e/hello-world-js-bin"));
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -86,7 +86,7 @@ fn should_fail_when_no_package_specified() {
         "stderr must name the must-remove-something diagnostic; got:\n{stderr}",
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn should_fail_when_dependency_is_missing() {
         "stderr must name the missing-deps diagnostic; got:\n{stderr}",
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -153,7 +153,7 @@ fn should_report_project_has_no_dependencies() {
         "no hint should be emitted when there are no available dependencies; got:\n{stderr}",
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -168,5 +168,5 @@ fn should_accept_aliases() {
     pacquet_at(&workspace).with_args(["rm", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
     assert!(!manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }

@@ -312,15 +312,10 @@ fn resolve_child_concurrency_zero_returns_full_parallelism() {
 /// Port of upstream
 /// [`'host cores minus X'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L64-L71).
 /// `n = -1` → `max(1, cores - 1)`; `n = -9999` → `1` (saturating).
-/// Replaces the earlier bound-check-only test with the precise
-/// formula that the upstream suite pins.
 #[test]
 fn resolve_child_concurrency_negative_offset_matches_upstream_formula() {
-    // n = -1 with 8 cores → 7.
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(-1), 8), 7);
-    // n = -1 with 1 core → max(1, 0) → 1.
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(-1), 1), 1);
-    // n = -9999 saturates → 1 regardless of parallelism.
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(-9999), 8), 1);
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(-9999), 1), 1);
 }

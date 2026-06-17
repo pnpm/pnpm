@@ -6,7 +6,6 @@ fn os(text: &str) -> OsString {
     OsString::from(text)
 }
 
-/// Default on POSIX: `sh -c`, no verbatim args.
 #[test]
 fn posix_default_is_sh_minus_c() {
     let shell = select_shell(None, false).expect("select_shell");

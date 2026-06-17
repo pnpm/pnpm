@@ -29,10 +29,7 @@ use tempfile::tempdir;
 /// [`@zkochan/cmd-shim` `createCmdFile: isWindows`](https://github.com/pnpm/cmd-shim/blob/0d79ca9534/src/index.ts#L32)
 /// default and `bins.linker`'s
 /// [`POWER_SHELL_IS_SUPPORTED = IS_WINDOWS`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L28)
-/// gate on the `createPwshFile` opt. The previous "always write all
-/// three" behavior produced extra `.cmd` / `.ps1` files in every GVS
-/// slot on Unix, splitting the file list between the two tools (see
-/// the `same_global_virtual_store_layout_*` parity tests).
+/// gate on the `createPwshFile` opt.
 #[test]
 fn writes_shim_flavors_matching_host_platform() {
     let tmp = tempdir().unwrap();
@@ -79,9 +76,6 @@ fn writes_shim_flavors_matching_host_platform() {
     }
 }
 
-/// End-to-end exercise: a package with a `bin` field has a shim written
-/// into the bins dir, the shim references the correct relative path,
-/// and (on Unix) both the shim and the target are executable.
 #[test]
 fn writes_shim_for_bin_string() {
     let tmp = tempdir().unwrap();
@@ -132,12 +126,10 @@ fn writes_shim_for_bin_string() {
 fn link_bins_walks_modules_and_scopes() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
-    // Regular package
     create_dir_all(modules.join("foo")).unwrap();
     write_file(modules.join("foo/package.json"), json!({"name": "foo", "bin": "f.js"}).to_string())
         .unwrap();
     write_file(modules.join("foo/f.js"), "#!/usr/bin/env node\n").unwrap();
-    // Scoped package
     create_dir_all(modules.join("@s/bar")).unwrap();
     write_file(
         modules.join("@s/bar/package.json"),
@@ -277,9 +269,8 @@ fn link_bins_skips_existing_shim_with_matching_marker() {
 /// The `.cmd` and `.ps1` siblings could be missing because an older
 /// pacquet wrote the canonical shim only or because a partial-write
 /// crash interrupted the writer mid-batch. Gating on the canonical
-/// shim's marker alone (an earlier version of [`super::write_shim`])
-/// caused those upgrade paths to leave the missing siblings
-/// permanently absent.
+/// shim's marker alone would leave those missing siblings permanently
+/// absent.
 ///
 /// Windows-only: on Unix `.cmd` and `.ps1` are not written in the
 /// first place (matches pnpm — see
@@ -532,8 +523,7 @@ fn link_bins_propagates_chmod_error_via_di() {
 /// [`FsSetPermissions::ensure_executable_bits`] (chmod on the *target*
 /// binary, not the shim). `NotFound` is swallowed by design, since the
 /// target may have been removed concurrently. `PermissionDenied`
-/// and friends must instead surface as [`LinkBinsError::Chmod`]. Pins
-/// the guard added in this PR (review finding `#4`).
+/// and friends must instead surface as [`LinkBinsError::Chmod`].
 #[test]
 fn link_bins_propagates_target_chmod_error_via_di() {
     use std::io;
@@ -609,8 +599,7 @@ fn link_bins_propagates_target_chmod_error_via_di() {
 /// [`super::write_shim`] swallows `NotFound` from
 /// [`FsSetPermissions::ensure_executable_bits`] because the target may
 /// legitimately be missing (concurrent removal, race with another
-/// install). Pins this distinction so a future regression that
-/// propagates `NotFound` here would fail the test.
+/// install).
 #[test]
 fn link_bins_swallows_target_chmod_not_found_via_di() {
     use std::io;
@@ -983,8 +972,7 @@ fn ownership_breaks_bin_conflicts() {
 /// [`preferDirectCmds`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92):
 /// a hoisted (transitive) dep's bin must never shadow a direct
 /// dep's bin with the same name, even when the hoisted package's
-/// own name is lexically smaller (which would have won under the
-/// pre-[#342](https://github.com/pnpm/pacquet/issues/342) lexical fallback).
+/// own name is lexically smaller.
 #[test]
 fn direct_origin_wins_over_hoisted_regardless_of_lexical() {
     let tmp = tempdir().unwrap();

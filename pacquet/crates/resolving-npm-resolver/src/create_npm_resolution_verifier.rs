@@ -567,10 +567,6 @@ impl NpmResolutionVerifier {
     /// Per-`(registry, name, version)` lookup with a layered fallback.
     /// Ports upstream's
     /// [`fetchPublishedAt`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L456-L491).
-    ///
-    /// Phase 4 stubs the abbreviated-shortcut and on-disk-mirror layers
-    /// (return `None`); Phase 5 swaps the full-meta call behind the
-    /// cached fetcher and ports the abbreviated/mirror layers.
     async fn fetch_published_at(
         &self,
         registry: &str,

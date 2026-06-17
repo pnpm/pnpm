@@ -28,12 +28,6 @@ fn fast_retry_opts() -> RetryOpts {
     }
 }
 
-/// Fetches against a real `mockito` server that asserts the request
-/// arrives with the *full*-metadata `Accept` header
-/// (`application/json`) and the registry-keyed `Authorization`
-/// header. The 200 body carries `time`, `_npmUser`, and
-/// `dist.attestations` so the test also confirms the deserialization
-/// surfaces those fields end-to-end.
 #[tokio::test]
 async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     let mut server = mockito::Server::new_async().await;

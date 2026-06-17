@@ -76,10 +76,7 @@ pub struct GitFetcher<'a> {
     /// (matches upstream's `execa('git', …)` shape). Tests use it to
     /// inject a shim binary at an absolute path, so the test can
     /// observe the fetcher's argv without mutating process-global
-    /// state. `None` keeps the existing `Command::new("git")`
-    /// behavior; `Some(path)` runs `Command::new(path)` for every
-    /// git invocation inside `run_sync` (`init`, `clone`, `fetch`,
-    /// `checkout`, `rev-parse`).
+    /// state.
     pub git_bin: Option<&'a Path>,
 }
 
@@ -267,7 +264,6 @@ fn extract_host(url: &str) -> Option<&str> {
     let authority_end = rest.find('/').unwrap_or(rest.len());
     let authority = &rest[..authority_end];
     let host = authority.rsplit('@').next().unwrap_or(authority);
-    // Strip port, if any.
     let host = host.split(':').next().unwrap_or(host);
     if host.is_empty() { None } else { Some(host) }
 }

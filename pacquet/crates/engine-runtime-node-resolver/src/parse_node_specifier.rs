@@ -87,8 +87,6 @@ pub fn parse_node_specifier(specifier: &str) -> Result<NodeSpecifier, ParseNodeS
         });
     }
 
-    // `lts` / `latest`, an LTS codename, or a semver range all flow
-    // through to the picker on the release channel.
     Ok(NodeSpecifier {
         release_channel: "release".to_string(),
         version_specifier: specifier.to_string(),

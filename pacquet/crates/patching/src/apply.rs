@@ -241,9 +241,6 @@ fn apply_one_file(
             //      just leaves a stale temp file (cleaned up best-
             //      effort) and the original target intact, so the next
             //      install can retry from the same baseline.
-            //
-            // CodeRabbit flagged the prior `unlink → write` ordering
-            // during review of pnpm/pnpm#11782.
             write_atomic_with_mode(&target, updated.as_bytes(), &permissions)
                 .map_err(|source| failed(format!("write {}: {source}", target.display())))?;
         }

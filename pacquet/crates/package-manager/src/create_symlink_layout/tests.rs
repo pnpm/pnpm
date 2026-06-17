@@ -180,8 +180,7 @@ fn skips_dep_entries_whose_alias_matches_self_name() {
 }
 
 /// Both `dependencies` and `optional_dependencies` absent is a
-/// no-op — the empty-snapshot fast path matches what the legacy
-/// `Option<&HashMap>` signature used to do for `dependencies = None`.
+/// no-op.
 #[test]
 fn both_dep_maps_absent_is_a_noop() {
     let tmp = tempdir().expect("tempdir");
@@ -210,9 +209,7 @@ fn both_dep_maps_absent_is_a_noop() {
 
 /// Aliased `dependencies` entries — `<alias>: <target-name>@<version>`
 /// shape — still link the alias filename in the slot's `node_modules`
-/// while resolving the slot via the target's name. Guards the
-/// `dep_ref.resolve(alias_name)` behavior since the merge change
-/// rewrote the iteration shape; the alias path mustn't regress.
+/// while resolving the slot via the target's name.
 #[test]
 fn alias_dep_links_under_alias_but_resolves_via_target() {
     let tmp = tempdir().expect("tempdir");

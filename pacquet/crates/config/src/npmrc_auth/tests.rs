@@ -399,8 +399,7 @@ fn env_replace_failure_warns_and_drops_unresolved_to_empty() {
 fn env_replace_failure_preserves_resolved_and_default_placeholders() {
     // Mixed value with one resolvable placeholder, one unresolved bare placeholder,
     // and one with a `:-default` fallback. Only the bare unresolved one becomes "";
-    // the others must still expand. Guards against an earlier implementation that
-    // stripped every `${...}` on any substitution failure.
+    // the others must still expand.
     struct EnvWithSet;
     impl EnvVar for EnvWithSet {
         fn var(name: &str) -> Option<String> {
@@ -461,8 +460,7 @@ fn ini_section_headers_are_dropped_silently() {
 fn env_replace_failure_on_key_warns_and_drops_unresolved_to_empty() {
     // `${MISSING}_authToken` resolves to the literal key `_authToken` (the
     // unresolved placeholder becomes ""), so it lands on `default_creds` as
-    // the typed `_authToken` field. The point of this test is to exercise
-    // the warning + lossy-substitution branch at the top of `from_ini`.
+    // the typed `_authToken` field.
     let ini = "${MISSING}_authToken=abc\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.default_creds.auth_token.as_deref(), Some("abc"));

@@ -73,9 +73,6 @@ fn invalid_version_range_propagates() {
     assert!(matches!(err, ResolvePatchedDependenciesError::Range(_)), "got: {err:?}");
 }
 
-/// Mixed entry types — exact version, range, bare wildcard — all
-/// resolve and hash from the same workspace dir, then bucket via
-/// `group_patched_dependencies`.
 #[test]
 fn mixed_entries_resolve_in_one_call() {
     let workspace = tempdir().unwrap();

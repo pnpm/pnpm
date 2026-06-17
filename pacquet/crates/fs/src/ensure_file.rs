@@ -308,11 +308,11 @@ fn verify_or_rewrite(
 /// Stream `file_path` and byte-compare against `content` without
 /// buffering the whole file in memory.
 ///
-/// `fs::read` (previous shape) allocated a `Vec<u8>` the size of the
-/// file; on a CAS entry for a large binary (10–30 MB isn't unusual in
-/// `@napi-rs/*`, `esbuild`, etc.) and many concurrent rayon workers
-/// hitting this branch, the extra allocation stacked up. Streaming in
-/// 8 KB chunks holds a fixed stack buffer regardless of file size.
+/// Reading the whole file into a `Vec<u8>` would allocate the size of
+/// the file; on a CAS entry for a large binary (10–30 MB isn't unusual
+/// in `@napi-rs/*`, `esbuild`, etc.) and many concurrent rayon workers
+/// hitting this branch, that allocation stacks up. Streaming in 8 KB
+/// chunks holds a fixed stack buffer regardless of file size.
 ///
 /// Any chunk mismatch returns `Ok(false)` immediately — we don't
 /// finish reading the file once we know it differs. An

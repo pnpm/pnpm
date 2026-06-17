@@ -66,7 +66,6 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     let captured = EVENTS.lock().expect("lock").clone();
     dbg!(&captured);
 
-    // Sequence: Script (postinstall) → some Stdio events → Exit (0).
     let first = captured.first().expect("at least one event");
     let LogEvent::Lifecycle(first) = first else {
         panic!("first event must be Lifecycle, got {first:?}");
@@ -198,9 +197,6 @@ fn lifecycle_events_carry_optional_flag() {
     assert!(exit_optional, "Exit event must carry optional=true");
 }
 
-/// Failing scripts emit a Script event, the captured stdio, and an Exit
-/// event with the resolved non-zero exit code, then return a
-/// [`LifecycleScriptError::ScriptFailed`].
 #[test]
 fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -258,9 +254,6 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     );
 }
 
-/// `SilentReporter` works as the production no-op. Same script, but no
-/// recording — proves the function compiles and runs under the
-/// production sink without touching the wire.
 #[test]
 fn lifecycle_runs_under_silent_reporter() {
     let dir = tempdir().expect("create temp dir");
@@ -304,7 +297,6 @@ fn lifecycle_runs_under_silent_reporter() {
 fn missing_manifest_returns_false() {
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
-    // No package.json written.
 
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
@@ -389,9 +381,8 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         "version": "9.9.9",
         "config": { "myKey": "myValue" },
         "scripts": {
-            // Write a handful of env vars to the dump file; using
-            // printf so the line endings are deterministic across
-            // shells.
+            // printf, not echo, so the line endings are deterministic
+            // across shells.
             "postinstall": format!(
                 "printf 'stage=%s\\nscript=%s\\nname=%s\\nver=%s\\nconfig=%s\\ninit_cwd=%s\\nuser=%s\\nauth=%s\\n' \"$npm_lifecycle_event\" \"$npm_lifecycle_script\" \"$npm_package_name\" \"$npm_package_version\" \"$npm_package_config_myKey\" \"$INIT_CWD\" \"$npm_config_platform_arch\" \"$npm_config__authtoken\" > {}",
                 dump_path.display(),
@@ -439,8 +430,6 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         let line = format!("{k}={v}\n");
         assert!(dump.contains(&line), "missing line {line:?} in dump:\n{dump}");
     }
-    // `script=` line contains the actual script body; just check the
-    // key is there with the printf prefix.
     assert!(dump.contains("script=printf"), "missing script= line in dump:\n{dump}");
 }
 

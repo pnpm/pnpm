@@ -117,11 +117,6 @@ fn looks_like_alias_rules() {
     }
 }
 
-/// `ver_peer` accesses the version-with-peer portion of either
-/// variant: the inner `PkgVerPeer` for `Plain`, and the alias's
-/// `suffix` for `Alias`. Used by snapshot lookups that only care
-/// about the version slot. Returns `None` for the `Link` variant —
-/// `link:` deps have no version slot.
 #[test]
 fn ver_peer_returns_inner_version_for_each_variant() {
     let plain: SnapshotDepRef = "17.0.2(react@17.0.2)".parse().unwrap();
@@ -134,9 +129,6 @@ fn ver_peer_returns_inner_version_for_each_variant() {
     assert_eq!(link.ver_peer(), None);
 }
 
-/// `From<PkgVerPeer>` is the infallible promotion path used by
-/// snapshot builders that already hold a parsed version. The
-/// resulting `SnapshotDepRef` is always `Plain`.
 #[test]
 fn from_pkg_ver_peer_produces_plain_variant() {
     let ver = ver_peer("17.0.2(react@17.0.2)");

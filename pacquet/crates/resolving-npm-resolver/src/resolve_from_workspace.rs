@@ -305,7 +305,6 @@ fn pathdiff_string(base: &Path, target: &Path) -> Option<String> {
     let mut base_components: Vec<Component<'_>> = base.components().collect();
     let mut target_components: Vec<Component<'_>> = target.components().collect();
 
-    // Strip the common prefix.
     let mut common = 0;
     while common < base_components.len()
         && common < target_components.len()

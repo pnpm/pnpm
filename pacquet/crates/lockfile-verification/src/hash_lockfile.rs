@@ -1,6 +1,6 @@
 //! Stable content hash of an in-memory [`Lockfile`].
 //!
-//! Used by the verification cache (Phase 6 slice 2) to recognise the
+//! Used by the verification cache to recognise the
 //! same lockfile across paths — committed-then-restored CI checkouts,
 //! parallel git worktrees, lockfile copies. The same parsed
 //! [`Lockfile`] must yield the same hash every time regardless of

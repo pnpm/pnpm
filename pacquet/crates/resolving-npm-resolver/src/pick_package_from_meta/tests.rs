@@ -95,8 +95,6 @@ fn version_range_prefers_latest_when_in_range() {
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
 }
 
-/// When latest doesn't satisfy the range, fall back to the max
-/// satisfying version.
 #[test]
 fn version_range_falls_back_when_latest_out_of_range() {
     let pkg = make_package(
@@ -191,7 +189,6 @@ fn version_range_all_deprecated_returns_deprecated_max() {
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
 }
 
-/// Lowest-version picker returns the min satisfying version.
 #[test]
 fn lowest_version_picker_picks_min_in_range() {
     let pkg = make_package(
@@ -280,7 +277,6 @@ fn preferred_versions_higher_weight_wins() {
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
 }
 
-/// Tag-spec lookup reads straight from `dist-tags`.
 #[test]
 fn pick_from_meta_tag_spec_reads_dist_tag() {
     let pkg = make_package(
@@ -298,7 +294,6 @@ fn pick_from_meta_tag_spec_reads_dist_tag() {
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("2.0.0-beta.1"));
 }
 
-/// Version-spec lookup reads straight from `versions`.
 #[test]
 fn pick_from_meta_version_spec_reads_versions() {
     let pkg = make_package("acme", &[("1.0.0", None), ("2.0.0", None)], &[("latest", "2.0.0")]);

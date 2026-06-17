@@ -64,10 +64,7 @@ fn modules_yaml_serialized_store_dir_carries_store_version() {
 
 /// Deserialising an unsuffixed path (e.g. one persisted by an older
 /// pacquet that hadn't normalised yet) must route through
-/// [`From<PathBuf>`] and gain the [`STORE_VERSION`] suffix. The
-/// previous `#[serde(transparent)]` derive wrote straight into
-/// `root` and bypassed the auto-append, leaving the suffix invariant
-/// silently violated on the live `StoreDir`.
+/// [`From<PathBuf>`] and gain the [`STORE_VERSION`] suffix.
 #[test]
 fn deserialize_applies_store_version_to_unsuffixed_path() {
     let json = r#""/home/user/.local/share/pnpm/store""#;

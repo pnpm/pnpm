@@ -372,7 +372,6 @@ fn exclude_package_name_with_missing_time_does_not_fail() {
 #[test]
 fn missing_time_surfaces_trust_check_failed() {
     let mut meta = make_package("acme", &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)]);
-    // Drop the version's time entry.
     if let Some(time) = meta.time.as_mut() {
         time.clear();
     }
@@ -412,8 +411,7 @@ fn prior_version_missing_time_does_not_mask_trust_history() {
         ],
     );
     // Drop the middle version's `time` entry so it has a manifest
-    // but no publish timestamp — the exact shape that previously
-    // tripped the early-return.
+    // but no publish timestamp.
     if let Some(time) = meta.time.as_mut() {
         time.remove("1.0.1");
     }

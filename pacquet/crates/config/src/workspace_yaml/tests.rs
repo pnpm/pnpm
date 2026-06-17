@@ -832,7 +832,7 @@ fn find_propagates_when_manifest_path_is_a_directory() {
         "expected ReadFile, got {err:?}",
     );
 
-    drop(tmp); // clean up
+    drop(tmp);
 }
 
 /// A `pnpm-workspace.yaml` whose contents do not parse as YAML must
@@ -853,7 +853,7 @@ fn find_propagates_parse_yaml_error_on_malformed_manifest() {
     };
     assert_eq!(path, manifest);
 
-    drop(tmp); // clean up
+    drop(tmp);
 }
 
 #[test]

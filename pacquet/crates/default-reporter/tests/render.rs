@@ -132,7 +132,6 @@ fn stats_bar_is_colored_when_enabled() {
             message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
         })],
     );
-    // green "+1" header, then a single green "+" bar char.
     assert_eq!(frame, "Packages: \u{1b}[32m+1\u{1b}[39m\n\u{1b}[32m+\u{1b}[39m");
 }
 
@@ -267,7 +266,6 @@ fn warnings_collapse_after_five() {
     };
     let events: Vec<LogEvent> = (0..6).map(|_| warn()).collect();
     let frame = render(&mut reporter, events);
-    // Five "[WARN] something" lines, then the collapsed count.
     let lines: Vec<&str> = frame.lines().collect();
     assert_eq!(lines.len(), 6);
     assert_eq!(lines[0], "[WARN] something");

@@ -103,7 +103,6 @@ fn odd_backslash_count_escapes_placeholder() {
 
 #[test]
 fn even_backslash_count_keeps_half_and_substitutes() {
-    // Two literal backslashes => one literal `\` plus expanded value.
     struct EnvWithX;
     impl EnvVar for EnvWithX {
         fn var(name: &str) -> Option<String> {
@@ -152,7 +151,6 @@ fn backslash_count_uses_source_not_output_buffer() {
             }
         }
     }
-    // Single literal `\` between `${A}` and `${B}`. Must escape `${B}`.
     assert_eq!(replace_clean::<Env>(r"${A}\${B}"), r"x\${B}");
 }
 

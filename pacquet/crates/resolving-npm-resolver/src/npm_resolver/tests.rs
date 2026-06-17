@@ -531,12 +531,6 @@ async fn jsr_specifier_with_invalid_scope_propagates_parser_error() {
 /// would propagate one registry's manifest into the other
 /// resolver's `ResolveResult`, breaking the downstream dependency
 /// graph / peer extraction / lockfile metadata.
-///
-/// The fixture for each registry serves a payload that differs by
-/// `dependencies`, so the cache leak shows up as the second
-/// resolver's `manifest.dependencies` being the *first* registry's
-/// when the bug is present. With the registry-scoped key in place
-/// each resolver gets its own manifest.
 #[tokio::test]
 async fn shared_manifest_cache_does_not_leak_across_registries() {
     fn body_with_dep(dep_name: &str, dep_range: &str) -> String {

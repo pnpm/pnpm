@@ -1200,9 +1200,8 @@ struct PendingNode {
 }
 
 /// Resolve one `(alias, range)` edge and register the resolved package
-/// in the dedup map if absent — the per-package half of the old
-/// monolithic walk, run for a whole sibling level before any child
-/// subtree starts.
+/// in the dedup map if absent, run for a whole sibling level before any
+/// child subtree starts.
 ///
 /// `pick_overlay` carries the per-level preferred-version additions
 /// (the parent level's resolved versions) consulted by the npm
@@ -1472,8 +1471,7 @@ where
     })))
 }
 
-/// Walk a seeded node's children: the second half of the old
-/// monolithic walk. `children_overlay` is the preferred-versions
+/// Walk a seeded node's children. `children_overlay` is the preferred-versions
 /// overlay covering this node's own level (built by the caller from
 /// every sibling seed); the grandchildren's overlay layers this
 /// node's resolved children on top, mirroring upstream's per-level
@@ -1605,7 +1603,6 @@ where
             // lazy realisation can thread `current_is_optional` correctly.
             let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
             let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
-            // Build a spec → optional map to look up each child's `optional` flag.
             let optional_by_alias: HashMap<&str, bool> =
                 child_specs.iter().map(|(name, _, optional)| (name.as_str(), *optional)).collect();
             for dep in child_results.into_iter().flatten() {

@@ -10,9 +10,6 @@ fn opts<'a>(
     FetchAttestationOptions { registry, http_client, auth_headers }
 }
 
-/// A successful 200 with one bundle and one `tlogEntries` entry
-/// yields the matching ISO timestamp. Mirrors the happy-path
-/// upstream test.
 #[tokio::test]
 async fn finds_publish_time_from_single_bundle() {
     let mut server = mockito::Server::new_async().await;
@@ -51,9 +48,6 @@ async fn finds_publish_time_from_single_bundle() {
     mock.assert_async().await;
 }
 
-/// Multiple bundles → earliest wins. Mirrors upstream's
-/// `extractPublishedAt` test that asserts the floor across
-/// disagreeing entries.
 #[tokio::test]
 async fn earliest_wins_across_multiple_bundles() {
     let mut server = mockito::Server::new_async().await;

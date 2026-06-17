@@ -379,7 +379,6 @@ fn dev_and_optional_direct_deps_split_into_distinct_importer_sections() {
     let opt = importer.optional_dependencies.as_ref().expect("optional deps");
     assert!(opt.contains_key(&PkgName::parse("fsevents").unwrap()));
 
-    // hasBin / os surface on `packages:` metadata.
     let packages = lockfile.packages.as_ref().unwrap();
     let typescript_key: PackageKey = "typescript@5.1.6".parse().unwrap();
     assert_eq!(packages[&typescript_key].has_bin, Some(true));
@@ -1440,8 +1439,6 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         lockfile_include_tarball_url: false,
     });
 
-    // Importer a points at b via a link: ref carrying the relative
-    // path the resolver produced.
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
     let b_in_a =
         a_snap.dependencies.as_ref().unwrap().get(&PkgName::parse("b").unwrap()).expect("b in a");
@@ -1451,7 +1448,6 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
         other => panic!("expected Link(..), got {other:?}"),
     }
 
-    // Importer b has its own lockfile entry, independent of importer a.
     let b_snap = lockfile.importers.get("packages/b").expect("importer b");
     assert!(
         b_snap.dependencies.as_ref().unwrap().contains_key(&PkgName::parse("lodash").unwrap()),

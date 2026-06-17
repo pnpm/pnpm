@@ -869,7 +869,6 @@ mod peers {
             .cloned()
             .expect("react-dom is a direct dep");
         assert_eq!(react_dom_dep_path, DepPath::from("react-dom@18.0.0(react@18.0.0)".to_string()));
-        // react itself stays pure.
         assert_eq!(
             result.direct_dependencies_by_alias.get("react"),
             Some(&DepPath::from("react@18.0.0".to_string())),
@@ -1707,8 +1706,6 @@ mod peers {
         let dep_paths: std::collections::HashSet<String> =
             result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
 
-        // Both `foo` occurrences must surface — one pure (missing
-        // peer), one with `(qar@1.0.0)` suffix.
         assert!(
             dep_paths.contains("foo@1.0.0"),
             "missing-peer occurrence of foo missing from graph: {dep_paths:?}",
@@ -1718,7 +1715,6 @@ mod peers {
             "resolved-peer occurrence of foo missing from graph: {dep_paths:?}",
         );
 
-        // The other occurrence-pairs upstream's test asserts.
         assert!(dep_paths.contains("bar@1.0.0"), "{dep_paths:?}");
         assert!(dep_paths.contains("qar@1.0.0"), "{dep_paths:?}");
         assert!(
@@ -1730,7 +1726,6 @@ mod peers {
             "transitive zoo (qar peer bubbled up) missing: {dep_paths:?}",
         );
 
-        // The missing-peer occurrence reports the issue.
         assert!(
             result.peer_dependency_issues.missing.contains_key("qar"),
             "expected missing qar peer issue, got {:?}",
@@ -1813,7 +1808,6 @@ mod peers {
 
         let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-        // Each foo picks its own bar — they don't cross-pollinate.
         assert_eq!(
             result.direct_dependencies_by_alias.get("foo-a"),
             Some(&DepPath::from("foo-a@1.0.0(bar-a@1.0.0)".to_string())),
@@ -1884,9 +1878,6 @@ mod peers {
 
         let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-        // `dep` shows up as a BAD peer (1.0.0 supplied but ^10
-        // wanted). No missing entry — the peer WAS resolved, just to
-        // the wrong version.
         assert!(
             result.peer_dependency_issues.bad.contains_key("dep"),
             "expected bad peer issue for dep, got {:?}",

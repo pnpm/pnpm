@@ -23,7 +23,6 @@ fn hydrates_only_requested_versions_and_caches_them() {
     assert!(package.versions.contains_key("1.0.0"));
     let picked = package.versions.get("2.0.0").expect("hydrate 2.0.0");
     assert_eq!(picked.version.to_string(), "2.0.0");
-    // Second lookup returns the cached Arc.
     let again = package.versions.get("2.0.0").expect("cached 2.0.0");
     assert!(std::sync::Arc::ptr_eq(&picked, &again));
 }

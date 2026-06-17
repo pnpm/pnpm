@@ -44,11 +44,6 @@ fn info(digest: &str, size: u64, mode: u32, checked_at: Option<u64>) -> CafsFile
     CafsFileInfo { checked_at, digest: digest.to_string(), mode, size }
 }
 
-/// `build_file_maps_from_index` never stats the files. With a
-/// valid digest, it returns a populated `files_map` with
-/// `passed = true` regardless of whether anything is on disk —
-/// the sibling `fast_path_fails_when_digest_is_malformed` covers
-/// the "digest was not resolvable" failure case.
 #[test]
 fn fast_path_skips_filesystem_checks() {
     let tmp = tempdir().unwrap();
@@ -63,10 +58,6 @@ fn fast_path_skips_filesystem_checks() {
     assert!(!path.exists(), "no file was planted — fast path didn't care");
 }
 
-/// On-disk file is live, `checked_at` is far in the future so the
-/// 100 ms slack keeps the mtime delta negative and we take the
-/// "unmodified, trust the digest" branch — without any `fs::read`.
-///
 /// We can't easily set `mtime` from the standard library, but
 /// `checked_at` in the row is caller-controlled, so setting it
 /// above the real `mtime` is enough to exercise the trust path.
@@ -88,8 +79,6 @@ fn careful_path_trusts_file_when_mtime_is_within_slack() {
     assert_eq!(result.files_map.len(), 1);
 }
 
-/// Missing on disk → whole entry fails so the caller re-fetches.
-/// `files_map` is still populated for diagnostics.
 #[test]
 fn careful_path_fails_on_missing_cafs_file() {
     let tmp = tempdir().unwrap();
@@ -144,8 +133,7 @@ fn careful_path_removes_file_whose_size_mismatches_after_touch() {
     assert!(!path.exists(), "size mismatch removes the file so a re-fetch starts clean");
 }
 
-/// Two filenames pointing at the same CAFS path verify once, not
-/// twice. Ports the `verifiedFilesCache` behaviour.
+/// Ports the `verifiedFilesCache` behaviour.
 #[test]
 fn careful_path_dedups_by_digest_within_a_single_entry() {
     let tmp = tempdir().unwrap();
@@ -269,15 +257,14 @@ fn careful_path_fails_unknown_algo_as_verification_failure() {
 
 /// A CAFS dirent that's a directory (store corruption — stray
 /// `mkdir -p` or interrupted write) must not survive verification:
-/// pacquet used to reject with `remove_file(dir)` → `EISDIR`, which
-/// silently failed and left the directory in place forever. The new
-/// `remove_stale_cafs_entry` falls back to `remove_dir_all` so the
-/// store actually self-heals on the next install.
+/// `remove_file(dir)` would fail with `EISDIR` and leave the
+/// directory in place forever, so `remove_stale_cafs_entry` falls
+/// back to `remove_dir_all` and the store self-heals on the next
+/// install.
 #[test]
 fn careful_path_removes_directory_at_cafs_path() {
     let tmp = tempdir().unwrap();
     let store_dir = StoreDir::new(tmp.path());
-    // Plant a directory where a CAFS file belongs.
     let digest = "c".repeat(128);
     let cafs_path = store_dir.cas_file_path_by_mode(&digest, 0o644).unwrap();
     fs::create_dir_all(&cafs_path).unwrap();
@@ -347,8 +334,6 @@ fn side_effects_overlay_adds_and_drops_correctly() {
     let store_dir = StoreDir::new(tmp.path());
     let base_digest = sha512_hex(b"base");
     let added_digest = sha512_hex(b"added");
-    // base files: a.js, b.js. Side-effects for one cache key:
-    // add c.js, delete b.js. Overlay should land {a.js, c.js}.
     let mut side_effects = HashMap::new();
     let mut added = HashMap::new();
     added.insert("c.js".to_string(), info(&added_digest, 5, 0o644, None));
@@ -375,8 +360,6 @@ fn side_effects_overlay_adds_and_drops_correctly() {
     assert_eq!(overlay.len(), 2);
 }
 
-/// `added` wins over `base` when the filenames collide. The base
-/// path is shadowed by the side-effects path.
 #[test]
 fn side_effects_overlay_added_shadows_base_on_collision() {
     let tmp = tempdir().unwrap();
@@ -505,8 +488,6 @@ fn side_effects_overlay_unsafe_added_path_drops_cache_key_entry() {
     assert!(maps.contains_key("k-good"), "a safe nested path must survive: {maps:?}");
 }
 
-/// Multiple cache keys produce independent overlays. One entry's
-/// `added` doesn't bleed into another's.
 #[test]
 fn side_effects_overlay_keys_are_independent() {
     let tmp = tempdir().unwrap();
@@ -542,7 +523,6 @@ fn side_effects_overlay_keys_are_independent() {
     let k2 = maps.get("k2").unwrap();
     assert!(k1.contains_key("a.js") && !k1.contains_key("b.js"), "k1: {k1:?}");
     assert!(k2.contains_key("b.js") && !k2.contains_key("a.js"), "k2: {k2:?}");
-    // Both share base.js.
     assert!(k1.contains_key("base.js"));
     assert!(k2.contains_key("base.js"));
 }

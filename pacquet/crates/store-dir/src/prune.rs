@@ -265,8 +265,6 @@ fn walk_symlinks_to_store(
             if let Some(idx) = nm_idx {
                 let slot: PathBuf = parts[..idx].iter().collect();
                 reachable.insert(slot.clone());
-                // Recurse into the slot's own node_modules for
-                // transitive deps.
                 let inner_modules = canonical_links.join(&slot).join("node_modules");
                 walk_symlinks_to_store(&inner_modules, canonical_links, reachable, visited);
             }

@@ -154,8 +154,7 @@ impl VirtualStoreLayout {
     /// upgrades. When `None`, every snapshot keeps the engine in
     /// its hash payload — matches upstream's
     /// [`builtDepPaths === undefined`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L140-L142)
-    /// branch and the existing pacquet behaviour from
-    /// pnpm/pacquet#449.
+    /// branch.
     pub fn new(
         config: &Config,
         engine: Option<&str>,
@@ -195,7 +194,7 @@ impl VirtualStoreLayout {
         // mirroring upstream's
         // [`computeBuiltDepPaths`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L208-L219).
         // `None` here disables gating so every snapshot still hashes
-        // with its engine string — the pre-pnpm/pacquet#459 behaviour.
+        // with its engine string.
         let built_dep_paths: Option<HashSet<PackageKey>> = allow_build_policy.map(|policy| {
             snapshots
                 .keys()

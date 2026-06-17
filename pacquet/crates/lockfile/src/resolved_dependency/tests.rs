@@ -98,8 +98,7 @@ fn parses_alias_version_with_peer() {
 }
 
 /// A `ResolvedDependencySpec` with an aliased version round-trips
-/// through serde, the load path the lockfile reader uses. This is the
-/// exact YAML shape that previously failed to parse.
+/// through serde, the load path the lockfile reader uses.
 #[test]
 fn resolved_spec_deserialize_alias() {
     let yaml = "specifier: 'catalog:'\nversion: '@zkochan/js-yaml@0.0.11'\n";

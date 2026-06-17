@@ -43,13 +43,9 @@ pub struct PackageBinSource {
     /// project never gets its own tooling silently shadowed by a
     /// transitive's bin. Defaults to [`BinOrigin::Direct`] —
     /// constructions via [`PackageBinSource::new`] don't have to
-    /// supply the field, and existing call sites that don't yet
-    /// distinguish keep the pre-[#342] ownership/lexical-only
-    /// behavior. Pacquet's hoist + hoisted-linker passes use
+    /// supply the field. Pacquet's hoist + hoisted-linker passes use
     /// [`PackageBinSource::with_origin`] to tag transitive
     /// candidates as [`BinOrigin::Hoisted`].
-    ///
-    /// [#342]: https://github.com/pnpm/pacquet/issues/342
     pub origin: BinOrigin,
 }
 
@@ -402,15 +398,6 @@ fn pick_winner(
 ///   [`POWER_SHELL_IS_SUPPORTED = IS_WINDOWS`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L28).
 ///   So `.ps1` also only lands on Windows.
 ///
-/// Earlier versions of pacquet emitted all three flavors
-/// unconditionally on the theory that a Linux-installed
-/// `node_modules` should stay usable when carried to Windows via
-/// network share or git clone. That doesn't match pnpm — pnpm's
-/// Windows install rebuilds the shims on extraction — and produced
-/// extra `.cmd`/`.ps1` files in every slot on Unix, splitting the
-/// GVS file lists between the two tools (see the
-/// `same_global_virtual_store_layout_*` parity tests).
-///
 /// The chmod step (`set_executable` for the canonical shim and
 /// `ensure_executable_bits` for the target binary, matching pnpm's
 /// `fixBin(cmd.path, 0o755)` and `chmodShim`) is wired through the
@@ -471,14 +458,11 @@ where
     // [`is_shim_pointing_at`] reads; the `.cmd` and `.ps1` flavors
     // don't, so we compare them byte-for-byte against the freshly
     // generated body. That catches stale/corrupted siblings that an
-    // existence-only check would let slip through (Copilot flagged
-    // this on
-    // <https://github.com/pnpm/pacquet/pull/333#discussion_r3222744353>):
-    // a manually-edited `.cmd` pointing at a stale target, or an
-    // earlier pacquet write with a different relative path, would
-    // bypass the rewrite under the prior `.is_ok()` gate. Generated
-    // bodies are stable across pacquet versions (only the `<target>`
-    // segment moves), so byte equality is a sound equivalence check.
+    // existence-only check would let slip through: a manually-edited
+    // `.cmd` pointing at a stale target, or a pacquet write with a
+    // different relative path. Generated bodies are stable across
+    // pacquet versions (only the `<target>` segment moves), so byte
+    // equality is a sound equivalence check.
     let sh_marker_ok = matches!(
         Sys::read_to_string(shim_path),
         Ok(existing) if is_shim_pointing_at(&existing, target_path),
@@ -561,9 +545,8 @@ fn is_node_bin_name(shim_path: &Path) -> bool {
 ///
 /// `remove_file` rather than `Sys::write`-style truncation is
 /// load-bearing on both platforms: if `shim_path` is currently a
-/// regular file hardlinked to the source binary (a state an earlier
-/// pacquet revision could leave behind), truncating through the
-/// hardlink would corrupt the binary itself. Removing the dirent
+/// regular file hardlinked to the source binary, truncating through
+/// the hardlink would corrupt the binary itself. Removing the dirent
 /// leaves the hardlinked content intact.
 #[cfg(unix)]
 fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsError> {

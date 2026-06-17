@@ -66,8 +66,7 @@ fn filesystem_root_windows_keeps_drive_prefix() {
 /// (both inside the same `tempdir`), so the Host impl observes a
 /// successful hardlink and `resolve_store_dir` returns the
 /// `home_default` unchanged. This is the dominant branch on a single-
-/// volume developer setup and the one the `SmartDefault` used to
-/// short-circuit to without checking.
+/// volume developer setup.
 #[test]
 fn resolve_store_dir_same_volume_uses_home_default() {
     use crate::api::Host;

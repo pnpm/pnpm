@@ -90,9 +90,7 @@ pub fn build_file_maps_from_index(store_dir: &StoreDir, entry: PackageFilesIndex
     let mut files_map = HashMap::with_capacity(files.len());
     let mut passed = true;
     // Consume `entry.files` so the owned `String` filenames move into
-    // `files_map` without a per-file clone. On a realistic install the
-    // previous borrow-then-clone cost one allocation per file on every
-    // warm cache hit.
+    // `files_map` without a per-file clone.
     for (filename, info) in files {
         let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
             // A malformed digest (non-hex / too short) makes this entry
@@ -136,18 +134,17 @@ pub fn build_file_maps_from_index(store_dir: &StoreDir, entry: PackageFilesIndex
 ///    a new one".
 ///
 /// Missing on disk (`ENOENT`) fails the whole entry so the caller
-/// re-fetches. Unlike the prior pacquet implementation this does *not*
-/// reject non-regular-file dirents preemptively — the integrity hash
-/// catches real corruption, and pnpm doesn't guard against it in this
-/// function either.
+/// re-fetches. Non-regular-file dirents are *not* rejected
+/// preemptively — the integrity hash catches real corruption, and
+/// pnpm doesn't guard against it in this function either.
 pub fn check_pkg_files_integrity(
     store_dir: &StoreDir,
     entry: PackageFilesIndex,
     verified_files_cache: &VerifiedFilesCache,
 ) -> VerifyResult {
     // Destructure so the owned `files` HashMap and `algo` String can be
-    // consumed below; moving beats the extra per-file `filename.clone()`
-    // the old borrow-based signature forced on the hot path.
+    // consumed below, moving the filenames into `files_map` without a
+    // per-file clone on the hot path.
     let PackageFilesIndex { files, algo, side_effects, .. } = entry;
     let mut all_verified = true;
     let mut files_map = HashMap::with_capacity(files.len());
@@ -177,10 +174,6 @@ pub fn check_pkg_files_integrity(
         };
         if !verified_files_cache.contains(&path) {
             if verify_file(&path, &filename, &info, &algo) {
-                // One `PathBuf` clone per unique CAFS path we actually
-                // verified; zero for dedup hits. Strictly better than
-                // the per-filename clone the borrow-based version had.
-                //
                 // Concurrency note: another thread may verify the same
                 // path between the `contains` check and our `insert`,
                 // doing the stat twice. That's benign — `verify_file`

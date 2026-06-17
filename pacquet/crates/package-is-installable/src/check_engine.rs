@@ -94,7 +94,6 @@ pub fn check_engine(
 
     if let Some(wanted_node) = wanted.node.as_ref() {
         match node_satisfies(&current.node, wanted_node) {
-            // Range matched — nothing to do.
             Ok(true) => {}
             // `current.node` is a valid version but doesn't satisfy
             // the range — record the unsatisfied wanted entry.

@@ -103,8 +103,7 @@ pub fn read_head_filled<Sys: FsReadHead>(path: &Path, buf: &mut [u8]) -> io::Res
 ///
 /// Does **not** trim leading whitespace before looking for `#!`. The
 /// kernel and upstream cmd-shim both treat `#!` as a shebang only when
-/// it sits at byte 0 of the file; an earlier
-/// `String::from_utf8_lossy(bytes).trim_start()` accepted inputs like
+/// it sits at byte 0 of the file; trimming would accept inputs like
 /// `" \n#!/usr/bin/env node"` as a valid shebang and could select the
 /// wrong runtime for files that just happen to mention `#!` after some
 /// whitespace. The first line is taken exactly as-is (`#!` is matched

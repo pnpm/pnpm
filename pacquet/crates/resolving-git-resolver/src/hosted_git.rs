@@ -510,7 +510,6 @@ fn correct_url(giturl: &str) -> String {
 /// `isGitHubShorthand` from upstream. Detects the bare `owner/repo`
 /// form that pnpm registers as a github short link.
 fn is_github_shorthand(arg: &str) -> bool {
-    // empty input is not a shortcut
     if arg.is_empty() {
         return false;
     }

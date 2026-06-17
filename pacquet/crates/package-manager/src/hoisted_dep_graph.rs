@@ -743,8 +743,6 @@ fn walk_deps(
                 .push(dir.clone());
         }
 
-        // Recurse into the children (records their pkg_locations
-        // and produces their `DepHierarchy`).
         let inner_modules = dir.join("node_modules");
         let child_deps = dep.0.dependencies.borrow();
         let inner_hierarchy = walk_deps(state, &inner_modules, &child_deps)?;

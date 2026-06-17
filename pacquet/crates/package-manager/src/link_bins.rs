@@ -202,12 +202,10 @@ pub enum LinkVirtualStoreBinsError {
 /// <https://github.com/pnpm/pnpm/blob/4750fd370c/building/during-install/src/index.ts#L289>).
 /// When `snapshots` is `None` (install without a lockfile), the
 /// linker falls back to enumerating slots and reading manifests via
-/// the filesystem, the shape this code had before the
-/// lockfile-driven path landed.
+/// the filesystem.
 #[must_use]
 pub struct LinkVirtualStoreBins<'a> {
-    /// Install-scoped slot-directory mapping (GVS-aware). Replaces the
-    /// previous `virtual_store_dir: &Path` field — the layout already
+    /// Install-scoped slot-directory mapping (GVS-aware). The layout
     /// knows where each snapshot's slot lives, including under the
     /// global-virtual-store `<scope>/<name>/<version>/<hash>` shape.
     /// See [`crate::VirtualStoreLayout`].
@@ -304,8 +302,8 @@ impl LinkVirtualStoreBins<'_> {
 ///   `set` contains only entries with `hasBin == Some(true)`; an
 ///   *empty* `Some(set)` is authoritative: the lockfile says no
 ///   package has a bin, and every slot should short-circuit
-///   immediately. Conflating this case with `None` (the bug Copilot
-///   flagged at <https://github.com/pnpm/pacquet/pull/333#discussion_r3222807548>)
+///   immediately. Conflating this case with `None` (the bug flagged
+///   at <https://github.com/pnpm/pacquet/pull/333#discussion_r3222807548>)
 ///   would force per-child work the lockfile already ruled out.
 fn build_has_bin_set(
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
@@ -411,12 +409,7 @@ where
         //    drop self when there's nothing to write — so for a
         //    package like `hello-world-js-bin` (no deps, one bin)
         //    pnpm writes `<slot>/node_modules/<pkg>/node_modules/.bin/<pkg>`
-        //    as a self-shim. An earlier version of this function
-        //    skipped the self-bin on the assumption that pnpm did the
-        //    same. The
-        //    `same_global_virtual_store_layout_*` parity tests
-        //    surfaced that assumption as a divergence: pnpm did write
-        //    the self-shim. Mirror it here.
+        //    as a self-shim. Mirror it here.
         let with_bin: Vec<(&PkgName, PackageKey)> = children
             .filter_map(|(alias, dep_ref)| {
                 // `link:` deps live outside the virtual store and
@@ -460,10 +453,7 @@ where
                 // the warm-cache prefetch. Both the prefetch map
                 // and `PackageBinSource` hold the manifest via
                 // [`Arc`], so this is a refcount bump rather than a
-                // deep clone of the JSON tree. Avoids the
-                // `slots × children`-sized clone fan-out that
-                // dominated the previous version of this path on
-                // warm-cache installs.
+                // deep clone of the JSON tree.
                 bin_sources.push(PackageBinSource::new(child_location, Arc::clone(manifest)));
             } else {
                 // Cold-batch fallback: package was downloaded
@@ -592,15 +582,11 @@ where
 /// instead, skipping a leading `@` that belongs to a scoped package.
 ///
 /// Returns `None` only when the slot name fails to parse — there's no
-/// filesystem probe for the resolved candidate. The previous version
-/// stat-equivalent-ed the path with `Sys::read_dir` to short-circuit
-/// missing slots, but on a 1267-package fixture that was 1267
-/// wasted `open(O_DIRECTORY) + close` round-trips on the hot path of
-/// every warm install. The slot's own package directory is an
-/// invariant of [`crate::create_virtual_dir_by_snapshot`]; the
-/// downstream `link_bins_excluding` handles `NotFound` from its own
+/// filesystem probe for the resolved candidate. The slot's own package
+/// directory is an invariant of [`crate::create_virtual_dir_by_snapshot`];
+/// the downstream `link_bins_excluding` handles `NotFound` from its own
 /// `read_dir` of `<slot>/node_modules` cleanly when the invariant
-/// ever does break, so the probe is pure overhead.
+/// ever does break, so a probe here would be pure overhead.
 fn find_slot_own_package_dir(slot_dir: &Path, modules_dir: &Path) -> Option<PathBuf> {
     let slot_name = slot_dir.file_name()?.to_str()?;
 

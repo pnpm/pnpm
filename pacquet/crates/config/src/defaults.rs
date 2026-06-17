@@ -36,7 +36,6 @@ pub fn default_public_hoist_pattern() -> Vec<String> {
     Vec::new()
 }
 
-// Get the drive letter from a path on Windows. If it's not a Windows path, return None.
 #[cfg(windows)]
 fn get_drive_letter(current_dir: &Path) -> Option<char> {
     if let Some(Component::Prefix(prefix_component)) = current_dir.components().next()
@@ -202,9 +201,6 @@ pub fn default_virtual_store_dir() -> PathBuf {
 /// downstream. Pacquet doesn't have a `--global` CLI flag at all
 /// (only `install --frozen-lockfile`), so the only applicable
 /// upstream default is the `false` one.
-///
-/// pnpm/pacquet#444 originally cited the same `L392-L394` range but
-/// read it as an unconditional default — corrected here.
 pub fn default_enable_global_virtual_store() -> bool {
     false
 }

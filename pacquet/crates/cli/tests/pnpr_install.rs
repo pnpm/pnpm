@@ -180,8 +180,6 @@ fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
         .assert()
         .success();
 
-    // `--lockfile-only` resolves and writes the lockfile but fetches
-    // nothing and links nothing.
     assert!(workspace.join("pnpm-lock.yaml").exists(), "pnpr should write the lockfile");
     assert!(!workspace.join("node_modules").exists(), "lockfile-only must not link node_modules");
     assert!(

@@ -351,9 +351,6 @@ fn select_by_parent_dir_glob_and_exclude_by_pattern() {
 
 #[test]
 fn select_by_parent_dir_then_name_pattern() {
-    // A single selector carrying both a directory and a name pattern: the
-    // directory narrows the candidate set, then the name pattern filters
-    // within it.
     let graph = projects_graph();
     let result = selected(
         &graph,

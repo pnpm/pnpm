@@ -129,9 +129,7 @@ pub enum SymlinkDirectDependenciesError {
     },
 
     /// Surfaces a per-package symlink failure (e.g. permission denied,
-    /// disk full, an existing non-symlink file). Replaces the prior
-    /// `expect("symlink pkg")` which panicked inside a rayon task and
-    /// took the whole install down.
+    /// disk full, an existing non-symlink file).
     #[display("Failed to symlink {name:?} for importer {importer_id:?}: {source}")]
     #[diagnostic(code(pacquet_package_manager::symlink_failed))]
     SymlinkPackage {
@@ -429,10 +427,8 @@ fn link_one_importer<Reporter: self::Reporter>(
     let prefix = project_dir.to_string_lossy().into_owned();
 
     // `try_for_each` short-circuits on the first error and returns it
-    // to the caller, replacing the prior `expect("symlink pkg")` that
-    // panicked the rayon worker on any FS failure. The full result
-    // collection forces every task to settle before we surface a
-    // single error.
+    // to the caller. The full result collection forces every task to
+    // settle before we surface a single error.
     entries.par_iter().try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
         let ResolvedEntry { name, spec, group, name_str, target } = entry;
 

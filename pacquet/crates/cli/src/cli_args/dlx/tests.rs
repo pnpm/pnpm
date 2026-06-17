@@ -19,9 +19,6 @@ struct DlxArgsWrapper {
     dlx: DlxArgs,
 }
 
-/// The `--cpu` / `--os` / `--libc` overrides take one comma-separable
-/// value per occurrence, so the trailing `command` positional is not
-/// swallowed as extra architecture values.
 #[test]
 fn architecture_flags_do_not_consume_the_trailing_command() {
     let parsed = DlxArgsWrapper::try_parse_from([
@@ -226,9 +223,6 @@ fn get_bin_name_picks_the_scopeless_match_among_many() {
 
 #[test]
 fn get_bin_name_uses_installed_manifest_name_not_alias() {
-    // The dependency key (`alias`) differs from the installed package's
-    // own `name`. The default bin among many is selected by the manifest
-    // name (`scopeless("@scope/realtool")` == "realtool"), not the alias.
     let dir = cached_dir_with(
         "alias",
         serde_json::json!({

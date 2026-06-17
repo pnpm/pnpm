@@ -28,8 +28,7 @@ use std::{
 /// install's critical-path tail.
 #[must_use]
 pub struct CreateVirtualDirBySnapshot<'a> {
-    /// Per-install precomputed slot-directory mapping. Replaces the
-    /// previous `virtual_store_dir: &Path` field — the layout already
+    /// Per-install precomputed slot-directory mapping. The layout
     /// holds the root and knows how to resolve a per-snapshot slot
     /// (legacy `<root>/<flat-name>` vs GVS-shaped
     /// `<root>/<scope>/<name>/<version>/<hash>`) through a single

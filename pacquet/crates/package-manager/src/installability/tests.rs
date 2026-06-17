@@ -357,7 +357,6 @@ fn duplicate_metadata_dedupes_reporter_events() {
     assert!(skipped.contains(&snapshot_key_a));
     assert!(skipped.contains(&snapshot_key_b));
 
-    // ...but the reporter only sees one event for the metadata row.
     let events = take_events();
     let skipped_events_count = events
         .iter()

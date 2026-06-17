@@ -123,7 +123,6 @@ fn content_hash_lookup_finds_same_lockfile_at_different_path() {
     let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
         vec![Stub::new(true) as Arc<dyn ResolutionVerifier>];
 
-    // Record under path A with the canonical hash.
     record_verification(
         dir.path(),
         &lockfile_a,
@@ -132,7 +131,6 @@ fn content_hash_lookup_finds_same_lockfile_at_different_path() {
         CachePrecomputed::default(),
     );
 
-    // Lookup at path B yields the same hash → hit via byHash.
     let result = try_lockfile_verification_cache(dir.path(), &lockfile_b, &verifiers, || {
         "shared-hash".to_string()
     });

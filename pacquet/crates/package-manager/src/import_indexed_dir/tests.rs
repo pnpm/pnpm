@@ -84,7 +84,6 @@ fn existing_target_short_circuits_under_default_opts() {
     )
     .expect("default opts on existing target should be a no-op");
 
-    // Nothing was touched.
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"old");
     assert_eq!(fs::read(target.join("extra.txt")).unwrap(), b"keep me");
 }
@@ -105,8 +104,6 @@ fn force_keep_replaces_files_and_preserves_node_modules() {
     let cas = cas_map(&[("package.json", pkg_json)]);
 
     let target = tmp.path().join("pkg");
-    // Pre-existing package state: a stale package.json plus a nested
-    // node_modules/ that must not be clobbered.
     fs::create_dir_all(&target).unwrap();
     fs::write(target.join("package.json"), b"{\"version\":\"1.0.0\"}").unwrap();
     fs::write(target.join("stale.txt"), b"left over from v1").unwrap();
@@ -123,11 +120,8 @@ fn force_keep_replaces_files_and_preserves_node_modules() {
     )
     .expect("overwrite should succeed");
 
-    // New file in place, stale file evicted.
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"2.0.0\"}");
     assert!(!target.join("stale.txt").exists(), "stale file must be removed");
-    // Nested deps preserved verbatim — both files and the directory
-    // structure intact.
     assert_eq!(fs::read(target.join("node_modules/inner/index.js")).unwrap(), b"// inner dep");
     assert_eq!(fs::read(target.join("node_modules/.placeholder")).unwrap(), b"keep me");
 }
@@ -258,7 +252,6 @@ fn force_replaces_symlink_target_without_following() {
     let target_meta = fs::symlink_metadata(&target).unwrap();
     assert!(target_meta.file_type().is_dir(), "target is now a real directory");
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"new");
-    // The original pointee must still contain its sentinel.
     assert_eq!(fs::read(pointee.join("sentinel.txt")).unwrap(), b"untouched");
 }
 

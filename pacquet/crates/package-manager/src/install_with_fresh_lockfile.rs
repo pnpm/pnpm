@@ -458,17 +458,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             config,
             importer_manifests,
             dependency_groups,
-            // The recursive `install_subtree` path used this `DashMap`
-            // as a per-snapshot watch-channel dedup gate so duplicate
-            // visitors of the same slot could await the first writer's
-            // materialisation. The refactored pipeline routes through
-            // `CreateVirtualStore`, whose warm/cold-batch shape dedups
-            // by snapshot key inside the rayon pass instead, so this
-            // map is no longer consulted. Kept on the struct so
-            // `Install::run` can pass `&Default::default()` without
-            // breaking the call sites that already supply it — a
-            // follow-up can prune it once the per-test setup is
-            // simplified.
+            // No longer consulted: `CreateVirtualStore`'s warm/cold-batch
+            // shape dedups by snapshot key inside the rayon pass. Kept on
+            // the struct so `Install::run` can keep passing it.
             resolved_packages: _,
             logged_methods,
             requester,
@@ -1487,14 +1479,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
         // Materialise the virtual store via the same phased
         // warm/cold-batch pipeline the frozen-lockfile path uses. The
-        // fresh-lockfile path used to dispatch through `install_subtree`,
-        // a recursive per-package async tree walk that blocked one
-        // tokio worker per in-flight package on its own rayon
-        // `par_iter` for the per-package link step. The phased pipeline
-        // in `CreateVirtualStore` runs a single `par_iter` over every
-        // warm snapshot at once, which closes the ~94% wall-time gap
-        // to pnpm on the full-resolution-warm scenario without
-        // regressing the cold-cache or frozen-lockfile paths. See
+        // phased pipeline in `CreateVirtualStore` runs a single
+        // `par_iter` over every warm snapshot at once, which closes the
+        // ~94% wall-time gap to pnpm on the full-resolution-warm scenario
+        // without regressing the cold-cache or frozen-lockfile paths. See
         // <https://github.com/pnpm/pnpm/issues/11866> for the architectural diagnosis and the bench data.
         //
         // The fresh-lockfile path has no installability check yet
@@ -1575,9 +1563,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // it is dropped and drained after `run_build_phase`.
 
         // Create `<modules_dir>/<alias>` symlinks for each direct dep.
-        // Replaces the per-edge `symlink_package` calls the old
-        // `install_subtree` recursion did. Mirrors how
-        // `install_frozen_lockfile` calls this after `CreateVirtualStore::run`.
+        // Mirrors how `install_frozen_lockfile` calls this after
+        // `CreateVirtualStore::run`.
         //
         // **Anchor on `config.modules_dir.parent()`, not `lockfile_dir`.**
         // `SymlinkDirectDependencies` resolves each importer's modules
@@ -1585,13 +1572,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // which for the root importer (`.`) collapses to
         // `<workspace_root>/<modules_basename>`. The fresh-lockfile
         // path's tests parameterise `config.modules_dir` at a path that
-        // doesn't always live under the manifest's directory (the
-        // historical `install_subtree` code took `&config.modules_dir`
-        // verbatim as the parent of every direct-dep symlink), so
+        // doesn't always live under the manifest's directory, so
         // anchoring on the lockfile-dir-derived `workspace_root` would
         // land symlinks at the wrong path on those configurations.
-        // Using `config.modules_dir.parent()` recovers the old
-        // behaviour: for the common case where
+        // With `config.modules_dir.parent()`: for the common case where
         // `config.modules_dir == <lockfile_dir>/node_modules` they
         // coincide; for an explicitly-relocated `modules_dir` the
         // symlinks land where the rest of pacquet's install code
@@ -1919,8 +1903,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 /// or, for remote-tarball direct deps, the fetched manifest):
 /// git-hosted tarballs and directory / git / binary resolutions use a
 /// different key shape (`pkg_id`-only) and route through the cold path.
-/// Today's `install_subtree` only handles tarball+integrity anyway, so
-/// the skipped entries can't be served from the prefetch either way.
 fn collect_prefetch_cache_keys_from_graph(
     graph: &pacquet_resolving_deps_resolver::DependenciesGraph,
 ) -> Vec<String> {

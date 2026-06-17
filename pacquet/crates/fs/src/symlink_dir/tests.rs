@@ -2,10 +2,7 @@
 //!
 //! Pacquet's symlink writer is meant to be a faithful Rust port of the
 //! pnpm [`symlink-dir`](https://github.com/pnpm/symlink-dir) npm
-//! package. The tests here exercise the parity points that matter
-//! when an install lands on disk: relative-target encoding on Unix,
-//! idempotent re-symlink, retargeting a stale link, and renaming a
-//! non-symlink occupant out of the way.
+//! package.
 
 #[cfg(windows)]
 use super::relative_target_for;
@@ -22,9 +19,7 @@ use tempfile::tempdir;
 /// On Unix, [`symlink_dir`] writes the symlink contents as a path
 /// relative to the link's parent directory, matching upstream's
 /// `resolveSrcOnTrueSymlink(src, dest) = path.relative(dirname(dest),
-/// src)`. Pre-fix the on-disk symlink stored the absolute target,
-/// which broke project-directory moves and made byte-for-byte
-/// comparisons against pnpm-installed `node_modules` diverge.
+/// src)`.
 #[cfg(unix)]
 #[test]
 fn unix_symlink_contents_are_relative_to_link_parent() {
@@ -43,7 +38,6 @@ fn unix_symlink_contents_are_relative_to_link_parent() {
         PathBuf::from("..").join("packages").join("pkg-a"),
         "symlink contents must be the relative path from link parent to target",
     );
-    // Sanity: it must also still resolve to the real directory.
     assert!(link.exists(), "symlink must resolve to an existing directory");
 }
 
@@ -94,8 +88,7 @@ fn force_symlink_dir_retargets_a_stale_symlink() {
         force_symlink_dir(&fresh_target, &link).expect("force-overwrite to the fresh target");
     assert!(!outcome.reused, "the link pointed at the wrong target, so this should be a rewrite");
 
-    // The new link must resolve to the fresh target. Use the
-    // canonical paths to dodge `/private/tmp` vs `/tmp` aliasing.
+    // Use the canonical paths to dodge `/private/tmp` vs `/tmp` aliasing.
     let resolved = fs::canonicalize(&link).expect("canonicalize the new link");
     let want = fs::canonicalize(&fresh_target).expect("canonicalize fresh target");
     assert_eq!(resolved, want, "symlink must now resolve to the fresh target");
@@ -123,11 +116,9 @@ fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
         "warning should mention the .ignored_ rename: {warning:?}",
     );
 
-    // The symlink must resolve to the real target.
     let resolved_link = fs::canonicalize(&link).expect("canonicalize the new symlink");
     let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
     assert_eq!(resolved_link, resolved_target);
-    // The displaced file must live at the .ignored_<basename> path.
     let ignored_path = root.path().join(".ignored_link");
     assert!(ignored_path.is_file(), "displaced occupant must live at {ignored_path:?}");
 }

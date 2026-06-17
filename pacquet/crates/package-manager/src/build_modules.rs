@@ -291,8 +291,7 @@ fn is_source_like_dep_path_version(version: &str) -> bool {
 /// [`BuildModules::child_concurrency`] threads — mirrors upstream's
 /// [`runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L124).
 pub struct BuildModules<'a> {
-    /// Install-scoped slot-directory mapping (GVS-aware). Replaces the
-    /// previous `virtual_store_dir: &Path` field — the layout already
+    /// Install-scoped slot-directory mapping (GVS-aware). The layout
     /// knows the per-snapshot subdirectory shape (legacy flat-name vs
     /// GVS `<scope>/<name>/<version>/<hash>`). See
     /// [`crate::VirtualStoreLayout`].
@@ -640,11 +639,9 @@ impl BuildModules<'_> {
     }
 }
 
-/// Per-snapshot work extracted out of [`BuildModules::run`]'s inner
-/// loop so the bounded-parallelism `par_iter().try_for_each(...)`
-/// dispatch can call it once per chunk member. The body is the same
-/// as the pre-`#12` sequential loop — `continue`s become `return Ok(())`
-/// here.
+/// Per-snapshot build work, called once per chunk member by the
+/// bounded-parallelism `par_iter().try_for_each(...)` dispatch in
+/// [`BuildModules::run`].
 #[allow(
     clippy::too_many_arguments,
     reason = "the parameters are independent inputs; bundling them into a struct would not improve clarity"

@@ -171,7 +171,6 @@ pub(crate) fn synthesize_reused_result(
     let metadata_key = key.without_peer();
     let version = metadata_key.suffix.version_semver()?.clone();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
-    // Reuse only registry-resolved packages for now (see the doc above).
     match &metadata.resolution {
         LockfileResolution::Registry(_) => {}
         LockfileResolution::Tarball(tarball)

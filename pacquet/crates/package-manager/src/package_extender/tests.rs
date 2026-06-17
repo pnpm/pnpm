@@ -126,8 +126,7 @@ fn apply_to_arc_returns_same_arc_when_no_match() {
 /// `createPackageExtender` shape — pnpm passes the raw range to
 /// `semver.satisfies`, which throws a `TypeError` on the first
 /// matching package. Pacquet lifts the same failure mode to install
-/// start; an earlier silent-skip behavior here was strictly worse
-/// (a typo'd selector would just disappear without any signal).
+/// start.
 #[test]
 fn unparsable_range_in_selector_returns_construction_error() {
     let mut extensions = IndexMap::new();
@@ -138,11 +137,10 @@ fn unparsable_range_in_selector_returns_construction_error() {
     assert_eq!(err.range, "~~garbage");
 }
 
-/// Regression: a selector that targets the *same package name* but
-/// a non-matching version range must NOT trigger a clone. Earlier
-/// versions of this hook only checked the package-name bucket and
-/// would allocate a fresh `Value` even when every range mismatched
-/// — paid on every install for every package referenced by any
+/// A selector that targets the *same package name* but a
+/// non-matching version range must NOT trigger a clone: without the
+/// range pre-check, the name-bucket hit alone would allocate a fresh
+/// `Value` on every install for every package referenced by any
 /// `packageExtensions` selector. Pre-flighting the range gate keeps
 /// `apply_to_arc` on the "clone only when the manifest actually
 /// changes" contract its caller relies on.

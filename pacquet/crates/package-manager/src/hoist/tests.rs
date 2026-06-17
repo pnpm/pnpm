@@ -127,7 +127,6 @@ fn empty_graph_returns_none() {
 /// Direct deps don't get hoisted because they're already at the root.
 #[test]
 fn star_pattern_hoists_all_transitives_privately() {
-    // root → a; a → b
     let (snapshots, packages) = make_lockfile_data(&[
         ("a", "1.0.0", &[("b", "b", "1.0.0")], false),
         ("b", "1.0.0", &[], false),
@@ -144,8 +143,6 @@ fn star_pattern_hoists_all_transitives_privately() {
     })
     .expect("non-empty graph");
 
-    // Direct dep `a` is NOT in hoisted (already at the root).
-    // Transitive `b` IS, with kind=private.
     assert_eq!(
         kinds_for(&result.hoisted_dependencies, "b@1.0.0"),
         vec![("b".to_string(), HoistKind::Private)],
@@ -205,7 +202,6 @@ fn public_pattern_wins_ties() {
     })
     .expect("non-empty graph");
 
-    // eslint-y matches both `*` and `*eslint*` — public wins.
     assert_eq!(
         kinds_for(&result.hoisted_dependencies, "eslint-y@1.0.0"),
         vec![("eslint-y".to_string(), HoistKind::Public)],
@@ -265,8 +261,6 @@ fn first_seen_wins_per_alias() {
     })
     .expect("non-empty graph");
 
-    // `shared@1.0.0` (under `a`) wins because `a` sorts before `b`.
-    // `shared@2.0.0` (under `b`) is NOT hoisted.
     assert!(result.hoisted_dependencies.contains_key("shared@1.0.0"));
     assert!(
         !result.hoisted_dependencies.contains_key("shared@2.0.0"),
@@ -279,8 +273,6 @@ fn first_seen_wins_per_alias() {
 /// versions. Mirrors upstream's `currentSpecifiers` parameter.
 #[test]
 fn direct_dep_blocks_same_alias_transitive() {
-    // root → has-shared@1; has-shared@1 → shared@2 (transitive).
-    // Also direct-dep `shared@1` — should block `shared@2` from being hoisted.
     let (snapshots, packages) = make_lockfile_data(&[
         ("has-shared", "1.0.0", &[("shared", "shared", "2.0.0")], false),
         ("shared", "1.0.0", &[], false),
@@ -299,9 +291,6 @@ fn direct_dep_blocks_same_alias_transitive() {
     })
     .expect("non-empty graph");
 
-    // `shared` is a direct dep — its alias is in `currentSpecifiers`.
-    // The transitive `shared@2.0.0` must NOT be hoisted under that
-    // alias, because the root already owns it at v1.
     assert!(
         !result.hoisted_dependencies.contains_key("shared@2.0.0"),
         "direct-dep `shared@1` must block hoisting of transitive `shared@2`",
@@ -350,10 +339,10 @@ fn skipped_snapshot_is_excluded() {
 }
 
 /// `symlink_hoisted_dependencies` filters entries whose key is in
-/// the skip set. Regression for PR [#485] Copilot review: without the
-/// filter, a prod dependency with an optional transitive child
-/// would still get a dangling hoist symlink to the child's
-/// virtual-store slot, which `CreateVirtualStore` skipped.
+/// the skip set. Without the filter, a prod dependency with an
+/// optional transitive child would still get a dangling hoist symlink
+/// to the child's virtual-store slot, which `CreateVirtualStore`
+/// skipped. See PR [#485].
 ///
 /// [#485]: https://github.com/pnpm/pacquet/pull/485
 #[test]

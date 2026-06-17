@@ -723,9 +723,9 @@ async fn falls_through_when_cafs_file_missing() {
     drop(store_dir);
 }
 
-/// A corrupt row whose digest is empty (or too short / non-hex) used
-/// to panic inside `StoreDir::file_path_by_hex_str` (`hex[..2]`). The
-/// validation in `cas_file_path_by_mode` now rejects such rows, and
+/// A corrupt row whose digest is empty (or too short / non-hex) must
+/// not panic inside `StoreDir::file_path_by_hex_str` (`hex[..2]`).
+/// The validation in `cas_file_path_by_mode` rejects such rows, and
 /// `load_cached_cas_paths` treats that as a cache miss.
 #[tokio::test]
 async fn falls_through_when_digest_is_malformed() {
@@ -740,8 +740,6 @@ async fn falls_through_when_digest_is_malformed() {
     let mut files = HashMap::new();
     files.insert(
         "package.json".to_string(),
-        // Empty digest — pre-fix this would panic in the spawn_blocking
-        // task during `hex[..2]`.
         CafsFileInfo { digest: String::new(), mode: 0o644, size: 0, checked_at: None },
     );
     let entry = PackageFilesIndex {
@@ -928,15 +926,11 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
     drop(store_dir);
 }
 
-/// The per-entry loop used to be a pile of `.unwrap()` /
-/// `.expect()` calls that turned any tar-side failure — corrupt
-/// header, short body read, path decode — into a panic inside a
-/// blocking-pool task (which took the whole install with it and
-/// occasionally left the pool with dangling permits). The loop now
-/// lives in `extract_tarball_entries` and propagates every such
-/// failure as [`TarballError::ReadTarballEntries`]. This test
-/// feeds the function bytes that aren't a valid tar archive and
-/// asserts we get that error rather than a panic.
+/// `extract_tarball_entries` must propagate any tar-side failure —
+/// corrupt header, short body read, path decode — as
+/// [`TarballError::ReadTarballEntries`] rather than panicking inside
+/// a blocking-pool task (which would take the whole install with it
+/// and could leave the pool with dangling permits).
 ///
 /// We don't invoke `decompress_gzip` here: the decompression layer
 /// has its own error path and isn't the code under test. Driving
@@ -1395,13 +1389,13 @@ async fn retry_exhaustion_returns_last_error() {
     drop(store_dir_keep);
 }
 
-/// Regression test for the `run_with_mem_cache` deadlock that hung
+/// Regression test for a `run_with_mem_cache` deadlock that hung
 /// `pacquet install` on real-network workloads at high concurrency.
-/// The if-let branch used to hold a `DashMap::Ref` (a synchronous
-/// shard read guard) across two `.await` points; under enough
-/// concurrency another task on the same worker would call
-/// `mem_cache.insert` for a key hashing to the same shard, block
-/// on the `parking_lot` write, and starve every worker.
+/// The if-let branch must not hold a `DashMap::Ref` (a synchronous
+/// shard read guard) across an `.await` point: if it does, under
+/// enough concurrency another task on the same worker calls
+/// `mem_cache.insert` for a key hashing to the same shard, blocks
+/// on the `parking_lot` write, and starves every worker.
 ///
 /// To reproduce end-to-end:
 /// * Mockito serves the real fastify-error tarball with a
@@ -1990,12 +1984,10 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
 }
 
 /// `run_with_mem_cache` must not deadlock when the *owning* fetch
-/// errors. Before the `CacheValue::Failed` fix, the failing task
-/// returned without flipping the cache slot to `Available` or
-/// notifying waiters, so the second requester would park on
-/// `Notify::notified` forever. Now the owner sets `Failed`, removes
-/// the entry from `mem_cache`, and notifies waiters; both requesters
-/// surface a `TarballError`.
+/// errors. The owner must set the slot to `CacheValue::Failed`,
+/// remove the entry from `mem_cache`, and notify waiters — otherwise
+/// a second requester parks on `Notify::notified` forever. Both
+/// requesters surface a `TarballError`.
 ///
 /// Two concurrent `run_with_mem_cache` calls for the same URL,
 /// pointing at a 404 endpoint with `retries: 0` so the failure is
@@ -2054,12 +2046,11 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         progress_reported: None,
     };
 
-    // Drive both calls concurrently. Pre-fix: the first to hit the
-    // `else` branch goes through the network, fails, returns
-    // without notifying — the second parks on `Notify` forever.
-    // Post-fix: the owner notifies after setting `Failed`; the
-    // waiter wakes up, observes `Failed`, and surfaces
-    // `SiblingFetchFailed` (or its own attempt's error).
+    // Drive both calls concurrently. One hits the `else` branch and
+    // goes through the network; the other waits on `Notify`. The
+    // owner notifies after setting `Failed`, so the waiter wakes up,
+    // observes `Failed`, and surfaces `SiblingFetchFailed` (or its
+    // own attempt's error).
     let task_a =
         tokio::spawn(
             async move { make_dts().run_with_mem_cache::<SilentReporter>(mem_cache).await },
@@ -2180,9 +2171,9 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     assert_eq!(attempts, vec![1, 2], "started must fire once per attempt; got {captured:?}");
     // Both attempts have a response head (mockito sends Content-Length
     // for `with_body(...)` and `with_status(503)` likewise), so both
-    // `started` events must carry a populated `size`. Pinning this
-    // here so the previous regression — emit-before-send leaving
-    // `size` always-`null` — can't sneak back in (Copilot review on
+    // `started` events must carry a populated `size`. This guards
+    // against emitting `started` before the response head arrives,
+    // which would leave `size` always-`null` (Copilot review on
     // <https://github.com/pnpm/pacquet/pull/372>).
     for (attempt, size) in &started {
         assert!(size.is_some(), "attempt {attempt} should expose Content-Length, got null");

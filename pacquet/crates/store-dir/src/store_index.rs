@@ -537,8 +537,8 @@ impl StoreIndex {
     ///    — pacquet matches pnpm's on-wire shape so the two tools can
     ///    share `index.db`.
     /// 3. **Legacy pacquet-written**: plain `MessagePack` maps from the
-    ///    `rmp_serde::to_vec_named` path used before this PR. These
-    ///    may still live in caches that predate the cutover.
+    ///    `rmp_serde::to_vec_named` path. These may still live in
+    ///    caches written by older pacquet versions.
     ///
     /// All three route through
     /// [`transcode_to_plain_msgpack`][crate::msgpackr_records::transcode_to_plain_msgpack],
@@ -606,9 +606,9 @@ impl StoreIndex {
 
     /// Batched read that returns the **undecoded** value bytes for each
     /// hit. Callers run `decode_index_value` themselves — either inline
-    /// (matching the old [`Self::get_many`] shape) or, more usefully,
-    /// in parallel across a rayon pool after releasing the
-    /// [`SharedReadonlyStoreIndex`] mutex.
+    /// (like [`Self::get_many`]) or, more usefully, in parallel across
+    /// a rayon pool after releasing the [`SharedReadonlyStoreIndex`]
+    /// mutex.
     ///
     /// The decode is the dominant CPU cost of [`Self::get_many`] for
     /// rows that carry a `manifest` field — msgpackr-records transcode

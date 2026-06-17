@@ -123,13 +123,11 @@ pub fn link_file<Reporter: self::Reporter>(
     // `Auto`-fallback-to-copy path, mismatching the no-op contract
     // the test suite locks in).
     //
-    // Cutting the second `symlink_metadata` from the old shape —
-    // it was a pure pessimization: in the clean-install case both
-    // calls returned `NotFound`, doubling per-file `stat` count
-    // (~260k extra syscalls on the alotta-files fixture). Defer
-    // the dangling-symlink detection to the EEXIST recovery path
-    // below, which only fires when the import call itself sees the
-    // dirent.
+    // A single `metadata` stat suffices: dangling-symlink detection
+    // is deferred to the EEXIST recovery path below, which only fires
+    // when the import call itself sees the dirent. A second
+    // `symlink_metadata` here would double the per-file stat count in
+    // the clean-install case (both calls return `NotFound`).
     //
     // For `NotFound` and any other stat error, fall through to the
     // import call — it will surface the real error or succeed.
@@ -292,10 +290,11 @@ fn is_cross_device(err: &io::Error) -> bool {
 /// (`EOPNOTSUPP`, `ENOTTY`, `ENOSYS`, `ERROR_INVALID_FUNCTION`, ...) —
 /// triggers the fallback. This is the same deny-list the `reflink-copy`
 /// crate uses in its own `reflink_or_copy` fallback logic, so it's
-/// battle-tested across the platform matrix. The allow-list flavour we
-/// tried initially missed Windows's `ERROR_INVALID_FUNCTION` (raw OS
-/// `1`, which Rust surfaces as `ErrorKind::InvalidInput`) for NTFS's
-/// rejection of `FSCTL_DUPLICATE_EXTENTS_TO_FILE`, breaking Windows CI.
+/// battle-tested across the platform matrix. A deny-list is required
+/// rather than an allow-list because Windows's `ERROR_INVALID_FUNCTION`
+/// (raw OS `1`, which Rust surfaces as `ErrorKind::InvalidInput`) for
+/// NTFS's rejection of `FSCTL_DUPLICATE_EXTENTS_TO_FILE` must trigger
+/// the fallback.
 fn is_call_error(err: &io::Error) -> bool {
     matches!(
         err.kind(),

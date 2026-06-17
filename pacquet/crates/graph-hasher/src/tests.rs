@@ -62,7 +62,6 @@ fn hash_object_with_encoding_hex_matches_decoded_base64() {
     let value = json!({ "b": 1, "a": 2 });
     let base64 = hash_object(&value);
     let hex = hash_object_with_encoding(&value, HashEncoding::Hex, /* sort */ true);
-    // base64 → bytes; hex → bytes; must match.
     let from_b64 =
         base64::Engine::decode(&base64::engine::general_purpose::STANDARD, base64.as_bytes())
             .expect("decode base64");
@@ -130,9 +129,8 @@ fn hash_object_handles_null_bool_and_array_variants() {
     let false_hash = hash_object(&json!({ "v": false }));
     let array_hash = hash_object(&json!({ "v": [1, 2, 3] }));
 
-    // Each variant produces a non-empty, distinct hash. Collisions
-    // across variants would mean the discriminator prefixes were
-    // lost.
+    // Collisions across variants would mean the discriminator prefixes
+    // were lost.
     let all = [&null_hash, &true_hash, &false_hash, &array_hash];
     for first in all {
         assert!(!first.is_empty());
@@ -145,10 +143,8 @@ fn hash_object_handles_null_bool_and_array_variants() {
         }
     }
 
-    // Stable across calls.
     assert_eq!(null_hash, hash_object(&json!({ "v": null })));
     assert_eq!(array_hash, hash_object(&json!({ "v": [1, 2, 3] })));
-    // Array element order matters: `[1,2,3]` and `[3,2,1]` differ.
     assert_ne!(array_hash, hash_object(&json!({ "v": [3, 2, 1] })));
 }
 
