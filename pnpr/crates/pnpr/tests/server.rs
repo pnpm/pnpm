@@ -824,3 +824,83 @@ async fn tarball_is_not_gzipped_even_when_accepted() {
 
     mock.assert_async().await;
 }
+
+/// A per-uplink `maxage` shorter than the global `packument_ttl` governs
+/// freshness: with a generous global TTL the second request would be a
+/// cache hit, but `maxage: 0` forces a revalidation, so the upstream is
+/// hit twice.
+#[tokio::test]
+async fn per_uplink_maxage_overrides_global_packument_ttl() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({ "name": "foo", "versions": {} });
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(2)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    // Global TTL stays generous (a minute); the per-uplink maxage of zero
+    // is what must take effect and make every read stale.
+    config.packument_ttl = Duration::from_mins(1);
+    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").maxage =
+        Some(Duration::from_millis(0));
+    let app = router(config);
+
+    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r1.status(), StatusCode::OK);
+    let _ = body_bytes(r1.into_body()).await;
+
+    let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r2.status(), StatusCode::OK);
+
+    mock.assert_async().await;
+}
+
+/// A `cache: false` uplink streams tarballs through without writing them
+/// to the local mirror: a second request re-fetches from the upstream
+/// (so the mock is hit twice) and no `.tgz` is left in the cache dir.
+#[tokio::test]
+async fn cache_false_uplink_streams_tarball_without_mirroring() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"uncached-tarball-bytes";
+    let mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(2)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().to_path_buf();
+    let mut config = config_for(&upstream.url(), cache_dir.clone());
+    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").cache = false;
+    let app = router(config);
+
+    for _ in 0..2 {
+        let response = app
+            .clone()
+            .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, bytes);
+    }
+
+    // Nothing was mirrored: the package dir either doesn't exist or holds
+    // no `.tgz`. Both requests therefore went to the upstream.
+    let package_dir = cache_dir.join(".pnpr-cache").join("foo");
+    let cached_tarballs = std::fs::read_dir(&package_dir).map_or(0, |entries| {
+        entries
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tgz"))
+            .count()
+    });
+    assert_eq!(cached_tarballs, 0, "a cache:false uplink must not write tarballs to the mirror");
+
+    mock.assert_async().await;
+}

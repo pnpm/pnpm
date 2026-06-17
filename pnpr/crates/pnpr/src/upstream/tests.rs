@@ -1,11 +1,18 @@
 use super::{
-    CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
+    CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
     extract_version_manifest, rewrite_tarball_urls,
 };
-use crate::package_name::PackageName;
+use crate::{config::UplinkConfig, error::RegistryError, package_name::PackageName};
 use chrono::{DateTime, TimeZone, Utc};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use serde_json::json;
+use std::time::Duration;
+
+/// Build an [`Upstream`] pointing at `url` with `headers`, all per-uplink
+/// tuning knobs at their verdaccio defaults.
+fn upstream(url: String, headers: HeaderMap) -> Upstream {
+    Upstream::new("npmjs", &UplinkConfig::with_defaults(url, headers))
+}
 
 /// Fixed "current time" for abbreviation tests so the `time`-map
 /// coarsening (which buckets entries by age) is deterministic.
@@ -38,7 +45,7 @@ async fn fetch_packument_forwards_configured_headers() {
         .create_async()
         .await;
 
-    let upstream = Upstream::new(server.url(), auth_and_custom_headers());
+    let upstream = upstream(server.url(), auth_and_custom_headers());
     let name = PackageName::parse("foo").unwrap();
     let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
 
@@ -59,7 +66,7 @@ async fn fetch_tarball_response_forwards_configured_headers() {
         .create_async()
         .await;
 
-    let upstream = Upstream::new(server.url(), auth_and_custom_headers());
+    let upstream = upstream(server.url(), auth_and_custom_headers());
     let name = PackageName::parse("foo").unwrap();
     let outcome = upstream.fetch_tarball_response(&name, "foo-1.0.0.tgz").await.unwrap();
 
@@ -79,7 +86,7 @@ async fn fetch_packument_sends_no_authorization_when_headers_empty() {
         .create_async()
         .await;
 
-    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let upstream = upstream(server.url(), HeaderMap::new());
     let name = PackageName::parse("foo").unwrap();
     let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
 
@@ -100,7 +107,7 @@ async fn fetch_packument_captures_validators_from_response() {
         .create_async()
         .await;
 
-    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let upstream = upstream(server.url(), HeaderMap::new());
     let name = PackageName::parse("foo").unwrap();
     let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
 
@@ -124,7 +131,7 @@ async fn fetch_packument_replays_validators_and_handles_304() {
         .create_async()
         .await;
 
-    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let upstream = upstream(server.url(), HeaderMap::new());
     let name = PackageName::parse("foo").unwrap();
     let validators = CacheValidators {
         etag: Some(r#""abc123""#.to_string()),
@@ -152,7 +159,7 @@ async fn fetch_packument_304_without_validators_is_an_error() {
         .create_async()
         .await;
 
-    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let upstream = upstream(server.url(), HeaderMap::new());
     let name = PackageName::parse("foo").unwrap();
     let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
 
@@ -165,7 +172,7 @@ async fn fetch_packument_maps_404_to_not_found() {
     let mut server = mockito::Server::new_async().await;
     let mock = server.mock("GET", "/foo").with_status(404).expect(1).create_async().await;
 
-    let upstream = Upstream::new(server.url(), HeaderMap::new());
+    let upstream = upstream(server.url(), HeaderMap::new());
     let name = PackageName::parse("foo").unwrap();
     let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
 
@@ -434,4 +441,117 @@ fn coarsens_time_entries_by_age() {
     assert_eq!(time["0.0.1"], "not a date");
     // Synthesized top-level `modified` mirrors the coarsened entry.
     assert_eq!(out["modified"], "2024-03-02");
+}
+
+/// Build an [`Upstream`] pointing at `url` with a circuit breaker armed
+/// at `max_fails` and a long cooldown, so a test can drive it to the
+/// open state and observe the short-circuit before the cooldown lapses.
+fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
+    Upstream::new(
+        "npmjs",
+        &UplinkConfig {
+            url,
+            headers: HeaderMap::new(),
+            maxage: None,
+            timeout: UplinkConfig::DEFAULT_TIMEOUT,
+            max_fails,
+            fail_timeout: Duration::from_mins(5),
+            cache: true,
+        },
+    )
+}
+
+#[test]
+fn circuit_breaker_opens_after_max_fails_and_resets_on_success() {
+    let breaker = CircuitBreaker::new(2, Duration::from_mins(5));
+    assert!(breaker.try_acquire());
+    breaker.record_failure();
+    assert!(breaker.try_acquire(), "one failure is under the threshold");
+    breaker.record_failure();
+    assert!(!breaker.try_acquire(), "two failures trip the breaker for the cooldown");
+    breaker.record_success();
+    assert!(breaker.try_acquire(), "a success clears the failure count");
+}
+
+#[test]
+fn circuit_breaker_reopens_once_cooldown_elapses() {
+    // A zero cooldown means a tripped breaker is immediately retryable —
+    // the half-open probe path.
+    let breaker = CircuitBreaker::new(1, Duration::ZERO);
+    breaker.record_failure();
+    assert!(breaker.try_acquire(), "a zero fail_timeout lets the next probe through");
+}
+
+#[test]
+fn circuit_breaker_admits_one_probe_per_cooldown_window() {
+    // A short but non-zero cooldown so we can drive the half-open window
+    // deterministically with a sleep.
+    let cooldown = Duration::from_millis(40);
+    let breaker = CircuitBreaker::new(1, cooldown);
+    breaker.record_failure();
+    assert!(!breaker.try_acquire(), "still cooling down right after the failure");
+
+    std::thread::sleep(cooldown + Duration::from_millis(20));
+    assert!(breaker.try_acquire(), "the first caller after the cooldown probes");
+    assert!(!breaker.try_acquire(), "admitting the probe re-armed the window; others wait");
+
+    // A probe that never reports back (cancelled mid-request) must not
+    // stick the breaker open forever: once the window lapses the next
+    // caller probes again.
+    std::thread::sleep(cooldown + Duration::from_millis(20));
+    assert!(breaker.try_acquire(), "an abandoned probe self-heals after the cooldown");
+
+    // A successful probe closes the breaker entirely.
+    breaker.record_success();
+    assert!(breaker.try_acquire(), "a closed breaker admits everyone");
+}
+
+#[test]
+fn circuit_breaker_disabled_when_max_fails_is_zero() {
+    let breaker = CircuitBreaker::new(0, Duration::from_mins(5));
+    breaker.record_failure();
+    breaker.record_failure();
+    assert!(breaker.try_acquire(), "max_fails == 0 disables the breaker");
+}
+
+#[tokio::test]
+async fn open_circuit_short_circuits_without_hitting_the_upstream() {
+    let mut server = mockito::Server::new_async().await;
+    // `max_fails: 1` trips after the first 500; the breaker must then
+    // short-circuit, so the upstream is hit exactly once.
+    let mock = server.mock("GET", "/foo").with_status(500).expect(1).create_async().await;
+
+    let upstream = breaking_upstream(server.url(), 1);
+    let name = PackageName::parse("foo").unwrap();
+
+    let first = upstream.fetch_packument(&name, &CacheValidators::default()).await;
+    assert!(matches!(first, Err(RegistryError::UpstreamStatus { status: 500, .. })));
+
+    let second = upstream.fetch_packument(&name, &CacheValidators::default()).await;
+    assert!(
+        matches!(second, Err(RegistryError::UpstreamUnavailable { .. })),
+        "the open breaker must short-circuit the second request",
+    );
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn client_error_status_does_not_open_the_circuit() {
+    let mut server = mockito::Server::new_async().await;
+    // A 401 is an authoritative answer, not an availability failure: even
+    // at `max_fails: 1` it must not trip the breaker, so the upstream is
+    // reached on both requests rather than masked behind a 503.
+    let mock = server.mock("GET", "/foo").with_status(401).expect(2).create_async().await;
+
+    let upstream = breaking_upstream(server.url(), 1);
+    let name = PackageName::parse("foo").unwrap();
+
+    for _ in 0..2 {
+        let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
+        assert!(
+            matches!(result, Err(RegistryError::UpstreamStatus { status: 401, .. })),
+            "a 4xx must surface verbatim, not as a circuit-open 503",
+        );
+    }
+    mock.assert_async().await;
 }
