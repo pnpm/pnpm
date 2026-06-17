@@ -1,4 +1,7 @@
-use crate::{LinkFileError, import_into_fresh_target};
+use crate::{
+    LinkFileError, import_into_fresh_target,
+    remove_quarantine::remove_quarantine_from_native_binaries,
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::PackageImportMethod;
@@ -145,10 +148,17 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         }
     };
 
+    // Drop the macOS quarantine xattr from the package's native binaries after
+    // a populating import, matching pnpm's `removeQuarantineFromNativeBinaries`.
+    // The marker-present short-circuit (and the non-directory dirent left as-is)
+    // import nothing, so they skip the sweep, keeping warm installs free of the
+    // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
+    let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, opts.force) {
         // Fresh target — populate it. Both linkers take this path on
         // first install.
-        (None, _) => populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths),
+        (None, _) => populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+            .inspect(|()| unquarantine()),
         // Short-circuit only when the completion marker is present
         // (pnpm's `pkgExistsAtTargetDir`, which checks `package.json`),
         // not on mere directory existence. A marker-less directory is a
@@ -159,6 +169,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
                 Ok(())
             } else {
                 populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+                    .inspect(|()| unquarantine())
             }
         }
         // A non-directory dirent is left as-is; only force=true clobbers it.
@@ -171,6 +182,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
                 ImportIndexedDirError::ClearNonDirEntry { path: dir_path.to_path_buf(), error }
             })?;
             populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+                .inspect(|()| unquarantine())
         }
         // Existing directory with force=true — stage and swap.
         (Some(_), true) => stage_and_swap::<Reporter>(
@@ -179,7 +191,8 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             opts.keep_modules_dir,
-        ),
+        )
+        .inspect(|()| unquarantine()),
     }
 }
 

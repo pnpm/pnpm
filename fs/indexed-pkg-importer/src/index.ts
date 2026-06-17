@@ -11,6 +11,7 @@ import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwriteSync } from 'rename-overwrite'
 
 import { type Importer, type ImportFile, importIndexedDir } from './importIndexedDir.js'
+import { isNativeBinary, removeQuarantine } from './removeQuarantine.js'
 
 export { type FilesMap, type ImportIndexedPackage, type ImportOptions }
 
@@ -135,6 +136,7 @@ function tryClonePkg (
   if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
     const clone = createCloneFunction()
     importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
+    removeQuarantineFromNativeBinaries(to, opts)
     return 'clone'
   }
   return undefined
@@ -168,6 +170,7 @@ function createClonePkg (): ImportIndexedPackage {
   return (to: string, opts: ImportOptions) => {
     if (opts.resolvedFrom !== 'store' || opts.force || !pkgExistsAtTargetDir(to, opts.filesMap)) {
       importIndexedDir(importer, to, opts.filesMap, opts)
+      removeQuarantineFromNativeBinaries(to, opts)
       return 'clone'
     }
     return undefined
@@ -229,6 +232,7 @@ function hardlinkPkg (
 ): 'hardlink' | undefined {
   if (opts.force || shouldRelinkPkg(to, opts)) {
     importIndexedDir({ importFile, importFileAtomic: importFile }, to, opts.filesMap, opts)
+    removeQuarantineFromNativeBinaries(to, opts)
     return 'hardlink'
   }
   return undefined
@@ -303,6 +307,7 @@ export function copyPkg (
     // can leave a partially-written file.  package.json is the completion
     // marker, so it must be written atomically via temp file + rename.
     importIndexedDir({ importFile: resilientCopyFileSync, importFileAtomic: atomicCopyFileSync }, to, opts.filesMap, opts)
+    removeQuarantineFromNativeBinaries(to, opts)
     return 'copy'
   }
   return undefined
@@ -319,4 +324,22 @@ function atomicCopyFileSync (src: string, dest: string): void {
     throw err
   }
   renameOverwriteSync(tmp, dest)
+}
+
+// macOS preserves the com.apple.quarantine xattr when files are copied or
+// reflinked out of the store, and for hardlinks the imported file shares the
+// store blob's inode (and thus its xattrs). Either way Gatekeeper can block a
+// native binary from loading. Drop the quarantine once, in a single batched
+// `xattr` call per package, restricted to the few native binaries that
+// Gatekeeper actually guards. Only store imports are cleaned: that's where the
+// quarantine propagation happens and where pnpm has verified file integrity.
+function removeQuarantineFromNativeBinaries (to: string, opts: ImportOptions): void {
+  if (process.platform !== 'darwin' || opts.resolvedFrom !== 'store') return
+  const nativeBinaries: string[] = []
+  for (const file of opts.filesMap.keys()) {
+    if (isNativeBinary(file)) {
+      nativeBinaries.push(path.join(to, file))
+    }
+  }
+  removeQuarantine(nativeBinaries)
 }

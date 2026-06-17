@@ -33,6 +33,7 @@ mod package_extender;
 mod prefetching_resolver;
 mod prune_virtual_store;
 mod remove;
+mod remove_quarantine;
 mod resolution_observer;
 mod resolution_policy;
 mod retry_config;
