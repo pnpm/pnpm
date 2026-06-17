@@ -11,7 +11,7 @@ use std::time::Duration;
 /// Build an [`Upstream`] pointing at `url` with `headers`, all per-uplink
 /// tuning knobs at their verdaccio defaults.
 fn upstream(url: String, headers: HeaderMap) -> Upstream {
-    Upstream::new(&UplinkConfig::with_defaults(url, headers))
+    Upstream::new("npmjs", &UplinkConfig::with_defaults(url, headers))
 }
 
 /// Fixed "current time" for abbreviation tests so the `time`-map
@@ -447,27 +447,30 @@ fn coarsens_time_entries_by_age() {
 /// at `max_fails` and a long cooldown, so a test can drive it to the
 /// open state and observe the short-circuit before the cooldown lapses.
 fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
-    Upstream::new(&UplinkConfig {
-        url,
-        headers: HeaderMap::new(),
-        maxage: None,
-        timeout: UplinkConfig::DEFAULT_TIMEOUT,
-        max_fails,
-        fail_timeout: Duration::from_mins(5),
-        cache: true,
-    })
+    Upstream::new(
+        "npmjs",
+        &UplinkConfig {
+            url,
+            headers: HeaderMap::new(),
+            maxage: None,
+            timeout: UplinkConfig::DEFAULT_TIMEOUT,
+            max_fails,
+            fail_timeout: Duration::from_mins(5),
+            cache: true,
+        },
+    )
 }
 
 #[test]
 fn circuit_breaker_opens_after_max_fails_and_resets_on_success() {
     let breaker = CircuitBreaker::new(2, Duration::from_mins(5));
-    assert!(breaker.is_available());
+    assert!(breaker.try_acquire());
     breaker.record_failure();
-    assert!(breaker.is_available(), "one failure is under the threshold");
+    assert!(breaker.try_acquire(), "one failure is under the threshold");
     breaker.record_failure();
-    assert!(!breaker.is_available(), "two failures trip the breaker for the cooldown");
+    assert!(!breaker.try_acquire(), "two failures trip the breaker for the cooldown");
     breaker.record_success();
-    assert!(breaker.is_available(), "a success clears the failure count");
+    assert!(breaker.try_acquire(), "a success clears the failure count");
 }
 
 #[test]
@@ -476,7 +479,37 @@ fn circuit_breaker_reopens_once_cooldown_elapses() {
     // the half-open probe path.
     let breaker = CircuitBreaker::new(1, Duration::ZERO);
     breaker.record_failure();
-    assert!(breaker.is_available(), "a zero fail_timeout lets the next probe through");
+    assert!(breaker.try_acquire(), "a zero fail_timeout lets the next probe through");
+}
+
+#[test]
+fn circuit_breaker_admits_only_one_half_open_probe() {
+    // Once cooled down, exactly one caller is let through to probe the
+    // upstream; concurrent callers stay short-circuited until the probe
+    // resolves, so a recovering upstream isn't stampeded.
+    let breaker = CircuitBreaker::new(1, Duration::ZERO);
+    breaker.record_failure();
+    assert!(breaker.try_acquire(), "the first caller after cooldown gets the probe");
+    assert!(!breaker.try_acquire(), "a second concurrent caller is held back");
+    // The probe fails: the cooldown restarts and the next caller (after it
+    // lapses again, instantly here) gets a fresh probe.
+    breaker.record_failure();
+    assert!(breaker.try_acquire(), "a failed probe frees the slot for the next probe");
+    // A successful probe instead closes the breaker entirely.
+    breaker.record_success();
+    assert!(breaker.try_acquire(), "a closed breaker admits everyone");
+}
+
+#[test]
+fn circuit_breaker_neutral_releases_probe_without_counting() {
+    // A non-availability answer (a non-404 4xx) must neither trip nor
+    // reset the breaker, but it does release the half-open probe.
+    let breaker = CircuitBreaker::new(1, Duration::ZERO);
+    breaker.record_failure();
+    assert!(breaker.try_acquire(), "cooled-down breaker hands out a probe");
+    assert!(!breaker.try_acquire(), "probe in flight holds others back");
+    breaker.record_neutral();
+    assert!(breaker.try_acquire(), "a neutral answer frees the probe slot");
 }
 
 #[test]
@@ -484,7 +517,7 @@ fn circuit_breaker_disabled_when_max_fails_is_zero() {
     let breaker = CircuitBreaker::new(0, Duration::from_mins(5));
     breaker.record_failure();
     breaker.record_failure();
-    assert!(breaker.is_available(), "max_fails == 0 disables the breaker");
+    assert!(breaker.try_acquire(), "max_fails == 0 disables the breaker");
 }
 
 #[tokio::test]
@@ -505,5 +538,26 @@ async fn open_circuit_short_circuits_without_hitting_the_upstream() {
         matches!(second, Err(RegistryError::UpstreamUnavailable { .. })),
         "the open breaker must short-circuit the second request",
     );
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn client_error_status_does_not_open_the_circuit() {
+    let mut server = mockito::Server::new_async().await;
+    // A 401 is an authoritative answer, not an availability failure: even
+    // at `max_fails: 1` it must not trip the breaker, so the upstream is
+    // reached on both requests rather than masked behind a 503.
+    let mock = server.mock("GET", "/foo").with_status(401).expect(2).create_async().await;
+
+    let upstream = breaking_upstream(server.url(), 1);
+    let name = PackageName::parse("foo").unwrap();
+
+    for _ in 0..2 {
+        let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
+        assert!(
+            matches!(result, Err(RegistryError::UpstreamStatus { status: 401, .. })),
+            "a 4xx must surface verbatim, not as a circuit-open 503",
+        );
+    }
     mock.assert_async().await;
 }

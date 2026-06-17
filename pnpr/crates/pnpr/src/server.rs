@@ -157,8 +157,11 @@ pub fn router(config: Config) -> Router {
 pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
     let storage =
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
-    let upstreams: IndexMap<String, Upstream> =
-        config.uplinks.iter().map(|(name, uplink)| (name.clone(), Upstream::new(uplink))).collect();
+    let upstreams: IndexMap<String, Upstream> = config
+        .uplinks
+        .iter()
+        .map(|(name, uplink)| (name.clone(), Upstream::new(name, uplink)))
+        .collect();
     let state = AppState {
         inner: Arc::new(AppInner {
             storage,

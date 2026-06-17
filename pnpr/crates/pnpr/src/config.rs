@@ -352,10 +352,6 @@ pub struct UplinkConfig {
 }
 
 impl UplinkConfig {
-    /// Verdaccio's `maxage` default (`2m`). Applied per-uplink only when
-    /// the YAML sets `maxage` but the value can't carry through `None`;
-    /// an unset `maxage` instead defers to [`Config::packument_ttl`].
-    pub const DEFAULT_MAXAGE: Duration = Duration::from_mins(2);
     /// Verdaccio's `timeout` default (`30s`).
     pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
     /// Verdaccio's `max_fails` default (`2`).
@@ -570,7 +566,10 @@ fn parse_interval(raw: &str) -> Option<Duration> {
     }
     // A bare number is seconds, matching verdaccio (`interval * 1000` ms).
     if let Ok(seconds) = raw.parse::<f64>() {
-        return (seconds.is_finite() && seconds >= 0.0).then(|| Duration::from_secs_f64(seconds));
+        // `try_from_secs_f64` rejects negative, non-finite, and
+        // out-of-range values, so an absurd config (`"1e30"`) surfaces as
+        // a config error rather than panicking pnpr at startup.
+        return Duration::try_from_secs_f64(seconds).ok();
     }
     let mut total_seconds = 0f64;
     let bytes = raw.as_bytes();
@@ -603,7 +602,9 @@ fn parse_interval(raw: &str) -> Option<Duration> {
         };
         total_seconds += seconds;
     }
-    total_seconds.is_finite().then(|| Duration::from_secs_f64(total_seconds))
+    // Fallible conversion so an overflowing compound (`"999999999999w"`)
+    // is rejected as unparsable rather than panicking.
+    Duration::try_from_secs_f64(total_seconds).ok()
 }
 
 /// Pick the credential for an uplink's `auth:` block: an explicit

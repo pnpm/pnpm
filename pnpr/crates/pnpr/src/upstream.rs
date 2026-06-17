@@ -13,10 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     fmt,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicU32, Ordering},
-    },
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -31,6 +28,10 @@ use std::{
 pub struct Upstream {
     client: Arc<ThrottledClient>,
     base: String,
+    /// The configured uplink name (the YAML `uplinks:` key). Surfaced in
+    /// client-facing errors so an open circuit names the uplink rather
+    /// than leaking its upstream URL.
+    name: String,
     /// Resolved per-uplink request headers (auth + custom) attached to
     /// every fetch. Empty for an uplink with no `auth:`/`headers:`.
     headers: HeaderMap,
@@ -54,6 +55,7 @@ impl fmt::Debug for Upstream {
         f.debug_struct("Upstream")
             .field("client", &self.client)
             .field("base", &self.base)
+            .field("name", &self.name)
             .field("headers", &RedactedHeaders(&self.headers))
             .field("timeout", &self.timeout)
             .field("maxage", &self.maxage)
@@ -68,47 +70,81 @@ impl fmt::Debug for Upstream {
 /// requests short-circuit, until `fail_timeout` elapses since the last
 /// failure — a single probe is then allowed through, and its success
 /// resets the breaker or its failure restarts the cooldown.
+///
+/// The counter, the cooldown timestamp, and the half-open probe permit
+/// live behind one [`Mutex`] so a threshold check and its timestamp can
+/// never be observed half-updated. The lock is held only for trivial
+/// field reads/writes (never across the network request), so contention
+/// is negligible; a poisoned lock is recovered rather than propagated as
+/// a panic, keeping a failing uplink from taking the registry down.
 #[derive(Debug)]
 struct CircuitBreaker {
     max_fails: u32,
     fail_timeout: Duration,
-    failed_requests: AtomicU32,
-    last_failure: Mutex<Option<Instant>>,
+    state: Mutex<BreakerState>,
+}
+
+#[derive(Debug, Default)]
+struct BreakerState {
+    failed_requests: u32,
+    last_failure: Option<Instant>,
+    /// A half-open probe is in flight. While set, further callers are
+    /// short-circuited so a recovering upstream sees one probe rather
+    /// than a stampede. Cleared whenever the probe resolves (success,
+    /// failure, or an authoritative non-availability answer).
+    probe_in_flight: bool,
 }
 
 impl CircuitBreaker {
     fn new(max_fails: u32, fail_timeout: Duration) -> Self {
-        Self {
-            max_fails,
-            fail_timeout,
-            failed_requests: AtomicU32::new(0),
-            last_failure: Mutex::new(None),
-        }
+        Self { max_fails, fail_timeout, state: Mutex::new(BreakerState::default()) }
     }
 
-    /// Whether a request to this uplink should be attempted. Available
-    /// while under `max_fails` consecutive failures, or once the
-    /// `fail_timeout` cooldown has elapsed since the last failure.
+    /// Recover the guard from a poisoned lock instead of panicking: the
+    /// breaker only ever holds plain counters, so the worst a poisoned
+    /// guard carries is a stale failure count, never an invariant break.
+    fn lock(&self) -> std::sync::MutexGuard<'_, BreakerState> {
+        self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Try to admit one request. Returns `true` while under `max_fails`
+    /// consecutive failures (or when the breaker is disabled), and once
+    /// the `fail_timeout` cooldown has elapsed admits exactly one probe —
+    /// later callers stay short-circuited until that probe resolves.
     /// `max_fails == 0` disables the breaker entirely.
-    fn is_available(&self) -> bool {
-        if self.max_fails == 0 || self.failed_requests.load(Ordering::Relaxed) < self.max_fails {
+    fn try_acquire(&self) -> bool {
+        let mut state = self.lock();
+        if self.max_fails == 0 || state.failed_requests < self.max_fails {
             return true;
         }
-        let last_failure = *self.last_failure.lock().expect("circuit breaker poisoned");
-        match last_failure {
-            Some(at) => at.elapsed() >= self.fail_timeout,
-            None => true,
+        // Tripped: stay open until the cooldown since the last failure
+        // lapses. (`failed_requests >= max_fails` always implies a
+        // recorded `last_failure`, so the `None` arm is unreachable; it
+        // fails open for safety.)
+        let cooled_down = state.last_failure.is_none_or(|at| at.elapsed() >= self.fail_timeout);
+        if !cooled_down || state.probe_in_flight {
+            return false;
         }
+        state.probe_in_flight = true;
+        true
     }
 
     fn record_success(&self) {
-        self.failed_requests.store(0, Ordering::Relaxed);
-        *self.last_failure.lock().expect("circuit breaker poisoned") = None;
+        *self.lock() = BreakerState::default();
     }
 
     fn record_failure(&self) {
-        self.failed_requests.fetch_add(1, Ordering::Relaxed);
-        *self.last_failure.lock().expect("circuit breaker poisoned") = Some(Instant::now());
+        let mut state = self.lock();
+        state.failed_requests = state.failed_requests.saturating_add(1);
+        state.last_failure = Some(Instant::now());
+        state.probe_in_flight = false;
+    }
+
+    /// Release a half-open probe without counting it for or against the
+    /// breaker. Used for authoritative client answers (a non-404 4xx)
+    /// that say nothing about the uplink's availability.
+    fn record_neutral(&self) {
+        self.lock().probe_in_flight = false;
     }
 }
 
@@ -168,13 +204,15 @@ pub enum PackumentFetch {
 }
 
 impl Upstream {
-    /// Build an uplink client from its resolved [`UplinkConfig`], baking
-    /// in the per-uplink `timeout`/`maxage`/`cache` knobs and arming the
+    /// Build an uplink client from its name (the YAML `uplinks:` key) and
+    /// resolved [`UplinkConfig`], baking in the per-uplink
+    /// `timeout`/`maxage`/`cache` knobs and arming the
     /// `max_fails`/`fail_timeout` circuit breaker.
-    pub fn new(config: &UplinkConfig) -> Self {
+    pub fn new(name: &str, config: &UplinkConfig) -> Self {
         Self {
             client: Arc::new(ThrottledClient::new_for_installs()),
             base: config.url.clone(),
+            name: name.to_string(),
             headers: config.headers.clone(),
             timeout: config.timeout,
             maxage: config.maxage,
@@ -284,10 +322,10 @@ impl Upstream {
     /// breaker is open, so callers never pay a request to a known-down
     /// uplink.
     fn ensure_available(&self) -> Result<()> {
-        if self.breaker.is_available() {
+        if self.breaker.try_acquire() {
             return Ok(());
         }
-        Err(RegistryError::UpstreamUnavailable { uplink: self.base.clone() })
+        Err(RegistryError::UpstreamUnavailable { uplink: self.name.clone() })
     }
 
     /// Send a built request, mapping a transport error to
@@ -300,15 +338,21 @@ impl Upstream {
     }
 
     /// Pass a successful response through; map any non-success status to
-    /// [`RegistryError::UpstreamStatus`] and count it against the breaker
-    /// (a 5xx/4xx-other upstream is a failure; a 404 is handled by the
-    /// callers before reaching here).
+    /// [`RegistryError::UpstreamStatus`]. Only a `5xx` counts against the
+    /// breaker — a non-404 `4xx` is an authoritative client error (auth,
+    /// rate-limit, bad request), not an availability signal, so it must
+    /// not open the circuit and mask the real status behind a `503`. The
+    /// `404`/`304` paths are handled by the callers before reaching here.
     async fn checked(&self, response: reqwest::Response, url: &str) -> Result<reqwest::Response> {
-        if response.status().is_success() {
+        let status = response.status();
+        if status.is_success() {
             return Ok(response);
         }
-        self.breaker.record_failure();
-        let status = response.status();
+        if status.is_server_error() {
+            self.breaker.record_failure();
+        } else {
+            self.breaker.record_neutral();
+        }
         let body = response.text().await.unwrap_or_default();
         Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
     }
