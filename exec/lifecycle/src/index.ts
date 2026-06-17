@@ -26,9 +26,12 @@ function quotePathIfNeeded (path: string): string {
 }
 
 function removeNodePackageMapOption (nodeOptions: string): string {
+  // The quoted-value patterns span backslash escapes (`\"`), matching the
+  // escaping `makeNodePackageMapOption` emits, so an existing flag whose path
+  // contains a quote is still stripped in full.
   return nodeOptions
-    .replace(/(?:^|\s)--experimental-package-map=(?:"[^"]*"|'[^']*'|\S+)/g, '')
-    .replace(/(?:^|\s)--experimental-package-map\s+(?:"[^"]*"|'[^']*'|\S+)/g, '')
+    .replace(/(?:^|\s)--experimental-package-map=(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+)/g, '')
+    .replace(/(?:^|\s)--experimental-package-map\s+(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+)/g, '')
     .trim()
 }
 

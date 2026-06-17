@@ -778,7 +778,22 @@ fn split_node_options(node_options: &str) -> Vec<String> {
     let mut tokens = Vec::new();
     let mut token = String::new();
     let mut quote: Option<char> = None;
+    let mut escaped = false;
     for ch in node_options.chars() {
+        // `\` escapes the next character anywhere, matching Node's
+        // NODE_OPTIONS tokenizer, so an escaped quote does not end a token.
+        // The literal text (backslash included) is preserved so retained
+        // tokens round-trip verbatim.
+        if escaped {
+            token.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            token.push(ch);
+            escaped = true;
+            continue;
+        }
         if let Some(q) = quote {
             token.push(ch);
             if ch == q {

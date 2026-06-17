@@ -322,6 +322,15 @@ fn package_map_node_options_replaces_existing_package_map_option() {
         ),
         r#"--experimental-package-map="C:\\repo\\node_modules\\.package-map.json""#,
     );
+    // An existing flag whose quoted path contains an escaped quote must be
+    // stripped in full, so the rebuilt NODE_OPTIONS is not corrupted.
+    assert_eq!(
+        make_node_package_map_option(
+            Path::new("/new/.package-map.json"),
+            Some(r#"--experimental-package-map="/quo\"te/old.json" --inspect"#),
+        ),
+        "--inspect --experimental-package-map=/new/.package-map.json",
+    );
 }
 
 #[test]

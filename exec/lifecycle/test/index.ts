@@ -92,6 +92,14 @@ test('makeNodePackageMapOption() replaces existing package-map option', () => {
   })
 })
 
+test('makeNodePackageMapOption() replaces an existing flag whose path contains an escaped quote', () => {
+  expect(makeNodePackageMapOption('/new/.package-map.json', {
+    NODE_OPTIONS: '--experimental-package-map="/quo\\"te/old.json" --inspect',
+  })).toStrictEqual({
+    NODE_OPTIONS: '--inspect --experimental-package-map=/new/.package-map.json',
+  })
+})
+
 test('runLifecycleHook()', async () => {
   const pkgRoot = f.find('simple')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
