@@ -237,53 +237,87 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
   }
 }
 
+const EMPTY_REACHABLE: Set<string> = new Set()
+
+// For each node, the set of vulnerabilities reachable from it (itself included),
+// used by the walker to prune subtrees that reach no unsaturated finding.
+// Tarjan's SCC algorithm scans every node once and shares one set across a
+// cycle, avoiding the quadratic recompute of memoizing only acyclic subtrees.
 function createReachableVulnerabilitiesGetter (
   lockfile: LockfileObject,
   vulnerableNames: Set<string>,
   includeOptDeps: boolean
 ): (edge: { name: string, depPath: DepPath }) => Set<string> {
   const packages = lockfile.packages ?? {}
-  // Only fully-resolved (acyclic) subtrees are memoized. A node whose reachable
-  // set still depends on a back-edge to an ancestor is incomplete until the
-  // enclosing cycle is left, so caching it would under-report reachable
-  // vulnerabilities and let the walker prune valid audit paths. Such nodes are
-  // recomputed on each top-level query, which is cheap because cycles in a
-  // lockfile are rare and small.
+  // Final reachable set per node, shared across its SCC.
   const memo = new Map<DepPath, Set<string>>()
+  // Per-node contribution, merged into the shared set when the SCC closes.
+  const partial = new Map<DepPath, Set<string>>()
+  const index = new Map<DepPath, number>()
+  const lowlink = new Map<DepPath, number>()
   const onStack = new Set<DepPath>()
-  const compute = (edge: { name: string, depPath: DepPath }): { result: Set<string>, complete: boolean } => {
-    const cached = memo.get(edge.depPath)
-    if (cached) return { result: cached, complete: true }
-    if (onStack.has(edge.depPath)) return { result: new Set(), complete: false }
-    const pkgSnapshot = packages[edge.depPath]
-    if (pkgSnapshot == null) return { result: new Set(), complete: true }
+  const sccStack: DepPath[] = []
+  let counter = 0
 
+  const strongconnect = (edge: { name: string, depPath: DepPath }): void => {
+    const idx = counter++
+    index.set(edge.depPath, idx)
+    lowlink.set(edge.depPath, idx)
+    sccStack.push(edge.depPath)
     onStack.add(edge.depPath)
-    const result = new Set<string>()
-    let complete = true
-    const { name, version } = nameVerFromPkgSnapshot(edge.depPath, pkgSnapshot)
-    const resolvedName = name ?? edge.name
-    if (version && vulnerableNames.has(resolvedName)) {
-      result.add(vulnerabilityKey(resolvedName, version, edge.depPath))
-    }
-    const collect = (child: { name: string, depPath: DepPath }): void => {
-      const childResult = compute(child)
-      addAll(result, childResult.result)
-      if (!childResult.complete) complete = false
-    }
-    for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.dependencies ?? {})) {
-      collect(child)
-    }
-    if (includeOptDeps) {
-      for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.optionalDependencies ?? {})) {
-        collect(child)
+
+    // Derive children from this single read rather than via a helper that would
+    // read the snapshot again.
+    const pkgSnapshot = packages[edge.depPath]
+    const own = new Set<string>()
+    const children: Array<{ name: string, depPath: DepPath }> = []
+    if (pkgSnapshot != null) {
+      const { name, version } = nameVerFromPkgSnapshot(edge.depPath, pkgSnapshot)
+      const resolvedName = name ?? edge.name
+      if (version && vulnerableNames.has(resolvedName)) {
+        own.add(vulnerabilityKey(resolvedName, version, edge.depPath))
+      }
+      children.push(...resolvedDepsToNamedDepPaths(pkgSnapshot.dependencies ?? {}))
+      if (includeOptDeps) {
+        children.push(...resolvedDepsToNamedDepPaths(pkgSnapshot.optionalDependencies ?? {}))
       }
     }
-    onStack.delete(edge.depPath)
-    if (complete) memo.set(edge.depPath, result)
-    return { result, complete }
+    partial.set(edge.depPath, own)
+
+    for (const child of children) {
+      if (!index.has(child.depPath)) {
+        strongconnect(child)
+        lowlink.set(edge.depPath, Math.min(lowlink.get(edge.depPath)!, lowlink.get(child.depPath)!))
+      } else if (onStack.has(child.depPath)) {
+        lowlink.set(edge.depPath, Math.min(lowlink.get(edge.depPath)!, index.get(child.depPath)!))
+      }
+      // Finalized successors are already in `memo`; same-SCC ones are folded in
+      // when the SCC closes.
+      const childReachable = memo.get(child.depPath)
+      if (childReachable) addAll(own, childReachable)
+    }
+
+    if (lowlink.get(edge.depPath) === idx) {
+      const shared = new Set<string>()
+      const members: DepPath[] = []
+      let member: DepPath
+      do {
+        member = sccStack.pop()!
+        onStack.delete(member)
+        members.push(member)
+        addAll(shared, partial.get(member)!)
+        partial.delete(member)
+      } while (member !== edge.depPath)
+      for (const m of members) {
+        memo.set(m, shared)
+      }
+    }
   }
-  return (edge) => compute(edge).result
+
+  return (edge) => {
+    if (!index.has(edge.depPath)) strongconnect(edge)
+    return memo.get(edge.depPath) ?? EMPTY_REACHABLE
+  }
 }
 
 function allReachableVulnerabilitiesSaturated (

@@ -308,6 +308,45 @@ describe('audit', () => {
     expect(result['x']!.get('1.0.0')!.paths.sort()).toEqual(['.>b>c>x', '.>c>x'])
   })
 
+  test('buildAuditPathIndex() scans each node a bounded number of times when the graph has a large cycle', () => {
+    // n0 -> ... -> n(L-1) -> n0 is one big cycle. Each node must be scanned a
+    // bounded number of times; recomputing the cycle per ancestor is O(L^2) and
+    // made `pnpm audit` pathologically slow on cyclic lockfiles.
+    const L = 200
+    let reads = 0
+    const importers = {
+      ['.' as ProjectId]: { dependencies: { n0: '1.0.0' }, specifiers: { n0: '^1.0.0' } },
+    }
+    const packages: PackageSnapshots = {}
+    for (let i = 0; i < L; i++) {
+      const nextName = i + 1 < L ? `n${i + 1}` : 'n0' // the last node loops back to n0
+      const deps = { [nextName]: '1.0.0', [`leaf${i}`]: '1.0.0' }
+      Object.defineProperty(packages, `n${i}@1.0.0`, {
+        enumerable: true,
+        get: () => {
+          reads++
+          return { dependencies: deps, resolution: { integrity: `n${i}-integrity` } }
+        },
+      })
+      packages[`leaf${i}@1.0.0` as DepPath] = { resolution: { integrity: `leaf${i}-integrity` } }
+    }
+
+    const result = buildAuditPathIndex({
+      importers,
+      lockfileVersion: LOCKFILE_VERSION,
+      packages,
+    }, new Set(['leaf0']), { depTypes: {}, optionalOnly: new Set() })
+
+    // Correctness: the only vulnerable leaf is still reported with its path.
+    expect(result['leaf0']!.get('1.0.0')).toEqual({
+      paths: ['.>n0>leaf0'],
+      dev: false,
+      optional: false,
+    })
+    // Linear scans, not O(L^2): the quadratic version read the cycle ~L*L times.
+    expect(reads).toBeLessThan(L * 8)
+  })
+
   test('buildAuditPathIndex() replaces slashes in workspace importer ids', () => {
     const lockfile = {
       importers: {
