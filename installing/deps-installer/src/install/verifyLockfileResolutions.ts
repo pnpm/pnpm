@@ -209,11 +209,16 @@ export async function verifyLockfileResolutions (
       options?.concurrency,
       (checked) => {
         checkedEntries = checked
+        // Skip the progress event when all entries have been checked — the
+        // terminal `done`/`failed` event in the `finally` block already
+        // reports the final count, so emitting a `progress` event here would
+        // produce a redundant line in append-only output.
+        if (checked === candidates.size) return
         const now = Date.now()
         // In append-only terminals, avoid writing one line per package.
         // ansi-diff mode still gets smooth updates from these checkpoints.
         if (checked === lastReportedChecked) return
-        if (checked !== candidates.size && now - lastProgressReportedAt < PROGRESS_REPORT_INTERVAL_MS) return
+        if (now - lastProgressReportedAt < PROGRESS_REPORT_INTERVAL_MS) return
         lastReportedChecked = checked
         lastProgressReportedAt = now
         lockfileVerificationLogger.debug({
