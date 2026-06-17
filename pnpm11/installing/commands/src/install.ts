@@ -91,13 +91,10 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...pick(['force'], allTypes),
   'dry-run': Boolean,
   'fix-lockfile': Boolean,
+  'ignore-resolutions-conflict': Boolean,
   'update-checksums': Boolean,
   'resolution-only': Boolean,
   recursive: Boolean,
-  // `--no-save` lets `pnpm install` skip writing to package.json /
-  // pnpm-workspace.yaml. Without registering it here, nopt drops the
-  // flag, `opts.save` stays undefined, and the auto-add path treats
-  // it as "save enabled".
   save: Boolean,
 })
 
@@ -223,6 +220,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
           {
             description: 'Disable pnpm hooks defined in .pnpmfile.cjs',
             name: '--ignore-pnpmfile',
+          },
+          {
+            description: 'Allow install when both `resolutions` in package.json and `overrides` in pnpm-workspace.yaml exist',
+            name: '--ignore-resolutions-conflict',
           },
           {
             description: 'Ignore pnpm-workspace.yaml if exists in the parent directory, and treat the installation as normal non-workspace installation.',

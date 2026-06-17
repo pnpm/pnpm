@@ -130,7 +130,7 @@ test('getOptionsFromPnpmSettings() rejects non-object resolutions values', () =>
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {}, {
     resolutions: [] as unknown as Record<string, string>,
   } as any)).toThrow(expect.objectContaining({ // eslint-disable-line
-    code: 'ERR_PNPM_INVALID_OVERRIDES',
+    code: 'ERR_PNPM_INVALID_RESOLUTIONS',
     message: 'The resolutions field should be an object, but got array',
   }))
 })
@@ -147,7 +147,7 @@ test('getOptionsFromPnpmSettings() replaces env variables in resolutions values'
   })
 })
 
-test('getOptionsFromPnpmSettings() merges manifest resolutions with workspace overrides', () => {
+test('getOptionsFromPnpmSettings() ignores manifest resolutions when workspace overrides exist', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     overrides: {
       baz: '3.0.0',
@@ -160,7 +160,6 @@ test('getOptionsFromPnpmSettings() merges manifest resolutions with workspace ov
     },
   } as any) // eslint-disable-line
   expect(options.overrides).toStrictEqual({
-    foo: '1.0.0',
     bar: '2.5.0',
     baz: '3.0.0',
   })
@@ -185,5 +184,128 @@ test('getOptionsFromPnpmSettings() uses workspace overrides when no manifest res
   })
   expect(options.overrides).toStrictEqual({
     bar: '2.5.0',
+  })
+})
+
+test('getOptionsFromPnpmSettings() uses manifest resolutions when workspace overrides is empty', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: {},
+  }, {
+    resolutions: {
+      foo: '1.0.0',
+    },
+  } as any) // eslint-disable-line
+  expect(options.overrides).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
+test('getOptionsFromPnpmSettings() produces no overrides when both are empty', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: {},
+  }, {
+    resolutions: {},
+  } as any) // eslint-disable-line
+  expect(options.overrides).toBeUndefined()
+})
+
+test('getOptionsFromPnpmSettings() produces no overrides when resolutions is empty', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {}, {
+    resolutions: {},
+  } as any) // eslint-disable-line
+  expect(options.overrides).toBeUndefined()
+})
+
+test('getOptionsFromPnpmSettings() sets resolutionsStatus.ignoredResolutions when overrides exist', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: { bar: '2.5.0' },
+  }, {
+    resolutions: { foo: '1.0.0' },
+  } as any) // eslint-disable-line
+  expect(options.resolutionsStatus).toStrictEqual({
+    ignoredResolutions: true,
+    usedResolutions: false,
+  })
+})
+
+test('getOptionsFromPnpmSettings() sets resolutionsStatus.usedResolutions when no overrides', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {}, {
+    resolutions: { foo: '1.0.0' },
+  } as any) // eslint-disable-line
+  expect(options.resolutionsStatus).toStrictEqual({
+    ignoredResolutions: false,
+    usedResolutions: true,
+  })
+})
+
+test('getOptionsFromPnpmSettings() does not set resolutionsStatus when no resolutions', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: { bar: '2.5.0' },
+  })
+  expect(options.resolutionsStatus).toBeUndefined()
+})
+
+test('getOptionsFromPnpmSettings() does not set resolutionsStatus when resolutions is empty', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {}, {
+    resolutions: {},
+  } as any) // eslint-disable-line
+  expect(options.resolutionsStatus).toBeUndefined()
+})
+
+test('getOptionsFromPnpmSettings() rejects non-string resolutions values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {}, {
+    resolutions: {
+      foo: null,
+    } as unknown as Record<string, string>,
+  } as any)).toThrow(expect.objectContaining({ // eslint-disable-line
+    code: 'ERR_PNPM_INVALID_RESOLUTIONS',
+    message: 'The value of resolutions.foo should be a string, but got null',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects array resolutions values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {}, {
+    resolutions: {
+      foo: [],
+    } as unknown as Record<string, string>,
+  } as any)).toThrow(expect.objectContaining({ // eslint-disable-line
+    code: 'ERR_PNPM_INVALID_RESOLUTIONS',
+    message: 'The value of resolutions.foo should be a string, but got array',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects string resolutions field', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {}, {
+    resolutions: 'bad',
+  } as any)).toThrow(expect.objectContaining({ // eslint-disable-line
+    code: 'ERR_PNPM_INVALID_RESOLUTIONS',
+    message: 'The resolutions field should be an object, but got string',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() ignores null resolutions field', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {}, {
+    resolutions: null,
+  } as any) // eslint-disable-line
+  expect(options.overrides).toBeUndefined()
+  expect(options.resolutionsStatus).toBeUndefined()
+})
+
+test('getOptionsFromPnpmSettings() throws on unresolvable $version reference in resolutions', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {}, {
+    resolutions: { bar: '$nonexistent' },
+  } as any)).toThrow(expect.objectContaining({ // eslint-disable-line
+    code: 'ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION',
+    message: 'Cannot resolve version $nonexistent in overrides. The direct dependencies don\'t have dependency "nonexistent".',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() resolves $version references in resolutions from manifest deps', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {}, {
+    dependencies: { foo: '1.2.3' },
+    resolutions: { bar: '$foo' },
+  } as any) // eslint-disable-line
+  expect(options.overrides).toStrictEqual({
+    bar: '1.2.3',
   })
 })

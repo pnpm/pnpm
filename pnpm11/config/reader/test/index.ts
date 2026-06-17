@@ -3326,3 +3326,159 @@ test('GVS: global config.yaml dangerouslyAllowAllBuilds is preserved when no wor
     }
   }
 })
+
+describe('resolutions in root package.json', () => {
+  test('warns when resolutions is used without workspace overrides', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('package.json', JSON.stringify({
+      name: 'test-pkg',
+      resolutions: { foo: '1.0.0' },
+    }))
+
+    writeYamlFileSync('pnpm-workspace.yaml', {})
+
+    const { warnings, config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).toContain(
+      'The "resolutions" field in package.json is deprecated. Use the "overrides" field in pnpm-workspace.yaml instead.'
+    )
+    expect(config.overrides).toStrictEqual({ foo: '1.0.0' })
+  })
+
+  test('throws when both resolutions and workspace overrides exist', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('package.json', JSON.stringify({
+      name: 'test-pkg',
+      resolutions: { foo: '1.0.0', bar: '2.0.0' },
+    }))
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      overrides: { baz: '3.0.0', bar: '2.5.0' },
+    })
+
+    await expect(getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })).rejects.toMatchObject({
+      code: 'ERR_PNPM_RESOLUTIONS_CONFLICT_WITH_OVERRIDES',
+      message: expect.stringContaining('The "resolutions" field in package.json conflicts with "overrides" in pnpm-workspace.yaml'),
+    })
+  })
+
+  test('warns instead of erroring when --ignore-resolutions-conflict is set', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('package.json', JSON.stringify({
+      name: 'test-pkg',
+      resolutions: { foo: '1.0.0', bar: '2.0.0' },
+    }))
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      overrides: { baz: '3.0.0', bar: '2.5.0' },
+    })
+
+    const { warnings, config } = await getConfig({
+      cliOptions: { 'ignore-resolutions-conflict': true },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).toContain(
+      'The "resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence. Remove "resolutions" from package.json.'
+    )
+    expect(config.overrides).toStrictEqual({ baz: '3.0.0', bar: '2.5.0' })
+  })
+
+  test('warns instead of erroring when ignore-resolutions-conflict is set in pnpm-workspace.yaml', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('package.json', JSON.stringify({
+      name: 'test-pkg',
+      resolutions: { foo: '1.0.0', bar: '2.0.0' },
+    }))
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      overrides: { baz: '3.0.0', bar: '2.5.0' },
+      ignoreResolutionsConflict: true,
+    })
+
+    const { warnings, config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).toContain(
+      'The "resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence. Remove "resolutions" from package.json.'
+    )
+    expect(config.overrides).toStrictEqual({ baz: '3.0.0', bar: '2.5.0' })
+  })
+
+  test('does not warn when neither resolutions nor overrides exist', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('package.json', JSON.stringify({ name: 'test-pkg' }))
+
+    writeYamlFileSync('pnpm-workspace.yaml', {})
+
+    const { warnings, config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).toStrictEqual([])
+    expect(config.overrides).toBeUndefined()
+  })
+
+  test('does not warn when resolutions is empty', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('package.json', JSON.stringify({
+      name: 'test-pkg',
+      resolutions: {},
+    }))
+
+    writeYamlFileSync('pnpm-workspace.yaml', {})
+
+    const { warnings, config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).toStrictEqual([])
+    expect(config.overrides).toBeUndefined()
+  })
+
+  test('does not error when overrides is empty and resolutions exists', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('package.json', JSON.stringify({
+      name: 'test-pkg',
+      resolutions: { foo: '1.0.0' },
+    }))
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      overrides: {},
+    })
+
+    const { warnings, config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(warnings).toContain(
+      'The "resolutions" field in package.json is deprecated. Use the "overrides" field in pnpm-workspace.yaml instead.'
+    )
+    expect(config.overrides).toStrictEqual({ foo: '1.0.0' })
+  })
+})

@@ -99,6 +99,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
     'allow-build': [String, Array],
+    'ignore-resolutions-conflict': Boolean,
     recursive: Boolean,
     save: Boolean,
     workspace: Boolean,

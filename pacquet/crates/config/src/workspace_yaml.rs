@@ -322,7 +322,7 @@ pub struct WorkspaceSettings {
     /// Mirrors upstream's
     /// [`overrides`](https://github.com/pnpm/pnpm/blob/6d7903a8b7/config/reader/src/getOptionsFromRootManifest.ts#L18)
     /// shape — values are validated as strings at load time
-    /// (`ERR_PNPM_INVALID_OVERRIDES`) and `$dep-name` self-references
+    /// (`ERR_PNPM_INVALID_OVERRIDES` for overrides, `ERR_PNPM_INVALID_RESOLUTIONS` for resolutions) and `$dep-name` self-references
     /// against the manifest's direct deps are resolved before
     /// downstream code sees them. Empty maps are normalized to
     /// `None` to match upstream's `delete settings.overrides`.

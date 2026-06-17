@@ -79,6 +79,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
+    'ignore-resolutions-conflict': Boolean,
     interactive: Boolean,
     latest: Boolean,
     recursive: Boolean,

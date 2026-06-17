@@ -13,6 +13,11 @@ import type {
 } from '@pnpm/types'
 import { map as mapValues } from 'ramda'
 
+export type ResolutionsStatus = {
+  ignoredResolutions: boolean
+  usedResolutions: boolean
+}
+
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
@@ -24,6 +29,7 @@ export type OptionsFromRootManifest = {
   supportedArchitectures?: SupportedArchitectures
   allowBuilds?: Record<string, boolean | string>
   requiredScripts?: string[]
+  resolutionsStatus?: ResolutionsStatus
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
@@ -48,13 +54,15 @@ export function getOptionsFromPnpmSettings (
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
-  if (settings.overrides || opts.manifest?.resolutions) {
-    if (settings.overrides) assertValidOverrides(settings.overrides)
-    if (opts.manifest?.resolutions) assertValidOverrides(opts.manifest.resolutions, 'resolutions')
-    settings.overrides = {
-      ...(opts.manifest?.resolutions ? replaceEnvInStringValues(opts.manifest.resolutions) as Record<string, string> : undefined),
-      ...settings.overrides,
-    }
+  if (settings.overrides != null) assertValidOverrides(settings.overrides)
+  const resolutions = opts.manifest?.resolutions
+  if (resolutions != null) assertValidOverrides(resolutions, 'resolutions')
+  const hasOverrides = settings.overrides != null && Object.keys(settings.overrides).length > 0
+  const hasResolutions = resolutions != null && Object.keys(resolutions).length > 0
+  if (hasResolutions && !hasOverrides) {
+    settings.overrides = replaceEnvInStringValues(resolutions) as Record<string, string>
+  }
+  if (settings.overrides != null) {
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
     } else {
@@ -62,6 +70,12 @@ export function getOptionsFromPnpmSettings (
       if (opts.manifest) {
         settings.overrides = mapValues(createVersionReferencesReplacer(opts.manifest), settings.overrides)
       }
+    }
+  }
+  if (hasResolutions) {
+    settings.resolutionsStatus = {
+      ignoredResolutions: hasOverrides,
+      usedResolutions: !hasOverrides,
     }
   }
   if (pnpmSettings.patchedDependencies) {
@@ -82,12 +96,13 @@ function isGetOptionsFromPnpmSettingsOptions (
 }
 
 function assertValidOverrides (overrides: unknown, fieldName: 'overrides' | 'resolutions' = 'overrides'): asserts overrides is Record<string, string> {
+  const errorCode = fieldName === 'resolutions' ? 'INVALID_RESOLUTIONS' : 'INVALID_OVERRIDES'
   if (overrides == null || typeof overrides !== 'object' || Array.isArray(overrides)) {
-    throw new PnpmError('INVALID_OVERRIDES', `The ${fieldName} field should be an object, but got ${renderReceivedType(overrides)}`)
+    throw new PnpmError(errorCode, `The ${fieldName} field should be an object, but got ${renderReceivedType(overrides)}`)
   }
   for (const [selector, spec] of Object.entries(overrides)) {
     if (typeof spec !== 'string') {
-      throw new PnpmError('INVALID_OVERRIDES', `The value of ${fieldName}.${selector} should be a string, but got ${renderReceivedType(spec)}`)
+      throw new PnpmError(errorCode, `The value of ${fieldName}.${selector} should be a string, but got ${renderReceivedType(spec)}`)
     }
   }
 }
