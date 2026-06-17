@@ -867,7 +867,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         {
             for (id, manifest) in &importer_manifests {
                 let mut cloned = (*manifest).clone();
-                if let Some(extender) = compat_package_extender.as_ref() {
+                if let Some(extender) = compat_package_extender {
                     extender.apply(cloned.value_mut());
                 }
                 if let Some(extender) = package_extender.as_ref() {
@@ -891,8 +891,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             };
 
         let compat_package_extensions_hook: Option<ManifestHook> =
-            compat_package_extender.as_ref().map(|extender| {
-                let extender = Arc::clone(extender);
+            compat_package_extender.map(|extender| {
                 Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
             });
         let package_extensions_hook: Option<ManifestHook> =
