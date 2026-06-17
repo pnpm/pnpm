@@ -1,7 +1,7 @@
 use super::{
-    BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, LogFormat,
-    LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkConfig, UplinkFile, config_file_in,
-    parse_interval, pattern_matches, resolve_relative, resolve_uplink,
+    BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, Interval,
+    LogFormat, LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkConfig, UplinkFile,
+    config_file_in, parse_interval, pattern_matches, resolve_relative, resolve_uplink,
 };
 use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;
@@ -223,6 +223,28 @@ packages:
     let uplink = &config.uplinks["npmjs"];
     assert_eq!(uplink.headers.get(AUTHORIZATION).unwrap().to_str().unwrap(), "Bearer secret-token");
     assert_eq!(uplink.headers.get("x-org").unwrap().to_str().unwrap(), "acme");
+}
+
+#[test]
+fn from_yaml_str_accepts_string_and_bare_number_intervals() {
+    use std::time::Duration;
+    // `maxage` is a string, `timeout` a bare number (verdaccio accepts
+    // both); the bare number must read as seconds rather than failing to
+    // deserialize against the `Option<String>`-shaped field.
+    let yaml = r"
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    maxage: 10m
+    timeout: 45
+packages:
+  '**':
+    proxy: npmjs
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let uplink = &config.uplinks["npmjs"];
+    assert_eq!(uplink.maxage, Some(Duration::from_mins(10)));
+    assert_eq!(uplink.timeout, Duration::from_secs(45));
 }
 
 #[test]
@@ -1225,10 +1247,10 @@ fn resolve_uplink_defaults_knobs_to_verdaccio_values() {
 fn resolve_uplink_parses_explicit_knobs() {
     use std::time::Duration;
     let mut file = uplink_file(None, IndexMap::new());
-    file.maxage = Some("10m".to_string());
-    file.timeout = Some("45s".to_string());
+    file.maxage = Some(Interval("10m".to_string()));
+    file.timeout = Some(Interval("45s".to_string()));
     file.max_fails = Some(5);
-    file.fail_timeout = Some("1m".to_string());
+    file.fail_timeout = Some(Interval("1m".to_string()));
     file.cache = Some(false);
     let uplink = resolve_uplink::<FakeEnv>("npmjs", file).unwrap();
     assert_eq!(uplink.maxage, Some(Duration::from_mins(10)));
@@ -1241,7 +1263,7 @@ fn resolve_uplink_parses_explicit_knobs() {
 #[test]
 fn resolve_uplink_rejects_an_unparsable_interval() {
     let mut file = uplink_file(None, IndexMap::new());
-    file.maxage = Some("whenever".to_string());
+    file.maxage = Some(Interval("whenever".to_string()));
     let err = resolve_uplink::<FakeEnv>("npmjs", file).unwrap_err();
     assert!(
         matches!(err, RegistryError::InvalidConfig { reason } if reason.contains("maxage")),

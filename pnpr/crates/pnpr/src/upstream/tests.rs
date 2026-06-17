@@ -483,33 +483,27 @@ fn circuit_breaker_reopens_once_cooldown_elapses() {
 }
 
 #[test]
-fn circuit_breaker_admits_only_one_half_open_probe() {
-    // Once cooled down, exactly one caller is let through to probe the
-    // upstream; concurrent callers stay short-circuited until the probe
-    // resolves, so a recovering upstream isn't stampeded.
-    let breaker = CircuitBreaker::new(1, Duration::ZERO);
+fn circuit_breaker_admits_one_probe_per_cooldown_window() {
+    // A short but non-zero cooldown so we can drive the half-open window
+    // deterministically with a sleep.
+    let cooldown = Duration::from_millis(40);
+    let breaker = CircuitBreaker::new(1, cooldown);
     breaker.record_failure();
-    assert!(breaker.try_acquire(), "the first caller after cooldown gets the probe");
-    assert!(!breaker.try_acquire(), "a second concurrent caller is held back");
-    // The probe fails: the cooldown restarts and the next caller (after it
-    // lapses again, instantly here) gets a fresh probe.
-    breaker.record_failure();
-    assert!(breaker.try_acquire(), "a failed probe frees the slot for the next probe");
-    // A successful probe instead closes the breaker entirely.
+    assert!(!breaker.try_acquire(), "still cooling down right after the failure");
+
+    std::thread::sleep(cooldown + Duration::from_millis(20));
+    assert!(breaker.try_acquire(), "the first caller after the cooldown probes");
+    assert!(!breaker.try_acquire(), "admitting the probe re-armed the window; others wait");
+
+    // A probe that never reports back (cancelled mid-request) must not
+    // stick the breaker open forever: once the window lapses the next
+    // caller probes again.
+    std::thread::sleep(cooldown + Duration::from_millis(20));
+    assert!(breaker.try_acquire(), "an abandoned probe self-heals after the cooldown");
+
+    // A successful probe closes the breaker entirely.
     breaker.record_success();
     assert!(breaker.try_acquire(), "a closed breaker admits everyone");
-}
-
-#[test]
-fn circuit_breaker_neutral_releases_probe_without_counting() {
-    // A non-availability answer (a non-404 4xx) must neither trip nor
-    // reset the breaker, but it does release the half-open probe.
-    let breaker = CircuitBreaker::new(1, Duration::ZERO);
-    breaker.record_failure();
-    assert!(breaker.try_acquire(), "cooled-down breaker hands out a probe");
-    assert!(!breaker.try_acquire(), "probe in flight holds others back");
-    breaker.record_neutral();
-    assert!(breaker.try_acquire(), "a neutral answer frees the probe slot");
 }
 
 #[test]

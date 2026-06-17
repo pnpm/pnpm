@@ -71,12 +71,20 @@ impl fmt::Debug for Upstream {
 /// failure — a single probe is then allowed through, and its success
 /// resets the breaker or its failure restarts the cooldown.
 ///
-/// The counter, the cooldown timestamp, and the half-open probe permit
-/// live behind one [`Mutex`] so a threshold check and its timestamp can
-/// never be observed half-updated. The lock is held only for trivial
-/// field reads/writes (never across the network request), so contention
-/// is negligible; a poisoned lock is recovered rather than propagated as
-/// a panic, keeping a failing uplink from taking the registry down.
+/// The half-open probe is gated by the cooldown window itself: admitting
+/// a probe advances `last_failure` to now, so concurrent callers in that
+/// window stay short-circuited and a recovering upstream sees one probe
+/// rather than a stampede. Crucially this can't *stick* — a probe whose
+/// request is cancelled or dropped before it reports back simply lets the
+/// window lapse, after which the next caller probes. A sticky in-flight
+/// flag would deadlock the breaker on a cancelled request.
+///
+/// The counter and the timestamp live behind one [`Mutex`] so a threshold
+/// check and its timestamp can never be observed half-updated. The lock
+/// is held only for trivial field reads/writes (never across the network
+/// request), so contention is negligible; a poisoned lock is recovered
+/// rather than propagated as a panic, keeping a failing uplink from
+/// taking the registry down.
 #[derive(Debug)]
 struct CircuitBreaker {
     max_fails: u32,
@@ -88,11 +96,6 @@ struct CircuitBreaker {
 struct BreakerState {
     failed_requests: u32,
     last_failure: Option<Instant>,
-    /// A half-open probe is in flight. While set, further callers are
-    /// short-circuited so a recovering upstream sees one probe rather
-    /// than a stampede. Cleared whenever the probe resolves (success,
-    /// failure, or an authoritative non-availability answer).
-    probe_in_flight: bool,
 }
 
 impl CircuitBreaker {
@@ -108,10 +111,11 @@ impl CircuitBreaker {
     }
 
     /// Try to admit one request. Returns `true` while under `max_fails`
-    /// consecutive failures (or when the breaker is disabled), and once
-    /// the `fail_timeout` cooldown has elapsed admits exactly one probe —
-    /// later callers stay short-circuited until that probe resolves.
-    /// `max_fails == 0` disables the breaker entirely.
+    /// consecutive failures (or when the breaker is disabled). Once the
+    /// `fail_timeout` cooldown has elapsed it admits one probe per window:
+    /// the admitting caller advances the cooldown, so concurrent callers
+    /// stay short-circuited until the next window opens. `max_fails == 0`
+    /// disables the breaker entirely.
     fn try_acquire(&self) -> bool {
         let mut state = self.lock();
         if self.max_fails == 0 || state.failed_requests < self.max_fails {
@@ -122,10 +126,14 @@ impl CircuitBreaker {
         // recorded `last_failure`, so the `None` arm is unreachable; it
         // fails open for safety.)
         let cooled_down = state.last_failure.is_none_or(|at| at.elapsed() >= self.fail_timeout);
-        if !cooled_down || state.probe_in_flight {
+        if !cooled_down {
             return false;
         }
-        state.probe_in_flight = true;
+        // Admit this probe and re-arm the cooldown so the next caller is
+        // held back for another `fail_timeout`. If the probe never reports
+        // back (cancelled mid-request), the window simply lapses and the
+        // following caller probes — the breaker can't deadlock.
+        state.last_failure = Some(Instant::now());
         true
     }
 
@@ -137,14 +145,6 @@ impl CircuitBreaker {
         let mut state = self.lock();
         state.failed_requests = state.failed_requests.saturating_add(1);
         state.last_failure = Some(Instant::now());
-        state.probe_in_flight = false;
-    }
-
-    /// Release a half-open probe without counting it for or against the
-    /// breaker. Used for authoritative client answers (a non-404 4xx)
-    /// that say nothing about the uplink's availability.
-    fn record_neutral(&self) {
-        self.lock().probe_in_flight = false;
     }
 }
 
@@ -340,9 +340,10 @@ impl Upstream {
     /// Pass a successful response through; map any non-success status to
     /// [`RegistryError::UpstreamStatus`]. Only a `5xx` counts against the
     /// breaker — a non-404 `4xx` is an authoritative client error (auth,
-    /// rate-limit, bad request), not an availability signal, so it must
-    /// not open the circuit and mask the real status behind a `503`. The
-    /// `404`/`304` paths are handled by the callers before reaching here.
+    /// rate-limit, bad request), not an availability signal, so it leaves
+    /// the breaker untouched rather than opening the circuit and masking
+    /// the real status behind a `503`. The `404`/`304` paths are handled
+    /// by the callers before reaching here.
     async fn checked(&self, response: reqwest::Response, url: &str) -> Result<reqwest::Response> {
         let status = response.status();
         if status.is_success() {
@@ -350,8 +351,6 @@ impl Upstream {
         }
         if status.is_server_error() {
             self.breaker.record_failure();
-        } else {
-            self.breaker.record_neutral();
         }
         let body = response.text().await.unwrap_or_default();
         Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })

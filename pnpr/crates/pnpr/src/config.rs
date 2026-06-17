@@ -417,15 +417,51 @@ struct UplinkFile {
     /// [`resolve_uplink`]. Kept as raw strings here so an unparsable
     /// value surfaces as a config error rather than a serde failure.
     #[serde(default)]
-    maxage: Option<String>,
+    maxage: Option<Interval>,
     #[serde(default)]
-    timeout: Option<String>,
+    timeout: Option<Interval>,
     #[serde(default)]
     max_fails: Option<u32>,
     #[serde(default)]
-    fail_timeout: Option<String>,
+    fail_timeout: Option<Interval>,
     #[serde(default)]
     cache: Option<bool>,
+}
+
+/// A verdaccio interval scalar as written in YAML: either a string
+/// (`"2m"`, `"30s"`) or a bare number (a count of seconds). Both YAML
+/// shapes are accepted — verdaccio configs use either — and kept as the
+/// raw string so [`parse_interval`] handles them uniformly and an
+/// unparsable value surfaces as a precise config error.
+#[derive(Debug, Clone)]
+struct Interval(String);
+
+impl<'de> Deserialize<'de> for Interval {
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
+    where
+        De: serde::Deserializer<'de>,
+    {
+        struct IntervalVisitor;
+        impl serde::de::Visitor<'_> for IntervalVisitor {
+            type Value = Interval;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(r#"an interval string like "2m" or a number of seconds"#)
+            }
+            fn visit_str<DeError>(self, value: &str) -> Result<Interval, DeError> {
+                Ok(Interval(value.to_string()))
+            }
+            fn visit_i64<DeError>(self, value: i64) -> Result<Interval, DeError> {
+                Ok(Interval(value.to_string()))
+            }
+            fn visit_u64<DeError>(self, value: u64) -> Result<Interval, DeError> {
+                Ok(Interval(value.to_string()))
+            }
+            fn visit_f64<DeError>(self, value: f64) -> Result<Interval, DeError> {
+                Ok(Interval(value.to_string()))
+            }
+        }
+        deserializer.deserialize_any(IntervalVisitor)
+    }
 }
 
 /// The YAML `auth:` block on an uplink. `token` takes priority over
@@ -525,10 +561,10 @@ fn resolve_uplink<Sys: EnvVar>(
     // config error (named for the offending field) rather than silently
     // falling back to the default.
     let parse_field = |field: &str,
-                       raw: &Option<String>|
+                       raw: &Option<Interval>|
      -> Result<Option<Duration>, RegistryError> {
         raw.as_ref()
-            .map(|value| {
+            .map(|Interval(value)| {
                 parse_interval(value).ok_or_else(|| RegistryError::InvalidConfig {
                     reason: format!("uplink {name:?} has an invalid {field} interval {value:?}"),
                 })
