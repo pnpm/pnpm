@@ -163,6 +163,9 @@
       "path": "../../workspace/state"
     },
     {
+      "path": "../../workspace/workspace-manifest-reader"
+    },
+    {
       "path": "../../workspace/workspace-manifest-writer"
     },
     {

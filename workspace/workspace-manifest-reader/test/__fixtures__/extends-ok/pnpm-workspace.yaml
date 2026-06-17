@@ -1,0 +1,6 @@
+packages:
+  - "packages/**"
+
+extends:
+  - "packages/a"
+  - "packages/b"

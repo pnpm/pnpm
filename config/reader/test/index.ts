@@ -548,6 +548,33 @@ describe('minimumReleaseAgeStrict default', () => {
   })
 })
 
+test('config.catalogs merges catalogs from a workspace manifest referenced through extends (extending manifest wins)', async () => {
+  prepareEmpty()
+
+  fs.mkdirSync('base', { recursive: true })
+  writeYamlFileSync('base/pnpm-workspace.yaml', {
+    catalog: { 'is-positive': '^3.1.0', shared: '^1.0.0' },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    extends: 'base',
+    catalog: { 'is-odd': '^3.0.1', shared: '^2.0.0' },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.catalogs).toEqual({
+    default: {
+      'is-odd': '^3.0.1',
+      'is-positive': '^3.1.0',
+      shared: '^2.0.0',
+    },
+  })
+})
+
 test('camelCase settings from pnpm-workspace.yaml are read into typed Config properties', async () => {
   prepareEmpty()
 

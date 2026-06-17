@@ -2138,9 +2138,15 @@ importers:
 
   catalogs/config:
     dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../types
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/workspace.workspace-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/workspace-manifest-reader
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2148,12 +2154,9 @@ importers:
       '@pnpm/catalogs.config':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/catalogs.types':
-        specifier: workspace:*
-        version: link:../types
-      '@pnpm/workspace.workspace-manifest-reader':
-        specifier: workspace:*
-        version: link:../../workspace/workspace-manifest-reader
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 6.0.0
 
   catalogs/protocol-parser:
     devDependencies:
@@ -5393,6 +5396,9 @@ importers:
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: link:../../workspace/state
+      '@pnpm/workspace.workspace-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/workspace-manifest-reader
       '@pnpm/workspace.workspace-manifest-writer':
         specifier: workspace:*
         version: link:../../workspace/workspace-manifest-writer

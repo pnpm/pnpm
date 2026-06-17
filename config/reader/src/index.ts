@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { stripVTControlCharacters } from 'node:util'
 
-import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
+import { getCatalogsFromWorkspaceManifest, getExtendedCatalogs } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
 import { GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -446,6 +446,9 @@ export async function getConfig (opts: {
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
+        if (workspaceManifest.extends != null) {
+          pnpmConfig.catalogs = await getExtendedCatalogs(pnpmConfig.workspaceDir, workspaceManifest)
+        }
       }
     } else if (cliOptions['global']) {
       // For global installs, read settings from pnpm-workspace.yaml in the global package directory
@@ -457,6 +460,9 @@ export async function getConfig (opts: {
           workspaceDir: pnpmConfig.globalPkgDir,
           workspaceManifest,
         })
+        if (workspaceManifest.extends != null) {
+          pnpmConfig.catalogs = await getExtendedCatalogs(pnpmConfig.globalPkgDir, workspaceManifest)
+        }
       }
     }
   }

@@ -32,13 +32,14 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:*"
+    "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/catalogs.config": "workspace:*",
-    "@pnpm/catalogs.types": "workspace:*",
-    "@pnpm/workspace.workspace-manifest-reader": "workspace:*"
+    "write-yaml-file": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

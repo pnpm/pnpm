@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { mergeCatalogs } from '@pnpm/catalogs.config'
+import { getExtendedCatalogs, mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
 import {
@@ -49,6 +49,7 @@ import type {
   ProjectsGraph,
 } from '@pnpm/types'
 import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
@@ -451,6 +452,16 @@ export async function recursive (
         }
 
         const localConfig = getProjectConfig(manifest) ?? {}
+        // With a dedicated lockfile per project, a project may define its own
+        // `pnpm-workspace.yaml` that extends the catalogs of another workspace
+        // manifest (typically the workspace root). Each project then resolves
+        // its `catalog:` dependencies against its own merged catalogs and
+        // records them in its own lockfile. Without `extends`, the project keeps
+        // using the workspace-wide catalogs from the config.
+        const projectWorkspaceManifest = await readWorkspaceManifest(rootDir)
+        const catalogs = projectWorkspaceManifest?.extends != null
+          ? await getExtendedCatalogs(rootDir, projectWorkspaceManifest)
+          : installOpts.catalogs
         const {
           updatedCatalogs: newCatalogsAddition,
           updatedManifest: newManifest,
@@ -462,6 +473,7 @@ export async function recursive (
             ...installOpts,
             ...localConfig,
             ...opts.allProjectsGraph[rootDir]?.package,
+            catalogs,
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
             hooks,
