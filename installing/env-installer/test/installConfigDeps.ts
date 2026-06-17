@@ -24,12 +24,8 @@ function makeEnvLockfile (deps: Record<string, { version: string, integrity: str
   return lockfile
 }
 
-// Recursively check whether any entry named `name` exists under `dir`,
-// without following symlinks (so it can't loop through the links a
-// successful install would have created). A traversal-shaped config dep
-// name normalizes to an escape target under the project root (e.g.
-// `<rootDir>/PWNED`) or, for an optional subdep, inside the store links
-// tree — so the traversal regression tests search both roots.
+// Recursively search `dir` for an entry named `name`, without following
+// symlinks (so it can't loop through the links a successful install creates).
 function containsEntryNamed (dir: string, name: string): boolean {
   let entries: fs.Dirent[]
   try {
@@ -121,9 +117,6 @@ test('a config dependency with a path-traversal name in the env lockfile is reje
     storeDir,
   })).rejects.toThrow('invalid name')
 
-  // `../../PWNED` joined onto <rootDir>/node_modules/.pnpm-config
-  // normalizes to <rootDir>/PWNED. Assert nothing named PWNED was
-  // created anywhere under the project or the store.
   expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
   expect(containsEntryNamed(storeDir, 'PWNED')).toBe(false)
 })
@@ -157,9 +150,6 @@ test('an optional subdep with a path-traversal name in the env lockfile is rejec
     storeDir,
   })).rejects.toThrow('invalid name')
 
-  // An optional subdep symlink is created inside the parent's store
-  // links leaf, so `../../PWNED_SUBDEP` would escape into the store
-  // tree rather than the project. Search both.
   expect(containsEntryNamed(process.cwd(), 'PWNED_SUBDEP')).toBe(false)
   expect(containsEntryNamed(storeDir, 'PWNED_SUBDEP')).toBe(false)
 })
@@ -169,9 +159,8 @@ test('a config dependency named __proto__ in the env lockfile is rejected', asyn
   const { storeController, storeDir } = createTempStore()
 
   const lockfile = createEnvLockfile()
-  // JSON.parse yields an own enumerable `__proto__` key, as parsing a
-  // lockfile from disk does. A plain assignment would instead mutate the
-  // object's prototype and hide the key from Object.keys/Object.entries.
+  // JSON.parse makes `__proto__` an own enumerable key (as on-disk parsing does);
+  // a plain object literal would set the prototype and hide it.
   lockfile.importers['.'].configDependencies = JSON.parse('{"__proto__":{"specifier":"1.0.0","version":"1.0.0"}}')
   lockfile.packages['__proto__@1.0.0'] = { resolution: { integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') } }
   lockfile.snapshots['__proto__@1.0.0'] = {}
@@ -219,9 +208,6 @@ test('an invalid config dependency name in the workspace manifest is rejected be
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()
 
-  // Legacy inline-integrity manifest format with no env lockfile yet, so
-  // normalizeForInstall would otherwise migrate (and write pnpm-lock.yaml)
-  // before the name is validated.
   const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
   const configDeps: Record<string, string> = {
     '../../PWNED': `100.0.0+${integrity}`,
@@ -236,7 +222,6 @@ test('an invalid config dependency name in the workspace manifest is rejected be
     storeDir,
   })).rejects.toThrow('invalid name')
 
-  // The invalid name must be refused before any write side effects.
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
   expect(containsEntryNamed(process.cwd(), 'PWNED')).toBe(false)
 })
@@ -245,9 +230,6 @@ test('an invalid config dependency version in the workspace manifest is rejected
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()
 
-  // Legacy inline-integrity manifest format: the version is extracted from
-  // `<version>+<integrity>` and would otherwise be written into
-  // pnpm-lock.yaml by the migration before being validated.
   const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
   const configDeps: Record<string, string> = {
     '@pnpm.e2e/foo': `../../../PWNED+${integrity}`,
@@ -270,9 +252,6 @@ test('a config dependency with a path-traversal version in the env lockfile is r
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()
 
-  // The version is also a global-virtual-store path segment
-  // (`<name>/<version>/<hash>`), so a traversal-shaped version would escape
-  // the store links root during materialization.
   const maliciousVersion = '../../../PWNED'
   const lockfile = makeEnvLockfile({
     '@pnpm.e2e/foo': { version: maliciousVersion, integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },

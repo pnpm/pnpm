@@ -36,10 +36,6 @@ export async function installConfigDeps (
   configDepsOrLockfile: ConfigDependencies | EnvLockfile,
   opts: InstallConfigDepsOpts
 ): Promise<void> {
-  // Validate the raw names up front: normalizeForInstall can migrate the
-  // legacy manifest format, which writes pnpm-lock.yaml and workspace
-  // settings to disk. Rejecting invalid names only after that would let a
-  // malicious name trigger those writes before being refused.
   assertValidRawConfigDepNames(configDepsOrLockfile)
   const normalizedDeps = await normalizeForInstall(configDepsOrLockfile, opts)
   assertValidConfigDeps(normalizedDeps)
@@ -135,12 +131,9 @@ export async function installConfigDeps (
   }
 }
 
-// Validate the top-level config dependency names straight from the raw
-// input — before normalizeForInstall, which may migrate the legacy
-// manifest format and write pnpm-lock.yaml / workspace settings. Subdep
-// names and all versions are only reachable after normalization (the
-// env-lockfile path, which performs no writes before assertValidConfigDeps
-// runs), so they are validated there.
+// Runs before normalizeForInstall, which may migrate the legacy manifest format
+// and write to disk. Subdeps and versions are checked after normalization by
+// assertValidConfigDeps, which no earlier write precedes.
 function assertValidRawConfigDepNames (configDepsOrLockfile: ConfigDependencies | EnvLockfile): void {
   const names = isEnvLockfile(configDepsOrLockfile)
     ? configDepsOrLockfile.importers['.']?.configDependencies
@@ -151,23 +144,16 @@ function assertValidRawConfigDepNames (configDepsOrLockfile: ConfigDependencies 
   assertValidDependencyAliases(names, `The configDependencies in ${source}`)
 }
 
-// Config dependency names and versions are read from the committed env
-// lockfile (and the legacy inline format in pnpm-workspace.yaml), so they are
-// attacker-controlled input. The name becomes a directory entry under
-// node_modules/.pnpm-config, and both name and version become path segments of
-// the global virtual store path (`<name>/<version>/<hash>`), so a
-// traversal-shaped name (`../../PWNED`) or version (`../../../PWNED`) would let
-// a malicious repository write outside the intended roots during install.
-// Reject anything that is not a plain npm package name or an exact semver
-// version before any path is built from it.
+// Names and versions come from the committed lockfile/manifest and become store
+// path segments, so reject any non-npm-name / non-semver value before a path is
+// built from it (traversal-shaped values would escape the install roots).
 function assertValidConfigDeps (normalizedDeps: Record<string, NormalizedConfigDep>): void {
   assertValidDependencyAliases(normalizedDeps, 'The configDependencies in the env lockfile (pnpm-lock.yaml)')
   for (const [pkgName, pkg] of Object.entries(normalizedDeps)) {
     assertValidConfigDepVersion(pkgName, pkg.version)
     if (!pkg.optionalSubdeps?.length) continue
-    // A null-prototype object so an attacker-controlled name of `__proto__`
-    // becomes an enumerable own key the validator rejects, rather than
-    // silently setting the prototype and slipping past `Object.keys`.
+    // Null-prototype so a `__proto__` name is an own key the validator sees, not
+    // a silent prototype mutation.
     const subdepsByName: Record<string, true> = Object.create(null)
     for (const subdep of pkg.optionalSubdeps) {
       subdepsByName[subdep.name] = true
@@ -219,9 +205,8 @@ function normalizeFromLockfile (
   lockfile: EnvLockfile,
   registries: Registries
 ): Record<string, NormalizedConfigDep> {
-  // Null-prototype: config dep names are attacker-controlled, and a
-  // `__proto__` key must land as an own key (so the later validation gate
-  // sees and rejects it) instead of mutating the accumulator's prototype.
+  // Null-prototype so a `__proto__` name is an own key the validation gate sees,
+  // not a silent prototype mutation.
   const deps: Record<string, NormalizedConfigDep> = Object.create(null)
   const configDeps = lockfile.importers['.']?.configDependencies ?? {}
   for (const [pkgName, { version }] of Object.entries(configDeps)) {

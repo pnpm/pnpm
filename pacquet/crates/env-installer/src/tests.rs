@@ -369,12 +369,8 @@ async fn rejects_optional_subdep_with_non_exact_version() {
     );
 }
 
-/// Recursively check whether any entry named `name` exists under `dir`,
-/// without following symlinks (so it can't loop through the dir links a
-/// successful install leaves behind). A traversal-shaped config dep name
-/// normalizes to an escape target under the project root (e.g.
-/// `<root>/PWNED_CFGDEP`) or, for an optional subdep, inside the store
-/// links tree — so the traversal regression tests search both roots.
+/// Recursively search `dir` for an entry named `name`, without following
+/// symlinks (so it can't loop through the dir links a successful install leaves).
 fn contains_entry_named(dir: &Path, name: &str) -> bool {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return false;
@@ -398,9 +394,8 @@ async fn rejects_config_dep_with_path_traversal_name() {
     let (resolver, _cache) = build_resolver(&harness.registry_url);
     let root = TempDir::new().unwrap();
 
-    // Resolve a legit config dep so the env lockfile carries a valid
-    // packages entry we can re-key under a traversal-shaped name — the
-    // shape a malicious repository would commit in pnpm-lock.yaml.
+    // Resolve a legit config dep, then re-key its entry under a traversal-shaped
+    // name to mimic a malicious committed lockfile.
     let mut config_deps = BTreeMap::new();
     config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
     resolve_and_install_config_deps::<SilentReporter>(
@@ -428,9 +423,6 @@ async fn rejects_config_dep_with_path_traversal_name() {
         "unexpected error: {error:?}",
     );
 
-    // `../../PWNED_CFGDEP` joined onto <root>/node_modules/.pnpm-config
-    // normalizes to <root>/PWNED_CFGDEP. Assert nothing named
-    // PWNED_CFGDEP was created under the project or the store.
     assert!(!contains_entry_named(root.path(), "PWNED_CFGDEP"));
     assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED_CFGDEP"));
 }
@@ -470,17 +462,12 @@ async fn rejects_optional_subdep_with_path_traversal_name() {
         "unexpected error: {error:?}",
     );
 
-    // An optional subdep symlink is created inside the parent's store
-    // links leaf, so `../../PWNED_SUBDEP` would escape into the store
-    // tree rather than the project. Search both.
     assert!(!contains_entry_named(root.path(), "PWNED_SUBDEP"));
     assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED_SUBDEP"));
 }
 
-/// A config dep literally named `__proto__` is not a path-traversal name,
-/// but it is still an invalid npm package name (leading `_`). Rust's
-/// string-keyed maps have no prototype semantics, so — unlike JS — it is
-/// rejected without any special handling; this test pins that parity.
+/// Pins the JS-parity case: `__proto__` is an invalid npm name (leading `_`),
+/// and Rust's string-keyed maps reject it without the null-prototype dance JS needs.
 #[tokio::test]
 async fn rejects_config_dep_named_dunder_proto() {
     let harness = harness();
@@ -521,9 +508,6 @@ async fn rejects_invalid_manifest_config_dep_name_before_writing_lockfile() {
     let (resolver, _cache) = build_resolver(&harness.registry_url);
     let root = TempDir::new().unwrap();
 
-    // Legacy inline-integrity manifest form: migrating it records lockfile
-    // entries and writes pnpm-lock.yaml, so the invalid name must be
-    // refused before that write side effect.
     let mut config_deps = BTreeMap::new();
     config_deps.insert(
         "../../PWNED".to_string(),
@@ -551,9 +535,6 @@ async fn rejects_invalid_manifest_config_dep_version_before_writing_lockfile() {
     let (resolver, _cache) = build_resolver(&harness.registry_url);
     let root = TempDir::new().unwrap();
 
-    // Legacy inline-integrity manifest form with a valid name but a
-    // traversal-shaped version extracted from `<version>+<integrity>`. The
-    // version must be refused before the migration writes pnpm-lock.yaml.
     let integrity = integrity_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
     let mut config_deps = BTreeMap::new();
     config_deps.insert(
@@ -592,9 +573,6 @@ async fn rejects_config_dep_with_path_traversal_version() {
     .await
     .unwrap();
 
-    // The version is also a global-virtual-store path segment
-    // (`<name>/<version>/<hash>`), so a traversal-shaped version would
-    // escape the store links root during materialization.
     let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
     let malicious_version = "../../../PWNED";
     env.root_importer_mut().config_dependencies.get_mut("@pnpm.e2e/foo").unwrap().version =
@@ -611,8 +589,7 @@ async fn rejects_config_dep_with_path_traversal_version() {
         matches!(error, ConfigDepError::InvalidConfigDepVersion { .. }),
         "unexpected error: {error:?}",
     );
-    // The version is wrapped in single quotes in the message; guard against a
-    // doubled quote so the diagnostic stays well-formed.
+    // Pin the message format (guards against a doubled/dropped quote).
     let message = error.to_string();
     assert_eq!(
         message,

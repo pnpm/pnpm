@@ -338,16 +338,11 @@ fn is_compatible<Reporter: self::Reporter>(
     }
 }
 
-/// Reject config-dependency (and optional-subdep) names and versions that
-/// aren't safe path segments before any filesystem path is built from
-/// them. They come from the committed env lockfile, and both the name and
-/// the version become global-virtual-store path segments
-/// (`<name>/<version>/<hash>`), so a traversal-shaped name (`../../PWNED`)
-/// or version (`../../../PWNED`) would otherwise let a malicious repository
-/// write outside the intended roots during install. Names must be valid
-/// npm package names (mirrors pnpm's `assertValidDependencyAliases`);
-/// versions resolve to exact semver, so anything that isn't a valid semver
-/// version is rejected.
+/// Reject config-dependency (and optional-subdep) names and versions before
+/// they are used to build store paths (`<name>/<version>/<hash>`): names must
+/// be valid npm package names, versions exact semver. Otherwise a
+/// traversal-shaped value from a committed lockfile would escape the install
+/// roots. Mirrors pnpm's `assertValidConfigDeps`.
 fn assert_valid_config_deps(
     normalized: &BTreeMap<String, NormalizedConfigDep>,
 ) -> Result<(), ConfigDepError> {

@@ -27,9 +27,8 @@ export async function migrateConfigDepsToLockfile (
   opts: MigrateOpts
 ): Promise<Record<string, NormalizedConfigDep>> {
   const envLockfile = createEnvLockfile()
-  // Null-prototype accumulators: config dep names come from an
-  // attacker-controlled workspace manifest, so a `__proto__` name must
-  // land as an own key the validation gate can see and reject.
+  // Null-prototype so a `__proto__` name is an own key the validation gate sees,
+  // not a silent prototype mutation.
   const cleanSpecifiers: ConfigDependencySpecifiers = Object.create(null)
   const normalizedDeps: Record<string, NormalizedConfigDep> = Object.create(null)
 
@@ -38,9 +37,7 @@ export async function migrateConfigDepsToLockfile (
 
     if (typeof pkgSpec === 'object') {
       const { version, integrity } = parseIntegrity(pkgName, pkgSpec.integrity)
-      // The migrated version is extracted from attacker-controlled inline
-      // integrity and becomes a store path segment; validate it before the
-      // env lockfile / workspace settings are written below.
+      // Validate before the lockfile/settings are written below.
       assertValidConfigDepVersion(pkgName, version)
       const tarball = pkgSpec.tarball ?? getNpmTarballUrl(pkgName, version, { registry })
 

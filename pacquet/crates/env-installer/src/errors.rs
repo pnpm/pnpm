@@ -43,10 +43,6 @@ pub enum ConfigDepError {
 
     /// Mirrors pnpm's `INVALID_DEPENDENCY_NAME`, thrown by
     /// [`assertValidDependencyAliases`](https://github.com/pnpm/pnpm/blob/main/installing/deps-resolver/src/validateDependencyAlias.ts).
-    /// A config-dependency name that is not a valid npm package name (a
-    /// traversal-shaped `../../x`, an absolute path, a pnpm-owned alias
-    /// like `.pnpm`) would otherwise let a committed lockfile place
-    /// symlinks outside `node_modules/.pnpm-config`.
     #[display(r"{description} contains a dependency with an invalid name: {name:?}")]
     #[diagnostic(
         code(ERR_PNPM_INVALID_DEPENDENCY_NAME),
@@ -58,11 +54,9 @@ pub enum ConfigDepError {
     )]
     InvalidDependencyName { description: String, name: String },
 
-    /// A config-dependency `version` is also a global-virtual-store path
-    /// segment (`<name>/<version>/<hash>`), so a traversal-shaped version
-    /// from a committed lockfile would escape the store links root during
-    /// materialization. Versions resolve to exact semver, so anything that
-    /// isn't a valid semver version is rejected.
+    /// A config-dependency version is a store path segment
+    /// (`<name>/<version>/<hash>`), so a non-semver value is rejected to keep a
+    /// traversal-shaped version from escaping the store root.
     #[display(r#"The config dependency "{name}" has an invalid version "{version}""#)]
     #[diagnostic(
         code(ERR_PNPM_INVALID_CONFIG_DEP_VERSION),

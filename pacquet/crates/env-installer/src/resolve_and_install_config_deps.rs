@@ -35,10 +35,8 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
-    // Validate the manifest-sourced names before any lockfile mutation or
-    // write: migrating the legacy inline format records entries and writes
-    // pnpm-lock.yaml, so an invalid name must be refused first to avoid a
-    // pre-rejection write side effect.
+    // Validate names before the migration below records entries and writes
+    // pnpm-lock.yaml, so an invalid name causes no write side effect.
     for name in config_deps.keys() {
         if !is_valid_old_npm_package_name(name) {
             return Err(ConfigDepError::InvalidDependencyName {
@@ -71,9 +69,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
             ConfigDependency::Detailed(detail) => {
                 if !has_config_dep(&env_lockfile, name) {
                     let (version, integrity) = parse_integrity(name, &detail.integrity)?;
-                    // The migrated version is extracted from attacker-controlled
-                    // inline integrity and becomes a store path segment; validate
-                    // it before recording lockfile entries that get written below.
+                    // Validate before recording lockfile entries written below.
                     assert_valid_config_dep_version(name, &version)?;
                     let registry = opts.pick_registry(name);
                     let tarball = detail
