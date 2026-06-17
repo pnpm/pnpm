@@ -81,8 +81,6 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
 
   pruneEnvLockfile(envLockfile)
 
-  // writeVerifiedEnvLockfile rejects invalid names/versions before writing, so
-  // the manifest write (gated by it completing) never runs on bad input.
   await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
   await writeSettings({
     ...opts,

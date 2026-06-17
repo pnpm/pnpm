@@ -94,8 +94,6 @@ export async function migrateConfigDepsToLockfile (
     }
   }
 
-  // writeVerifiedEnvLockfile rejects invalid names/versions before writing, so
-  // the manifest write (gated by it completing) never runs on bad input.
   await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
   await writeSettings({
     rootProjectManifestDir: opts.rootDir,
