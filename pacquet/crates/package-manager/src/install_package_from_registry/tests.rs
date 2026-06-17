@@ -126,6 +126,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         proxy: Default::default(),
         tls: Default::default(),
         tls_by_uri: Default::default(),
+        package_manager_bootstrap: Default::default(),
     }
 }
 
