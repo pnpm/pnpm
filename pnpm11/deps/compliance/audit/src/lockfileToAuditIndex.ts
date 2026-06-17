@@ -237,7 +237,7 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
   }
 }
 
-const EMPTY_REACHABLE: Set<string> = new Set()
+const EMPTY_REACHABLE: ReadonlySet<string> = new Set()
 
 // For each node, the set of vulnerabilities reachable from it (itself included),
 // used by the walker to prune subtrees that reach no unsaturated finding.
@@ -247,7 +247,7 @@ function createReachableVulnerabilitiesGetter (
   lockfile: LockfileObject,
   vulnerableNames: Set<string>,
   includeOptDeps: boolean
-): (edge: { name: string, depPath: DepPath }) => Set<string> {
+): (edge: { name: string, depPath: DepPath }) => ReadonlySet<string> {
   const packages = lockfile.packages ?? {}
   // Final reachable set per node, shared across its SCC.
   const memo = new Map<DepPath, Set<string>>()
@@ -322,7 +322,7 @@ function createReachableVulnerabilitiesGetter (
 
 function allReachableVulnerabilitiesSaturated (
   paths: AuditPathIndex,
-  reachable: Set<string>,
+  reachable: ReadonlySet<string>,
   depTypes: DepTypes,
   optionalOnly: Set<DepPath>
 ): boolean {

@@ -308,10 +308,10 @@ describe('audit', () => {
     expect(result['x']!.get('1.0.0')!.paths.sort()).toEqual(['.>b>c>x', '.>c>x'])
   })
 
-  test('buildAuditPathIndex() scans each node a bounded number of times when the graph has a large cycle', () => {
-    // n0 -> ... -> n(L-1) -> n0 is one big cycle. Each node must be scanned a
-    // bounded number of times; recomputing the cycle per ancestor is O(L^2) and
-    // made `pnpm audit` pathologically slow on cyclic lockfiles.
+  test('buildAuditPathIndex() scans each cyclic node a bounded number of times', () => {
+    // n0 -> ... -> n(L-1) -> n0 is one big cycle. Each cyclic node must be
+    // scanned a bounded number of times; recomputing the cycle per ancestor is
+    // O(L^2) and made `pnpm audit` pathologically slow on cyclic lockfiles.
     const L = 200
     let reads = 0
     const importers = {
