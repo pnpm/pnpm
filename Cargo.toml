@@ -98,7 +98,7 @@ bytes = { version = "1.11.0" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 dashmap = { version = "6.2.1" }
 derive_more = { version = "2.1.1", features = ["full"] }
-dialoguer = { version = "0.11.0", default-features = false }
+dialoguer = { version = "0.12.0", default-features = false }
 diffy = { version = "0.5.0" }
 dunce = { version = "1.0.5" }
 home = { version = "0.5.12" }
