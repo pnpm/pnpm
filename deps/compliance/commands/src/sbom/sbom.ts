@@ -227,6 +227,7 @@ async function handleSplit (
   const entries = Object.entries(projectsGraph)
   const ndjsonLines: string[] = []
   const files: string[] = []
+  const writtenPaths = new Set<string>()
   const compact = !opts.out
   const createdDirs = new Set<string>()
 
@@ -251,12 +252,13 @@ async function handleSplit (
       // Sanitizing package names is lossy (e.g. "@a/b" and "a-b" both map to "a-b"),
       // so two packages can resolve to the same path. Fail loudly instead of letting
       // one SBOM silently overwrite another.
-      if (files.includes(filePath)) {
+      if (writtenPaths.has(filePath)) {
         throw new PnpmError(
           'SBOM_OUT_PATH_COLLISION',
           `Multiple workspace packages resolve to the same output path "${filePath}". Include %v in the --out pattern to disambiguate.`
         )
       }
+      writtenPaths.add(filePath)
       const fileDir = path.dirname(filePath)
       if (!createdDirs.has(fileDir)) {
         fs.mkdirSync(fileDir, { recursive: true })
@@ -279,11 +281,16 @@ async function handleSplit (
   return { output: ndjsonLines.join('\n'), exitCode: 0 }
 }
 
+type ManifestLike = { name?: string, version?: string, license?: string, description?: string, author?: string | { name?: string }, repository?: string | { url?: string } }
+
 interface SharedContext {
   lockfile: Exclude<Awaited<ReturnType<typeof readWantedLockfile>>, null>
   rootManifest: Awaited<ReturnType<typeof readProjectManifestOnly>>
   rootManifestDir: string
   storeDir: string | undefined
+  /** Workspace package manifests keyed by lockfile importer id, read once from the
+   * project graph so split mode does not re-read them for every emitted SBOM. */
+  workspaceManifestsByImporterId: Map<string, ManifestLike>
 }
 
 async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedContext> {
@@ -310,7 +317,16 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
     })
   }
 
-  return { lockfile, rootManifest, rootManifestDir, storeDir }
+  const lockfileDir = opts.lockfileDir ?? opts.dir
+  const workspaceManifestsByImporterId = new Map<string, ManifestLike>()
+  for (const graph of [opts.allProjectsGraph, opts.selectedProjectsGraph]) {
+    if (!graph) continue
+    for (const [dir, entry] of Object.entries(graph)) {
+      workspaceManifestsByImporterId.set(getLockfileImporterId(lockfileDir, dir), entry.package.manifest)
+    }
+  }
+
+  return { lockfile, rootManifest, rootManifestDir, storeDir, workspaceManifestsByImporterId }
 }
 
 async function generateSbomForProject (
@@ -369,7 +385,7 @@ async function generateSbomForProject (
     ? await buildWorkspacePackagesMap(
       resolvedWorkspaceDeps.additionalImporterIds,
       lockfileDir,
-      opts.selectedProjectsGraph
+      ctx.workspaceManifestsByImporterId
     )
     : undefined
 
@@ -459,23 +475,16 @@ const WORKSPACE_MANIFEST_READ_CONCURRENCY = 8
 async function buildWorkspacePackagesMap (
   reachableImporterIds: ProjectId[],
   lockfileDir: string,
-  selectedProjectsGraph?: SbomCommandOptions['selectedProjectsGraph']
+  manifestsByImporterId: Map<string, ManifestLike>
 ): Promise<Record<ProjectId, WorkspacePackageInfo>> {
   if (reachableImporterIds.length === 0) return {} as Record<ProjectId, WorkspacePackageInfo>
-
-  const selectedEntriesMap = new Map<string, { manifest: { name?: string, version?: string, license?: string, description?: string, author?: string | { name?: string }, repository?: string | { url?: string } } }>()
-  if (selectedProjectsGraph) {
-    for (const [dir, entry] of Object.entries(selectedProjectsGraph)) {
-      selectedEntriesMap.set(getLockfileImporterId(lockfileDir, dir), entry.package)
-    }
-  }
 
   const readManifest = pLimit(WORKSPACE_MANIFEST_READ_CONCURRENCY)
   const entries = await Promise.all(
     reachableImporterIds.map((importerId) => readManifest(async (): Promise<[ProjectId, WorkspacePackageInfo] | null> => {
-      const selected = selectedEntriesMap.get(importerId)
-      const manifest = selected
-        ? selected.manifest
+      const known = manifestsByImporterId.get(importerId)
+      const manifest = known
+        ? known
         : isInsideDir(lockfileDir, importerId)
           ? await readManifestSafe(path.join(lockfileDir, importerId))
           : undefined
@@ -496,7 +505,7 @@ async function buildWorkspacePackagesMap (
   return Object.fromEntries(entries.filter((e) => e !== null)) as Record<ProjectId, WorkspacePackageInfo>
 }
 
-async function readManifestSafe (dir: string): Promise<{ name?: string, version?: string, license?: string, description?: string, author?: string | { name?: string }, repository?: string | { url?: string } } | undefined> {
+async function readManifestSafe (dir: string): Promise<ManifestLike | undefined> {
   try {
     return await readProjectManifestOnly(dir)
   } catch {
