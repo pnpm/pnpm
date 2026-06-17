@@ -14,13 +14,24 @@ reviews:
         Apply the "AI Review Guidance" section in AGENTS.md. Security vulnerabilities are the first review priority; performance regressions in pnpm, pacquet, and pnpr are the second priority. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
   # Walkthrough poem adds no review value.
   poem: false
-  # Pre-merge checks are intentionally left unconfigured. Defining any check here
-  # turns on the whole pre-merge-checks subsystem, which replaces the auto-approve
-  # flow under Request Changes Workflow: CodeRabbit then emits a pre-merge-checks
-  # status block instead of approving once review threads are resolved, so PRs sit
-  # at REVIEW_REQUIRED even with all threads cleared and all checks green. We rely
-  # on the commit-msg hook plus the squash-title convention for title enforcement
-  # instead of a CodeRabbit title check.
+  # Required for CodeRabbit to submit approving reviews at all. With this off
+  # (the default — and what the dashboard toggle resolves to for this repo)
+  # CodeRabbit only comments and never approves. Declared in-repo so approvals
+  # don't depend on dashboard state.
+  request_changes_workflow: true
+  # Pre-merge checks are on by default (and in the dashboard), so they're disabled
+  # explicitly here: they add a status block without review value for this repo, and
+  # title enforcement is already covered by the commit-msg hook and the squash-title
+  # convention. "off" is quoted so YAML doesn't read it as the boolean false.
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    title:
+      mode: "off"
+    description:
+      mode: "off"
+    issue_assessment:
+      mode: "off"
   # Actually attach the chosen labels to the PR, not just suggest them in the walkthrough.
   auto_apply_labels: true
   # Custom labels assigned based on which product the diff touches. More than one may apply to a single PR.
