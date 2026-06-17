@@ -178,7 +178,11 @@ export async function handler (
 
   const ctx = await buildSharedContext(opts)
   const serialOpts = { format, sbomType, sbomSpecVersion }
-  const shouldSplit = opts.split || (opts.out != null && opts.out.includes('%s'))
+  // `%s` in --out only implies per-package output inside a workspace; in a
+  // single-project repo it is interpolated from the root component on the
+  // single-output path below.
+  const hasWorkspaceGraph = opts.selectedProjectsGraph != null || opts.allProjectsGraph != null
+  const shouldSplit = opts.split || (opts.out != null && opts.out.includes('%s') && hasWorkspaceGraph)
 
   if (shouldSplit) {
     return handleSplit(opts, serialOpts, ctx)
@@ -287,6 +291,9 @@ interface SharedContext {
   lockfile: Exclude<Awaited<ReturnType<typeof readWantedLockfile>>, null>
   rootManifest: Awaited<ReturnType<typeof readProjectManifestOnly>>
   rootManifestDir: string
+  /** Workspace-root license, resolved once so split mode does not re-probe the
+   * root directory as the fallback for every emitted SBOM. */
+  rootLicense: string | undefined
   storeDir: string | undefined
   /** Workspace package manifests keyed by lockfile importer id, read once from the
    * project graph so split mode does not re-read them for every emitted SBOM. */
@@ -326,7 +333,9 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
     }
   }
 
-  return { lockfile, rootManifest, rootManifestDir, storeDir, workspaceManifestsByImporterId }
+  const rootLicense = await resolveRootLicense(rootManifest, rootManifestDir)
+
+  return { lockfile, rootManifest, rootManifestDir, rootLicense, storeDir, workspaceManifestsByImporterId }
 }
 
 async function generateSbomForProject (
@@ -335,7 +344,7 @@ async function generateSbomForProject (
   ctx: SharedContext,
   compact?: boolean
 ): Promise<{ output: string, exitCode: number, rootName: string, rootVersion: string }> {
-  const { lockfile, rootManifest, rootManifestDir } = ctx
+  const { lockfile, rootManifest, rootManifestDir, rootLicense: cachedRootLicense } = ctx
 
   const include = {
     dependencies: opts.production !== false,
@@ -359,8 +368,9 @@ async function generateSbomForProject (
 
   const rootName = manifest.name ?? 'unknown'
   const rootVersion = manifest.version ?? '0.0.0'
-  const rootLicense = await resolveRootLicense(manifest, projectDir)
-    ?? (singleProject ? await resolveRootLicense(rootManifest, rootManifestDir) : undefined)
+  const rootLicense = singleProject
+    ? (await resolveRootLicense(manifest, projectDir) ?? cachedRootLicense)
+    : cachedRootLicense
   const rootAuthor = extractAuthor(manifest)
     ?? (singleProject ? extractAuthor(rootManifest) : undefined)
   const rootRepository = extractRepository(manifest)
@@ -453,6 +463,11 @@ function validateSbomSpecVersion (value: string | undefined, format: SbomFormat)
 }
 
 async function resolveRootLicense (manifest: Parameters<typeof resolveLicenseFromDir>[0]['manifest'], dir: string): Promise<string | undefined> {
+  // Skip the on-disk LICENSE probing when the manifest already declares a usable
+  // SPDX license; resolveLicenseFromDir would return the same value after the scan.
+  if (typeof manifest.license === 'string' && isSpdxLicenseExpression(manifest.license)) {
+    return manifest.license
+  }
   const info = await resolveLicenseFromDir({ manifest, dir })
   if (info && info.name !== 'Unknown' && (!info.licenseFile || isSpdxLicenseExpression(info.name))) {
     return info.name

@@ -595,6 +595,36 @@ test('pnpm sbom --out writes single file', async () => {
   expect(parsed.metadata.component.name).toBe('simple-sbom-test')
 })
 
+test('pnpm sbom --out with %s in a single-project repo writes one file', async () => {
+  const workspaceDir = tempDir()
+  f.copy('simple-sbom', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  const outFile = path.join(workspaceDir, 'sbom-out', '%s.cdx.json')
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    out: outFile,
+  })
+
+  expect(exitCode).toBe(0)
+  const expectedFile = path.join(workspaceDir, 'sbom-out', 'simple-sbom-test.cdx.json')
+  expect(output).toBe(expectedFile)
+  expect(fs.existsSync(expectedFile)).toBe(true)
+})
+
 test('pnpm sbom --out with %s writes per-package files', async () => {
   const workspaceDir = tempDir()
   f.copy('workspace-sbom', workspaceDir)

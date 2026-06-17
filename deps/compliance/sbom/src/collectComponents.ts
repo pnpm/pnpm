@@ -270,7 +270,9 @@ export function resolveWorkspaceDeps (
       // such importer IDs must never be followed, as they later become filesystem reads.
       if (path.posix.isAbsolute(targetId) || targetId === '..' || targetId.startsWith('../')) continue
 
-      if (!(targetId in lockfile.importers)) continue
+      // `in` would also match inherited keys (e.g. "toString"); a crafted lockfile
+      // must not be able to enqueue importer IDs that are not actually present.
+      if (!Object.prototype.hasOwnProperty.call(lockfile.importers, targetId)) continue
 
       const devOnly = devDepNames.has(depName) && !(depName in prodDeps)
       links.push({ sourceImporterId: importerId, targetImporterId: targetId, depName, devOnly })
