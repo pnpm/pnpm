@@ -16,6 +16,9 @@ jobs:
       github.event.review.user.login == 'coderabbitai[bot]'
     runs-on: ubuntu-latest
     permissions:
+      # gh pr edit --add-label uses the GraphQL addLabelsToLabelable mutation,
+      # which is governed by issues: write even when the target is a PR.
+      issues: write
       pull-requests: write
     env:
       # Webhook URL is optional; the Discord step is skipped when the secret is unset.
@@ -57,6 +60,9 @@ jobs:
       github.event.review.user.login == 'zkochan'
     runs-on: ubuntu-latest
     permissions:
+      # gh pr edit --add-label uses the GraphQL addLabelsToLabelable mutation,
+      # which is governed by issues: write even when the target is a PR.
+      issues: write
       pull-requests: write
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
