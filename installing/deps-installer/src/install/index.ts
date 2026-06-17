@@ -1775,7 +1775,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (opts.enablePnp) {
           extraEnv = {
             ...extraEnv,
-            ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
+            ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'), extraEnv),
           }
         }
         if (opts.nodeExperimentalPackageMap && shouldWritePackageMap) {
@@ -1938,7 +1938,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       if (opts.enablePnp) {
         opts.scriptsOpts.extraEnv = {
           ...opts.scriptsOpts.extraEnv,
-          ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
+          ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'), opts.scriptsOpts.extraEnv),
         }
       }
       if (opts.nodeExperimentalPackageMap && shouldWritePackageMap) {

@@ -608,7 +608,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (opts.enablePnp) {
       extraEnv = {
         ...extraEnv,
-        ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
+        ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'), extraEnv),
       }
     }
     if (opts.nodeExperimentalPackageMap && shouldWritePackageMap) {
