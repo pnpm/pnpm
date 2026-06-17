@@ -17,7 +17,7 @@ use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
-use std::fs;
+use std::{fs, process::Command};
 
 /// Two-project workspace where `a` injects leaf `b`. With the default
 /// `dedupeInjectedDeps: true`, the install pass rewrites `a`'s direct
@@ -81,6 +81,107 @@ fn injected_leaf_workspace_dep_is_deduped_to_link() {
     assert!(
         !lockfile.contains("file:packages/b"),
         "pnpm-lock.yaml should not retain the file:packages/b snapshot after dedupe:\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `injectWorkspacePackages: true` with a workspace dep (`b`) that has
+/// its own dependency (`@pnpm.e2e/foo`), so the injected snapshot has a
+/// non-empty child set. The dedupe pass must still collapse `a`'s
+/// `file:packages/b` to `link:../b` through the children-subset branch
+/// (not just the vacuous empty-children case the leaf test covers), and
+/// the `link:` must survive a `remove` that re-resolves the whole
+/// workspace. Behavioral analog of pnpm/pnpm#11448, whose single-project
+/// `pnpm rm` regression switched such a dep from `link:` to `file:`.
+/// Pacquet always re-resolves the full workspace (no single-project
+/// mode), so the same resolve path backs both `install` and `remove`.
+#[test]
+fn injected_workspace_dep_with_children_stays_link_after_remove() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "ws-root",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { "@pnpm.e2e/bar": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\ninjectWorkspacePackages: true\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/a")).expect("mkdir packages/a");
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        serde_json::json!({
+            "name": "a",
+            "version": "1.0.0",
+            "dependencies": { "b": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/a/package.json");
+
+    fs::create_dir_all(workspace.join("packages/b")).expect("mkdir packages/b");
+    fs::write(
+        workspace.join("packages/b/package.json"),
+        serde_json::json!({
+            "name": "b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/b/package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("link:../b"),
+        "injectWorkspacePackages should dedupe b (which has its own dependency) to link:../b:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("file:packages/b"),
+        "an injected workspace dep with children must not stay file:packages/b after dedupe:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("@pnpm.e2e/foo"),
+        "b's own dependency should be resolved, proving the injected snapshot has children:\n{lockfile}",
+    );
+
+    // Removing an unrelated root dependency re-resolves the whole
+    // workspace; the injected-with-children dedupe must hold across it.
+    Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(&workspace)
+        .with_arg("remove")
+        .with_arg("@pnpm.e2e/bar")
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml after remove");
+    assert!(
+        lockfile.contains("link:../b"),
+        "b must stay link:../b after remove re-resolves the workspace:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("file:packages/b"),
+        "remove must not switch the injected workspace dep back to file:packages/b:\n{lockfile}",
     );
 
     drop((root, mock_instance));
