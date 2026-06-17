@@ -6,9 +6,9 @@ import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { ConfigDependencies, ConfigDependencySpecifiers, Registries } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 
-import { assertValidConfigDepVersion } from './assertValidConfigDepVersion.js'
 import type { NormalizedConfigDep } from './parseIntegrity.js'
 import { parseIntegrity } from './parseIntegrity.js'
+import { verifyEnvLockfile } from './verifyEnvLockfile.js'
 
 interface MigrateOpts {
   registries: Registries
@@ -27,18 +27,18 @@ export async function migrateConfigDepsToLockfile (
   opts: MigrateOpts
 ): Promise<Record<string, NormalizedConfigDep>> {
   const envLockfile = createEnvLockfile()
-  // Null-prototype so a `__proto__` name is an own key the validation gate sees,
-  // not a silent prototype mutation.
-  const cleanSpecifiers: ConfigDependencySpecifiers = Object.create(null)
-  const normalizedDeps: Record<string, NormalizedConfigDep> = Object.create(null)
+  // configDependencies is keyed by untrusted names; null-prototype so a
+  // `__proto__` name is an own key verifyEnvLockfile sees below, not a silent
+  // prototype mutation.
+  envLockfile.importers['.'].configDependencies = Object.create(null)
+  const cleanSpecifiers: ConfigDependencySpecifiers = {}
+  const normalizedDeps: Record<string, NormalizedConfigDep> = {}
 
   for (const [pkgName, pkgSpec] of Object.entries(configDeps)) {
     const registry = pickRegistryForPackage(opts.registries, pkgName)
 
     if (typeof pkgSpec === 'object') {
       const { version, integrity } = parseIntegrity(pkgName, pkgSpec.integrity)
-      // Validate before the lockfile/settings are written below.
-      assertValidConfigDepVersion(pkgName, version)
       const tarball = pkgSpec.tarball ?? getNpmTarballUrl(pkgName, version, { registry })
 
       cleanSpecifiers[pkgName] = version
@@ -75,7 +75,6 @@ export async function migrateConfigDepsToLockfile (
         )
       }
       const { version, integrity } = parseIntegrity(pkgName, pkgSpec)
-      assertValidConfigDepVersion(pkgName, version)
       const tarball = getNpmTarballUrl(pkgName, version, { registry })
 
       cleanSpecifiers[pkgName] = version
@@ -94,6 +93,9 @@ export async function migrateConfigDepsToLockfile (
       }
     }
   }
+
+  // Reject invalid names/versions before any write side effect.
+  verifyEnvLockfile(envLockfile)
 
   // Write the new env lockfile and clean up workspace manifest
   await Promise.all([

@@ -17,6 +17,7 @@ import type { ConfigDependencies, ConfigDependencySpecifiers, RegistryConfig } f
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
+import { verifyEnvLockfile } from './verifyEnvLockfile.js'
 
 export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies
@@ -80,6 +81,9 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   }))
 
   pruneEnvLockfile(envLockfile)
+
+  // Reject invalid names/versions before any write side effect.
+  verifyEnvLockfile(envLockfile)
 
   await Promise.all([
     writeSettings({

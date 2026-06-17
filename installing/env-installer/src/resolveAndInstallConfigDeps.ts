@@ -17,6 +17,7 @@ import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDe
 import { parseIntegrity } from './parseIntegrity.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
+import { verifyEnvLockfile } from './verifyEnvLockfile.js'
 
 export type ResolveAndInstallConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   rootDir: string
@@ -92,6 +93,8 @@ export async function resolveAndInstallConfigDeps (
 
   if (depsToResolve.length === 0) {
     if (lockfileChanged) {
+      // Reject invalid names/versions before the write side effect.
+      verifyEnvLockfile(envLockfile)
       await writeEnvLockfile(opts.rootDir, envLockfile)
     }
     await installConfigDeps(envLockfile, opts)
@@ -143,6 +146,8 @@ export async function resolveAndInstallConfigDeps (
 
   pruneEnvLockfile(envLockfile)
 
+  // Reject invalid names/versions before the write side effect.
+  verifyEnvLockfile(envLockfile)
   await writeEnvLockfile(opts.rootDir, envLockfile)
   await installConfigDeps(envLockfile, opts)
 }

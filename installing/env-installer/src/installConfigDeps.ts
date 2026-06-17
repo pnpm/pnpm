@@ -7,7 +7,6 @@ import { installingConfigDepsLogger, skippedOptionalDependencyLogger } from '@pn
 import { calcGlobalVirtualStorePathWithSubdeps, calcLeafGlobalVirtualStorePath } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
-import { assertValidDependencyAliases } from '@pnpm/installing.deps-resolver'
 import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import type { StoreController } from '@pnpm/store.controller'
 import type { ConfigDependencies, Registries } from '@pnpm/types'
@@ -15,9 +14,9 @@ import { rimraf } from '@zkochan/rimraf'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { symlinkDir } from 'symlink-dir'
 
-import { assertValidConfigDepVersion } from './assertValidConfigDepVersion.js'
 import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
 import type { NormalizedConfigDep, NormalizedSubdep } from './parseIntegrity.js'
+import { verifyEnvLockfile } from './verifyEnvLockfile.js'
 
 export interface InstallConfigDepsOpts {
   frozenLockfile?: boolean
@@ -36,9 +35,7 @@ export async function installConfigDeps (
   configDepsOrLockfile: ConfigDependencies | EnvLockfile,
   opts: InstallConfigDepsOpts
 ): Promise<void> {
-  assertValidRawConfigDepNames(configDepsOrLockfile)
   const normalizedDeps = await normalizeForInstall(configDepsOrLockfile, opts)
-  assertValidConfigDeps(normalizedDeps)
   const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
 
   const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
@@ -65,7 +62,7 @@ export async function installConfigDeps (
     // The parent's GVS hash must incorporate its optional subdeps; otherwise
     // changing a subdep version while keeping the parent pinned would collide
     // on the same leaf and silently overwrite the previous sibling symlinks.
-    const optionalSubdepIds: Record<string, string> = Object.create(null)
+    const optionalSubdepIds: Record<string, string> = {}
     for (const subdep of pkg.optionalSubdeps ?? []) {
       optionalSubdepIds[subdep.name] = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
     }
@@ -131,46 +128,13 @@ export async function installConfigDeps (
   }
 }
 
-// Runs before normalizeForInstall, which may migrate the legacy manifest format
-// and write to disk. Subdeps and versions are checked after normalization by
-// assertValidConfigDeps, which no earlier write precedes.
-function assertValidRawConfigDepNames (configDepsOrLockfile: ConfigDependencies | EnvLockfile): void {
-  const names = isEnvLockfile(configDepsOrLockfile)
-    ? configDepsOrLockfile.importers['.']?.configDependencies
-    : configDepsOrLockfile
-  const source = isEnvLockfile(configDepsOrLockfile)
-    ? 'the env lockfile (pnpm-lock.yaml)'
-    : 'pnpm-workspace.yaml'
-  assertValidDependencyAliases(names, `The configDependencies in ${source}`)
-}
-
-// Names and versions come from the committed lockfile/manifest and become store
-// path segments, so reject any non-npm-name / non-semver value before a path is
-// built from it (traversal-shaped values would escape the install roots).
-function assertValidConfigDeps (normalizedDeps: Record<string, NormalizedConfigDep>): void {
-  assertValidDependencyAliases(normalizedDeps, 'The configDependencies in the env lockfile (pnpm-lock.yaml)')
-  for (const [pkgName, pkg] of Object.entries(normalizedDeps)) {
-    assertValidConfigDepVersion(pkgName, pkg.version)
-    if (!pkg.optionalSubdeps?.length) continue
-    // Null-prototype so a `__proto__` name is an own key the validator sees, not
-    // a silent prototype mutation.
-    const subdepsByName: Record<string, true> = Object.create(null)
-    for (const subdep of pkg.optionalSubdeps) {
-      subdepsByName[subdep.name] = true
-    }
-    assertValidDependencyAliases(subdepsByName, `The optionalDependencies of config dependency "${pkgName}" in the env lockfile (pnpm-lock.yaml)`)
-    for (const subdep of pkg.optionalSubdeps) {
-      assertValidConfigDepVersion(subdep.name, subdep.version)
-    }
-  }
-}
-
 async function normalizeForInstall (
   configDepsOrLockfile: ConfigDependencies | EnvLockfile,
   opts: InstallConfigDepsOpts
 ): Promise<Record<string, NormalizedConfigDep>> {
   // If it's a EnvLockfile object (has lockfileVersion), use it directly
   if (isEnvLockfile(configDepsOrLockfile)) {
+    verifyEnvLockfile(configDepsOrLockfile)
     return normalizeFromLockfile(configDepsOrLockfile, opts.registries)
   }
 
@@ -178,10 +142,12 @@ async function normalizeForInstall (
   // Try to read the env lockfile first.
   const envLockfile = await readEnvLockfile(opts.rootDir)
   if (envLockfile) {
+    verifyEnvLockfile(envLockfile)
     return normalizeFromLockfile(envLockfile, opts.registries)
   }
 
-  // No env lockfile yet — migrate from old inline integrity format
+  // No env lockfile yet — migrate from old inline integrity format.
+  // migrateConfigDepsToLockfile verifies before it writes.
   if (opts.frozenLockfile) {
     throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot migrate configDependencies with "frozen-lockfile" because the lockfile is not up to date')
   }
@@ -205,9 +171,7 @@ function normalizeFromLockfile (
   lockfile: EnvLockfile,
   registries: Registries
 ): Record<string, NormalizedConfigDep> {
-  // Null-prototype so a `__proto__` name is an own key the validation gate sees,
-  // not a silent prototype mutation.
-  const deps: Record<string, NormalizedConfigDep> = Object.create(null)
+  const deps: Record<string, NormalizedConfigDep> = {}
   const configDeps = lockfile.importers['.']?.configDependencies ?? {}
   for (const [pkgName, { version }] of Object.entries(configDeps)) {
     const pkgKey = `${pkgName}@${version}`

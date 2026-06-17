@@ -10,19 +10,15 @@
 //!    registry when it isn't already pinned in the lockfile.
 
 use crate::{
-    ConfigDepError,
-    install_config_deps::{assert_valid_config_dep_version, install_config_deps},
-    options::ConfigDepsInstallOptions,
-    parse_integrity::parse_integrity,
-    prune::prune_env_lockfile,
-    resolve_optional_subdeps::resolve_optional_subdeps,
+    ConfigDepError, install_config_deps::install_config_deps, options::ConfigDepsInstallOptions,
+    parse_integrity::parse_integrity, prune::prune_env_lockfile,
+    resolve_optional_subdeps::resolve_optional_subdeps, verify_env_lockfile::verify_env_lockfile,
 };
 use pacquet_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
     SpecifierAndResolution, TarballResolution, npm_tarball_url,
 };
 use pacquet_reporter::Reporter;
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pacquet_workspace_state::ConfigDependency;
 use ssri::Integrity;
@@ -35,17 +31,6 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
-    // Validate names before the migration below records entries and writes
-    // pnpm-lock.yaml, so an invalid name causes no write side effect.
-    for name in config_deps.keys() {
-        if !is_valid_old_npm_package_name(name) {
-            return Err(ConfigDepError::InvalidDependencyName {
-                description: "The configDependencies in pnpm-workspace.yaml".to_string(),
-                name: name.clone(),
-            });
-        }
-    }
-
     let mut env_lockfile = EnvLockfile::read(opts.root_dir)
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
@@ -69,8 +54,6 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
             ConfigDependency::Detailed(detail) => {
                 if !has_config_dep(&env_lockfile, name) {
                     let (version, integrity) = parse_integrity(name, &detail.integrity)?;
-                    // Validate before recording lockfile entries written below.
-                    assert_valid_config_dep_version(name, &version)?;
                     let registry = opts.pick_registry(name);
                     let tarball = detail
                         .tarball
@@ -90,7 +73,6 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
             ConfigDependency::VersionWithIntegrity(value) if value.contains('+') => {
                 if !has_config_dep(&env_lockfile, name) {
                     let (version, integrity) = parse_integrity(name, value)?;
-                    assert_valid_config_dep_version(name, &version)?;
                     let registry = opts.pick_registry(name);
                     let tarball = npm_tarball_url(name, &version, registry);
                     migrate_into_lockfile(
@@ -127,6 +109,8 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
             // Migration and/or removal changed the lockfile; prune any
             // now-orphaned packages/snapshots before writing.
             prune_env_lockfile(&mut env_lockfile);
+            // Reject invalid names/versions before the write side effect.
+            verify_env_lockfile(&env_lockfile)?;
             env_lockfile.write(opts.root_dir).map_err(ConfigDepError::WriteLockfile)?;
         }
         return install_config_deps::<Reporter>(&env_lockfile, opts).await;
@@ -137,6 +121,8 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     }
 
     prune_env_lockfile(&mut env_lockfile);
+    // Reject invalid names/versions before the write side effect.
+    verify_env_lockfile(&env_lockfile)?;
     env_lockfile.write(opts.root_dir).map_err(ConfigDepError::WriteLockfile)?;
     install_config_deps::<Reporter>(&env_lockfile, opts).await
 }

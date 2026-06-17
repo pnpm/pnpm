@@ -2,3 +2,4 @@ export { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDe
 export { resolveAndInstallConfigDeps, type ResolveAndInstallConfigDepsOpts } from './resolveAndInstallConfigDeps.js'
 export { resolveConfigDeps, type ResolveConfigDepsOpts } from './resolveConfigDeps.js'
 export { isPackageManagerResolved, resolvePackageManagerIntegrities, type ResolvePackageManagerIntegritiesOpts } from './resolvePackageManagerIntegrities.js'
+export { verifyEnvLockfile } from './verifyEnvLockfile.js'

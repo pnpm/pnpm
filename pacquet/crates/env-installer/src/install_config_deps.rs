@@ -10,6 +10,7 @@
 
 use crate::{
     ConfigDepError, NormalizedConfigDep, NormalizedSubdep, options::ConfigDepsInstallOptions,
+    verify_env_lockfile::verify_env_lockfile,
 };
 use pacquet_graph_hasher::{
     calc_global_virtual_store_path_with_subdeps, calc_leaf_global_virtual_store_path,
@@ -23,7 +24,6 @@ use pacquet_reporter::{
     InstalledConfigDep, InstallingConfigDepsLog, InstallingConfigDepsStatus, LogEvent, LogLevel,
     Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
 };
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use pacquet_store_dir::SharedVerifiedFilesCache;
 use pacquet_tarball::DownloadTarballToStore;
 use ssri::Integrity;
@@ -40,8 +40,8 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     env_lockfile: &EnvLockfile,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
+    verify_env_lockfile(env_lockfile)?;
     let normalized = normalize_from_lockfile(env_lockfile, opts)?;
-    assert_valid_config_deps(&normalized)?;
     let global_virtual_store_dir = opts.store_dir.links();
     let config_modules_dir = opts.root_dir.join("node_modules").join(".pnpm-config");
 
@@ -336,51 +336,6 @@ fn is_compatible<Reporter: self::Reporter>(
         // installable rather than aborting the whole config-deps pass.
         Err(_) => true,
     }
-}
-
-/// Reject config-dependency (and optional-subdep) names and versions before
-/// they are used to build store paths (`<name>/<version>/<hash>`): names must
-/// be valid npm package names, versions exact semver. Otherwise a
-/// traversal-shaped value from a committed lockfile would escape the install
-/// roots. Mirrors pnpm's `assertValidConfigDeps`.
-fn assert_valid_config_deps(
-    normalized: &BTreeMap<String, NormalizedConfigDep>,
-) -> Result<(), ConfigDepError> {
-    for (name, dep) in normalized {
-        if !is_valid_old_npm_package_name(name) {
-            return Err(ConfigDepError::InvalidDependencyName {
-                description: "The configDependencies in the env lockfile (pnpm-lock.yaml)"
-                    .to_string(),
-                name: name.clone(),
-            });
-        }
-        assert_valid_config_dep_version(name, &dep.version)?;
-        for subdep in &dep.optional_subdeps {
-            if !is_valid_old_npm_package_name(&subdep.name) {
-                return Err(ConfigDepError::InvalidDependencyName {
-                    description: format!(
-                        "The optionalDependencies of config dependency \"{name}\" in the env lockfile (pnpm-lock.yaml)",
-                    ),
-                    name: subdep.name.clone(),
-                });
-            }
-            assert_valid_config_dep_version(&subdep.name, &subdep.version)?;
-        }
-    }
-    Ok(())
-}
-
-pub(crate) fn assert_valid_config_dep_version(
-    name: &str,
-    version: &str,
-) -> Result<(), ConfigDepError> {
-    if version.parse::<node_semver::Version>().is_err() {
-        return Err(ConfigDepError::InvalidConfigDepVersion {
-            name: name.to_string(),
-            version: version.to_string(),
-        });
-    }
-    Ok(())
 }
 
 /// Build the install-set view of `env_lockfile.importers["."]`. Mirrors
