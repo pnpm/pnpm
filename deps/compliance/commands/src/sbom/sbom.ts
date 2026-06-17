@@ -509,7 +509,11 @@ function sanitizePackageName (name: string): string {
 }
 
 function sanitizePathSegment (value: string): string {
-  const sanitized = value.replace(/[/\\:*?"<>|]/g, '-')
+  // Control characters (e.g. newlines) would produce confusing filenames and could
+  // inject extra lines into the printed `--split --out` summary; filesystem
+  // metacharacters are replaced so the value stays a single path segment.
+  // eslint-disable-next-line no-control-regex
+  const sanitized = value.replace(/[/\\:*?"<>|\x00-\x1F\x7F]/g, '-')
   // `.`, `..`, or a blank value would let a crafted name/version escape or replace
   // the intended output directory once interpolated into an `--out` template.
   return sanitized === '.' || sanitized === '..' || sanitized.trim() === '' ? '-' : sanitized

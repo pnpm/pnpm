@@ -10,6 +10,7 @@ import {
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { StoreIndex } from '@pnpm/store.index'
 import type { DependenciesField, ProjectId, Registries } from '@pnpm/types'
+import pLimit from 'p-limit'
 
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
 import { buildPurl, encodePurlName } from './purl.js'
@@ -43,6 +44,8 @@ export interface CollectSbomComponentsOptions {
   workspacePackages?: Record<ProjectId, WorkspacePackageInfo>
   resolvedWorkspaceDeps?: ReturnType<typeof resolveWorkspaceDeps>
 }
+
+const IMPORTER_WALK_CONCURRENCY = 8
 
 export async function collectSbomComponents (opts: CollectSbomComponentsOptions): Promise<SbomResult> {
   const depTypes = detectDepTypes(opts.lockfile)
@@ -126,14 +129,17 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
     }
     : undefined
 
+  const walkImporter = pLimit(IMPORTER_WALK_CONCURRENCY)
   await Promise.all(
-    importerWalkers.map(async ({ importerId, step }) => {
+    importerWalkers.map(({ importerId, step }) => walkImporter(async () => {
       let parentPurl = rootPurl
       if (!importerIdSet.has(importerId as ProjectId)) {
         const info = opts.workspacePackages?.[importerId as ProjectId]
-        if (info) {
-          parentPurl = buildPurl({ name: info.name, version: info.version })
-        }
+        // A reachable workspace importer with no resolved package info (e.g. its
+        // manifest could not be read) is skipped entirely; walking it would
+        // misattribute its dependencies to the root component.
+        if (!info) return
+        parentPurl = buildPurl({ name: info.name, version: info.version })
       }
       await walkStep(
         step,
@@ -144,7 +150,7 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
         opts,
         metadataOpts
       )
-    })
+    }))
   )
   storeIndex?.close()
 
