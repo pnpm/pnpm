@@ -20,9 +20,7 @@ const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
-    creds: {
-      basicAuth: REGISTRY_MOCK_CREDENTIALS,
-    },
+    '@': { basicAuth: REGISTRY_MOCK_CREDENTIALS },
   },
 }
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
@@ -983,9 +981,7 @@ test('publish: use basic token helper for authentication', async () => {
     argv: { original: ['publish'] },
     configByUri: {
       [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
-        creds: {
-          tokenHelper: [tokenHelper],
-        },
+        '@': { tokenHelper: [tokenHelper] },
       },
     },
     dir: process.cwd(),
@@ -1012,9 +1008,7 @@ test('publish: use bearer token helper for authentication', async () => {
     argv: { original: ['publish'] },
     configByUri: {
       [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
-        creds: {
-          tokenHelper: [tokenHelper],
-        },
+        '@': { tokenHelper: [tokenHelper] },
       },
     },
     dir: process.cwd(),

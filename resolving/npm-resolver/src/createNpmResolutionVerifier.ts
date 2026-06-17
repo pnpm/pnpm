@@ -2,6 +2,7 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import type { GetAuthHeader } from '@pnpm/fetching.types'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
   Resolution,
@@ -80,7 +81,7 @@ export interface CreateNpmResolutionVerifierOptions {
    * hide the publish timestamp.
    */
   fetchOpts: FetchMetadataFromFromRegistryOptions
-  getAuthHeaderValueByURI: (registry: string) => string | undefined
+  getAuthHeaderValueByURI: GetAuthHeader
   cacheDir?: FetchFullMetadataCachedOptions['cacheDir']
   /**
    * Per-install LRU shared with the npm resolver's `pickPackage`
@@ -487,7 +488,7 @@ function fetchFullMetaForTrust (
       // workspaces OOMs CI runners with a 2GB heap (see #11860).
       cachedPromise = fetchFullMetadataCached(context.fetchOpts, name, {
         registry,
-        authHeaderValue: context.getAuthHeaderValueByURI(registry),
+        authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
         cacheDir: context.cacheDir,
       }).then(projectTrustMeta)
     }
@@ -553,7 +554,7 @@ type PublishedAtTimeMap = Record<string, string | undefined>
 
 interface PublishedAtLookupContext {
   fetchOpts: FetchMetadataFromFromRegistryOptions
-  getAuthHeaderValueByURI: (registry: string) => string | undefined
+  getAuthHeaderValueByURI: GetAuthHeader
   cacheDir?: string
   /**
    * The `minimumReleaseAge` cutoff converted to a unix-ms epoch. A
@@ -664,7 +665,7 @@ async function resolvePublishedAt (
 
   const attestationTime = await fetchAttestationPublishedAt(context.fetchOpts, name, version, {
     registry,
-    authHeaderValue: context.getAuthHeaderValueByURI(registry),
+    authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
   })
   if (attestationTime != null) return attestationTime
 
@@ -729,7 +730,7 @@ function fetchAbbreviatedMeta (
     } else {
       cachedPromise = fetchAbbreviatedMetadataCached(context.fetchOpts, name, {
         registry,
-        authHeaderValue: context.getAuthHeaderValueByURI(registry),
+        authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
         cacheDir: context.cacheDir,
       }).then(projectAbbreviatedMeta, () => undefined)
     }
@@ -841,7 +842,7 @@ function fetchFullMetaTime (
   if (cachedPromise == null) {
     cachedPromise = fetchFullMetadataCached(context.fetchOpts, name, {
       registry,
-      authHeaderValue: context.getAuthHeaderValueByURI(registry),
+      authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
       cacheDir: context.cacheDir,
     }).then((meta) => meta.time)
     context.fullMetaCache.set(cacheKey, cachedPromise)

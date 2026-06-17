@@ -129,6 +129,16 @@ fn ignore_manifest_check_flag_parses() {
     assert!(parsed.args.ignore_manifest_check, "flag present → true");
 }
 
+#[test]
+fn dry_run_flag_parses() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
+    assert!(!parsed.args.dry_run, "flag absent → false");
+
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--dry-run"])
+        .expect("parses --dry-run");
+    assert!(parsed.args.dry_run, "flag present → true");
+}
+
 /// `--frozen-store` parses to `true`. Absent → `false`. The flag is
 /// folded into `config.frozen_store` at the dispatch in `cli_args.rs`
 /// (any `--frozen-store` upgrades a yaml `false` to `true`), so the

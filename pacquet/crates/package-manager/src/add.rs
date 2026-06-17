@@ -7,15 +7,19 @@ use miette::Diagnostic;
 use pacquet_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
-use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
+use pacquet_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_registry::{PackageTag, PackageVersion};
+use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_resolving_npm_resolver::pick_registry_for_package;
+use pacquet_resolving_npm_resolver::{
+    InMemoryPackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
+    parse_bare_specifier, pick_package, pick_registry_for_package, shared_packument_fetch_locker,
+    which_version_is_pinned,
+};
 use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 
@@ -36,7 +40,11 @@ where
     pub lockfile_path: Option<&'a std::path::Path>,
     pub list_dependency_groups: ListDependencyGroups, // must be a function because it is called multiple times
     pub package_name: &'a str, // may carry a `@<version>` suffix; TODO: multiple arguments, name this `packages`
-    pub save_exact: bool,      // TODO: add `save-exact` to `.npmrc`, merge configs, and remove this
+    /// How the freshly-resolved version is pinned into the manifest range,
+    /// derived from `--save-exact` / `--save-prefix`. See
+    /// [`PinnedVersion::from_save_options`].
+    // TODO: read `save-exact` / `save-prefix` from `.npmrc`, merge configs, and derive this there.
+    pub pinned_version: PinnedVersion,
     /// `--save-catalog-name=<name>` (with `--save-catalog` a shorthand for
     /// `default`), or the `saveCatalogName` config default. When `Some`,
     /// the added dependency is written as `catalog:` / `catalog:<name>`
@@ -86,6 +94,25 @@ pub enum AddError {
 
     #[diagnostic(transparent)]
     Install(#[error(source)] InstallError),
+
+    /// Fetching a brand-new dependency's `latest` tag from the registry
+    /// failed while resolving the version to add.
+    #[display("Failed to resolve the latest version of {name}: {error}")]
+    #[diagnostic(code(pacquet_package_manager::add_resolve_latest))]
+    ResolveLatest {
+        name: String,
+        #[error(source)]
+        error: pacquet_registry::RegistryError,
+    },
+
+    /// Resolving an explicit `add <name>@<spec>` specifier against the
+    /// registry (to pin the manifest range to a concrete version) failed.
+    #[diagnostic(transparent)]
+    ResolveSpec(#[error(source)] Box<PickPackageError>),
+
+    /// `minimumReleaseAgeExclude` contained an invalid rule.
+    #[diagnostic(transparent)]
+    MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
 }
 
 impl<ListDependencyGroups, DependencyGroupList> Add<'_, ListDependencyGroups, DependencyGroupList>
@@ -104,7 +131,7 @@ where
             lockfile_path,
             list_dependency_groups,
             package_name,
-            save_exact,
+            pinned_version,
             save_catalog_name,
             resolved_packages,
             supported_architectures,
@@ -131,41 +158,61 @@ where
         let prefix =
             workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
 
-        // The dependency's current manifest specifier, so a re-add of a
-        // `catalog:` dependency keeps its catalog reference.
+        // The dependency's current specifier *in the group(s) this add
+        // targets*, so a re-add keeps the existing range / `catalog:`
+        // reference of the bucket being written. Scanning only the target
+        // groups (rather than every group) avoids preserving a different
+        // group's specifier when the same package exists in more than one
+        // bucket with different specs.
         let prev_specifier = manifest
-            .dependencies([
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-                DependencyGroup::Peer,
-            ])
+            .dependencies(list_dependency_groups())
             .find(|(name, _)| *name == package_name)
             .map(|(_, spec)| spec.to_string());
 
-        // The bare specifier to reconcile against the catalogs: the
-        // explicit `@<version>`, the preserved `catalog:` reference on a
-        // re-add, or otherwise the freshly-fetched `latest` range.
-        let bare_specifier = match explicit_spec {
-            Some(spec) => spec.to_string(),
-            None => match prev_specifier.as_deref() {
-                Some(prev) if parse_catalog_protocol(prev).is_some() => prev.to_string(),
-                _ => {
-                    let registries: std::collections::HashMap<String, String> =
-                        config.resolved_registries().into_iter().collect();
-                    let registry = pick_registry_for_package(&registries, package_name, None);
-                    let latest = PackageVersion::fetch_from_registry(
-                        package_name,
-                        PackageTag::Latest,
-                        http_client,
-                        &registry,
-                        &config.auth_headers,
-                    )
-                    .await
-                    .expect("resolve latest tag"); // TODO: properly propagate this error
-                    latest.serialize(save_exact)
-                }
-            },
+        // The bare specifier to reconcile against the catalogs:
+        // - an explicit `@<version>` is resolved to a concrete version and
+        //   recorded with the range operator it (or the existing entry)
+        //   pins, mirroring pnpm — `pnpm add foo@^7` records `^7.8.4`, not
+        //   `^7`. Specifiers that aren't a plain registry range/tag/version
+        //   for this package (protocols, `npm:` aliases) stay verbatim;
+        // - a re-add with no version keeps the dependency's current
+        //   specifier verbatim (a `catalog:` reference, a range, or an
+        //   exact pin), matching pnpm — `pnpm add <existing>` without a
+        //   version leaves the declared range untouched;
+        // - a brand-new dependency fetches and pins the `latest` range.
+        let bare_specifier = match (explicit_spec, prev_specifier.as_deref()) {
+            (Some(spec), prev) => resolve_explicit_registry_spec(
+                package_name,
+                spec,
+                prev,
+                config,
+                http_client,
+                pinned_version,
+                lockfile_only,
+                lockfile,
+                manifest,
+            )
+            .await?
+            .unwrap_or_else(|| spec.to_string()),
+            (None, Some(prev)) => prev.to_string(),
+            (None, None) => {
+                let registries: std::collections::HashMap<String, String> =
+                    config.resolved_registries().into_iter().collect();
+                let registry = pick_registry_for_package(&registries, package_name, None);
+                let latest = PackageVersion::fetch_from_registry(
+                    package_name,
+                    PackageTag::Latest,
+                    http_client,
+                    &registry,
+                    &config.auth_headers,
+                )
+                .await
+                .map_err(|error| AddError::ResolveLatest {
+                    name: package_name.to_string(),
+                    error,
+                })?;
+                latest.serialize(pinned_version)
+            }
         };
 
         let mut updated_catalogs = Catalogs::new();
@@ -216,7 +263,7 @@ where
             http_client_arc,
             config,
             manifest,
-            lockfile,
+            lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
             dependency_groups: list_dependency_groups(),
             frozen_lockfile: false,
@@ -242,12 +289,14 @@ where
             supported_architectures,
             node_linker: config.node_linker,
             lockfile_only,
+            dry_run: false,
             // `add` keeps every lockfile pin; the freshly-added range
             // is the only thing that re-resolves. `update`'s bump is a
             // separate operation.
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
+            catalogs_override: None,
         }
         .run::<Reporter>()
         .await
@@ -282,6 +331,126 @@ where
 
         Ok(())
     }
+}
+
+/// Resolve an explicit `add <name>@<spec>` registry specifier to the
+/// manifest range pnpm would record: the spec resolved to a concrete
+/// version (through the *same* resolver path the follow-up install uses, so
+/// the pinned version equals the version the install locks — `resolutionMode`
+/// and `minimumReleaseAge` included), carrying the operator the existing
+/// entry pins, then the spec's, then the configured default. So `pnpm add
+/// foo@^7` records `^7.8.4`, not `^7`.
+///
+/// Returns `Ok(None)` — write the specifier verbatim — for anything that is
+/// not a plain registry range/tag/version for `package_name` itself:
+/// non-registry protocols (`git:`/`file:`/`workspace:`/URLs, which
+/// [`parse_bare_specifier`] rejects), `npm:` aliases (resolving them risks
+/// dropping the aliased target), and specifiers that resolve to no version.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "a resolve helper threading the install's resolution inputs"
+)]
+async fn resolve_explicit_registry_spec(
+    package_name: &str,
+    spec: &str,
+    prev_specifier: Option<&str>,
+    config: &Config,
+    http_client: &ThrottledClient,
+    pinned_version: PinnedVersion,
+    lockfile_only: bool,
+    lockfile: Option<&Lockfile>,
+    manifest: &PackageManifest,
+) -> Result<Option<String>, AddError> {
+    if spec.starts_with("npm:") {
+        return Ok(None);
+    }
+    let registries: std::collections::HashMap<String, String> =
+        config.resolved_registries().into_iter().collect();
+    let registry = pick_registry_for_package(&registries, package_name, None);
+    let Some(spec_parsed) = parse_bare_specifier(spec, Some(package_name), "latest", &registry)
+    else {
+        return Ok(None);
+    };
+    // A registry-host tarball URL parses as a registry `Version` spec but
+    // must stay verbatim — resolving it would rewrite an explicit URL
+    // dependency into a semver range. The npm resolver marks such parses
+    // with `normalized_bare_specifier`.
+    if spec_parsed.normalized_bare_specifier.is_some() {
+        return Ok(None);
+    }
+    if spec_parsed.name != package_name {
+        return Ok(None);
+    }
+
+    let policy = crate::resolution_policy::PickPolicy::from_config(config)
+        .map_err(AddError::MinimumReleaseAgeExclude)?;
+    // Bias the pick toward versions already present in the workspace, so a
+    // dedup pick matches what the install locks (e.g. a sibling already on
+    // `1.2.0` keeps `pnpm add foo@^1` on `1.2.0`). Seeded from the wanted
+    // lockfile + this manifest; sibling manifests aren't reachable here, so
+    // an unlocked sibling declaration may still differ — never an
+    // inconsistency, since the install resolves the rewritten range.
+    let preferred_versions = get_preferred_versions_from_lockfile_and_manifests(
+        lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
+        &[manifest],
+    );
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client,
+        auth_headers: &config.auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(&config.cache_dir),
+        offline: config.offline,
+        prefer_offline: config.prefer_offline,
+        ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+        full_metadata: policy.full_metadata,
+        filter_metadata: policy.full_metadata,
+        retry_opts: crate::retry_config::retry_opts_from_config(config),
+    };
+    let opts = PickPackageOptions {
+        registry: &registry,
+        preferred_version_selectors: preferred_versions.get(package_name),
+        published_by: policy.published_by,
+        published_by_exclude: policy.published_by_exclude.as_ref(),
+        pick_lowest_version: policy.pick_lowest_direct,
+        // `false`: the explicit spec is authoritative. The highest version
+        // satisfying the spec is already the `latest`-tag version whenever
+        // `latest` satisfies it; forcing the `latest` tag in would wrongly
+        // bump a narrower spec (`~7.0.0`, `7.0.0`) past its own bound.
+        include_latest_tag: false,
+        dry_run: lockfile_only,
+        optional: false,
+        update_checksums: false,
+    };
+
+    let pick = pick_package(&ctx, &spec_parsed, &opts)
+        .await
+        .map_err(|error| AddError::ResolveSpec(Box::new(error)))?;
+    let Some(picked) = pick.picked_package else {
+        return Ok(None);
+    };
+
+    // pnpm's calcSpecifier precedence: the existing entry's operator wins
+    // over the spec's, which wins over the configured default. Only a
+    // registry-style previous specifier carries a meaningful operator —
+    // `which_version_is_pinned` forward-scans for a version substring, so a
+    // path/URL prev (e.g. `file:../foo-2.0.0.tgz`) would otherwise be misread
+    // as a pin. Gate it on `parse_bare_specifier` accepting a non-URL spec.
+    let prev_pin = prev_specifier
+        .filter(|prev| is_registry_style_specifier(prev, package_name, &registry))
+        .and_then(which_version_is_pinned);
+    let pin = prev_pin.or_else(|| which_version_is_pinned(spec)).unwrap_or(pinned_version);
+    Ok(Some(picked.serialize(pin)))
+}
+
+/// Whether `specifier` is a plain registry range/tag/version for
+/// `package_name` (not a non-registry protocol, path, or tarball URL), and
+/// so carries a meaningful range operator.
+fn is_registry_style_specifier(specifier: &str, package_name: &str, registry: &str) -> bool {
+    parse_bare_specifier(specifier, Some(package_name), "latest", registry)
+        .is_some_and(|parsed| parsed.normalized_bare_specifier.is_none())
 }
 
 /// Split a `pacquet add` argument into its package name and optional

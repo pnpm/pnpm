@@ -468,7 +468,7 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
     return auditReport
   }
 
-  const flatChoices: Array<Separator | { name: string; value: string; disabled?: boolean | string }> = []
+  const flatChoices: Array<Separator | { name: string; value: string; short: string; disabled?: boolean | string }> = []
   for (const group of choiceGroups) {
     flatChoices.push(new Separator(chalk.bold(`── ${group.message} ──`)))
     for (const choice of group.choices) {
@@ -478,6 +478,11 @@ async function interactiveAuditFix (auditReport: AuditReport): Promise<AuditRepo
         flatChoices.push({
           name: choice.message,
           value: choice.value,
+          // Same shape as the update prompt: `name` is the rendered table
+          // row, but the post-submission line uses `short` per choice.
+          // Without this, every selected row's full table dump is comma-
+          // joined back to stdout.
+          short: choice.value,
         })
       }
     }

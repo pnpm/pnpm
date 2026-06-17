@@ -32,6 +32,24 @@ afterAll(() => {
   process.env['NPM_ID_TOKEN'] = savedNpmIdToken
 })
 
+describe('createPublishOptions: strictSSL', () => {
+  test('forwards strictSsl: false as strictSSL to npm-registry-fetch', async () => {
+    const opts = await createPublishOptions(
+      { name: 'pkg', version: '1.0.0' },
+      { ...baseOpts(), strictSsl: false }
+    )
+    expect(opts.strictSSL).toBe(false)
+  })
+
+  test('strictSSL is absent when strictSsl is not set', async () => {
+    const opts = await createPublishOptions(
+      { name: 'pkg', version: '1.0.0' },
+      baseOpts()
+    )
+    expect(opts.strictSSL).toBeUndefined()
+  })
+})
+
 describe('createPublishOptions: access', () => {
   test('falls back to publishConfig.access when --access is not set', async () => {
     const opts = await createPublishOptions(
@@ -63,5 +81,25 @@ describe('createPublishOptions: access', () => {
       baseOpts()
     )
     expect(opts.access).toBeNull()
+  })
+})
+
+describe('createPublishOptions: auth', () => {
+  test('prefers package-scoped credentials over registry-wide credentials', async () => {
+    const opts = await createPublishOptions(
+      { name: '@scope/pkg', version: '1.0.0' },
+      {
+        ...baseOpts(),
+        configByUri: {
+          '//registry.npmjs.org/': {
+            '@': { authToken: 'default-token' },
+            '@scope': { authToken: 'scoped-token' },
+          },
+        },
+      },
+      { oidc: false }
+    )
+
+    expect(opts.token).toBe('scoped-token')
   })
 })

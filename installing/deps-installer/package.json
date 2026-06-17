@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1101.9.0",
+  "version": "1102.0.0",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -53,7 +53,9 @@
     "test": "pn compile && pn .test",
     "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix",
-    ".test": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+    ".test": "pn .test:heavy && pn .test:rest",
+    ".test:heavy": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest test/install/deepRecursive.ts",
+    ".test:rest": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest \"^(?!.*deepRecursive)\""
   },
   "dependencies": {
     "@inquirer/prompts": "catalog:",
@@ -62,6 +64,7 @@
     "@pnpm/building.after-install": "workspace:*",
     "@pnpm/building.during-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
+    "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
@@ -167,6 +170,7 @@
     "node": ">=22.13"
   },
   "jest": {
+    "collectCoverage": false,
     "preset": "@pnpm/jest-config/with-registry"
   }
 }

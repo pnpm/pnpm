@@ -83,8 +83,14 @@ async fn cold_batch_links_slots_in_parallel() {
         let source_dir = workspace_root.join("prefetched").join(package_name);
         fs::create_dir_all(&source_dir).expect("create prefetched package dir");
         let manifest_path = source_dir.join("package.json");
-        fs::write(&manifest_path, format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#))
-            .expect("write package manifest");
+        let manifest = if package_name == "cold-a" {
+            format!(
+                r#"{{"name":"{package_name}","version":"1.0.0","scripts":{{"postinstall":"node build.js"}}}}"#,
+            )
+        } else {
+            format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#)
+        };
+        fs::write(&manifest_path, manifest).expect("write package manifest");
         let index_path = source_dir.join("index.js");
         fs::write(&index_path, "module.exports = true\n").expect("write package body");
 
@@ -117,7 +123,7 @@ async fn cold_batch_links_slots_in_parallel() {
     let probe =
         crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::waiting_for_overlap();
 
-    CreateVirtualStore {
+    let output = CreateVirtualStore {
         http_client: &pacquet_network::ThrottledClient::default(),
         config,
         packages: Some(&packages),
@@ -149,6 +155,10 @@ async fn cold_batch_links_slots_in_parallel() {
         probe.max_concurrent(),
         rayon::current_num_threads(),
     );
+    let cold_a = key("cold-a", "1.0.0");
+    let cold_b = key("cold-b", "1.0.0");
+    assert_eq!(output.requires_build_by_snapshot.get(&cold_a), Some(&true));
+    assert_eq!(output.requires_build_by_snapshot.get(&cold_b), Some(&false));
 }
 
 const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
@@ -379,7 +389,8 @@ fn snapshot_cache_key_for_git_resolution_uses_git_hosted_key() {
     let pkg = key("ts-pipe-compose", "0.2.1");
     let packages = HashMap::from([(pkg.clone(), git_metadata())]);
 
-    let received = snapshot_cache_key(&pkg, &packages).expect("snapshot_cache_key must not error");
+    let received =
+        snapshot_cache_key(&pkg, &packages, false).expect("snapshot_cache_key must not error");
     assert_eq!(
         received,
         Some(format!("{pkg}\tbuilt")),
@@ -395,7 +406,8 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
     let pkg = key("foo", "1.0.0");
     let packages = HashMap::from([(pkg.clone(), git_hosted_tarball_metadata())]);
 
-    let received = snapshot_cache_key(&pkg, &packages).expect("snapshot_cache_key must not error");
+    let received =
+        snapshot_cache_key(&pkg, &packages, false).expect("snapshot_cache_key must not error");
     assert_eq!(
         received,
         Some(format!("{pkg}\tbuilt")),
@@ -412,8 +424,8 @@ fn snapshot_cache_key_rejects_tarball_without_integrity() {
     let pkg = key("foo", "1.0.0");
     let packages = HashMap::from([(pkg.clone(), tarball_metadata_without_integrity())]);
 
-    let err =
-        snapshot_cache_key(&pkg, &packages).expect_err("missing integrity must reject upfront");
+    let err = snapshot_cache_key(&pkg, &packages, false)
+        .expect_err("missing integrity must reject upfront");
     assert!(
         matches!(
             &err,

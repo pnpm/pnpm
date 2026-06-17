@@ -1659,6 +1659,74 @@ describe('update', () => {
     expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@1.3.0'])
   })
 
+  test('overrides that reference a catalog are updated in the lockfile when the catalog is updated', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        default: { '@pnpm.e2e/foo': '1.0.0' },
+      },
+      // An override that resolves through the catalog. A scoped selector is
+      // used so the override does not shadow the direct `catalog:` dependency
+      // above (an unscoped override would replace its specifier and drop it
+      // from the catalog). The resolved value recorded in lockfile "overrides"
+      // must track the catalog as the catalog is updated.
+      overrides: {
+        '@pnpm.e2e/foobar>@pnpm.e2e/foo': 'catalog:',
+      },
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Widen the catalog range so a later update can bump it, while 1.0.0 stays
+    // locked for now.
+    mutateOpts.catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+    expect(readLockfile().overrides).toEqual({ '@pnpm.e2e/foobar>@pnpm.e2e/foo': '^1.0.0' })
+
+    const { updatedCatalogs } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        update: true,
+      })
+
+    expect(updatedCatalogs).toEqual({
+      default: { '@pnpm.e2e/foo': '^1.3.0' },
+    })
+
+    const lockfile = readLockfile()
+    expect(lockfile.catalogs).toEqual({
+      default: { '@pnpm.e2e/foo': { specifier: '^1.3.0', version: '1.3.0' } },
+    })
+
+    // The override referencing the catalog must be updated to match the new
+    // catalog. Otherwise lockfile "overrides" points at the old version while
+    // "catalogs" points at the new one, and a later frozen install fails with
+    // ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
+    expect(lockfile.overrides).toEqual({ '@pnpm.e2e/foobar>@pnpm.e2e/foo': '^1.3.0' })
+
+    // The updated catalog is written back to pnpm-workspace.yaml, so a
+    // subsequent frozen install reads the bumped catalog. It must not fail.
+    mutateOpts.catalogs.default['@pnpm.e2e/foo'] = '^1.3.0'
+    await expect(
+      mutateModules(installProjects(projects), { ...mutateOpts, frozenLockfile: true })
+    ).resolves.toBeDefined()
+  })
+
   test('update works on named catalog', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
@@ -2039,6 +2107,55 @@ describe('update', () => {
       default: {
         '@pnpm.e2e/foo': '^1.3.0',
       },
+    })
+  })
+
+  // A named catalog whose name parses as a version (e.g. "express4-21") must not
+  // have its update policy overridden. The "catalog:express4-21" reference in the
+  // manifest carries no pinning of its own, so the "~" prefix from the catalog
+  // entry must be preserved instead of being widened to "^" (issue #10321).
+  test('update via install mutation preserves the ~ range of a version-like named catalog (issue #10321)', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo1-0',
+      },
+    }])
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        'foo1-0': { '@pnpm.e2e/foo': '~1.0.0' },
+      },
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().catalogs['foo1-0']).toEqual({
+      '@pnpm.e2e/foo': { specifier: '~1.0.0', version: '1.0.0' },
+    })
+
+    // Simulate `pnpm update` via the "install" mutation with update=true.
+    const { updatedCatalogs } = await mutateModules(
+      installProjects(projects).map((project) => ({
+        ...project,
+        mutation: 'install' as const,
+        update: true,
+        updatePackageManifest: true,
+      })),
+      mutateOpts
+    )
+
+    // The "~" prefix must be preserved, not widened to "^".
+    expect(updatedCatalogs).toEqual({
+      'foo1-0': {
+        '@pnpm.e2e/foo': '~1.0.0',
+      },
+    })
+
+    expect(readLockfile().catalogs['foo1-0']).toEqual({
+      '@pnpm.e2e/foo': { specifier: '~1.0.0', version: '1.0.0' },
     })
   })
 

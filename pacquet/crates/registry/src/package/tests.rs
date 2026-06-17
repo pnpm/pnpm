@@ -4,7 +4,7 @@ use node_semver::Version;
 use pretty_assertions::assert_eq;
 
 use super::{AuthHeaders, Package, PackageVersion, ThrottledClient};
-use crate::package_distribution::PackageDistribution;
+use crate::{PinnedVersion, package_distribution::PackageDistribution};
 
 #[test]
 pub fn package_version_should_include_peers() {
@@ -50,8 +50,36 @@ pub fn serialized_according_to_params() {
         deprecated: None,
     };
 
-    assert_eq!(version.serialize(true), "3.2.1");
-    assert_eq!(version.serialize(false), "^3.2.1");
+    assert_eq!(version.serialize(PinnedVersion::Patch), "3.2.1");
+    assert_eq!(version.serialize(PinnedVersion::Minor), "~3.2.1");
+    assert_eq!(version.serialize(PinnedVersion::Major), "^3.2.1");
+    assert_eq!(version.serialize(PinnedVersion::None), "^3.2.1");
+}
+
+/// A prerelease resolved version is written to the manifest verbatim,
+/// with no range prefix, regardless of the pinned version. Mirrors pnpm's
+/// `createVersionSpecFromResolvedVersion` prerelease branch
+/// (<https://github.com/pnpm/pnpm/blob/086c5e91e8/pkg-manifest/utils/test/updateProjectManifestObject.test.ts#L122-L140>).
+#[test]
+pub fn serialize_keeps_prerelease_version_without_prefix() {
+    let version = PackageVersion {
+        name: String::new(),
+        version: Version::parse("2.1.0-rc.1").unwrap(),
+        dist: PackageDistribution::default(),
+        dependencies: None,
+        dev_dependencies: None,
+        peer_dependencies: None,
+        optional_dependencies: None,
+        peer_dependencies_meta: None,
+        other: HashMap::default(),
+        npm_user: None,
+        deprecated: None,
+    };
+
+    assert_eq!(version.serialize(PinnedVersion::Major), "2.1.0-rc.1");
+    assert_eq!(version.serialize(PinnedVersion::Minor), "2.1.0-rc.1");
+    assert_eq!(version.serialize(PinnedVersion::Patch), "2.1.0-rc.1");
+    assert_eq!(version.serialize(PinnedVersion::None), "2.1.0-rc.1");
 }
 
 /// [`Package::fetch_from_registry`] must attach the registry-keyed

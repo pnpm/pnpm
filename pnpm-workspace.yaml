@@ -69,6 +69,10 @@ auditConfig:
     - GHSA-ffrw-9mx8-89p8
     - GHSA-mh29-5h37-fv8m
     - GHSA-w5hq-g745-h8pq
+    # GHSA-h67p-54hq-rp68: js-yaml quadratic-complexity DoS in merge key handling.
+    # Patched only in >=4.1.2 with no v3 fix; @yarnpkg/parsers requires the js-yaml 3
+    # API (yaml.safeLoad), so its transitive js-yaml cannot be upgraded.
+    - GHSA-h67p-54hq-rp68
 
 catalog:
   '@babel/core': ^7.29.7
@@ -91,7 +95,7 @@ catalog:
   '@pnpm/logger': '^1100.0.0'
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/nopt': ^0.3.1
-  '@pnpm/npm-lifecycle': 1100.0.0-1
+  '@pnpm/npm-lifecycle': ^1100.0.0
   '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^3.0.1
   '@pnpm/patch-package': 0.0.1
@@ -123,6 +127,7 @@ catalog:
   '@types/node': ^22.19.19
   '@types/normalize-package-data': ^2.4.4
   '@types/normalize-path': ^3.0.2
+  '@types/npm-registry-fetch': ^8.0.9
   '@types/object-hash': 3.0.6
   '@types/parse-json': ^7.0.0
   '@types/picomatch': ^4.0.3
@@ -148,13 +153,12 @@ catalog:
   '@yarnpkg/nm': 4.0.7
   '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.1.6
-  '@zkochan/cmd-shim': ^9.0.3
+  '@zkochan/cmd-shim': ^9.0.6
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
   adm-zip: ^0.5.17
   amaro: ^1.1.9
-  ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 2.0.0
   bin-links: ^6.0.2
@@ -188,8 +192,9 @@ catalog:
   didyoumean2: ^7.0.4
   dint: ^5.1.0
   dir-is-case-sensitive: ^3.0.0
+  empathic: ^2.0.0
   encode-registry: ^3.0.1
-  esbuild: ^0.28.0
+  esbuild: ^0.28.1
   escape-string-regexp: ^5.0.0
   eslint: ^10.4.0
   eslint-plugin-import-x: ^4.16.2
@@ -202,7 +207,6 @@ catalog:
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
   fast-glob: ^3.3.3
-  find-up: ^8.0.0
   fs-extra: ^11.3.5
   fuse-native: ^2.2.6
   get-npm-tarball-url: ^2.1.0
@@ -250,6 +254,7 @@ catalog:
   # npm-packlist 11.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above
   # pnpm's supported floor of Node.js >=22.13.
   npm-packlist: 10.0.4
+  npm-registry-fetch: ^19.0.0
   object-hash: 3.0.0
   open: ^11.0.0
   openpgp: ^6.3.1
@@ -348,7 +353,7 @@ catalogMode: strict
 cleanupUnusedCatalogs: true
 
 configDependencies:
-  '@pnpm/pacquet': 0.11.4
+  '@pnpm/pacquet': 0.11.7
 
 enableGlobalVirtualStore: true
 
@@ -367,7 +372,6 @@ minimumReleaseAgeExclude:
   - '@pnpm/*'
   - '@rushstack/worker-pool@0.7.18'
   - '@zkochan/*'
-  - '@zkochan/cmd-shim@9.0.3'
   - better-path-resolve
   - body-parser@2.2.1
   - can-link
@@ -375,6 +379,8 @@ minimumReleaseAgeExclude:
   - cmd-extension
   - comver-to-semver
   - dir-is-case-sensitive
+  - esbuild@0.28.1
+  - '@esbuild/*'
   - express@4.22.1
   - glob@11.1.0
   - graceful-git

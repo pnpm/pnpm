@@ -1,4 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -119,15 +121,17 @@ test('skipManifestObfuscation does not mutate the original manifest', async () =
     },
   }
 
-  expect(await createExportableManifest(process.cwd(), manifest, {
-    ...defaultOpts,
-    skipManifestObfuscation: true,
-    readmeFile: 'readme content',
-  })).toStrictEqual({
-    name: 'foo',
-    version: '1.0.0',
-    main: './dist/index.js',
-    readme: 'readme content',
+  await withTempProjectReadme('readme content', async (projectDir) => {
+    expect(await createExportableManifest(projectDir, manifest, {
+      ...defaultOpts,
+      skipManifestObfuscation: true,
+      embedReadme: true,
+    })).toStrictEqual({
+      name: 'foo',
+      version: '1.0.0',
+      main: './dist/index.js',
+      readme: 'readme content',
+    })
   })
 
   expect(manifest).toStrictEqual({
@@ -140,15 +144,54 @@ test('skipManifestObfuscation does not mutate the original manifest', async () =
 })
 
 test('readme added to published manifest', async () => {
-  expect(await createExportableManifest(process.cwd(), {
-    name: 'foo',
-    version: '1.0.0',
-  }, { ...defaultOpts, readmeFile: 'readme content' })).toStrictEqual({
-    name: 'foo',
-    version: '1.0.0',
-    readme: 'readme content',
+  await withTempProjectReadme('readme content', async (projectDir) => {
+    expect(await createExportableManifest(projectDir, {
+      name: 'foo',
+      version: '1.0.0',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
+    })).toStrictEqual({
+      name: 'foo',
+      version: '1.0.0',
+      readme: 'readme content',
+    })
   })
 })
+
+;(process.platform === 'win32' ? test.skip : test)('readme is not embedded when README.md is a symlink pointing outside the project', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
+  try {
+    const secretFile = path.join(tmpDir, 'secret.txt')
+    await fs.promises.writeFile(secretFile, 'secret content', 'utf8')
+    const projectDir = path.join(tmpDir, 'project')
+    await fs.promises.mkdir(projectDir)
+    await fs.promises.symlink(secretFile, path.join(projectDir, 'README.md'))
+
+    expect(await createExportableManifest(projectDir, {
+      name: 'foo',
+      version: '1.0.0',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
+    })).toStrictEqual({
+      name: 'foo',
+      version: '1.0.0',
+    })
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
+async function withTempProjectReadme<T> (readmeContent: string, fn: (projectDir: string) => Promise<T>): Promise<T> {
+  const projectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
+  try {
+    await fs.promises.writeFile(path.join(projectDir, 'README.md'), readmeContent, 'utf8')
+    return await fn(projectDir)
+  } finally {
+    await fs.promises.rm(projectDir, { recursive: true, force: true })
+  }
+}
 
 test('workspace deps are replaced', async () => {
   const manifest: ProjectManifest = {

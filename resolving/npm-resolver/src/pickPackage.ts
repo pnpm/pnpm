@@ -334,6 +334,17 @@ export async function pickPackage (
       if (fetchResult.notModified) {
         metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
         if (metaCachedInStore != null) {
+          // The registry just vouched that the cached packument equals its
+          // current one, so the validation clock restarts now: bump the
+          // mirror's mtime so the publishedBy freshness shortcut above can
+          // fire again on the next install. Without this, a mirror older
+          // than minimumReleaseAge re-validates on every subsequent
+          // install — a 304 never rewrites the file. Fire-and-forget: a
+          // read-only cache dir only costs another conditional request.
+          if (!opts.dryRun) {
+            const now = new Date()
+            fs.utimes(pkgMirror, now, now).catch(() => {})
+          }
           // The cached metadata may be abbreviated (no per-version `time`).
           // When minimumReleaseAge is active we need `time` for the maturity check,
           // so upgrade to full metadata via a follow-up fetch when warranted.

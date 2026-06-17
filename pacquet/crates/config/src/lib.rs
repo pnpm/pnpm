@@ -500,8 +500,8 @@ pub struct Config {
     /// flat name would exceed this many bytes, the tail is replaced
     /// with a 32-char sha256 hash so the path stays within filesystem
     /// limits (macOS / ext4 cap component names at 255 bytes; pnpm
-    /// defaults to 120 to leave headroom for `node_modules/<name>`
-    /// suffixes appended below).
+    /// defaults to 60 on Windows and 120 elsewhere to leave headroom
+    /// for `node_modules/<name>` suffixes appended below).
     ///
     /// Configurable via `virtualStoreDirMaxLength` in
     /// `pnpm-workspace.yaml`, global `config.yaml`, or
@@ -511,7 +511,7 @@ pub struct Config {
     /// The same value is persisted into `node_modules/.modules.yaml`
     /// so subsequent installs see the user's pick.
     ///
-    /// Default value is 120.
+    /// Default value is 60 on Windows and 120 otherwise.
     #[default(_code = "default_virtual_store_dir_max_length()")]
     pub virtual_store_dir_max_length: u64,
 
@@ -801,6 +801,11 @@ pub struct Config {
     /// If this is enabled, commands will fail if there is a missing or invalid peer dependency in the tree.
     pub strict_peer_dependencies: bool,
 
+    /// When true, skip pnpm's built-in compatibility database from
+    /// `@yarnpkg/extensions`. Default `false` so known broken package
+    /// manifests are patched during resolution.
+    pub ignore_compatibility_db: bool,
+
     /// When enabled, dependencies of the root workspace project are used to resolve peer
     /// dependencies of any projects in the workspace. It is a useful feature as you can install
     /// your peer dependencies only in the root of the workspace, and you can be sure that all
@@ -1007,6 +1012,27 @@ pub struct Config {
     /// `true`, every package may run lifecycle scripts regardless of
     /// `allow_builds`. Default `false` to match pnpm v11.
     pub dangerously_allow_all_builds: bool,
+
+    /// `strictDepBuilds` from `pnpm-workspace.yaml`. When `true` (the
+    /// default), an install that ignores any dependency build script
+    /// fails with `ERR_PNPM_IGNORED_BUILDS` instead of only warning.
+    /// Mirrors pnpm's default at
+    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L196>.
+    #[default(true)]
+    pub strict_dep_builds: bool,
+
+    /// `ignoreScripts` (`--ignore-scripts`). When `true`, no lifecycle
+    /// scripts run — neither dependency build scripts
+    /// (`preinstall`/`install`/`postinstall`) nor the project's own
+    /// lifecycle scripts. Dependency builds that would otherwise be
+    /// reported as ignored are not collected, so the install does not
+    /// fail with `ERR_PNPM_IGNORED_BUILDS` under `strictDepBuilds`.
+    /// Mirrors pnpm's `ignoreScripts`: the during-install build loop
+    /// skips its allow-build gate entirely when set, leaving
+    /// `ignoredBuilds` empty
+    /// (<https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L137-L150>).
+    /// Default `false`.
+    pub ignore_scripts: bool,
 
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Controls
     /// whether `dirname(node_execpath)` is prepended to `PATH` when
@@ -1791,7 +1817,7 @@ impl Config {
         // [`loadNpmrcFiles.ts`](https://github.com/pnpm/pnpm/blob/main/config/reader/src/loadNpmrcFiles.ts).
         let env_scoped_source = {
             let auth = crate::npmrc_auth::NpmrcAuth::from_url_scoped_env::<Sys>();
-            (!auth.creds_by_uri.is_empty()).then_some(auth)
+            (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
         };
 
         // Fold high-priority-first: the first present source is the

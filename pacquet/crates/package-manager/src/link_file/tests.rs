@@ -45,6 +45,49 @@ fn copy_materializes_the_file_contents() {
     let _ = (src_ino, dst_ino);
 }
 
+/// A CAS entry stored as executable carries the `-exec` suffix in its
+/// store path. Copying it out must land an executable file even when
+/// the copy tier dropped the exec bit (overlayfs etc.) — the suffix is
+/// the source of truth, so the copied binary ends up `0o755`.
+#[test]
+#[cfg(unix)]
+fn copy_restores_executable_mode_from_cas_suffix() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o644)).unwrap();
+    let dst = tmp.path().join("nested/dst");
+    fs::create_dir_all(dst.parent().unwrap()).unwrap();
+
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
+        .expect("copy should restore executable CAS mode");
+
+    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    assert_eq!(dst_mode, 0o755, "copied executable file must stay executable");
+}
+
+/// A non-executable CAS entry has no `-exec` suffix, so the copy must
+/// leave its mode untouched. Guards against widening permissions on the
+/// restrictive end — a `0o600` source stays `0o600`, never `0o711`.
+#[test]
+#[cfg(unix)]
+fn copy_does_not_widen_non_exec_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9", b"private data\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o600)).unwrap();
+    let dst = tmp.path().join("nested/dst");
+    fs::create_dir_all(dst.parent().unwrap()).unwrap();
+
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
+        .expect("copy should succeed");
+
+    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    assert_eq!(dst_mode, 0o600, "non-executable file must not gain exec bits");
+}
+
 /// Hardlinking in the same directory on the same filesystem works on
 /// every mainstream OS the project supports. We verify the post-link
 /// inodes match (on unix) or that the contents match (otherwise).

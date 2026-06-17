@@ -40,7 +40,7 @@ export async function updateDeprecation (
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
 
-  const authHeader = getAuthHeader(registryUrl)
+  const authHeader = getAuthHeader(registryUrl, { pkgName: packageName })
 
   const packageUrl = new URL(npa(packageName).escapedName, registryUrl).href
 

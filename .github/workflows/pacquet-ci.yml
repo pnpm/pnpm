@@ -1,80 +1,93 @@
-name: Pacquet CI
+name: Rust CI
 
-# Despite the name, this workflow covers every Rust crate in the
-# repo — pacquet and pnpr alike. They share the same cargo
-# workspace, so `just test`, dylint, doc, etc. all see both stacks
-# in one pass; running two workflows would just duplicate the work.
-# Trigger paths intentionally include `pnpr/**` for the same
-# reason.
+# This workflow covers every Rust crate in the repo — pacquet and
+# pnpr alike. They share the same cargo workspace, so `just test`,
+# dylint, doc, etc. all see both stacks in one pass; running two
+# workflows would just duplicate the work. Path filtering stays out
+# of the workflow trigger so the `success` gate always runs; branch
+# protection requires only that gate, which folds in every job below.
 
 permissions:
   contents: read
+  pull-requests: read
 
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize]
-    paths:
-      - 'pacquet/**'
-      - 'pnpr/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'rustfmt.toml'
-      - 'deny.toml'
-      - 'dylint.toml'
-      - '.taplo.toml'
-      - '.typos.toml'
-      - 'justfile'
-      - '.cargo/**'
-      - '.github/actions/rustup/**'
-      - '.github/actions/binstall/**'
-      - '.github/workflows/pacquet-ci.yml'
+    types: [opened, synchronize, reopened]
   push:
     branches:
       - main
-    paths:
-      - 'pacquet/**'
-      - 'pnpr/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'rustfmt.toml'
-      - 'deny.toml'
-      - 'dylint.toml'
-      - '.taplo.toml'
-      - '.typos.toml'
-      - 'justfile'
-      - '.cargo/**'
-      - '.github/actions/rustup/**'
-      - '.github/actions/binstall/**'
-      - '.github/workflows/pacquet-ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 jobs:
+  changes:
+    name: Rust CI / Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
+    steps:
+      - name: Run Rust CI for manual dispatch
+        if: github.event_name == 'workflow_dispatch'
+        id: manual
+        run: echo "rust=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        if: github.event_name != 'workflow_dispatch'
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'pacquet/**'
+              - 'pnpr/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - 'rustfmt.toml'
+              - 'deny.toml'
+              - 'dylint.toml'
+              - '.taplo.toml'
+              - '.typos.toml'
+              - 'justfile'
+              - '.cargo/**'
+              - '.github/actions/rustup/**'
+              - '.github/actions/binstall/**'
+              - '.github/scripts/measure-command.mjs'
+              - '.github/workflows/pacquet-ci.yml'
+
   test:
-    name: Lint and Test
+    name: Rust CI / Test / ${{ matrix.os_label }}
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
+            os_label: windows
           - os: ubuntu-latest
+            os_label: ubuntu
           - os: macos-latest
+            os_label: macos
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
-      # The clippy --all-targets pass plus the nextest build hold two
-      # full sets of debug artifacts in target/, which no longer fits
-      # in the hosted runner's free disk — the linker dies with ENOSPC
-      # / SIGBUS mid-build. Drop the preinstalled toolchains this job
-      # never uses (~25 GB) before compiling anything.
+      # The nextest build holds a full set of debug artifacts in
+      # target/, which no longer fits in the hosted runner's free disk —
+      # the linker dies with ENOSPC / SIGBUS mid-build. Drop the
+      # preinstalled toolchains this job never uses (~25 GB) before
+      # compiling anything.
       - name: Free up runner disk space
         if: runner.os == 'Linux'
         run: |
@@ -84,7 +97,6 @@ jobs:
       - name: Install Rust Toolchain
         uses: ./.github/actions/rustup
         with:
-          clippy: true
           save-cache: ${{ github.ref_name == 'main' }}
 
       - name: Install pnpm (for compatibility check)
@@ -105,11 +117,8 @@ jobs:
         timeout-minutes: 1
         continue-on-error: true
 
-      - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
-
       - name: Install just
-        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
+        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # v2.81.8
         with:
           tool: just
 
@@ -117,11 +126,11 @@ jobs:
         run: just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
+        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # v2.81.8
         with:
           tool: cargo-nextest
 
-      - name: Test
+      - name: Test pacquet
         shell: bash
         run: |
           # removing env vars is a temporary workaround for unit tests in pacquet relying on external environment
@@ -129,13 +138,97 @@ jobs:
           unset PNPM_HOME
           unset XDG_DATA_HOME
 
-          just test
+          node .github/scripts/measure-command.mjs \
+            --name tests.all \
+            --output .bench/pacquet-tests-all.json \
+            -- just test-pacquet
 
-  doc:
-    name: Doc
+      - name: Test pnpr
+        shell: bash
+        run: |
+          # removing env vars is a temporary workaround for unit tests in pacquet relying on external environment
+          # this should be removed in the future
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+
+          node .github/scripts/measure-command.mjs \
+            --name tests.all \
+            --output .bench/pnpr-tests-all.json \
+            -- just test-pnpr
+
+      - name: Stage Bencher test durations
+        env:
+          TESTBED_OS: ${{ matrix.os }}
+        shell: bash
+        run: |
+          os="${TESTBED_OS%-latest}"
+          artifact_dir=.bench/artifact/rust
+          mkdir -p "$artifact_dir"
+          cp .bench/pacquet-tests-all.json "$artifact_dir/pacquet-tests-all.json"
+          cp .bench/pnpr-tests-all.json "$artifact_dir/pnpr-tests-all.json"
+
+          cat > "$artifact_dir/metadata.json" <<EOF
+          {
+            "kind": "rust",
+            "reports": [
+              {
+                "testbed": "pacquet.${os}",
+                "file": "pacquet-tests-all.json"
+              },
+              {
+                "testbed": "pnpr.${os}",
+                "file": "pnpr-tests-all.json"
+              }
+            ]
+          }
+          EOF
+
+      - name: Upload Bencher test duration artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-performance-rust-${{ matrix.os }}
+          path: .bench/artifact/rust/
+          if-no-files-found: error
+          retention-days: 14
+
+  clippy:
+    name: Rust CI / Clippy
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    # Clippy lints the same source on every platform, so one OS is
+    # enough — running the full `--all-targets` workspace lint across the
+    # whole test matrix just triples the cost. Mirrors the single-OS doc,
+    # format, and dylint jobs. (Platform-gated `#[cfg]` blocks are still
+    # type-checked per-OS by the test job's build.)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      # `clippy --all-targets` over the whole workspace holds a full set
+      # of debug artifacts in target/; drop the preinstalled toolchains
+      # this job never uses (~25 GB) so the linker doesn't hit ENOSPC.
+      - name: Free up runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Install Rust Toolchain
+        uses: ./.github/actions/rustup
+        with:
+          clippy: true
+
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+  doc:
+    name: Rust CI / Doc
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -150,22 +243,26 @@ jobs:
         run: cargo doc --no-deps --workspace --document-private-items
 
   typos:
-    name: Spell Check
+    name: Rust CI / Spell Check
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@f8a58b6b53f2279f71eb605f03a4ae4d10608f45 # v1.47.0
+      - uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89 # v1.47.2
         with:
           files: pacquet pnpr
 
   deny:
-    name: Cargo Deny
+    name: Rust CI / Cargo Deny
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -179,7 +276,7 @@ jobs:
 
       - name: Install cargo-deny
         if: steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
+        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # v2.81.8
         with:
           tool: cargo-deny
 
@@ -187,10 +284,12 @@ jobs:
         run: cargo deny check
 
   format:
-    name: Format
+    name: Rust CI / Format
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -210,10 +309,18 @@ jobs:
       - run: taplo format --check
 
   dylint:
-    name: Dylint
+    name: Rust CI / Dylint
+    needs: changes
+    if: ${{ always() && !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.result != 'success') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Verify change detection
+        if: ${{ needs.changes.result != 'success' }}
+        run: |
+          echo "::error::Unable to determine whether Rust CI should run."
+          exit 1
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -292,3 +399,29 @@ jobs:
         env:
           RUSTFLAGS: '-D warnings'
         run: cargo dylint --all -- --all-targets --workspace
+
+  # Single aggregate gate — the only Rust CI context branch protection
+  # needs to require. Listing the individual jobs as required checks does
+  # not work: most of them skip on non-Rust PRs, and a matrix job skipped
+  # at the job level never expands its `${{ matrix.* }}` name, so the
+  # per-OS contexts it would report never appear and the PR blocks forever
+  # waiting for them. This job always runs (it reports under a static name
+  # in every state) and fails only if a dependency actually failed or was
+  # cancelled — skipped dependencies count as a pass.
+  success:
+    name: Rust CI / Success
+    if: ${{ always() }}
+    needs:
+      - changes
+      - test
+      - clippy
+      - doc
+      - typos
+      - deny
+      - format
+      - dylint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

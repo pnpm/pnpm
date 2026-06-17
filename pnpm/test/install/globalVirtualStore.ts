@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -106,4 +106,46 @@ test('warm GVS reinstall skips internal linking', async () => {
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('node_modules/.bin/hello-world-js-bin'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
+})
+
+test('the post-install build step preserves the global virtual store directory of a workspace package', async () => {
+  // A workspace package that is also its own workspace root (its own
+  // pnpm-workspace.yaml and lockfile). The root install runs a per-project
+  // build pass that must not overwrite the package's recorded global virtual
+  // store directory with the local node_modules/.pnpm — otherwise the next
+  // install in that package detects a virtual-store mismatch and prompts to
+  // purge node_modules.
+  const storeDir = path.resolve('store')
+  const globalVirtualStoreDir = path.join(storeDir, 'v11/links')
+  preparePackages([
+    {
+      location: 'libs/common',
+      package: {
+        name: '@repro/common',
+        dependencies: {
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        },
+      },
+    },
+  ])
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    packages: ['libs/*'],
+    enableGlobalVirtualStore: true,
+    sharedWorkspaceLockfile: false,
+    storeDir,
+  })
+  writeYamlFileSync(path.resolve('libs/common/pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    storeDir,
+  })
+
+  await execPnpm(['install'])
+
+  const modulesManifestPath = path.resolve('libs/common/node_modules/.modules.yaml')
+  const modules = readYamlFileSync<{ virtualStoreDir: string }>(modulesManifestPath)
+  expect(path.resolve('libs/common/node_modules', modules.virtualStoreDir)).toBe(globalVirtualStoreDir)
+
+  // A subsequent install in the package must be a no-op, not a virtual-store
+  // mismatch that aborts (in a non-TTY shell) or prompts to purge node_modules.
+  await execPnpm(['install', '--dir', path.resolve('libs/common')])
 })

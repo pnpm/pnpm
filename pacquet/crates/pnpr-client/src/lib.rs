@@ -21,6 +21,7 @@ use futures_util::StreamExt as _;
 use pacquet_config::TrustPolicy;
 use pacquet_lockfile::Lockfile;
 use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
+use pacquet_network::AuthHeadersByScope;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -46,9 +47,9 @@ pub struct ResolveOptions {
     /// The client's named-registry aliases.
     pub named_registries: DepMap,
     /// The caller's forwarded upstream credentials, keyed by nerf-darted
-    /// registry URI, so the server resolves private content as the
-    /// caller. Distinct from [`Self::authorization`] (pnpr identity).
-    pub auth_headers: DepMap,
+    /// registry URI and package scope. The `@` scope stores registry-wide
+    /// auth. Distinct from [`Self::authorization`] (pnpr identity).
+    pub auth_headers: AuthHeadersByScope,
     /// `Authorization` for the pnpr server's own URL (`None` if it needs
     /// none): identifies the caller to pnpr. Distinct from the upstream
     /// creds in [`Self::auth_headers`].
@@ -88,7 +89,7 @@ pub struct ResolveOptions {
 pub struct VerifyLockfileOptions {
     pub registry: String,
     pub named_registries: DepMap,
-    pub auth_headers: DepMap,
+    pub auth_headers: AuthHeadersByScope,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub lockfile: Lockfile,

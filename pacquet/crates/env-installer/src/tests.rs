@@ -1,5 +1,6 @@
 use crate::{
-    ConfigDepError, ConfigDepsInstallOptions, prune_env_lockfile, resolve_and_install_config_deps,
+    ConfigDepError, ConfigDepsInstallOptions, is_package_manager_resolved, prune_env_lockfile,
+    resolve_and_install_config_deps, resolve_package_manager_integrities,
 };
 use pacquet_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution,
@@ -11,12 +12,15 @@ use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pacquet_resolving_resolver_base::{
+    LatestInfo, LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
+    ResolveResult, Resolver, WantedDependency,
+};
 use pacquet_store_dir::StoreDir;
 use pacquet_testing_utils::registry::TestRegistry;
 use pacquet_workspace_state::ConfigDependency;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -61,6 +65,7 @@ fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, Tem
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
     (resolver, cache_dir)
@@ -116,6 +121,72 @@ fn options<'a>(
 
 fn clean_spec(version: &str) -> ConfigDependency {
     ConfigDependency::VersionWithIntegrity(version.to_string())
+}
+
+#[derive(Default)]
+struct FixtureResolver {
+    packages: HashMap<(String, String), serde_json::Value>,
+}
+
+impl FixtureResolver {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn package(mut self, manifest: serde_json::Value) -> Self {
+        let name = manifest["name"].as_str().expect("fixture package name").to_string();
+        let version = manifest["version"].as_str().expect("fixture package version").to_string();
+        self.packages.insert((name, version), manifest);
+        self
+    }
+}
+
+impl Resolver for FixtureResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted_dependency: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        Box::pin(async move {
+            let Some(alias) = wanted_dependency.alias.as_deref() else {
+                return Ok(None);
+            };
+            let Some(specifier) = wanted_dependency.bare_specifier.as_deref() else {
+                return Ok(None);
+            };
+            let Some(manifest) =
+                self.packages.get(&(alias.to_string(), specifier.to_string())).cloned()
+            else {
+                return Ok(None);
+            };
+            let name = manifest["name"].as_str().expect("fixture package name").to_string();
+            let version =
+                manifest["version"].as_str().expect("fixture package version").to_string();
+            let id = format!("{name}@{version}");
+            Ok(Some(ResolveResult {
+                id: PkgResolutionId::from(id.as_str()),
+                name_ver: Some(id.parse().expect("fixture name/version parses")),
+                latest: Some(version),
+                published_at: None,
+                manifest: Some(Arc::new(manifest)),
+                resolution: LockfileResolution::Registry(RegistryResolution {
+                    integrity: ssri::Integrity::from(id.as_bytes()),
+                }),
+                resolved_via: "npm-registry".to_string(),
+                normalized_bare_specifier: Some(specifier.to_string()),
+                alias: Some(alias.to_string()),
+                policy_violation: None,
+            }))
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(Some(LatestInfo::default())) })
+    }
 }
 
 #[tokio::test]
@@ -182,6 +253,97 @@ async fn records_optional_subdeps_with_platform_fields() {
     let metadata = env.packages.get(&only_linux).expect("platform subdep recorded in packages");
     assert_eq!(metadata.os.as_deref(), Some(["linux".to_string()].as_slice()));
     assert_eq!(metadata.cpu.as_deref(), Some(["x64".to_string()].as_slice()));
+    assert_eq!(metadata.libc.as_deref(), Some(["glibc".to_string()].as_slice()));
+}
+
+#[tokio::test]
+async fn resolves_package_manager_dependencies_graph() {
+    let harness = harness();
+    let root = TempDir::new().unwrap();
+    let resolver = FixtureResolver::new()
+        .package(serde_json::json!({
+            "name": "pnpm",
+            "version": "100.0.0",
+            "bin": "bin/pnpm.cjs",
+            "engines": { "node": ">=22.0.0" },
+        }))
+        .package(serde_json::json!({
+            "name": "@pnpm/exe",
+            "version": "100.0.0",
+            "bin": { "pnpm": "bin/pnpm.cjs" },
+            "dependencies": { "detect-libc": "2.0.0" },
+            "optionalDependencies": { "@pnpm/linuxstatic-x64": "100.0.0" },
+        }))
+        .package(serde_json::json!({
+            "name": "detect-libc",
+            "version": "2.0.0",
+            "engines": { "node": ">=8" },
+        }))
+        .package(serde_json::json!({
+            "name": "@pnpm/linuxstatic-x64",
+            "version": "100.0.0",
+            "cpu": ["x64"],
+            "os": ["linux"],
+            "libc": "musl",
+        }));
+
+    resolve_package_manager_integrities(
+        "^100.0.0",
+        "100.0.0",
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("package manager deps recorded");
+    assert_eq!(pm_deps["pnpm"].specifier, "^100.0.0");
+    assert_eq!(pm_deps["pnpm"].version, "100.0.0");
+    assert_eq!(pm_deps["@pnpm/exe"].specifier, "^100.0.0");
+    assert_eq!(pm_deps["@pnpm/exe"].version, "100.0.0");
+
+    let pnpm_key: PackageKey = "pnpm@100.0.0".parse().unwrap();
+    let exe_key: PackageKey = "@pnpm/exe@100.0.0".parse().unwrap();
+    let libc_key: PackageKey = "detect-libc@2.0.0".parse().unwrap();
+    let platform_key: PackageKey = "@pnpm/linuxstatic-x64@100.0.0".parse().unwrap();
+
+    assert_eq!(env.packages[&pnpm_key].has_bin, Some(true));
+    assert_eq!(env.packages[&pnpm_key].engines.as_ref().unwrap()["node"], ">=22.0.0");
+    assert_eq!(env.packages[&exe_key].has_bin, Some(true));
+    assert_eq!(env.packages[&platform_key].libc.as_deref(), Some(["musl".to_string()].as_slice()));
+
+    let exe_snapshot = &env.snapshots[&exe_key];
+    let detect_libc_name = "detect-libc".parse().unwrap();
+    let platform_name = "@pnpm/linuxstatic-x64".parse().unwrap();
+    let detect_libc_ref =
+        exe_snapshot.dependencies.as_ref().unwrap()[&detect_libc_name].to_string();
+    assert_eq!(detect_libc_ref, "2.0.0");
+    assert_eq!(
+        exe_snapshot.optional_dependencies.as_ref().unwrap()[&platform_name].to_string(),
+        "100.0.0",
+    );
+    assert!(env.snapshots[&platform_key].optional);
+    assert!(!env.snapshots[&libc_key].optional);
+    assert!(is_package_manager_resolved(&env, "^100.0.0", "100.0.0"));
+    assert!(!is_package_manager_resolved(&env, "~100.0.0", "100.0.0"));
+
+    let mut env_with_extra_pm_dep = env.clone();
+    env_with_extra_pm_dep
+        .importers
+        .get_mut(EnvLockfile::ROOT_IMPORTER_KEY)
+        .unwrap()
+        .package_manager_dependencies
+        .as_mut()
+        .unwrap()
+        .insert(
+            "yarn".to_string(),
+            SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
+        );
+    assert!(!is_package_manager_resolved(&env_with_extra_pm_dep, "^100.0.0", "100.0.0",));
 }
 
 #[tokio::test]

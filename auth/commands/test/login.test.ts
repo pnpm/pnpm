@@ -143,7 +143,7 @@ describe('login', () => {
     ])
   })
 
-  it('should persist a scope→registry mapping when --scope is provided', async () => {
+  it('should persist a scoped auth token and scope registry mapping when --scope is provided', async () => {
     let savedSettings: Record<string, unknown> = {}
     const context = createMockContext({
       globalInfo: jest.fn(),
@@ -172,14 +172,53 @@ describe('login', () => {
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
     })
-    // `--scope my-org` (no `@`) should be normalized to `@my-org` when written.
     const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://my-org.example', scope: 'my-org' }
     const result = await login({ context, opts })
     expect(result).toBe('Logged in on https://my-org.example/')
     expect(savedSettings).toMatchObject({
-      '//my-org.example/:_authToken': 'scoped-token',
+      '//my-org.example/:@my-org:_authToken': 'scoped-token',
       '@my-org:registry': 'https://my-org.example/',
     })
+    expect(savedSettings['//my-org.example/:_authToken']).toBeUndefined()
+  })
+
+  it('should persist scoped auth tokens under path registries', async () => {
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo: jest.fn(),
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async url => {
+        if (url === 'https://example.com/npm/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: {
+              loginUrl: 'https://example.com/auth/login',
+              doneUrl: 'https://example.com/auth/done',
+            },
+          })
+        }
+        if (url === 'https://example.com/auth/done') {
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: { token: 'path-scoped-token' },
+          })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/npm/', scope: '@team' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://example.com/npm/')
+    expect(savedSettings).toMatchObject({
+      '//example.com/npm/:@team:_authToken': 'path-scoped-token',
+      '@team:registry': 'https://example.com/npm/',
+    })
+    expect(savedSettings['//example.com/npm/:_authToken']).toBeUndefined()
   })
 
   it('should accept --scope with a leading @ and not double-prefix', async () => {
@@ -206,6 +245,8 @@ describe('login', () => {
     })
     const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://my-org.example', scope: '@my-org' }
     await login({ context, opts })
+    expect(savedSettings['//my-org.example/:@my-org:_authToken']).toBe('tok')
+    expect(savedSettings['//my-org.example/:_authToken']).toBeUndefined()
     expect(savedSettings['@my-org:registry']).toBe('https://my-org.example/')
     expect(savedSettings['@@my-org:registry']).toBeUndefined()
   })
@@ -234,7 +275,7 @@ describe('login', () => {
     })
     const opts = { configDir: '/mock/config', dir: '/mock', authConfig: {}, registry: 'https://example.com' }
     await login({ context, opts })
-    // No `@…:registry` key should be added when scope isn't passed.
+    expect(savedSettings['//example.com/:_authToken']).toBe('tok')
     for (const key of Object.keys(savedSettings)) {
       expect(key.startsWith('@')).toBe(false)
     }

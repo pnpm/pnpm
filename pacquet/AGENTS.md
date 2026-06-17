@@ -380,8 +380,9 @@ are part of the public contract, not implementation detail. See
 - Reference the upstream pnpm commit/PR you ported from, when applicable.
 - Run `just ready` before pushing.
 - The repo-wide husky `pre-push` hook runs `pacquet/scripts/pre-push-rust.sh`,
-  which checks `rustfmt`, `taplo`, `cargo doc` (with
-  `RUSTDOCFLAGS=-D warnings`), and `cargo dylint`. Make sure your environment
+  which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
+  warnings`), `cargo doc` (with `RUSTDOCFLAGS=-D warnings`), and `cargo
+  dylint`. Make sure your environment
   can run cargo (the hook needs it) before pushing; `cargo-dylint` is
   detected at runtime and skipped with a warning if not installed.
 

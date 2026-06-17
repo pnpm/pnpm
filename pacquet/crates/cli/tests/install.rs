@@ -441,6 +441,89 @@ fn peer_shared_through_a_diamond_is_resolved_consistently() {
 }
 
 #[test]
+fn install_preserves_deprecated_lockfile_metadata_when_reusing_resolution() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/deprecated": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let first = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert!(
+        first.contains("deprecated: This package is deprecated."),
+        "fresh lockfile should record deprecation metadata:\n{first}",
+    );
+
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/deprecated": "1.0.0",
+                "@pnpm.e2e/foo": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("extend package.json");
+
+    new_pacquet_command(&workspace).with_arg("install").assert().success();
+    let second = fs::read_to_string(&lockfile_path).expect("re-read pnpm-lock.yaml");
+    assert!(
+        second.contains("deprecated: This package is deprecated."),
+        "lockfile reuse should preserve deprecation metadata:\n{second}",
+    );
+
+    drop((root, mock_instance)); // cleanup
+}
+
+#[test]
+fn transitive_pending_peer_uses_provider_final_suffix_in_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    let package_json_content = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/final-peer-a": "1.0.0",
+            "@pnpm.e2e/final-peer-c": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let expected = "@pnpm.e2e/final-peer-x@1.0.0(@pnpm.e2e/final-peer-b@1.0.0(@pnpm.e2e/final-peer-a@1.0.0(@pnpm.e2e/final-peer-c@1.0.0)))";
+    let provisional =
+        "@pnpm.e2e/final-peer-x@1.0.0(@pnpm.e2e/final-peer-b@1.0.0(@pnpm.e2e/final-peer-a@1.0.0))";
+
+    assert!(
+        lockfile.contains(expected),
+        "transitive peer must use the provider's final peer suffix; lockfile:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains(provisional),
+        "lockfile must not keep the provider's provisional peer suffix; lockfile:\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn peer_dependencies_resolve_from_aliased_subdependencies() {
     let lockfile = install_with_peer_alias_deps(serde_json::json!({
         "@pnpm.e2e/abc-parent-with-aliases": "1.0.0",

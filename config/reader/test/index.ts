@@ -13,7 +13,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
-const { getConfig } = await import('@pnpm/config.reader')
+const { getConfig, parsePackageManager } = await import('@pnpm/config.reader')
 const { getCurrentBranch } = await import('@pnpm/network.git-utils')
 
 // To override any local settings,
@@ -205,6 +205,109 @@ test('devEngines.packageManager with explicit onFail is respected (regression gu
   })
 
   expect(context.wantedPackageManager?.onFail).toBe('error')
+})
+
+describe('"packageManager" / "devEngines.packageManager" conflict warning', () => {
+  const HASH_A = 'sha512.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  const HASH_B = 'sha512.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+  const IGNORED = '. "packageManager" will be ignored'
+
+  async function warningsFor (packageManager: string, devEnginesVersion: string): Promise<string[]> {
+    prepare({
+      packageManager,
+      devEngines: {
+        packageManager: { name: 'pnpm', version: devEnginesVersion, onFail: 'ignore' },
+      },
+    })
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.2.3' },
+    })
+    return warnings
+  }
+
+  test.each([
+    { caseName: 'same version without a hash', packageManager: 'pnpm@1.2.3', devEnginesVersion: '1.2.3' },
+    { caseName: 'same version with the same hash', packageManager: `pnpm@1.2.3+${HASH_A}`, devEnginesVersion: `1.2.3+${HASH_A}` },
+  ])('does not warn when the specifiers are identical: $caseName', async ({ packageManager, devEnginesVersion }) => {
+    const warnings = await warningsFor(packageManager, devEnginesVersion)
+    expect(warnings.some(w => w.includes(IGNORED))).toBe(false)
+  })
+
+  test.each([
+    { caseName: 'hash on the legacy field only', packageManager: `pnpm@1.2.3+${HASH_A}`, devEnginesVersion: '1.2.3' },
+    { caseName: 'hash on the devEngines field only', packageManager: 'pnpm@1.2.3', devEnginesVersion: `1.2.3+${HASH_A}` },
+  ])('warns generically when the integrity hash is present on only one field: $caseName', async ({ packageManager, devEnginesVersion }) => {
+    const warnings = await warningsFor(packageManager, devEnginesVersion)
+    expect(warnings).toContain(`Cannot use both "packageManager" and "devEngines.packageManager" in package.json${IGNORED}`)
+  })
+
+  test('warns about contradictory integrity hashes for the same version', async () => {
+    const warnings = await warningsFor(`pnpm@1.2.3+${HASH_A}`, `1.2.3+${HASH_B}`)
+    expect(warnings).toContain(`"packageManager" and "devEngines.packageManager" specify pnpm@1.2.3 with different integrity hashes in package.json${IGNORED}`)
+  })
+
+  test.each([
+    { caseName: 'the legacy field is a URL reference', packageManager: 'pnpm@https://github.com/pnpm/pnpm' },
+    { caseName: 'the legacy field is a bare name with no version', packageManager: 'pnpm' },
+  ])('warns generically rather than claiming a version mismatch when one side is not a concrete version: $caseName', async ({ packageManager }) => {
+    const warnings = await warningsFor(packageManager, '1.2.3')
+    expect(warnings).toContain(`Cannot use both "packageManager" and "devEngines.packageManager" in package.json${IGNORED}`)
+    expect(warnings.some(w => w.includes('different versions'))).toBe(false)
+  })
+
+  test.each([
+    { caseName: 'different exact versions', devEnginesVersion: '1.2.4' },
+    { caseName: 'exact version versus a range', devEnginesVersion: '>=1.0.0' },
+  ])('warns about a version mismatch: $caseName', async ({ devEnginesVersion }) => {
+    const warnings = await warningsFor('pnpm@1.2.3', devEnginesVersion)
+    expect(warnings).toContain(`"packageManager" and "devEngines.packageManager" specify different versions of pnpm in package.json${IGNORED}`)
+  })
+
+  test('warns when the fields name different package managers', async () => {
+    prepare({
+      packageManager: 'yarn@1.2.3',
+      devEngines: {
+        packageManager: { name: 'pnpm', version: '1.2.3', onFail: 'ignore' },
+      },
+    })
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.2.3' },
+    })
+    expect(warnings).toContain(`"packageManager" (yarn) and "devEngines.packageManager" (pnpm) specify different package managers in package.json${IGNORED}`)
+  })
+
+  test('strips control characters from package.json values embedded in the warning', async () => {
+    prepare({
+      packageManager: 'ev\u001b[31mi\nl@1.2.3',
+      devEngines: {
+        packageManager: { name: 'pnpm', version: '1.2.3', onFail: 'ignore' },
+      },
+    })
+    const { warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.2.3' },
+    })
+    const warning = warnings.find(w => w.includes('different package managers'))
+    expect(warning).toBeDefined()
+    // eslint-disable-next-line no-control-regex
+    expect(warning).not.toMatch(/[\u0000-\u001f\u007f]/)
+    expect(warning).toContain('"packageManager" (evi l)')
+  })
+})
+
+describe('parsePackageManager', () => {
+  test.each([
+    { input: 'pnpm@9.5.0', expected: { name: 'pnpm', version: '9.5.0', hash: undefined } },
+    { input: 'pnpm@9.5.0+sha512.abc123', expected: { name: 'pnpm', version: '9.5.0', hash: 'sha512.abc123' } },
+    { input: 'pnpm@9.5.0+a+b', expected: { name: 'pnpm', version: '9.5.0', hash: 'a+b' } },
+    { input: 'pnpm', expected: { name: 'pnpm', version: undefined, hash: undefined } },
+    { input: '@scope/pm@1.2.3', expected: { name: '@scope/pm', version: '1.2.3', hash: undefined } },
+    { input: 'pnpm@https://github.com/pnpm/pnpm', expected: { name: 'pnpm', version: undefined, hash: undefined } },
+  ])('parses $input', ({ input, expected }) => {
+    expect(parsePackageManager(input)).toEqual(expected)
+  })
 })
 
 test('throw error if --link-workspace-packages is used with --global', async () => {
@@ -724,7 +827,7 @@ test('project .npmrc does not expand env variables in auth values', async () => 
   expect(serializedAuthConfig).not.toContain('secret-user')
   expect(serializedAuthConfig).not.toContain('secret-cert')
   expect(serializedAuthConfig).not.toContain('secret-key')
-  expect(config.configByUri?.['//attacker.example/']?.creds).toBeUndefined()
+  expect(config.configByUri?.['//attacker.example/']?.['@']).toBeUndefined()
   expect(config.configByUri?.['//attacker.example/']?.tls).toBeUndefined()
   expect(warnings).toEqual(expect.arrayContaining([
     expect.stringContaining('Ignored project-level auth setting "//attacker.example/:_authToken"'),
@@ -905,11 +1008,11 @@ test('package manager bootstrap registries ignore project workspace registries',
   expect(config.httpsProxy).toBe('http://project-proxy.example.com:8080')
   expect(config.strictSsl).toBe(false)
   expect(config.configByUri).toMatchObject({
-    '//project.example.com/': { creds: { authToken: 'project-token' } },
+    '//project.example.com/': { '@': { authToken: 'project-token' } },
   })
   expect(config.packageManagerNetworkConfig).toMatchObject({
     configByUri: {
-      '//trusted.example.com/': { creds: { authToken: 'trusted-token' } },
+      '//trusted.example.com/': { '@': { authToken: 'trusted-token' } },
     },
     httpProxy: 'http://trusted-env-proxy.example.com:8080',
     httpsProxy: 'http://trusted-env-proxy.example.com:8080',
@@ -1311,7 +1414,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//trusted.example.com/': { creds: { authToken: 'user-secret' } },
+      '//trusted.example.com/': { '@': { authToken: 'user-secret' } },
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })
@@ -1329,7 +1432,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//trusted.example.com/': { creds: { basicAuth: { username: 'user', password: 'pass' } } },
+      '//trusted.example.com/': { '@': { basicAuth: { username: 'user', password: 'pass' } } },
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })
@@ -1347,7 +1450,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//trusted.example.com/': { creds: { basicAuth: { username: 'alice', password: 'pass' } } },
+      '//trusted.example.com/': { '@': { basicAuth: { username: 'alice', password: 'pass' } } },
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })
@@ -1373,7 +1476,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//registry.npmjs.org/': { creds: { authToken: 'user-secret' } },
+      '//registry.npmjs.org/': { '@': { authToken: 'user-secret' } },
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
     expect(config.configByUri['//trusted.example.com/']).toBeUndefined()
@@ -1390,7 +1493,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//trusted.example.com/': { creds: { authToken: 'user-secret' } },
+      '//trusted.example.com/': { '@': { authToken: 'user-secret' } },
     })
   })
 
@@ -1406,7 +1509,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//workspace.example.com/': { creds: { authToken: 'workspace-token' } },
+      '//workspace.example.com/': { '@': { authToken: 'workspace-token' } },
     })
   })
 
@@ -1426,7 +1529,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
     })
 
     expect(config.configByUri).toMatchObject({
-      '//trusted.example.com/': { creds: { authToken: 'user-secret' } },
+      '//trusted.example.com/': { '@': { authToken: 'user-secret' } },
     })
     // URL-scoped tokens should NOT trigger the deprecation warning.
     expect(warnings.join('\n')).not.toMatch(/deprecated/i)
@@ -1446,7 +1549,7 @@ describe('unscoped credentials are pinned to the registry declared in their sour
 
     // The token rescoped to the npmjs default when the user file was read.
     expect(config.configByUri).toMatchObject({
-      '//registry.npmjs.org/': { creds: { authToken: 'user-secret' } },
+      '//registry.npmjs.org/': { '@': { authToken: 'user-secret' } },
     })
     expect(config.configByUri['//attacker.example.com/']).toBeUndefined()
   })

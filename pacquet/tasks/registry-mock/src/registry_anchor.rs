@@ -99,7 +99,11 @@ impl RegistryAnchor {
             let anchor = RegistryAnchor { ref_count: 1, info };
             anchor.save();
             guard.unlock();
-            forget(mock_instance); // prevent this process from killing itself on drop
+            #[expect(
+                clippy::mem_forget,
+                reason = "prevent this process from killing itself on drop"
+            )]
+            forget(mock_instance);
             anchor
         } else {
             let guard = GuardFile::lock();

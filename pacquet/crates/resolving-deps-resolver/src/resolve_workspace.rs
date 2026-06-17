@@ -21,10 +21,7 @@ use crate::{
     resolve_dependency_tree::{
         ManifestHook, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
     },
-    resolve_importer::{
-        ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,
-        resolve_importer_with_workspace,
-    },
+    resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
     resolve_peers::{
         ImporterPeerInput, ResolvePeersOptions, WorkspaceResolvePeersResult,
         resolve_peers_workspace,
@@ -34,7 +31,7 @@ use crate::{
 use chrono::{DateTime, Duration, Utc};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{Resolver, WantedDependency, parse_packument_timestamp};
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 /// One importer's input to [`fn@resolve_workspace`].
 pub struct WorkspaceImporter<'a> {
@@ -57,6 +54,10 @@ pub struct WorkspaceResolveOptions {
     /// it. Mirrors pnpm's `dedupePeerDependents` setting (default
     /// `true`).
     pub dedupe_peer_dependents: bool,
+    /// When true, non-root importers can resolve peers from the
+    /// workspace root's direct dependencies. Mirrors pnpm's
+    /// `resolvePeersFromWorkspaceRoot` setting.
+    pub resolve_peers_from_workspace_root: bool,
     /// Threaded into [`ResolvePeersOptions::exclude_links_from_lockfile`]
     /// for the workspace-wide peer pass. Per-importer
     /// [`ResolvePeersOptions::modules_dir`] comes from each
@@ -113,6 +114,11 @@ pub struct WorkspaceResolveOptions {
     /// [`crate::ResolveImporterOptions::auto_install_peers`] — the
     /// setting is workspace-wide, like pnpm's `autoInstallPeers`.
     pub auto_install_peers: bool,
+    /// Resolved registry map (`"default"` + per-scope), for
+    /// materializing a prior `Registry` lockfile resolution back into
+    /// its tarball URL when building the `currentPkg` payload custom
+    /// resolvers receive.
+    pub registries: HashMap<String, String>,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -149,6 +155,7 @@ where
         dedupe_peers,
         dedupe_injected_deps,
         dedupe_peer_dependents,
+        resolve_peers_from_workspace_root,
         exclude_links_from_lockfile,
         lockfile_dir,
         peers_suffix_max_length,
@@ -160,6 +167,7 @@ where
         wanted_lockfile,
         update_reuse_scope,
         auto_install_peers,
+        registries,
     } = opts;
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
@@ -168,7 +176,8 @@ where
             .with_update_reuse_scope(update_reuse_scope)
             .with_pnpmfile_hook(pnpmfile_hook)
             .with_read_package_log(read_package_log)
-            .with_auto_install_peers(auto_install_peers),
+            .with_auto_install_peers(auto_install_peers)
+            .with_registries(registries),
     );
 
     // Build every importer's options up front so the `time-based`
@@ -205,35 +214,61 @@ where
         maximum_published_by
     };
 
-    let mut per_importer_inputs: Vec<ImporterPeerInput> = Vec::with_capacity(importers.len());
-    for (importer, mut importer_opts) in importers.iter().zip(importer_opts) {
+    // Phase 1: every importer's initial wave resolves before any peer
+    // hoist runs, then hoist rounds repeat across all importers until
+    // none hoists — upstream's `resolveRootDependencies` barrier, so
+    // an optional-peer pick sees every importer's resolved versions.
+    let mut states = Vec::with_capacity(importers.len());
+    let mut input_dirs = Vec::with_capacity(importers.len());
+    for (importer_order, (importer, mut importer_opts)) in
+        importers.iter().zip(importer_opts).enumerate()
+    {
         importer_opts.pick_lowest_direct = pick_lowest_direct;
         importer_opts.subdep_published_by = subdep_published_by;
-        let project_dir = importer_opts.base_opts.project_dir.clone();
-        let modules_dir = importer_opts.modules_dir.clone();
-        let ResolveImporterResult { resolved_tree, .. } = resolve_importer_with_workspace(
-            resolver,
-            &importer.id,
-            importer.manifest,
-            dependency_groups.iter().copied(),
-            importer_opts,
-            Arc::clone(&workspace),
-        )
-        .await?;
-        let direct = resolved_tree.direct;
+        input_dirs
+            .push((importer_opts.base_opts.project_dir.clone(), importer_opts.modules_dir.clone()));
+        states.push(
+            ImporterHoistState::init(
+                resolver,
+                &importer.id,
+                importer_order,
+                importer.manifest,
+                dependency_groups.iter().copied(),
+                importer_opts,
+                Arc::clone(&workspace),
+            )
+            .await?,
+        );
+    }
+    loop {
+        for state in &mut states {
+            state.run_required_round(resolver).await?;
+        }
+        let mut any_hoisted = false;
+        for state in &mut states {
+            any_hoisted |= state.hoist_optional_round(resolver).await?;
+        }
+        if !any_hoisted {
+            break;
+        }
+    }
+    let mut per_importer_inputs: Vec<ImporterPeerInput> = Vec::with_capacity(importers.len());
+    for ((importer, state), (project_dir, modules_dir)) in
+        importers.iter().zip(states).zip(input_dirs)
+    {
         per_importer_inputs.push(ImporterPeerInput {
             id: importer.id.clone(),
-            direct,
+            direct: state.into_direct(),
             root_dir: project_dir,
             modules_dir,
         });
     }
 
-    // Reclaim the workspace ctx now that every per-importer
-    // `resolve_importer_with_workspace` call has dropped its
-    // `Arc<WorkspaceTreeCtx>`. The `try_unwrap` succeeds when this is
-    // the sole remaining `Arc` reference (the common case); the
-    // fallback snapshots out via the shared `Arc` for parity.
+    // Reclaim the workspace ctx now that every importer's state has
+    // dropped its `Arc<WorkspaceTreeCtx>`. The `try_unwrap` succeeds
+    // when this is the sole remaining `Arc` reference (the common
+    // case); the fallback snapshots out via the shared `Arc` for
+    // parity.
     let mut merged_tree = match Arc::try_unwrap(workspace) {
         Ok(ws) => ws.into_resolved_tree(Vec::new()),
         Err(arc) => arc.snapshot(Vec::new()),
@@ -256,6 +291,7 @@ where
         &lockfile_dir,
         dedupe_injected_deps,
         dedupe_peer_dependents,
+        resolve_peers_from_workspace_root,
         peer_opts,
     );
 

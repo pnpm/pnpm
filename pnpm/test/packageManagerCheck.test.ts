@@ -506,7 +506,62 @@ test('no warning when packageManager and devEngines.packageManager specify the s
 
   const { stderr } = execPnpmSync(['install'])
 
-  expect(stderr.toString()).not.toContain('Cannot use both')
+  expect(stderr.toString()).not.toContain('"packageManager" will be ignored')
+})
+
+test('no warning when packageManager and devEngines.packageManager specify the same version with the same integrity hash', async () => {
+  const hash = 'sha512.93f7b57422ea7068257235b4c16eb60762eb68e1dc23723199cc739043ea9be2c4143274a399d8c6defa2b1176226d9ca1c4b63482d6200c1a8fbaa78c1d1485'
+  prepare({
+    packageManager: `pnpm@1.2.3+${hash}`,
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: `1.2.3+${hash}`,
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).not.toContain('"packageManager" will be ignored')
+})
+
+test('warns when packageManager and devEngines.packageManager pin the same version but different integrity hashes', async () => {
+  prepare({
+    packageManager: 'pnpm@1.2.3+sha512.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '1.2.3+sha512.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).toContain('different integrity hashes')
+  expect(stderr.toString()).toContain('"packageManager" will be ignored')
+})
+
+test('warns when the integrity hash is present on packageManager but not devEngines.packageManager', async () => {
+  const hash = 'sha512.93f7b57422ea7068257235b4c16eb60762eb68e1dc23723199cc739043ea9be2c4143274a399d8c6defa2b1176226d9ca1c4b63482d6200c1a8fbaa78c1d1485'
+  prepare({
+    packageManager: `pnpm@1.2.3+${hash}`,
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '1.2.3',
+        onFail: 'ignore',
+      },
+    },
+  })
+
+  const { stderr } = execPnpmSync(['install'])
+
+  expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
+  expect(stderr.toString()).toContain('"packageManager" will be ignored')
 })
 
 test('warns when packageManager specifies a different package manager from devEngines.packageManager', async () => {
@@ -523,7 +578,8 @@ test('warns when packageManager specifies a different package manager from devEn
 
   const { stderr } = execPnpmSync(['install'])
 
-  expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
+  expect(stderr.toString()).toContain('specify different package managers')
+  expect(stderr.toString()).toContain('"packageManager" will be ignored')
 })
 
 test('warns when packageManager version does not match the devEngines.packageManager version string exactly', async () => {
@@ -540,7 +596,8 @@ test('warns when packageManager version does not match the devEngines.packageMan
 
   const { stderr } = execPnpmSync(['install'])
 
-  expect(stderr.toString()).toContain('Cannot use both "packageManager" and "devEngines.packageManager"')
+  expect(stderr.toString()).toContain('specify different versions of pnpm')
+  expect(stderr.toString()).toContain('"packageManager" will be ignored')
 })
 
 test('pmOnFail=ignore via env var bypasses the devEngines.packageManager check', async () => {

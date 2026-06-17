@@ -1,6 +1,7 @@
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod job_control;
 mod state;
 
 use clap::Parser;
@@ -10,7 +11,7 @@ use miette::set_panic_hook;
 use pacquet_diagnostics::enable_tracing_by_env;
 use state::State;
 
-pub async fn main() -> miette::Result<()> {
+pub fn main() -> miette::Result<()> {
     enable_tracing_by_env();
     set_panic_hook();
     // Extract pnpm's `--config.<key>=<value>` tokens before clap sees
@@ -19,16 +20,28 @@ pub async fn main() -> miette::Result<()> {
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
     let (config_overrides, argv) = ConfigOverrides::extract(std::env::args_os());
-    // Run argument parsing *before* sizing the rayon pool so
-    // `pacquet --help` / `--version` (and any clap parse error) exit
-    // without spinning up worker threads. `clap::Parser::parse` calls
-    // `std::process::exit` on those paths, so we never reach
-    // `configure_rayon_pool` for them (Copilot review on <https://github.com/pnpm/pacquet/pull/292>).
+    // The default reporter's `Done in ... using pacquet v<version>` footer needs
+    // the version before the first event (including the fast path's).
+    pacquet_default_reporter::set_package_version(pacquet_config::PACQUET_VERSION);
     let args = CliArgs::parse_from(argv);
+    // An up-to-date `pacquet install` finishes here, without paying for
+    // the runtime, the HTTP client, or any worker threads.
+    if args.finished_via_install_fast_path(&config_overrides) {
+        return Ok(());
+    }
+    // Tie any child pacquet spawns (lifecycle scripts and their descendants)
+    // to this process so none are orphaned on Windows. Held until `main`
+    // returns; see `job_control`.
+    let _job_guard = job_control::setup();
     configure_rayon_pool();
-    // Boxed for `clippy::large_futures`: the command future exceeds the
-    // lint's stack-size threshold (the limit trips on Windows first).
-    Box::pin(args.run(&config_overrides)).await
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("build the tokio runtime")
+        // Boxed for `clippy::large_futures`: the command future exceeds
+        // the lint's stack-size threshold (the limit trips on Windows
+        // first).
+        .block_on(Box::pin(args.run(&config_overrides)))
 }
 
 /// Size rayon's global pool at `2 × available_parallelism`. The link
@@ -40,6 +53,16 @@ pub async fn main() -> miette::Result<()> {
 /// threads underutilize the journal, way more (100+) loses to context
 /// switching and per-thread fixed costs (`user` time scales linearly
 /// past 50 without any wall-time payoff).
+///
+/// Runs after the repeat-install fast path has declined, so commands
+/// that never reach a parallel phase (`--help`, the "Already up to
+/// date" short-circuit) skip the worker-thread spawn cost entirely.
+/// Deliberately NOT communicated via the `RAYON_NUM_THREADS`
+/// environment variable: a process-env write would leak into every
+/// child the install spawns (lifecycle scripts, `node --version`,
+/// git), and pnpm exposes no such variable to scripts. An explicit
+/// `RAYON_NUM_THREADS` from the caller is honoured by skipping the
+/// override.
 ///
 /// Use [`std::thread::available_parallelism`] rather than the
 /// workspace's existing `num_cpus::get()` so cgroup / CPU-quota
@@ -59,12 +82,8 @@ pub async fn main() -> miette::Result<()> {
 /// quota literally — Copilot's follow-up flagged the tension; we're
 /// keeping the floor and documenting it explicitly.
 ///
-/// Honours an explicit `RAYON_NUM_THREADS` env var by skipping our
-/// override (rayon's `build_global` errors if a pool is already set,
-/// but env vars don't pre-init it — so we just apply a smaller
-/// override only when nothing else has been configured). Best-effort:
-/// if another part of the binary already initialised the pool, leave
-/// it alone.
+/// Best-effort: if another part of the binary already initialised the
+/// pool, leave it alone.
 ///
 /// [#292]: https://github.com/pnpm/pacquet/pull/292
 fn configure_rayon_pool() {

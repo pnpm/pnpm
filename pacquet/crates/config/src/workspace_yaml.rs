@@ -169,6 +169,7 @@ pub struct WorkspaceSettings {
     pub prefer_workspace_packages: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub strict_peer_dependencies: Option<bool>,
+    pub ignore_compatibility_db: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
     pub verify_store_integrity: Option<bool>,
@@ -240,6 +241,17 @@ pub struct WorkspaceSettings {
     ///
     /// [`allow_builds`]: Self::allow_builds
     pub dangerously_allow_all_builds: Option<bool>,
+
+    /// `strictDepBuilds` from `pnpm-workspace.yaml`. When `true` (the
+    /// default), an install that ignored any dependency build script
+    /// fails instead of only warning. Default `true`.
+    pub strict_dep_builds: Option<bool>,
+
+    /// `ignoreScripts` from `pnpm-workspace.yaml`. When `true`, no
+    /// lifecycle scripts run and ignored dependency builds aren't
+    /// collected. See [`Config::ignore_scripts`]. The `--ignore-scripts`
+    /// CLI flag ORs on top of this. Default `false`.
+    pub ignore_scripts: Option<bool>,
 
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Tri-state
     /// — yaml accepts `true` / `false` / `"warn-only"`. Custom serde
@@ -603,6 +615,7 @@ impl WorkspaceSettings {
         self.prefer_workspace_packages = None;
         self.dedupe_injected_deps = None;
         self.strict_peer_dependencies = None;
+        self.ignore_compatibility_db = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
         self.hoisting_limits = None;
@@ -732,7 +745,7 @@ impl WorkspaceSettings {
             hoist_workspace_packages,
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, dedupe_peers, dedupe_direct_deps, dedupe_injected_deps,
-            strict_peer_dependencies,
+            strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity, frozen_store,
             block_exotic_subdeps,
             link_workspace_packages,
@@ -830,6 +843,12 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.dangerously_allow_all_builds {
             config.dangerously_allow_all_builds = v;
+        }
+        if let Some(v) = self.strict_dep_builds {
+            config.strict_dep_builds = v;
+        }
+        if let Some(v) = self.ignore_scripts {
+            config.ignore_scripts = v;
         }
         if let Some(v) = self.scripts_prepend_node_path {
             config.scripts_prepend_node_path = v;

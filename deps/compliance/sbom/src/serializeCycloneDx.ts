@@ -1,5 +1,7 @@
 import crypto from 'node:crypto'
 
+import { DepType } from '@pnpm/lockfile.detect-dep-types'
+
 import { integrityToHashes } from './integrity.js'
 import { classifyLicense } from './license.js'
 import { encodePurlName } from './purl.js'
@@ -11,6 +13,7 @@ export interface CycloneDxOptions {
   sbomAuthors?: string[]
   sbomSupplier?: string
   specVersion?: string
+  compact?: boolean
 }
 
 export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions): string {
@@ -27,6 +30,20 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
       version: comp.version,
       purl: comp.purl,
       'bom-ref': comp.purl,
+    }
+
+    // CycloneDX `excluded` scope (valid in every exported spec version):
+    // "component usage for test and other non-runtime purposes", which is the
+    // semantics of a devDependency.
+    // Components reachable through prod (ProdOnly/DevAndProd) omit scope and
+    // default to `required`. Installed optionalDependencies are runtime-reachable,
+    // so they stay `required` too, not `optional`.
+    if (comp.depType === DepType.DevOnly) {
+      cdxComp.scope = 'excluded'
+      // Also emit the CycloneDX npm-taxonomy marker. `scope` is the modern
+      // signal; `cdx:npm:package:development` is what @cyclonedx/cyclonedx-npm
+      // emits and what older consumers read, so we provide both.
+      cdxComp.properties = [{ name: 'cdx:npm:package:development', value: 'true' }]
     }
 
     if (group) {
@@ -169,7 +186,7 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
     dependencies: bomDependencies,
   }
 
-  return JSON.stringify(bom, null, 2)
+  return JSON.stringify(bom, null, opts?.compact ? undefined : 2)
 }
 
 function splitScopedName (fullName: string): { group: string | undefined, name: string } {

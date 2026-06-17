@@ -1,6 +1,10 @@
+import path from 'node:path'
+
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { formatTimeAgo } from '@pnpm/resolving.npm-resolver'
+import type { ProjectManifest } from '@pnpm/types'
+import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import chalk from 'chalk'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -22,11 +26,11 @@ export const commandNames = ['view', 'info', 'show', 'v']
 
 export function help (): string {
   return renderHelp({
-    description: 'View package information from the registry without using npm CLI.',
+    description: 'View package information from the registry. If package name is omitted, searches upward for the nearest package manifest.',
     usages: [
-      'pnpm view <package-name>',
-      'pnpm view <package-name>@<version>',
-      'pnpm view <package-name> [<field>[.subfield]...]',
+      'pnpm view [<package-name>]',
+      'pnpm view [<package-name>@<version>]',
+      'pnpm view [<package-name>] [<field>[.subfield]...]',
     ],
     descriptionLists: [
       {
@@ -48,10 +52,20 @@ export async function handler (
   },
   params: string[]
 ): Promise<string | void> {
-  const packageSpec = params[0]
+  let packageSpec = params[0]
 
   if (!packageSpec) {
-    throw new PnpmError('MISSING_PACKAGE_NAME', 'Package name is required. Usage: pnpm view <package-name>')
+    const nearestManifest = await findNearestProjectManifest(opts.dir ?? process.cwd(), opts)
+    if (!nearestManifest) {
+      throw new PnpmError('MISSING_PACKAGE_NAME', 'Package name is required. Usage: pnpm view [<package-name>]')
+    }
+    if (typeof nearestManifest.manifest.name !== 'string' || nearestManifest.manifest.name.length === 0) {
+      throw new PnpmError(
+        'INVALID_PACKAGE_JSON',
+        `Invalid ${nearestManifest.fileName} at "${nearestManifest.projectDir}". The "name" field is required and must be a non-empty string.`
+      )
+    }
+    packageSpec = nearestManifest.manifest.name
   }
 
   const fields = params.slice(1)
@@ -202,7 +216,7 @@ export async function handler (
 
 function formatBytes (bytes: number): string {
   if (bytes === 0) return '0 B'
-  const k = 1024
+  const k = 1000
   const sizes = ['B', 'kB', 'MB', 'GB', 'TB', 'PB']
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
@@ -246,6 +260,30 @@ function getPublishedInfo (info: ExtendedPackageInfo): string | null {
     return `published ${chalk.cyan(timeAgo)} by ${publisher}`
   }
   return `published ${chalk.cyan(timeAgo)}`
+}
+
+async function findNearestProjectManifest (
+  startDir: string,
+  _opts: Config & ConfigContext
+): Promise<{ manifest: ProjectManifest, fileName: string, projectDir: string } | null> {
+  try {
+    const result = await tryReadProjectManifest(startDir)
+    if (result.manifest != null) {
+      return {
+        manifest: result.manifest,
+        fileName: result.fileName,
+        projectDir: startDir,
+      }
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new PnpmError('INVALID_PACKAGE_JSON', `Failed to read or parse project manifest in "${startDir}": ${message}`)
+  }
+  const parentDir = path.dirname(startDir)
+  if (parentDir === startDir) {
+    return null
+  }
+  return findNearestProjectManifest(parentDir, _opts)
 }
 
 /**

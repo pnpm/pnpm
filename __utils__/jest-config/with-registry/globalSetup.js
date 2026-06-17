@@ -44,18 +44,38 @@ export default async () => {
   )
 
   let killed = false
+  let closed = false
+  const serverClosed = new Promise((resolve) => {
+    server.on('close', () => {
+      closed = true
+      if (!killed) {
+        console.log('Error: The registry server was killed!')
+        process.exit(1)
+      }
+      resolve()
+    })
+  })
   server.on('error', (err) => {
     console.log(err)
   })
-  server.on('close', () => {
-    if (!killed) {
-      console.log('Error: The registry server was killed!')
-      process.exit(1)
-    }
-  })
-  global.killServer = () => {
+  global.killServer = async () => {
     killed = true
-    return kill(server.pid)
+    if (closed) return
+    if (server.pid != null) {
+      try {
+        await kill(server.pid)
+      } catch (err) {
+        if (!closed) throw err
+      }
+    } else {
+      server.kill()
+    }
+    await Promise.race([
+      serverClosed,
+      scheduler.wait(10_000).then(() => {
+        throw new Error('Timed out waiting for pnpr to exit')
+      }),
+    ])
   }
 
   await waitForServerOnline()

@@ -16,10 +16,10 @@ test('pnpm-render bin renders ndjson piped from stdin', async () => {
 
   const stdout = await runBin(['install'], lines.map((line) => JSON.stringify(line)).join('\n') + '\n')
 
-  // ansi-diff intersperses cursor-movement escapes when the rendered string
-  // changes (e.g. "1" → "2"), so we can't substring-match the final value
-  // without terminal emulation. Verifying that any progress line rendered is
-  // enough to prove the bin wired stdin → reporter correctly.
+  // The reporter intersperses cursor-movement escapes when redrawing each
+  // frame, so we can't substring-match the final value without terminal
+  // emulation. Verifying that any progress line rendered is enough to prove
+  // the bin wired stdin → reporter correctly.
   expect(stdout).toContain('Progress: resolved')
 })
 

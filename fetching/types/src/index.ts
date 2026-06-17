@@ -20,4 +20,8 @@ export type FetchFromRegistry = (
   }
 ) => Promise<Response>
 
-export type GetAuthHeader = (uri: string) => string | undefined
+export interface GetAuthHeaderOptions {
+  pkgName?: string
+}
+
+export type GetAuthHeader = (uri: string, opts?: GetAuthHeaderOptions) => string | undefined

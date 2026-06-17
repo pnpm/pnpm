@@ -1,0 +1,288 @@
+name: CI Performance Bencher Upload
+
+on:
+  # zizmor: ignore[dangerous-triggers]
+  # The CI jobs produce untrusted measurement artifacts without access to
+  # BENCHER_API_TOKEN. This workflow runs from the default branch via
+  # workflow_run, validates artifact metadata, then performs the authenticated
+  # upload from trusted workflow code.
+  workflow_run:
+    workflows: ["CI", "TS CI", "Pacquet CI", "Rust CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  upload:
+    name: Upload CI performance results
+    runs-on: ubuntu-latest
+    if: >-
+      (
+        github.event.workflow_run.conclusion == 'success' ||
+        github.event.workflow_run.conclusion == 'failure' ||
+        github.event.workflow_run.conclusion == 'timed_out'
+      ) &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    steps:
+      - name: Resolve Bencher branch
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event.workflow_run.event }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO: ${{ github.repository }}
+          TRIGGER_PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          github_error() {
+            local message=$1
+            message=${message//'%'/'%25'}
+            message=${message//$'\r'/'%0D'}
+            message=${message//$'\n'/'%0A'}
+            echo "::error::$message"
+          }
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [[ -n "${TRIGGER_PR:-}" ]]; then
+              pr="$TRIGGER_PR"
+            else
+              pr=$(
+                gh api "repos/$REPO/commits/$HEAD_SHA/pulls?per_page=100" \
+                  -H "Accept: application/vnd.github+json" \
+                  --paginate --jq '.[]' \
+                  | jq -s --arg branch "$HEAD_BRANCH" \
+                      'if $branch == "" then [.[] | .number] else [.[] | select(.head.ref == $branch) | .number] end | unique'
+              )
+              count=$(echo "$pr" | jq 'length')
+              if [[ "$count" == "0" ]]; then
+                github_error "no PR matches head_sha=$HEAD_SHA branch=$HEAD_BRANCH in $REPO"
+                exit 1
+              fi
+              if [[ "$count" != "1" ]]; then
+                echo "::error::ambiguous head_sha=$HEAD_SHA matches $count PRs: $pr"
+                exit 1
+              fi
+              pr=$(echo "$pr" | jq '.[0]')
+            fi
+            if ! [[ "$pr" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::resolved PR number is not a positive integer: '$pr'"
+              exit 1
+            fi
+            echo "branch=pr/$pr" >> "$GITHUB_OUTPUT"
+            echo "start_point=true" >> "$GITHUB_OUTPUT"
+          else
+            if [[ -z "${HEAD_BRANCH:-}" ]]; then
+              echo "::error::workflow_run head_branch is empty"
+              exit 1
+            fi
+            echo "branch=$HEAD_BRANCH" >> "$GITHUB_OUTPUT"
+            if [ "$HEAD_BRANCH" = "main" ]; then
+              echo "start_point=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "start_point=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Count CI performance artifacts
+        id: artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=$(
+            gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts?per_page=100" --paginate \
+              --jq '[.artifacts[] | select(.expired == false and (.name | startswith("ci-performance-")))] | length' \
+              | jq -s 'add'
+          )
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" = "0" ]; then
+            echo "::notice::No CI performance artifacts found, skipping Bencher upload"
+          fi
+
+      - name: Download CI performance artifacts
+        if: steps.artifacts.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          gh run download "$RUN_ID" \
+            --repo "$REPO" \
+            --pattern 'ci-performance-*' \
+            --dir ci-performance-artifacts
+
+      - name: Install Bencher CLI
+        if: steps.artifacts.outputs.count != '0'
+        uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
+
+      - name: Upload results to Bencher
+        if: steps.artifacts.outputs.count != '0'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          BENCHER_BRANCH: ${{ steps.meta.outputs.branch }}
+          BENCHER_START_POINT: ${{ steps.meta.outputs.start_point }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${BENCHER_API_TOKEN:-}" ]; then
+            echo "::notice::BENCHER_API_TOKEN not set, skipping Bencher upload"
+            exit 0
+          fi
+
+          github_error() {
+            local message=$1
+            message=${message//'%'/'%25'}
+            message=${message//$'\r'/'%0D'}
+            message=${message//$'\n'/'%0A'}
+            echo "::error::$message"
+          }
+
+          validate_artifact_dir() {
+            local artifact_dir=$1
+            if [ -L "$artifact_dir" ]; then
+              github_error "artifact directory is a symlink: $artifact_dir"
+              exit 1
+            fi
+            if [ ! -d "$artifact_dir" ]; then
+              github_error "artifact directory does not exist: $artifact_dir"
+              exit 1
+            fi
+            local artifacts_root_real artifact_dir_real
+            artifacts_root_real=$(realpath ci-performance-artifacts)
+            artifact_dir_real=$(realpath "$artifact_dir")
+            case "$artifact_dir_real" in
+              "$artifacts_root_real"/*) ;;
+              *)
+                github_error "artifact directory escapes download root: $artifact_dir"
+                exit 1
+                ;;
+            esac
+          }
+
+          validate_artifact_file() {
+            local artifact_dir=$1 file=$2 label=$3
+            validate_artifact_dir "$artifact_dir"
+            if [ -L "$file" ]; then
+              github_error "$label is a symlink: $file"
+              exit 1
+            fi
+            if [ ! -f "$file" ]; then
+              github_error "$label is not a regular file: $file"
+              exit 1
+            fi
+            local artifact_dir_real file_real
+            artifact_dir_real=$(realpath "$artifact_dir")
+            file_real=$(realpath "$file")
+            case "$file_real" in
+              "$artifact_dir_real"/*) ;;
+              *)
+                github_error "$label escapes artifact directory '$artifact_dir': $file"
+                exit 1
+                ;;
+            esac
+          }
+
+          upload() {
+            local testbed=$1 artifact_dir=$2 file=$3
+            local rust_testbed_regex='^(pacquet|pnpr)\.(ubuntu|windows|macos)$'
+            local pnpm_testbed_regex='^pnpm\.(ubuntu|windows)\.node(22|24|26)$'
+            if [[ ! "$testbed" =~ $rust_testbed_regex && ! "$testbed" =~ $pnpm_testbed_regex ]]; then
+              github_error "unexpected testbed '$testbed'"
+              exit 1
+            fi
+            validate_artifact_file "$artifact_dir" "$file" "$testbed result file"
+
+            local args=(
+              --project pnpm-ci-performance
+              --testbed "$testbed"
+              --adapter shell_hyperfine
+              --file "$file"
+              --branch "$BENCHER_BRANCH"
+            )
+            if [ "$BENCHER_START_POINT" = "true" ]; then
+              args+=(
+                --start-point main
+                --start-point-reset
+                --start-point-clone-thresholds
+              )
+            fi
+            bencher run "${args[@]}"
+          }
+
+          shopt -s nullglob
+          metadata_files=(ci-performance-artifacts/ci-performance-*/metadata.json)
+          if [ "${#metadata_files[@]}" -eq 0 ]; then
+            github_error "No metadata.json files found in CI performance artifacts"
+            exit 1
+          fi
+
+          for metadata in "${metadata_files[@]}"; do
+            dir=$(dirname "$metadata")
+            validate_artifact_file "$dir" "$metadata" "metadata file"
+            kind=$(jq -r '.kind // empty' "$metadata")
+            case "$kind" in
+              pnpm)
+                testbed=$(jq -r '.testbed // empty' "$metadata")
+                upload "$testbed" "$dir" "$dir/results.json"
+                ;;
+              rust)
+                if ! reports_json=$(jq -ce '.reports | arrays' "$metadata"); then
+                  github_error "missing or invalid rust reports array in $metadata"
+                  exit 1
+                fi
+                reports_count=$(jq 'length' <<< "$reports_json")
+                if [ "$reports_count" -ne 2 ]; then
+                  github_error "expected exactly 2 rust reports in $metadata"
+                  exit 1
+                fi
+
+                seen_pacquet=false
+                seen_pnpr=false
+                while IFS= read -r report; do
+                  testbed=$(jq -r '.testbed // empty' <<< "$report")
+                  file=$(jq -r '.file // empty' <<< "$report")
+                  case "$file" in
+                    pacquet-tests-all.json)
+                      if [ "$seen_pacquet" = "true" ]; then
+                        github_error "duplicate result file '$file' in $metadata"
+                        exit 1
+                      fi
+                      seen_pacquet=true
+                      ;;
+                    pnpr-tests-all.json)
+                      if [ "$seen_pnpr" = "true" ]; then
+                        github_error "duplicate result file '$file' in $metadata"
+                        exit 1
+                      fi
+                      seen_pnpr=true
+                      ;;
+                    *)
+                      github_error "unexpected result file '$file'"
+                      exit 1
+                      ;;
+                  esac
+                  upload "$testbed" "$dir" "$dir/$file"
+                done < <(jq -c '.[]' <<< "$reports_json")
+                if [ "$seen_pacquet" != "true" ]; then
+                  github_error "missing result file 'pacquet-tests-all.json' in $metadata"
+                  exit 1
+                fi
+                if [ "$seen_pnpr" != "true" ]; then
+                  github_error "missing result file 'pnpr-tests-all.json' in $metadata"
+                  exit 1
+                fi
+                ;;
+              *)
+                github_error "unexpected artifact kind '$kind' in $metadata"
+                exit 1
+                ;;
+            esac
+          done

@@ -11,13 +11,14 @@ fn phase_event_parser_reads_flat_and_nested_json_trace_fields() {
         .join(format!("pacquet-integrated-benchmark-phase-events-{}.ndjson", std::process::id()));
     fs::write(
         &path,
-        r#"{"target":"pacquet::install::phase","phase":"create_virtual_store_partition","warm":3,"cold":7,"skipped":1,"total":11}"#
-            .to_string()
-            + "\n"
-            + r#"{"target":"pacquet::install::phase","fields":{"phase":"create_virtual_store","elapsed_ms":42}}"#
-            + "\n"
-            + r#"{"name":"pnpm:progress","status":"resolved"}"#
-            + "\n",
+        concat!(
+            r#"{"target":"pacquet::install::phase","phase":"create_virtual_store_partition","warm":3,"cold":7,"skipped":1,"total":11}"#,
+            "\n",
+            r#"{"target":"pacquet::install::phase","fields":{"phase":"create_virtual_store","elapsed_ms":42}}"#,
+            "\n",
+            r#"{"name":"pnpm:progress","status":"resolved"}"#,
+            "\n",
+        ),
     )
     .expect("write phase fixture");
 

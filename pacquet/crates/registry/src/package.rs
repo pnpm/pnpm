@@ -129,7 +129,7 @@ impl Package {
         // [`resolving/npm-resolver/src/fetch.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/resolving/npm-resolver/src/fetch.ts):
         // resolve the per-URL `Authorization` value before issuing the
         // request and attach it when present.
-        if let Some(value) = auth_headers.for_url(&url) {
+        if let Some(value) = auth_headers.for_url_with_package(&url, Some(name)) {
             request = request.header("authorization", value);
         }
         request

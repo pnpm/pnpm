@@ -7,9 +7,7 @@ const REGISTRY = 'https://registry.npmjs.org'
 const REGISTRY_URL = `${REGISTRY}/`
 const CONFIG_BY_URI = {
   '//registry.npmjs.org/': {
-    creds: {
-      authToken: 'test-token',
-    },
+    '@': { authToken: 'test-token' },
   },
 }
 

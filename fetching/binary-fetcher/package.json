@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.binary-fetcher",
-  "version": "1101.0.10",
+  "version": "1102.0.0",
   "description": "A fetcher for binary archives",
   "keywords": [
     "pnpm",

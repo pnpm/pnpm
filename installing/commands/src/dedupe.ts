@@ -61,12 +61,14 @@ export async function handler (opts: DedupeCommandOptions, _params?: string[], c
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  return installDeps({
+  await installDeps({
     ...opts,
     rebuildHandler: commands?.rebuild,
     dedupe: true,
     include,
     includeDirect: include,
     lockfileCheck: opts.check ? dedupeDiffCheck : undefined,
+    // `--dry-run` is an `install`-only preview; `dedupe` has its own `--check`.
+    dryRun: false,
   }, [])
 }

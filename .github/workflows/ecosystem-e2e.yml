@@ -1,0 +1,118 @@
+name: Ecosystem E2E
+
+# Installs real-world JS stacks (Next.js, Vite, …) with both the pnpm CLI
+# and pacquet, under both the default isolated layout and the global virtual
+# store, then builds and serves each app. The binary axis catches pnpm↔pacquet
+# parity gaps; the layout axis catches breakage introduced by the global
+# virtual store. Runs on a daily cron rather than per-PR — the installs are
+# slow and track upstream framework releases, so a red cell is investigated,
+# not treated as a merge blocker.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Compile pacquet, the harness, and the pnpm bundle once, then share them
+  # with every stack job — building them per stack would repeat the same
+  # multi-minute Rust and bundle builds across the whole matrix.
+  build:
+    name: Ecosystem E2E / Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/rustup
+
+      - name: Build pacquet and the harness
+        run: cargo build --release --bin pacquet --bin ecosystem-e2e
+
+      - name: Build the pnpm CLI bundle
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter pnpm run compile
+
+      - name: Upload build outputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ecosystem-e2e-build
+          path: |
+            target/release/pacquet
+            target/release/ecosystem-e2e
+            pnpm/dist
+          retention-days: 1
+          if-no-files-found: error
+
+  ecosystem-e2e:
+    name: Ecosystem E2E / ${{ matrix.stack }}
+    needs: build
+    runs-on: ubuntu-latest
+    # Bound the blast radius: a hung build or serve subprocess can't pin a
+    # runner indefinitely.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # One stack per job so a slow or flaky stack can't mask the others
+        # and each gets its own log artifact.
+        stack: [next, vite-react, angular, astro, sveltekit, nuxt, react-router]
+    steps:
+      # The pnpm shim launches the repo's committed `pnpm/bin/pnpm.cjs`, so the
+      # checkout is still needed alongside the downloaded `pnpm/dist` bundle.
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Download build outputs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ecosystem-e2e-build
+          path: .
+
+      - name: Restore executable bits
+        # Artifacts don't preserve the executable bit.
+        run: chmod +x target/release/pacquet target/release/ecosystem-e2e
+
+      - name: Wrap the built pnpm bundle as an executable
+        # The harness takes a single executable for --pnpm; the launcher is a
+        # .cjs that needs `node`. Wrap the repo's bin entry (which loads
+        # dist/pnpm.mjs) so the run tests this repo's pnpm, not a system one.
+        run: |
+          printf '#!/usr/bin/env bash\nexec node "%s/pnpm/bin/pnpm.cjs" "$@"\n' "$PWD" > pnpm-built
+          chmod +x pnpm-built
+
+      - name: Run ecosystem E2E
+        run: |
+          ./target/release/ecosystem-e2e \
+            --pnpm "$PWD/pnpm-built" \
+            --pacquet "$PWD/target/release/pacquet" \
+            --binary both \
+            --layout both \
+            --stack ${{ matrix.stack }} \
+            --work-dir "$RUNNER_TEMP/ecosystem-e2e-work"
+
+      - name: Upload cell logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ecosystem-e2e-logs-${{ matrix.stack }}
+          path: ${{ runner.temp }}/ecosystem-e2e-work/**/*.log
+          retention-days: 7
+          if-no-files-found: ignore

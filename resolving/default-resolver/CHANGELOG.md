@@ -1,5 +1,46 @@
 # @pnpm/default-resolver
 
+## 1100.3.8
+
+### Patch Changes
+
+- 681b593: pnpm can now use different auth tokens for different package scopes, even when those scopes use the same registry URL.
+
+  Previously, auth was selected only by registry URL. If `@org-a` and `@org-b` both used `https://npm.pkg.github.com/`, they had to share the same token. This caused problems for registries that issue tokens per organization or per scope.
+
+  Configure a scope-specific token by adding the package scope after the registry URL in the auth key:
+
+  ```ini
+  @org-a:registry=https://npm.pkg.github.com/
+  @org-b:registry=https://npm.pkg.github.com/
+
+  //npm.pkg.github.com/:@org-a:_authToken=${ORG_A_TOKEN}
+  //npm.pkg.github.com/:@org-b:_authToken=${ORG_B_TOKEN}
+
+  //npm.pkg.github.com/:_authToken=${FALLBACK_TOKEN}
+  ```
+
+  `pnpm login --registry=https://npm.pkg.github.com --scope=@org-a` writes the token to the same scope-specific auth key.
+
+  When installing or publishing `@org-a/*`, pnpm uses `ORG_A_TOKEN`. For `@org-b/*`, pnpm uses `ORG_B_TOKEN`. Packages without a matching scope continue to use the registry-wide fallback token.
+
+- Updated dependencies [61810aa]
+- Updated dependencies [681b593]
+- Updated dependencies [1310ab5]
+- Updated dependencies [a31faa7]
+  - @pnpm/resolving.npm-resolver@1102.0.0
+  - @pnpm/fetching.types@1100.0.2
+  - @pnpm/network.auth-header@1101.1.2
+  - @pnpm/types@1101.3.2
+  - @pnpm/engine.runtime.bun-resolver@1102.0.0
+  - @pnpm/engine.runtime.deno-resolver@1102.0.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.7
+  - @pnpm/resolving.git-resolver@1100.1.6
+  - @pnpm/resolving.local-resolver@1101.1.6
+  - @pnpm/resolving.tarball-resolver@1100.1.4
+  - @pnpm/hooks.types@1100.0.12
+  - @pnpm/resolving.resolver-base@1100.4.2
+
 ## 1100.3.7
 
 ### Patch Changes

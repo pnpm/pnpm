@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
@@ -56,7 +57,7 @@ test('pnpm run: returns correct exit code', async () => {
   expect(err.errno).toBe(1)
 })
 
-test('pnpm run --no-bail never fails', async () => {
+test('pnpm run --no-bail runs the script to completion but still exits non-zero on failure', async () => {
   prepare({
     scripts: {
       exit1: 'node recordArgs && exit 1',
@@ -64,6 +65,69 @@ test('pnpm run --no-bail never fails', async () => {
   })
   fs.writeFileSync('args.json', '[]', 'utf8')
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+
+  let err: unknown
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      bin: 'node_modules/.bin',
+      bail: false,
+      dir: process.cwd(),
+      extraBinPaths: [],
+      extraEnv: {},
+      pnpmHomeDir: '',
+    }, ['exit1'])
+  } catch (_err: unknown) {
+    err = _err
+  }
+
+  expect(util.types.isNativeError(err)).toBe(true)
+  expect((err as PnpmError).code).toBe('ERR_PNPM_RUN_FAILED')
+
+  const { default: args } = await import(path.resolve('args.json'))
+  expect(args).toStrictEqual([[]])
+})
+
+test('pnpm run with regex and --no-bail runs every matched script but exits non-zero when one fails', async () => {
+  prepare({
+    scripts: {
+      'lint:a': 'node -e "require(\'fs\').writeFileSync(\'lint-a.txt\', \'a\')"',
+      'lint:b': 'node -e "require(\'fs\').writeFileSync(\'lint-b.txt\', \'b\'); process.exit(1)"',
+      'lint:c': 'node -e "require(\'fs\').writeFileSync(\'lint-c.txt\', \'c\')"',
+    },
+  })
+
+  let err: unknown
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      bin: 'node_modules/.bin',
+      bail: false,
+      dir: process.cwd(),
+      extraBinPaths: [],
+      extraEnv: {},
+      pnpmHomeDir: '',
+    }, ['/^lint:/'])
+  } catch (_err: unknown) {
+    err = _err
+  }
+
+  expect(util.types.isNativeError(err)).toBe(true)
+  expect((err as PnpmError).code).toBe('ERR_PNPM_RUN_FAILED')
+
+  // Every matched script ran to completion, even though lint:b failed.
+  expect(fs.readFileSync('lint-a.txt', 'utf8')).toBe('a')
+  expect(fs.readFileSync('lint-b.txt', 'utf8')).toBe('b')
+  expect(fs.readFileSync('lint-c.txt', 'utf8')).toBe('c')
+})
+
+test('pnpm run with regex and --no-bail exits zero when all matched scripts pass', async () => {
+  prepare({
+    scripts: {
+      'lint:a': 'node -e "process.exit(0)"',
+      'lint:b': 'node -e "process.exit(0)"',
+    },
+  })
 
   await run.handler({
     ...DEFAULT_OPTS,
@@ -73,10 +137,7 @@ test('pnpm run --no-bail never fails', async () => {
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
-  }, ['exit1'])
-
-  const { default: args } = await import(path.resolve('args.json'))
-  expect(args).toStrictEqual([[]])
+  }, ['/^lint:/'])
 })
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'

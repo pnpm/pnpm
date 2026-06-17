@@ -3,9 +3,12 @@
     reason = "struct-literal test fixtures; field types are evident from the literal and naming each would force ~20 imports"
 )]
 
-use super::{Install, InstallError};
+use super::{
+    Install, InstallError, UpToDateFastPathCheck, install_already_up_to_date,
+    load_workspace_projects,
+};
 use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_modules_yaml::{
     DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, LayoutVersion, Modules, NodeLinker,
     read_modules_manifest, write_modules_manifest,
@@ -25,9 +28,24 @@ use pacquet_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
 };
 use pipe_trait::Pipe;
-use std::sync::Mutex;
+use std::{fs, sync::Mutex};
 use tempfile::tempdir;
 use text_block_macros::text_block;
+
+/// Reading wrapper over [`super::modules_consistent_with`] for the tests
+/// that exercise the `.modules.yaml`-absent and drift cases. Production
+/// code reads the manifest once itself and calls `modules_consistent_with`
+/// directly, so this wrapper lives with the tests.
+fn is_modules_yaml_consistent(
+    modules_dir: &std::path::Path,
+    config: &Config,
+    node_linker: pacquet_config::NodeLinker,
+    included: pacquet_modules_yaml::IncludedDependencies,
+) -> bool {
+    read_modules_manifest::<Host>(modules_dir).ok().flatten().is_some_and(|modules| {
+        super::modules_consistent_with(&modules, config, node_linker, included)
+    })
+}
 
 const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
 
@@ -48,6 +66,39 @@ fn scoped_package_body(registry_url: &str) -> String {
   }}
 }}"#,
     )
+}
+
+#[test]
+fn workspace_without_packages_field_enumerates_root_only() {
+    let dir = tempdir().unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"root","version":"0.0.0","scripts":{"prepare":"node root.js"}}"#,
+    )
+    .expect("write root package.json");
+    let nested = dir.path().join("test-e2e/fixtures/vendor/preact/.cache/10.10.2");
+    fs::create_dir_all(&nested).expect("mkdir vendored package");
+    fs::write(
+        nested.join("package.json"),
+        r#"{"name":"preact","version":"10.10.2","scripts":{"prepare":"run-s build"}}"#,
+    )
+    .expect("write vendored package.json");
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: false\n")
+        .expect("write settings-only workspace manifest");
+
+    let manifest = pacquet_workspace::read_workspace_manifest(dir.path())
+        .expect("read workspace manifest")
+        .expect("workspace manifest present");
+
+    let projects = load_workspace_projects(dir.path(), Some(&manifest))
+        .expect("load workspace projects")
+        .expect("workspace projects");
+    let names: Vec<&str> = projects
+        .iter()
+        .filter_map(|project| project.manifest.value().get("name").and_then(|name| name.as_str()))
+        .collect();
+
+    assert_eq!(names, vec!["root"]);
 }
 
 #[tokio::test]
@@ -83,7 +134,7 @@ async fn should_install_dependencies() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -96,10 +147,12 @@ async fn should_install_dependencies() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -129,6 +182,155 @@ async fn should_install_dependencies() {
     assert!(path.is_dir());
 
     insta::assert_debug_snapshot!(get_all_folders(&project_root));
+
+    drop((dir, mock_instance)); // cleanup
+}
+
+/// A first install (no prior `.modules.yaml`, so the prune throttle
+/// always fires) sweeps a surplus `.pacquet` directory the wanted
+/// lockfile doesn't reference, while keeping the slot it does. Drives
+/// the [`crate::prune_virtual_store`] wiring through the real install
+/// path; mirrors the surplus-cleanup behavior of pnpm's `prune` at
+/// <https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L180-L190>.
+#[tokio::test]
+async fn install_prunes_surplus_virtual_store_dir() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    // Seed a surplus virtual-store directory that no lockfile entry
+    // references. The install must sweep it.
+    let surplus = virtual_store_dir.join("surplus-pkg@9.9.9");
+    std::fs::create_dir_all(&surplus).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    assert!(
+        virtual_store_dir.join("@pnpm.e2e+hello-world-js-bin@1.0.0").exists(),
+        "the installed package's virtual-store dir must survive the prune",
+    );
+    assert!(!surplus.exists(), "the surplus virtual-store dir must be pruned on install");
+
+    drop((dir, mock_instance)); // cleanup
+}
+
+/// The prune deletes directories under `virtual_store_dir`, which can be
+/// set by repo-controlled workspace config. When that path escapes the
+/// project's `node_modules` (here, a sibling directory), the sweep is
+/// refused so a malicious config can't redirect destructive deletes
+/// outside the managed tree. Regression guard for the path-containment
+/// check in [`crate::prune_virtual_store::prune_target_within_modules`].
+#[tokio::test]
+async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    // The virtual store is pointed *outside* node_modules, as a malicious
+    // workspace config could do.
+    let virtual_store_dir = dir.path().join("escaped-store");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    // A surplus entry the wanted lockfile doesn't reference. Because the
+    // store escapes node_modules, the sweep must leave it untouched.
+    let surplus = virtual_store_dir.join("surplus-pkg@9.9.9");
+    std::fs::create_dir_all(&surplus).unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    assert!(
+        surplus.exists(),
+        "prune must be skipped when the virtual store is outside node_modules",
+    );
 
     drop((dir, mock_instance)); // cleanup
 }
@@ -179,7 +381,7 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -192,10 +394,12 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: true,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -231,7 +435,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -244,10 +448,12 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -280,7 +486,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -293,10 +499,12 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -358,7 +566,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -371,10 +579,12 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -429,7 +639,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -442,10 +652,12 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -519,7 +731,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -532,10 +744,12 @@ async fn unversioned_npm_alias_defaults_to_latest() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -592,7 +806,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -605,10 +819,12 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -688,7 +904,7 @@ async fn install_emits_pnpm_event_sequence() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -701,10 +917,12 @@ async fn install_emits_pnpm_event_sequence() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -838,7 +1056,7 @@ async fn install_writes_modules_yaml() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         // Drive a non-default `included`: prod + optional, no dev,
         // so the assertion below pins the mapping of dispatched
@@ -854,10 +1072,12 @@ async fn install_writes_modules_yaml() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -888,7 +1108,10 @@ async fn install_writes_modules_yaml() {
     // `modules_dir`, so a relative on-disk value round-trips back
     // to the absolute install-time path.
     assert_eq!(emitted_virtual_store_dir, virtual_store_dir.to_string_lossy());
-    assert_eq!(virtual_store_dir_max_length, DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH);
+    assert_eq!(
+        virtual_store_dir_max_length,
+        pacquet_config::default_virtual_store_dir_max_length(),
+    );
     assert_eq!(
         registries.as_ref().and_then(|r| r.get("default")).map(String::as_str),
         Some(config.registry.as_str()),
@@ -948,7 +1171,7 @@ async fn install_writes_workspace_state() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         // Same `included` shape as `install_writes_modules_yaml` so the
         // dev/optional/production assertions below line up with the
@@ -964,10 +1187,12 @@ async fn install_writes_workspace_state() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -1067,6 +1292,7 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            &BTreeMap::default(),
             &[],
         );
         assert!(state.projects.is_empty());
@@ -1099,6 +1325,7 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            &BTreeMap::default(),
             &project_manifests,
         );
 
@@ -1133,6 +1360,7 @@ mod build_workspace_state_tests {
             &config,
             pacquet_config::NodeLinker::default(),
             IncludedDependencies::default(),
+            &BTreeMap::default(),
             &[],
         );
         assert_eq!(state.config_dependencies, config.config_dependencies);
@@ -1177,6 +1405,10 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     config.registry = mock_instance.url();
+    // Allow the transitive `failing-postinstall` build to actually run so
+    // the optional-failure tolerance is exercised (an ignored build would
+    // instead trip `strictDepBuilds`, which is unrelated to this test).
+    config.dangerously_allow_all_builds = true;
     let config = config.leak();
 
     Install {
@@ -1185,7 +1417,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -1198,10 +1430,12 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -1263,7 +1497,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -1276,10 +1510,12 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -1364,7 +1600,7 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -1377,10 +1613,12 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -1501,7 +1739,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -1514,10 +1752,12 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -1604,7 +1844,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -1617,10 +1857,12 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await;
@@ -1715,7 +1957,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -1728,10 +1970,12 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -1770,7 +2014,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -1783,10 +2027,12 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -1867,7 +2113,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -1880,10 +2126,12 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -1974,7 +2222,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -1988,9 +2236,11 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -2043,7 +2293,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -2057,9 +2307,11 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -2113,7 +2365,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -2127,9 +2379,11 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -2209,7 +2463,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -2223,9 +2477,11 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -2321,7 +2577,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -2335,9 +2591,11 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -2387,7 +2645,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -2401,9 +2659,11 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -2480,7 +2740,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -2494,9 +2754,11 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -2592,7 +2854,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -2606,9 +2868,11 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -2711,7 +2975,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -2725,9 +2989,11 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -2796,7 +3062,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -2810,9 +3076,11 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -2890,6 +3158,8 @@ fn build_modules_manifest_serializes_skipped_set() {
         Default::default(),
         Default::default(),
         &skipped,
+        &[],
+        "Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
     );
 
     // Compare as sets — `build_modules_manifest` does not sort.
@@ -2926,6 +3196,8 @@ fn build_modules_manifest_skipped_is_empty_on_empty_set() {
         Default::default(),
         Default::default(),
         &SkippedSnapshots::new(),
+        &[],
+        "Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
     );
     assert!(manifest.skipped.is_empty());
     // Empty `hoisted_locations` is dropped to `None` so an
@@ -3001,7 +3273,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -3014,10 +3286,12 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3124,7 +3398,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
@@ -3143,10 +3417,12 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3235,7 +3511,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -3248,10 +3524,12 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -3346,7 +3624,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -3359,10 +3637,12 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3442,7 +3722,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
@@ -3455,10 +3735,12 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -3540,7 +3822,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         // `--no-optional` shape: Optional NOT in the dispatch list.
         dependency_groups: [DependencyGroup::Prod],
@@ -3554,10 +3836,12 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -3639,7 +3923,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -3652,10 +3936,12 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3732,7 +4018,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -3745,10 +4031,12 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3833,7 +4121,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
@@ -3847,9 +4135,11 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
         resolved_packages: &Default::default(),
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -3932,7 +4222,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
         frozen_lockfile: true,
@@ -3946,9 +4236,10 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
         resolved_packages: &Default::default(),
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        dry_run: false,        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4035,7 +4326,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -4048,10 +4339,12 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -4140,7 +4433,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -4153,10 +4446,12 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -4231,7 +4526,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -4244,10 +4539,12 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4277,6 +4574,77 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     assert!(
         snapshots.contains_key(&pkg_key),
         "snapshot keyed by depPath (pure pkg id when no peers)",
+    );
+
+    drop((dir, mock_instance));
+}
+
+#[tokio::test]
+async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest.add_dependency("@pnpm.e2e/final-peer-a", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.add_dependency("@pnpm.e2e/final-peer-c", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+
+    let content =
+        std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
+    let expected = "@pnpm.e2e/final-peer-x@1.0.0(@pnpm.e2e/final-peer-b@1.0.0(@pnpm.e2e/final-peer-a@1.0.0(@pnpm.e2e/final-peer-c@1.0.0)))";
+    let provisional =
+        "@pnpm.e2e/final-peer-x@1.0.0(@pnpm.e2e/final-peer-b@1.0.0(@pnpm.e2e/final-peer-a@1.0.0))";
+
+    assert!(
+        content.contains(expected),
+        "transitive peer must use the provider's final peer suffix; lockfile:\n{content}",
+    );
+    assert!(
+        !content.contains(provisional),
+        "lockfile must not keep the provider's provisional peer suffix; lockfile:\n{content}",
     );
 
     drop((dir, mock_instance));
@@ -4320,7 +4688,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -4333,10 +4701,12 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4395,7 +4765,7 @@ async fn fresh_install_records_user_written_specifier() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -4408,10 +4778,12 @@ async fn fresh_install_records_user_written_specifier() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4466,7 +4838,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -4479,10 +4851,12 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4536,7 +4910,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -4549,10 +4923,12 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4609,7 +4985,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -4622,10 +4998,12 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4698,7 +5076,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -4711,10 +5089,12 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4765,7 +5145,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -4778,10 +5158,12 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4857,7 +5239,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -4870,10 +5252,12 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Hoisted,
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -4929,7 +5313,7 @@ async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -4942,10 +5326,12 @@ async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -5003,7 +5389,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         // No `--frozen-lockfile`; the dispatch must auto-go-frozen
@@ -5018,10 +5404,12 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -5080,7 +5468,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -5095,10 +5483,12 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -5153,7 +5543,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -5166,10 +5556,12 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -5184,7 +5576,25 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
     );
 }
 
-/// [`super::is_modules_yaml_consistent`] returns `false` when
+/// `unapproved_recorded_ignored_builds` surfaces a malformed
+/// `allowBuilds` spec as `Err` (here `ERR_PNPM_INVALID_VERSION_UNION`)
+/// instead of swallowing it into `None`, so the strict up-to-date fast
+/// paths fall through to the full install — which reports the real error
+/// — rather than short-circuiting to success and hiding it.
+#[test]
+fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
+    let modules = Modules {
+        ignored_builds: Some([pacquet_modules_yaml::DepPath::from("pkg@1.0.0".to_string())].into()),
+        ..Default::default()
+    };
+    let mut config = Config::new();
+    config.allow_builds.insert("foo@not-a-version".to_string(), true);
+    let config = config.leak();
+
+    assert!(super::unapproved_recorded_ignored_builds(&modules, config).is_err());
+}
+
+/// [`is_modules_yaml_consistent`] returns `false` when
 /// `.modules.yaml` is missing, so a first install (no prior state)
 /// can't be mistaken for an up-to-date install.
 #[test]
@@ -5195,7 +5605,7 @@ fn is_modules_yaml_consistent_returns_false_when_modules_yaml_absent() {
     config.modules_dir = modules_dir.clone();
     let config = config.leak();
 
-    assert!(!super::is_modules_yaml_consistent(
+    assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::default(),
@@ -5203,7 +5613,7 @@ fn is_modules_yaml_consistent_returns_false_when_modules_yaml_absent() {
     ));
 }
 
-/// [`super::is_modules_yaml_consistent`] returns `true` when every
+/// [`is_modules_yaml_consistent`] returns `true` when every
 /// layout-determining setting matches what
 /// [`super::build_modules_manifest`] would write for the current
 /// config / linker / dependency-group selection. The roundtrip needs
@@ -5239,7 +5649,7 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
     };
     write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
 
-    assert!(super::is_modules_yaml_consistent(
+    assert!(is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::default(),
@@ -5274,7 +5684,7 @@ fn is_modules_yaml_consistent_returns_false_when_node_linker_drifts() {
     };
     write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
 
-    assert!(!super::is_modules_yaml_consistent(
+    assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::Isolated,
@@ -5321,7 +5731,7 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
     };
     write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
 
-    assert!(!super::is_modules_yaml_consistent(
+    assert!(!is_modules_yaml_consistent(
         &modules_dir,
         config,
         pacquet_config::NodeLinker::Isolated,
@@ -5410,7 +5820,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -5423,10 +5833,12 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -5594,7 +6006,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -5609,10 +6021,12 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -5642,6 +6056,89 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         install_emits, 0,
         "no install-setup events must fire on the optimistic short-circuit; got events: {captured:#?}",
     );
+}
+
+/// The synchronous pre-runtime twin of the short-circuit
+/// ([`install_already_up_to_date`]) must reach the same verdict from
+/// the same on-disk state — and flip to `None` (fall through to the
+/// full install) as soon as a manifest outdates the recorded
+/// validation timestamp.
+#[test]
+fn sync_fast_path_matches_optimistic_short_circuit() {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+
+    std::fs::create_dir_all(&modules_dir).expect("create modules dir so the deps gate passes");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
+    manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+    std::fs::write(project_root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
+        .expect("seed pnpm-lock.yaml");
+
+    let mut config = Config::new();
+    config.lockfile = false;
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let included = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+    let mut projects = std::collections::BTreeMap::new();
+    projects.insert(
+        project_root.to_string_lossy().into_owned(),
+        workspace_state::ProjectEntry {
+            name: Some("project".to_string()),
+            version: Some("1.0.0".to_string()),
+        },
+    );
+    let settings = crate::optimistic_repeat_install::current_settings(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        included,
+    );
+    workspace_state::update_workspace_state(
+        &project_root,
+        &pacquet_workspace_state::WorkspaceState {
+            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+            projects,
+            pnpmfiles: Vec::new(),
+            filtered_install: false,
+            config_dependencies: None,
+            settings,
+        },
+    )
+    .expect("seed workspace state");
+
+    let check = UpToDateFastPathCheck {
+        config,
+        manifest: &manifest,
+        dependency_groups: vec![DependencyGroup::Prod],
+        node_linker: pacquet_config::NodeLinker::Isolated,
+    };
+    let root = install_already_up_to_date(&check);
+    assert_eq!(root.as_deref(), Some(&*project_root), "fresh state must short-circuit");
+
+    // Outdate the manifest relative to the recorded timestamp: the
+    // fast path must decline and leave the decision to the full
+    // install. The far-future mtime defeats filesystem mtime
+    // resolution without sleeping.
+    let future = std::time::SystemTime::now() + std::time::Duration::from_mins(2);
+    let file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&manifest_path)
+        .expect("open manifest for mtime bump");
+    file.set_modified(future).expect("bump manifest mtime");
+    drop(file);
+    // The manifest content still matches no lockfile (config.lockfile
+    // is off and no current lockfile exists), so the content re-check
+    // cannot vouch for it either.
+    assert_eq!(install_already_up_to_date(&check), None, "modified manifest must fall through");
 }
 
 /// `--frozen-lockfile` disables the optimistic short-circuit because
@@ -5748,7 +6245,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         // The only difference vs the optimistic test above.
@@ -5762,10 +6259,12 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -5784,6 +6283,147 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     // covers that emit), and downstream code asserts on its
     // presence; we only assert here that the *optimistic* log is
     // absent so the polarity of the gate is clear.
+}
+
+/// `add` / `remove` mutate the manifest in memory and persist it only
+/// after `Install::run` returns, so the on-disk mtimes the optimistic
+/// check reads still describe the pre-mutation project. A partial
+/// install (`is_full_install: false`) must therefore never take the
+/// optimistic short-circuit — otherwise a fresh workspace state would
+/// read as "already up to date" and the mutation would never be
+/// resolved or materialized. Mirrors upstream `installDeps` calling
+/// `checkDepsStatus` only for the plain-install mutation.
+#[tokio::test]
+async fn partial_install_disables_optimistic_short_circuit() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.lockfile = false;
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = virtual_store_dir.clone();
+    let config = config.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      sibling:"
+        "        specifier: link:../sibling"
+        "        version: link:../sibling"
+        "packages: {}"
+        "snapshots: {}"
+    })
+    .expect("parse lockfile");
+
+    let included = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+
+    // Seed the same state the optimistic test uses, so the only
+    // difference between the two is `is_full_install`.
+    let seed_modules = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Isolated),
+        included,
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
+    lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
+
+    let mut projects = std::collections::BTreeMap::new();
+    projects.insert(
+        project_root.to_string_lossy().into_owned(),
+        workspace_state::ProjectEntry {
+            name: Some("project".to_string()),
+            version: Some("1.0.0".to_string()),
+        },
+    );
+    let settings = crate::optimistic_repeat_install::current_settings(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        included,
+    );
+    workspace_state::update_workspace_state(
+        &project_root,
+        &pacquet_workspace_state::WorkspaceState {
+            last_validated_timestamp: pacquet_workspace_state::now_millis() + 60_000,
+            projects,
+            pnpmfiles: Vec::new(),
+            filtered_install: false,
+            config_dependencies: None,
+            settings,
+        },
+    )
+    .expect("seed workspace state");
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: true,
+        update_checksums: false,
+        // The only difference vs the optimistic test above.
+        is_full_install: false,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("partial install must still succeed via the regular dispatch");
+
+    let captured = EVENTS.lock().unwrap();
+    assert!(
+        !captured.iter().any(|event| matches!(
+            event,
+            LogEvent::Pnpm(log) if log.message == "Already up to date"
+        )),
+        "the optimistic 'Already up to date' log MUST NOT fire for a partial install; got events: {captured:#?}",
+    );
 }
 
 /// Regression: a single-project install with NO lockfile anywhere —
@@ -5894,7 +6534,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -5907,10 +6547,12 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::Isolated,
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await;
@@ -5977,7 +6619,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -5990,10 +6632,12 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -6033,7 +6677,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         // *before* the lockfile is even loaded. (Matching pnpm's
         // dispatch ordering: `checkDepsStatus` runs before any
         // lockfile parse.)
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -6046,10 +6690,12 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -6121,7 +6767,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -6134,10 +6780,12 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -6185,7 +6833,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config: second_config,
         manifest: &touched_manifest,
-        lockfile: Some(&wanted_lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&wanted_lockfile)),
         lockfile_path: Some(&lockfile_path),
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -6198,10 +6846,12 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -6272,7 +6922,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -6285,10 +6935,12 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -6360,7 +7012,7 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
         http_client_arc: std::sync::Arc::new(Default::default()),
         config: offline_config,
         manifest: &touched_manifest,
-        lockfile: Some(&wanted_lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&wanted_lockfile)),
         lockfile_path: Some(&lockfile_path),
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -6373,10 +7025,12 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -6440,7 +7094,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config: offline_config,
         manifest: &touched_manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -6453,10 +7107,12 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<RecordingReporter>()
     .await
@@ -6584,7 +7240,7 @@ async fn fresh_lockfile_only_with_overrides(
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -6597,10 +7253,12 @@ async fn fresh_lockfile_only_with_overrides(
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: true,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -6626,6 +7284,96 @@ fn assert_package_absent(lockfile: &Lockfile, key: &str) {
         lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&key)),
         "expected packages not to contain {key}",
     );
+}
+
+#[tokio::test]
+async fn fresh_install_applies_builtin_compatibility_db_to_dependency_manifest() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_compatibility_db(false).await;
+    let metadata = lockfile
+        .packages
+        .as_ref()
+        .and_then(|packages| packages.get(&"debug@4.0.0".parse().unwrap()))
+        .expect("debug package metadata recorded");
+    assert_eq!(
+        metadata
+            .peer_dependencies_meta
+            .as_ref()
+            .and_then(|meta| meta.get("supports-color"))
+            .map(|meta| meta.optional),
+        Some(true),
+    );
+    assert_eq!(lockfile.package_extensions_checksum, None);
+}
+
+#[tokio::test]
+async fn fresh_install_skips_builtin_compatibility_db_when_ignored() {
+    let (_dir, lockfile) = fresh_lockfile_only_with_compatibility_db(true).await;
+    let metadata = lockfile
+        .packages
+        .as_ref()
+        .and_then(|packages| packages.get(&"debug@4.0.0".parse().unwrap()))
+        .expect("debug package metadata recorded");
+    assert!(metadata.peer_dependencies_meta.is_none());
+    assert_eq!(lockfile.package_extensions_checksum, None);
+}
+
+async fn fresh_lockfile_only_with_compatibility_db(
+    ignore_compatibility_db: bool,
+) -> (tempfile::TempDir, Lockfile) {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let modules_dir = dir.path().join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("debug", "4.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = mock_instance.url();
+    config.ignore_compatibility_db = ignore_compatibility_db;
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(false),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: true,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("lockfile-only install should succeed");
+
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    let content = std::fs::read_to_string(lockfile_path).expect("read lockfile");
+    let lockfile = serde_saphyr::from_str(&content).expect("parse lockfile");
+    (dir, lockfile)
 }
 
 /// `packageExtensions` adds entries to a dependency's manifest at
@@ -6690,7 +7438,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: false,
@@ -6703,10 +7451,12 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await
@@ -6790,7 +7540,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: Some(&lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod],
         frozen_lockfile: true,
@@ -6804,9 +7554,11 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<SilentReporter>()
     .await;
@@ -6872,7 +7624,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
         http_client_arc: std::sync::Arc::new(Default::default()),
         config,
         manifest: &manifest,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         lockfile_path: None,
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         frozen_lockfile: false,
@@ -6885,10 +7637,12 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
         supported_architectures: None,
         node_linker: pacquet_config::NodeLinker::default(),
         lockfile_only: false,
+        dry_run: false,
         resolved_packages: &Default::default(),
         update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<Reporter>()
     .await

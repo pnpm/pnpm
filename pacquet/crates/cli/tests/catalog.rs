@@ -4,6 +4,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pacquet_lockfile::Lockfile;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
@@ -53,6 +54,24 @@ fn dep_spec(workspace: &Path, name: &str) -> Option<String> {
 
 fn read(workspace: &Path, file: &str) -> String {
     fs::read_to_string(workspace.join(file)).unwrap_or_else(|_| panic!("read {file}"))
+}
+
+fn catalog_snapshot(workspace: &Path, name: &str) -> (String, String) {
+    let lockfile: Lockfile =
+        serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
+    let entry = lockfile
+        .catalogs
+        .as_ref()
+        .and_then(|catalogs| catalogs.get("default"))
+        .and_then(|catalog| catalog.get(name))
+        .unwrap_or_else(|| panic!("missing default catalog snapshot entry for {name}"));
+    (entry.specifier.clone(), entry.version.clone())
+}
+
+fn lockfile_override(workspace: &Path, selector: &str) -> Option<String> {
+    let lockfile: Lockfile =
+        serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
+    lockfile.overrides.as_ref().and_then(|overrides| overrides.get(selector).cloned())
 }
 
 fn run_ok(workspace: &Path, args: &[&str]) {
@@ -200,6 +219,55 @@ fn update_latest_named_catalog_bumps_the_entry() {
     drop((root, anchor));
 }
 
+/// `update --latest` bumping a catalog that an override resolves through
+/// must keep `pnpm-lock.yaml`'s `overrides` in sync with the bumped
+/// catalog. A scoped selector is used so the override does not shadow the
+/// direct `catalog:` dependency. If the override is not re-resolved against
+/// the bumped catalog, lockfile `overrides` lags `catalogs` and the
+/// follow-up `--frozen-lockfile` install fails with an overrides/catalogs
+/// mismatch. Ported from pnpm's "overrides that reference a catalog are
+/// updated in the lockfile when the catalog is updated".
+#[test]
+fn update_latest_keeps_catalog_referencing_override_in_sync() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    let override_selector = format!("@pnpm.e2e/foobar>{FOO}");
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "catalogMode: prefer\ncatalog:\n  '{FOO}': '^1.0.0'\noverrides:\n  '{override_selector}': 'catalog:'\n",
+        ),
+    );
+
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    // The override resolves through the catalog, so it records the catalog's
+    // specifier rather than a literal version.
+    let (initial_spec, _) = catalog_snapshot(&workspace, FOO);
+    assert_eq!(
+        lockfile_override(&workspace, &override_selector).as_deref(),
+        Some(initial_spec.as_str()),
+        "override should track the catalog specifier before the update",
+    );
+
+    run_ok(&workspace, &["update", "--latest", "--lockfile-only", FOO]);
+
+    let (bumped_spec, _) = catalog_snapshot(&workspace, FOO);
+    assert_ne!(bumped_spec, initial_spec, "update --latest should bump the catalog entry");
+    assert_eq!(
+        lockfile_override(&workspace, &override_selector).as_deref(),
+        Some(bumped_spec.as_str()),
+        "lockfile override must be re-resolved against the bumped catalog",
+    );
+
+    // The bumped catalog is written back to pnpm-workspace.yaml, so a
+    // follow-up frozen install reads it and must not fail with an
+    // overrides/catalogs mismatch.
+    run_ok(&workspace, &["install", "--frozen-lockfile"]);
+
+    drop((root, anchor));
+}
+
 /// `update --latest --no-save` must not persist catalog edits to
 /// `pnpm-workspace.yaml`, matching pnpm's `if (opts.save !== false)` guard.
 #[test]
@@ -219,6 +287,30 @@ fn update_latest_no_save_leaves_the_catalog_untouched() {
         workspace_yaml.contains(&format!("'{FOO}': 1.0.0")),
         "--no-save must not rewrite the catalog entry:\n{workspace_yaml}",
     );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn install_reruns_when_catalog_entry_changes() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "catalog:" }}"#));
+    append_workspace_yaml(&workspace, &format!("catalog:\n  '{FOO}': 1.0.0\n"));
+
+    run_ok(&workspace, &["install"]);
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("1.0.0".to_string(), "1.0.0".to_string()));
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(
+        &workspace_yaml_path,
+        workspace_yaml.replace(&format!("'{FOO}': 1.0.0"), &format!("'{FOO}': 2.0.0")),
+    )
+    .expect("rewrite pnpm-workspace.yaml catalog entry");
+
+    run_ok(&workspace, &["install"]);
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("2.0.0".to_string(), "2.0.0".to_string()));
 
     drop((root, anchor));
 }

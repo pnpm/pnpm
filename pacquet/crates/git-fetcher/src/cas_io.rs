@@ -15,6 +15,7 @@
 //!   import.
 
 use crate::error::GitFetcherError;
+use pacquet_fs::file_mode::{cas_path_is_executable, is_executable};
 use pacquet_store_dir::{CafsFileInfo, StoreDir};
 use std::{
     collections::HashMap,
@@ -110,7 +111,7 @@ pub(crate) fn materialize_into(
         if cas_path_is_executable(cas_path) {
             use std::os::unix::fs::PermissionsExt;
             let mut perms = fs::metadata(&target).map_err(GitFetcherError::Io)?.permissions();
-            perms.set_mode(perms.mode() | 0o111);
+            perms.set_mode(perms.mode() | pacquet_fs::file_mode::EXEC_MASK);
             fs::set_permissions(&target, perms).map_err(GitFetcherError::Io)?;
         }
     }
@@ -144,7 +145,7 @@ pub(crate) fn import_into_cas(
         // `cas_file_path_by_mode` exactly like a tarball entry would.
         let bytes = fs::read(&source).map_err(GitFetcherError::Io)?;
         let size = bytes.len() as u64;
-        let executable = (mode & 0o111) != 0;
+        let executable = is_executable(mode);
         let (cas_path, hash) =
             store_dir.write_cas_file(&bytes, executable).map_err(map_write_cas)?;
         cas_paths.insert(rel.clone(), cas_path);
@@ -178,14 +179,6 @@ fn file_mode_from(meta: &fs::Metadata) -> u32 {
 #[cfg(not(unix))]
 fn file_mode_from(_meta: &fs::Metadata) -> u32 {
     0o644
-}
-
-/// `true` when a CAS file path encodes "executable" via the `-exec`
-/// suffix pnpm's CAFS layout uses. Cheaper than reading filesystem
-/// metadata, and matches the write-side encoding in
-/// [`pacquet_store_dir::StoreDir::cas_file_path`].
-fn cas_path_is_executable(path: &Path) -> bool {
-    path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.ends_with("-exec"))
 }
 
 /// Synthesize the [`PackageFilesIndex::files`](pacquet_store_dir::PackageFilesIndex::files)

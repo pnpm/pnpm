@@ -332,9 +332,10 @@ fn missing_manifest_returns_false() {
 
 /// End-to-end check that the spawned child sees `npm_lifecycle_event`,
 /// `npm_lifecycle_script`, `INIT_CWD`, `npm_package_name`, and
-/// `npm_package_version`, and does NOT see leaked `npm_config_*` keys
-/// from this process's env. Adapts the upstream test at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/test/index.ts#L65-L77>
+/// `npm_package_version`; that a user-defined `npm_config_*` var from
+/// this process's env is PRESERVED; and that a `npm_config_*` auth var
+/// is stripped. Adapts the upstream test at
+/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/test/index.ts#L65-L82>
 /// to a file-dump model so we don't need an IPC fixture.
 ///
 /// Unix-only: relies on `printf` and `$VAR` expansion, which `cmd`
@@ -343,21 +344,41 @@ fn missing_manifest_returns_false() {
 /// [`crate::make_env`].
 #[cfg(unix)]
 #[test]
-fn child_sees_stamped_npm_package_and_no_leaked_npm_config() {
-    /// RAII guard that removes a process env var on drop, so an
-    /// assertion failure can't leak the seed into sibling tests.
-    /// Stdlib `set_var`/`remove_var` are `unsafe` in current Rust;
-    /// SAFETY: nextest runs each test in its own thread, so the
-    /// only risk is sibling tests calling `env::vars()`
-    /// concurrently — the guard's `Drop` still runs on panic.
-    struct EnvGuard(&'static str);
-    impl Drop for EnvGuard {
-        fn drop(&mut self) {
-            unsafe { std::env::remove_var(self.0) }
+fn child_sees_stamped_npm_package_and_preserves_user_config() {
+    /// RAII guard that restores a process env var to its pre-test
+    /// value on drop, so an assertion failure can't leak the seed
+    /// into sibling tests — nor clobber a value the env already had.
+    struct EnvGuard {
+        key: &'static str,
+        prev: Option<std::ffi::OsString>,
+    }
+    impl EnvGuard {
+        fn new(key: &'static str) -> Self {
+            EnvGuard { key, prev: std::env::var_os(key) }
         }
     }
-    let _guard = EnvGuard("npm_config_should_be_stripped");
-    unsafe { std::env::set_var("npm_config_should_be_stripped", "leak") };
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            // SAFETY: nextest runs each test in its own thread, so the
+            // only risk is sibling tests calling `env::vars()`
+            // concurrently — this `Drop` still runs on panic.
+            unsafe {
+                match self.prev.take() {
+                    Some(value) => std::env::set_var(self.key, value),
+                    None => std::env::remove_var(self.key),
+                }
+            }
+        }
+    }
+    let _user_guard = EnvGuard::new("npm_config_platform_arch");
+    let _auth_guard = EnvGuard::new("npm_config__authtoken");
+    // SAFETY: nextest runs each test in its own thread, so the only
+    // risk is sibling tests calling `env::vars()` concurrently — the
+    // guards' `Drop` removes the vars even on panic.
+    unsafe {
+        std::env::set_var("npm_config_platform_arch", "x64");
+        std::env::set_var("npm_config__authtoken", "should-not-leak");
+    }
 
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
@@ -372,7 +393,7 @@ fn child_sees_stamped_npm_package_and_no_leaked_npm_config() {
             // printf so the line endings are deterministic across
             // shells.
             "postinstall": format!(
-                "printf 'stage=%s\\nscript=%s\\nname=%s\\nver=%s\\nconfig=%s\\ninit_cwd=%s\\nleak=%s\\n' \"$npm_lifecycle_event\" \"$npm_lifecycle_script\" \"$npm_package_name\" \"$npm_package_version\" \"$npm_package_config_myKey\" \"$INIT_CWD\" \"$npm_config_should_be_stripped\" > {}",
+                "printf 'stage=%s\\nscript=%s\\nname=%s\\nver=%s\\nconfig=%s\\ninit_cwd=%s\\nuser=%s\\nauth=%s\\n' \"$npm_lifecycle_event\" \"$npm_lifecycle_script\" \"$npm_package_name\" \"$npm_package_version\" \"$npm_package_config_myKey\" \"$INIT_CWD\" \"$npm_config_platform_arch\" \"$npm_config__authtoken\" > {}",
                 dump_path.display(),
             ),
         },
@@ -411,7 +432,8 @@ fn child_sees_stamped_npm_package_and_no_leaked_npm_config() {
         ("ver", "9.9.9"),
         ("config", "myValue"),
         ("init_cwd", expected_init_cwd.as_ref()),
-        ("leak", ""), // stripped — child sees empty string
+        ("user", "x64"), // user-defined npm_config_* is preserved
+        ("auth", ""),    // auth npm_config_* is stripped — child sees empty string
     ];
     for (k, v) in expected_pairs {
         let line = format!("{k}={v}\n");

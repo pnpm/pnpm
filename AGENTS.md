@@ -124,6 +124,33 @@ pnpm run lint
 
 Do not dismiss a failing test as a "pre-existing" failure that is unrelated to your changes. Every test failure must be investigated and fixed. If a test was already broken before your changes, fix it as part of your work — do not silently skip it or treat it as acceptable.
 
+## AI Review Guidance
+
+When reviewing pull requests, use a security-first lens. Security vulnerabilities are the first priority. Actively look for vulnerabilities introduced or exposed by the diff, especially:
+
+- unsafe handling of package manifests, lockfiles, tarballs, registry responses, lifecycle scripts, configDependencies, patches, and workspace links;
+- path traversal, symlink/hardlink, archive extraction, arbitrary file read/write/delete, TOCTOU, and permissions mistakes;
+- command injection, shell argument construction, environment-variable trust, executable resolution, script execution policy, and privilege boundary mistakes;
+- registry, network, and auth mistakes including token leakage, proxy handling, redirect behavior, TLS assumptions, cache poisoning, integrity/hash verification, and downgrade or confusion attacks;
+- Rust memory, concurrency, and unsafe FFI issues in pacquet, including panic-on-untrusted-input denial of service.
+
+Treat attacker-controlled inputs broadly: package metadata, tarball contents, lockfiles, workspace manifests, `.npmrc`/environment config, registry responses, git URLs, filesystem paths, and script names. Surface plausible security issues even when they are edge cases, but explain the exploit path and impact clearly. Do not report generic security advice unless it is tied to changed code.
+
+Use pnpm's published security advisories as regression themes. Pay extra attention to recurring issue classes from past pnpm advisories:
+
+- repo-controlled `.npmrc` and `pnpm-workspace.yaml` must not expand victim environment secrets into registry URLs, auth headers, proxy settings, token helpers, or other outbound requests;
+- user-level npm auth credentials must not be bound to a repository-selected registry unless the registry scope and trust boundary are explicit;
+- lifecycle/build-script approval gates must cover all dependency sources and phases, including git dependencies, fetch/prepare/prepack/prepublish paths, `allowBuilds`, ignored-build reporting, explicit denials, and pacquet parity;
+- opaque dependency identities such as git, URL, tarball, file, directory, patch, and alias locators must remain byte-for-byte exact where used for trust decisions; do not normalize away attacker-controlled suffixes or confuse them with registry peer suffixes;
+- lockfile entries for remote dynamic dependencies, GitHub/git dependencies, tarballs, commits, and integrity fields must preserve enough immutable integrity data to reject changed content and avoid unsafe defaults or missing-field bypasses;
+- treat lockfile fields and git metadata as untrusted input, especially `resolution.commit`, refs, and URLs; prevent command/argument injection and avoid passing attacker-controlled values as executable flags;
+- path handling must reject traversal and root escape in bin names, `directories.bin`, transitive aliases, patch files, tar/zip entries, symlink/hardlink targets, file/git dependencies, Windows path separators, executable shims, permission changes, and delete/write destinations;
+- cache/store/global-metadata keys must include all trust-relevant inputs so overrides, scripts policy, registry metadata, and lockfile state cannot poison later installs or other workspaces;
+- archive extraction and package identity code must match npm/registry semantics for duplicate tar entries, stripped path components, symlinks, permissions, and manifest selection;
+- path-shortening, hashing, cache naming, and content-addressing code must use collision-resistant identifiers and verify collisions cannot redirect dependencies or overwrite package contents.
+
+After security, treat performance as the second review priority. pnpm, pacquet, and pnpr must stay fast. Look for non-optimal code that could add latency, CPU work, memory pressure, lock contention, unnecessary I/O, excessive logging, redundant parsing/serialization, repeated filesystem scans, avoidable network round trips, poor cache behavior, missed streaming/batching opportunities, or slower hot paths in install/add/update/remove, resolution, fetching, linking, lockfile handling, store access, tarball extraction, and pnpr server paths. Flag performance risks when the changed code is likely to run on common workflows, large workspaces, many dependencies, or repeated requests. Prefer concrete evidence from the diff and explain the likely scale or hot path affected.
+
 ## Code Reuse and Avoiding Duplication
 
 **Before writing new code, always analyze the existing codebase for similar functionality.** This is a large monorepo with many shared utilities — duplication is a real risk.
@@ -170,6 +197,17 @@ GitHub turns any `#NNN` into a link to issue/PR `NNN` of *this* repo, which is a
 For references to issues/PRs in **this** repo, also use the qualified form `pnpm/pnpm#NNN` or the absolute URL `https://github.com/pnpm/pnpm/issues/NNN`. Qualified syntax and absolute URLs are always unambiguous, so this rule is applied to every `#NNN` without exception.
 
 **Address the root cause when the hook fires.** Rewrite the reference into the correct unambiguous form. Never bypass the check with `git commit --no-verify`, by editing or deleting the hook, or with any suppression file.
+
+### Never use a bare `@mention`
+
+**Do not write a bare `@name` (an `@` followed by a username-like token) anywhere in a commit message.** A `commit-msg` hook (`.husky/reject-bare-mentions.mjs`) rejects them.
+
+GitHub turns any `@name` into a mention of that user/org/team, which is wrong either way it is meant:
+
+-   If it is code (a scoped package like `@pnpm/core`, a handle, a path), GitHub should not treat it as a mention.
+-   If it really is a person, every push, force-push, and rebase that carries the commit re-notifies them — noise nobody asked for.
+
+**Fix:** wrap the reference in backticks so GitHub renders it as code and sends no notification — e.g. `` `@pnpm/core` `` or `` `@foo` `` — or remove it if it is not needed. Never bypass the check with `git commit --no-verify`, by editing or deleting the hook, or with any suppression file.
 
 ## Changesets (TypeScript only)
 

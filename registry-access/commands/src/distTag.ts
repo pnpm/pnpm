@@ -115,7 +115,7 @@ async function distTagLs (
 
   const packageName = params[0]
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 
   const distTags = await fetchDistTags(packageName, registryUrl, fetchFromRegistry, authHeader)
@@ -148,7 +148,7 @@ async function distTagAdd (
   const tag = params[1] ?? 'latest'
 
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const cliOtp = opts.cliOptions?.otp
   const authType = cliOtp ? 'legacy' : 'web'
@@ -187,7 +187,7 @@ async function distTagRm (
   }
 
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const cliOtp = opts.cliOptions?.otp
 
@@ -275,10 +275,11 @@ function parseAuthError (body: string, action: string): Error {
 
 function getAuthHeaderForRegistry (
   configByUri: Record<string, RegistryConfig> | undefined,
-  registryUrl: string
+  registryUrl: string,
+  packageName: string
 ): string | undefined {
   const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {})
-  return getAuthHeader(registryUrl)
+  return getAuthHeader(registryUrl, { pkgName: packageName })
 }
 
 function getDistTagUrl (packageName: string, registryUrl: string, tag: string): string {

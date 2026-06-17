@@ -11,9 +11,10 @@
     "spellcheck": "cspell \"**/*.ts\" \"**/README.md\" \".changeset/*.md\" --no-progress",
     "lint:ts": "eslint \"**/src/**/*.ts\" \"**/test/**/*.ts\" --cache",
     "test-all": "pn pretest && pn lint && pn test-pkgs-all",
-    "ci:test-all": "pn prepare-fixtures && pn test-pkgs-all",
+    "ci:test-all": "pn prepare-fixtures && pn test-pkgs-all-report-summary",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
     "test-pkgs-all": "pn remove-temp-dir && pn --no-sort --workspace-concurrency=1 -r .test",
+    "test-pkgs-all-report-summary": "pn remove-temp-dir && pn --no-sort --workspace-concurrency=1 -r --report-summary .test",
     "test-branch": "pn pretest && pn lint && git remote set-branches --add origin main && git fetch origin main && pn test-pkgs-branch",
     "ci:test-branch": "pn prepare-fixtures && pn test-pkgs-branch",
     "test-pkgs-branch": "pn remove-temp-dir && pn --workspace-concurrency=1 --filter=...[origin/main] --no-sort --if-present .test",
@@ -61,11 +62,11 @@
     "shx": "catalog:",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@11.6.0",
+  "packageManager": "pnpm@11.7.0",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "11.6.0",
+      "version": "11.7.0",
       "onFail": "download"
     },
     "runtime": {

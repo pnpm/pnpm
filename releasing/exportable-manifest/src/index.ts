@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
@@ -29,7 +30,16 @@ export interface MakePublishManifestOptions {
   hooks?: Hooks
   modulesDir?: string
   skipManifestObfuscation?: boolean
-  readmeFile?: string
+  embedReadme?: boolean
+}
+
+async function readReadmeFile (projectDir: string): Promise<string | undefined> {
+  const entries = await fs.promises.readdir(projectDir, { withFileTypes: true })
+  // Only embed a regular README.md file. A symlink could point outside the
+  // project and leak its target's contents into the published manifest.
+  const readmeEntry = entries.find((entry) => entry.isFile() && /^readme\.md$/i.test(entry.name))
+  if (readmeEntry == null) return undefined
+  return fs.promises.readFile(path.join(projectDir, readmeEntry.name), 'utf8')
 }
 
 export async function createExportableManifest (
@@ -72,8 +82,11 @@ export async function createExportableManifest (
 
   overridePublishConfig(publishManifest)
 
-  if (opts?.readmeFile) {
-    publishManifest.readme ??= opts.readmeFile
+  if (publishManifest.readme == null && opts?.embedReadme) {
+    const readme = await readReadmeFile(dir)
+    if (readme != null) {
+      publishManifest.readme = readme
+    }
   }
 
   for (const hook of opts?.hooks?.beforePacking ?? []) {

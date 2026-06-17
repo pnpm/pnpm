@@ -782,12 +782,12 @@ async fn optional_peer_with_real_entry_is_hoisted_from_resolved_tree() {
     );
 }
 
-/// A peer declared only via `peerDependenciesMeta` (no
-/// `peerDependencies` entry — the `debug` / `supports-color` shape) is
-/// NOT hoisted even when a provider is resolved in the tree: upstream's
-/// `getMissingPeers` feeds the hoist from `peerDependencies` entries
-/// only (verified against pnpm 11.6.0 — `debug` + `concurrently` leaves
-/// `debug@4.4.3` bare). For
+/// A peer declared only via `peerDependenciesMeta` on a direct package
+/// (no `peerDependencies` entry — the `debug` / `supports-color`
+/// shape) is NOT hoisted even when a provider is resolved in the tree:
+/// upstream's direct-package `getMissingPeers` feeds the hoist from
+/// `peerDependencies` entries only (verified against pnpm 11.6.0 —
+/// `debug` + `concurrently` leaves `debug@4.4.3` bare). For
 /// <https://github.com/pnpm/pnpm/issues/12266>.
 #[tokio::test]
 async fn meta_only_optional_peer_is_not_hoisted() {
@@ -836,6 +836,125 @@ async fn meta_only_optional_peer_is_not_hoisted() {
     assert_eq!(
         result.peers_result.direct_dependencies_by_alias.get("needs-opt"),
         Some(&DepPath::from("needs-opt@1.0.0".to_string())),
+    );
+}
+
+#[tokio::test]
+async fn real_peer_provider_from_direct_child_is_appended_as_hidden_direct_dep() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("host".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "host",
+            "1.0.0",
+            serde_json::json!({
+                "name": "host",
+                "version": "1.0.0",
+                "dependencies": {
+                    "peer-user": "1.0.0",
+                    "provider": "1.0.0",
+                },
+            }),
+        ),
+    );
+    table.insert(
+        ("peer-user".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "peer-user",
+            "1.0.0",
+            serde_json::json!({
+                "name": "peer-user",
+                "version": "1.0.0",
+                "peerDependencies": { "provider": "^1.0.0" },
+            }),
+        ),
+    );
+    table.insert(
+        ("provider".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "provider",
+            "1.0.0",
+            serde_json::json!({ "name": "provider", "version": "1.0.0" }),
+        ),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "host": "1.0.0" }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        result.peers_result.direct_dependencies_by_alias.get("provider"),
+        Some(&DepPath::from("provider@1.0.0".to_string())),
+        "provider should be available to the importer peer pass without being a manifest dep",
+    );
+    assert!(
+        result
+            .peers_result
+            .graph
+            .contains_key(&DepPath::from("peer-user@1.0.0(provider@1.0.0)".to_string())),
+        "peer-user should resolve provider from host's child dependency",
+    );
+}
+
+#[tokio::test]
+async fn meta_only_peer_provider_from_direct_child_is_not_appended_as_hidden_direct_dep() {
+    let mut table = HashMap::new();
+    table.insert(
+        ("host".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "host",
+            "1.0.0",
+            serde_json::json!({
+                "name": "host",
+                "version": "1.0.0",
+                "dependencies": {
+                    "peer-user": "1.0.0",
+                    "provider": "1.0.0",
+                },
+            }),
+        ),
+    );
+    table.insert(
+        ("peer-user".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "peer-user",
+            "1.0.0",
+            serde_json::json!({
+                "name": "peer-user",
+                "version": "1.0.0",
+                "peerDependenciesMeta": { "provider": { "optional": true } },
+            }),
+        ),
+    );
+    table.insert(
+        ("provider".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "provider",
+            "1.0.0",
+            serde_json::json!({ "name": "provider", "version": "1.0.0" }),
+        ),
+    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) = fake_manifest(serde_json::json!({ "host": "1.0.0" }));
+
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
+
+    let direct: Vec<&str> =
+        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    assert!(
+        !direct.contains(&"provider"),
+        "meta-only peers must not feed auto-installed hidden direct deps: {direct:?}",
+    );
+    assert!(
+        result
+            .peers_result
+            .graph
+            .contains_key(&DepPath::from("peer-user@1.0.0(provider@1.0.0)".to_string())),
+        "meta-only peers still resolve in the final peer graph when provider is in scope",
     );
 }
 

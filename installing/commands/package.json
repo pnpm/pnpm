@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1100.8.0",
+  "version": "1100.9.0",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -35,6 +35,7 @@
     "@inquirer/prompts": "catalog:",
     "@pnpm/building.after-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
+    "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.command": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
@@ -56,6 +57,7 @@
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.context": "workspace:*",
     "@pnpm/installing.dedupe.check": "workspace:*",
+    "@pnpm/installing.dedupe.issues-renderer": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/installing.env-installer": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",

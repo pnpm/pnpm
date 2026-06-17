@@ -1,5 +1,40 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.3.7
+
+### Patch Changes
+
+- da248c3: Update value shown in the view command output for the `unpackedSize`.
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [61810aa]
+- Updated dependencies [681b593]
+- Updated dependencies [d50d691]
+- Updated dependencies [1310ab5]
+- Updated dependencies [a31faa7]
+  - @pnpm/config.reader@1101.9.0
+  - @pnpm/resolving.npm-resolver@1102.0.0
+  - @pnpm/network.auth-header@1101.1.2
+  - @pnpm/resolving.default-resolver@1100.3.8
+  - @pnpm/types@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.5
+  - @pnpm/cli.utils@1101.0.12
+  - @pnpm/deps.inspection.list@1100.0.18
+  - @pnpm/deps.inspection.outdated@1100.1.8
+  - @pnpm/deps.inspection.peers-checker@1100.0.14
+  - @pnpm/global.commands@1100.0.28
+  - @pnpm/global.packages@1100.0.8
+  - @pnpm/network.fetch@1100.1.3
+  - @pnpm/config.pick-registry-for-package@1100.0.9
+  - @pnpm/deps.inspection.peers-issues-renderer@1100.0.6
+  - @pnpm/installing.modules-yaml@1100.0.9
+  - @pnpm/resolving.registry.types@1100.1.3
+
 ## 1100.3.6
 
 ### Patch Changes

@@ -701,6 +701,7 @@ impl NpmResolutionVerifier {
                     auth_headers: &self.auth_headers,
                     cache_dir: self.cache_dir.as_deref(),
                     full_metadata: false,
+                    filter_metadata: false,
                     retry_opts: self.retry_opts,
                 };
                 match fetch_full_metadata_cached(&name.to_string(), &opts).await {
@@ -860,6 +861,7 @@ impl NpmResolutionVerifier {
             // The verifier reads `time` and trust evidence per-version,
             // both of which the abbreviated form drops. Always full.
             full_metadata: true,
+            filter_metadata: false,
             retry_opts: self.retry_opts,
         };
         fetch_full_metadata_cached(&name.to_string(), &opts).await.map_err(|err| err.to_string())

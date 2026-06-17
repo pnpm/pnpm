@@ -2,7 +2,7 @@ use derive_more::{From, TryInto};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// For tarball hosted remotely or locally.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -299,24 +299,31 @@ impl LockfileResolution {
 
         let git_hosted =
             tarball.git_hosted == Some(true) || is_git_hosted_tarball_url(&tarball.tarball);
-        let keep_url = || {
-            LockfileResolution::Tarball(TarballResolution {
-                tarball: tarball.tarball.clone(),
-                integrity: Some(integrity.clone()),
-                git_hosted: git_hosted.then_some(true),
-                path: tarball.path.clone(),
-            })
-        };
-
-        if include_tarball_url || tarball.tarball.starts_with("file:") || git_hosted {
-            return keep_url();
+        // A standard registry tarball whose URL can be rebuilt from name+version+
+        // registry is written as just `{integrity}` — pnpm derives the URL on
+        // demand. Every other tarball must keep its URL or it can no longer be
+        // re-fetched on a frozen-lockfile install: `file:` tarballs, git-provider
+        // tarballs, and non-standard registry URLs (npm Enterprise, GitHub Packages
+        // `/download/` URLs). `include_tarball_url` forces the URL to be kept.
+        if !include_tarball_url
+            && !git_hosted
+            && !tarball.tarball.starts_with("file:")
+            && is_canonical_registry_tarball_url(&tarball.tarball, name, version, registry)
+        {
+            return LockfileResolution::Registry(RegistryResolution {
+                integrity: integrity.clone(),
+            });
         }
-        let expected = npm_tarball_url(name, version, registry);
-        let actual = tarball.tarball.replace("%2f", "/");
-        if remove_protocol(&expected) != remove_protocol(&actual) {
-            return keep_url();
-        }
-        LockfileResolution::Registry(RegistryResolution { integrity: integrity.clone() })
+        // The kept-URL form carries the `git_hosted` marker and the subdirectory
+        // `path` (`repo#commit&path:/sub/dir`, only ever set on git-hosted tarballs)
+        // so a git-hosted monorepo tarball still unpacks the right subfolder.
+        // See <https://github.com/pnpm/pnpm/issues/12304>.
+        LockfileResolution::Tarball(TarballResolution {
+            tarball: tarball.tarball.clone(),
+            integrity: Some(integrity.clone()),
+            git_hosted: git_hosted.then_some(true),
+            path: tarball.path.clone(),
+        })
     }
 }
 
@@ -333,6 +340,59 @@ pub fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
     };
     let version = version.split_once('+').map_or(version, |(base, _)| base);
     format!("{registry}{name}/-/{scopeless}-{version}.tgz")
+}
+
+/// Whether `tarball` is the canonical npm registry URL derived from `name`,
+/// `version`, and `registry` — i.e. it can be dropped from the lockfile and
+/// rebuilt on demand. The `%2f` unescape matches the URLs npm produces for
+/// scoped packages.
+fn is_canonical_registry_tarball_url(
+    tarball: &str,
+    name: &str,
+    version: &str,
+    registry: &str,
+) -> bool {
+    let expected = npm_tarball_url(name, version, registry);
+    let actual = tarball.replace("%2f", "/");
+    remove_protocol(&expected) == remove_protocol(&actual)
+}
+
+/// Default-vs-scope routing for an npm package. Mirrors pnpm's
+/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/main/config/pick-registry-for-package/src/index.ts).
+///
+/// Routing rules:
+///
+/// 1. **`npm:` alias.** When `bare_specifier` is an `npm:` alias the
+///    *alias target* decides routing, not the local key:
+///    - `npm:@scope/name@<spec>` → `registries[@scope]`.
+///    - `npm:name@<spec>` (unscoped target) → `registries["default"]`,
+///      never the local alias's scope, because the fetched package is
+///      unscoped and doesn't live on a scoped registry.
+/// 2. **Plain spec.** Falls back to `pkg_name`'s scope when present;
+///    otherwise `registries["default"]`.
+#[must_use]
+pub fn pick_registry_for_package(
+    registries: &HashMap<String, String>,
+    pkg_name: &str,
+    bare_specifier: Option<&str>,
+) -> String {
+    let scope = match bare_specifier.and_then(|spec| spec.strip_prefix("npm:")) {
+        Some(target) => scope_of(target),
+        None => scope_of(pkg_name),
+    };
+    if let Some(scope) = scope
+        && let Some(url) = registries.get(scope)
+    {
+        return url.clone();
+    }
+    registries.get("default").cloned().unwrap_or_default()
+}
+
+fn scope_of(name: &str) -> Option<&str> {
+    if !name.starts_with('@') {
+        return None;
+    }
+    name.find('/').map(|sep| &name[..sep])
 }
 
 /// Strip the URL scheme (everything up to and including `://`). Port of pnpm's

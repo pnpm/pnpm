@@ -1,6 +1,8 @@
 import path from 'node:path'
 
 import { buildProjects } from '@pnpm/building.after-install'
+import { mergeCatalogs } from '@pnpm/catalogs.config'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
 import {
   readProjectManifestOnly,
@@ -11,6 +13,7 @@ import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
+  type DryRunInstallResult,
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
@@ -119,6 +122,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'configDependencies'
 | 'packageExtensions'
 | 'updateConfig'
+| 'virtualStoreDirMaxLength'
 > & Pick<ConfigContext,
 | 'allProjects'
 | 'allProjectsGraph'
@@ -172,16 +176,17 @@ export type InstallDepsOptions = Pick<Config,
    * subcommand — see `runPacquet.ts`'s `noRuntime` opt.
    */
   isInstallCommand?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile'>>
+} & Partial<Pick<Config, 'dryRun' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
-): Promise<void> {
+): Promise<DryRunInstallResult | undefined> {
   if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,
+      treatLocalFileDepsAsOutdated: true,
     })
     if (upToDate && await restoreWantedLockfileIfMissing(wantedLockfileToRestore, opts)) {
       if (opts.hooks?.customResolvers?.some(r => r.shouldRefreshResolution)) {
@@ -245,6 +250,7 @@ export async function installDeps (
       packageName: pacquetConfigDepName,
       argv: { original: opts.argv.original, remain: opts.argv.remain ?? [] },
       isInstallCommand: opts.isInstallCommand === true,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
     : undefined
   const includeDirect = opts.includeDirect ?? {
@@ -286,7 +292,7 @@ export async function installDeps (
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 
-      await recursiveInstallThenUpdateWorkspaceState(allProjects,
+      return recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
@@ -299,7 +305,6 @@ export async function installDeps (
         },
         opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
       )
-      return
     }
   }
   // `pnpm install ""` is going to be just `pnpm install`
@@ -404,8 +409,8 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations } = await mutateModulesInSingleProject(mutatedProject, installOpts)
-    if (opts.save !== false) {
+    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    if (opts.save !== false && !opts.dryRun) {
       // Only pick entries when we'll actually persist. Otherwise the
       // info log would claim we added entries the workspace manifest
       // never saw, and the next install would re-prompt or fail
@@ -424,7 +429,7 @@ export async function installDeps (
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
         allProjects,
-        settings: opts,
+        settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfiles: opts.pnpmfile,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
@@ -432,10 +437,10 @@ export async function installDeps (
       })
     }
     await handleIgnoredBuilds(opts, ignoredBuilds)
-    return
+    return dryRunResult
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations } = await install(manifest, {
+  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await install(manifest, {
     ...installOpts,
     updatePackageManifest,
     updateMatching,
@@ -444,7 +449,7 @@ export async function installDeps (
   // from this install" — both package.json and the workspace manifest.
   // Skip the pick so the info log doesn't claim entries were added that
   // were never written; the next install will resurface them.
-  if (opts.save !== false) {
+  if (opts.save !== false && !opts.dryRun) {
     const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
     if (opts.update === true) {
       await Promise.all([
@@ -483,7 +488,7 @@ export async function installDeps (
       selectedProjectsGraph,
       workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understand that is not undefined
       runPacquet,
-    }, 'install')
+    }, 'install', updatedCatalogs)
 
     if (opts.ignoreScripts) return
 
@@ -506,7 +511,7 @@ export async function installDeps (
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
         allProjects,
-        settings: opts,
+        settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfiles: opts.pnpmfile,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
@@ -514,32 +519,49 @@ export async function installDeps (
       })
     }
   }
+  return dryRunResult
 }
 
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
   const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
-  return { [searchedDir]: { dependencies: [], package: project } }
+  return { [project.rootDir]: { dependencies: [], package: project } }
 }
 
 async function recursiveInstallThenUpdateWorkspaceState (
   allProjects: Project[],
   params: string[],
   opts: RecursiveOptions & WorkspaceStateSettings,
-  cmdFullName: CommandFullName
-): Promise<boolean | string> {
+  cmdFullName: CommandFullName,
+  updatedCatalogs?: Catalogs
+): Promise<DryRunInstallResult | undefined> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
   if (!opts.lockfileOnly) {
     await updateWorkspaceState({
       allProjects,
-      settings: opts,
+      settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
       workspaceDir: opts.workspaceDir,
       pnpmfiles: opts.pnpmfile,
       filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
       configDependencies: opts.configDependencies,
     })
   }
-  return recursiveResult
+  return recursiveResult.dryRunResult
+}
+
+/**
+ * Folds the catalog entries written to `pnpm-workspace.yaml` during this
+ * install into the catalogs read at startup. The workspace state cache records
+ * these so a later install detects when a catalog entry was reverted; without
+ * this, the cache would keep the stale pre-install catalogs and report
+ * "Already up to date" even though the manifest changed.
+ */
+function withUpdatedCatalogs<T extends { catalogs?: Catalogs }> (
+  settings: T,
+  ...updatedCatalogs: Array<Catalogs | undefined>
+): T {
+  if (updatedCatalogs.every((catalogs) => catalogs == null)) return settings
+  return { ...settings, catalogs: mergeCatalogs(settings.catalogs, ...updatedCatalogs) }
 }
 
 function severityStringToNumber (severity: VulnerabilitySeverity): number {

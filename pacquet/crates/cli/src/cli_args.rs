@@ -20,12 +20,20 @@ use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
 use outdated::{OutdatedArgs, OutdatedOutcome};
 use pacquet_config::{Config, Host};
+use pacquet_default_reporter::DefaultReporter;
 use pacquet_executor::execute_shell;
 use pacquet_package_manifest::PackageManifest;
-use pacquet_reporter::{NdjsonReporter, SilentReporter};
+use pacquet_reporter::{
+    ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, Reporter, SilentReporter,
+};
 use remove::RemoveArgs;
 use run::RunArgs;
-use std::path::PathBuf;
+use serde_json::Value;
+use std::{
+    fs,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
 use store::StoreCommand;
 use update::UpdateArgs;
 
@@ -61,7 +69,7 @@ pub struct CliArgs {
     pub recursive: bool,
 
     /// Reporter output format.
-    #[clap(long, value_enum, default_value_t = ReporterType::Silent, global = true)]
+    #[clap(long, value_enum, default_value_t = ReporterType::Default, global = true)]
     pub reporter: ReporterType,
 
     /// `--filter` / `-F` workspace selectors. Each occurrence adds one
@@ -89,14 +97,17 @@ pub struct CliArgs {
 
 /// Selectable rendering strategy for log events.
 ///
-/// Mirrors the names pnpm uses for `--reporter` (`default`, `ndjson`,
-/// `silent`, `append-only`). Only the variants pacquet currently supports
-/// are listed; the others land alongside the default-reporter spawn-and-
-/// pipe (tracked under [#344]).
-///
-/// [#344]: https://github.com/pnpm/pacquet/issues/344
+/// Mirrors the names pnpm uses for `--reporter` (`default`, `append-only`,
+/// `ndjson`, `silent`).
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum ReporterType {
+    /// pnpm-style visual output (progress line, packages diff, lifecycle
+    /// output, `Done in ...`). The default; renders in place on a TTY and
+    /// falls back to append-only when stdout is not a TTY.
+    Default,
+    /// Like `default` but forces the append-only rendering even on a TTY —
+    /// one line per update, no cursor movement.
+    AppendOnly,
     /// Newline-delimited JSON in pnpm's wire format on stderr.
     Ndjson,
     /// No progress output.
@@ -137,6 +148,50 @@ pub enum CliCommand {
 }
 
 impl CliArgs {
+    /// Try to finish `pacquet install` synchronously through the
+    /// repeat-install fast path, before the caller builds the async
+    /// runtime. `true` means the install completed (the "Already up to
+    /// date" events were emitted); `false` means undecided — proceed
+    /// with [`Self::run`], which loads its own config and re-runs the
+    /// same check.
+    ///
+    /// Mirrors the install arm of [`Self::run`]'s dispatch: the same
+    /// canonicalized `--dir`, the same config layering (`.npmrc` auth
+    /// file seed + `--config.<key>` overrides). Workspace-filtered and
+    /// recursive installs always take the full path.
+    pub fn finished_via_install_fast_path(&self, config_overrides: &ConfigOverrides) -> bool {
+        let started_at = now_millis();
+        let CliCommand::Install(install_args) = &self.command else {
+            return false;
+        };
+        if self.recursive || !self.filter.is_empty() || !self.filter_prod.is_empty() {
+            return false;
+        }
+        let Ok(dir) = dunce::canonicalize(&self.dir) else {
+            return false;
+        };
+        let loaded = Config { npmrc_auth_file: self.npmrc_auth_file.clone(), ..Config::default() }
+            .current::<Host>(&dir);
+        let Ok(mut config) = loaded else {
+            return false;
+        };
+        config_overrides.apply(&mut config);
+        configure_default_reporter(self.reporter, &dir);
+        let emit = reporter_emit(self.reporter);
+        let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
+        if finished {
+            // The fast path returns from `main` before `run` reaches its
+            // end-of-command emit, so the `Done in ...` footer must be emitted
+            // here too to match the non-fast-path output.
+            emit(&LogEvent::ExecutionTime(ExecutionTimeLog {
+                level: LogLevel::Debug,
+                started_at,
+                ended_at: now_millis(),
+            }));
+        }
+        finished
+    }
+
     /// Execute the command. `config_overrides` carries `--config.<key>=<value>`
     /// tokens already stripped from argv by [`ConfigOverrides::extract`];
     /// they're layered on top of `.npmrc` / `pnpm-workspace.yaml` whenever
@@ -158,6 +213,19 @@ impl CliArgs {
         let dir = dunce::canonicalize(&dir)
             .into_diagnostic()
             .wrap_err_with(|| format!("canonicalizing the `--dir` argument: {}", dir.display()))?;
+        // The default reporter renders paths relative to the install root and
+        // its `Done in ...` footer over the whole command; seed both before any
+        // event can fire.
+        configure_default_reporter(reporter, &dir);
+        let started_at = now_millis();
+        let is_install_family = matches!(
+            &command,
+            CliCommand::Add(_)
+                | CliCommand::Update(_)
+                | CliCommand::Remove(_)
+                | CliCommand::Install(_)
+                | CliCommand::Dlx(_),
+        );
         let manifest_path = || dir.join("package.json");
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
@@ -209,12 +277,18 @@ impl CliArgs {
                 PackageManifest::init(&manifest_path()).wrap_err("initialize package.json")?;
             }
             CliCommand::Add(args) => match reporter {
-                ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
-                ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
+                ReporterType::Default | ReporterType::AppendOnly => {
+                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+                }
+                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
+                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
             },
             CliCommand::Update(args) => match reporter {
-                ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
-                ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
+                ReporterType::Default | ReporterType::AppendOnly => {
+                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+                }
+                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
+                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
             },
             // `outdated` is a read-only query: it prints a report to
             // stdout and never installs, so it has no reporter-typed
@@ -227,8 +301,11 @@ impl CliArgs {
                 }
             }
             CliCommand::Remove(args) => match reporter {
-                ReporterType::Ndjson => args.run::<NdjsonReporter>(state(false)?).await?,
-                ReporterType::Silent => args.run::<SilentReporter>(state(false)?).await?,
+                ReporterType::Default | ReporterType::AppendOnly => {
+                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+                }
+                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
+                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
             },
             CliCommand::Install(args) => {
                 // CLI overrides for `offline` / `prefer_offline` live
@@ -244,6 +321,9 @@ impl CliArgs {
                 cfg.offline = cfg.offline || args.offline;
                 cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
                 cfg.frozen_store = cfg.frozen_store || args.frozen_store;
+                // `--ignore-scripts` enables (never toggles off) the
+                // config value, matching the "enable" CLI flags above.
+                cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
                 cfg.workspace_concurrency =
                     args.resolve_workspace_concurrency(cfg.workspace_concurrency);
                 // Network overrides: a passed `--network-concurrency` /
@@ -272,6 +352,9 @@ impl CliArgs {
                 // for a single-package repo. Owned so it doesn't hold a
                 // borrow of `cfg` across the `&mut` `updateConfig` pass.
                 let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir.clone());
+                let package_manager_to_sync =
+                    package_manager_to_sync(&config_root.join("package.json"), &config_root)
+                        .wrap_err("read package manager policy")?;
                 // Resolve + install configurational dependencies, then run
                 // their `updateConfig` plugin hooks, before the main
                 // install. The env lockfile must land at the top of
@@ -279,35 +362,24 @@ impl CliArgs {
                 // lockfile, and `updateConfig` must mutate `cfg` (still
                 // `&'static mut`) before it's frozen and the install reads
                 // it. Mirrors pnpm running both at config-finalization.
+                let pipeline = InstallPipeline {
+                    args,
+                    cfg,
+                    config_root,
+                    package_manager_to_sync,
+                    manifest_path: manifest_path(),
+                    require_lockfile,
+                    frozen_lockfile,
+                };
+                // Boxed for `clippy::large_stack_frames`: the three
+                // monomorphized install futures would otherwise each reserve
+                // their full size in this frame.
                 match reporter {
-                    ReporterType::Ndjson => {
-                        config_deps::install_config_deps::<NdjsonReporter>(
-                            cfg,
-                            &config_root,
-                            frozen_lockfile,
-                        )
-                        .await?;
-                        config_deps::run_update_config_hooks::<NdjsonReporter>(cfg, &config_root)
-                            .await?;
-                        let cfg: &'static Config = cfg;
-                        let state = State::init(manifest_path(), cfg, require_lockfile)
-                            .wrap_err("initialize the state")?;
-                        args.run::<NdjsonReporter>(state).await?;
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(pipeline.run::<DefaultReporter>()).await?;
                     }
-                    ReporterType::Silent => {
-                        config_deps::install_config_deps::<SilentReporter>(
-                            cfg,
-                            &config_root,
-                            frozen_lockfile,
-                        )
-                        .await?;
-                        config_deps::run_update_config_hooks::<SilentReporter>(cfg, &config_root)
-                            .await?;
-                        let cfg: &'static Config = cfg;
-                        let state = State::init(manifest_path(), cfg, require_lockfile)
-                            .wrap_err("initialize the state")?;
-                        args.run::<SilentReporter>(state).await?;
-                    }
+                    ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
+                    ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
                 }
             }
             CliCommand::Test => {
@@ -332,8 +404,15 @@ impl CliArgs {
                 }
             }
             CliCommand::Dlx(args) => match reporter {
-                ReporterType::Ndjson => args.run::<NdjsonReporter>(&dir, config()?).await?,
-                ReporterType::Silent => args.run::<SilentReporter>(&dir, config()?).await?,
+                ReporterType::Default | ReporterType::AppendOnly => {
+                    Box::pin(args.run::<DefaultReporter>(&dir, config()?)).await?;
+                }
+                ReporterType::Ndjson => {
+                    Box::pin(args.run::<NdjsonReporter>(&dir, config()?)).await?;
+                }
+                ReporterType::Silent => {
+                    Box::pin(args.run::<SilentReporter>(&dir, config()?)).await?;
+                }
             },
             CliCommand::Start => {
                 // Runs an arbitrary command specified in the package's start property of its scripts
@@ -348,8 +427,254 @@ impl CliArgs {
             CliCommand::Store(command) => command.run(|| config().map(|m| &*m))?,
         }
 
+        // The `Done in ...` footer covers the whole command, mirroring pnpm's
+        // `pnpm:execution-time` emit in `main.ts`. Only the install-family
+        // commands drive the visual reporter, so the rest stay silent.
+        if is_install_family {
+            reporter_emit(reporter)(&LogEvent::ExecutionTime(ExecutionTimeLog {
+                level: LogLevel::Debug,
+                started_at,
+                ended_at: now_millis(),
+            }));
+        }
+
         Ok(())
     }
+}
+
+/// The reporter-generic body of `pacquet install`: it threads one `Reporter`
+/// type through config-dependency sync, the `updateConfig` hooks, and the
+/// install itself. Lifting it out of the dispatch keeps the three
+/// `ReporterType` arms to a single line each.
+struct InstallPipeline {
+    args: InstallArgs,
+    cfg: &'static mut Config,
+    config_root: PathBuf,
+    package_manager_to_sync: Option<PackageManagerToSync>,
+    manifest_path: PathBuf,
+    require_lockfile: bool,
+    frozen_lockfile: bool,
+}
+
+impl InstallPipeline {
+    async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        let InstallPipeline {
+            args,
+            cfg,
+            config_root,
+            package_manager_to_sync,
+            manifest_path,
+            require_lockfile,
+            frozen_lockfile,
+        } = self;
+        if let Some(pm) = package_manager_to_sync.as_ref() {
+            config_deps::sync_package_manager_dependencies(
+                cfg,
+                &config_root,
+                &pm.specifier,
+                &pm.version,
+                frozen_lockfile,
+            )
+            .await?;
+        }
+        config_deps::install_config_deps::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
+        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        let cfg: &'static Config = cfg;
+        let state =
+            State::init(manifest_path, cfg, require_lockfile).wrap_err("initialize the state")?;
+        args.run::<Reporter>(state).await
+    }
+}
+
+/// Resolve a [`ReporterType`] to the monomorphized `emit` of its sink, for
+/// the event-emission sites that aren't already generic over `Reporter`.
+fn reporter_emit(reporter: ReporterType) -> fn(&LogEvent) {
+    match reporter {
+        ReporterType::Default | ReporterType::AppendOnly => DefaultReporter::emit,
+        ReporterType::Ndjson => NdjsonReporter::emit,
+        ReporterType::Silent => SilentReporter::emit,
+    }
+}
+
+/// Seed the process-global default-reporter state that can't be recovered
+/// from events: the project root (for relative paths) and, for
+/// `--reporter=append-only`, the forced append-only mode. Idempotent; safe to
+/// call from both the fast path and the main run.
+fn configure_default_reporter(reporter: ReporterType, dir: &Path) {
+    pacquet_default_reporter::set_cwd(dir.to_string_lossy().into_owned());
+    if matches!(reporter, ReporterType::AppendOnly) {
+        pacquet_default_reporter::force_append_only();
+    }
+}
+
+fn now_millis() -> u128 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis())
+}
+
+#[derive(Debug)]
+struct WantedPackageManager {
+    name: String,
+    version: Option<String>,
+    from_dev_engines: bool,
+    on_fail: Option<String>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct PackageManagerToSync {
+    specifier: String,
+    version: String,
+}
+
+fn package_manager_to_sync(
+    manifest_path: &Path,
+    root_dir: &Path,
+) -> miette::Result<Option<PackageManagerToSync>> {
+    let Some(manifest) = read_manifest_json(manifest_path)? else {
+        return Ok(None);
+    };
+    let Some(pm) = wanted_package_manager(&manifest) else {
+        return Ok(None);
+    };
+    let Some(wanted_version) = pm.version.as_deref() else {
+        return Ok(None);
+    };
+    if pm.name != "pnpm" || !should_persist_package_manager_lockfile(&pm) {
+        return Ok(None);
+    }
+    let source_version = current_source_pnpm_version().or_else(|| pnpm_version_from(root_dir));
+    if let Some(version) =
+        source_version.filter(|version| version_satisfies(version, wanted_version))
+    {
+        return Ok(Some(PackageManagerToSync { specifier: wanted_version.to_string(), version }));
+    }
+    Ok(exact_version(wanted_version)
+        .filter(|version| version_satisfies(version, wanted_version))
+        .map(|version| PackageManagerToSync { specifier: wanted_version.to_string(), version }))
+}
+
+fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error).into_diagnostic(),
+    };
+    serde_json::from_str(&content).into_diagnostic().map(Some)
+}
+
+fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
+    if let Some(mut pm) = parse_dev_engines_package_manager(manifest) {
+        if pm.version.as_deref().is_some_and(|version| node_semver::Range::parse(version).is_err())
+        {
+            pm.version = None;
+        }
+        return Some(pm);
+    }
+    let package_manager = manifest.get("packageManager")?.as_str()?;
+    let (name, version) = parse_package_manager(package_manager);
+    let version = version.and_then(|version| exact_version(&version));
+    Some(WantedPackageManager { name, version, from_dev_engines: false, on_fail: None })
+}
+
+fn parse_dev_engines_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
+    let value = manifest.get("devEngines")?.get("packageManager")?;
+    if let Some(items) = value.as_array() {
+        if items.is_empty() {
+            return None;
+        }
+        let index = items
+            .iter()
+            .position(|item| item.get("name").and_then(Value::as_str) == Some("pnpm"))
+            .unwrap_or(0);
+        let item = &items[index];
+        let on_fail =
+            item.get("onFail").and_then(Value::as_str).map(ToString::to_string).or_else(|| {
+                Some(if index == items.len() - 1 { "error" } else { "ignore" }.to_string())
+            });
+        return package_manager_from_engine(item, true, on_fail);
+    }
+    package_manager_from_engine(
+        value,
+        true,
+        value.get("onFail").and_then(Value::as_str).map(ToString::to_string),
+    )
+}
+
+fn package_manager_from_engine(
+    value: &Value,
+    from_dev_engines: bool,
+    on_fail: Option<String>,
+) -> Option<WantedPackageManager> {
+    Some(WantedPackageManager {
+        name: value.get("name")?.as_str()?.to_string(),
+        version: value.get("version").and_then(Value::as_str).map(ToString::to_string),
+        from_dev_engines,
+        on_fail,
+    })
+}
+
+fn parse_package_manager(package_manager: &str) -> (String, Option<String>) {
+    let Some((name, reference)) = package_manager.split_once('@') else {
+        return (package_manager.to_string(), None);
+    };
+    if reference.contains(':') {
+        return (name.to_string(), None);
+    }
+    (
+        name.to_string(),
+        Some(reference.split_once('+').map_or(reference, |(version, _)| version).to_string()),
+    )
+}
+
+fn should_persist_package_manager_lockfile(pm: &WantedPackageManager) -> bool {
+    if pm.on_fail.as_deref().unwrap_or("download") == "ignore" {
+        return false;
+    }
+    if pm.from_dev_engines {
+        return true;
+    }
+    pm.version
+        .as_deref()
+        .and_then(|version| node_semver::Version::parse(version).ok())
+        .is_some_and(|version| version.major >= 12)
+}
+
+fn current_source_pnpm_version() -> Option<String> {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir.ancestors().find_map(pnpm_version_from)
+}
+
+fn pnpm_version_from(root_dir: &Path) -> Option<String> {
+    let path = root_dir.join("pnpm").join("package.json");
+    let value = read_manifest_json(&path).ok()??;
+    value.get("version").and_then(Value::as_str).map(ToString::to_string)
+}
+
+fn exact_version(version: &str) -> Option<String> {
+    let parsed = node_semver::Version::parse(version).ok()?;
+    (parsed.to_string() == version).then(|| version.to_string())
+}
+
+fn version_satisfies(version: &str, wanted_range: &str) -> bool {
+    let Ok(version) = node_semver::Version::parse(version) else {
+        return false;
+    };
+    let Ok(range) = node_semver::Range::parse(wanted_range) else {
+        return false;
+    };
+    if version.satisfies(&range) {
+        return true;
+    }
+    if version.pre_release.is_empty() {
+        return false;
+    }
+    let base = node_semver::Version {
+        major: version.major,
+        minor: version.minor,
+        patch: version.patch,
+        pre_release: Vec::new(),
+        build: version.build,
+    };
+    base.satisfies(&range)
 }
 
 #[cfg(test)]

@@ -1,5 +1,14 @@
 # @pnpm/filter-workspace-packages
 
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [a31faa7]
+  - @pnpm/workspace.projects-reader@1101.0.12
+  - @pnpm/workspace.projects-graph@1100.0.18
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.8
+
 ## 1100.0.20
 
 ### Patch Changes

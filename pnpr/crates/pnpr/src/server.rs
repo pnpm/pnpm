@@ -2,6 +2,7 @@ use crate::{
     auth::{AuthState, UpsertOutcome, identify},
     config::Config,
     error::RegistryError,
+    journal::JournaledPublish,
     package_name::PackageName,
     policy::Identity,
     publish::{
@@ -21,7 +22,7 @@ use axum::{
     extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
 };
 use chrono::Utc;
 use indexmap::IndexMap;
@@ -109,10 +110,29 @@ impl PackageLocks {
     /// read and the write are atomic with respect to other same-package
     /// writers.
     async fn lock(&self, name: &str) -> tokio::sync::MutexGuard<'_, ()> {
+        self.stripes[self.stripe_index(name)].lock().await
+    }
+
+    /// Lock the stripes owning every name in `names`, held until the
+    /// returned guards are dropped. Stripes are locked in ascending
+    /// index order (duplicates collapsed), so two overlapping
+    /// batch publishes — or a batch publish racing a single-package
+    /// publish — can't deadlock on lock order.
+    async fn lock_many(&self, names: &[&str]) -> Vec<tokio::sync::MutexGuard<'_, ()>> {
+        let mut indices: Vec<usize> = names.iter().map(|name| self.stripe_index(name)).collect();
+        indices.sort_unstable();
+        indices.dedup();
+        let mut guards = Vec::with_capacity(indices.len());
+        for index in indices {
+            guards.push(self.stripes[index].lock().await);
+        }
+        guards
+    }
+
+    fn stripe_index(&self, name: &str) -> usize {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         std::hash::Hash::hash(name, &mut hasher);
-        let index = std::hash::Hasher::finish(&hasher) as usize % self.stripes.len();
-        self.stripes[index].lock().await
+        std::hash::Hasher::finish(&hasher) as usize % self.stripes.len()
     }
 }
 
@@ -162,6 +182,10 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         .route("/-/pnpr", get(serve_pnpr_handshake))
         .route("/v1/resolve", post(serve_resolve))
         .route("/v1/verify-lockfile", post(serve_verify_lockfile))
+        // Batch publish: one request carrying many packages' publish
+        // documents. Not part of the standard npm registry API —
+        // `pnpm publish --batch` opts into it explicitly.
+        .route("/-/pnpm/v1/publish", put(serve_batch_publish))
         .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
         .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
         .route(
@@ -236,6 +260,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
 /// a startup-time auth error surfaces before we accept any client
 /// connections.
 pub async fn serve(config: Config) -> crate::error::Result<()> {
+    crate::journal::recover_publish_journal(&config).await?;
     let auth = AuthState::load(&config.auth, &config.backend).await?;
     let listen = config.listen;
     let app = router_with_auth(config, auth);
@@ -255,6 +280,7 @@ pub async fn serve_listener(
     listener: tokio::net::TcpListener,
 ) -> crate::error::Result<()> {
     let listen = listener.local_addr()?;
+    crate::journal::recover_publish_journal(&config).await?;
     // Load the configured auth backends here too — going through
     // `router` would silently fall back to in-memory auth and ignore a
     // persisted htpasswd / SQLite store or a configured `backend:`.
@@ -898,11 +924,8 @@ async fn publish_package(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
-        return error_response(&err);
-    }
 
-    let mut incoming: Value = match serde_json::from_slice(&body) {
+    let incoming: Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
@@ -922,10 +945,139 @@ async fn publish_package(
         });
     }
 
-    let attachments = match extract_attachments(&mut incoming) {
-        Ok(a) => a,
+    let validated = match validate_publish_doc(state, headers, name, incoming).await {
+        Ok(validated) => validated,
         Err(err) => return error_response(&err),
     };
+
+    // Serialize the read-merge-write against other writers of this same
+    // package on this instance, so a concurrent publish can't read the
+    // same `existing`, merge a different version, and overwrite ours.
+    // Held until this function returns, past the packument write below.
+    let _packument_guard = state.inner.package_locks.lock(validated.name.as_str()).await;
+
+    let staged = match stage_publish(state, validated, &now_iso()).await {
+        Ok(staged) => staged,
+        Err(err) => return error_response(&err),
+    };
+    if let Err(err) = commit_publishes(state, vec![staged]).await {
+        return error_response(&err);
+    }
+    publish_created_response()
+}
+
+/// `PUT /-/pnpm/v1/publish` — publish several packages with one
+/// request. The body is `{"packages": [<publish doc>, ...]}` where
+/// each entry is exactly the JSON body that `PUT /:pkg` takes
+/// (packument with `_attachments`). `pnpm publish --batch` sends
+/// this; the endpoint is not part of the standard npm registry API.
+///
+/// The batch is all-or-nothing up to the commit point: every
+/// document is validated (name, publish policy, attachment
+/// integrity) and every tarball of every package is fully written
+/// to a tmp slot before anything becomes visible to readers, so a
+/// batch that fails validation or staging leaves no new versions
+/// behind.
+async fn serve_batch_publish(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Response {
+    let incoming: Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(err) => return error_response(&RegistryError::Json(err)),
+    };
+    let Value::Object(mut incoming) = incoming else {
+        return error_response(&RegistryError::BadRequest {
+            reason: "body must be a JSON object".to_string(),
+        });
+    };
+    let Some(Value::Array(docs)) = incoming.remove("packages") else {
+        return error_response(&RegistryError::BadRequest {
+            reason: "body must have a `packages` array".to_string(),
+        });
+    };
+    if docs.is_empty() {
+        return error_response(&RegistryError::BadRequest {
+            reason: "`packages` must not be empty".to_string(),
+        });
+    }
+
+    let mut validated = Vec::with_capacity(docs.len());
+    let mut seen_names = std::collections::BTreeSet::new();
+    for doc in docs {
+        let Some(doc_name) = doc.get("name").and_then(Value::as_str) else {
+            return error_response(&RegistryError::BadRequest {
+                reason: "every entry in `packages` must have a string `name`".to_string(),
+            });
+        };
+        let name = match PackageName::parse(doc_name) {
+            Ok(name) => name,
+            Err(err) => return error_response(&err),
+        };
+        // One packument read-merge-write per package: with the same
+        // package twice in a batch, the second entry's merge would
+        // depend on the first's uncommitted result. Senders carry
+        // multiple versions of one package as several `versions`
+        // entries in a single document instead.
+        if !seen_names.insert(name.as_str().to_string()) {
+            return error_response(&RegistryError::BadRequest {
+                reason: format!("duplicate package {:?} in `packages`", name.as_str()),
+            });
+        }
+        match validate_publish_doc(&state, &headers, name, doc).await {
+            Ok(doc) => validated.push(doc),
+            Err(err) => return error_response(&err),
+        }
+    }
+
+    // Hold every affected package's lock across the whole
+    // stage-and-commit, so concurrent writers of any package in the
+    // batch serialize with us just like with a single publish.
+    let names: Vec<&str> = validated.iter().map(|doc| doc.name.as_str()).collect();
+    let _guards = state.inner.package_locks.lock_many(&names).await;
+
+    let now = now_iso();
+    let mut staged: Vec<StagedPublish> = Vec::with_capacity(validated.len());
+    for doc in validated {
+        match stage_publish(&state, doc, &now).await {
+            Ok(stage) => staged.push(stage),
+            Err(err) => {
+                for stage in staged {
+                    cleanup_tmp_slots(stage.slots).await;
+                }
+                return error_response(&err);
+            }
+        }
+    }
+    if let Err(err) = commit_publishes(&state, staged).await {
+        return error_response(&err);
+    }
+    publish_created_response()
+}
+
+/// A publish document that passed every check that can run before
+/// taking the package lock: the caller may publish the package, and
+/// each attachment maps to a canonical disk filename and a
+/// `versions[v].dist` block.
+struct ValidatedPublish {
+    name: PackageName,
+    /// The publish body with `_attachments` stripped.
+    incoming: Value,
+    /// One `(attachment, canonical disk filename, dist)` triple per
+    /// attachment.
+    prepared: Vec<(PendingAttachment, String, Value)>,
+}
+
+async fn validate_publish_doc(
+    state: &AppState,
+    headers: &HeaderMap,
+    name: PackageName,
+    mut incoming: Value,
+) -> Result<ValidatedPublish, RegistryError> {
+    enforce_access(state, headers, name.as_str(), Action::Publish).await?;
+
+    let attachments = extract_attachments(&mut incoming)?;
 
     // Resolve each attachment's canonical disk filename + matching
     // `versions[v].dist` block. Attachment names that don't match the
@@ -938,10 +1090,7 @@ async fn publish_package(
     let mut prepared: Vec<(PendingAttachment, String, Value)> =
         Vec::with_capacity(attachments.len());
     for attachment in attachments {
-        let (canonical, version) = match name.parse_tarball_name(&attachment.filename) {
-            Ok(parsed) => parsed,
-            Err(err) => return error_response(&err),
-        };
+        let (canonical, version) = name.parse_tarball_name(&attachment.filename)?;
         let dist = incoming
             .get("versions")
             .and_then(|versions| versions.get(&version))
@@ -950,12 +1099,29 @@ async fn publish_package(
             .unwrap_or(Value::Null);
         prepared.push((attachment, canonical, dist));
     }
+    Ok(ValidatedPublish { name, incoming, prepared })
+}
 
-    // Serialize the read-merge-write against other writers of this same
-    // package on this instance, so a concurrent publish can't read the
-    // same `existing`, merge a different version, and overwrite ours.
-    // Held until this function returns, past the packument write below.
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+/// A publish whose packument is merged and whose tarballs are fully
+/// written to tmp slots — everything verified, nothing visible to
+/// readers yet. [`commit_publishes`] makes it visible.
+struct StagedPublish {
+    name: PackageName,
+    merged_bytes: Vec<u8>,
+    slots: Vec<crate::storage::TarballSlot>,
+}
+
+/// Merge the incoming packument with the on-disk / upstream state
+/// and stream every tarball to a tmp slot. The caller must hold the
+/// package lock for `doc.name` from before this call until after
+/// [`commit_publishes`]. On error, every tmp file this call wrote is
+/// removed.
+async fn stage_publish(
+    state: &AppState,
+    doc: ValidatedPublish,
+    now_iso: &str,
+) -> Result<StagedPublish, RegistryError> {
+    let ValidatedPublish { name, incoming, prepared } = doc;
 
     // Seed the merge from whatever the upstream knows about the
     // package, not just from a cold cache. Without this, a publish
@@ -964,25 +1130,21 @@ async fn publish_package(
     // would mask every upstream version + dist-tag on subsequent
     // reads. `update_dist_tag` already does the same fallback —
     // we just mirror it here.
-    let existing_bytes = match state.inner.storage.read_hosted_packument(&name).await {
-        Ok(Some(bytes)) => Some(bytes),
-        Ok(None) => match load_packument_bytes(state, &name).await {
+    let existing_bytes = match state.inner.storage.read_hosted_packument(&name).await? {
+        Some(bytes) => Some(bytes),
+        None => match load_packument_bytes(state, &name).await {
             PackumentLoad::Ok(bytes) => Some(bytes),
             PackumentLoad::NotFound => None,
-            PackumentLoad::Err(err) => return error_response(&err),
+            PackumentLoad::Err(err) => return Err(err),
         },
-        Err(err) => return error_response(&err),
     };
     let existing: Option<Value> = match existing_bytes.as_deref().map(serde_json::from_slice) {
         Some(Ok(v)) => Some(v),
-        Some(Err(err)) => return error_response(&RegistryError::Json(err)),
+        Some(Err(err)) => return Err(RegistryError::Json(err)),
         None => None,
     };
-    let merged = merge_manifest(existing.as_ref(), &incoming, &now_iso());
-    let merged_bytes = match serde_json::to_vec_pretty(&merged) {
-        Ok(b) => b,
-        Err(err) => return error_response(&RegistryError::Json(err)),
-    };
+    let merged = merge_manifest(existing.as_ref(), &incoming, now_iso);
+    let merged_bytes = serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)?;
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
     // drained below.
@@ -992,17 +1154,13 @@ async fn publish_package(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
-    //
-    // Tarballs are written before the packument so a successful
-    // packument write never advertises a tarball that's missing from
-    // disk.
     let mut written_slots = Vec::with_capacity(prepared.len());
     for (attachment, canonical, dist) in prepared {
         let slot = match state.inner.storage.reserve_hosted_tarball(&name, &canonical).await {
             Ok(slot) => slot,
             Err(err) => {
                 cleanup_tmp_slots(written_slots).await;
-                return error_response(&err);
+                return Err(err);
             }
         };
         let PendingAttachment { filename, data, declared_length } = attachment;
@@ -1017,28 +1175,81 @@ async fn publish_package(
             Ok(Ok(_)) => written_slots.push(slot),
             Ok(Err(err)) => {
                 cleanup_tmp_slots(written_slots).await;
-                return error_response(&err);
+                return Err(err);
             }
             Err(join_err) => {
                 let _ = tokio::fs::remove_file(&slot.tmp_path).await;
                 cleanup_tmp_slots(written_slots).await;
-                return error_response(&RegistryError::Io(std::io::Error::other(
-                    join_err.to_string(),
-                )));
+                return Err(RegistryError::Io(std::io::Error::other(join_err.to_string())));
             }
         }
     }
+    Ok(StagedPublish { name, merged_bytes, slots: written_slots })
+}
 
-    for slot in written_slots {
-        if let Err(err) = state.inner.storage.finalize_tarball_slot(slot).await {
-            return error_response(&err);
+/// Make every staged publish visible. The full intent — merged
+/// packument bytes plus the staged tmp-file locations — is sealed into
+/// the commit journal first, so a crash or I/O failure mid-apply can
+/// never leave the batch partially published: startup recovery rolls
+/// a sealed transaction forward. If sealing itself fails, nothing was
+/// promoted and the staged tmp files are cleaned up here.
+///
+/// Within each package, tarballs are promoted before the packument so
+/// a successful packument write never advertises a tarball that's
+/// missing from disk.
+async fn commit_publishes(
+    state: &AppState,
+    staged: Vec<StagedPublish>,
+) -> Result<(), RegistryError> {
+    let journal = state.inner.storage.publish_journal();
+    let entries: Vec<JournaledPublish<'_>> = staged
+        .iter()
+        .map(|stage| JournaledPublish {
+            name: &stage.name,
+            packument: &stage.merged_bytes,
+            slots: &stage.slots,
+        })
+        .collect();
+    let sealed = journal.seal(&entries).await;
+    drop(entries);
+    let txn = match sealed {
+        Ok(txn) => txn,
+        Err(err) => {
+            for stage in staged {
+                cleanup_tmp_slots(stage.slots).await;
+            }
+            return Err(err);
+        }
+    };
+    // Past the seal the transaction is committed: the apply below is pure
+    // roll-forward, and failures must NOT clean up the staged files. If
+    // the apply fails partway, complete it immediately via the same
+    // idempotent recovery path so a running server never leaves the batch
+    // partially visible; startup recovery is the final backstop if even
+    // that fails.
+    let apply_result = async {
+        for stage in staged {
+            for slot in stage.slots {
+                state.inner.storage.finalize_tarball_slot(slot).await?;
+            }
+            state.inner.storage.write_hosted_packument(&stage.name, &stage.merged_bytes).await?;
+        }
+        Ok::<(), RegistryError>(())
+    }
+    .await;
+    match apply_result {
+        Ok(()) => {
+            txn.finish().await;
+            Ok(())
+        }
+        Err(apply_err) => {
+            tracing::warn!(error = %apply_err, "publish apply failed after seal; rolling forward");
+            txn.roll_forward(&state.inner.storage).await.map_err(|_| apply_err)
         }
     }
+}
 
-    if let Err(err) = state.inner.storage.write_hosted_packument(&name, &merged_bytes).await {
-        return error_response(&err);
-    }
-
+fn publish_created_response() -> Response {
     let body = json!({ "ok": true, "success": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
     Response::builder()
@@ -1233,6 +1444,9 @@ async fn delete_package(state: &AppState, headers: &HeaderMap, raw_name: &str) -
     if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
         return error_response(&err);
     }
+    // Serialize against same-package publishers so a delete can't race a
+    // stage-and-commit and remove the package mid-write.
+    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
     if let Err(err) = state.inner.storage.remove_package(&name).await {
         return error_response(&err);
     }
@@ -1267,6 +1481,9 @@ async fn delete_tarball(
     if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
         return error_response(&err);
     }
+    // Serialize against same-package publishers so a delete can't race a
+    // stage-and-commit and remove a tarball mid-write.
+    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
     if let Err(err) = state.inner.storage.remove_tarball(&name, &canonical).await {
         return error_response(&err);
     }

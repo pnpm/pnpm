@@ -1,11 +1,12 @@
 use crate::{
-    SkippedSnapshots,
+    ImportIndexedDirError, ImportIndexedDirOpts, SkippedSnapshots,
     build_sequence::build_sequence,
+    import_indexed_dir,
     version_policy::{VersionPolicyError, expand_package_version_specs},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
+use pacquet_config::{Config, PackageImportMethod};
 use pacquet_deps_path::remove_suffix;
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_postinstall_hooks,
@@ -81,6 +82,13 @@ pub enum BuildModulesError {
         )
     )]
     FrozenStoreNeedsBuild { package: String },
+
+    /// Re-materializing a cached build's side-effects overlay into the
+    /// already-linked slot failed. Fired from the `is_built` gate in
+    /// `build_one_snapshot` when the warm reinstall has to apply the
+    /// stored `added` / `deleted` diff on top of the pristine files.
+    #[diagnostic(transparent)]
+    MaterializeSideEffects(#[error(source)] ImportIndexedDirError),
 }
 
 /// Build policy derived from `allowBuilds` and
@@ -300,6 +308,10 @@ pub struct BuildModules<'a> {
     /// disabled or no rows were prefetched; the gate falls through
     /// to "rebuild" for every snapshot.
     pub side_effects_maps_by_snapshot: Option<&'a crate::SideEffectsMapsBySnapshot>,
+    /// Per-snapshot `requiresBuild` values from the warm-cache
+    /// prefetch. Missing entries fall back to inspecting the
+    /// materialized package directory.
+    pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
     /// `<platform>;<arch>;node<major>` — the prefix part of
     /// upstream's dep-state cache key. Computed once at install
     /// start by [`pacquet_graph_hasher::detect_node_major`] +
@@ -402,6 +414,31 @@ pub struct BuildModules<'a> {
     /// Has no effect under the isolated linker, whose slot directories
     /// live in the writable project store.
     pub frozen_store: bool,
+
+    /// Mirrors `config.ignore_scripts`. When `true`, no lifecycle
+    /// script runs and the allow-build gate is bypassed entirely, so a
+    /// package not in `allowBuilds` is *not* added to the returned
+    /// ignored-builds set — matching pnpm, where the during-install
+    /// loop skips its `ignoredBuilds.add(...)` branch under
+    /// `ignoreScripts`
+    /// (<https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L137-L150>).
+    /// Patches still apply, since pnpm applies a patch even when scripts
+    /// are suppressed.
+    pub ignore_scripts: bool,
+
+    /// Mirrors `config.package_import_method`. Used by the
+    /// side-effects-cache `is_built` gate to re-materialize a cached
+    /// build's output into the already-linked slot — the warm link
+    /// only placed the pristine tarball files, so the cached
+    /// `added` / `deleted` overlay has to be applied on top before the
+    /// build is skipped. See `build_one_snapshot`.
+    pub import_method: PackageImportMethod,
+
+    /// Install-scoped dedupe state for the `pnpm:package-import-method`
+    /// log, shared with [`crate::CreateVirtualStore`] so the side-effects
+    /// re-materialization doesn't re-announce a method the link phase
+    /// already reported.
+    pub logged_methods: &'a std::sync::atomic::AtomicU8,
 }
 
 impl BuildModules<'_> {
@@ -421,6 +458,7 @@ impl BuildModules<'_> {
             importers,
             allow_build_policy,
             side_effects_maps_by_snapshot,
+            requires_build_by_snapshot,
             engine_name,
             side_effects_cache,
             side_effects_cache_write,
@@ -434,20 +472,18 @@ impl BuildModules<'_> {
             pkg_root_by_key,
             gather_ancestor_bin_paths,
             frozen_store,
+            ignore_scripts,
+            import_method,
+            logged_methods,
         } = self;
 
         let Some(snapshots) = snapshots else { return Ok(Vec::new()) };
 
         let extra_env = HashMap::new();
 
-        // Compute requires_build per snapshot from each extracted package
-        // directory. Mirrors upstream where the worker computes
-        // `node.requiresBuild` from the package's manifest scripts and the
-        // presence of `binding.gyp` / `.hooks/` after extraction
-        // (`https://github.com/pnpm/pnpm/blob/80037699fb/building/pkg-requires-build/src/index.ts`).
-        // Pacquet does this here rather than in a worker because the worker
-        // does not exist yet — it is the same per-package on-disk inspection,
-        // moved to the build entry point.
+        // Compute `requiresBuild` per snapshot. Warm store-index rows
+        // already carry the upstream worker's answer, so only misses
+        // need to inspect the materialized package directory.
         let requires_build_map: HashMap<PackageKey, bool> = snapshots
             .keys()
             // Skip snapshots that never landed on disk. `pkg_requires_build`
@@ -457,14 +493,15 @@ impl BuildModules<'_> {
             // optional fan-out.
             .filter(|key| !skipped.contains(key))
             .map(|key| {
-                // Hoisted snapshots without a recorded `pkgRoot` (the
-                // walker dropped them) get `requires_build = false`
-                // so they fall through both the script-runner and the
-                // patch-apply gates without a syscall, matching the
-                // isolated path's `pkg_dir.exists() == false` skip.
-                let requires = pkg_root_for_key(layout, pkg_root_by_key, key)
-                    .as_deref()
-                    .is_some_and(pkg_requires_build);
+                let pkg_root = pkg_root_for_key(layout, pkg_root_by_key, key);
+                let requires = match (
+                    pkg_root.as_deref(),
+                    requires_build_by_snapshot.and_then(|map| map.get(key).copied()),
+                ) {
+                    (None, _) => false,
+                    (_, Some(requires)) => requires,
+                    (Some(pkg_root), None) => pkg_requires_build(pkg_root),
+                };
                 (key.clone(), requires)
             })
             .collect();
@@ -582,6 +619,9 @@ impl BuildModules<'_> {
                         scripts_prepend_node_path,
                         unsafe_perm,
                         frozen_store,
+                        ignore_scripts,
+                        import_method,
+                        logged_methods,
                     )
                 })
             })?;
@@ -634,6 +674,9 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     scripts_prepend_node_path: ScriptsPrependNodePath,
     unsafe_perm: bool,
     frozen_store: bool,
+    ignore_scripts: bool,
+    import_method: PackageImportMethod,
+    logged_methods: &std::sync::atomic::AtomicU8,
 ) -> Result<(), BuildModulesError> {
     let metadata_key = snapshot_key.without_peer();
     // Look up against the peer-stripped key because patches are
@@ -663,8 +706,15 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // false` (NOT early-return), so the patch still gets applied
     // even when scripts are disallowed. Matches upstream's
     // `ignoreScripts = true; break` pattern.
-    let mut should_run_scripts = requires_build;
-    if requires_build {
+    //
+    // Under `ignore_scripts` the whole gate is bypassed: scripts never
+    // run and the package is *not* recorded as an ignored build, so the
+    // install doesn't fail with `ERR_PNPM_IGNORED_BUILDS`. The patch
+    // application below still runs (a patch is applied even when scripts
+    // are suppressed). Mirrors pnpm's top-level
+    // `let ignoreScripts = Boolean(buildDepOpts.ignoreScripts); if (!ignoreScripts) { ... }`.
+    let mut should_run_scripts = requires_build && !ignore_scripts;
+    if should_run_scripts {
         let dep_path = metadata_key.to_string();
         match allow_build_policy.check(&dep_path) {
             Some(false) => {
@@ -747,7 +797,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         && let Some(maps_by_snapshot) = side_effects_maps_by_snapshot
         && let Some(maps) = maps_by_snapshot.get(snapshot_key)
         && let Some(key) = cache_key.as_deref()
-        && maps.contains_key(key)
+        && let Some(overlay) = maps.get(key)
     {
         tracing::debug!(
             target: "pacquet::build",
@@ -755,7 +805,90 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             cache_key = key,
             "side-effects cache hit; skipping build",
         );
-        return Ok(());
+        // The warm link placed only the pristine tarball files in the
+        // project-local slot. The cached build's output (the
+        // side-effects `added` / `deleted` overlay) still has to land on
+        // disk before the build is skipped, or the package is left in its
+        // pre-build state — e.g. a postinstall that downloads a binary
+        // leaves nothing behind on the warm reinstall. Mirrors pnpm's
+        // `getFlatMap` applying the side-effects diff at import time
+        // (<https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/create-cafs-store/src/index.ts#L83-L100>).
+        //
+        // Skip under the global virtual store: there the slot persists
+        // inside the store with its build output already on disk (a cache
+        // hit *is* that seeded slot), so there is nothing to re-link —
+        // and the slot is read-only under `frozen_store`, where a write
+        // would fail with `EROFS`.
+        //
+        // A materialization failure is usually *not* fatal. Side-effects
+        // `added` blobs aren't re-verified (see
+        // [`pacquet_store_dir::build_file_maps_from_index`]), so a CAS
+        // blob deleted out from under the store surfaces here as an
+        // import error. That failure happens while staging the new
+        // contents, before the existing slot is touched, so the pristine
+        // files are still on disk: treat it as a cache miss and fall
+        // through to the normal build path below, which re-runs the script
+        // over the intact files and re-seeds the cache.
+        //
+        // The one case that must *not* silently fall through is a
+        // stage-and-swap that failed mid-replace and left the slot without
+        // its base files. Rebuilding against that would run scripts on an
+        // incomplete dir (or skip them when the manifest is gone) and let
+        // the install finish with a broken package. When the manifest is
+        // missing after a failed materialization, skip an optional
+        // dependency (as for any optional build failure) and surface a
+        // hard error otherwise.
+        let satisfied_by_cache = if layout.enable_global_virtual_store() {
+            true
+        } else {
+            match pkg_root_for_key(layout, pkg_root_by_key, snapshot_key) {
+                Some(pkg_dir) if pkg_dir.exists() => {
+                    match materialize_side_effects::<Reporter>(
+                        logged_methods,
+                        import_method,
+                        &pkg_dir,
+                        overlay,
+                    ) {
+                        Ok(()) => true,
+                        Err(error) if pkg_dir.join("package.json").exists() => {
+                            tracing::warn!(
+                                target: "pacquet::build",
+                                ?snapshot_key,
+                                cache_key = key,
+                                %error,
+                                "failed to materialize side-effects cache overlay; rebuilding",
+                            );
+                            false
+                        }
+                        Err(error) => {
+                            if snapshots.get(snapshot_key).is_some_and(|entry| entry.optional) {
+                                Reporter::emit(&LogEvent::SkippedOptionalDependency(
+                                    SkippedOptionalDependencyLog {
+                                        level: LogLevel::Debug,
+                                        details: Some(error.to_string()),
+                                        package: SkippedOptionalPackage::Installed {
+                                            id: pkg_dir.to_string_lossy().into_owned(),
+                                            name,
+                                            version,
+                                        },
+                                        prefix: lockfile_dir.to_string_lossy().into_owned(),
+                                        reason: SkippedOptionalReason::BuildFailure,
+                                    },
+                                ));
+                                return Ok(());
+                            }
+                            return Err(error);
+                        }
+                    }
+                }
+                // No slot to materialize into (skipped / never linked) —
+                // nothing for the build phase to do either.
+                _ => true,
+            }
+        };
+        if satisfied_by_cache {
+            return Ok(());
+        }
     }
 
     let optional = snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
@@ -996,6 +1129,41 @@ fn pkg_root_for_key(
         Some(map) => map.get(key).cloned(),
         None => Some(virtual_store_dir_for_key(layout, key)),
     }
+}
+
+/// Re-import a snapshot's package directory from the side-effects cache
+/// overlay (the `base - deleted + added` file set already resolved to
+/// CAS paths by [`pacquet_store_dir::build_file_maps_from_index`]).
+///
+/// The warm-link phase materializes only the pristine tarball files, so
+/// a cached build whose `is_built` gate fires would otherwise leave the
+/// slot in its pre-build state. A forced re-import rebuilds the directory
+/// to match the overlay exactly (adding the build output and dropping any
+/// files the build deleted) while preserving the slot's nested
+/// `node_modules/` symlinks. Mirrors pnpm's `getFlatMap` + importer,
+/// which links the side-effects-applied file map directly.
+///
+/// The import always runs on a cache hit (non-GVS). Skipping it when the
+/// slot "looks" materialized is unsound by filename alone — a slot left
+/// from a different cache key can carry the same filenames with stale
+/// bytes — and a content check would read every file, costing as much as
+/// the hardlink-based re-import it would replace. A cheap *and* sound skip
+/// needs a link-phase "this slot was re-linked pristine-only this install"
+/// signal threaded from the link phase, which is left as a follow-up.
+fn materialize_side_effects<Reporter: self::Reporter>(
+    logged_methods: &std::sync::atomic::AtomicU8,
+    import_method: PackageImportMethod,
+    pkg_dir: &Path,
+    overlay: &HashMap<String, PathBuf>,
+) -> Result<(), BuildModulesError> {
+    import_indexed_dir::<Reporter>(
+        logged_methods,
+        import_method,
+        pkg_dir,
+        overlay,
+        ImportIndexedDirOpts { force: true, keep_modules_dir: true },
+    )
+    .map_err(BuildModulesError::MaterializeSideEffects)
 }
 
 /// Mirrors upstream's

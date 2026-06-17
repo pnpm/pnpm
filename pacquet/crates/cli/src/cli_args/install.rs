@@ -3,10 +3,10 @@ use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pacquet_config::NodeLinker;
-use pacquet_lockfile::{Lockfile, LockfileResolution};
+use pacquet_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
 use pacquet_package_manager::{
     Install, InstallFrozenLockfileError, LockfileVerificationOverride, TarballPrefetcher,
-    UpdateSeedPolicy,
+    UpToDateFastPathCheck, UpdateSeedPolicy, install_already_up_to_date,
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions, VerifyLockfileOptions};
@@ -95,6 +95,13 @@ pub struct InstallArgs {
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
 
+    /// Report what an install would change without writing anything to
+    /// disk (no `pnpm-lock.yaml`, no `node_modules`). Resolution still
+    /// runs against the registry. Exits 0 whether or not changes were
+    /// found. Mirrors pnpm's `install --dry-run`.
+    #[clap(long = "dry-run")]
+    pub dry_run: bool,
+
     /// Force-enable `preferFrozenLockfile` for this invocation.
     /// Overrides `pnpm-workspace.yaml` / `PNPM_CONFIG_PREFER_FROZEN_LOCKFILE`.
     /// Mirrors pnpm's `--prefer-frozen-lockfile`. Conflicts with
@@ -139,6 +146,19 @@ pub struct InstallArgs {
     /// normally. Mirrors pnpm's `--no-runtime` flag.
     #[clap(long = "no-runtime")]
     pub no_runtime: bool,
+
+    /// Don't run lifecycle scripts of the project or its dependencies.
+    /// Dependency build scripts that would otherwise be reported as
+    /// ignored are skipped silently, so the install doesn't fail with
+    /// `ERR_PNPM_IGNORED_BUILDS` under `strictDepBuilds`. Mirrors pnpm's
+    /// `--ignore-scripts`.
+    ///
+    /// Merged into `config.ignore_scripts` at the CLI dispatch in
+    /// `cli_args.rs` (it only ever enables, never toggles a yaml `true`
+    /// back off), so the install reads it from the config like every
+    /// other build-script setting.
+    #[clap(long = "ignore-scripts")]
+    pub ignore_scripts: bool,
 
     /// Override `nodeLinker` from `pnpm-workspace.yaml` /
     /// `.npmrc`. Mirrors upstream pnpm's `--node-linker` flag.
@@ -255,6 +275,73 @@ pub struct InstallArgs {
 }
 
 impl InstallArgs {
+    /// Run the repeat-install fast path before any of the async install
+    /// machinery exists: when every gate below holds and
+    /// [`install_already_up_to_date`] confirms nothing changed since the
+    /// previous install, emit the same "Already up to date" + summary
+    /// events [`Install::run`] would and report the install as finished.
+    ///
+    /// The gates mirror the dispatch in [`crate::cli_args::CliArgs::run`]
+    /// (which checks `recursive` / `filter` before reaching here) plus
+    /// every input that would make [`Install::run`] skip its own
+    /// short-circuit or do extra pre-install work: an explicit
+    /// `--frozen-lockfile` / `--lockfile-only`, a configured pnpr
+    /// server (that path never runs the optimistic check), config
+    /// dependencies, and pnpmfile `updateConfig` hooks (both can
+    /// mutate the config the check compares against).
+    ///
+    /// `false` means "not decided" — the caller proceeds with the full
+    /// install path, which re-runs the same check cheaply and
+    /// reproduces any error with its established shape.
+    pub fn finished_via_up_to_date_fast_path(
+        &self,
+        dir: &std::path::Path,
+        config: &pacquet_config::Config,
+        emit: fn(&pacquet_reporter::LogEvent),
+    ) -> bool {
+        if self.frozen_lockfile || self.lockfile_only || self.pnpr_server.is_some() {
+            return false;
+        }
+        if config.pnpr_server.is_some() {
+            return false;
+        }
+        if config.config_dependencies.as_ref().is_some_and(|deps| !deps.is_empty()) {
+            return false;
+        }
+        let config_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        if pacquet_hooks::finder::find_pnpmfile(&config_root).is_some() {
+            return false;
+        }
+        let manifest_path = dir.join("package.json");
+        if !manifest_path.is_file() {
+            return false;
+        }
+        let Ok(manifest) = pacquet_package_manifest::PackageManifest::from_path(manifest_path)
+        else {
+            return false;
+        };
+        let node_linker = self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
+        let Some(workspace_root) = install_already_up_to_date(&UpToDateFastPathCheck {
+            config,
+            manifest: &manifest,
+            dependency_groups: self.dependency_options.dependency_groups().collect(),
+            node_linker,
+        }) else {
+            return false;
+        };
+        let prefix = workspace_root.to_string_lossy().into_owned();
+        emit(&pacquet_reporter::LogEvent::Pnpm(pacquet_reporter::PnpmLog {
+            level: pacquet_reporter::LogLevel::Info,
+            message: "Already up to date".to_string(),
+            prefix: prefix.clone(),
+        }));
+        emit(&pacquet_reporter::LogEvent::Summary(pacquet_reporter::SummaryLog {
+            level: pacquet_reporter::LogLevel::Debug,
+            prefix,
+        }));
+        true
+    }
+
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
@@ -263,10 +350,14 @@ impl InstallArgs {
             supported_architectures,
             frozen_lockfile,
             lockfile_only,
+            dry_run,
             prefer_frozen_lockfile,
             no_prefer_frozen_lockfile,
             ignore_manifest_check,
             no_runtime,
+            // Read from `config.ignore_scripts` (the CLI flag was already
+            // merged in by the dispatch in `cli_args.rs`), not from here.
+            ignore_scripts: _,
             node_linker,
             offline: _,
             // Read from `config.frozen_store` (the CLI flag was already
@@ -336,6 +427,12 @@ impl InstallArgs {
         // server-produced lockfile via the normal frozen install. Mirrors
         // pnpm's `install()` delegating to `installFromPnpmRegistry`.
         if let Some(pnpr_server) = config.pnpr_server.as_deref() {
+            // The pnpr path resolves and links through the server, so it
+            // can't honor `--dry-run`'s no-write contract. Reject up front,
+            // mirroring pnpm's CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER.
+            if dry_run {
+                return Err(DryRunIncompatibleWithPnpr.into());
+            }
             return install_via_pnpr::<Reporter>(
                 &state,
                 pnpr_server,
@@ -362,7 +459,7 @@ impl InstallArgs {
             http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
-            lockfile: lockfile.as_ref(),
+            lockfile: MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: lockfile_path.as_deref(),
             dependency_groups: dependency_options.dependency_groups(),
             frozen_lockfile,
@@ -379,9 +476,11 @@ impl InstallArgs {
             supported_architectures,
             node_linker,
             lockfile_only,
+            dry_run,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
+            catalogs_override: None,
         }
         .run::<Reporter>()
         .await
@@ -461,6 +560,22 @@ struct PnprLink<'a> {
 )]
 struct FrozenStoreIncompatibleWithPnpr;
 
+/// `--dry-run` was requested with a configured `pnprServer`. The pnpr path
+/// resolves and links through the server, so it can't honor the dry-run
+/// "writes nothing" contract. Mirrors pnpm's
+/// `ERR_PNPM_CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER`.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Cannot use --dry-run with a configured pnpr server because the pnpr install path resolves and links through the server."
+)]
+#[diagnostic(
+    code(ERR_PNPM_CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER),
+    help(
+        "Unset the pnpr server (`--pnpr-server` / `pnprServer` in pnpm-workspace.yaml) to preview locally, or drop --dry-run."
+    )
+)]
+struct DryRunIncompatibleWithPnpr;
+
 /// Resolve a single project through a `pnpr` server, then link it.
 ///
 /// Sends the client's registries to the server, which resolves against
@@ -533,15 +648,14 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         // Forward the whole credential map: the registries a graph
         // touches aren't known up front (scope-routed or tarball-URL
         // sub-deps), so the server attaches the right token per URL.
-        auth_headers: state
-            .config
-            .auth_headers
-            .entries()
-            .map(|(uri, value)| (uri.to_string(), value.to_string()))
-            .collect(),
+        auth_headers: state.config.auth_headers.to_by_scope(),
         authorization: state.config.auth_headers.for_url(pnpr_server),
         overrides,
-        lockfile: state.lockfile.clone(),
+        lockfile: state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
+            .cloned(),
         frozen_lockfile: link.frozen_lockfile,
         prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
         ignore_manifest_check: link.ignore_manifest_check,
@@ -562,7 +676,10 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
 
     if link.frozen_lockfile
         && !link.lockfile_only
-        && let Some(lockfile) = state.lockfile.as_ref()
+        && let Some(lockfile) = state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
     {
         let prefetcher = TarballPrefetcher::new(
             state.config,
@@ -601,7 +718,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             http_client_arc: std::sync::Arc::clone(&state.http_client),
             config: state.config,
             manifest: &state.manifest,
-            lockfile: Some(lockfile),
+            lockfile: MaybeLazyLockfile::Loaded(Some(lockfile)),
             lockfile_path: link.lockfile_path,
             dependency_groups: link.dependency_groups,
             frozen_lockfile: true,
@@ -615,9 +732,11 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             supported_architectures: link.supported_architectures,
             node_linker: link.node_linker,
             lockfile_only: false,
+            dry_run: false,
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
+            catalogs_override: None,
         };
 
         let result = match lockfile_verification_override {
@@ -721,7 +840,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         http_client_arc: std::sync::Arc::clone(&state.http_client),
         config: state.config,
         manifest: &state.manifest,
-        lockfile: Some(&outcome.lockfile),
+        lockfile: MaybeLazyLockfile::Loaded(Some(&outcome.lockfile)),
         lockfile_path: link.lockfile_path,
         dependency_groups: link.dependency_groups,
         frozen_lockfile: true,
@@ -741,9 +860,11 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         supported_architectures: link.supported_architectures,
         node_linker: link.node_linker,
         lockfile_only: false,
+        dry_run: false,
         update_seed_policy: UpdateSeedPolicy::KeepAll,
         auth_override: None,
         resolution_observer: None,
+        catalogs_override: None,
     }
     .run::<Reporter>()
     .await

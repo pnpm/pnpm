@@ -368,7 +368,19 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       if (manifest.name === '@pnpm/installing.deps-installer') {
       // @pnpm/installing.deps-installer tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
-        scripts['.test'] = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest`
+      //
+      // deepRecursive resolves @teambit/bit's enormous circular/peer graph and
+      // needs ~3.6 GB on its own — enough to fit Node's default ~4 GB heap, but
+      // not with the memory the other test files leave behind in the same
+      // process (Jest's `--experimental-vm-modules` registry isn't reclaimed
+      // between files). Run it in a dedicated jest process (`.test:heavy`) so it
+      // gets the whole heap to itself, and run the rest (`.test:rest`) in a
+      // separate process with it excluded.
+        const heavyTestPath = 'test/install/deepRecursive.ts'
+        const testEnv = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169"`
+        scripts['.test'] = 'pn .test:heavy && pn .test:rest'
+        scripts['.test:heavy'] = `${testEnv} jest ${heavyTestPath}`
+        scripts['.test:rest'] = `${testEnv} jest "^(?!.*deepRecursive)"`
       } else {
         scripts['.test'] = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest'
       }

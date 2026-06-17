@@ -145,6 +145,55 @@ pub enum VersionSelectorEntry {
     Weighted(VersionSelectorWithWeight),
 }
 
+/// One resolution level's preferred-version additions, layered over a
+/// parent level. Mirrors the prototype chain upstream builds per level
+/// with
+/// [`Object.create(preferredVersions)`](https://github.com/pnpm/pnpm/blob/ce9c096e8e/installing/deps-resolver/src/resolveDependencies.ts#L717-L746):
+/// after a package's direct dependencies resolve, their `(name,
+/// version)` pairs become plain `version` selectors for the children's
+/// subtree resolutions, so a child's range prefers a version one of
+/// its parent-level siblings pinned. Layering is O(1); lookups walk
+/// the chain for one name.
+#[derive(Debug)]
+pub struct PreferredVersionsOverlay {
+    entries: BTreeMap<String, Vec<String>>,
+    parent: Option<Arc<PreferredVersionsOverlay>>,
+}
+
+impl PreferredVersionsOverlay {
+    /// Layer `entries` over `parent`. An empty layer collapses to the
+    /// parent so chains only grow when a level resolved something.
+    #[must_use]
+    pub fn layer(
+        parent: Option<Arc<PreferredVersionsOverlay>>,
+        entries: BTreeMap<String, Vec<String>>,
+    ) -> Option<Arc<PreferredVersionsOverlay>> {
+        if entries.is_empty() {
+            return parent;
+        }
+        Some(Arc::new(PreferredVersionsOverlay { entries, parent }))
+    }
+
+    /// Every version the chain prefers for `name`, nearest level
+    /// first. Empty for names no level resolved.
+    #[must_use]
+    pub fn versions_for(&self, name: &str) -> Vec<&str> {
+        let mut versions: Vec<&str> = Vec::new();
+        let mut layer = Some(self);
+        while let Some(current) = layer {
+            if let Some(found) = current.entries.get(name) {
+                for version in found {
+                    if !versions.contains(&version.as_str()) {
+                        versions.push(version);
+                    }
+                }
+            }
+            layer = current.parent.as_deref();
+        }
+        versions
+    }
+}
+
 /// Selector weight applied to direct dependencies. Mirrors pnpm's
 /// [`DIRECT_DEP_SELECTOR_WEIGHT`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L250).
 pub const DIRECT_DEP_SELECTOR_WEIGHT: u32 = 1_000;
@@ -224,6 +273,10 @@ pub struct ResolveOptions {
     /// per importer — sharing the (potentially large) map keeps those
     /// clones to a refcount bump.
     pub preferred_versions: Arc<PreferredVersions>,
+    /// Per-level preferred-version additions from the tree walk. See
+    /// [`PreferredVersionsOverlay`]. `None` outside the walk (importer
+    /// direct deps resolve against [`Self::preferred_versions`] only).
+    pub preferred_versions_overlay: Option<Arc<PreferredVersionsOverlay>>,
     pub workspace_packages: Option<WorkspacePackages>,
     pub default_tag: Option<String>,
     pub pick_lowest_version: bool,

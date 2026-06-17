@@ -25,7 +25,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use pacquet_deps_path::DepPath;
+use pacquet_deps_path::{DepPath, index_of_dep_path_suffix};
 
 use crate::{
     dedupe_injected_deps::{DirectByImporter, prune_unreachable},
@@ -95,9 +95,17 @@ fn deduplicate_all(
     if remaining_duplicates.len() == duplicates_count {
         return dep_paths_map;
     }
+    let collapsed_target_peer_info = collapsed_target_peer_info(graph, dep_paths_map.values());
     for node in graph.values_mut() {
+        let parent_peer_names = compatible_peer_names_for_parent(node);
         for child_dep_path in node.children.values_mut() {
-            if let Some(target) = dep_paths_map.get(child_dep_path) {
+            if let Some(target) = dep_paths_map.get(child_dep_path)
+                && collapsed_target_matches_parent(
+                    &collapsed_target_peer_info,
+                    target,
+                    &parent_peer_names,
+                )
+            {
                 *child_dep_path = target.clone();
             }
         }
@@ -199,6 +207,137 @@ fn is_compatible_and_has_more_deps(
         .resolved_peer_names
         .iter()
         .all(|peer| larger_node.resolved_peer_names.contains(peer))
+}
+
+fn collapsed_target_matches_parent(
+    collapsed_target_peer_info: &HashMap<DepPath, CollapsedTargetPeerInfo>,
+    target: &DepPath,
+    parent_peer_names: &HashSet<String>,
+) -> bool {
+    let Some(info) = collapsed_target_peer_info.get(target) else {
+        return true;
+    };
+    info.peer_names.iter().all(|name| {
+        parent_peer_names.contains(name)
+            || info.transitive_peer_dependencies.contains(name)
+            || info.peer_child_is_compatible_with_parent(name, parent_peer_names)
+    })
+}
+
+fn collapsed_target_peer_info<'a>(
+    graph: &DependenciesGraph,
+    targets: impl Iterator<Item = &'a DepPath>,
+) -> HashMap<DepPath, CollapsedTargetPeerInfo> {
+    targets
+        .filter_map(|target| {
+            let node = graph.get(target)?;
+            Some((
+                target.clone(),
+                CollapsedTargetPeerInfo {
+                    package_name: package_name_from_pkg_id(&node.resolved_package_id),
+                    peer_names: dep_path_peer_names(target),
+                    transitive_peer_dependencies: node.transitive_peer_dependencies.clone(),
+                    child_peer_names: child_peer_names(node),
+                },
+            ))
+        })
+        .collect()
+}
+
+struct CollapsedTargetPeerInfo {
+    package_name: String,
+    peer_names: HashSet<String>,
+    transitive_peer_dependencies: HashSet<String>,
+    child_peer_names: HashMap<String, HashSet<String>>,
+}
+
+impl CollapsedTargetPeerInfo {
+    fn peer_child_is_compatible_with_parent(
+        &self,
+        name: &str,
+        parent_peer_names: &HashSet<String>,
+    ) -> bool {
+        self.child_peer_names.get(name).is_some_and(|peer_names| {
+            peer_names.is_empty()
+                || (peer_names.contains(&self.package_name)
+                    && peer_names.iter().all(|peer_name| {
+                        peer_name == &self.package_name
+                            || parent_peer_names.contains(peer_name)
+                            || self.transitive_peer_dependencies.contains(peer_name)
+                    }))
+        })
+    }
+}
+
+fn child_peer_names(node: &DependenciesGraphNode) -> HashMap<String, HashSet<String>> {
+    node.children.iter().map(|(alias, child)| (alias.clone(), dep_path_peer_names(child))).collect()
+}
+
+fn compatible_peer_names_for_parent(node: &DependenciesGraphNode) -> HashSet<String> {
+    let mut names = dep_path_peer_names(&node.dep_path);
+    names.insert(package_name_from_pkg_id(&node.resolved_package_id));
+    names
+}
+
+fn package_name_from_pkg_id(pkg_id: &str) -> String {
+    pkg_id.rfind('@').map_or_else(|| pkg_id.to_string(), |index| pkg_id[..index].to_string())
+}
+
+fn dep_path_peer_names(dep_path: &DepPath) -> HashSet<String> {
+    let mut names = HashSet::new();
+    collect_peer_names(dep_path.as_str(), &mut names);
+    names
+}
+
+fn collect_peer_names(raw: &str, names: &mut HashSet<String>) {
+    let suffix = index_of_dep_path_suffix(raw);
+    let Some(peers_index) = suffix.peers_index else { return };
+    let peers_end = suffix.patch_hash_index.unwrap_or(raw.len());
+    let Some(segments) = split_peer_suffix_segments(&raw[peers_index..peers_end]) else {
+        return;
+    };
+    for segment in segments {
+        if let Some(name) = peer_segment_name(&segment) {
+            names.insert(name.to_string());
+        }
+        collect_peer_names(&segment, names);
+    }
+}
+
+fn split_peer_suffix_segments(suffix: &str) -> Option<Vec<String>> {
+    let bytes = suffix.as_bytes();
+    let mut segments = Vec::new();
+    let mut depth = 0i32;
+    let mut start = None;
+    for (idx, byte) in bytes.iter().enumerate() {
+        match byte {
+            b'(' => {
+                if depth == 0 {
+                    start = Some(idx + 1);
+                }
+                depth += 1;
+            }
+            b')' => {
+                depth -= 1;
+                if depth < 0 {
+                    return None;
+                }
+                if depth == 0 {
+                    let start = start.take()?;
+                    segments.push(suffix[start..idx].to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+    (depth == 0).then_some(segments)
+}
+
+fn peer_segment_name(segment: &str) -> Option<&str> {
+    let head_end = segment.find('(').unwrap_or(segment.len());
+    let head = &segment[..head_end];
+    let version_at = head.rfind('@')?;
+    (version_at > 0).then_some(&head[..version_at])
 }
 
 #[cfg(test)]

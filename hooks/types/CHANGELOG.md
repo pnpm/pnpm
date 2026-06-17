@@ -1,5 +1,16 @@
 # @pnpm/hooks.types
 
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [681b593]
+  - @pnpm/types@1101.3.2
+  - @pnpm/fetching.fetcher-base@1100.1.9
+  - @pnpm/lockfile.types@1100.0.11
+  - @pnpm/resolving.resolver-base@1100.4.2
+  - @pnpm/store.cafs-types@1100.0.1
+
 ## 1100.0.11
 
 ### Patch Changes

@@ -12,7 +12,9 @@
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
 use pacquet_config::{Config, WorkspaceSettings};
-use pacquet_env_installer::{ConfigDepsInstallOptions, resolve_and_install_config_deps};
+use pacquet_env_installer::{
+    ConfigDepsInstallOptions, resolve_and_install_config_deps, resolve_package_manager_integrities,
+};
 use pacquet_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
 use pacquet_hooks::{HookContext, LogFn, finder};
 use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
@@ -49,6 +51,24 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile).await
 }
 
+/// Resolve `pnpm` / `@pnpm/exe` into the env lockfile's
+/// `packageManagerDependencies` block before the wanted lockfile is
+/// loaded.
+pub async fn sync_package_manager_dependencies(
+    config: &Config,
+    root_dir: &Path,
+    wanted_specifier: &str,
+    pnpm_version: &str,
+    frozen_lockfile: bool,
+) -> Result<()> {
+    let context = EnvInstallerContext::new(config)?;
+    let options = context.options(root_dir, frozen_lockfile);
+    resolve_package_manager_integrities(wanted_specifier, pnpm_version, &context.resolver, &options)
+        .await
+        .map_err(miette::Report::new)
+        .wrap_err("resolve package manager dependencies")
+}
+
 /// Add a single config dependency: resolve + install it (merged with any
 /// already-declared config deps), then write the clean specifier into
 /// `pnpm-workspace.yaml`'s `configDependencies` block. Backs
@@ -79,76 +99,108 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     root_dir: &Path,
     frozen_lockfile: bool,
 ) -> Result<()> {
-    let http_client = Arc::new(
-        ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
-        )
-        .into_diagnostic()
-        .wrap_err("create the network client for configurational dependencies")?,
-    );
+    let context = EnvInstallerContext::new(config)?;
+    let options = context.options(root_dir, frozen_lockfile);
 
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
-
-    let retry_opts = RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    };
-
-    let resolver = NpmResolver {
-        registries: registries.clone(),
-        named_registries: HashMap::new(),
-        http_client: Arc::clone(&http_client),
-        auth_headers: Arc::clone(&config.auth_headers),
-        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(config.cache_dir.clone()),
-        offline: config.offline,
-        prefer_offline: config.prefer_offline,
-        ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-        full_metadata: false,
-        retry_opts,
-    };
-
-    // `DownloadTarballToStore` needs a `&'static StoreDir`; the config
-    // (and thus its store dir) is itself leaked for the process
-    // lifetime, but we only hold a borrowed `&Config` here so the
-    // caller keeps the unique `&mut Config` for the `updateConfig`
-    // pass. Leak a clone to recover the `'static` borrow — a single
-    // small, one-per-install allocation in a short-lived CLI process.
-    let store_dir: &'static StoreDir = Box::leak(Box::new(config.store_dir.clone()));
-    let node_version = detect_node_version().unwrap_or_else(|| "0.0.0".to_string());
-    let options = ConfigDepsInstallOptions {
-        root_dir,
-        store_dir,
-        http_client: &http_client,
-        auth_headers: config.auth_headers.as_ref(),
-        registries: &registries,
-        verify_store_integrity: config.verify_store_integrity,
-        offline: config.offline,
-        package_import_method: config.package_import_method,
-        retry_opts,
-        frozen_lockfile,
-        supported_architectures: None,
-        current_node_version: &node_version,
-        current_os: host_platform(),
-        current_cpu: host_arch(),
-        current_libc: host_libc(),
-    };
-
-    resolve_and_install_config_deps::<Reporter>(config_dependencies, &resolver, &options)
+    resolve_and_install_config_deps::<Reporter>(config_dependencies, &context.resolver, &options)
         .await
         .map_err(miette::Report::new)
         .wrap_err("install configurational dependencies")
+}
+
+struct EnvInstallerContext {
+    http_client: Arc<ThrottledClient>,
+    auth_headers: Arc<pacquet_network::AuthHeaders>,
+    registries: HashMap<String, String>,
+    retry_opts: RetryOpts,
+    store_dir: &'static StoreDir,
+    node_version: String,
+    verify_store_integrity: bool,
+    offline: bool,
+    package_import_method: pacquet_config::PackageImportMethod,
+    resolver: NpmResolver<InMemoryPackageMetaCache>,
+}
+
+impl EnvInstallerContext {
+    fn new(config: &Config) -> Result<Self> {
+        let http_client = Arc::new(
+            ThrottledClient::for_installs(
+                &config.proxy,
+                &config.tls,
+                &config.tls_by_uri,
+                &NetworkSettings {
+                    network_concurrency: config.network_concurrency,
+                    fetch_timeout: Duration::from_millis(config.fetch_timeout),
+                    user_agent: config.user_agent.clone(),
+                },
+            )
+            .into_diagnostic()
+            .wrap_err("create the network client for configurational dependencies")?,
+        );
+
+        let registries: HashMap<String, String> =
+            config.resolved_registries().into_iter().collect();
+        let retry_opts = RetryOpts {
+            retries: config.fetch_retries,
+            factor: config.fetch_retry_factor,
+            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
+            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
+        };
+        let auth_headers = Arc::clone(&config.auth_headers);
+        let resolver = NpmResolver {
+            registries: registries.clone(),
+            named_registries: HashMap::new(),
+            http_client: Arc::clone(&http_client),
+            auth_headers: Arc::clone(&auth_headers),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(config.cache_dir.clone()),
+            offline: config.offline,
+            prefer_offline: config.prefer_offline,
+            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+            full_metadata: false,
+            filter_metadata: false,
+            retry_opts,
+        };
+
+        Ok(Self {
+            http_client,
+            auth_headers,
+            registries,
+            retry_opts,
+            store_dir: Box::leak(Box::new(config.store_dir.clone())),
+            node_version: detect_node_version().unwrap_or_else(|| "0.0.0".to_string()),
+            verify_store_integrity: config.verify_store_integrity,
+            offline: config.offline,
+            package_import_method: config.package_import_method,
+            resolver,
+        })
+    }
+
+    fn options<'a>(
+        &'a self,
+        root_dir: &'a Path,
+        frozen_lockfile: bool,
+    ) -> ConfigDepsInstallOptions<'a> {
+        ConfigDepsInstallOptions {
+            root_dir,
+            store_dir: self.store_dir,
+            http_client: &self.http_client,
+            auth_headers: &self.auth_headers,
+            registries: &self.registries,
+            verify_store_integrity: self.verify_store_integrity,
+            offline: self.offline,
+            package_import_method: self.package_import_method,
+            retry_opts: self.retry_opts,
+            frozen_lockfile,
+            supported_architectures: None,
+            current_node_version: &self.node_version,
+            current_os: host_platform(),
+            current_cpu: host_arch(),
+            current_libc: host_libc(),
+        }
+    }
 }
 
 /// Run the `updateConfig` pnpmfile hooks contributed by config-dependency

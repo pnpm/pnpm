@@ -4,7 +4,10 @@ use pacquet_network::{AuthHeaders, ThrottledClient};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 
-use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
+use crate::{
+    NetworkError, PackageTag, PinnedVersion, RegistryError,
+    package_distribution::PackageDistribution,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -267,7 +270,7 @@ impl PackageVersion {
         );
         // Same auth flow as `Package::fetch_from_registry`. See the
         // doc comment there.
-        if let Some(value) = auth_headers.for_url(&url) {
+        if let Some(value) = auth_headers.for_url_with_package(&url, Some(name)) {
             request = request.header("authorization", value);
         }
         request
@@ -303,9 +306,14 @@ impl PackageVersion {
     }
 
     #[must_use]
-    pub fn serialize(&self, save_exact: bool) -> String {
-        let prefix = if save_exact { "" } else { "^" };
-        format!("{0}{1}", prefix, self.version)
+    pub fn serialize(&self, pinned_version: PinnedVersion) -> String {
+        // A prerelease resolved version is written verbatim, ignoring the
+        // pinned prefix, matching pnpm's `createVersionSpecFromResolvedVersion`
+        // at <https://github.com/pnpm/pnpm/blob/086c5e91e8/pkg-manifest/utils/src/updateProjectManifestObject.ts#L29-L45>.
+        if !self.version.pre_release.is_empty() {
+            return self.version.to_string();
+        }
+        format!("{0}{1}", pinned_version.range_prefix(), self.version)
     }
 }
 

@@ -66,6 +66,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         dedupe_direct_deps: true,
         dedupe_injected_deps: false,
         strict_peer_dependencies: false,
+        ignore_compatibility_db: false,
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
         verify_store_integrity: true,
@@ -85,6 +86,8 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         config_dependencies: None,
         allow_builds: Default::default(),
         dangerously_allow_all_builds: false,
+        strict_dep_builds: true,
+        ignore_scripts: false,
         scripts_prepend_node_path: Default::default(),
         enable_pre_post_scripts: false,
         script_shell: None,
@@ -148,6 +151,7 @@ async fn resolve_via_mock(
         prefer_offline: false,
         ignore_missing_time_field: true,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
     let wanted = WantedDependency {

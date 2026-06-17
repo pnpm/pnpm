@@ -47,6 +47,15 @@ beforeEach(() => {
   jest.mocked(globalWarn).mockClear()
 })
 
+test('uses short CAFS temp directories for git package preparation', async () => {
+  const storeDir = temporaryDirectory()
+  const tmpDir = await createCafsStore(storeDir).tempDir()
+
+  expect(path.dirname(tmpDir)).toBe(path.join(storeDir, 'tmp'))
+  expect(path.basename(tmpDir)).toMatch(/^_tmp_[a-zA-Z0-9]{6}$/)
+  expect(path.basename(tmpDir).length).toBeLessThanOrEqual(11)
+})
+
 test('fetch', async () => {
   const storeDir = temporaryDirectory()
   const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git

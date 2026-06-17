@@ -1,5 +1,11 @@
 # @pnpm/exe
 
+## 11.6.1
+
+### Patch Changes
+
+- cd8348c: Updated `@zkochan/cmd-shim` to v9.0.6.
+
 ## 11.0.7
 
 ### Patch Changes

@@ -1,0 +1,34 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@gorhom/bottom-sheet':
+        specifier: 5.2.14
+        version: 5.2.14(react-native-reanimated@4.4.0)
+      react-native-reanimated:
+        specifier: 4.4.0
+        version: 4.4.0
+
+packages:
+
+  '@gorhom/bottom-sheet@5.2.14':
+    resolution: {integrity: sha512-uLQFlDjp9z+jrOFcMSEldPqL5JdaXL3vXOh+juhwoNvXgTsEorJLjHTugXu+YccAG/0KJnShzKCrb71MHBsvJg==}
+    peerDependencies:
+      react-native-reanimated: '>=3.16.0 || >=4.0.0-'
+
+  react-native-reanimated@4.4.0:
+    resolution: {integrity: sha512-0XbC1SpF3JZOz5QfmTEx3vt8VkmkTlS05CBIOKEg5q5ZSNlGtlacntlhj5CrfZlN1ciHAeoliJouTC2cLGKbDA==}
+
+snapshots:
+
+  '@gorhom/bottom-sheet@5.2.14(react-native-reanimated@4.4.0)':
+    dependencies:
+      react-native-reanimated: 4.4.0
+
+  react-native-reanimated@4.4.0: {}

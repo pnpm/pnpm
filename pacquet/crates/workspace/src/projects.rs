@@ -66,10 +66,10 @@ pub struct Project {
 /// option names.
 #[derive(Debug, Default, Clone)]
 pub struct FindWorkspaceProjectsOpts {
-    /// `packages:` from `pnpm-workspace.yaml`. When `None`, upstream
-    /// falls back to `['.', '**']`. Pacquet mirrors that default so a
-    /// workspace whose manifest only carries settings still enumerates
-    /// projects.
+    /// Package discovery patterns. When `None`, this lower-level
+    /// `findPackages` port falls back to `['.', '**']`. Callers
+    /// enumerating a real workspace manifest should pass
+    /// [`crate::workspace_package_patterns`] instead.
     pub patterns: Option<Vec<String>>,
 }
 

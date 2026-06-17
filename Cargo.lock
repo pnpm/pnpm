@@ -729,9 +729,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.44"
+version = "0.4.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c673075a2e0e5f4a1dde27ce9dee1ea4558c7ffe648f576438a20ca1d2acc4b0"
+checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
 dependencies = [
  "iana-time-zone",
  "num-traits",
@@ -3499,6 +3499,7 @@ dependencies = [
  "pacquet-cmd-shim",
  "pacquet-config",
  "pacquet-crypto-hash",
+ "pacquet-default-reporter",
  "pacquet-diagnostics",
  "pacquet-env-installer",
  "pacquet-executor",
@@ -3535,6 +3536,7 @@ dependencies = [
  "tokio",
  "walkdir",
  "which 8.0.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3546,6 +3548,7 @@ dependencies = [
  "pacquet-fs",
  "pipe-trait",
  "rayon",
+ "same-file",
  "serde_json",
  "tempfile",
  "walkdir",
@@ -3621,6 +3624,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-default-reporter"
+version = "0.0.1"
+dependencies = [
+ "insta",
+ "libc",
+ "owo-colors",
+ "pacquet-reporter",
+ "pretty_assertions",
+ "serde_json",
+]
+
+[[package]]
 name = "pacquet-deps-path"
 version = "0.0.1"
 dependencies = [
@@ -3658,6 +3673,15 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tracing",
+]
+
+[[package]]
+name = "pacquet-ecosystem-e2e"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "serde_json",
+ "which 8.0.2",
 ]
 
 [[package]]
@@ -3804,6 +3828,7 @@ dependencies = [
  "miette 7.6.0",
  "pacquet-diagnostics",
  "pacquet-executor",
+ "pacquet-fs",
  "pacquet-package-manifest",
  "pacquet-reporter",
  "pacquet-store-dir",
@@ -3868,6 +3893,7 @@ dependencies = [
  "derive_more",
  "indexmap 2.14.0",
  "node-semver",
+ "pacquet-catalogs-types",
  "pacquet-crypto-hash",
  "pacquet-diagnostics",
  "pacquet-package-manifest",
@@ -4102,6 +4128,7 @@ dependencies = [
  "pacquet-config",
  "pacquet-lockfile",
  "pacquet-lockfile-verification",
+ "pacquet-network",
  "pacquet-testing-utils",
  "pnpr",
  "reqwest 0.13.4",
@@ -4203,6 +4230,7 @@ dependencies = [
  "pacquet-lockfile",
  "pacquet-package-manifest",
  "pacquet-patching",
+ "pacquet-resolving-jsr-specifier-parser",
  "pacquet-resolving-parse-wanted-dependency",
  "pacquet-resolving-resolver-base",
  "pathdiff",
@@ -4366,6 +4394,7 @@ dependencies = [
  "pacquet-diagnostics",
  "pacquet-fs",
  "pacquet-network",
+ "pacquet-package-manifest",
  "pacquet-reporter",
  "pacquet-store-dir",
  "pipe-trait",
@@ -4491,9 +4520,9 @@ dependencies = [
 
 [[package]]
 name = "papergrid"
-version = "0.17.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6978128c8b51d8f4080631ceb2302ab51e32cc6e8615f735ee2f83fd269ae3f1"
+checksum = "d0984e668274d34691bc2b262ef0d115de5fa9973bcdee7ae32213f93099153e"
 dependencies = [
  "bytecount",
  "fnv",
@@ -6185,9 +6214,9 @@ dependencies = [
 
 [[package]]
 name = "tabled"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e39a2ee1fbcd360805a771e1b300f78cc88fec7b8d3e2f71cd37bbf23e725c7d"
+checksum = "b5dc662e6da844ad6e428ad16b57967c9d33c82e16bb1c258326c0c078605dff"
 dependencies = [
  "papergrid",
  "tabled_derive",

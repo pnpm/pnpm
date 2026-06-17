@@ -1,5 +1,73 @@
 # @pnpm/releasing.commands
 
+## 1100.5.0
+
+### Minor Changes
+
+- f1521cf: Added a new opt-in `--batch` flag to `pnpm publish --recursive` that sends all selected packages to the registry in a single `PUT /-/pnpm/v1/publish` request instead of one request per package. The target registry has to implement the batch publish endpoint (pnpr does); registries that don't are reported with a clear `ERR_PNPM_BATCH_PUBLISH_UNSUPPORTED` error. The batch is processed all-or-nothing by pnpr: if any package in the batch fails validation, none of the packages are published.
+
+### Patch Changes
+
+- 7cdf9f8: Fixed `pnpm publish` ignoring `strictSsl: false` when publishing to registries with self-signed certificates. The `strictSSL` option is now forwarded to `libnpmpublish` / `npm-registry-fetch` so that `strict-ssl=false` in `.npmrc` or `strictSsl: false` in `pnpm-workspace.yaml` is respected during publish, the same way it is for `pnpm install` [pnpm/pnpm#12012](https://github.com/pnpm/pnpm/issues/12012).
+- 681b593: pnpm can now use different auth tokens for different package scopes, even when those scopes use the same registry URL.
+
+  Previously, auth was selected only by registry URL. If `@org-a` and `@org-b` both used `https://npm.pkg.github.com/`, they had to share the same token. This caused problems for registries that issue tokens per organization or per scope.
+
+  Configure a scope-specific token by adding the package scope after the registry URL in the auth key:
+
+  ```ini
+  @org-a:registry=https://npm.pkg.github.com/
+  @org-b:registry=https://npm.pkg.github.com/
+
+  //npm.pkg.github.com/:@org-a:_authToken=${ORG_A_TOKEN}
+  //npm.pkg.github.com/:@org-b:_authToken=${ORG_B_TOKEN}
+
+  //npm.pkg.github.com/:_authToken=${FALLBACK_TOKEN}
+  ```
+
+  `pnpm login --registry=https://npm.pkg.github.com --scope=@org-a` writes the token to the same scope-specific auth key.
+
+  When installing or publishing `@org-a/*`, pnpm uses `ORG_A_TOKEN`. For `@org-b/*`, pnpm uses `ORG_B_TOKEN`. Packages without a matching scope continue to use the registry-wide fallback token.
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [8dcd9a0]
+- Updated dependencies [86e70d2]
+- Updated dependencies [61810aa]
+- Updated dependencies [ab0b7d1]
+- Updated dependencies [74a2dc9]
+- Updated dependencies [23716ed]
+- Updated dependencies [681b593]
+- Updated dependencies [d50d691]
+- Updated dependencies [a31faa7]
+  - @pnpm/installing.commands@1100.9.0
+  - @pnpm/config.reader@1101.9.0
+  - @pnpm/exec.lifecycle@1100.0.18
+  - @pnpm/network.auth-header@1101.1.2
+  - @pnpm/types@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.5
+  - @pnpm/cli.utils@1101.0.12
+  - @pnpm/deps.path@1100.0.8
+  - @pnpm/engine.runtime.commands@1100.1.5
+  - @pnpm/engine.runtime.node-resolver@1101.1.7
+  - @pnpm/fetching.directory-fetcher@1100.0.17
+  - @pnpm/fs.indexed-pkg-importer@1100.0.14
+  - @pnpm/network.fetch@1100.1.3
+  - @pnpm/network.web-auth@1101.1.1
+  - @pnpm/installing.client@1100.2.8
+  - @pnpm/bins.resolver@1100.0.8
+  - @pnpm/config.pick-registry-for-package@1100.0.9
+  - @pnpm/lockfile.types@1100.0.11
+  - @pnpm/releasing.exportable-manifest@1100.1.6
+  - @pnpm/resolving.resolver-base@1100.4.2
+  - @pnpm/workspace.projects-filter@1100.0.21
+  - @pnpm/workspace.projects-sorter@1100.0.7
+
 ## 1100.4.4
 
 ### Patch Changes

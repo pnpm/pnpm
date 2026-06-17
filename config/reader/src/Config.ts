@@ -87,7 +87,8 @@ export interface Config extends OptionsFromRootManifest {
   filter: string[]
   filterProd: string[]
   authConfig: Record<string, any>, // eslint-disable-line
-  dryRun?: boolean // This option might be not supported ever
+  /** When true, `pnpm install` resolves and reports what would change but writes nothing to disk. */
+  dryRun?: boolean
   global?: boolean
   dir: string
   bin: string

@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
 import {
@@ -21,6 +22,7 @@ import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   addDependenciesToPackage,
+  type DryRunInstallResult,
   install,
   type InstallOptions,
   type MutatedProject,
@@ -64,6 +66,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'dedupePeerDependents'
 | 'dedupePeers'
 | 'depth'
+| 'dryRun'
 | 'globalPnpmfile'
 | 'hoistPattern'
 | 'hoistingLimits'
@@ -123,11 +126,14 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   pnpmfile: string[]
   /**
    * Alternative install engine (today: pacquet) the deps-installer
-   * delegates the materialization phase to. Built in `installDeps`
-   * when `configDependencies.pacquet` is declared, threaded through
-   * here so the recursive workspace path picks it up too.
+   * delegates the install to. Built in `installDeps` when
+   * `configDependencies.pacquet` is declared, threaded through here so
+   * the recursive workspace path picks it up too.
    */
-  runPacquet?: () => Promise<void>
+  runPacquet?: {
+    supportsResolution: boolean
+    run: (opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>
+  }
 } & Partial<
   Pick<Config,
 | 'ci'
@@ -141,21 +147,36 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 
 export type CommandFullName = 'install' | 'add' | 'remove' | 'update' | 'import'
 
+export interface RecursiveResult {
+  passed: boolean | string
+  /**
+   * Catalog entries written to `pnpm-workspace.yaml` during this install.
+   * The caller folds these into the catalogs recorded in the workspace state
+   * cache so that reverting a catalog entry is detected as an outdated state.
+   */
+  updatedCatalogs?: Catalogs
+  /**
+   * Present only for a `dryRun` install over a shared workspace lockfile:
+   * the before/after wanted lockfiles for the caller to diff.
+   */
+  dryRunResult?: DryRunInstallResult
+}
+
 export async function recursive (
   allProjects: Project[],
   params: string[],
   opts: RecursiveOptions,
   cmdFullName: CommandFullName
-): Promise<boolean | string> {
+): Promise<RecursiveResult> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
-    return false
+    return { passed: false }
   }
 
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
 
   if (pkgs.length === 0) {
-    return false
+    return { passed: false }
   }
   const manifestsByPath = getManifestsByPath(allProjects)
 
@@ -222,7 +243,7 @@ export async function recursive (
     const calculatedRepositoryRoot = await fs.realpath(calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDirRealPath }) => isFromWorkspace(rootDirRealPath))
-    if (importers.length === 0) return true
+    if (importers.length === 0) return { passed: true }
     let mutation: 'install' | 'installSome' | 'uninstallSome'
     switch (cmdFullName) {
       case 'remove':
@@ -315,12 +336,13 @@ export async function recursive (
       updatedProjects: mutatedPkgs,
       ignoredBuilds,
       resolutionPolicyViolations,
+      dryRunResult,
     } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
     })
-    if (opts.save !== false) {
+    if (opts.save !== false && !opts.dryRun) {
       // Only pick entries when we'll actually persist. Otherwise the
       // info log would claim entries were added that the workspace
       // manifest never saw, and the next install would re-prompt or
@@ -338,7 +360,7 @@ export async function recursive (
       await Promise.all(promises)
     }
     await handleIgnoredBuilds(opts, ignoredBuilds)
-    return true
+    return { passed: true, updatedCatalogs, dryRunResult }
   }
 
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
@@ -456,8 +478,10 @@ export async function recursive (
         if (opts.save !== false) {
           await writeProjectManifest(newManifest)
           if (newCatalogsAddition) {
-            updatedCatalogs ??= {}
-            Object.assign(updatedCatalogs, newCatalogsAddition)
+            // Per-project additions are partial maps keyed by catalog name then
+            // dependency. Merge at the dependency level so two projects updating
+            // different entries of the same catalog don't clobber each other.
+            updatedCatalogs = mergeCatalogs(updatedCatalogs, newCatalogsAddition)
           }
         }
         if (ignoredBuilds?.size) {
@@ -524,7 +548,7 @@ export async function recursive (
       'None of the specified packages were found in the dependencies of any of the projects.')
   }
 
-  return true
+  return { passed: true, updatedCatalogs }
 }
 
 function calculateRepositoryRoot (

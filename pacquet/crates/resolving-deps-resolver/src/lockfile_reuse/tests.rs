@@ -127,6 +127,23 @@ fn synthesized_manifest_carries_peer_metadata() {
 }
 
 #[test]
+fn synthesized_manifest_carries_deprecated_metadata() {
+    let key: PkgNameVerPeer = "left-pad@1.3.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.deprecated = Some("use String.prototype.padStart()".to_string());
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let result =
+        synthesize_reused_result(&lockfile, &key, "left-pad").expect("registry dep is reusable");
+    let manifest = result.manifest.expect("synthesized manifest");
+    assert_eq!(
+        manifest.get("deprecated").and_then(serde_json::Value::as_str),
+        Some("use String.prototype.padStart()"),
+    );
+}
+
+#[test]
 fn does_not_reuse_non_registry_resolutions() {
     let key: PkgNameVerPeer = "pkg-from-tarball@1.0.0".parse().expect("parse key");
     let mut metadata = registry_metadata();
@@ -159,4 +176,98 @@ fn does_not_reuse_a_non_semver_version_slot() {
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), registry_metadata())]));
     assert!(synthesize_reused_result(&lockfile, &key, "pkg").is_none());
+}
+
+fn default_registry() -> HashMap<String, String> {
+    HashMap::from([("default".to_string(), "https://registry.example.test/".to_string())])
+}
+
+#[test]
+fn current_pkg_materializes_a_registry_resolution_into_its_tarball_url() {
+    let key: PkgNameVerPeer = "react@18.2.0(foo@1.0.0)".parse().expect("parse key");
+    let mut lockfile = empty_lockfile();
+    lockfile.packages =
+        Some(HashMap::from([("react@18.2.0".parse().expect("parse key"), registry_metadata())]));
+
+    let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &default_registry())
+        .expect("packages entry exists");
+
+    assert_eq!(current_pkg.id.to_string(), "react@18.2.0");
+    assert_eq!(current_pkg.name.as_deref(), Some("react"));
+    assert_eq!(current_pkg.version.as_deref(), Some("18.2.0"));
+    let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
+        panic!("registry resolution must materialize as a tarball: {:?}", current_pkg.resolution);
+    };
+    assert_eq!(tarball.tarball, "https://registry.example.test/react/-/react-18.2.0.tgz");
+    assert!(tarball.integrity.is_some(), "the recorded integrity carries over");
+}
+
+#[test]
+fn current_pkg_routes_a_scoped_package_to_its_scope_registry() {
+    let key: PkgNameVerPeer = "@scope/pkg@1.0.0".parse().expect("parse key");
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), registry_metadata())]));
+    let mut registries = default_registry();
+    registries.insert("@scope".to_string(), "https://scoped.example.test/".to_string());
+
+    let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &registries)
+        .expect("packages entry exists");
+
+    let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
+        panic!("registry resolution must materialize as a tarball");
+    };
+    assert_eq!(tarball.tarball, "https://scoped.example.test/@scope/pkg/-/pkg-1.0.0.tgz");
+}
+
+#[test]
+fn current_pkg_passes_a_recorded_tarball_resolution_through() {
+    let key: PkgNameVerPeer = "pkg@1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: "https://example.test/pkg-1.0.0.tgz".to_string(),
+        integrity: None,
+        git_hosted: None,
+        path: None,
+    });
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &default_registry())
+        .expect("packages entry exists");
+
+    let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
+        panic!("tarball resolution must pass through");
+    };
+    assert_eq!(tarball.tarball, "https://example.test/pkg-1.0.0.tgz");
+}
+
+#[test]
+fn current_pkg_is_none_without_a_packages_entry() {
+    let key: PkgNameVerPeer = "react@18.2.0".parse().expect("parse key");
+    let lockfile = empty_lockfile();
+    assert!(super::current_pkg_from_lockfile(&lockfile, &key, &default_registry()).is_none());
+}
+
+#[test]
+fn current_pkg_is_withheld_for_a_registry_entry_without_a_registry_map() {
+    let key: PkgNameVerPeer = "react@18.2.0".parse().expect("parse key");
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), registry_metadata())]));
+    assert!(super::current_pkg_from_lockfile(&lockfile, &key, &HashMap::new()).is_none());
+}
+
+#[test]
+fn prior_child_key_applies_the_satisfies_gate() {
+    let snapshot: pacquet_lockfile::SnapshotEntry =
+        serde_json::from_value(serde_json::json!({ "dependencies": { "bar": "1.2.0" } }))
+            .expect("parse snapshot entry");
+
+    let key = super::prior_child_key(&snapshot, "bar", "^1.0.0").expect("recorded ref satisfies");
+    assert_eq!(key.to_string(), "bar@1.2.0");
+
+    assert!(
+        super::prior_child_key(&snapshot, "bar", "^2.0.0").is_none(),
+        "an edited range the recorded version no longer satisfies yields no prior key",
+    );
+    assert!(super::prior_child_key(&snapshot, "baz", "^1.0.0").is_none(), "unrecorded alias");
 }

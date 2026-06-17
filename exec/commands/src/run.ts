@@ -137,7 +137,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             shortAlias: '-r',
           },
           {
-            description: 'The command will exit with a 0 exit code even if the script fails',
+            description: 'Continue running the remaining scripts even if one of them fails, instead of aborting on the first failure. The command still exits with a non-zero exit code if any script failed',
             name: '--no-bail',
           },
           IF_PRESENT_OPTION_HELP,
@@ -292,20 +292,34 @@ so you may run "pnpm -w run ${scriptName}"`,
       ...makeNodeRequireOption(pnpPath),
     }
   }
-  try {
-    const limitRun = pLimit(concurrency)
+  const limitRun = pLimit(concurrency)
 
-    const runScriptOptions: RunScriptOptions = {
-      enablePrePostScripts: opts.enablePrePostScripts ?? false,
-      syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
-      workspaceDir: opts.workspaceDir,
-    }
-    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
+  const runScriptOptions: RunScriptOptions = {
+    enablePrePostScripts: opts.enablePrePostScripts ?? false,
+    syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
+    workspaceDir: opts.workspaceDir,
+  }
+  const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
 
+  if (opts.bail !== false) {
     await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
-  } catch (err: unknown) {
-    if (opts.bail !== false) {
-      throw err
+  } else {
+    const results = await Promise.allSettled(
+      specifiedScripts.map(script => limitRun(() => _runScript(script)))
+    )
+    const failures = results
+      .map((result, index) => ({ result, script: specifiedScripts[index] }))
+      .filter((entry): entry is { result: PromiseRejectedResult, script: string } => entry.result.status === 'rejected')
+    if (failures.length > 0) {
+      throw new PnpmError(
+        'RUN_FAILED',
+        `Some scripts failed: ${failures.length} of ${specifiedScripts.length}`,
+        {
+          hint: failures
+            .map(({ script, result }) => `${script}: ${result.reason?.message ?? String(result.reason)}`)
+            .join('\n'),
+        }
+      )
     }
   }
   return undefined

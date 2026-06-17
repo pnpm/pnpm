@@ -489,6 +489,56 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
 
     let map = prefetched.cas_paths.get(&index_key).expect("hit");
     assert_eq!(map.get("package.json"), Some(&pkg_json_path));
+    assert_eq!(prefetched.requires_build.get(&index_key), Some(&false));
+    drop(store_dir);
+}
+
+#[tokio::test]
+async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+
+    let manifest_bytes = br#"{"name":"fake","scripts":{"postinstall":"node build.js"}}"#;
+    let (pkg_json_path, pkg_json_hash) = store_path.write_cas_file(manifest_bytes, false).unwrap();
+
+    let pkg_integrity = integrity(
+        "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
+    );
+    let pkg_id = "fake@1.0.0";
+    let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+
+    let mut files = HashMap::new();
+    files.insert(
+        "package.json".to_string(),
+        CafsFileInfo {
+            digest: format!("{pkg_json_hash:x}"),
+            mode: 0o644,
+            size: manifest_bytes.len() as u64,
+            checked_at: None,
+        },
+    );
+    let entry = PackageFilesIndex {
+        manifest: Some(serde_json::from_slice(manifest_bytes).unwrap()),
+        requires_build: None,
+        algo: "sha512".to_string(),
+        files,
+        side_effects: None,
+    };
+    let index = StoreIndex::open_in(store_path).unwrap();
+    index.set(&index_key, &entry).unwrap();
+    drop(index);
+
+    let prefetched = prefetch_cas_paths(
+        StoreIndex::shared_readonly_in(store_path),
+        store_path,
+        vec![index_key.clone()],
+        true,
+        SharedVerifiedFilesCache::default(),
+    )
+    .await;
+
+    let map = prefetched.cas_paths.get(&index_key).expect("hit");
+    assert_eq!(map.get("package.json"), Some(&pkg_json_path));
+    assert_eq!(prefetched.requires_build.get(&index_key), Some(&true));
     drop(store_dir);
 }
 
@@ -1018,7 +1068,34 @@ fn extract_tarball_applies_ignore_filter_dropping_entries_from_both_maps() {
         !pkg_files_idx.files.contains_key("lib/node_modules/npm/package.json"),
         "ignore filter should drop bundled npm from pkg_files_idx.files",
     );
+    assert_eq!(pkg_files_idx.requires_build, Some(false));
 
+    drop(tempdir);
+}
+
+#[test]
+fn extract_tarball_records_requires_build_from_manifest() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let body = br#"{"scripts":{"install":"node-gyp rebuild"}}"#;
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "package/package.json", &body[..])
+            .expect("append manifest");
+        builder.finish().expect("finalize tar");
+    }
+
+    let (_cas_paths, pkg_files_idx) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("tarball extraction");
+
+    assert_eq!(pkg_files_idx.requires_build, Some(true));
     drop(tempdir);
 }
 
@@ -1555,6 +1632,48 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
     )
     .await
     .expect("server should accept the request once the bearer header is attached");
+
+    assert!(cas_paths.contains_key("package.json"));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .match_header("authorization", "Bearer scoped-token")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+    let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
+    let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
+    let auth_headers =
+        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())], None);
+
+    let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
+        &client,
+        &url,
+        Some(&pkg_integrity),
+        None,
+        0,
+        "@scope/test-pkg@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &auth_headers,
+        None,
+        None,
+    )
+    .await
+    .expect("server should accept the request once the scoped bearer header is attached");
 
     assert!(cas_paths.contains_key("package.json"));
     mock.assert_async().await;

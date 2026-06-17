@@ -151,6 +151,10 @@ dependencies is not found inside the workspace',
             name: '--interactive',
             shortAlias: '-i',
           },
+          {
+            description: 'Don\'t update the ranges in package.json.',
+            name: '--no-save',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -228,7 +232,7 @@ async function interactiveUpdate (
     return 'All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json'
   }
 
-  const flatChoices: Array<Separator | { name: string; value: string; disabled?: boolean | string }> = []
+  const flatChoices: Array<Separator | { name: string; value: string; short: string; disabled?: boolean | string }> = []
   for (const group of choiceGroups) {
     flatChoices.push(new Separator(chalk.bold(`── ${group.message} ──`)))
     for (const choice of group.choices) {
@@ -238,6 +242,11 @@ async function interactiveUpdate (
         flatChoices.push({
           name: choice.message,
           value: choice.value,
+          // `name` is the rendered table row (label + versions + workspace + url)
+          // that lays out a single choice during selection. After submission
+          // @inquirer/prompts comma-joins each choice's `short`, which without
+          // this defaults to `name` and dumps the whole table back to stdout.
+          short: choice.value,
         })
       }
     }
@@ -311,7 +320,7 @@ async function update (
   ) {
     updateMatching = createMatcher(dependencies)
   }
-  return installDeps({
+  await installDeps({
     ...opts,
     rebuildHandler,
     allowNew: false,
@@ -324,6 +333,9 @@ async function update (
     updateMatching,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
+    // `--dry-run` is an `install`-only preview; never let a config-level
+    // `dry-run` turn `update` into a no-op check.
+    dryRun: false,
   }, dependencies)
 }
 

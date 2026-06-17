@@ -341,14 +341,14 @@ fn build_importer(
 }
 
 /// Map each direct-dep alias to the manifest group it appears in.
-/// `dependencies` wins over `devDependencies` wins over
-/// `optionalDependencies` when an alias is duplicated across groups —
+/// `optionalDependencies` wins over `dependencies` wins over
+/// `devDependencies` when an alias is duplicated across groups —
 /// mirrors upstream's
 /// [`getAliasToDependencyTypeMap`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/index.ts#L500-L511)
 /// (first-write-wins over `DEPENDENCIES_FIELDS`).
 fn manifest_alias_to_group(manifest: &PackageManifest) -> HashMap<String, DependencyGroup> {
     let mut out: HashMap<String, DependencyGroup> = HashMap::new();
-    for group in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
+    for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev] {
         for (alias, _) in manifest.dependencies([group]) {
             out.entry(alias.to_string()).or_insert(group);
         }
@@ -357,7 +357,7 @@ fn manifest_alias_to_group(manifest: &PackageManifest) -> HashMap<String, Depend
 }
 
 /// Look up the user-written specifier for `alias` in the manifest's
-/// `dependencies` / `devDependencies` / `optionalDependencies` /
+/// `optionalDependencies` / `dependencies` / `devDependencies` /
 /// `peerDependencies` maps in pnpm's
 /// [`DEPENDENCIES_FIELDS`](https://github.com/pnpm/pnpm/blob/097983fbca/packages/types/src/misc.ts)
 /// precedence order. Returns `None` for a peer-only entry that was
@@ -365,9 +365,9 @@ fn manifest_alias_to_group(manifest: &PackageManifest) -> HashMap<String, Depend
 /// such entries don't go into the importer's `specifiers` map.
 fn read_manifest_specifier(manifest: &PackageManifest, alias: &str) -> Option<String> {
     for group in [
+        DependencyGroup::Optional,
         DependencyGroup::Prod,
         DependencyGroup::Dev,
-        DependencyGroup::Optional,
         DependencyGroup::Peer,
     ] {
         let group_key: &str = group.into();

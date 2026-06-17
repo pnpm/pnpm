@@ -455,10 +455,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     parentPkgs = { ...parentParentPkgs }
     const parentPkgNodes: Array<ParentPkgNode<T>> = []
     for (const [alias, nodeId] of Object.entries(children)) {
-      if (ctx.allPeerDepNames.has(alias)) {
+      const childNode = ctx.dependenciesTree.get(nodeId)!
+      if (ctx.allPeerDepNames.has(alias) || (alias !== childNode.resolvedPackage.name && ctx.allPeerDepNames.has(childNode.resolvedPackage.name))) {
         parentPkgNodes.push({
           alias,
-          node: ctx.dependenciesTree.get(nodeId)!,
+          node: childNode,
           nodeId,
           parentNodeIds,
         })
@@ -511,6 +512,15 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ctx.pathsByNodeIdPromises.set(peerNodeId, peerPathPromise)
       ctx.pathsByNodeId.set(peerNodeId, previousPeerDepPath)
       peerPathPromise.resolve(previousPeerDepPath)
+      // Pinning writes into parentPkgs, and a childless node shares the object
+      // with its parent, so siblings processed later would see the pinned
+      // provider too. Copy before the first write to keep the pin scoped to
+      // this node — sibling order follows resolution order, so a leak makes the
+      // lockfile depend on network timing. Done here, not before the loop, so a
+      // pass whose guards skip every entry never allocates.
+      if (parentPkgs === parentParentPkgs) {
+        parentPkgs = { ...parentParentPkgs }
+      }
       parentPkgs[peerName] = lockedPeer
     }
   }
@@ -582,7 +592,17 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   let cache: PeersCacheItem
   const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
-  if (isPure) {
+  // A cycle re-entry resolves against truncated children (the cycle is broken by
+  // dropping the repeated package's subtree), so its empty/partial peer sets are
+  // not authoritative for the package as a whole. Recording that verdict — as
+  // pure or in peersCache — lets it short-circuit other occurrences that *can*
+  // see the full subtree, dropping their transitivePeerDependencies depending on
+  // traversal order and churning the lockfile (https://github.com/pnpm/pnpm/issues/5108).
+  const resolvedThroughCycle = ctx.parentDepPathsChain.includes(resolvedPackage.pkgIdWithPatchHash)
+  if (resolvedThroughCycle) {
+    // Leave both caches untouched so later occurrences re-resolve (or hit the
+    // authoritative entry of the same package) instead of reusing this partial one.
+  } else if (isPure) {
     ctx.purePkgs.add(resolvedPackage.pkgIdWithPatchHash)
   } else {
     cache = {

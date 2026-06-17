@@ -58,6 +58,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'save-exact',
     'save-optional',
     'save-prefix',
+    'trust-lockfile',
     'unsafe-perm',
   ], allTypes)
 }

@@ -184,6 +184,50 @@ fn does_not_collapse_across_incompatible_peer_versions() {
     assert_eq!(direct["project3"]["foo"], direct["project4"]["foo"]);
 }
 
+#[test]
+fn direct_dep_collapses_but_parent_edge_keeps_incompatible_peer_variant() {
+    let subset = "foo@1.0.0(bar@1.0.0)";
+    let larger = "foo@1.0.0(bar@1.0.0)(baz@1.0.0)";
+    let baz = "baz@1.0.0(qux@1.0.0)";
+    let consumer = "consumer@1.0.0(foo@1.0.0(bar@1.0.0))(bar@1.0.0)";
+
+    let mut graph = DependenciesGraph::new();
+    for (id, dep_path) in [("bar@1.0.0", "bar@1.0.0"), ("qux@1.0.0", "qux@1.0.0")] {
+        graph.insert(dp(dep_path), make_node(id, dep_path, &[], &[]));
+    }
+    graph.insert(dp(baz), make_node("baz@1.0.0", baz, &[("qux", "qux@1.0.0")], &["qux"]));
+    graph.insert(dp(subset), make_node("foo@1.0.0", subset, &[("bar", "bar@1.0.0")], &["bar"]));
+    graph.insert(
+        dp(larger),
+        make_node("foo@1.0.0", larger, &[("bar", "bar@1.0.0"), ("baz", baz)], &["bar", "baz"]),
+    );
+    graph.insert(
+        dp(consumer),
+        make_node(
+            "consumer@1.0.0",
+            consumer,
+            &[("foo", subset), ("bar", "bar@1.0.0")],
+            &["foo", "bar"],
+        ),
+    );
+
+    let mut direct: DirectByImporter = BTreeMap::new();
+    direct.insert("project-subset".to_string(), BTreeMap::from([("foo".to_string(), dp(subset))]));
+    direct.insert("project-larger".to_string(), BTreeMap::from([("foo".to_string(), dp(larger))]));
+    direct.insert(
+        "project-consumer".to_string(),
+        BTreeMap::from([("consumer".to_string(), dp(consumer))]),
+    );
+
+    dedupe_peer_dependents(&mut graph, &mut direct);
+
+    assert_eq!(direct["project-subset"]["foo"], dp(larger));
+    assert_eq!(direct["project-larger"]["foo"], dp(larger));
+    assert_eq!(graph[&dp(consumer)].children["foo"], dp(subset));
+    assert!(graph.contains_key(&dp(subset)));
+    assert!(graph.contains_key(&dp(larger)));
+}
+
 /// A package whose two variants are mutually incompatible (neither's
 /// children/peers subset the other) must not collapse — both survive and
 /// no remap happens.

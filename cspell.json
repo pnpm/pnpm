@@ -2,7 +2,8 @@
   "ignorePaths": [
     "**/nodeReleaseKeys.ts",
     "**/nodeReleaseKeys.d.ts",
-    "**/node_release_keys.rs"
+    "**/node_release_keys.rs",
+    "bench-work-env/**"
   ],
   "words": [
     "adduser",
@@ -124,6 +125,7 @@
     "ghes",
     "ghsa",
     "ghsas",
+    "gitdir",
     "gitea",
     "globalconfig",
     "globstar",
@@ -201,6 +203,7 @@
     "msgpackr",
     "msvc",
     "msys",
+    "mtimes",
     "musleabihf",
     "mycomp",
     "mycompany",
@@ -299,6 +302,7 @@
     "redownload",
     "refclone",
     "refetched",
+    "refetches",
     "reflattened",
     "reflink",
     "reflinked",
@@ -414,6 +418,8 @@
     "worktree",
     "worktrees",
     "wrappy",
+    "xattr",
+    "xattrs",
     "xmarw",
     "yazl",
     "zkochan",

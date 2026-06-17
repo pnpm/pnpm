@@ -1,4 +1,5 @@
 /// <reference path="../../../../../__typings__/index.d.ts" />
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -7,6 +8,7 @@ import { sbom } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -186,6 +188,30 @@ test('pnpm sbom --prod excludes devDependencies', async () => {
   expect(componentNames).not.toContain('typescript')
 })
 
+test('pnpm sbom marks dev-only components with scope "excluded" (cyclonedx)', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-dev-dependency', workspaceDir)
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const typescript = parsed.components.find((c: { name: string }) => c.name === 'typescript')
+  expect(typescript.scope).toBe('excluded')
+
+  // Prod components default to "required"; scope is omitted
+  const isPositive = parsed.components.find((c: { name: string }) => c.name === 'is-positive')
+  expect(isPositive.scope).toBeUndefined()
+})
+
 test('pnpm sbom invalid --sbom-type throws', async () => {
   const workspaceDir = tempDir()
   f.copy('simple-sbom', workspaceDir)
@@ -276,4 +302,515 @@ test('pnpm sbom --sbom-type application', async () => {
 
   const parsed = JSON.parse(output)
   expect(parsed.metadata.component.type).toBe('application')
+})
+
+test('pnpm sbom --filter uses workspace manifest for root component', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const appADir = path.join(workspaceDir, 'app-a')
+  const filteredGraph = Object.fromEntries(
+    Object.entries(selectedProjectsGraph).filter(([p]) =>
+      p === appADir
+    )
+  )
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: appADir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    selectedProjectsGraph: filteredGraph,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  expect(parsed.metadata.component.name).toBe('app-a')
+  expect(parsed.metadata.component.group).toBe('@test')
+  expect(parsed.metadata.component.version).toBe('1.0.0')
+
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive')
+  expect(componentNames).not.toContain('is-negative')
+
+  // Workspace dep shared-lib and its transitive dep is-odd should be included
+  expect(componentNames).toContain('shared-lib')
+  expect(componentNames).toContain('is-odd')
+
+  const sharedLib = parsed.components.find(
+    (c: { name: string }) => c.name === 'shared-lib'
+  )
+  expect(sharedLib.version).toBe('0.1.0')
+  expect(sharedLib.purl).toBe('pkg:npm/shared-lib@0.1.0')
+})
+
+test('pnpm sbom --filter with spdx uses workspace manifest for root component', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const appBDir = path.join(workspaceDir, 'app-b')
+  const filteredGraph = Object.fromEntries(
+    Object.entries(selectedProjectsGraph).filter(([p]) =>
+      p === appBDir
+    )
+  )
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: appBDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'spdx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    selectedProjectsGraph: filteredGraph,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const rootPkg = parsed.packages.find(
+    (p: { name: string }) => p.name === 'app-b'
+  )
+  expect(rootPkg).toBeDefined()
+  expect(rootPkg.versionInfo).toBe('2.0.0')
+
+  const componentNames = parsed.packages.map((p: { name: string }) => p.name)
+  expect(componentNames).toContain('is-negative')
+  expect(componentNames).not.toContain('is-positive')
+})
+
+test('pnpm sbom --prod excludes dev-only workspace dependencies', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom-dev', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const appDir = path.join(workspaceDir, 'app')
+  const filteredGraph = Object.fromEntries(
+    Object.entries(selectedProjectsGraph).filter(([p]) =>
+      p === appDir
+    )
+  )
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: appDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    selectedProjectsGraph: filteredGraph,
+    production: true,
+    dev: false,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive')
+  // dev-tool is a devDependency workspace dep; excluded with --prod
+  expect(componentNames).not.toContain('dev-tool')
+  // is-negative is a transitive dep of dev-tool; also excluded
+  expect(componentNames).not.toContain('is-negative')
+})
+
+test('pnpm sbom --filter includes dev workspace deps without --prod', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom-dev', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const appDir = path.join(workspaceDir, 'app')
+  const filteredGraph = Object.fromEntries(
+    Object.entries(selectedProjectsGraph).filter(([p]) =>
+      p === appDir
+    )
+  )
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: appDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    selectedProjectsGraph: filteredGraph,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive')
+  expect(componentNames).toContain('dev-tool')
+  expect(componentNames).toContain('is-negative')
+})
+
+test('pnpm sbom --lockfile-only skips workspace dep resolution', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const appADir = path.join(workspaceDir, 'app-a')
+  const filteredGraph = Object.fromEntries(
+    Object.entries(selectedProjectsGraph).filter(([p]) =>
+      p === appADir
+    )
+  )
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: appADir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    selectedProjectsGraph: filteredGraph,
+    lockfileOnly: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  expect(parsed.metadata.component.name).toBe('app-a')
+  expect(parsed.metadata.component.group).toBe('@test')
+
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  // lockfile-only mode: workspace deps are not resolved (no manifest reads)
+  expect(componentNames).not.toContain('shared-lib')
+  // Transitive deps reachable only through workspace links are not traversed either
+  expect(componentNames).not.toContain('is-odd')
+  // External deps from the selected importer are still present
+  expect(componentNames).toContain('is-positive')
+})
+
+test('pnpm sbom --out writes single file', async () => {
+  const workspaceDir = tempDir()
+  f.copy('simple-sbom', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  const outFile = path.join(workspaceDir, 'output', 'sbom.cdx.json')
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    out: outFile,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(output).toBe(outFile)
+  expect(fs.existsSync(outFile)).toBe(true)
+
+  const parsed = JSON.parse(fs.readFileSync(outFile, 'utf8'))
+  expect(parsed.bomFormat).toBe('CycloneDX')
+  expect(parsed.metadata.component.name).toBe('simple-sbom-test')
+})
+
+test('pnpm sbom --out with %s in a single-project repo writes one file', async () => {
+  const workspaceDir = tempDir()
+  f.copy('simple-sbom', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  const outFile = path.join(workspaceDir, 'sbom-out', '%s.cdx.json')
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    out: outFile,
+  })
+
+  expect(exitCode).toBe(0)
+  const expectedFile = path.join(workspaceDir, 'sbom-out', 'simple-sbom-test.cdx.json')
+  expect(output).toBe(expectedFile)
+  expect(fs.existsSync(expectedFile)).toBe(true)
+})
+
+test('pnpm sbom --out with %s writes per-package files', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const outDir = path.join(workspaceDir, 'sbom-out')
+  const outPattern = path.join(outDir, '%s.cdx.json')
+
+  const { exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    out: outPattern,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const files = fs.readdirSync(outDir).sort()
+  expect(files).toContain('test-app-a.cdx.json')
+  expect(files).toContain('app-b.cdx.json')
+  expect(files).toContain('shared-lib.cdx.json')
+
+  const appA = JSON.parse(fs.readFileSync(path.join(outDir, 'test-app-a.cdx.json'), 'utf8'))
+  expect(appA.metadata.component.name).toBe('app-a')
+  expect(appA.metadata.component.group).toBe('@test')
+  expect(appA.metadata.component.version).toBe('1.0.0')
+
+  const appB = JSON.parse(fs.readFileSync(path.join(outDir, 'app-b.cdx.json'), 'utf8'))
+  expect(appB.metadata.component.name).toBe('app-b')
+})
+
+test('pnpm sbom --split outputs NDJSON to stdout', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    split: true,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const lines = output.trim().split('\n')
+  expect(lines).toHaveLength(4)
+
+  const names = lines.map((line) => {
+    const component = JSON.parse(line).metadata.component
+    return component.group ? `${component.group}/${component.name}` : component.name
+  }).sort()
+  expect(names).toContain('@test/app-a')
+  expect(names).toContain('app-b')
+  expect(names).toContain('shared-lib')
+
+  for (const line of lines) {
+    expect(line).toBe(line.trim())
+    expect(line.startsWith('{')).toBe(true)
+    JSON.parse(line)
+  }
+})
+
+test('pnpm sbom --out with %s and %v uses name and version in filename', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const outDir = path.join(workspaceDir, 'sbom-out')
+  const outPattern = path.join(outDir, '%s-%v.cdx.json')
+
+  const appADir = path.join(workspaceDir, 'app-a')
+  const filteredGraph = Object.fromEntries(
+    Object.entries(selectedProjectsGraph).filter(([p]) =>
+      p === appADir
+    )
+  )
+
+  const { exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    out: outPattern,
+    selectedProjectsGraph: filteredGraph,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const files = fs.readdirSync(outDir)
+  expect(files).toContain('test-app-a-1.0.0.cdx.json')
+})
+
+test('pnpm sbom --split without workspace throws', async () => {
+  const workspaceDir = tempDir()
+  f.copy('simple-sbom', workspaceDir)
+
+  await expect(
+    sbom.handler({
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      pnpmHomeDir: '',
+      sbomFormat: 'cyclonedx',
+      split: true,
+      lockfileOnly: true,
+    })
+  ).rejects.toThrow('requires a workspace')
+})
+
+test('pnpm sbom --split --out without %s throws', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+
+  const { allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  await expect(
+    sbom.handler({
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      pnpmHomeDir: '',
+      sbomFormat: 'cyclonedx',
+      split: true,
+      out: 'sbom.cdx.json',
+      allProjectsGraph,
+      selectedProjectsGraph,
+      lockfileOnly: true,
+    })
+  ).rejects.toThrow('must contain %s')
 })

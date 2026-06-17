@@ -100,7 +100,7 @@ async function ownerLs (
 
   const { name: packageName, escapedName } = parsePackageSpec(params[0])
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
 
   const owners = await fetchOwners(packageName, escapedName, registryUrl, fetchFromRegistry, authHeader)
@@ -124,7 +124,7 @@ async function ownerAdd (
   const owner = params[1]
 
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
@@ -158,7 +158,7 @@ async function ownerRm (
   const owner = params[1]
 
   const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
-  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const otp = opts.cliOptions?.otp
 
@@ -180,10 +180,11 @@ async function ownerRm (
 
 function getAuthHeaderForRegistry (
   configByUri: Record<string, RegistryConfig> | undefined,
-  registryUrl: string
+  registryUrl: string,
+  packageName: string
 ): string | undefined {
   const getAuthHeader = createGetAuthHeaderByURI(configByUri ?? {})
-  return getAuthHeader(registryUrl)
+  return getAuthHeader(registryUrl, { pkgName: packageName })
 }
 
 function getOwnerUrl (escapedName: string, registryUrl: string, owner?: string): string {

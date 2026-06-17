@@ -12,6 +12,7 @@ use pacquet_lockfile::{
     SnapshotEntry, select_platform_variant,
 };
 use pacquet_network::ThrottledClient;
+use pacquet_package_manifest::{files_include_install_scripts, manifest_requires_build};
 use pacquet_reporter::{
     BrokenModulesLog, LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog,
     StatsMessage,
@@ -24,6 +25,7 @@ use pacquet_tarball::{MemCache, PrefetchResult, SharedReportedProgressKeys, pref
 use pipe_trait::Pipe;
 use std::{
     collections::{HashMap, HashSet},
+    fs,
     path::{Path, PathBuf},
     sync::atomic::AtomicU8,
 };
@@ -65,6 +67,11 @@ pub type PackageManifests = HashMap<PkgNameVerPeer, std::sync::Arc<serde_json::V
 pub type SideEffectsMapsBySnapshot =
     HashMap<PackageKey, std::sync::Arc<HashMap<String, HashMap<String, PathBuf>>>>;
 
+/// Per-snapshot `requiresBuild` flags recovered from the store index
+/// during the warm-cache prefetch. `BuildModules` consumes this to
+/// avoid re-inspecting every package directory after materialization.
+pub type RequiresBuildBySnapshot = HashMap<PackageKey, bool>;
+
 /// Output of [`CreateVirtualStore::run`]. Bundles the bin-link
 /// manifest cache, the per-snapshot side-effects-cache overlays the
 /// build-phase needs, and the per-install fetch-failure set.
@@ -80,6 +87,7 @@ pub type SideEffectsMapsBySnapshot =
 pub struct CreateVirtualStoreOutput {
     pub package_manifests: PackageManifests,
     pub side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
+    pub requires_build_by_snapshot: RequiresBuildBySnapshot,
     pub fetch_failed: HashSet<PackageKey>,
     /// Per-package CAS index, populated only when
     /// [`CreateVirtualStore::node_linker`] is
@@ -233,6 +241,7 @@ impl CreateVirtualStore<'_> {
             return Ok(CreateVirtualStoreOutput {
                 package_manifests: PackageManifests::new(),
                 side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot::new(),
+                requires_build_by_snapshot: RequiresBuildBySnapshot::new(),
                 fetch_failed: HashSet::new(),
                 cas_paths_by_pkg_id: is_hoisted.then(CasPathsByPkgId::new),
             });
@@ -465,7 +474,8 @@ impl CreateVirtualStore<'_> {
         type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, Option<String>);
         let snapshot_entries: Vec<SnapshotWithCacheKey<'_>> = survivors
             .map(|(snapshot_key, snapshot)| {
-                snapshot_cache_key(snapshot_key, packages).map(|key| (snapshot_key, snapshot, key))
+                snapshot_cache_key(snapshot_key, packages, config.ignore_scripts)
+                    .map(|key| (snapshot_key, snapshot, key))
             })
             .collect::<Result<_, _>>()?;
 
@@ -491,7 +501,9 @@ impl CreateVirtualStore<'_> {
             // here.
             .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
             .map(|(snapshot_key, snapshot)| {
-                let cache_key = snapshot_cache_key(snapshot_key, packages).ok().flatten();
+                let cache_key = snapshot_cache_key(snapshot_key, packages, config.ignore_scripts)
+                    .ok()
+                    .flatten();
                 (snapshot_key, snapshot, cache_key)
             })
             .collect();
@@ -540,6 +552,7 @@ impl CreateVirtualStore<'_> {
             cas_paths: prefetched,
             manifests: prefetched_manifests,
             side_effects_maps: prefetched_side_effects,
+            requires_build: prefetched_requires_build,
         } = prefetch_cas_paths(
             store_index.clone(),
             store_dir,
@@ -595,6 +608,8 @@ impl CreateVirtualStore<'_> {
             HashMap::with_capacity(prefetched_manifests.len());
         let mut side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot =
             HashMap::with_capacity(prefetched_side_effects.len());
+        let mut requires_build_by_snapshot: RequiresBuildBySnapshot =
+            HashMap::with_capacity(prefetched_requires_build.len());
 
         // First pass: process *skipped* snapshots into the bin-
         // manifest cache and the side-effects map. They don't enter
@@ -617,6 +632,11 @@ impl CreateVirtualStore<'_> {
                 side_effects_maps_by_snapshot
                     .insert((*snapshot_key).clone(), std::sync::Arc::clone(maps));
             }
+            if let Some(cache_key) = cache_key.as_deref()
+                && let Some(&requires_build) = prefetched_requires_build.get(cache_key)
+            {
+                requires_build_by_snapshot.insert((*snapshot_key).clone(), requires_build);
+            }
         }
 
         // Second pass: survivors. Same loop as above plus the
@@ -637,6 +657,11 @@ impl CreateVirtualStore<'_> {
             {
                 side_effects_maps_by_snapshot
                     .insert((*snapshot_key).clone(), std::sync::Arc::clone(maps));
+            }
+            if let Some(cache_key) = cache_key.as_deref()
+                && let Some(&requires_build) = prefetched_requires_build.get(cache_key)
+            {
+                requires_build_by_snapshot.insert((*snapshot_key).clone(), requires_build);
             }
             // Carry the cache key alongside the warm entry so the
             // reporter can skip a duplicate package-status event when
@@ -745,14 +770,14 @@ impl CreateVirtualStore<'_> {
         //   future returns; under hoisted no slot was written and the
         //   CAS index is the only output.
         let mut fetch_failed: HashSet<PackageKey> = HashSet::new();
-        let mut cold_cas_paths: Vec<(&PackageKey, &SnapshotEntry, HashMap<String, PathBuf>)> =
+        let mut cold_cas_paths: Vec<(&PackageKey, &SnapshotEntry, HashMap<String, PathBuf>, bool)> =
             Vec::new();
         if !cold.is_empty() {
             let prefetched_ref = Some(&prefetched);
             let verified_files_cache_ref = &verified_files_cache;
             type ColdOutcome<'a> = (
                 Option<PackageKey>,
-                Option<(&'a PackageKey, &'a SnapshotEntry, HashMap<String, PathBuf>)>,
+                Option<(&'a PackageKey, &'a SnapshotEntry, HashMap<String, PathBuf>, bool)>,
             );
             let outcomes: Vec<ColdOutcome<'_>> = cold
                 .iter()
@@ -793,7 +818,10 @@ impl CreateVirtualStore<'_> {
                     .run::<Reporter>()
                     .await;
                     match result {
-                        Ok(cas_paths) => Ok((None, Some((*snapshot_key, *snapshot, cas_paths)))),
+                        Ok(cas_paths) => {
+                            let requires_build = requires_build_from_cas_paths(&cas_paths);
+                            Ok((None, Some((*snapshot_key, *snapshot, cas_paths, requires_build))))
+                        }
                         Err(err) if snapshot.optional && is_fetch_side_failure(&err) => {
                             // Silent swallow, matching upstream. `tracing::warn!`
                             // gives operator visibility without polluting
@@ -832,6 +860,7 @@ impl CreateVirtualStore<'_> {
                     fetch_failed.insert(key);
                 }
                 if let Some(captured) = captured {
+                    requires_build_by_snapshot.insert((*captured.0).clone(), captured.3);
                     cold_cas_paths.push(captured);
                 }
             }
@@ -849,7 +878,7 @@ impl CreateVirtualStore<'_> {
         if !is_hoisted && !cold_cas_paths.is_empty() {
             let cold_slots: Vec<SlotLink<'_>> = cold_cas_paths
                 .iter()
-                .map(|(snapshot_key, snapshot, cas_paths)| SlotLink {
+                .map(|(snapshot_key, snapshot, cas_paths, _requires_build)| SlotLink {
                     snapshot_key,
                     snapshot,
                     cas_paths,
@@ -901,7 +930,7 @@ impl CreateVirtualStore<'_> {
         // real install.
         if let Some(map) = cas_paths_by_pkg_id.as_mut() {
             map.reserve(cold_cas_paths.len());
-            for (snapshot_key, _snapshot, paths) in cold_cas_paths {
+            for (snapshot_key, _snapshot, paths, _requires_build) in cold_cas_paths {
                 // Mirrors upstream's `getPkgIdWithPatchHash` — strip
                 // the peer-graph suffix but keep `(patch_hash=...)` so
                 // patched packages share one CAS-paths entry across
@@ -922,10 +951,23 @@ impl CreateVirtualStore<'_> {
         Ok(CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot,
+            requires_build_by_snapshot,
             fetch_failed,
             cas_paths_by_pkg_id,
         })
     }
+}
+
+fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
+    if files_include_install_scripts(cas_paths.keys()) {
+        return true;
+    }
+    let Some(package_json) = cas_paths.get("package.json") else { return false };
+    let Ok(contents) = fs::read_to_string(package_json) else { return false };
+    let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&contents) else {
+        return false;
+    };
+    manifest_requires_build(&manifest)
 }
 
 struct SlotLink<'a> {
@@ -1055,6 +1097,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
 fn snapshot_cache_key(
     snapshot_key: &PackageKey,
     packages: &HashMap<PackageKey, PackageMetadata>,
+    ignore_scripts: bool,
 ) -> Result<Option<String>, CreateVirtualStoreError> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = packages.get(&metadata_key).ok_or_else(|| {
@@ -1071,10 +1114,10 @@ fn snapshot_cache_key(
             // row is written under `gitHostedStoreIndexKey(pkg_id,
             // built)` rather than the integrity-based key. Use the
             // same key shape here so the warm prefetch finds the
-            // row on a re-install. `built = true` matches the
-            // dispatcher's `!ignore_scripts` default — when ignore-
-            // scripts becomes configurable both sites flip together.
-            Ok(Some(git_hosted_store_index_key(&pkg_id, true)))
+            // row on a re-install. `built` tracks `!ignore_scripts`
+            // in lock-step with the dispatcher's write key, so the
+            // prefetch and write address the same slot.
+            Ok(Some(git_hosted_store_index_key(&pkg_id, !ignore_scripts)))
         }
         LockfileResolution::Tarball(t) => {
             let integrity = t
@@ -1113,8 +1156,10 @@ fn snapshot_cache_key(
             // lets the warm prefetch reuse a previous install's
             // clone + checkout + prepare + packlist work — without
             // this, every git install cold-paths regardless of
-            // whether the snapshot is already in `index.db`.
-            Ok(Some(git_hosted_store_index_key(&pkg_id, true)))
+            // whether the snapshot is already in `index.db`. `built`
+            // tracks `!ignore_scripts` to match the dispatcher's
+            // write key.
+            Ok(Some(git_hosted_store_index_key(&pkg_id, !ignore_scripts)))
         }
         // Runtime artifacts (Node.js / Bun / Deno): the per-archive
         // integrity is the warm-cache key, same shape as the

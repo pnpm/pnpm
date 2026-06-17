@@ -1,4 +1,5 @@
-use super::{EXEC_MASK, EXEC_MODE, is_executable};
+use super::{EXEC_MASK, EXEC_MODE, cas_path_is_executable, is_executable};
+use std::path::Path;
 
 /// Sanity-pin the two on-disk constants. The mask is `--x--x--x`
 /// and the canonical executable mode is `rwxr-xr-x` — these
@@ -19,6 +20,20 @@ fn is_executable_matches_any_exec_bit() {
     assert!(is_executable(0o755));
     assert!(is_executable(0o050)); // group-only — still executable
     assert!(is_executable(0o001)); // other-only — still executable
+}
+
+/// Only a trailing `-exec` segment on the file name marks a CAS path
+/// executable. The suffix must be exactly the file-name tail pnpm's
+/// CAFS layout writes — a `-exec` elsewhere in the path, or a name that
+/// merely contains the substring, does not count.
+#[test]
+fn cas_path_is_executable_matches_trailing_suffix() {
+    assert!(cas_path_is_executable(Path::new("files/1b/59d9-exec")));
+    assert!(!cas_path_is_executable(Path::new("files/1b/59d9")));
+    // `-exec` only in a parent directory, not the file name.
+    assert!(!cas_path_is_executable(Path::new("files-exec/1b/59d9")));
+    // Substring, not a trailing segment.
+    assert!(!cas_path_is_executable(Path::new("files/1b/59d9-executable")));
 }
 
 /// `make_file_executable` flips the exec bits on a freshly

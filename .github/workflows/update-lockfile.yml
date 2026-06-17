@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Commit
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         # Don't persist the write-scoped token in .git/config. The full install
         # below runs third-party lifecycle scripts from freshly-bumped
@@ -58,7 +58,9 @@ jobs:
         pnpm runtime set node 26
 
         # Refresh the whole lockfile to the latest compatible dependency versions.
-        rm pnpm-lock.yaml
+        # Remove node_modules too so pnpm cannot reuse node_modules/.pnpm/lock.yaml
+        # as the missing wanted lockfile and skip resolution.
+        rm -rf node_modules pnpm-lock.yaml
         pnpm install
 
         # Propagate the new Node.js version into the GitHub Actions workflows,

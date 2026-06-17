@@ -31,10 +31,12 @@ mod npm_resolver;
 mod parse_bare_specifier;
 mod pick_package;
 mod pick_package_from_meta;
+mod preferred_overlay;
 mod registry_url;
 mod resolve_from_workspace;
 mod trust_checks;
 mod violation_codes;
+mod which_version_is_pinned;
 mod workspace_pref_to_npm;
 
 pub use create_npm_resolution_verifier::{
@@ -47,13 +49,14 @@ pub use fetch_full_metadata::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
 };
 pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
-pub use mirror::{ABBREVIATED_META_DIR, FULL_META_DIR};
+pub use mirror::{ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR};
 pub use named_registry::{
     BUILTIN_NAMED_REGISTRIES, MergeNamedRegistriesError, build_named_registry_prefixes,
-    merge_named_registries, pick_registry_for_package, pick_registry_for_version,
+    merge_named_registries, pick_registry_for_version,
 };
 pub use named_registry_resolver::NamedRegistryResolver;
 pub use npm_resolver::NpmResolver;
+pub use pacquet_lockfile::pick_registry_for_package;
 pub use parse_bare_specifier::{
     JsrRegistryPackageSpec, NamedRegistryPackageSpec, ParseNamedRegistrySpecifierError,
     parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec,
@@ -78,4 +81,5 @@ pub use trust_checks::{
     TrustCheckOptions, TrustEvidence, TrustViolation, fail_if_trust_downgraded, get_trust_evidence,
 };
 pub use violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE};
+pub use which_version_is_pinned::which_version_is_pinned;
 pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm};

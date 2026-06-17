@@ -89,6 +89,46 @@ fn recursive_run_executes_script_in_every_project() {
     drop(root);
 }
 
+#[test]
+fn recursive_run_settings_only_workspace_enumerates_root_only() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "root",
+            "version": "1.0.0",
+            "scripts": { "build": "touch root-ran.txt" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: false\n")
+        .expect("write settings-only workspace manifest");
+
+    let nested = workspace.join("test-e2e/fixtures/vendor/preact/.cache/10.10.2");
+    fs::create_dir_all(&nested).expect("create vendored package dir");
+    fs::write(
+        nested.join("package.json"),
+        json!({
+            "name": "preact",
+            "version": "10.10.2",
+            "scripts": { "build": "touch vendored-ran.txt" },
+        })
+        .to_string(),
+    )
+    .expect("write vendored package.json");
+
+    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+
+    assert!(workspace.join("root-ran.txt").exists(), "root build script should run");
+    assert!(
+        !nested.join("vendored-ran.txt").exists(),
+        "settings-only workspace manifests must not recursively enumerate vendored packages",
+    );
+
+    drop(root);
+}
+
 /// `pacquet -r run --resume-from <pkg>` skips every chunk that sorts
 /// before the chunk containing `<pkg>`. With `project-2` and `project-3`
 /// both depending on `project-1`, the sorted chunks are

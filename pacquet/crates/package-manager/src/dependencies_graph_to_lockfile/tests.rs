@@ -387,6 +387,39 @@ fn dev_and_optional_direct_deps_split_into_distinct_importer_sections() {
     assert_eq!(packages[&fsevents_key].os.as_deref(), Some(["darwin".to_string()].as_slice()));
 }
 
+#[test]
+fn duplicate_manifest_alias_uses_pnpm_dependency_field_precedence() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "devDependencies": { "duplicated": "^1.0.0" },
+        "optionalDependencies": { "duplicated": "^1.0.0" },
+    }));
+
+    let duplicated = make_node(
+        "duplicated",
+        "1.0.0",
+        json!({ "name": "duplicated", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::new(),
+    );
+    let mut graph = DependenciesGraph::new();
+    graph.insert(duplicated.dep_path.clone(), duplicated);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("duplicated".to_string(), DepPath::from("duplicated@1.0.0".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, false, false, None, None,
+    ));
+
+    let importer = lockfile.root_project().expect("root importer");
+    assert!(importer.dev_dependencies.is_none(), "optionalDependencies wins over devDependencies");
+    let opt = importer.optional_dependencies.as_ref().expect("optional deps");
+    assert!(opt.contains_key(&PkgName::parse("duplicated").unwrap()));
+}
+
 /// A `catalog:` dependency resolved through an `npm:` alias still records a
 /// `catalogs:` snapshot entry — `{ specifier: npm:@zkochan/js-yaml@0.0.11,
 /// version: 0.0.11 }`. The importer stores the aliased dep as

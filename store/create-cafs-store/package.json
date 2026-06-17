@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.create-cafs-store",
-  "version": "1100.0.13",
+  "version": "1100.0.14",
   "description": "Create a CAFS store controller",
   "keywords": [
     "pnpm",
@@ -48,7 +48,6 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "memoize": "catalog:",
-    "path-temp": "catalog:",
     "ramda": "catalog:"
   },
   "peerDependencies": {

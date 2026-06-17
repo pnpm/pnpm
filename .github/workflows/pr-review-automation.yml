@@ -1,0 +1,74 @@
+name: PR review automation
+
+# React to PR review submissions: announce CodeRabbit approvals and flag
+# maintainer-approved PRs for automerge.
+on:
+  pull_request_review:
+    types: [submitted]
+
+# No permissions by default; each job grants only what it needs.
+permissions: {}
+
+jobs:
+  on-coderabbit-approval:
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.review.user.login == 'coderabbitai[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      # gh pr edit --add-label uses the GraphQL addLabelsToLabelable mutation,
+      # which is governed by issues: write even when the target is a PR.
+      issues: write
+      pull-requests: write
+    env:
+      # Webhook URL is optional; the Discord step is skipped when the secret is unset.
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      # PR fields are passed through the environment, never interpolated into a run script,
+      # so an attacker-controlled PR title cannot inject shell commands.
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+    steps:
+      - name: Add the reviewed label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "reviewed: coderabbit"
+
+      - name: Announce on Discord
+        if: ${{ env.DISCORD_WEBHOOK != '' }}
+        run: |
+          # allowed_mentions parse:[] stops a PR title like "@everyone" from pinging the Discord server.
+          payload="$(jq -n \
+            --arg n "$PR_NUMBER" \
+            --arg t "$PR_TITLE" \
+            --arg u "$PR_URL" \
+            '{content: ("✅ CodeRabbit approved PR #" + $n + ": " + $t + "\n" + $u), allowed_mentions: {parse: []}}')"
+          curl -fsS \
+            --connect-timeout 5 \
+            --max-time 20 \
+            --retry 3 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$DISCORD_WEBHOOK"
+
+  on-maintainer-approval:
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.review.user.login == 'zkochan'
+    runs-on: ubuntu-latest
+    permissions:
+      # gh pr edit --add-label uses the GraphQL addLabelsToLabelable mutation,
+      # which is governed by issues: write even when the target is a PR.
+      issues: write
+      pull-requests: write
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Flag for automerge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "state: automerge"

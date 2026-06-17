@@ -162,6 +162,7 @@ impl WorkspaceSettings {
         json_field!(prefer_workspace_packages, "PREFER_WORKSPACE_PACKAGES");
         json_field!(dedupe_injected_deps, "DEDUPE_INJECTED_DEPS");
         json_field!(strict_peer_dependencies, "STRICT_PEER_DEPENDENCIES");
+        json_field!(ignore_compatibility_db, "IGNORE_COMPATIBILITY_DB");
         json_field!(resolve_peers_from_workspace_root, "RESOLVE_PEERS_FROM_WORKSPACE_ROOT");
         json_field!(block_exotic_subdeps, "BLOCK_EXOTIC_SUBDEPS");
         json_field!(verify_store_integrity, "VERIFY_STORE_INTEGRITY");
@@ -177,6 +178,8 @@ impl WorkspaceSettings {
         json_field!(patched_dependencies, "PATCHED_DEPENDENCIES");
         json_field!(allow_builds, "ALLOW_BUILDS");
         json_field!(dangerously_allow_all_builds, "DANGEROUSLY_ALLOW_ALL_BUILDS");
+        json_field!(strict_dep_builds, "STRICT_DEP_BUILDS");
+        json_field!(ignore_scripts, "IGNORE_SCRIPTS");
         enum_field!(scripts_prepend_node_path, "SCRIPTS_PREPEND_NODE_PATH", ScriptsPrependNodePath);
         json_field!(enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
         tri_string_field!(script_shell, "SCRIPT_SHELL");

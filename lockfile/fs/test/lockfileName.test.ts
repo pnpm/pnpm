@@ -29,4 +29,10 @@ describe('lockfileName', () => {
     jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('aBc'))
     await expect(getWantedLockfileName({ useGitBranchLockfile: true })).resolves.toBe('pnpm-lock.abc.yaml')
   })
+
+  test('passes cwd to getCurrentBranch', async () => {
+    jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('main'))
+    await getWantedLockfileName({ useGitBranchLockfile: true, cwd: '/some/workspace' })
+    expect(jest.mocked(getCurrentBranch)).toHaveBeenCalledWith({ cwd: '/some/workspace' })
+  })
 })

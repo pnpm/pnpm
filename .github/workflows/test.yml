@@ -6,6 +6,9 @@ on:
       node:
         required: true
         type: string
+      node_major:
+        required: true
+        type: string
       platform:
         required: true
         type: string
@@ -22,7 +25,7 @@ permissions:
 
 jobs:
   test:
-    name: Test
+    name: Node ${{ inputs.node_major }}
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform }}-${{ inputs.node }}
       cancel-in-progress: true
@@ -45,7 +48,7 @@ jobs:
         git config --global user.name "xyz"
         git config --global user.email "x@y.z"
     - name: Checkout Commit
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         persist-credentials: false
     - if: ${{ inputs.garnet }}
@@ -97,7 +100,7 @@ jobs:
     # can't strip them before this cache saves.
     - name: Restore prebuilt pnpr binaries
       id: pnpr-bins
-      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: .pnpr-bin
         key: pnpr-bins-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '**/Cargo.lock', '**/Cargo.toml', 'pnpr/**/*.rs', 'pacquet/**/*.rs') }}
@@ -116,6 +119,15 @@ jobs:
         ext=""
         [ -f target/release/pnpr.exe ] && ext=".exe"
         cp "target/release/pnpr$ext" "target/release/pnpr-prepare$ext" .pnpr-bin/
+    # Save the binaries to the cache right after they build, not in a post-job
+    # step: a later step failing (e.g. a crashing test) would otherwise skip
+    # the save and force a full Rust rebuild on the next run.
+    - name: Save prebuilt pnpr binaries
+      if: steps.pnpr-bins.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: .pnpr-bin
+        key: ${{ steps.pnpr-bins.outputs.cache-primary-key }}
     - name: Export pnpr binary paths
       shell: bash
       run: |
@@ -130,22 +142,91 @@ jobs:
         REF_NAME: ${{ github.ref_name }}
       run: |
         if [[ "$REF_NAME" == "main" || "$REF_NAME" == "chore/update-lockfile" || "$REF_NAME" == release/* ]]; then
-          echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
-          echo "scope=all" >> "$GITHUB_OUTPUT"
+          {
+            echo "script=ci:test-all"
+            echo "scope=all"
+            echo "full_tests=true"
+            echo "benchmark=tests.all"
+          } >> "$GITHUB_OUTPUT"
         else
           git remote set-branches --add origin main && git fetch origin main --depth=1
           if [ -n "$(git diff --name-only origin/main HEAD -- pnpm-workspace.yaml)" ]; then
-            echo "script=ci:test-all" >> "$GITHUB_OUTPUT"
-            echo "scope=all — pnpm-workspace.yaml modified" >> "$GITHUB_OUTPUT"
+            {
+              echo "script=ci:test-all"
+              echo "scope=all — pnpm-workspace.yaml modified"
+              echo "full_tests=true"
+              echo "benchmark=tests.all"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "script=ci:test-branch" >> "$GITHUB_OUTPUT"
-            echo "scope=affected packages" >> "$GITHUB_OUTPUT"
+            {
+              echo "script=ci:test-branch"
+              echo "scope=affected packages"
+              echo "full_tests=false"
+              echo "benchmark=tests.affected"
+            } >> "$GITHUB_OUTPUT"
           fi
         fi
     - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
       shell: bash
       env:
+        BENCHMARK: ${{ steps.test-scope.outputs.benchmark }}
         PNPM_WORKERS: 3
         TEST_SCRIPT: ${{ steps.test-scope.outputs.script }}
-      run: pn run "$TEST_SCRIPT"
+      run: |
+        node .github/scripts/measure-command.mjs \
+          --name "$BENCHMARK" \
+          --output ".bench/${BENCHMARK}.json" \
+          -- pn run "$TEST_SCRIPT"
+    - name: Extract pnpm CLI e2e test duration
+      if: steps.test-scope.outputs.full_tests == 'true'
+      shell: bash
+      run: |
+        node .github/scripts/bencher-result-from-pnpm-summary.mjs \
+          --name tests.cli \
+          --output .bench/tests.cli.json \
+          --package-dir pnpm
+    - name: Stage Bencher test durations
+      if: steps.test-scope.outputs.full_tests == 'true'
+      env:
+        NODE_VERSION: ${{ inputs.node }}
+        PLATFORM: ${{ inputs.platform }}
+      shell: bash
+      run: |
+        platform_slug=${PLATFORM%-latest}
+        node_major=${NODE_VERSION%%.*}
+        case "$platform_slug" in
+          ubuntu|windows) ;;
+          *)
+            echo "::error::Unsupported platform '$platform_slug' for pnpm benchmarks; expected ubuntu or windows"
+            exit 1
+            ;;
+        esac
+        case "$node_major" in
+          22|24|26) ;;
+          *)
+            echo "::error::Unsupported Node major '$node_major' for pnpm benchmarks; expected 22, 24, or 26"
+            exit 1
+            ;;
+        esac
+        artifact_dir=.bench/artifact/pnpm
+        mkdir -p "$artifact_dir"
+
+        node .github/scripts/merge-bencher-results.mjs \
+          --output "$artifact_dir/results.json" \
+          -- .bench/tests.all.json .bench/tests.cli.json
+
+        cat > "$artifact_dir/metadata.json" <<EOF
+        {
+          "kind": "pnpm",
+          "testbed": "pnpm.${platform_slug}.node${node_major}"
+        }
+        EOF
+    - name: Upload Bencher test duration artifact
+      if: steps.test-scope.outputs.full_tests == 'true'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ci-performance-pnpm-${{ inputs.platform }}-node-${{ inputs.node }}
+        path: .bench/artifact/pnpm/
+        if-no-files-found: error
+        retention-days: 14

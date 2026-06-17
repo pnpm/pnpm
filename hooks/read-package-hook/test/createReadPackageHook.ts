@@ -1,7 +1,7 @@
 import { expect, jest, test } from '@jest/globals'
 import type { ReadPackageHook } from '@pnpm/types'
 
-import { createReadPackageHook } from '../lib/createReadPackageHook.js'
+import { createReadPackageHook, getEffectivePackageExtensions } from '../lib/createReadPackageHook.js'
 
 test('createReadPackageHook() is passing directory to all hooks', async () => {
   const hook1 = jest.fn(((manifest) => manifest) as ReadPackageHook)
@@ -46,6 +46,15 @@ test('createReadPackageHook() runs the custom hook before the version overrider'
   expect(updatedManifest).toStrictEqual({
     dependencies: {
       react: '16',
+    },
+  })
+})
+
+test('getEffectivePackageExtensions() merges duplicate compatibility selectors', () => {
+  expect(getEffectivePackageExtensions({})?.['gatsby-core-utils@<2.14.0-next.1']).toStrictEqual({
+    dependencies: {
+      '@babel/runtime': '^7.14.8',
+      got: '8.3.2',
     },
   })
 })

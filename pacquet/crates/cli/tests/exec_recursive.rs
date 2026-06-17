@@ -145,3 +145,42 @@ fn recursive_exec_bail_stops_at_first_failure() {
 
     drop(root);
 }
+
+/// A settings-only `pnpm-workspace.yaml` (no `packages:`) enumerates the
+/// root project only; it must not recursively pick up vendored fixture
+/// packages.
+#[test]
+fn recursive_exec_settings_only_workspace_enumerates_root_only() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: false\n")
+        .expect("write settings-only workspace manifest");
+
+    let nested = workspace.join("test-e2e/fixtures/vendor/preact/.cache/10.10.2");
+    fs::create_dir_all(&nested).expect("create vendored package dir");
+    fs::write(
+        nested.join("package.json"),
+        json!({ "name": "preact", "version": "10.10.2" }).to_string(),
+    )
+    .expect("write vendored package.json");
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(workspace.join("ran.txt").exists(), "root project should run the command");
+    assert!(
+        !nested.join("ran.txt").exists(),
+        "settings-only workspace manifests must not recursively enumerate vendored packages",
+    );
+
+    drop(root);
+}

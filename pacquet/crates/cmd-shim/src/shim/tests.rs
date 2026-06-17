@@ -1,7 +1,8 @@
 use super::{
-    ScriptRuntime, extension_program, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-    is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes, read_head_filled,
-    relative_target, search_script_runtime,
+    ScriptRuntime, escape_msys_cmd_switches, extension_program, generate_cmd_shim,
+    generate_pwsh_shim, generate_sh_shim, is_shim_pointing_at, parse_shebang,
+    parse_shebang_from_bytes, read_head_filled, relative_target, search_script_runtime,
+    strip_exe_suffix,
 };
 use crate::{
     capabilities::{FsReadHead, Host},
@@ -59,10 +60,9 @@ fn relative_target_traverses_into_sibling_package() {
     assert_eq!(relative_target(target, shim), "../foo/bin/cli.js");
 }
 
-/// Shim body for the typical `#!/usr/bin/env node` case must match the
-/// exec template upstream produces verbatim, including the double space
-/// between `$basedir/node` and the quoted target path (upstream's
-/// `${args}` interpolates to empty between two literal spaces).
+/// Shim body for the typical `#!/usr/bin/env node` case must preserve
+/// the generated exec block shape, including the double space between
+/// `$basedir/node` and the quoted target path when `args` is empty.
 #[test]
 fn generate_sh_shim_matches_pnpm_typical_case() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
@@ -72,8 +72,34 @@ fn generate_sh_shim_matches_pnpm_typical_case() {
 
     assert!(body.starts_with("#!/bin/sh\n"), "shebang must come first");
     assert!(
-        body.contains("if [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelse\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nfi\n"),
-        "exec block must match pnpm's generateShShim template, body was:\n{body}",
+        body.contains(
+            r#"basedir_win="$basedir"
+exe=""
+msys=""
+
+case `uname -a` in"#
+        ),
+        "header must track a Windows-form basedir for WSL2/Cygwin, body was:\n{body}",
+    );
+    assert!(
+        body.contains(r#"basedir_win="$(wslpath -w "$basedir" 2> /dev/null)""#),
+        "header must convert WSL2 basedir with wslpath, body was:\n{body}",
+    );
+    assert!(
+        body.contains(r#"basedir_win=`cygpath -w "$basedir"`"#),
+        "MSYS branch must only update the Windows-form basedir, body was:\n{body}",
+    );
+    assert!(
+        !body.contains("basedir=`cygpath"),
+        "MSYS branch must keep the POSIX basedir unchanged, body was:\n{body}",
+    );
+    assert!(
+        body.contains("else\n        exe=\".exe\"\n      fi"),
+        "WSL2 branch must enable .exe fallback only after wslpath succeeds, body was:\n{body}",
+    );
+    assert!(
+        body.contains("if [ -n \"$exe\" ] && [ -x \"$basedir/node.exe\" ]; then\n  exec \"$basedir/node.exe\"  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$exe\" ] && command -v node.exe >/dev/null 2>&1; then\n  exec node.exe  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelse\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nfi\n"),
+        "exec block must preserve the generated sh shim fallback order, body was:\n{body}",
     );
     assert!(
         body.ends_with("# cmd-shim-target=/proj/node_modules/typescript/bin/tsc\n"),
@@ -275,6 +301,80 @@ fn search_script_runtime_falls_back_to_extension() {
     std::fs::write(&path, "console.log('no shebang')\n").unwrap();
     let rt = search_script_runtime::<Host>(&path).unwrap().expect("extension fallback");
     assert_eq!(rt.prog.as_deref(), Some("node"));
+}
+
+#[test]
+fn search_script_runtime_falls_back_to_cmd_with_c_switch() {
+    use tempfile::tempdir;
+    let tmp = tempdir().unwrap();
+
+    for filename in ["script.cmd", "script.bat"] {
+        let path = tmp.path().join(filename);
+        std::fs::write(&path, "echo off\r\n").unwrap();
+
+        let rt = search_script_runtime::<Host>(&path).unwrap().expect("extension fallback");
+        assert_eq!(rt.prog.as_deref(), Some("cmd"));
+        assert_eq!(rt.args, "/C");
+    }
+}
+
+#[test]
+fn escape_msys_cmd_switches_escapes_only_standalone_cmd_switches() {
+    assert_eq!(escape_msys_cmd_switches("/C"), "//C");
+    assert_eq!(escape_msys_cmd_switches(" /c\t/K "), " //c\t//K ");
+    assert_eq!(
+        escape_msys_cmd_switches("--flag /Config path/C /C:bad"),
+        "--flag /Config path/C /C:bad",
+    );
+}
+
+#[test]
+fn strip_exe_suffix_is_case_insensitive() {
+    assert_eq!(strip_exe_suffix("cmd.exe"), Some("cmd"));
+    assert_eq!(strip_exe_suffix("cmd.EXE"), Some("cmd"));
+    assert_eq!(strip_exe_suffix("\u{e5}.exe"), Some("\u{e5}"));
+    assert_eq!(strip_exe_suffix("node"), None);
+    assert_eq!(strip_exe_suffix("\u{e5}\u{e5}x"), None);
+}
+
+#[test]
+fn generate_sh_shim_uses_windows_target_only_for_exe_branches() {
+    let target = Path::new("/proj/node_modules/foo/src.bat");
+    let shim = Path::new("/proj/node_modules/.bin/foo");
+    let runtime = ScriptRuntime { prog: Some("cmd".into()), args: "/C".into() };
+    let body = generate_sh_shim(target, shim, Some(&runtime));
+
+    assert!(
+        body.contains("if [ -n \"$msys\" ]; then\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
+        "cmd sh shim must escape switches only for MSYS and use Windows-form targets only for .exe execution branches, body was:\n{body}",
+    );
+}
+
+#[test]
+fn generate_sh_shim_checks_path_before_exe_fallback() {
+    let target = Path::new("/proj/node_modules/foo/src.sh");
+    let shim = Path::new("/proj/node_modules/.bin/foo");
+    let runtime = ScriptRuntime { prog: Some("sh".into()), args: String::new() };
+    let body = generate_sh_shim(target, shim, Some(&runtime));
+
+    assert!(
+        body.contains("elif command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nelif [ -n \"$exe\" ] && command -v sh.exe >/dev/null 2>&1; then\n  exec sh.exe  \"$basedir_win/../foo/src.sh\" \"$@\"\nelse\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nfi\n"),
+        "PATH fallback must prefer POSIX runtimes and gate .exe fallback, body was:\n{body}",
+    );
+}
+
+#[test]
+fn generate_sh_shim_does_not_append_exe_twice() {
+    let target = Path::new("/proj/node_modules/foo/src.bat");
+    let shim = Path::new("/proj/node_modules/.bin/foo");
+    let runtime = ScriptRuntime { prog: Some("cmd.exe".into()), args: "/C".into() };
+    let body = generate_sh_shim(target, shim, Some(&runtime));
+
+    assert!(!body.contains("cmd.exe.exe"), "explicit .exe runtime must not double suffix:\n{body}");
+    assert!(
+        body.contains("if [ -n \"$msys\" ]; then\n  if [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
+        "explicit .exe runtime must use Windows-form targets and escape switches only for MSYS, body was:\n{body}",
+    );
 }
 
 /// [`search_script_runtime`] returns `Ok(None)` when neither shebang nor

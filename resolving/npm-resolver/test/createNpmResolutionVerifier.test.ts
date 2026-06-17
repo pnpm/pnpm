@@ -75,6 +75,41 @@ test('createNpmResolutionVerifier() still verifies tarball URLs when no age/trus
   expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
 })
 
+test('createNpmResolutionVerifier() passes package name to auth header lookup', async () => {
+  const tarball = 'https://registry.npmjs.org/@scope/pkg/-/pkg-1.0.0.tgz'
+  const meta = {
+    name: '@scope/pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: '@scope/pkg',
+        version: '1.0.0',
+        dist: { tarball, shasum: 'aa' },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({
+    path: `/@scope${'%2F'}pkg`,
+    method: 'GET',
+    headers: { authorization: 'Bearer scoped-token' },
+  }).reply(200, meta).persist()
+
+  const calls: Array<{ uri: string, pkgName?: string }> = []
+  const scopedGetAuthHeader = (uri: string, opts?: { pkgName?: string }): string | undefined => {
+    calls.push({ uri, pkgName: opts?.pkgName })
+    return opts?.pkgName === '@scope/pkg' ? 'Bearer scoped-token' : undefined
+  }
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts({ getAuthHeaderValueByURI: scopedGetAuthHeader }))
+  const result = await verifier.verify(
+    { integrity: FAKE_INTEGRITY, tarball } as unknown as Resolution,
+    { name: '@scope/pkg', version: '1.0.0' }
+  )
+  expect(result).toStrictEqual({ ok: true })
+  expect(calls).toContainEqual({ uri: registries.default, pkgName: '@scope/pkg' })
+})
+
 test('createNpmResolutionVerifier() flags a trustedPublisher → provenance downgrade', async () => {
   // 0.0.1 was published by a trustedPublisher with provenance → rank 2.
   // 0.0.2 is provenance-only (rank 1, weaker) → downgrade vs 0.0.1.

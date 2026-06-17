@@ -13,6 +13,7 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use node_semver::Version;
 use pacquet_crypto_shasums_file::{
     FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file,
     fetch_verified_node_shasums_file,
@@ -153,7 +154,11 @@ impl NodeResolver {
                         as ResolveError
                 })?;
         let variants = self.read_node_assets(&mirror, &version, &parsed.release_channel).await?;
-        let range = if version == version_spec { version.clone() } else { format!("^{version}") };
+        let range = normalize_node_runtime_version_specifier(
+            version_spec,
+            &version,
+            wanted_dependency.prev_specifier.as_deref(),
+        );
         let resolution = LockfileResolution::Variations(VariationsResolution { variants });
         let manifest = serde_json::json!({
             "name": "node",
@@ -258,6 +263,30 @@ fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> 
         return None;
     }
     wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+}
+
+fn normalize_node_runtime_version_specifier(
+    version_spec: &str,
+    resolved_version: &str,
+    prev_specifier: Option<&str>,
+) -> String {
+    if resolved_version == version_spec
+        || matches!(Version::parse(resolved_version), Ok(version) if !version.pre_release.is_empty())
+    {
+        return resolved_version.to_string();
+    }
+    let source = prev_specifier
+        .and_then(|specifier| specifier.strip_prefix(BARE_SPEC_PREFIX))
+        .unwrap_or(version_spec);
+    let spec = source.split_once('/').map_or(source, |(_, spec)| spec);
+    let prefix = if spec.starts_with('^') {
+        "^"
+    } else if spec.starts_with('~') {
+        "~"
+    } else {
+        ""
+    };
+    format!("{prefix}{resolved_version}")
 }
 
 /// Read the asset list for one mirror version and decode each row
