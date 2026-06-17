@@ -54,6 +54,8 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
   const depTypes = detectDepTypes(opts.lockfile)
   const importerIds = opts.includedImporterIds ?? Object.keys(opts.lockfile.importers) as ProjectId[]
 
+
+
   const componentsMap = new Map<string, SbomComponent>()
   const relationships: SbomRelationship[] = []
   const rootPurl = `pkg:npm/${encodePurlName(opts.rootName)}@${opts.rootVersion}`
@@ -64,11 +66,12 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
       : resolveWorkspaceDeps(opts.lockfile, importerIds, opts.include))
   const allImporterIds = [...importerIds, ...workspaceDeps.additionalImporterIds]
 
-  const importerWalkers = lockfileWalkerGroupImporterSteps(
-    opts.lockfile,
-    allImporterIds,
-    { include: opts.include }
-  )
+  // When excluding peers, walk each importer with its own `walked` set so one
+  // importer's peer can't suppress another's real dependency.
+  const importerWalkers = opts.excludePeerNamesByImporter
+    ? allImporterIds.flatMap((importerId) =>
+      lockfileWalkerGroupImporterSteps(opts.lockfile, [importerId], { include: opts.include }))
+    : lockfileWalkerGroupImporterSteps(opts.lockfile, allImporterIds, { include: opts.include })
 
   const importerIdSet = new Set<string>(importerIds)
 

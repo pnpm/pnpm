@@ -288,6 +288,31 @@ test('pnpm sbom --exclude-peers tolerates a malformed importer manifest', async 
   expect(componentNames).toContain('is-positive')
 })
 
+test('pnpm sbom --exclude-peers keeps a package that is a peer in one importer and a real dep in another', async () => {
+  const workspaceDir = tempDir()
+  // pkg-a declares is-odd as a peer (excluded); pkg-b declares it as a real
+  // dependency (kept). The importers must be walked independently, or excluding
+  // pkg-a's peer would also drop pkg-b's real dependency.
+  f.copy('with-peer-and-real-dep', workspaceDir)
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+    excludePeers: true,
+  })
+
+  expect(exitCode).toBe(0)
+  const parsed = JSON.parse(output)
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  // Present because pkg-b depends on it directly; only pkg-a's peer edge is cut.
+  expect(componentNames).toContain('is-odd')
+  expect(componentNames).toContain('is-number')
+})
+
 test('pnpm sbom marks dev-only components with scope "excluded" (cyclonedx)', async () => {
   const workspaceDir = tempDir()
   f.copy('with-dev-dependency', workspaceDir)
