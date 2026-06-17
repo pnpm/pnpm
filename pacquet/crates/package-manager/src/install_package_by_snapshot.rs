@@ -567,6 +567,10 @@ impl InstallPackageBySnapshot<'_> {
                 package_key,
                 snapshot,
                 skipped,
+                // The non-deferred slot link runs only on the fresh
+                // single-package path (no previous install to diff
+                // against), so there are never obsolete children here.
+                removed_aliases: &[],
                 #[cfg(test)]
                 link_concurrency_probe,
             }

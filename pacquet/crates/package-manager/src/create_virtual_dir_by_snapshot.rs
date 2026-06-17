@@ -5,12 +5,18 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::PackageImportMethod;
-use pacquet_lockfile::{PackageKey, SnapshotEntry};
+use pacquet_fs::{is_subdir, remove_symlink_dir};
+use pacquet_lockfile::{PackageKey, PkgName, SnapshotEntry};
 use pacquet_reporter::{
     LogEvent, LogLevel, PackageImportMethod as WireImportMethod, ProgressLog, ProgressMessage,
     Reporter,
 };
-use std::{collections::HashMap, fs, io, path::PathBuf, sync::atomic::AtomicU8};
+use std::{
+    collections::HashMap,
+    fs, io,
+    path::{Path, PathBuf},
+    sync::atomic::AtomicU8,
+};
 
 /// This subroutine creates the virtual-store slot for one package and then
 /// runs the two post-extraction tasks — CAS file import and intra-package
@@ -55,6 +61,16 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// `linkAllModules` at
     /// <https://github.com/pnpm/pnpm/blob/f2981a316/installing/deps-installer/src/install/link.ts#L540>.
     pub skipped: &'a SkippedSnapshots,
+    /// Child aliases that were linked by a previous install but are no
+    /// longer in this snapshot's dependency set. Their stale symlinks
+    /// are unlinked from the slot before the progress event fires, so
+    /// a warm reinstall that drops a dependency (e.g. via an override)
+    /// doesn't leave a dangling child behind. Mirrors upstream's
+    /// `removeObsoleteChild` pass in `linkAllModules` at
+    /// <https://github.com/pnpm/pnpm/blob/5e47dd5e59/installing/deps-installer/src/install/link.ts#L573>.
+    /// Empty for fresh packages and for survivors whose dependency set
+    /// only changed by addition.
+    pub removed_aliases: &'a [PkgName],
     #[cfg(test)]
     pub(crate) link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
 }
@@ -75,6 +91,14 @@ pub enum CreateVirtualDirError {
 
     #[diagnostic(transparent)]
     SymlinkPackage(#[error(source)] SymlinkPackageError),
+
+    #[display("Failed to remove obsolete child link at {path:?}: {error}")]
+    #[diagnostic(code(pacquet_package_manager::remove_obsolete_child))]
+    RemoveObsoleteChild {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
 }
 
 impl CreateVirtualDirBySnapshot<'_> {
@@ -90,6 +114,7 @@ impl CreateVirtualDirBySnapshot<'_> {
             package_key,
             snapshot,
             skipped,
+            removed_aliases,
             #[cfg(test)]
             link_concurrency_probe,
         } = self;
@@ -141,6 +166,20 @@ impl CreateVirtualDirBySnapshot<'_> {
         cas_result?;
         symlink_result?;
 
+        // Unlink children the package no longer depends on. Run after
+        // the join rather than before it: the removed aliases are
+        // disjoint from the wanted set `create_symlink_layout` just
+        // linked, and from the package's own `node_modules/<self>`
+        // directory the CAS import populates, so the end state is the
+        // same as upstream's remove-then-link ordering without racing
+        // either parallel task.
+        for alias in removed_aliases {
+            if *alias == package_key.name {
+                continue;
+            }
+            remove_obsolete_child(&virtual_node_modules_dir, alias)?;
+        }
+
         // `pnpm:progress imported` mirrors pnpm's emit at
         // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/link.ts#L498>:
         // one event per (resolved + fetched) package once its CAFS
@@ -179,6 +218,39 @@ pub(crate) fn optimistic_wire_method(method: PackageImportMethod) -> WireImportM
         PackageImportMethod::Hardlink => WireImportMethod::Hardlink,
         PackageImportMethod::Copy => WireImportMethod::Copy,
     }
+}
+
+/// Unlink one obsolete child from a slot's `node_modules`, mirroring
+/// pnpm's `removeObsoleteChild` at
+/// <https://github.com/pnpm/pnpm/blob/5e47dd5e59/installing/deps-installer/src/install/link.ts#L641>.
+///
+/// Removes the `<node_modules>/<alias>` symlink and, for a scoped
+/// alias, drops the now-empty `@scope` directory (ignoring the error
+/// when another scoped sibling keeps it populated). `remove_symlink_dir`
+/// unlinks the symlink itself, never its target package.
+///
+/// `is_subdir` is the traversal guard: `PkgName` parsing accepts shapes
+/// such as `..` that would resolve outside the slot, so an alias that
+/// doesn't stay within `node_modules` is skipped rather than removed.
+fn remove_obsolete_child(
+    virtual_node_modules_dir: &Path,
+    alias: &PkgName,
+) -> Result<(), CreateVirtualDirError> {
+    let child_path = virtual_node_modules_dir.join(alias.to_string());
+    if !is_subdir(virtual_node_modules_dir, &child_path) {
+        return Ok(());
+    }
+    match remove_symlink_dir(&child_path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(CreateVirtualDirError::RemoveObsoleteChild { path: child_path, error });
+        }
+    }
+    if let Some(scope) = &alias.scope {
+        let _ = fs::remove_dir(virtual_node_modules_dir.join(format!("@{scope}")));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
