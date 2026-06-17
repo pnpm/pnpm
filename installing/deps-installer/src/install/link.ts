@@ -9,10 +9,11 @@ import {
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
-import type {
-  DependenciesGraph,
-  DependenciesGraphNode,
-  LinkedDependency,
+import {
+  type DependenciesGraph,
+  type DependenciesGraphNode,
+  isValidDependencyAlias,
+  type LinkedDependency,
 } from '@pnpm/installing.deps-resolver'
 import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
@@ -383,7 +384,7 @@ async function linkNewPackages (
     const currentPackages = currentLockfile.packages
     const wantedPackages = wantedLockfile.packages
     // add subdependencies that have been updated
-    await Promise.all(wantedRelDepPaths.map(async (depPath) => {
+    await Promise.all(wantedRelDepPaths.map((depPath) => limitModulesDirReads(async () => {
       if (currentPackages[depPath] &&
         (!equals(currentPackages[depPath].dependencies, wantedPackages[depPath].dependencies) ||
         !isEmpty(currentPackages[depPath].optionalDependencies ?? {}) ||
@@ -408,13 +409,13 @@ async function linkNewPackages (
             })
             return
           }
-          const { changedChildren, removedAliases } = getChangedChildren(
-            currentPackages[depPath].dependencies,
-            currentPackages[depPath].optionalDependencies,
-            wantedPackages[depPath].dependencies,
-            wantedPackages[depPath].optionalDependencies,
-            depGraph[depPath].children
-          )
+          const { changedChildren, removedAliases } = getChangedChildren({
+            currentDependencies: currentPackages[depPath].dependencies,
+            currentOptionalDependencies: currentPackages[depPath].optionalDependencies,
+            wantedDependencies: wantedPackages[depPath].dependencies,
+            wantedOptionalDependencies: wantedPackages[depPath].optionalDependencies,
+            allChildren: depGraph[depPath].children,
+          })
           if (!isEmpty(changedChildren) || removedAliases.length > 0) {
             existingWithUpdatedDeps.push({
               children: changedChildren,
@@ -426,7 +427,7 @@ async function linkNewPackages (
           }
         }
       }
-    }))
+    })))
   }
 
   if (!newDepPathsSet.size && (existingWithUpdatedDeps.length === 0)) return { newDepPaths: [], added }
@@ -495,6 +496,7 @@ async function selectNewFromWantedDeps (
 }
 
 const limitLinking = pLimit(16)
+const limitModulesDirReads = pLimit(16)
 
 async function linkAllPkgs (
   storeController: StoreController,
@@ -570,7 +572,7 @@ async function linkAllModules (
     optional: boolean
   }
 ): Promise<void> {
-  await Promise.all(depNodes.flatMap((depNode) => (depNode.removedAliases ?? []).map(async (alias) => removeObsoleteChild(depNode.modules, alias))))
+  await Promise.all(depNodes.flatMap((depNode) => (depNode.removedAliases ?? []).map(async (alias) => limitModulesDirReads(async () => removeObsoleteChild(depNode.modules, alias)))))
   await symlinkAllModules({
     deps: depNodes.map((depNode) => {
       return {
@@ -583,18 +585,21 @@ async function linkAllModules (
 }
 
 function getChangedChildren (
-  currentDependencies: Record<string, string> | undefined,
-  currentOptionalDependencies: Record<string, string> | undefined,
-  wantedDependencies: Record<string, string> | undefined,
-  wantedOptionalDependencies: Record<string, string> | undefined,
-  allChildren: Record<string, DepPath>
+  opts: {
+    currentDependencies: Record<string, string> | undefined
+    currentOptionalDependencies: Record<string, string> | undefined
+    wantedDependencies: Record<string, string> | undefined
+    wantedOptionalDependencies: Record<string, string> | undefined
+    allChildren: Record<string, DepPath>
+  }
 ): { changedChildren: Record<string, DepPath>, removedAliases: string[] } {
+  const { currentOptionalDependencies, wantedOptionalDependencies, allChildren } = opts
   const currentChildren = {
-    ...currentDependencies,
+    ...opts.currentDependencies,
     ...currentOptionalDependencies,
   }
   const wantedChildren = {
-    ...wantedDependencies,
+    ...opts.wantedDependencies,
     ...wantedOptionalDependencies,
   }
   const changedChildren: Record<string, DepPath> = {}
@@ -634,6 +639,8 @@ async function getActualChildrenDiff (
 }
 
 async function removeObsoleteChild (modulesDir: string, alias: string): Promise<void> {
+  // Guard against an alias that would escape the modules directory (e.g. `../../x`).
+  if (!isValidDependencyAlias(alias)) return
   await rimraf(path.join(modulesDir, alias))
   if (alias[0] === '@') {
     await fs.rmdir(path.join(modulesDir, alias.split('/')[0])).catch(() => {})
