@@ -1015,6 +1015,12 @@ export async function mutateModules (
         // performance. This will be the case if all projects are up-to-date.
         opts.ignorePackageManifest ||
         !needsFullResolution &&
+        // smartAutoDedupe rewrites the graph during resolution, so the
+        // optimistic frozen fast-path would skip it. An explicit
+        // `--frozen-lockfile` install (handled by the branch above) still
+        // installs the lockfile as-is — it is expected to already be
+        // deduped — but a plain install must re-resolve so the pass runs.
+        !opts.smartAutoDedupe &&
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
         !isEmptyLockfile(ctx.wantedLockfile) &&

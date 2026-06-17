@@ -100,7 +100,7 @@ test('skips edges whose spec is not a valid semver range (e.g. exotic protocols)
   expect(graph['pkg@1.0.0' as DepPath].children.foo).toBe('foo@1.0.0')
 })
 
-test('skips children with a peer-suffixed depPath', () => {
+test('rewrites a peer-suffixed edge to a higher version sharing the same peer-dep-graph hash', () => {
   const graph = makeGraph({
     'foo@1.0.0(react@17.0.0)': {
       name: 'foo',
@@ -385,5 +385,89 @@ test('rewrites edges sourced from optionalDependencies just like regular depende
   applySmartAutoDedupe(graph)
 
   expect(graph['pkg@1.0.0' as DepPath].children.foo).toBe('foo@1.2.0')
+})
+
+test('does not treat a git-hosted tarball as interchangeable with a registry tarball', () => {
+  // git-hosted archives (GitHub/GitLab/Bitbucket) are TarballResolutions
+  // with an http(s) URL and no `type` discriminator, but they are bound to
+  // a commit rather than a registry version. The depPath is also not a
+  // semver depPath. They must NOT be merged with registry tarballs.
+  const graph = makeGraph({
+    'foo@https://codeload.github.com/user/repo/tar.gz/deadbeef': {
+      name: 'foo',
+      version: '1.5.0',
+      children: {},
+      resolution: { tarball: 'https://codeload.github.com/user/repo/tar.gz/deadbeef' },
+    },
+    'foo@1.0.0': { name: 'foo', version: '1.0.0', children: {} },
+    'pkg@1.0.0': {
+      name: 'pkg',
+      version: '1.0.0',
+      children: { foo: 'foo@1.0.0' as DepPath },
+      depSpecs: { foo: '^1.0.0' },
+    },
+  })
+
+  applySmartAutoDedupe(graph)
+
+  expect(graph['pkg@1.0.0' as DepPath].children.foo).toBe('foo@1.0.0')
+})
+
+test('does not rewrite an edge whose own resolution is a git-hosted tarball', () => {
+  const graph = makeGraph({
+    'foo@https://codeload.github.com/user/repo/tar.gz/deadbeef': {
+      name: 'foo',
+      version: '1.0.0',
+      children: {},
+      resolution: { tarball: 'https://codeload.github.com/user/repo/tar.gz/deadbeef' },
+    },
+    'foo@1.5.0': { name: 'foo', version: '1.5.0', children: {} },
+    'pkg@1.0.0': {
+      name: 'pkg',
+      version: '1.0.0',
+      children: { foo: 'foo@https://codeload.github.com/user/repo/tar.gz/deadbeef' as DepPath },
+      depSpecs: { foo: '^1.0.0' },
+    },
+  })
+
+  applySmartAutoDedupe(graph)
+
+  expect(graph['pkg@1.0.0' as DepPath].children.foo).toBe('foo@https://codeload.github.com/user/repo/tar.gz/deadbeef')
+})
+
+test('rewrites an npm-aliased edge by unwrapping the alias to its semver range', () => {
+  // `bar: npm:foo@^1.0.0` resolves to the registry package `foo`, so the
+  // range `^1.0.0` still constrains the resolved child.
+  const graph = makeGraph({
+    'foo@1.0.0': { name: 'foo', version: '1.0.0', children: {} },
+    'foo@1.1.0': { name: 'foo', version: '1.1.0', children: {} },
+    'pkg@1.0.0': {
+      name: 'pkg',
+      version: '1.0.0',
+      children: { bar: 'foo@1.0.0' as DepPath },
+      depSpecs: { bar: 'npm:foo@^1.0.0' },
+    },
+  })
+
+  applySmartAutoDedupe(graph)
+
+  expect(graph['pkg@1.0.0' as DepPath].children.bar).toBe('foo@1.1.0')
+})
+
+test('rewrites an npm-aliased edge for a scoped package name', () => {
+  const graph = makeGraph({
+    '@scope/foo@1.0.0': { name: '@scope/foo', version: '1.0.0', children: {} },
+    '@scope/foo@1.1.0': { name: '@scope/foo', version: '1.1.0', children: {} },
+    'pkg@1.0.0': {
+      name: 'pkg',
+      version: '1.0.0',
+      children: { bar: '@scope/foo@1.0.0' as DepPath },
+      depSpecs: { bar: 'npm:@scope/foo@^1.0.0' },
+    },
+  })
+
+  applySmartAutoDedupe(graph)
+
+  expect(graph['pkg@1.0.0' as DepPath].children.bar).toBe('@scope/foo@1.1.0')
 })
 

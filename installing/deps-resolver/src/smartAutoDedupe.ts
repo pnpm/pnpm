@@ -1,4 +1,5 @@
 import { parse as parseDepPath } from '@pnpm/deps.path'
+import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
 import type { DepPath } from '@pnpm/types'
 import semver from 'semver'
 
@@ -19,11 +20,18 @@ interface Candidate {
 // we additionally require an http(s) tarball URL — otherwise a local
 // tarball could be silently swapped with a registry resolve of the same
 // name and version.
+//
+// Git-hosted tarballs (GitHub/GitLab/Bitbucket archives) are also served
+// over http(s) and carry no `type` discriminator, but they are bound to a
+// specific commit rather than a registry version. They are excluded so a
+// registry edge is never rewritten to point at a git-hosted depPath (and
+// vice versa).
 function isDedupableResolution (resolution: ResolvedPackage['resolution']): boolean {
   // Every non-tarball Resolution variant carries an explicit `type`.
   if ('type' in resolution && resolution.type !== undefined) return false
+  if ((resolution as { gitHosted?: unknown }).gitHosted === true) return false
   const tarball = (resolution as { tarball?: unknown }).tarball
-  return typeof tarball === 'string' && /^https?:\/\//i.test(tarball)
+  return typeof tarball === 'string' && /^https?:\/\//i.test(tarball) && !isGitHostedPkgUrl(tarball)
 }
 
 // Post-resolution backtracking dedupe pass. After all dependencies have
@@ -73,7 +81,11 @@ export function applySmartAutoDedupe (graph: DependenciesGraph): void {
     const node = graph[depPath]
     if (!node?.name || !node.version || !semver.valid(node.version)) continue
     if (!isDedupableResolution(node.resolution)) continue
-    const { peerDepGraphHash = '', patchHash = '' } = parseDepPath(depPath)
+    const { version, peerDepGraphHash = '', patchHash = '' } = parseDepPath(depPath)
+    // Only semver depPaths (`name@1.2.3`) are dedupe candidates; a depPath
+    // whose suffix is not a semver version (git, url, etc.) is bound to a
+    // specific source.
+    if (version == null) continue
     let byPeer = candidates.get(node.name)
     if (byPeer == null) {
       byPeer = new Map()
@@ -114,17 +126,37 @@ export function applySmartAutoDedupe (graph: DependenciesGraph): void {
       const child = graph[childDepPath]
       if (child == null || !child.name || !child.version) continue
       if (!isDedupableResolution(child.resolution)) continue
-      const { peerDepGraphHash = '', patchHash = '' } = parseDepPath(childDepPath)
+      const { version, peerDepGraphHash = '', patchHash = '' } = parseDepPath(childDepPath)
+      if (version == null) continue
       const bucket = candidates.get(child.name)?.get(peerDepGraphHash)?.get(patchHash)
       if (bucket == null) continue
-      const spec = parent.depSpecs[alias]
-      if (spec == null || semver.validRange(spec) === null) continue
+      const spec = normalizeRange(parent.depSpecs[alias])
+      if (spec == null) continue
       const upgrade = findUpgrade(bucket, child.version, spec)
       if (upgrade != null && upgrade !== childDepPath) {
         parent.children[alias] = upgrade
       }
     }
   }
+}
+
+// Reduce a dependency specifier to the bare semver range that constrains
+// the resolved child, returning `null` when it is not a plain semver range.
+// npm aliases (`npm:<name>@<range>` or the alias-only `npm:<range>`) are
+// unwrapped to their range, since the aliased child still resolves to a
+// registry version that the range constrains.
+function normalizeRange (spec: string | undefined): string | null {
+  if (spec == null) return null
+  if (spec.startsWith('npm:')) {
+    const rest = spec.slice(4)
+    // `npm:<range>` — the range applies to the aliased package directly.
+    if (semver.validRange(rest) !== null) return rest
+    // `npm:<name>@<range>` (name may be scoped: `npm:@scope/pkg@<range>`).
+    const atIndex = rest.lastIndexOf('@')
+    if (atIndex < 1) return null
+    spec = rest.slice(atIndex + 1)
+  }
+  return semver.validRange(spec) === null ? null : spec
 }
 
 function findUpgrade (
