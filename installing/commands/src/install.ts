@@ -288,6 +288,18 @@ Install all optionalDependencies even when they don\'t satisfy the current envir
             description: 'Re-runs resolution: useful for printing out peer dependency issues',
             name: '--resolution-only',
           },
+          {
+            description: 'Override CPU architecture of native modules to install. Acceptable values are the same as the `cpu` field of `package.json` (from `process.arch`)',
+            name: '--cpu <arch>',
+          },
+          {
+            description: 'Override OS of native modules to install. Acceptable values are the same as the `os` field of `package.json` (from `process.platform`)',
+            name: '--os <os>',
+          },
+          {
+            description: 'Override libc of native modules to install. Acceptable values are the same as the `libc` field of `package.json`',
+            name: '--libc <libc>',
+          },
           ...UNIVERSAL_OPTIONS,
         ],
       },
