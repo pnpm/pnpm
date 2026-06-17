@@ -8,7 +8,7 @@ use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker, PackageImportMethod};
 use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgNameVerPeer,
+    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgNameVerPeer,
     SnapshotEntry, select_platform_variant,
 };
 use pacquet_network::ThrottledClient;
@@ -704,6 +704,27 @@ impl CreateVirtualStore<'_> {
             map
         });
 
+        // Per-slot obsolete child aliases for the link pass. Only
+        // survivors that already existed in `current_snapshots` and
+        // dropped a child contribute an entry; fresh packages and
+        // addition-only changes map to the empty slice. Computed once
+        // here so both the warm and cold `SlotLink` batches can borrow
+        // it. Mirrors the `removedAliases` upstream derives in
+        // `getChangedChildren` at
+        // <https://github.com/pnpm/pnpm/blob/5e47dd5e59/installing/deps-installer/src/install/link.ts#L611-L615>.
+        let removed_aliases_by_key: HashMap<PackageKey, Vec<PkgName>> = match current_snapshots {
+            Some(current_snapshots) => snapshot_entries
+                .iter()
+                .filter_map(|(snapshot_key, snapshot, _)| {
+                    let current_snapshot = current_snapshots.get(*snapshot_key)?;
+                    let removed =
+                        removed_child_aliases(current_snapshot, snapshot, &snapshot_key.name);
+                    (!removed.is_empty()).then(|| ((*snapshot_key).clone(), removed))
+                })
+                .collect(),
+            None => HashMap::new(),
+        };
+
         let import_method = config.package_import_method;
         if is_hoisted {
             // Hoisted still wants the progress reporter to fire so
@@ -733,6 +754,7 @@ impl CreateVirtualStore<'_> {
                     snapshot,
                     cas_paths: cas_paths.as_ref(),
                     warm_cache_key: Some(cache_key),
+                    removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
                 })
                 .collect();
             link_slots_parallel::<Reporter>(LinkSlotsParallel {
@@ -883,6 +905,7 @@ impl CreateVirtualStore<'_> {
                     snapshot,
                     cas_paths,
                     warm_cache_key: None,
+                    removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
                 })
                 .collect();
             link_slots_parallel::<Reporter>(LinkSlotsParallel {
@@ -958,6 +981,46 @@ impl CreateVirtualStore<'_> {
     }
 }
 
+/// Look up the obsolete child aliases for a slot, defaulting to an
+/// empty slice. The extra indirection lets the `SlotLink` builders
+/// pass their multiply-borrowed `snapshot_key` straight through —
+/// deref coercion narrows it to `&PackageKey` at the call site.
+fn removed_aliases_for<'a>(
+    removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
+    snapshot_key: &PackageKey,
+) -> &'a [PkgName] {
+    removed_aliases_by_key.get(snapshot_key).map_or(&[], Vec::as_slice)
+}
+
+/// Child aliases linked by the previous install (`current`) that are
+/// absent from the wanted snapshot's `dependencies ∪
+/// optional_dependencies`. The slot's own name is excluded so a
+/// self-referential dependency never targets `node_modules/<self>`,
+/// the directory the CAS import owns.
+fn removed_child_aliases(
+    current: &SnapshotEntry,
+    wanted: &SnapshotEntry,
+    self_name: &PkgName,
+) -> Vec<PkgName> {
+    fn child_aliases(snapshot: &SnapshotEntry) -> impl Iterator<Item = &PkgName> {
+        let deps = snapshot.dependencies.iter().flatten();
+        let opt_deps = snapshot.optional_dependencies.iter().flatten();
+        deps.chain(opt_deps).map(|(alias, _)| alias)
+    }
+    let wanted_aliases: HashSet<&PkgName> = child_aliases(wanted).collect();
+    let mut seen: HashSet<&PkgName> = HashSet::new();
+    let mut removed = Vec::new();
+    for alias in child_aliases(current) {
+        if alias == self_name || wanted_aliases.contains(alias) {
+            continue;
+        }
+        if seen.insert(alias) {
+            removed.push(alias.clone());
+        }
+    }
+    removed
+}
+
 fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
     if files_include_install_scripts(cas_paths.keys()) {
         return true;
@@ -975,6 +1038,10 @@ struct SlotLink<'a> {
     snapshot: &'a SnapshotEntry,
     cas_paths: &'a HashMap<String, PathBuf>,
     warm_cache_key: Option<&'a str>,
+    /// Child aliases dropped since the previous install, threaded into
+    /// [`crate::CreateVirtualDirBySnapshot::removed_aliases`] so their
+    /// stale symlinks are unlinked during the link pass.
+    removed_aliases: &'a [PkgName],
 }
 
 #[derive(Clone, Copy)]
@@ -1032,6 +1099,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
                 package_key: slot.snapshot_key,
                 snapshot: slot.snapshot,
                 skipped,
+                removed_aliases: slot.removed_aliases,
                 #[cfg(test)]
                 link_concurrency_probe,
             }
