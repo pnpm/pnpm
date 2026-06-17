@@ -47,6 +47,9 @@ function isDedupableResolution (resolution: ResolvedPackage['resolution']): bool
 //     isDedupableResolution); local, git, workspace, and platform-variant
 //     resolves are skipped on both the source and candidate side.
 //   - never crosses peer-dep-graph or patch-hash boundaries
+//   - only merges nodes that share the same prod/dev/optional reachability
+//     (see reachabilitySignature), so a rewrite never makes the target
+//     node's flags stale
 //   - skips specs that are not valid semver ranges (workspace:, file:,
 //     git URLs, dist tags)
 //   - never downgrades, never picks a version not already present in the
@@ -132,7 +135,7 @@ export function applySmartAutoDedupe (graph: DependenciesGraph): void {
       if (bucket == null) continue
       const spec = normalizeRange(parent.depSpecs[alias])
       if (spec == null) continue
-      const upgrade = findUpgrade(bucket, child.version, spec)
+      const upgrade = findUpgrade(bucket, child.version, spec, graph, reachabilitySignature(child))
       if (upgrade != null && upgrade !== childDepPath) {
         parent.children[alias] = upgrade
       }
@@ -159,13 +162,31 @@ function normalizeRange (spec: string | undefined): string | null {
   return semver.validRange(spec) === null ? null : spec
 }
 
+// A node's prod/dev/optional flags record how it is reached in the graph
+// (prod/dev are OR-accumulated, optional is AND-accumulated across every
+// edge). The dedupe pass only moves an edge between two nodes that share
+// the same signature, so the rewrite target already carries the exact
+// reachability of the edge being redirected — its flags (and therefore
+// its subtree's flags) stay correct without any recomputation. In
+// particular this prevents redirecting a required edge onto a node that
+// was reached only through optional edges, which would otherwise leave
+// the now-required node marked `optional: true` and silently suppress its
+// fetch/install failures.
+function reachabilitySignature (node: ResolvedPackage): string {
+  return `${node.optional === true ? 1 : 0}${node.prod === true ? 1 : 0}${node.dev === true ? 1 : 0}`
+}
+
 function findUpgrade (
   sortedCandidates: Candidate[],
   currentVersion: string,
-  spec: string
+  spec: string,
+  graph: DependenciesGraph,
+  requiredSignature: string
 ): DepPath | undefined {
   for (const candidate of sortedCandidates) {
     if (semver.lte(candidate.version, currentVersion)) return undefined
+    const node = graph[candidate.depPath]
+    if (node == null || reachabilitySignature(node) !== requiredSignature) continue
     // Use loose semver semantics, matching the rest of the resolver
     // (see referenceSatisfiesWantedSpec, wantedDepIsLocallyAvailable).
     if (semver.satisfies(candidate.version, spec, { loose: true })) {

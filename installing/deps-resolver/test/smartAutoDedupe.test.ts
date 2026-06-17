@@ -8,6 +8,11 @@ interface NodeStub {
   version: string
   children: Record<string, DepPath>
   depSpecs?: Record<string, string>
+  // prod/dev/optional default to falsy (treated as false) when omitted.
+  // Tests that exercise the reachability-signature guard set them.
+  optional?: boolean
+  prod?: boolean
+  dev?: boolean
   // Default resolution mimics a registry tarball (TarballResolution has no `type`).
   // Tests that need to model file:/git/etc. resolves can override.
   resolution?: { type?: string, [key: string]: unknown }
@@ -469,5 +474,88 @@ test('rewrites an npm-aliased edge for a scoped package name', () => {
   applySmartAutoDedupe(graph)
 
   expect(graph['pkg@1.0.0' as DepPath].children.bar).toBe('@scope/foo@1.1.0')
+})
+
+test('does not redirect a required edge onto an optional-only higher version', () => {
+  // foo@1.1.0 is reached only through optional edges (optional: true). If a
+  // required edge to foo@1.0.0 were rewritten to it, the now-required
+  // package would still be serialized as optional and its fetch failures
+  // would be silently suppressed.
+  const graph = makeGraph({
+    'foo@1.0.0': { name: 'foo', version: '1.0.0', children: {}, optional: false, prod: true },
+    'foo@1.1.0': { name: 'foo', version: '1.1.0', children: {}, optional: true },
+    'pkg@1.0.0': {
+      name: 'pkg',
+      version: '1.0.0',
+      children: { foo: 'foo@1.0.0' as DepPath },
+      depSpecs: { foo: '^1.0.0' },
+      prod: true,
+    },
+  })
+
+  applySmartAutoDedupe(graph)
+
+  expect(graph['pkg@1.0.0' as DepPath].children.foo).toBe('foo@1.0.0')
+})
+
+test('does not redirect a prod edge onto a dev-only higher version', () => {
+  // foo@1.1.0 is dev-only; rewriting a prod edge to it would leave a
+  // prod-required package marked dev-only and prunable under --prod.
+  const graph = makeGraph({
+    'foo@1.0.0': { name: 'foo', version: '1.0.0', children: {}, prod: true },
+    'foo@1.1.0': { name: 'foo', version: '1.1.0', children: {}, dev: true },
+    'pkg@1.0.0': {
+      name: 'pkg',
+      version: '1.0.0',
+      children: { foo: 'foo@1.0.0' as DepPath },
+      depSpecs: { foo: '^1.0.0' },
+      prod: true,
+    },
+  })
+
+  applySmartAutoDedupe(graph)
+
+  expect(graph['pkg@1.0.0' as DepPath].children.foo).toBe('foo@1.0.0')
+})
+
+test('redirects when the higher version shares the same reachability signature', () => {
+  // Both versions are optional; moving an optional edge to the higher
+  // optional version keeps every flag correct, so the rewrite proceeds.
+  const graph = makeGraph({
+    'foo@1.0.0': { name: 'foo', version: '1.0.0', children: {}, optional: true },
+    'foo@1.1.0': { name: 'foo', version: '1.1.0', children: {}, optional: true },
+    'pkg@1.0.0': {
+      name: 'pkg',
+      version: '1.0.0',
+      children: { foo: 'foo@1.0.0' as DepPath },
+      depSpecs: { foo: '^1.0.0' },
+      optional: true,
+    },
+  })
+
+  applySmartAutoDedupe(graph)
+
+  expect(graph['pkg@1.0.0' as DepPath].children.foo).toBe('foo@1.1.0')
+})
+
+test('skips a signature-mismatched higher version but still picks a lower matching one', () => {
+  // foo@1.2.0 is optional-only (mismatch) and must be skipped, but
+  // foo@1.1.0 shares the required signature and satisfies the spec.
+  const graph = makeGraph({
+    'foo@1.0.0': { name: 'foo', version: '1.0.0', children: {}, prod: true },
+    'foo@1.1.0': { name: 'foo', version: '1.1.0', children: {}, prod: true },
+    'foo@1.2.0': { name: 'foo', version: '1.2.0', children: {}, optional: true },
+    'pkg@1.0.0': {
+      name: 'pkg',
+      version: '1.0.0',
+      children: { foo: 'foo@1.0.0' as DepPath },
+      depSpecs: { foo: '^1.0.0' },
+      prod: true,
+    },
+  })
+
+  applySmartAutoDedupe(graph)
+
+  expect(graph['pkg@1.0.0' as DepPath].children.foo).toBe('foo@1.1.0')
 })
 
