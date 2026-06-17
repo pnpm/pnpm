@@ -19,7 +19,7 @@ test('prints lockfile verification in-progress and completion messages', async (
   })
 
   // Subscribe before emitting so we capture both the started and the
-  // done frame in ansi-diff mode.
+  // done frame in the interactive (non-append-only) reporter.
   const frames = firstValueFrom(output$.pipe(take(2), toArray()))
 
   const lockfilePath = path.join(cwd, 'pnpm-lock.yaml')
