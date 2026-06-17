@@ -48,8 +48,13 @@ export function getOptionsFromPnpmSettings (
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
-  if (settings.overrides) {
-    assertValidOverrides(settings.overrides)
+  if (settings.overrides || opts.manifest?.resolutions) {
+    if (settings.overrides) assertValidOverrides(settings.overrides)
+    if (opts.manifest?.resolutions) assertValidOverrides(opts.manifest.resolutions, 'resolutions')
+    settings.overrides = {
+      ...(opts.manifest?.resolutions ? replaceEnvInStringValues(opts.manifest.resolutions) as Record<string, string> : undefined),
+      ...settings.overrides,
+    }
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
     } else {
@@ -76,13 +81,13 @@ function isGetOptionsFromPnpmSettingsOptions (
   return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value)
 }
 
-function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
+function assertValidOverrides (overrides: unknown, fieldName: 'overrides' | 'resolutions' = 'overrides'): asserts overrides is Record<string, string> {
   if (overrides == null || typeof overrides !== 'object' || Array.isArray(overrides)) {
-    throw new PnpmError('INVALID_OVERRIDES', `The overrides field should be an object, but got ${renderReceivedType(overrides)}`)
+    throw new PnpmError('INVALID_OVERRIDES', `The ${fieldName} field should be an object, but got ${renderReceivedType(overrides)}`)
   }
   for (const [selector, spec] of Object.entries(overrides)) {
     if (typeof spec !== 'string') {
-      throw new PnpmError('INVALID_OVERRIDES', `The value of overrides.${selector} should be a string, but got ${renderReceivedType(spec)}`)
+      throw new PnpmError('INVALID_OVERRIDES', `The value of ${fieldName}.${selector} should be a string, but got ${renderReceivedType(spec)}`)
     }
   }
 }
