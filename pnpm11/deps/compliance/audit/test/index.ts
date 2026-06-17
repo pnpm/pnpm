@@ -308,43 +308,48 @@ describe('audit', () => {
     expect(result['x']!.get('1.0.0')!.paths.sort()).toEqual(['.>b>c>x', '.>c>x'])
   })
 
-  test('buildAuditPathIndex() scans each cyclic node a bounded number of times', () => {
-    // n0 -> ... -> n(L-1) -> n0 is one big cycle. Each cyclic node must be
-    // scanned a bounded number of times; recomputing the cycle per ancestor is
-    // O(L^2) and made `pnpm audit` pathologically slow on cyclic lockfiles.
-    const L = 200
-    let reads = 0
-    const importers = {
-      ['.' as ProjectId]: { dependencies: { n0: '1.0.0' }, specifiers: { n0: '^1.0.0' } },
-    }
-    const packages: PackageSnapshots = {}
-    for (let i = 0; i < L; i++) {
-      const nextName = i + 1 < L ? `n${i + 1}` : 'n0' // the last node loops back to n0
-      const deps = { [nextName]: '1.0.0', [`leaf${i}`]: '1.0.0' }
-      Object.defineProperty(packages, `n${i}@1.0.0`, {
-        enumerable: true,
-        get: () => {
-          reads++
-          return { dependencies: deps, resolution: { integrity: `n${i}-integrity` } }
-        },
+  test('buildAuditPathIndex() scales linearly, not quadratically, with cycle size', () => {
+    // n0 -> ... -> n(L-1) -> n0 is one big cycle with a single vulnerable leaf.
+    // Recomputing the cycle for every ancestor scans ~L^2 nodes, so doubling L
+    // quadruples the reads; linear work only doubles them. Comparing the growth
+    // rate of two sizes — rather than an absolute count — keeps the assertion
+    // robust to constant-factor changes in future refactors.
+    const countReads = (L: number): number => {
+      let reads = 0
+      const importers = {
+        ['.' as ProjectId]: { dependencies: { n0: '1.0.0' }, specifiers: { n0: '^1.0.0' } },
+      }
+      const packages: PackageSnapshots = {}
+      for (let i = 0; i < L; i++) {
+        const nextName = i + 1 < L ? `n${i + 1}` : 'n0' // the last node loops back to n0
+        const deps = { [nextName]: '1.0.0', [`leaf${i}`]: '1.0.0' }
+        Object.defineProperty(packages, `n${i}@1.0.0`, {
+          enumerable: true,
+          get: () => {
+            reads++
+            return { dependencies: deps, resolution: { integrity: `n${i}-integrity` } }
+          },
+        })
+        packages[`leaf${i}@1.0.0` as DepPath] = { resolution: { integrity: `leaf${i}-integrity` } }
+      }
+
+      const result = buildAuditPathIndex({
+        importers,
+        lockfileVersion: LOCKFILE_VERSION,
+        packages,
+      }, new Set(['leaf0']), { depTypes: {}, optionalOnly: new Set() })
+
+      // Correctness: the only vulnerable leaf is still reported with its path.
+      expect(result['leaf0']!.get('1.0.0')).toEqual({
+        paths: ['.>n0>leaf0'],
+        dev: false,
+        optional: false,
       })
-      packages[`leaf${i}@1.0.0` as DepPath] = { resolution: { integrity: `leaf${i}-integrity` } }
+      return reads
     }
 
-    const result = buildAuditPathIndex({
-      importers,
-      lockfileVersion: LOCKFILE_VERSION,
-      packages,
-    }, new Set(['leaf0']), { depTypes: {}, optionalOnly: new Set() })
-
-    // Correctness: the only vulnerable leaf is still reported with its path.
-    expect(result['leaf0']!.get('1.0.0')).toEqual({
-      paths: ['.>n0>leaf0'],
-      dev: false,
-      optional: false,
-    })
-    // Linear scans, not O(L^2): the quadratic version read the cycle ~L*L times.
-    expect(reads).toBeLessThan(L * 8)
+    // Linear ⇒ ratio ≈ 2; quadratic ⇒ ratio ≈ 4. Assert clearly sub-quadratic.
+    expect(countReads(400) / countReads(200)).toBeLessThan(3)
   })
 
   test('buildAuditPathIndex() replaces slashes in workspace importer ids', () => {
