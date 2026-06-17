@@ -1,14 +1,14 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
-import { createEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
+import { createEnvLockfile } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { ConfigDependencies, ConfigDependencySpecifiers, Registries } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 
 import type { NormalizedConfigDep } from './parseIntegrity.js'
 import { parseIntegrity } from './parseIntegrity.js'
-import { verifyEnvLockfile } from './verifyEnvLockfile.js'
+import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 interface MigrateOpts {
   registries: Registries
@@ -94,20 +94,16 @@ export async function migrateConfigDepsToLockfile (
     }
   }
 
-  // Reject invalid names/versions before any write side effect.
-  verifyEnvLockfile(envLockfile)
-
-  // Write the new env lockfile and clean up workspace manifest
-  await Promise.all([
-    writeEnvLockfile(opts.rootDir, envLockfile),
-    writeSettings({
-      rootProjectManifestDir: opts.rootDir,
-      workspaceDir: opts.rootDir,
-      updatedSettings: {
-        configDependencies: cleanSpecifiers,
-      },
-    }),
-  ])
+  // writeVerifiedEnvLockfile rejects invalid names/versions before writing, so
+  // the manifest write (gated by it completing) never runs on bad input.
+  await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
+  await writeSettings({
+    rootProjectManifestDir: opts.rootDir,
+    workspaceDir: opts.rootDir,
+    updatedSettings: {
+      configDependencies: cleanSpecifiers,
+    },
+  })
 
   return normalizedDeps
 }

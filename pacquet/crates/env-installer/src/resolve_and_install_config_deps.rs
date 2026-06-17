@@ -12,7 +12,8 @@
 use crate::{
     ConfigDepError, install_config_deps::install_config_deps, options::ConfigDepsInstallOptions,
     parse_integrity::parse_integrity, prune::prune_env_lockfile,
-    resolve_optional_subdeps::resolve_optional_subdeps, verify_env_lockfile::verify_env_lockfile,
+    resolve_optional_subdeps::resolve_optional_subdeps,
+    verify_env_lockfile::write_verified_env_lockfile,
 };
 use pacquet_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
@@ -109,9 +110,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
             // Migration and/or removal changed the lockfile; prune any
             // now-orphaned packages/snapshots before writing.
             prune_env_lockfile(&mut env_lockfile);
-            // Reject invalid names/versions before the write side effect.
-            verify_env_lockfile(&env_lockfile)?;
-            env_lockfile.write(opts.root_dir).map_err(ConfigDepError::WriteLockfile)?;
+            write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
         }
         return install_config_deps::<Reporter>(&env_lockfile, opts).await;
     }
@@ -121,9 +120,7 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     }
 
     prune_env_lockfile(&mut env_lockfile);
-    // Reject invalid names/versions before the write side effect.
-    verify_env_lockfile(&env_lockfile)?;
-    env_lockfile.write(opts.root_dir).map_err(ConfigDepError::WriteLockfile)?;
+    write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
     install_config_deps::<Reporter>(&env_lockfile, opts).await
 }
 

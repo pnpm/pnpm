@@ -4,6 +4,7 @@ use crate::{
     options::ConfigDepsInstallOptions,
     prune::prune_env_lockfile,
     resolve_optional_subdeps::resolution_has_integrity,
+    verify_env_lockfile::write_verified_env_lockfile,
 };
 use pacquet_lockfile::{
     EnvLockfile, PackageKey, PkgName, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
@@ -93,7 +94,7 @@ pub async fn resolve_package_manager_integrities(
     }
 
     prune_env_lockfile(&mut env_lockfile);
-    env_lockfile.write(opts.root_dir).map_err(ConfigDepError::WriteLockfile)
+    write_verified_env_lockfile(&env_lockfile, opts.root_dir)
 }
 
 #[must_use]

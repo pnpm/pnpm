@@ -6,6 +6,18 @@
 use crate::ConfigDepError;
 use pacquet_lockfile::{EnvLockfile, PackageKey};
 use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use std::path::Path;
+
+/// The single path for persisting an env lockfile: it is verified before it
+/// touches disk, so no code path can write an env lockfile carrying an invalid
+/// config-dependency name or version.
+pub fn write_verified_env_lockfile(
+    env_lockfile: &EnvLockfile,
+    root_dir: &Path,
+) -> Result<(), ConfigDepError> {
+    verify_env_lockfile(env_lockfile)?;
+    env_lockfile.write(root_dir).map_err(ConfigDepError::WriteLockfile)
+}
 
 /// Reject config-dependency (and optional-subdep) names and versions before
 /// they build store paths (`<name>/<version>/<hash>`): names must be valid npm
