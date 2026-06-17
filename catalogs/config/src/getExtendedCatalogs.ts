@@ -170,7 +170,15 @@ async function globManifestDirs (expandedPattern: string, currentDir: string): P
  * is left untouched.
  */
 function ensureManifestSuffix (pattern: string): string {
-  const normalized = pattern.replace(/\/+$/, '')
+  // Trim trailing slashes with a linear scan rather than a `/\/+$/` regex: the
+  // pattern comes from user input and the end-anchored quantifier would
+  // backtrack quadratically on a string of many slashes (a denial-of-service
+  // risk flagged by CodeQL).
+  let end = pattern.length
+  while (end > 0 && pattern.charCodeAt(end - 1) === 47 /* '/' */) {
+    end--
+  }
+  const normalized = pattern.slice(0, end)
   return path.posix.basename(normalized) === WORKSPACE_MANIFEST_FILENAME
     ? normalized
     : `${normalized}/${WORKSPACE_MANIFEST_FILENAME}`
