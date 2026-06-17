@@ -1,8 +1,13 @@
 [github_app]
 # Commands run automatically when a PR is opened.
+# /improve runs the code-suggestions tool, which is what evaluates auto-approval
+# (see the auto_approve_* settings under [config]). It's only on open, not on
+# push, to keep Qodo's per-PR usage low — re-evaluation happens for a freshly
+# opened PR, not on every commit.
 pr_commands = [
     "/agentic_describe",
     "/agentic_review",
+    "/improve",
 ]
 
 # Re-run commands when new commits are pushed to the PR.
@@ -29,13 +34,16 @@ ignore_pr_authors = [
 # Product labels are applied by CodeRabbit (see .coderabbit.yaml), so Qodo's
 # label tooling is intentionally left off to avoid two tools fighting over labels.
 
-# Auto-approve a PR when the review finds no issues to fix.
-# enable_auto_approval is the required master switch (off by default);
-# auto_approve_for_no_suggestions approves when the review yields zero suggestions.
-# Both belong under [config] (not [pr_reviewer]) and only take effect from the
-# config file on the default branch.
+# Auto-approve a PR when Qodo finds nothing to fix. enable_auto_approval is the
+# required master switch (off by default). Both conditions below are evaluated by
+# the /improve tool (see pr_commands), so /improve must run for approval to fire,
+# and these flags only take effect from the config file on the default branch:
+#   - auto_approve_for_no_suggestions: approve when /improve yields zero suggestions.
+#   - auto_approve_for_low_review_effort: approve when the estimated review effort
+#     is at or below this score (1=trivial .. 5=very involved); 2 covers small PRs.
 enable_auto_approval = true
 auto_approve_for_no_suggestions = true
+auto_approve_for_low_review_effort = 2
 
 [review_agent]
 comments_location_policy = "both"
