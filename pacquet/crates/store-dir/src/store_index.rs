@@ -832,14 +832,6 @@ pub fn git_hosted_store_index_key(pkg_id: &str, built: bool) -> String {
 
 /// Pick the store-index key for a tarball-shaped resolution.
 ///
-/// Mirrors pnpm's `pickStoreIndexKey` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/store/index/src/index.ts#L85-L94>:
-///
-/// - Tarballs flagged `git_hosted: true`, or any tarball entry missing
-///   integrity, use [`git_hosted_store_index_key`] — the cached content
-///   depends on whether the build ran.
-/// - All other integrity-carrying tarballs use [`store_index_key`].
-///
 /// The `built` flag must match the build decision the caller will make at
 /// fetch time (upstream sets it to `!opts.ignoreScripts`).
 #[must_use]

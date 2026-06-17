@@ -5,9 +5,6 @@ const LDD_PATH: &str = "/usr/bin/ldd";
 const MAX_LENGTH: usize = 2048;
 
 /// Detect libc implementation from `/usr/bin/ldd` content.
-///
-/// Reads the first 2048 bytes and classifies based on known
-/// strings: `"musl"` wins over `"GNU C Library"` / `"GNU libc"`.
 pub fn detect() -> Option<Implementation> {
     let content = read_ldd()?;
     classify_from_ldd(&content)

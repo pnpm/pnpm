@@ -195,9 +195,6 @@ fn walker_empty_lockfile_produces_empty_result() {
 
     assert!(result.graph.is_empty(), "graph should be empty");
     assert!(result.hoisted_locations.is_empty(), "no locations recorded");
-    // `direct_dependencies_by_importer_id["."]` is always
-    // present (the root importer is implicit), but its inner
-    // map is empty when there are no children.
     assert_eq!(result.direct_dependencies_by_importer_id.len(), 1);
     assert!(result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY].is_empty());
 }
@@ -280,8 +277,6 @@ fn walker_transitive_dep_flattens_under_root() {
         "a's `children[\"b\"]` points at the hoisted (root-level) dir",
     );
 
-    // Both depPaths recorded at the root level only — no
-    // nesting needed because there's no version conflict.
     assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["node_modules/a".to_string()]);
     assert_eq!(result.hoisted_locations["b@1.0.0"], vec!["node_modules/b".to_string()]);
 }
@@ -333,13 +328,9 @@ fn walker_version_conflict_keeps_loser_nested() {
         vec!["node_modules/c/node_modules/a".to_string()],
     );
 
-    // `c`'s `children["a"]` points at the nested `a@2`, not the
-    // root's `a@1` — because hoisting kept the nested slot.
     assert_eq!(result.graph[&c_dir].children.get("a"), Some(&a2_dir));
 }
 
-/// Upstream's walker honors the input `skipped` set without
-/// re-checking installability; pacquet's walker does the same.
 #[test]
 fn walker_honors_pre_skipped_dep_path() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -751,8 +742,6 @@ fn prev_graph_includes_orphan_even_when_now_incompatible() {
         "force: true emits the orphan even though it would now fail installability",
     );
     assert!(result.graph.is_empty(), "wanted graph stays empty");
-    // The orphan must not appear in the wanted-walk's skipped
-    // set either — its installability check was never run.
     assert!(result.skipped.is_empty(), "skipped from wanted walk only, not prev walk");
 }
 
@@ -820,8 +809,6 @@ fn walker_multi_importer_emits_per_importer_direct_deps() {
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
     let modules = lockfile_dir.join("node_modules");
-    // Both packages live at the workspace root because the
-    // shared hoister tree dedupes them with no conflict.
     assert!(result.graph.contains_key(&modules.join("a")));
     assert!(result.graph.contains_key(&modules.join("b")));
     assert_eq!(
@@ -829,8 +816,6 @@ fn walker_multi_importer_emits_per_importer_direct_deps() {
         modules.join("a"),
     );
     assert_eq!(result.direct_dependencies_by_importer_id["packages/foo"]["b"], modules.join("b"));
-    // Workspace nodes themselves are NOT graph entries; only
-    // their package-bearing descendants are.
     assert!(!result.graph.values().any(|node| node.alias.as_deref() == Some("packages%2Ffoo")));
 }
 
@@ -910,8 +895,6 @@ fn walker_hoist_workspace_packages_false_emits_root_only() {
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
-    // Root importer's `a` survives; `b` (only reachable via
-    // `packages/foo`) does not show up in the graph.
     assert!(result.graph.contains_key(&lockfile_dir.join("node_modules").join("a")));
     assert!(!result.graph.contains_key(&lockfile_dir.join("node_modules").join("b")));
     assert_eq!(result.direct_dependencies_by_importer_id.len(), 1);

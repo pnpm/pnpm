@@ -32,15 +32,6 @@ fn extension_program(extension: &str) -> Option<&'static str> {
 
 /// Read up to 512 bytes of `path` and infer the runtime.
 ///
-/// Order, mirroring `searchScriptRuntime`:
-///
-/// 1. If the file exists and starts with a shebang, parse `prog` + `args` from
-///    it.
-/// 2. Otherwise look up a default runtime by file extension (e.g. `.js` →
-///    `node`, `.cmd` → `cmd`).
-/// 3. If neither yields a runtime, return `None`. [`generate_sh_shim`]
-///    handles that by exec'ing the target directly.
-///
 /// `NotFound` reading the file degrades to `Ok(None)` so a missing-bin race
 /// doesn't fail the whole install. Other IO errors propagate, since pacquet
 /// has already verified the bin path resolves under the package root by
@@ -118,8 +109,7 @@ pub fn parse_shebang_from_bytes(bytes: &[u8]) -> Option<ScriptRuntime> {
 /// Mirrors the shebang regex in upstream cmd-shim:
 /// `^#!\s*(?:/usr/bin/env(?:\s+-S\s*)?)?\s*([^ \t]+)(.*)$`.
 ///
-/// Recognises `#!/usr/bin/env <prog>`, `#!/usr/bin/env -S <prog>`, and any
-/// direct `#!/path/to/<prog>` shebang. `args` is captured **including the
+/// `args` is captured **including the
 /// leading whitespace** that separates it from `prog`. That matches
 /// upstream's regex group 2 (`(.*)`), which captures everything from after
 /// `prog`'s end-of-match to end of line. Preserving the leading whitespace
@@ -161,21 +151,6 @@ fn strip_env_prefix(input: &str) -> (&str, bool) {
 
 /// Generate the Unix shell-shim contents for `target_path`, written to
 /// `shim_path`. Mirrors `generateShShim` in upstream cmd-shim.
-///
-/// The shim is a pure `/bin/sh` script that:
-///
-/// 1. Resolves `basedir` to its own directory and keeps `basedir_win` for
-///    native Windows binaries reached from Cygwin/MSYS/WSL2.
-/// 2. If the runtime program is colocated at `$basedir/<prog>.exe` or
-///    `$basedir/<prog>` (a rare case, only true when the runtime was bundled
-///    alongside the shim), prefer that binary; otherwise fall through to the
-///    system PATH.
-/// 3. Forwards `"$@"` to the resolved interpreter, with the target script as
-///    the first positional argument.
-///
-/// When [`search_script_runtime`] returned `None` (no shebang, unknown
-/// extension), the shim execs the target directly via the second branch
-/// upstream uses for that case.
 #[must_use]
 pub fn generate_sh_shim(
     target_path: &Path,
@@ -237,9 +212,8 @@ pub fn generate_sh_shim(
                 sh.push_str(&exec_block(args));
             }
         }
-        // No runtime detected, so exec the target directly. Upstream still
-        // emits `exit $?` on this branch for parity with non-execve POSIX
-        // shells.
+        // Upstream still emits `exit $?` on this branch for parity with
+        // non-execve POSIX shells.
         runtime_opt => {
             let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
             writeln!(sh, "{quoted_target} {args} \"$@\"\nexit $?").unwrap();
@@ -283,7 +257,6 @@ pub fn generate_cmd_shim(
         }
         runtime_opt => {
             let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
-            // No runtime detected, so exec the target directly.
             writeln!(cmd, "@{quoted_target} {args} %*\r").unwrap();
         }
     }

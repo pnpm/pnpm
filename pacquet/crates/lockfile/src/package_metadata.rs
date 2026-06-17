@@ -57,8 +57,7 @@ pub struct PackageMetadata {
 }
 
 // Some packages declare `libc` as a plain string in `package.json`; pnpm writes
-// that string as-is into the lockfile. Accepts both string and array forms,
-// normalizing to `Vec<Value>`.
+// that string as-is into the lockfile.
 fn deserialize_string_or_vec<'de, Value, Deser>(
     deserializer: Deser,
 ) -> Result<Option<Vec<Value>>, Deser::Error>

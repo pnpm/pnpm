@@ -144,12 +144,6 @@ fn parent_scoped_override_only_fires_on_matching_parent() {
     );
 }
 
-/// Both parent-scoped and generic overrides for the same target —
-/// upstream prefers the parent-scoped variant when it matches,
-/// falling back to the generic one otherwise. Mirrors the
-/// `?? pickMostSpecificVersionOverride(genericVersionOverrides…)`
-/// fallback at upstream's
-/// [`createVersionsOverrider.ts:96-108`](https://github.com/pnpm/pnpm/blob/0d88df854f/hooks/read-package-hook/src/createVersionsOverrider.ts#L96-L108).
 #[test]
 fn parent_scoped_override_takes_precedence_over_generic() {
     let overrides = parsed(&[("parent>foo", "9.9.9"), ("foo", "1.0.0")]);
@@ -250,8 +244,6 @@ fn empty_overrides_leaves_manifest_untouched() {
     assert_eq!(manifest.value(), &before);
 }
 
-/// Upstream's hook only rewrites *existing* dep entries, so an
-/// override for a dep the manifest doesn't list is a no-op.
 #[test]
 fn override_for_missing_dep_does_not_add_entry() {
     let overrides = parsed(&[("foo", "1.0.0")]);

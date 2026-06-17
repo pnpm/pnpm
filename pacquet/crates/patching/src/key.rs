@@ -6,11 +6,7 @@ use node_semver::Version;
 /// [`parse`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/path/src/index.ts#L120-L168)
 /// that [`groupPatchedDependencies`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/groupPatchedDependencies.ts#L19-L21)
 /// uses. Patched-dependency keys never carry peer-graph or
-/// patch-hash suffixes, so this parser only distinguishes:
-///
-/// - bare `name` → both fields are `None`,
-/// - `name@<valid-semver>` → `version` is `Some`,
-/// - `name@<anything-else>` → `non_semver_version` is `Some`.
+/// patch-hash suffixes.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct ParsedKey<'a> {
     pub name: Option<&'a str>,

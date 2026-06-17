@@ -7,9 +7,7 @@
 /// don't churn; the encoding replicates what
 /// [`filenamify` v4](https://www.npmjs.com/package/filenamify/v/4.3.0)
 /// produced for these paths in pnpm <= 10. The encoding is lossy and
-/// can collide — `packages/b`, `./packages/b`, and `../packages/b`
-/// all collapse to `packages+b`, and `.hidden/pkg` collapses to
-/// `hidden+pkg`. Pnpm accepts the rare collision for lockfile
+/// can collide. Pnpm accepts the rare collision for lockfile
 /// stability; see [pnpm/pnpm#11272](https://github.com/pnpm/pnpm/issues/11272).
 #[must_use]
 pub fn link_path_to_peer_version(rel_path: &str) -> String {

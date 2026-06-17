@@ -110,9 +110,6 @@ async fn immutable_response_after_redirect_records_the_final_url() {
     let result =
         resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().expect("claim");
 
-    // The id and normalized specifier echo the *requested* URL; the
-    // resolution tarball follows the redirect because the final
-    // response is marked immutable.
     assert_eq!(result.id.to_string(), requested_url);
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some(requested_url.as_str()));
     assert_eq!(tarball_url(&result.resolution), final_url);

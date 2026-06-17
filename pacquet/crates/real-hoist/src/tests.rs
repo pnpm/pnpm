@@ -45,13 +45,6 @@ fn empty_lockfile() -> Lockfile {
     }
 }
 
-/// Direct port of the upstream "hoist throws an error if the
-/// lockfile is broken" test at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/test/index.ts>.
-/// The root importer references `foo@1.0.0` but the `snapshots`
-/// map is empty, so the wrapper's snapshot lookup must surface
-/// `LockfileMissingDependency` rather than silently produce a
-/// truncated tree.
 #[test]
 fn hoist_throws_on_broken_lockfile() {
     let mut importers = HashMap::new();
@@ -81,8 +74,6 @@ fn hoist_throws_on_broken_lockfile() {
     assert_eq!(pkg_key, "foo@1.0.0");
 }
 
-/// An empty lockfile (no importers at all) hoists to an empty
-/// result.
 #[test]
 fn empty_lockfile_yields_empty_root() {
     let lockfile = empty_lockfile();
@@ -92,8 +83,6 @@ fn empty_lockfile_yields_empty_root() {
     assert!(result.dependencies.borrow().is_empty(), "no importers means no children at the root");
 }
 
-/// `root → a → b` collapses to `root → {a, b}` because `b` has no
-/// name conflict at root.
 #[test]
 fn one_transitive_dep_hoists_to_root() {
     let mut importers = HashMap::new();
@@ -137,8 +126,6 @@ fn one_transitive_dep_hoists_to_root() {
     assert!(dep_a.dependencies.borrow().is_empty(), "a's b moved to root: {dep_a:#?}");
 }
 
-/// Diamond dependency `root → {a, c}` with both `a → b@1` and
-/// `c → b@1` (same `Rc` thanks to the wrapper's identity dedup).
 #[test]
 fn diamond_dep_hoists_once_to_root() {
     let mut importers = HashMap::new();
@@ -150,8 +137,6 @@ fn diamond_dep_hoists_once_to_root() {
         ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
     );
 
-    // Both a@1 and c@1 depend on b@1 — same dep_key → same Rc in
-    // the input HoisterTree, same Rc in the result graph.
     let mut snapshots = HashMap::new();
     let mut a_deps = HashMap::new();
     a_deps.insert(pkg_name("b"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
@@ -191,12 +176,6 @@ fn diamond_dep_hoists_once_to_root() {
     assert!(dep_a.dependencies.borrow().is_empty(), "a stripped of its b: {dep_a:#?}");
     assert!(dep_c.dependencies.borrow().is_empty(), "c stripped of its b: {dep_c:#?}");
 
-    // Walk the whole result graph and collect every distinct
-    // allocation whose `name == "b"`. The wrapper deduped a@1's b
-    // and c@1's b into one `Rc<HoisterResult>` (the diamond shares
-    // by identity), and the hoist must preserve that identity
-    // rather than allocating a second copy somewhere — so the set
-    // of pointers we collect has exactly one entry.
     let mut b_ptrs: std::collections::HashSet<*const HoisterResult> =
         std::collections::HashSet::new();
     let mut stack: Vec<Rc<HoisterResult>> =
@@ -217,9 +196,6 @@ fn diamond_dep_hoists_once_to_root() {
     assert_eq!(b_ptrs.len(), 1, "exactly one `b` allocation across the entire result graph");
 }
 
-/// Version conflict: `root → {a, c}` with `a → b@1` and
-/// `c → b@2`. The first DFS reach wins root's `b` slot; the
-/// other version stays under its declaring parent.
 #[test]
 fn version_conflict_keeps_loser_at_parent() {
     let mut importers = HashMap::new();
@@ -267,12 +243,6 @@ fn version_conflict_keeps_loser_at_parent() {
     names.sort_unstable();
     assert_eq!(names, ["a", "b", "c"], "root has a, c, and one b");
     let b_at_root = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "b").unwrap().0);
-    // DFS visits root's direct deps in alias order (`a` then
-    // `c`), so `a@1`'s `b@1.0.0` reaches root first and wins the
-    // slot. Assert membership (not iteration-order-derived
-    // equality) so the test stays focused on which reference is
-    // present, not on which one happens to come back first from
-    // the set.
     let b_refs = b_at_root.references.borrow();
     assert!(b_refs.contains("b@1.0.0"), "first DFS visitor wins root slot: {b_refs:?}");
     assert_eq!(b_refs.len(), 1, "no other reference accumulated yet: {b_refs:?}");
@@ -284,11 +254,6 @@ fn version_conflict_keeps_loser_at_parent() {
     assert_eq!(b_under_c_refs.len(), 1);
 }
 
-/// Deep linear chain `root → a → b → c → d` flattens to
-/// `root → {a, b, c, d}` in a single hoist round: each node, by
-/// the time DFS descends into it, has already been moved up to
-/// root, so its own children evaluate against root's slots
-/// (which are all free).
 #[test]
 fn deep_chain_flattens_in_one_pass() {
     let mut importers = HashMap::new();
@@ -344,9 +309,6 @@ fn deep_chain_flattens_in_one_pass() {
     }
 }
 
-/// `external_dependencies` are added as `link:` placeholders at the
-/// root so the inner hoister won't hoist anything else into those
-/// name slots, and they're stripped from the result after hoisting.
 #[test]
 fn external_dependencies_are_stripped_from_the_result() {
     let mut importers = HashMap::new();
@@ -384,9 +346,6 @@ fn external_dependencies_are_stripped_from_the_result() {
     assert_eq!(names, ["real"], "external dep is stripped, real dep remains: {names:?}");
 }
 
-/// A transitive npm-alias dep (`SnapshotDepRef::Alias`) must look
-/// up the snapshot under the *target* package name, not under the
-/// alias.
 #[test]
 fn transitive_npm_alias_resolves_target_snapshot() {
     let mut importers = HashMap::new();
@@ -404,11 +363,6 @@ fn transitive_npm_alias_resolves_target_snapshot() {
         dep_key("host", "1.0.0"),
         SnapshotEntry { dependencies: Some(host_deps), ..SnapshotEntry::default() },
     );
-    // Snapshot lookup must target `real-pkg@2.0.0`, NOT
-    // `aliased-name@2.0.0`. If we put only the target key in the
-    // map, the wrapper succeeds; if it builds the key from the
-    // alias the lookup misses and we get
-    // `LockfileMissingDependency`.
     snapshots.insert(dep_key("real-pkg", "2.0.0"), SnapshotEntry::default());
 
     let lockfile = Lockfile {
@@ -427,11 +381,6 @@ fn transitive_npm_alias_resolves_target_snapshot() {
 
     let result =
         hoist(&lockfile, &HoistOpts::default()).expect("aliased transitive should resolve");
-    // After hoist, both `host` and `aliased-name` sit at root —
-    // `aliased-name` had no conflict so it floats up. The npm-
-    // alias indirection is observable on the hoisted node itself:
-    // `name` is the exposed alias, `ident_name` and `references`
-    // carry the resolved target's identity.
     let root_children = result.dependencies.borrow();
     let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     names.sort_unstable();
@@ -482,12 +431,6 @@ fn pkg_metadata_with_peer(peer_name: &str) -> pacquet_lockfile::PackageMetadata 
     }
 }
 
-/// Peer-shadow refusal: `app → widget (peer: react) + widget → react@17`
-/// and `root → react@18`. `widget` declares `react` as a peer, its
-/// only ancestor (`app`) supplies `react@17`, and the root carries
-/// `react@18`. Hoisting `widget` to root would silently re-resolve
-/// its peer to react@18 instead of the ancestor-supplied react@17,
-/// so the algorithm leaves `widget` nested under `app`.
 #[test]
 fn peer_constrained_node_stays_under_parent_when_root_provides_different_ident() {
     let mut importers = HashMap::new();
@@ -543,19 +486,9 @@ fn peer_constrained_node_stays_under_parent_when_root_provides_different_ident()
         app_names.contains(&"widget"),
         "widget nested under app to keep ancestor peer resolution: {app_names:?}",
     );
-    // The conflicting react@17 also stays nested under app
-    // (parent-wins kicked in because root already has react@18).
     assert!(app_names.contains(&"react"), "app keeps its own react@17: {app_names:?}");
 }
 
-/// A peer-constrained leaf whose intermediate parent hoists to the
-/// root must be evaluated against the parent's *post-hoist* ancestor
-/// chain, not against the original chain. With the post-hoist path
-/// `[root, mid]`, neither `mid` nor `root` provides a peer ident
-/// that disagrees with what `root` carries (`root.react@18` is
-/// consistent with itself), so `terminal` hoists; checking against
-/// the stale path `[root, app, mid]` would see
-/// `app.react@17 ≠ root.react@18` and over-refuse.
 #[test]
 fn peer_check_uses_post_hoist_ancestor_path_not_queue_time_path() {
     let mut importers = HashMap::new();
@@ -614,20 +547,12 @@ fn peer_check_uses_post_hoist_ancestor_path_not_queue_time_path() {
     let app = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "app").unwrap().0);
     let app_deps = app.dependencies.borrow();
     let app_names: Vec<&str> = app_deps.iter().map(|dep| dep.0.name.as_str()).collect();
-    // app keeps its conflicting react@17 (parent-wins), but mid
-    // has moved to root so app no longer carries it.
     assert_eq!(app_names, ["react"], "app retains conflicting react@17: {app_names:?}");
     drop(app_deps);
     let mid = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "mid").unwrap().0);
     assert!(mid.dependencies.borrow().is_empty(), "mid stripped of terminal: {mid:#?}");
 }
 
-/// Peer-friendly hoist: `app → widget (peer: react)`, `app → react@18`,
-/// `root → react@18`. The peer name `react` is provided by both
-/// `app` and the root with the *same* ident (`react@18`, shared `Rc`
-/// thanks to the wrapper's identity dedup), so hoisting `widget` to
-/// root doesn't change its peer resolution — the algorithm allows
-/// the hoist.
 #[test]
 fn peer_constrained_node_hoists_when_ancestor_and_root_agree() {
     let mut importers = HashMap::new();
@@ -679,13 +604,6 @@ fn peer_constrained_node_hoists_when_ancestor_and_root_agree() {
     );
 }
 
-/// Multi-round convergence: a peer-constrained candidate that
-/// gets refused in round 1 because a sibling provides the peer
-/// with no matching root slot. Once round 1 hoists the sibling
-/// out, round 2 reconsiders the candidate against the new state
-/// and lets it through. A single-pass DFS would leave `widget`
-/// nested forever.
-///
 /// Iteration order over `app`'s children is alphabetical, so
 /// `widget` is visited *before* `x` in round 1 — that ordering is
 /// what forces the refuse-then-reconsider path the test pins.
@@ -742,14 +660,6 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
     assert!(app.dependencies.borrow().is_empty(), "app stripped after multi-round: {app:#?}");
 }
 
-/// A `hoisting_limits` border keeps a bordered node's descendants
-/// nested. Ports the spirit of upstream's `should not hoist packages
-/// past hoist boundary`. Setup: `root → a → b`. With no limits, `b`
-/// would flatten to root (see `one_transitive_dep_hoists_to_root`).
-/// With `hoisting_limits[".@"] = {a}`, `a` is a border, so its
-/// descendant `b` stays nested under `a`. The border node `a` itself
-/// still sits at root (a border blocks a node's children, not the
-/// node).
 #[test]
 fn hoisting_limits_border_keeps_descendants_nested() {
     let mut importers = HashMap::new();
@@ -799,11 +709,6 @@ fn hoisting_limits_border_keeps_descendants_nested() {
     assert_eq!(a_names, ["b"], "b stays nested under the border a: {a_names:?}");
 }
 
-/// A border keeps *every* descendant of the bordered node nested,
-/// not just the first. Ports the spirit of upstream's `should not
-/// hoist multiple package past nohoist root`. Setup: `root → a →
-/// {b, c, d}` with `hoisting_limits[".@"] = {a}`. All three of a's
-/// deps stay under a.
 #[test]
 fn hoisting_limits_border_keeps_all_descendants_nested() {
     let mut importers = HashMap::new();
@@ -862,10 +767,6 @@ fn hoisting_limits_border_keeps_all_descendants_nested() {
     );
 }
 
-/// `hoisting_limits` keyed on a different importer (one we don't
-/// hoist into) is silently ignored. The wrapper passes the whole
-/// map through, and the algorithm only consults entries matching
-/// the current root locator. Sanity test for non-interference.
 #[test]
 fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
     let mut importers = HashMap::new();
@@ -912,13 +813,6 @@ fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
     assert_eq!(names, ["a", "b"], "limits keyed elsewhere don't affect root hoist: {result:#?}");
 }
 
-/// Self-dependency: a package that lists itself as a transitive
-/// dep. Upstream tolerates this (see `should tolerate
-/// self-dependencies` in `@yarnpkg/nm/tests/hoist.test.ts`).
-/// The wrapper's dedup-by-cache keeps a single `Rc` for `a@1`,
-/// and the hoist sees the back-edge to itself as a cycle that
-/// the DFS skips via its `visited` set. No infinite loop, sane
-/// output.
 #[test]
 fn self_dependency_does_not_loop() {
     let mut importers = HashMap::new();
@@ -956,18 +850,9 @@ fn self_dependency_does_not_loop() {
     let names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
     assert_eq!(names, ["a"], "single a at root: {result:#?}");
     let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    // The self-edge is dedup'd by the wrapper's identity cache to
-    // the same Rc as the root's `a`. During hoist, the back-edge
-    // to root is skipped; the self-edge under a is dedup'd as
-    // SameNode (a is at root via the same Rc) and stripped.
     assert!(dep_a.dependencies.borrow().is_empty(), "self-edge stripped: {dep_a:#?}");
 }
 
-/// Basic two-node cycle: `a → b → a`. Both packages share the
-/// `Rc` for `a` and `b` thanks to the wrapper's dedup, so the
-/// hoist back-edge is skipped and the algorithm terminates.
-/// Ports the spirit of upstream's `should support basic cyclic
-/// dependencies`.
 #[test]
 fn basic_cyclic_dependency_terminates() {
     let mut importers = HashMap::new();
@@ -1019,13 +904,6 @@ fn basic_cyclic_dependency_terminates() {
     assert!(dep_b.dependencies.borrow().is_empty(), "b's back-edge to a stripped: {dep_b:#?}");
 }
 
-/// A lockfile with importers beyond `.` (a workspace): each
-/// non-root importer becomes a `Workspace`-kind child of the
-/// virtual `.` root. Mirrors upstream's
-/// [`installing/linking/real-hoist/src/index.ts:51-66`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L51-L66)
-/// where `hoistWorkspacePackages` (default true) drives the same
-/// transformation. The walker (slice 4) and linker (slice 5) then
-/// fan out per-importer.
 #[test]
 fn multi_importer_lockfile_emits_workspace_children() {
     let mut importers = HashMap::new();
@@ -1070,10 +948,6 @@ fn multi_importer_lockfile_emits_workspace_children() {
     );
 }
 
-/// `hoist_workspace_packages: false` opts out of including non-root
-/// importers in the shared tree. The hoister output then carries
-/// only the root importer's deps (empty in this fixture). Pacquet
-/// exposes this via [`pacquet_config::Config::hoist_workspace_packages`].
 #[test]
 fn hoist_workspace_packages_false_omits_workspace_children() {
     let mut importers = HashMap::new();

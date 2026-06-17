@@ -59,10 +59,6 @@ fn non_empty_diff_lists_importer_and_package_changes() {
     assert!(report.contains("+ is-negative@1.0.0"), "got: {report}");
 }
 
-/// A snapshot whose dependency wiring changed (same key, different resolved
-/// edge) is a lockfile rewrite a real install would perform — e.g. a
-/// peer-variant re-resolution. Mirrors pnpm diffing snapshot
-/// `dependencies` / `optionalDependencies`.
 #[test]
 fn snapshot_wiring_change_is_detected() {
     let old = SnapshotEntry::default();
@@ -74,9 +70,6 @@ fn snapshot_wiring_change_is_detected() {
     assert!(snapshot_wiring_differs(&old, &new), "a new dependency edge must register as a change");
 }
 
-/// A dependency moving between groups (dev -> prod) with the same resolved
-/// version must register as a change, because a real install would rewrite
-/// the lockfile. The groups are diffed independently, matching pnpm.
 #[test]
 fn group_move_is_reported_even_when_version_is_unchanged() {
     let old = ProjectSnapshot {
@@ -91,9 +84,6 @@ fn group_move_is_reported_even_when_version_is_unchanged() {
     assert!(!diff.is_empty(), "a dev -> prod move must register as a change: {diff:?}");
 }
 
-/// A specifier-only change (same group, same resolved version) is reported:
-/// a real install would rewrite the lockfile's specifier, so `--dry-run`
-/// surfaces it as a direct-dependency change.
 #[test]
 fn specifier_only_change_is_reported() {
     let old = ProjectSnapshot {

@@ -19,8 +19,6 @@ fn lts_selector_picks_every_lts_release() {
     assert_eq!(range, "*");
 }
 
-/// An exact LTS codename narrows to the matching releases. Match is
-/// case-insensitive — upstream lower-cases both sides.
 #[test]
 fn lts_codename_is_case_insensitive() {
     let (picked, range) = filter_versions(&make_versions(), "iron");

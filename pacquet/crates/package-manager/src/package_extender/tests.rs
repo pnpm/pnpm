@@ -120,13 +120,6 @@ fn apply_to_arc_returns_same_arc_when_no_match() {
     assert_eq!(before_ptr, Arc::as_ptr(&after), "unchanged manifests must keep the same Arc");
 }
 
-/// An unparsable range in the selector (e.g. `is-positive@~~garbage`)
-/// must surface as a typed error at construction so the install
-/// fails fast before any tarball is fetched. Mirrors upstream's
-/// `createPackageExtender` shape — pnpm passes the raw range to
-/// `semver.satisfies`, which throws a `TypeError` on the first
-/// matching package. Pacquet lifts the same failure mode to install
-/// start.
 #[test]
 fn unparsable_range_in_selector_returns_construction_error() {
     let mut extensions = IndexMap::new();
@@ -137,13 +130,6 @@ fn unparsable_range_in_selector_returns_construction_error() {
     assert_eq!(err.range, "~~garbage");
 }
 
-/// A selector that targets the *same package name* but a
-/// non-matching version range must NOT trigger a clone: without the
-/// range pre-check, the name-bucket hit alone would allocate a fresh
-/// `Value` on every install for every package referenced by any
-/// `packageExtensions` selector. Pre-flighting the range gate keeps
-/// `apply_to_arc` on the "clone only when the manifest actually
-/// changes" contract its caller relies on.
 #[test]
 fn apply_to_arc_returns_same_arc_when_only_range_mismatches() {
     let mut extensions = IndexMap::new();

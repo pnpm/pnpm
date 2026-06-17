@@ -30,18 +30,10 @@ fn strips_the_resolved_id_patch_suffix() {
 
 #[test]
 fn matches_a_name_prefixed_file_id() {
-    // `build_pkg_id_with_patch_hash` prefixes `file:` / git / tarball
-    // ids with the manifest name, matching the recorded key shape.
     assert!(landed_on_prior_entry(&key("foo@file:packages/foo"), "foo@file:packages/foo"));
     assert!(!landed_on_prior_entry(&key("foo@file:packages/foo"), "file:packages/foo"));
 }
 
-/// The owning importer's missing-peer record is written once per
-/// ownership generation: its own later passes (post-hoist, when the
-/// peer is no longer missing) must not refresh it — mirroring
-/// upstream's once-per-generation `missingPeersOfChildren` promise —
-/// while an ownership change starts a fresh record and an owner's
-/// report replaces a non-owner's provisional one.
 #[test]
 fn owner_missing_record_is_written_once_per_generation() {
     use super::{ChildrenOwner, WorkspaceTreeCtx, lock_recoverable};

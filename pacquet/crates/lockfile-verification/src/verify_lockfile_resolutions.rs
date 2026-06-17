@@ -63,23 +63,11 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
 }
 
 /// Run every active [`ResolutionVerifier`] against every entry in
-/// `lockfile.packages`. No-op when `verifiers` is empty or the
-/// lockfile carries no `packages:` map.
+/// `lockfile.packages`.
 ///
-/// Verifiers fan out across candidates with the runner's concurrency
-/// cap; each candidate stops at the first verifier that rejects it,
-/// so a multi-verifier setup never emits duplicate violations for
-/// the same `(name, version)` pair.
-///
-/// Reporter events fire only when the fan-out actually runs — an
-/// empty candidate set skips both `Started` and `Done`. On the
-/// non-empty path, a `Started` always pairs with exactly one
-/// terminal `Done` (success) or `Failed` (rejection), even if the
-/// fan-out panics; the failure variant of the emit is fired from the
-/// drop guard so the reporter never leaves a hanging "Verifying..."
-/// frame. When the verification cache short-circuits the gate and
-/// policy verifiers are active, a single `Cached` event fires
-/// instead of the `Started`/`Done` pair.
+/// The failure variant of the terminal emit is fired from the drop
+/// guard so the reporter never leaves a hanging "Verifying..." frame
+/// even if the fan-out panics.
 pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
@@ -290,9 +278,7 @@ impl ResolutionVerifier for OfflineCheckCacheIdentity {
 /// resolution is registry-shaped because the npm verifier unconditionally
 /// binds explicit tarball URLs of semver-keyed entries to the registry's
 /// own `dist.tarball`. A git-hosted tarball is not — and trust is gated on
-/// the tarball URL rather than the `gitHosted` flag alone, so a tampered
-/// entry that clears the flag (`gitHosted: false`) on a git-host URL is
-/// still rejected.
+/// the tarball URL rather than the `gitHosted` flag alone.
 fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
     match resolution {
         LockfileResolution::Registry(_) => true,

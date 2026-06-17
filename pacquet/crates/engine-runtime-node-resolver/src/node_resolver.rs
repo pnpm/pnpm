@@ -369,9 +369,7 @@ struct NodeFileName {
 /// Match upstream's
 /// `^node-v<version>-([^-.]+)-([^.-]+)(-musl)?\.(tar\.gz|zip)$` —
 /// implemented by hand so the resolver doesn't pay the regex crate
-/// dependency for a single pattern. The version segment is matched
-/// literally; the platform and arch each disallow `.` and `-`, and
-/// `-musl` is the only legal third segment.
+/// dependency for a single pattern.
 fn parse_node_file_name(file_name: &str, version: &str) -> Option<NodeFileName> {
     let prefix = format!("node-v{version}-");
     let rest = file_name.strip_prefix(&prefix)?;
@@ -398,9 +396,6 @@ fn parse_node_file_name(file_name: &str, version: &str) -> Option<NodeFileName> 
 }
 
 fn bin_spec_for_platform(platform: &str) -> BinarySpec {
-    // pnpm records the runtime variant's `bin` as a named map keyed by the
-    // executable name (`{ node: bin/node }`), not a bare string — mirror
-    // that so the `variants[].resolution.bin` block round-trips.
     let path = if platform == "win32" { "node.exe" } else { "bin/node" };
     BinarySpec::Map(BTreeMap::from([("node".to_string(), path.to_string())]))
 }

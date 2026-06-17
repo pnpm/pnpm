@@ -195,8 +195,6 @@ async fn warm_in_memory_cache_skips_network() {
     mock.assert_async().await;
 }
 
-/// `offline=true` with a populated mirror reads the disk cache and
-/// never hits the network.
 #[tokio::test]
 async fn offline_with_mirror_picks_from_disk() {
     let mut server = mockito::Server::new_async().await;
@@ -234,9 +232,6 @@ async fn offline_with_mirror_picks_from_disk() {
     mock.assert_async().await;
 }
 
-/// `offline=true` with no mirror present surfaces
-/// `ERR_PNPM_NO_OFFLINE_META`. Matches upstream's hard error at
-/// pickPackage.ts#L242.
 #[tokio::test]
 async fn offline_without_mirror_errors() {
     let cache_dir = TempDir::new().expect("tempdir");
@@ -265,8 +260,6 @@ async fn offline_without_mirror_errors() {
     assert!(matches!(err, PickPackageError::NoOfflineMeta { .. }), "got {err:?}");
 }
 
-/// A pinned-version spec with an on-disk mirror that already has
-/// that exact version takes the fast path: no network call.
 #[tokio::test]
 async fn version_spec_with_mirror_takes_fast_path() {
     let mut server = mockito::Server::new_async().await;
@@ -304,8 +297,6 @@ async fn version_spec_with_mirror_takes_fast_path() {
     mock.assert_async().await;
 }
 
-/// A pinned-version spec NOT present in the mirror falls through
-/// to the network fetch.
 #[tokio::test]
 async fn version_spec_missing_in_mirror_fetches() {
     let mut server = mockito::Server::new_async().await;
@@ -320,9 +311,6 @@ async fn version_spec_missing_in_mirror_fetches() {
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
 
-    // Seed the mirror with versions that don't include the
-    // requested pin so the fast path declines and the network
-    // fetch runs.
     let older_body = r#"{
         "name": "acme",
         "dist-tags": { "latest": "0.9.0" },
@@ -370,10 +358,6 @@ async fn version_spec_missing_in_mirror_fetches() {
     mock.assert_async().await;
 }
 
-/// `dry_run=true` does not populate the in-memory cache (so a
-/// follow-up resolution sees a clean slate). The disk mirror still
-/// gets written by the underlying fetcher — that divergence from
-/// upstream is documented at the gating branch.
 #[tokio::test]
 async fn dry_run_skips_in_memory_cache() {
     let mut server = mockito::Server::new_async().await;
@@ -550,8 +534,6 @@ async fn in_memory_cache_does_not_leak_across_registries() {
     mock_b.assert_async().await;
 }
 
-/// Invalid package name (unscoped + slash) surfaces
-/// `ERR_PNPM_INVALID_PACKAGE_NAME` before any IO runs.
 #[tokio::test]
 async fn invalid_package_name_errors_synchronously() {
     let registry = "https://registry.example.com/".to_string();
@@ -604,9 +586,6 @@ fn parse_cutoff(rfc3339: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(rfc3339).expect("parse cutoff").with_timezone(&Utc)
 }
 
-/// Default-mode pick (`full_metadata=false`, no opts.optional) hits
-/// the abbreviated install-v1 endpoint and caches under
-/// `ABBREVIATED_META_DIR`. The full mirror stays untouched.
 #[tokio::test]
 async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
     let mut server = mockito::Server::new_async().await;
@@ -657,10 +636,6 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
     assert!(!full_path.exists(), "full mirror left untouched on default pick");
 }
 
-/// `opts.optional = true` forces full metadata even when
-/// `ctx.full_metadata` is off. Mirrors upstream's
-/// `fullMetadata = opts.optional || ctx.fullMetadata` derivation
-/// (pnpm/pnpm#9950).
 #[tokio::test]
 async fn optional_opt_forces_full_metadata_endpoint() {
     let mut server = mockito::Server::new_async().await;
@@ -703,11 +678,6 @@ async fn optional_opt_forces_full_metadata_endpoint() {
     assert!(full_path.exists(), "full mirror written when optional=true");
 }
 
-/// Two pick calls with different full-mode flags must not share an
-/// in-memory cache slot — the abbreviated entry is missing fields
-/// that a full-mode caller (optional dep) depends on. Mirrors
-/// upstream's `cacheKey = fullMetadata ? '${name}:full' : name`
-/// scoping.
 #[tokio::test]
 async fn cache_key_separates_abbreviated_from_full() {
     let mut server = mockito::Server::new_async().await;
@@ -819,18 +789,9 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
     full_mock.assert_async().await;
 }
 
-/// `published_by` active + abbreviated cache lacking `time` +
-/// `modified` after the cutoff → re-fetch full metadata so the
-/// maturity check runs on real timestamps. Persisting the upgrade
-/// to the abbreviated mirror means the next call sees `time`
-/// populated and skips the upgrade fetch entirely. Ports the spirit
-/// of upstream's
-/// [`upgrades cached abbreviated metadata to full when 304 Not Modified and publishedBy is set`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/test/publishedBy.test.ts#L450-L511).
 #[tokio::test]
 async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
     let mut server = mockito::Server::new_async().await;
-    // First fetch: abbreviated response (no `time`), recent
-    // `modified` so the upgrade trigger fires.
     let abbrev_mock = server
         .mock("GET", "/acme")
         .match_header(
@@ -842,8 +803,6 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
         .expect(1)
         .create_async()
         .await;
-    // Second fetch: the upgrade-to-full request. The body carries
-    // a `time` map so the picker can run the maturity check.
     let full_mock = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
@@ -884,9 +843,6 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
     abbrev_mock.assert_async().await;
     full_mock.assert_async().await;
 
-    // The upgraded full meta is written back to the abbreviated
-    // mirror so the next install sees `time` populated and skips
-    // the upgrade fetch — matches upstream's `persistUpgradedMeta`.
     let abbrev_path =
         get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
             .expect("path");
@@ -1087,18 +1043,6 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
     network_mock.assert_async().await;
 }
 
-/// Concurrent `pick_package` calls for the same `(registry, name)`
-/// coalesce into a single network fetch. Mirrors pnpm's
-/// [`runLimited(pkgMirror, …)`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L52-L64)
-/// behavior — without dedup, each duplicate caller would race past
-/// the in-memory cache miss and fire its own GET, exhausting the
-/// [`ThrottledClient`] semaphore and re-fetching the same packument
-/// `N` times.
-///
-/// The mock asserts `expect(1)` — even though we spawn 20 concurrent
-/// picks, exactly one GET reaches the registry. The other 19 wait
-/// on the per-key permit and pick up the cached packument once the
-/// winner returns.
 #[tokio::test]
 async fn concurrent_picks_for_same_key_share_one_network_fetch() {
     let mut server = mockito::Server::new_async().await;

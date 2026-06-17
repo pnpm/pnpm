@@ -332,11 +332,8 @@ fn lockfile_to_dep_graph(
         .map(|(snapshot_key, snapshot)| {
             let children = collect_children(snapshot);
             let metadata_key = snapshot_key.without_peer();
-            // `pkgIdWithPatchHash` strips only the peer-graph suffix,
-            // not the `(patch_hash=...)` segment. Mirrors upstream's
-            // [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L63-L70).
             // The metadata-map key (peer- and patch-hash-stripped) is
-            // still derived via `without_peer` for the `packages:` lookup.
+            // derived via `without_peer` for the `packages:` lookup.
             let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(
                 get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
             );

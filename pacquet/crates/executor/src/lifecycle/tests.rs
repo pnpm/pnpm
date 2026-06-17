@@ -119,13 +119,6 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     );
 }
 
-/// `RunPostinstallHooks.optional` is stamped into both the `Script`
-/// and `Exit` `pnpm:lifecycle` events, matching upstream's
-/// `lifecycleLogger.debug({ optional, … })` shape at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/src/runLifecycleHook.ts#L102>
-/// and `:165`. The two-bit truth on the wire lets the default
-/// reporter dispatch (e.g. quieting optional-dep noise) the same
-/// way it does against pnpm.
 #[cfg(unix)]
 #[test]
 fn lifecycle_events_carry_optional_flag() {
@@ -289,10 +282,6 @@ fn lifecycle_runs_under_silent_reporter() {
     assert!(ran, "postinstall script should report executed: ran={ran}");
 }
 
-/// Missing `package.json` is treated as "no scripts to run" — mirrors
-/// upstream `safeReadPackageJsonFromDir` returning `null` on `ENOENT`
-/// and `runPostinstallHooks` returning `false` for `null` packages
-/// (`https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/index.ts#L22-L23`).
 #[test]
 fn missing_manifest_returns_false() {
     let dir = tempdir().expect("create temp dir");
@@ -322,14 +311,6 @@ fn missing_manifest_returns_false() {
     assert!(!ran, "missing manifest must report no scripts ran: ran={ran}");
 }
 
-/// End-to-end check that the spawned child sees `npm_lifecycle_event`,
-/// `npm_lifecycle_script`, `INIT_CWD`, `npm_package_name`, and
-/// `npm_package_version`; that a user-defined `npm_config_*` var from
-/// this process's env is PRESERVED; and that a `npm_config_*` auth var
-/// is stripped. Adapts the upstream test at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/test/index.ts#L65-L82>
-/// to a file-dump model so we don't need an IPC fixture.
-///
 /// Unix-only: relies on `printf` and `$VAR` expansion, which `cmd`
 /// (the Windows default per item `#4`) doesn't speak. Env stamping
 /// itself is platform-agnostic and covered by the unit tests in
@@ -433,11 +414,6 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
     assert!(dump.contains("script=printf"), "missing script= line in dump:\n{dump}");
 }
 
-/// Malformed `package.json` surfaces as a `ReadManifest` error wrapping
-/// `PackageManifestError::Serialization`. Mirrors upstream which throws
-/// `BAD_PACKAGE_JSON` from `readPackageJson` and lets it propagate
-/// through `safeReadPackageJsonFromDir` (only `ENOENT` is swallowed) at
-/// `https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manifest/reader/src/index.ts#L20-L46`.
 #[test]
 fn malformed_manifest_propagates_error() {
     let dir = tempdir().expect("create temp dir");

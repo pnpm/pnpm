@@ -164,9 +164,7 @@ pub enum EncodeRegistryError {
 /// `host[:port]` form of a registry URL with `:` rewritten to `+` so
 /// the result is filesystem-safe. Mirrors the npm
 /// [`encode-registry`](https://github.com/zkochan/packages/tree/main/encode-registry)
-/// package pnpm consumes — `https://npm.example:8443/` becomes
-/// `npm.example+8443`, `https://registry.npmjs.org/` becomes
-/// `registry.npmjs.org`. Only an explicit port participates; the
+/// package pnpm consumes. Only an explicit port participates; the
 /// implicit-default port stays out of the slug so a registry served
 /// on its scheme default hashes consistently across configs.
 pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> {
@@ -183,10 +181,9 @@ pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> 
     })
 }
 
-/// Filesystem-safe form of a package name. A mixed-case name (e.g.
-/// `LRUCache`) gets a sha256 hex suffix so case-insensitive
-/// filesystems (HFS+, NTFS by default) can't collide it with a
-/// lowercase sibling. Mirrors pnpm's
+/// Filesystem-safe form of a package name. A mixed-case name gets a
+/// sha256 hex suffix so case-insensitive filesystems (HFS+, NTFS by
+/// default) can't collide it with a lowercase sibling. Mirrors pnpm's
 /// [`encodePkgName`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L555-L560).
 pub fn encode_pkg_name(pkg_name: &str) -> String {
     let lowered = pkg_name.to_lowercase();

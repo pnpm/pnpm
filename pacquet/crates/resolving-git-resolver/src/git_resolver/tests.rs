@@ -97,7 +97,6 @@ async fn github_shortcut_full_commit_returns_tarball() {
 #[tokio::test]
 async fn ssh_url_falls_back_to_git_resolution() {
     let stdout = "abcdef1234567890123456789012345678901234\tHEAD\n";
-    // head_ok=false → first https branch fails; ls_ok=true → ssh branch wins.
     let resolver = resolver(false, true, stdout);
     let wanted = WantedDependency {
         alias: None,

@@ -155,9 +155,6 @@ impl PackageVersions {
     /// but without hydrating the full manifest: an unhydrated fragment
     /// is probed with a single-field deserialize (skipped entirely when
     /// the fragment text doesn't contain the `"deprecated"` key).
-    /// An absent version or an undecodable fragment reads as not
-    /// deprecated, matching the "undecodable fragment behaves as if
-    /// the version were absent" contract of [`PackageVersions::get`].
     ///
     /// The pick paths consult deprecation for *many* candidate
     /// versions per packument (dist-tag repopulation, the
@@ -171,9 +168,6 @@ impl PackageVersions {
             return parsed.as_ref().is_some_and(|manifest| manifest.deprecated.is_some());
         }
         let Some(json) = slot.source.json() else { return false };
-        // Absence of the key text anywhere in the fragment proves the
-        // field is absent; presence (possibly in an unrelated nested
-        // position) falls through to the real parse.
         if !json.contains(r#""deprecated""#) {
             return false;
         }

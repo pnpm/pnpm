@@ -77,9 +77,7 @@ impl Reporter for DefaultReporter {
 
 /// Whether an event is a high-volume progress update that may be dropped
 /// under throttling, mirroring pnpm's `throttleProgress` on the progress
-/// stream. Per-package `pnpm:progress` and streaming `in_progress` download
-/// ticks coalesce; everything else (stats, summary, lifecycle, stage markers,
-/// the footer) renders immediately.
+/// stream.
 fn is_coalesceable(event: &LogEvent) -> bool {
     match event {
         LogEvent::Progress(_) => true,

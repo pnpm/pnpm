@@ -30,10 +30,6 @@ fn satisfies_falls_back_to_equality_for_unparsable_ranges() {
 
 #[test]
 fn satisfies_accepts_prerelease_against_non_prerelease_range() {
-    // Mirrors Yarn's `satisfiesWithPrereleases` carve-out: a peer
-    // candidate at `18.0.0-rc.1` should satisfy a `^18.0.0` peer
-    // requirement. node-semver's default `satisfies` rejects this
-    // pairing, so the prerelease-strip retry has to catch it.
     assert!(satisfies_with_prereleases("18.0.0-rc.1", "^18.0.0"));
     assert!(satisfies_with_prereleases("1.2.3-beta.0", "^1.2.0"));
     assert!(!satisfies_with_prereleases("19.0.0-rc.1", "^18.0.0"));

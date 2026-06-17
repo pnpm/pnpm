@@ -71,14 +71,7 @@ pub struct InvalidNodeVersionError {
 
 /// Evaluate a wanted `engines` block against the current engine.
 ///
-/// Returns:
-/// - `Ok(None)`: the runtime satisfies every declared range.
-/// - `Ok(Some(UnsupportedEngineError))`: at least one declared range
-///   was not satisfied; the error lists only the unsatisfied entries
-///   in its `wanted` field.
-/// - `Err(InvalidNodeVersionError)`: the supplied `current.node` is
-///   not a parseable exact semver (e.g. user passed a range like
-///   `>=20.0.0` into the `nodeVersion` config).
+/// The error lists only the unsatisfied entries in its `wanted` field.
 ///
 /// The semver `satisfies` call uses `includePrerelease: true` upstream
 /// (so a `21.0.0-nightly...` host satisfies `^14.18.0 || >=16.0.0`).
@@ -95,14 +88,7 @@ pub fn check_engine(
     if let Some(wanted_node) = wanted.node.as_ref() {
         match node_satisfies(&current.node, wanted_node) {
             Ok(true) => {}
-            // `current.node` is a valid version but doesn't satisfy
-            // the range — record the unsatisfied wanted entry.
-            // `node_satisfies` already parsed it once, so we don't
-            // re-parse here.
             Ok(false) => unsatisfied.node = Some(wanted_node.clone()),
-            // `current.node` is not a parseable exact semver — this
-            // is the `ERR_PNPM_INVALID_NODE_VERSION` path upstream
-            // throws from inside `checkEngine`.
             Err(InvalidVersion) => {
                 return Err(InvalidNodeVersionError { node_version: current.node.clone() });
             }
@@ -160,24 +146,12 @@ fn node_satisfies(current: &str, wanted: &str) -> Result<bool, InvalidVersion> {
 /// a partial-version range that already accepts prereleases of N at
 /// the lower bound.
 ///
-/// Two known divergences from upstream's `includePrerelease: true`:
-///
-/// - `>=X.Y.Z` (strict lower bound, fully specified mmp): upstream
-///   rejects `X.Y.Z-rc1` because alpha-class prereleases sort below
-///   the corresponding release in semver, so `X.Y.Z-rc1 < X.Y.Z`.
-///   Pacquet's strip turns the version into `X.Y.Z` which then
-///   satisfies `>=X.Y.Z` — over-acceptance. Pinned by the integration
-///   test `pnpm_is_a_prerelease_version_strict_ge_full_version_does_not_satisfy`
-///   under `known_failures`.
-/// - `<X.Y.Z` (strict upper bound, fully specified mmp): upstream
-///   accepts `X.Y.Z-rc1` (semver-less-than); pacquet's strip turns
-///   it into `X.Y.Z` which is NOT `<X.Y.Z` — under-acceptance.
-///
-/// Engine ranges with either of those exact shapes are vanishingly
-/// rare in real `package.json` files. A future change that lands
-/// byte-for-byte `includePrerelease: true` semantics (the
-/// `nodejs-semver` fork, or an open-coded bound walk) closes both
-/// gaps.
+/// One divergence from upstream's `includePrerelease: true` has no
+/// regression test: a `<X.Y.Z` strict upper bound with a fully
+/// specified major.minor.patch. Upstream accepts `X.Y.Z-rc1`
+/// (semver-less-than), but the strip turns it into `X.Y.Z`, which is
+/// not `<X.Y.Z` — under-acceptance. Ranges of this exact shape are
+/// vanishingly rare in real `package.json` files.
 fn satisfies_with_prerelease(version: &Version, wanted_range: &str) -> bool {
     let Ok(range) = Range::parse(wanted_range) else {
         // Match upstream `semver.satisfies` returning `false` for

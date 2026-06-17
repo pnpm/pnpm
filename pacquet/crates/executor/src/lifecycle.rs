@@ -112,11 +112,7 @@ pub struct RunPostinstallHooks<'a> {
     /// (`sh -c` on POSIX, `cmd /d /s /c` on Windows).
     pub script_shell: Option<&'a Path>,
     /// Whether the dep is reachable only through optional edges
-    /// (`snapshots[<key>].optional` in the v9 lockfile). Stamped
-    /// into the `pnpm:lifecycle` `Script` and `Exit` events so
-    /// downstream reporters can dispatch correctly, mirroring
-    /// upstream's `lifecycleLogger.debug({ optional, … })` at
-    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/src/runLifecycleHook.ts#L102>.
+    /// (`snapshots[<key>].optional` in the v9 lockfile).
     /// Does NOT affect failure handling — `BuildModules` consults the
     /// same flag independently to decide whether to swallow a build
     /// failure (see [#397](https://github.com/pnpm/pacquet/issues/397) item 6).
@@ -230,10 +226,6 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 /// Ports the core of `runLifecycleHook` from
 /// `https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/runLifecycleHook.ts`.
 ///
-/// Mirrors the upstream emit ordering: a `Script` event before the spawn,
-/// `Stdio` events for each stdout/stderr line, then an `Exit` event with
-/// the resolved exit code.
-///
 /// `parent_env` is captured by the caller so multi-stage callers (the
 /// `run_postinstall_hooks` wrapper and `pacquet-git-fetcher`'s
 /// `preparePackage` port) can snapshot once and reuse across stages,
@@ -256,8 +248,6 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
 
     let pkg_root_str = opts.pkg_root.to_string_lossy().into_owned();
 
-    // Mirrors `lifecycleLogger.debug({ depPath, optional, script, stage, wd })`
-    // at <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/src/runLifecycleHook.ts#L102>.
     Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
         level: LogLevel::Debug,
         message: LifecycleMessage::Script {
@@ -392,8 +382,6 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
         let _ = h.join();
     }
 
-    // Mirrors `lifecycleLogger.debug({ depPath, exitCode, optional, stage, wd })`
-    // at <https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/runLifecycleHook.ts#L165>.
     Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
         level: LogLevel::Debug,
         message: LifecycleMessage::Exit {

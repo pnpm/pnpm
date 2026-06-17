@@ -67,13 +67,7 @@ pub struct LinkHoistedModulesOpts<'a> {
     /// root. Single-importer installs have one entry keyed by
     /// `lockfile_dir`; workspace support will add more.
     pub hierarchy: &'a std::collections::BTreeMap<PathBuf, DepHierarchy>,
-    /// Pre-fetched CAS file index per package. The linker
-    /// errors with [`LinkHoistedModulesError::MissingCasPaths`]
-    /// when a graph node's `pkg_id_with_patch_hash` is missing
-    /// from this map and the node is not optional. Optional
-    /// nodes are silently skipped, matching upstream's
-    /// `if (depNode.optional) return` at
-    /// [linkHoistedModules.ts:113](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/linkHoistedModules.ts#L113-L116).
+    /// Pre-fetched CAS file index per package.
     pub cas_paths_by_pkg_id: &'a CasPathsByPkgId,
     pub import_method: PackageImportMethod,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
@@ -94,10 +88,8 @@ pub struct LinkHoistedModulesOpts<'a> {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum LinkHoistedModulesError {
-    /// A required (non-optional) graph node had no entry in
-    /// `cas_paths_by_pkg_id`. Indicates a bug in the caller
-    /// (pre-fetch incomplete) — the linker can't conjure files
-    /// it wasn't given.
+    /// Indicates a bug in the caller (pre-fetch incomplete) — the
+    /// linker can't conjure files it wasn't given.
     #[display("Missing CAS paths for required package {pkg_id_with_patch_hash:?} at {dir:?}")]
     #[diagnostic(code(ERR_PACQUET_LINK_HOISTED_MISSING_CAS))]
     MissingCasPaths { pkg_id_with_patch_hash: PkgIdWithPatchHash, dir: PathBuf },
@@ -107,10 +99,7 @@ pub enum LinkHoistedModulesError {
     /// a graph node every time it inserts a hierarchy entry, so
     /// this shouldn't fire from a real walker result — but
     /// surfacing the inconsistency fails the install fast rather
-    /// than producing a partial layout. Upstream effectively
-    /// does the same (a missing `graph[dir]` triggers a
-    /// `Cannot read properties of undefined` `TypeError` on the
-    /// next line), pacquet just spells the error out.
+    /// than producing a partial layout.
     #[display("Hierarchy references {dir:?} but no matching graph node exists")]
     #[diagnostic(code(ERR_PACQUET_LINK_HOISTED_MISSING_GRAPH_NODE))]
     MissingGraphNode { dir: PathBuf },
@@ -139,10 +128,6 @@ pub enum LinkHoistedModulesError {
 ///    from the just-imported direct children's `package.json`.
 ///    Matches upstream's `linkBins(modulesDir, binsDir, ...)`
 ///    at the bottom of `linkAllPkgsInOrder`.
-///
-/// Optional nodes whose CAS paths are missing are silently
-/// skipped (no error, no import). Required nodes surface as
-/// [`LinkHoistedModulesError::MissingCasPaths`].
 pub fn link_hoisted_modules<Reporter: self::Reporter>(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
@@ -243,12 +228,7 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     Ok(())
 }
 
-/// Import one graph node into its target `dir`. Looks up the
-/// node's CAS paths by `pkg_id_with_patch_hash`; if missing and
-/// the node is optional, silently returns (matches upstream's
-/// `if (depNode.optional) return` on fetch failure). Otherwise
-/// calls [`import_indexed_dir()`] with `force: true,
-/// keep_modules_dir: true` — the hoisted-linker call shape.
+/// Import one graph node into its target `dir`.
 fn import_node<Reporter: self::Reporter>(
     node: &DependenciesGraphNode,
     opts: &LinkHoistedModulesOpts<'_>,

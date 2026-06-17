@@ -86,11 +86,6 @@ fn links_matching_optional_sibling_alongside_regular_deps() {
     );
 }
 
-/// Optional siblings whose target snapshot is in `skipped` are
-/// *not* linked — their slot was never materialized, so a symlink
-/// would dangle. Mirrors upstream's `!pkg.installable && pkg.optional`
-/// short-circuit at
-/// <https://github.com/pnpm/pnpm/blob/f2981a316/installing/deps-installer/src/install/link.ts#L540>.
 #[test]
 fn skips_optional_siblings_that_are_in_skipped() {
     let tmp = tempdir().expect("tempdir");
@@ -179,8 +174,6 @@ fn skips_dep_entries_whose_alias_matches_self_name() {
     assert!(entries.is_empty(), "self-named entries must not become symlinks; got {entries:?}");
 }
 
-/// Both `dependencies` and `optional_dependencies` absent is a
-/// no-op.
 #[test]
 fn both_dep_maps_absent_is_a_noop() {
     let tmp = tempdir().expect("tempdir");
@@ -207,9 +200,6 @@ fn both_dep_maps_absent_is_a_noop() {
     assert!(entries.is_empty(), "no symlinks should be created when both dep maps are absent");
 }
 
-/// Aliased `dependencies` entries — `<alias>: <target-name>@<version>`
-/// shape — still link the alias filename in the slot's `node_modules`
-/// while resolving the slot via the target's name.
 #[test]
 fn alias_dep_links_under_alias_but_resolves_via_target() {
     let tmp = tempdir().expect("tempdir");

@@ -1713,10 +1713,6 @@ pub(crate) fn find_runtime_node_major(
 pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u32> {
     let deps = snapshot.dependencies.as_ref()?;
     for (alias, dep_ref) in deps {
-        // Match upstream's per-snapshot extraction rule — only the
-        // unscoped `node` alias counts, and only when the resolved
-        // ref-value's prefix is `runtime:` (bun/deno runtimes don't
-        // contribute to the Node-shaped engine string).
         if alias.scope.is_some() || alias.bare != "node" {
             continue;
         }

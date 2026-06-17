@@ -110,8 +110,6 @@ async fn resolution_verifier_dispatches_through_dyn() {
 /// range doesn't churn the lockfile.
 const _: () = assert!(EXISTING_VERSION_SELECTOR_WEIGHT > DIRECT_DEP_SELECTOR_WEIGHT);
 
-/// [`UpdateBehavior::default`] mirrors upstream's `update?: false`
-/// default — keep the lockfile pin.
 #[test]
 fn update_behavior_defaults_off() {
     assert_eq!(UpdateBehavior::default(), UpdateBehavior::Off);

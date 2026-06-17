@@ -157,10 +157,6 @@ async fn warm_cache_serves_from_mirror_on_304() {
     assert_eq!(second_pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
 }
 
-/// A 304 renews the mirror's mtime so the publishedBy freshness
-/// shortcut in `pick_package` can fire again on the next install —
-/// without the touch, a mirror older than `minimumReleaseAge`
-/// re-validates on every subsequent install forever.
 #[tokio::test]
 async fn a_304_renews_the_mirror_mtime() {
     let mut server = mockito::Server::new_async().await;
@@ -294,10 +290,6 @@ async fn no_cache_dir_skips_mirror_io() {
     mock.assert_async().await;
 }
 
-/// `cache_dir` points at a read-only directory. The fetch still
-/// succeeds with the parsed body — cache writes are fire-and-forget,
-/// failures only suppress the next-install speedup. Mirrors
-/// upstream's `saveMeta(...).catch(() => {})`.
 #[cfg(unix)]
 #[tokio::test]
 async fn read_only_cache_dir_does_not_fail_the_call() {

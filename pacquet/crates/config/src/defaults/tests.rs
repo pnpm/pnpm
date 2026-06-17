@@ -18,13 +18,6 @@ fn display_store_dir(store_dir: &StoreDir) -> String {
     store_dir.display().to_string().replace('\\', "/")
 }
 
-/// `default_store_dir`'s `PNPM_HOME` branch wins over everything
-/// else. Exercised through the dependency-injection seam from
-/// pnpm/pacquet#339 + pnpm/pnpm#11708 with a per-test unit struct
-/// that satisfies [`EnvVar`], [`GetHomeDir`], and [`GetCurrentDir`]
-/// — no `std::env::set_var`, no `EnvGuard` lock, no `unsafe` block.
-/// Tracks pnpm/pacquet#343.
-///
 /// The `home_dir` and `current_dir` capability impls call
 /// `unreachable!` because the early `PNPM_HOME` return short-circuits
 /// before either is consumed. Matches the worked example in
@@ -52,13 +45,10 @@ fn test_default_store_dir_with_pnpm_home_env() {
     assert_eq!(display_store_dir(&store_dir), format!("/tmp/pnpm-home/store/{STORE_VERSION}"));
 }
 
-/// `default_store_dir`'s `XDG_DATA_HOME` branch fires only when
-/// `PNPM_HOME` is unset. The fake `Sys` here returns a value for
-/// `XDG_DATA_HOME` and `None` for `PNPM_HOME`, so the lookup falls
-/// through to the second branch deterministically — no need to
+/// The fake `Sys` here returns a value for `XDG_DATA_HOME` and `None`
+/// for `PNPM_HOME` so the lookup is deterministic — no need to
 /// snapshot-and-restore real process env state to neutralise a
-/// developer's shell that has `PNPM_HOME` set. Tracks
-/// pnpm/pacquet#343.
+/// developer's shell that has `PNPM_HOME` set.
 #[test]
 fn test_default_store_dir_with_xdg_env() {
     struct EnvWithXdgDataHome;
@@ -84,15 +74,10 @@ fn test_default_store_dir_with_xdg_env() {
     );
 }
 
-/// When neither `PNPM_HOME` nor `XDG_DATA_HOME` is set, the
-/// non-Windows fall-through uses `Sys::home_dir()` plus the
-/// `env::consts::OS` switch — `~/.local/share/pnpm/store` on
-/// Linux, `~/Library/pnpm/store` on macOS. Drive the home-dir
-/// capability with a fixed path so the assertion is deterministic
-/// on any host. The `current_dir` impl stays `unreachable!`
-/// because the non-Windows fall-through never consults it. Mirrors
-/// the third branch of pnpm's
-/// [`storePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts).
+/// Drive the home-dir capability with a fixed path so the assertion
+/// is deterministic on any host. The `current_dir` impl stays
+/// `unreachable!` because the non-Windows fall-through never consults
+/// it.
 #[cfg(not(windows))]
 #[test]
 fn test_default_store_dir_falls_back_to_home_dir() {
@@ -121,15 +106,8 @@ fn test_default_store_dir_falls_back_to_home_dir() {
     assert_eq!(display_store_dir(&store_dir), expected);
 }
 
-/// `$XDG_CACHE_HOME/pnpm` wins the cache-dir resolution chain.
-/// Mirrors upstream
-/// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23):
-/// `XDG_CACHE_HOME` is the first branch and takes precedence over
-/// the platform-default fallback. Exercised through the same
-/// dependency-injection seam `default_store_dir` uses — no
-/// `std::env::set_var`, no `EnvGuard` lock. The [`GetHomeDir`] impl
-/// is `unreachable!` because the `XDG_CACHE_HOME` branch
-/// short-circuits before it is consumed.
+/// The [`GetHomeDir`] impl is `unreachable!` because the
+/// `XDG_CACHE_HOME` branch short-circuits before it is consumed.
 #[test]
 fn test_default_cache_dir_with_xdg_cache_home_env() {
     struct EnvWithXdgCacheHome;
@@ -148,12 +126,8 @@ fn test_default_cache_dir_with_xdg_cache_home_env() {
     assert_eq!(display, "/tmp/xdg-cache-home/pnpm");
 }
 
-/// Without `XDG_CACHE_HOME`, the resolver falls back to the
-/// platform default. On macOS that's `~/Library/Caches/pnpm`; on
-/// other Unix-y platforms it's `~/.cache/pnpm`. This test pins
-/// those two branches together — the Windows branch needs
-/// `LOCALAPPDATA` handling that's not portable here and is left to
-/// manual / CI-based verification.
+/// The Windows branch needs `LOCALAPPDATA` handling that's not
+/// portable here and is left to manual / CI-based verification.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[test]
 fn test_default_cache_dir_falls_back_to_platform_default() {
@@ -177,12 +151,8 @@ fn test_default_cache_dir_falls_back_to_platform_default() {
     assert_eq!(cache_dir, expected);
 }
 
-/// `$XDG_CONFIG_HOME/pnpm` wins the config-dir resolution chain,
-/// matching upstream's
-/// [`getConfigDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L67-L86).
-/// The `XDG_CONFIG_HOME` branch is checked first so home-dir
-/// resolution can be short-circuited entirely; the `home_dir` impl
-/// uses `unreachable!` to document that precondition.
+/// The `home_dir` impl uses `unreachable!` to document that the
+/// `XDG_CONFIG_HOME` branch short-circuits home-dir resolution.
 #[test]
 fn test_default_config_dir_with_xdg_config_home_env() {
     struct EnvWithXdgConfigHome;
@@ -202,13 +172,6 @@ fn test_default_config_dir_with_xdg_config_home_env() {
     assert_eq!(display, "/tmp/xdg-config-home/pnpm");
 }
 
-/// Without `XDG_CONFIG_HOME` (or `LOCALAPPDATA` on Windows), the
-/// resolver falls back to the platform default. On macOS that's
-/// `~/Library/Preferences/pnpm`; on other Unix-y platforms it's
-/// `~/.config/pnpm`. The Windows-without-`LOCALAPPDATA` branch
-/// also lands on `~/.config/pnpm` (matching upstream's `else`
-/// branch at
-/// [`dirs.ts:85`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L85)).
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[test]
 fn test_default_config_dir_falls_back_to_platform_default() {
@@ -232,12 +195,10 @@ fn test_default_config_dir_falls_back_to_platform_default() {
     assert_eq!(config_dir, expected);
 }
 
-/// When neither `XDG_CONFIG_HOME` nor `LOCALAPPDATA` is set AND the
-/// home directory is unavailable, `default_config_dir` returns
-/// `None` — the caller treats that as "no global config file."
-/// Differs from `default_store_dir` / `default_cache_dir`, which
-/// panic on missing home, because the global `config.yaml` is
-/// strictly optional whereas a store path must always exist.
+/// `default_config_dir` returns `None` on missing home, whereas
+/// `default_store_dir` / `default_cache_dir` panic, because the
+/// global `config.yaml` is strictly optional whereas a store path
+/// must always exist.
 #[test]
 fn test_default_config_dir_without_home_returns_none() {
     struct NoEnvNoHome;
@@ -256,7 +217,6 @@ fn test_default_config_dir_without_home_returns_none() {
 
 /// Port of upstream
 /// [`'getDefaultWorkspaceConcurrency: cpu num < 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L25-L28).
-/// On a 1-core host, the default caps at 1 (not 4).
 #[test]
 fn default_child_concurrency_with_parallelism_below_four() {
     assert_eq!(default_child_concurrency_with_parallelism(1), 1);
@@ -264,7 +224,6 @@ fn default_child_concurrency_with_parallelism_below_four() {
 
 /// Port of upstream
 /// [`'getDefaultWorkspaceConcurrency: cpu num > 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L30-L33).
-/// Caps at 4 on a 5-core host.
 #[test]
 fn default_child_concurrency_with_parallelism_above_four() {
     assert_eq!(default_child_concurrency_with_parallelism(5), 4);
@@ -272,7 +231,6 @@ fn default_child_concurrency_with_parallelism_above_four() {
 
 /// Port of upstream
 /// [`'getDefaultWorkspaceConcurrency: cpu num = 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L35-L38).
-/// At the boundary, 4 is the exact result (not floored or capped).
 #[test]
 fn default_child_concurrency_with_parallelism_at_four() {
     assert_eq!(default_child_concurrency_with_parallelism(4), 4);
@@ -289,10 +247,7 @@ fn default_workspace_concurrency_matches_default_child_concurrency() {
 
 /// Port of upstream
 /// [`'default workspace concurrency'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L48-L52).
-/// `getWorkspaceConcurrency(undefined)` on a `>=4`-core host yields 4
-/// (the upstream test runs on the default Jest host; on a host with
-/// `>=4` cores the default is 4). Pin a `>=4` parallelism so the
-/// expectation is deterministic.
+/// Pin a `>=4` parallelism so the expectation is deterministic.
 #[test]
 fn resolve_child_concurrency_default_with_four_or_more_cores() {
     assert_eq!(resolve_child_concurrency_with_parallelism(None, 4), 4);
@@ -301,8 +256,6 @@ fn resolve_child_concurrency_default_with_four_or_more_cores() {
 
 /// Port of upstream
 /// [`'match host cores amount'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L58-L62).
-/// `getWorkspaceConcurrency(0)` returns the host's parallelism
-/// verbatim — the saturated `parallelism - 0` path.
 #[test]
 fn resolve_child_concurrency_zero_returns_full_parallelism() {
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(0), 8), 8);
@@ -311,7 +264,6 @@ fn resolve_child_concurrency_zero_returns_full_parallelism() {
 
 /// Port of upstream
 /// [`'host cores minus X'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L64-L71).
-/// `n = -1` → `max(1, cores - 1)`; `n = -9999` → `1` (saturating).
 #[test]
 fn resolve_child_concurrency_negative_offset_matches_upstream_formula() {
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(-1), 8), 7);
@@ -320,13 +272,6 @@ fn resolve_child_concurrency_negative_offset_matches_upstream_formula() {
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(-9999), 1), 1);
 }
 
-/// Existing pacquet test (not from upstream): both the public
-/// `resolve_child_concurrency` and the testable
-/// `_with_parallelism` helper agree on positive inputs. The
-/// upstream
-/// [`'get back positive amount'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L54-L56)
-/// case (`n = 5` → `5`) is checked here alongside the helper
-/// equivalence.
 #[test]
 fn resolve_child_concurrency_positive_amount() {
     assert_eq!(resolve_child_concurrency(Some(5)), 5);
@@ -348,13 +293,6 @@ fn resolve_child_concurrency_handles_i32_min() {
     assert_eq!(result, 1);
 }
 
-/// POSIX truth table for [`is_unsafe_perm_posix`] matching
-/// upstream's
-/// [`getuid?.() !== 0`](https://github.com/pnpm/pnpm/blob/94240bc046/building/after-install/src/extendBuildOptions.ts#L83-L86)
-/// branch:
-///
-/// - root (uid 0) → `false` (drop privileges)
-/// - non-root (any other uid) → `true` (no drop)
 #[test]
 fn is_unsafe_perm_posix_truth_table() {
     assert!(!is_unsafe_perm_posix(0), "running as root → drop perms");
@@ -363,24 +301,17 @@ fn is_unsafe_perm_posix_truth_table() {
     assert!(is_unsafe_perm_posix(65534), "non-root uid 65534 → no drop");
 }
 
-/// On Windows, [`default_unsafe_perm`] short-circuits to `true`
-/// without ever calling `getuid()`. Mirrors upstream's
-/// `process.platform === 'win32' || process.platform === 'cygwin'`
-/// branch.
 #[cfg(windows)]
 #[test]
 fn default_unsafe_perm_on_windows_is_always_true() {
     assert!(default_unsafe_perm(), "Windows default must always be true");
 }
 
-/// On POSIX (excluding Cygwin), [`default_unsafe_perm`] matches
-/// the host's runtime uid via [`is_unsafe_perm_posix`]. Test
-/// environments don't usually run as root, so this is `true` in
-/// practice; the `is_unsafe_perm_posix_truth_table` test above
-/// pins the per-uid logic without needing root privileges. Cygwin
-/// is excluded because `default_unsafe_perm` short-circuits to
-/// `true` on Cygwin regardless of uid (matching upstream's
-/// `process.platform === 'cygwin'` branch).
+/// Test environments don't usually run as root, so the per-uid
+/// logic is pinned without needing root privileges by the
+/// `is_unsafe_perm_posix_truth_table` test above. Cygwin is excluded
+/// because `default_unsafe_perm` short-circuits to `true` on Cygwin
+/// regardless of uid.
 #[cfg(all(unix, not(target_os = "cygwin")))]
 #[test]
 fn default_unsafe_perm_on_posix_matches_runtime_uid() {
@@ -389,9 +320,6 @@ fn default_unsafe_perm_on_posix_matches_runtime_uid() {
     assert_eq!(default_unsafe_perm(), is_unsafe_perm_posix(uid));
 }
 
-/// On Cygwin, [`default_unsafe_perm`] short-circuits to `true`
-/// without consulting the uid — same branch as Windows. Mirrors
-/// upstream's `process.platform === 'cygwin'` check.
 #[cfg(target_os = "cygwin")]
 #[test]
 fn default_unsafe_perm_on_cygwin_is_always_true() {
@@ -426,17 +354,14 @@ fn test_dynamic_default_store_dir_with_windows_same_drive() {
     assert_eq!(store_dir, Path::new("C:\\Users\\user\\AppData\\Local\\pnpm\\store"));
 }
 
-/// `fetchTimeout` defaults to pnpm's 60 000 ms.
 #[test]
 fn fetch_timeout_default_matches_pnpm() {
     assert_eq!(default_fetch_timeout(), 60_000);
 }
 
-/// The default `User-Agent` mirrors pnpm's
-/// `pnpm/pacquet-<version> npm/? node/? <platform> <arch>` format. The exact
-/// platform / arch depend on where the test runs, so assert the
-/// `pnpm/pacquet-<version> npm/? node/? ` prefix and the two trailing
-/// space-separated tokens.
+/// The exact platform / arch depend on where the test runs, so assert
+/// the `pnpm/pacquet-<version> npm/? node/? ` prefix and the two
+/// trailing space-separated tokens rather than the full string.
 #[test]
 fn user_agent_default_matches_pnpm_format() {
     let ua = default_user_agent();

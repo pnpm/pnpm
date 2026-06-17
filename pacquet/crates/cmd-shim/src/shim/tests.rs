@@ -59,9 +59,6 @@ fn relative_target_traverses_into_sibling_package() {
     assert_eq!(relative_target(target, shim), "../foo/bin/cli.js");
 }
 
-/// Shim body for the typical `#!/usr/bin/env node` case must preserve
-/// the generated exec block shape, including the double space between
-/// `$basedir/node` and the quoted target path when `args` is empty.
 #[test]
 fn generate_sh_shim_matches_pnpm_typical_case() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
@@ -116,9 +113,6 @@ fn is_shim_pointing_at_round_trips_through_marker() {
     assert!(!is_shim_pointing_at(&body, Path::new("/elsewhere")));
 }
 
-/// Every fallback extension upstream's `extensionToProgramMap` recognises
-/// must round-trip. Guards against silent regression if an extension is
-/// removed from the table.
 #[test]
 fn extension_program_covers_every_known_extension() {
     assert_eq!(extension_program("js"), Some("node"));
@@ -132,9 +126,6 @@ fn extension_program_covers_every_known_extension() {
     assert_eq!(extension_program(""), None);
 }
 
-/// [`super::parse_shebang`] returns None when the line lacks `#!` entirely
-/// (handled elsewhere) or when it is `#!` with only whitespace after. The
-/// `prog.is_empty()` guard catches the latter.
 #[test]
 fn parse_shebang_returns_none_for_empty_prog() {
     assert!(parse_shebang("#!\t").is_none());
@@ -142,25 +133,18 @@ fn parse_shebang_returns_none_for_empty_prog() {
     assert!(parse_shebang("not a shebang").is_none());
 }
 
-/// [`parse_shebang_from_bytes`] is the byte-level entry. It must trim a
-/// leading BOM-free CRLF first line and survive non-UTF-8 bytes (lossy
-/// decoding).
 #[test]
 fn parse_shebang_from_bytes_handles_crlf_and_lossy_utf8() {
     let bytes = b"#!/usr/bin/env node\r\nconsole.log('hi')\n";
     let rt = parse_shebang_from_bytes(bytes).expect("CRLF first line");
     assert_eq!(rt.prog.as_deref(), Some("node"));
 
-    // Non-UTF-8 bytes after the shebang must not break parsing.
     let mut bytes = Vec::from(*b"#!/usr/bin/env node\n");
     bytes.extend_from_slice(&[0xff, 0xfe, 0xfd]);
     let rt = parse_shebang_from_bytes(&bytes).expect("non-UTF-8 tail tolerated");
     assert_eq!(rt.prog.as_deref(), Some("node"));
 }
 
-/// [`generate_sh_shim`] with `runtime: None` emits the `exit $?` arm that
-/// upstream uses when no interpreter could be inferred. The shim execs the
-/// target directly.
 #[test]
 fn generate_sh_shim_emits_direct_exec_when_no_runtime() {
     let target = Path::new("/proj/node_modules/foo/bin/cli");
@@ -173,10 +157,6 @@ fn generate_sh_shim_emits_direct_exec_when_no_runtime() {
     assert!(body.ends_with("# cmd-shim-target=/proj/node_modules/foo/bin/cli\n"));
 }
 
-/// [`generate_sh_shim`] with `runtime: Some(.. prog: None ..)` uses the same
-/// no-runtime arm, but threading the explicit `args`. Mirrors upstream's
-/// fallback when `prog` couldn't be inferred but the runtime probe still
-/// returned a [`ScriptRuntime`] with `prog: None`.
 #[test]
 fn generate_sh_shim_threads_args_when_prog_is_none() {
     let target = Path::new("/p/cli");
@@ -189,10 +169,6 @@ fn generate_sh_shim_threads_args_when_prog_is_none() {
     );
 }
 
-/// [`generate_sh_shim`] with a target that lexically resolves to an absolute
-/// path takes the `path::isAbsolute(shTarget)` branch upstream uses. The
-/// quoted target stays absolute and skips the `$basedir/` prefix.
-///
 /// Unix-only: a path like `/abs/elsewhere/cli` is "absolute" only on Unix.
 /// On Windows, `Path::is_absolute()` requires a drive letter (e.g.
 /// `C:\abs\...`), so the same input takes the relative branch. The shim
@@ -216,8 +192,6 @@ fn generate_sh_shim_uses_absolute_target_when_no_common_prefix() {
     );
 }
 
-/// [`super::relative_target`] of `from == to_parent` collapses to `.` (the
-/// `result.is_empty()` branch in [`super::relative_path_from`]).
 #[test]
 fn relative_target_collapses_to_dot_when_paths_share_dir() {
     let target = Path::new("/proj/.bin/cli");
@@ -259,9 +233,6 @@ fn lexical_normalize_drops_curdir_segments_directly() {
     assert_eq!(lexical_normalize(Path::new("./.")), PathBuf::new());
 }
 
-/// [`lexical_normalize`] discards `.` (`CurDir`) components silently.
-/// Verify via [`relative_target`]. A target with embedded `./`
-/// resolves the same as without.
 #[test]
 fn lexical_normalize_drops_curdir_components() {
     let with_dot = relative_target(Path::new("/p/foo/./cli"), Path::new("/p/.bin/x"));
@@ -269,8 +240,6 @@ fn lexical_normalize_drops_curdir_components() {
     assert_eq!(with_dot, without_dot);
 }
 
-/// [`search_script_runtime`] reads a real file with a shebang and returns
-/// the prog from it. End-to-end of the production path.
 #[test]
 fn search_script_runtime_reads_shebang_from_real_file() {
     use tempfile::tempdir;
@@ -281,17 +250,12 @@ fn search_script_runtime_reads_shebang_from_real_file() {
     assert_eq!(rt.prog.as_deref(), Some("node"));
 }
 
-/// [`search_script_runtime`] on a missing file must degrade to `Ok(None)`.
-/// Otherwise the install races against bin file extraction.
 #[test]
 fn search_script_runtime_returns_none_for_missing_file() {
     let nonexistent = Path::new("/definitely/not/a/real/path/cli");
     assert_eq!(search_script_runtime::<Host>(nonexistent).unwrap(), None);
 }
 
-/// [`search_script_runtime`] falls through to extension lookup when the
-/// file has no shebang. A `.js` file without `#!` must still resolve to
-/// `node`.
 #[test]
 fn search_script_runtime_falls_back_to_extension() {
     use tempfile::tempdir;
@@ -376,8 +340,6 @@ fn generate_sh_shim_does_not_append_exe_twice() {
     );
 }
 
-/// [`search_script_runtime`] returns `Ok(None)` when neither shebang nor
-/// extension yields a runtime. Pure no-runtime path.
 #[test]
 fn search_script_runtime_returns_none_when_runtime_unknown() {
     use tempfile::tempdir;
@@ -387,7 +349,6 @@ fn search_script_runtime_returns_none_when_runtime_unknown() {
     assert_eq!(search_script_runtime::<Host>(&path).unwrap(), None);
 }
 
-/// [`search_script_runtime`] propagates IO errors that aren't `NotFound`.
 /// Real-fs can't trigger e.g. `PermissionDenied` portably, so plug a
 /// fake [`FsReadHead`] per the DI principles in
 /// <https://github.com/pnpm/pacquet/pull/332#issuecomment-4345054524>.
@@ -404,10 +365,6 @@ fn search_script_runtime_propagates_non_not_found_io_errors() {
     assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
 }
 
-/// A [`FsReadHead`] that returns 0 bytes (empty file) yields no shebang.
-/// The parse step then falls through to the extension fallback. Pin the
-/// behavior so a future tweak to the empty-buffer handling stays
-/// compatible with the no-shebang case.
 #[test]
 fn search_script_runtime_reads_zero_bytes_then_falls_through() {
     struct EmptyRead;
@@ -448,9 +405,6 @@ fn real_fs_read_head_propagates_not_found() {
     assert_eq!(err.kind(), io::ErrorKind::NotFound);
 }
 
-/// [`read_head_filled`] against the real filesystem fills the buffer in
-/// one underlying syscall (the common case) and returns the exact byte
-/// count.
 #[test]
 fn read_head_filled_real_fs_long_file_fills_buffer() {
     use tempfile::tempdir;
@@ -465,8 +419,6 @@ fn read_head_filled_real_fs_long_file_fills_buffer() {
     assert_eq!(&buf[..], &payload[..256]);
 }
 
-/// [`read_head_filled`] against a file shorter than the buffer returns
-/// the partial count (EOF terminates the loop without erroring).
 #[test]
 fn read_head_filled_real_fs_short_file_returns_partial() {
     use tempfile::tempdir;
@@ -480,11 +432,6 @@ fn read_head_filled_real_fs_short_file_returns_partial() {
     assert_eq!(&buf[..read], b"#!/bin/sh\n");
 }
 
-/// [`read_head_filled`] accumulates short reads from the underlying
-/// capability. That is the very behaviour the loop exists to provide.
-/// A fake that always returns short proves the loop calls the trait
-/// repeatedly with advancing offsets until the buffer is full.
-///
 /// Pinning this with a fake is the only way to verify the loop
 /// without a pseudo-fs to test against: real filesystems essentially
 /// never return short reads at offset 0.
@@ -529,15 +476,12 @@ fn read_head_filled_accumulates_short_reads_from_fake() {
     assert_eq!(read, 8, "loop must accumulate short reads to fill the buffer");
     assert_eq!(&buf[..], b"abcdefgh");
 
-    // The loop made three calls (3 + 3 + 2 bytes) at offsets 0, 3, 6.
     assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 3);
     assert_eq!(LAST_OFFSETS[0].load(Ordering::Relaxed), 0);
     assert_eq!(LAST_OFFSETS[1].load(Ordering::Relaxed), 3);
     assert_eq!(LAST_OFFSETS[2].load(Ordering::Relaxed), 6);
 }
 
-/// [`read_head_filled`] terminates when the underlying capability
-/// returns 0 (EOF), exercised here with a file shorter than the buffer.
 #[test]
 fn read_head_filled_terminates_on_zero_byte_read_from_fake() {
     struct EofAfterOne;
@@ -558,8 +502,6 @@ fn read_head_filled_terminates_on_zero_byte_read_from_fake() {
     assert_eq!(buf[0], b'X');
 }
 
-/// [`read_head_filled`] propagates non-EOF errors from the first call
-/// without retrying.
 #[test]
 fn read_head_filled_propagates_io_error_from_fake() {
     struct AlwaysErrors;
@@ -574,10 +516,6 @@ fn read_head_filled_propagates_io_error_from_fake() {
     assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
 }
 
-/// [`generate_cmd_shim`] produces a Windows `.cmd` shim with CRLF line
-/// endings, `%~dp0\<rel>` for the target, and the
-/// `@IF EXIST … (… ) ELSE ( @SET PATHEXT=... … )` exec block matching
-/// upstream's template.
 #[test]
 fn generate_cmd_shim_matches_pnpm_template() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
@@ -592,8 +530,6 @@ fn generate_cmd_shim_matches_pnpm_template() {
     );
 }
 
-/// [`generate_cmd_shim`] with no runtime exec's the target directly via
-/// the `@<target> %*` shape.
 #[test]
 fn generate_cmd_shim_emits_direct_exec_when_no_runtime() {
     let target = Path::new("/p/cli");
@@ -605,9 +541,6 @@ fn generate_cmd_shim_emits_direct_exec_when_no_runtime() {
     );
 }
 
-/// [`generate_pwsh_shim`] produces a `.ps1` shim with the `$basedir`
-/// header, `Test-Path "$basedir/<prog>$exe"` exec block, and pipeline-
-/// input handling matching upstream.
 #[test]
 fn generate_pwsh_shim_matches_pnpm_template() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
@@ -630,8 +563,6 @@ fn generate_pwsh_shim_matches_pnpm_template() {
     assert!(body.ends_with("exit $ret\n"));
 }
 
-/// [`generate_pwsh_shim`] with no runtime falls back to executing the
-/// target directly with `$LASTEXITCODE` propagation.
 #[test]
 fn generate_pwsh_shim_emits_direct_exec_when_no_runtime() {
     let target = Path::new("/p/cli");

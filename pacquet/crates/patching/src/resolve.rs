@@ -55,9 +55,6 @@ impl From<PatchNonSemverRangeError> for ResolvePatchedDependenciesError {
 /// v11 stopped reading install settings (including
 /// `patchedDependencies`) from `package.json`'s `pnpm` field.
 ///
-/// Returns `Ok(None)` when `raw` is empty so callers don't have to
-/// special-case an empty grouping.
-///
 /// [`BTreeMap`]: std::collections::BTreeMap
 /// [`PatchGroup::range`]: crate::PatchGroup::range
 pub fn resolve_and_group(

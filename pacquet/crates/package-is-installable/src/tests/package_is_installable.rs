@@ -98,9 +98,6 @@ fn incompatible_non_optional_strict_returns_error() {
 
 #[test]
 fn platform_is_evaluated_before_engine() {
-    // A manifest that fails both platform and engine surfaces the
-    // platform error first — mirrors upstream `checkPackage`'s
-    // `checkPlatform ?? checkEngine` short-circuit.
     let manifest = PackageInstallabilityManifest {
         os: Some(vec!["this-os-does-not-exist".to_string()]),
         engines: Some(WantedEngine { node: Some("0.10".to_string()), ..Default::default() }),

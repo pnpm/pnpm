@@ -343,10 +343,6 @@ impl InstallPackageBySnapshot<'_> {
                         // the shared download failed.
                         match download.clone().run_with_mem_cache::<Reporter>(mem_cache).await {
                             Ok(cas_paths) => Ok((*cas_paths).clone()),
-                            // The prefetch is best-effort: if the sibling
-                            // download for this URL failed (transient
-                            // network, etc.), do our own retried fetch
-                            // rather than inheriting the failure.
                             Err(TarballError::SiblingFetchFailed { .. }) => {
                                 download.run_without_mem_cache::<Reporter>().await
                             }
@@ -634,10 +630,9 @@ pub fn tarball_url_and_integrity<'a>(
 /// dispatch site: `{ os: process.platform, cpu: process.arch, libc:
 /// process.platform === 'linux' ? family : null }`.
 ///
-/// `host_libc()` returns `"unknown"` on every non-Linux host and
-/// `"glibc"` / `"musl"` on Linux. Translate `"unknown"` to `None`
-/// so [`select_platform_variant`]'s asymmetric libc rule applies
-/// the same way upstream's does: `None` and `Some("glibc")` both
+/// Translating `host_libc()`'s `"unknown"` to `None` lets
+/// [`select_platform_variant`]'s asymmetric libc rule apply the
+/// same way upstream's does: `None` and `Some("glibc")` both
 /// require the variant to omit `libc`, and `Some("musl")` requires
 /// an exact match.
 pub(crate) fn host_platform_selector() -> PlatformSelector {
@@ -661,14 +656,8 @@ pub(crate) fn host_platform_selector() -> PlatformSelector {
 ///
 /// Pacquet uses a hand-coded matcher rather than the upstream regex
 /// so [`pacquet_tarball`] doesn't have to pull in a regex engine.
-/// The three branches below mirror the regex alternation exactly;
-/// every path the regex matches is matched here, and nothing else.
 fn node_extras_filter(path: &str) -> bool {
     // ^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$))
-    //
-    // Strip an optional leading `lib/` so the `lib/node_modules/...`
-    // and `node_modules/...` shapes converge into one check; the
-    // `node_modules/` prefix is mandatory after the optional `lib/`.
     let after_lib = path.strip_prefix("lib/").unwrap_or(path);
     if let Some(rest) = after_lib.strip_prefix("node_modules/") {
         for name in ["npm", "corepack"] {
@@ -678,10 +667,6 @@ fn node_extras_filter(path: &str) -> bool {
         }
     }
     // ^bin/(?:npm|npx|corepack)$
-    //
-    // The `$` anchors the regex to an exact match — `bin/npm/foo`
-    // doesn't trip this arm (and the `node_modules` arm above
-    // wouldn't catch it either since it doesn't start with `bin/`).
     if let Some(rest) = path.strip_prefix("bin/")
         && matches!(rest, "npm" | "npx" | "corepack")
     {
@@ -689,8 +674,7 @@ fn node_extras_filter(path: &str) -> bool {
     }
     // ^(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$
     //
-    // Top-level shim files; `.cmd` / `.ps1` cover Windows. Note
-    // these are *not* under `bin/` — they live at the runtime
+    // These are *not* under `bin/` — they live at the runtime
     // archive root after the `node-vX.Y.Z-<platform>-<arch>/`
     // prefix strip.
     for name in ["npm", "npx", "corepack"] {
@@ -708,11 +692,7 @@ fn node_extras_filter(path: &str) -> bool {
 }
 
 /// Build the per-fetch [`IgnoreEntryFilter`] for the package being
-/// installed. Returns `Some(NODE_EXTRAS_IGNORE_PATTERN)` for
-/// unscoped `node` (matching upstream's
-/// [`archiveFilters: { node: NODE_EXTRAS_IGNORE_PATTERN }`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/client/src/index.ts)
-/// keyed by `pkg.name`); everything else returns `None` and the
-/// full archive contents land in the CAS unfiltered.
+/// installed.
 ///
 /// The filter is cached in a [`std::sync::LazyLock`] so per-snapshot
 /// `Arc::clone`s share one trait object — `IgnoreEntryFilter` is
@@ -840,14 +820,8 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     Ok(cas_paths)
 }
 
-/// Serialize the synthesized runtime `package.json` to bytes. Three
-/// fields, matching the upstream `appendManifest` shape:
-///
-/// - `name` — the package key's display form, scope-aware.
-/// - `version` — the bare semver string from the peer-stripped key.
-/// - `bin` — the lockfile-declared bins ([`BinarySpec`]). `Single`
-///   becomes a JSON string (pnpm's convention: one binary, named
-///   after the package), `Map` becomes a JSON object.
+/// Serialize the synthesized runtime `package.json` to bytes,
+/// matching the upstream `appendManifest` shape.
 ///
 /// `serde_json::to_vec` writes a single-line UTF-8 blob — same
 /// format upstream's worker thread emits. The bytes go straight
@@ -884,8 +858,7 @@ fn synthesize_runtime_manifest_bytes(
 
 /// Render a variant's target list as a human-readable string for
 /// inclusion in the [`InstallPackageBySnapshotError::NoMatchingPlatformVariant`]
-/// error. Each target is rendered as `os/cpu` or `os/cpu+libc`,
-/// joined with `, `.
+/// error.
 fn render_variant_targets(variants: &[pacquet_lockfile::PlatformAssetResolution]) -> String {
     let mut entries: Vec<String> = Vec::new();
     for variant in variants {

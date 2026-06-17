@@ -158,14 +158,12 @@ async fn should_install_dependencies() {
     .await
     .expect("install should succeed");
 
-    // Make sure the package is installed
     let path = project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     eprintln!("path={path:?} symlink_or_junction={:?}", is_symlink_or_junction(&path));
     assert!(is_symlink_or_junction(&path).unwrap());
     let path = project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
     eprintln!("path={path:?} exists={}", path.exists());
     assert!(path.exists());
-    // Make sure we install dev-dependencies as well
     let path = project_root.join("node_modules/@pnpm/xyz");
     eprintln!("path={path:?} symlink_or_junction={:?}", is_symlink_or_junction(&path));
     assert!(is_symlink_or_junction(&path).unwrap());
@@ -663,7 +661,6 @@ async fn npm_alias_dependency_installs_under_alias_key() {
     .await
     .expect("npm-alias install should succeed");
 
-    // Symlink lives under the alias key, *not* the real package name.
     let alias_link = project_root.join("node_modules/hello-world-alias");
     assert!(
         is_symlink_or_junction(&alias_link).unwrap(),
@@ -674,7 +671,6 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         "the real package name must not be exposed alongside an unrelated alias",
     );
 
-    // Virtual-store directory uses the real package name.
     let virtual_store_path =
         project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
     assert!(virtual_store_path.is_dir(), "expected real-name virtual store dir");
@@ -755,7 +751,6 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     .await
     .expect("unversioned npm-alias install should succeed (defaults to latest)");
 
-    // Symlink lives under the alias key, not the real package name.
     let alias_link = project_root.join("node_modules/hello-world-alias");
     assert!(
         is_symlink_or_junction(&alias_link).unwrap(),
@@ -3648,7 +3643,6 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
     .await
     .expect("install must succeed with --no-optional despite missing optional metadata");
 
-    // The optional-only snapshot must not have been extracted.
     let expected_slot = virtual_store_dir.join("drop-me@1.0.0").join("node_modules");
     assert!(
         !expected_slot.exists(),
@@ -4351,8 +4345,6 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
 
     let err = result.expect_err("invalid exclude pattern must surface");
     assert!(matches!(err, InstallError::BuildVerifiers(_)), "expected BuildVerifiers, got {err:?}");
-    // The build error must short-circuit the install before any
-    // virtual-store materialization runs.
     assert!(
         !project_root.join("node_modules/.pacquet").exists(),
         "BuildVerifiers must abort before virtual-store materialization",

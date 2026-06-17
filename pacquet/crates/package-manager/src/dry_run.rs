@@ -129,15 +129,11 @@ fn diff_importer(
     let mut removed = Vec::new();
     let mut updated = Vec::new();
 
-    // Diff each dependency group independently so a dependency that moves
-    // between groups (e.g. dev -> prod) registers as a change. Mirrors
-    // pnpm's `dedupeDiffCheck`, which diffs `dependencies`,
-    // `devDependencies`, and `optionalDependencies` separately. The diff key
-    // is each direct dependency's manifest `specifier`, not its resolved
-    // version: a real install rewrites the lockfile whenever a specifier
-    // changes (even if it still resolves to the same version), and for a
-    // direct dependency the resolved version only changes when the specifier
-    // does — so the specifier captures every importer-level change.
+    // The diff key is each direct dependency's manifest `specifier`, not its
+    // resolved version: a real install rewrites the lockfile whenever a
+    // specifier changes (even if it still resolves to the same version), and
+    // for a direct dependency the resolved version only changes when the
+    // specifier does — so the specifier captures every importer-level change.
     for group in 0..3 {
         let old_deps = group_specifiers(old, group);
         let new_deps = group_specifiers(new, group);

@@ -166,8 +166,6 @@ fn updates_named_catalog_value_preserving_comment() {
 
 #[test]
 fn inserts_entry_into_a_four_space_indented_block() {
-    // The block uses a four-space indent; a new entry must match it rather
-    // than assume two spaces.
     let original = "catalogs:\n    react:\n        react: 18.0.0\n";
     let out =
         run(Some(original), &catalogs(&[("react", &[("react-dom", "18.0.0")])])).expect("written");

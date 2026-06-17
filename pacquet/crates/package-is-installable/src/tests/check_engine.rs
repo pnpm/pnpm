@@ -49,9 +49,6 @@ fn node_version_too_old() {
 
 #[test]
 fn node_range_passed_in_instead_of_version() {
-    // Upstream throws `ERR_PNPM_INVALID_NODE_VERSION` from inside
-    // `checkEngine` when the current node version isn't an exact
-    // semver. Pacquet returns the same condition as an `Err`.
     let result =
         check_engine(PACKAGE_ID, &wanted(Some("21.0.0"), None), &current(">=20.0.0", None));
     let err = result.expect_err("expected InvalidNodeVersionError");
@@ -69,10 +66,6 @@ fn pnpm_version_too_old() {
 
 #[test]
 fn pnpm_is_a_prerelease_version_partial_major_only_satisfies() {
-    // `pnpm: '9'` matches `9.0.0-alpha.1` under upstream
-    // `includePrerelease: true`. Pacquet's strip-prerelease fallback
-    // gets this correctly because a partial major range parses as
-    // `>=9.0.0 <10.0.0-0`, and `9.0.0` satisfies.
     assert!(
         check_engine(
             PACKAGE_ID,

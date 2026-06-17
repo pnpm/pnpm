@@ -103,17 +103,6 @@ fn save_reproduces_pnpm_authored_bytes() {
     assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n"));
 }
 
-/// A workspace lockfile with multiple importers, one of which has a
-/// `workspace:` dependency, must round-trip cleanly. Guards two things
-/// at once:
-///
-/// 1. The importer map is heterogeneous — multiple keys, not just `.`.
-/// 2. `version: link:<path>` values deserialize into
-///    [`crate::ImporterDepVersion::Link`] and re-serialize back to
-///    the same wire form.
-///
-/// This is the smallest possible v9 workspace lockfile pacquet needs
-/// to load to do anything useful for [#431](https://github.com/pnpm/pacquet/issues/431).
 #[test]
 fn workspace_lockfile_with_link_dep_round_trips() {
     const WORKSPACE_YAML: &str = text_block! {
@@ -178,11 +167,6 @@ fn workspace_lockfile_with_link_dep_round_trips() {
     assert_eq!(original, reparsed);
 }
 
-/// The top-level `patchedDependencies:` block renders between
-/// `settings:` and `importers:` (its slot in pnpm's `sortLockfileKeys`
-/// root-key order), with each configured key mapped to its patch-file
-/// hash and the keys sorted lexically. Models the `graceful-fs@4.2.11`
-/// entry the pnpm monorepo's own lockfile carries.
 #[test]
 fn patched_dependencies_block_round_trips_and_renders_in_order() {
     const PATCHED_YAML: &str = text_block! {
@@ -222,11 +206,6 @@ fn patched_dependencies_block_round_trips_and_renders_in_order() {
     assert_eq!(saved, format!("{PATCHED_YAML}\n"));
 }
 
-/// `peersSuffixMaxLength` is serialized into `settings:` only when set
-/// to a non-default value. Lockfiles written by the default install
-/// must round-trip without the field, matching pnpm's
-/// [`convertToLockfileFile`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/lockfileFormatConverters.ts#L67-L69)
-/// strip-on-default.
 #[test]
 fn peers_suffix_max_length_omitted_from_settings_when_unset() {
     use crate::LockfileSettings;
@@ -263,9 +242,6 @@ fn peers_suffix_max_length_omitted_from_settings_when_unset() {
     );
 }
 
-/// A non-default `peersSuffixMaxLength` is serialized into `settings:`
-/// so a subsequent install detects drift through
-/// [`crate::check_lockfile_settings`].
 #[test]
 fn peers_suffix_max_length_serialized_when_set() {
     use crate::LockfileSettings;
@@ -339,9 +315,6 @@ fn write_current_round_trips_through_read_current() {
     assert_eq!(original, loaded);
 }
 
-/// `load_current_from_virtual_store_dir` returns `Ok(None)` when the
-/// file does not exist — mirrors upstream's ENOENT-as-null contract
-/// for first-time installs.
 #[test]
 fn read_current_returns_none_when_file_missing() {
     let tmp = tempdir().expect("create tempdir");
@@ -352,9 +325,6 @@ fn read_current_returns_none_when_file_missing() {
     assert!(result.is_none(), "expected None for missing lock.yaml, got: {result:?}");
 }
 
-/// Empty-lockfile writes delete any existing `lock.yaml` rather than
-/// rewriting it. Mirrors upstream's `rimraf` short-circuit at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/write.ts#L45-L47>.
 #[test]
 fn write_current_deletes_file_when_lockfile_is_empty() {
     let tmp = tempdir().expect("create tempdir");
@@ -377,8 +347,6 @@ fn write_current_deletes_file_when_lockfile_is_empty() {
     assert!(!lock_path.exists(), "lock.yaml should be removed for empty lockfile");
 }
 
-/// Empty-lockfile writes are a no-op when the file was already
-/// absent. Mirrors `rimraf`'s ENOENT-as-OK behavior.
 #[test]
 fn write_current_is_a_noop_for_empty_lockfile_with_no_existing_file() {
     let tmp = tempdir().expect("create tempdir");
@@ -392,11 +360,6 @@ fn write_current_is_a_noop_for_empty_lockfile_with_no_existing_file() {
     assert!(!virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists());
 }
 
-/// `create_dir_all` failures (here, attempting to create a
-/// directory under a path that is actually a regular file)
-/// surface as the typed `CreateDir` error. Pins the error
-/// classification so a regression that bubbled the raw
-/// `io::Error` as `WriteFile` would fail this test.
 #[test]
 fn write_current_surfaces_create_dir_error_when_parent_is_a_file() {
     let tmp = tempdir().expect("create tempdir");
@@ -418,10 +381,6 @@ fn write_current_surfaces_create_dir_error_when_parent_is_a_file() {
     );
 }
 
-/// Trying to remove an existing entry that is a directory (rather
-/// than a regular file) surfaces as `RemoveFile`. Mirrors
-/// upstream's strict file/dir distinction at the rimraf-equivalent
-/// step. Tests the not-NotFound arm of the empty-lockfile branch.
 #[cfg(unix)]
 #[test]
 fn write_current_surfaces_remove_file_error_when_target_is_a_directory() {
@@ -446,11 +405,6 @@ fn write_current_surfaces_remove_file_error_when_target_is_a_directory() {
     assert!(dir_at_target.is_dir());
 }
 
-/// `write_atomic`'s rename step fails when the target is an
-/// existing non-empty directory: Unix `rename(2)` returns
-/// `ENOTEMPTY` / `EISDIR`. Pins that the error surfaces as
-/// `RenameFile`, not as a generic write failure, and that the
-/// temp blob is cleaned up on the way out.
 #[cfg(unix)]
 #[test]
 fn write_atomic_rename_failure_surfaces_as_rename_file_error() {

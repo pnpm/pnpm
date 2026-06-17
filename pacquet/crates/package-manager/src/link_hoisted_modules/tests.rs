@@ -148,7 +148,6 @@ fn orphan_directory_is_removed() {
     fs::write(orphan_dir.join("stale.txt"), b"old data").expect("write stale file");
     assert!(orphan_dir.exists());
 
-    // prev_graph: a, orphan ; graph: a only.
     let mut prev_graph = DependenciesGraph::new();
     prev_graph.insert(modules.join("a"), make_node("a", "a@1.0.0", "a@1.0.0", modules.join("a")));
     prev_graph.insert(
@@ -178,8 +177,6 @@ fn orphan_directory_is_removed() {
     assert!(modules.join("a").join("package").join("index.js").exists(), "a is imported");
 }
 
-/// Mirrors the version-conflict case where Slice 4's walker nests
-/// a losing version.
 #[test]
 fn nested_hierarchy_materializes_inner_node_modules() {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -269,8 +266,6 @@ fn missing_cas_for_required_dep_errors() {
     }
 }
 
-/// Mirrors upstream's `if (depNode.optional) return` on fetch
-/// failure.
 #[test]
 fn missing_cas_for_optional_dep_skips_silently() {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -305,8 +300,6 @@ fn missing_cas_for_optional_dep_skips_silently() {
     assert!(!dir.exists(), "optional dir with no CAS not created");
 }
 
-/// Fresh installs (no prior lockfile) must not fail on the orphan
-/// pass.
 #[test]
 fn no_prev_graph_skips_orphan_pass() {
     let tmp = tempfile::tempdir().expect("tempdir");

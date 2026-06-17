@@ -163,9 +163,6 @@ fn ctx<'a>(name: &'a PkgName, version: &'a str) -> VerifyCtx<'a> {
     VerifyCtx { name, version }
 }
 
-/// The tarball-URL binding is unconditional: even with no
-/// minimumReleaseAge / trustPolicy configured, an entry whose pinned
-/// tarball URL doesn't match the registry metadata is rejected.
 #[tokio::test]
 async fn verifies_tarball_url_when_no_policy_active() {
     let mut server = mockito::Server::new_async().await;
@@ -252,9 +249,6 @@ async fn trust_off_keeps_trust_check_inactive() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// A git / directory / binary resolution short-circuits to
-/// `Ok` without issuing any network calls — neither policy applies
-/// outside the npm-registry protocol.
 #[tokio::test]
 async fn verify_short_circuits_non_registry_resolution() {
     let mut opts = default_opts("https://registry.example/");
@@ -268,9 +262,6 @@ async fn verify_short_circuits_non_registry_resolution() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// Non-semver version (URL spec, git ref, file: ref) → pass without
-/// asking the registry. Mirrors upstream's `!semver.valid(version)`
-/// gate.
 #[tokio::test]
 async fn verify_short_circuits_non_semver_version() {
     let mut opts = default_opts("https://registry.example/");
@@ -282,8 +273,6 @@ async fn verify_short_circuits_non_semver_version() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// `file:` tarball resolutions are local artifacts, not registry
-/// entries, so the verifier must skip minimumReleaseAge/trust checks.
 #[tokio::test]
 async fn verify_short_circuits_file_tarball_resolution() {
     let mut opts = default_opts("http://nonexistent.example.invalid/");
@@ -402,9 +391,6 @@ async fn tarball_url_default_port_and_scheme_difference_is_a_match() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// When the exclude policy covers the package, age check skips —
-/// the version is treated as opted out regardless of its publish
-/// timestamp.
 #[tokio::test]
 async fn verify_skips_age_check_when_package_excluded() {
     // No mockito needed: if the exclude were ignored, the verifier
@@ -421,8 +407,6 @@ async fn verify_skips_age_check_when_package_excluded() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// Full-metadata path: registry reports a publish time well before
-/// the cutoff → verify returns `Ok`.
 #[tokio::test]
 async fn min_age_pass_when_published_before_cutoff() {
     let mut server = mockito::Server::new_async().await;
@@ -453,8 +437,6 @@ async fn min_age_pass_when_published_before_cutoff() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// Within-cutoff publish time → fail with the verifier's
-/// `MINIMUM_RELEASE_AGE_VIOLATION` code.
 #[tokio::test]
 async fn min_age_fail_when_published_within_cutoff() {
     let mut server = mockito::Server::new_async().await;
@@ -486,8 +468,6 @@ async fn min_age_fail_when_published_within_cutoff() {
     assert!(reason.contains("within the minimumReleaseAge cutoff"), "got reason: {reason}");
 }
 
-/// Registry strips per-version `time`. With `ignore_missing_time_field`
-/// off (the default), the verifier fails closed.
 #[tokio::test]
 async fn min_age_missing_time_fails_closed_by_default() {
     let mut server = mockito::Server::new_async().await;
@@ -537,9 +517,6 @@ async fn min_age_missing_time_fails_closed_by_default() {
     );
 }
 
-/// Opting in to `ignore_missing_time_field` flips the missing-time
-/// case from a fail-closed violation to a pass. Mirrors upstream's
-/// `minimumReleaseAgeIgnoreMissingTime` resolver flag.
 #[tokio::test]
 async fn min_age_missing_time_passes_when_ignored() {
     let mut server = mockito::Server::new_async().await;
@@ -583,10 +560,6 @@ async fn min_age_missing_time_passes_when_ignored() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// `trust_policy = NoDowngrade` rejects a version whose evidence is
-/// weaker than an earlier-published version's. Earlier 1.0.0 had
-/// `trustedPublisher`; current 1.1.0 has only `provenance` →
-/// `TRUST_DOWNGRADE`.
 #[tokio::test]
 async fn trust_downgrade_publisher_to_provenance_fails() {
     let mut server = mockito::Server::new_async().await;
@@ -612,8 +585,6 @@ async fn trust_downgrade_publisher_to_provenance_fails() {
     assert!(reason.contains("trust downgrade"), "got reason: {reason}");
 }
 
-/// When every prior version's evidence equals or precedes the
-/// current version's, the trust check passes.
 #[tokio::test]
 async fn trust_downgrade_pass_when_no_weaker_evidence() {
     let mut server = mockito::Server::new_async().await;
@@ -635,9 +606,6 @@ async fn trust_downgrade_pass_when_no_weaker_evidence() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// Tarball resolutions whose URL falls under a named-registry
-/// prefix route to that registry's metadata endpoint. Here `gh:` →
-/// the mocked GitHub Packages base URL.
 #[tokio::test]
 async fn verify_routes_via_named_registry_prefix() {
     let mut server = mockito::Server::new_async().await;
@@ -1055,9 +1023,6 @@ async fn concurrent_verifications_share_one_fetch() {
     abbreviated_mock.assert_async().await;
 }
 
-/// The binding check records each verified entry's `dist.unpackedSize`
-/// and `dist.fileCount` into the `observed_dist_stats` sink when one is
-/// provided.
 #[tokio::test]
 async fn binding_check_records_dist_stats_into_the_sink() {
     let mut server = mockito::Server::new_async().await;

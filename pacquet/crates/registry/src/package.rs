@@ -74,9 +74,7 @@ pub struct Package {
 
 impl Package {
     /// Resolved publish timestamp for `version`, or `None` when the
-    /// registry didn't report one for that pin. Filters out the
-    /// reserved `unpublished` key (which is an object, not a string)
-    /// and any version slot whose value isn't a string.
+    /// registry didn't report one for that pin.
     #[must_use]
     pub fn published_at(&self, version: &str) -> Option<&str> {
         self.time.as_ref()?.get(version)?.as_str()
@@ -125,10 +123,6 @@ impl Package {
             "accept",
             "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         );
-        // Mirrors `fetchMetadataFromFromRegistry` in pnpm v11's
-        // [`resolving/npm-resolver/src/fetch.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/resolving/npm-resolver/src/fetch.ts):
-        // resolve the per-URL `Authorization` value before issuing the
-        // request and attach it when present.
         if let Some(value) = auth_headers.for_url_with_package(&url, Some(name)) {
             request = request.header("authorization", value);
         }
@@ -146,10 +140,7 @@ impl Package {
     pub fn pinned_version(&self, version_range: &str) -> Option<Arc<PackageVersion>> {
         let range: node_semver::Range = version_range.parse().unwrap(); // TODO: this step should have happened in PackageManifest
         // Match on the version *strings* so only winning manifests
-        // hydrate from their raw fragments. Walk the candidates from
-        // highest to lowest: an undecodable fragment behaves as if
-        // the version were absent, so the next-best match wins
-        // instead of the lookup reporting no match at all.
+        // hydrate from their raw fragments.
         let mut satisfying = self
             .versions
             .keys()
@@ -164,10 +155,8 @@ impl Package {
         satisfying.into_iter().find_map(|(_, key)| self.versions.get(key))
     }
 
-    /// Manifest under `dist-tags.latest`. `None` when the tag is
-    /// absent, names a version the packument doesn't carry, or the
-    /// version's fragment fails to decode — registry-served data must
-    /// not be able to panic the process.
+    /// Manifest under `dist-tags.latest`, or `None` — registry-served
+    /// data must not be able to panic the process.
     #[must_use]
     pub fn latest(&self) -> Option<Arc<PackageVersion>> {
         self.versions.get(self.dist_tags.get("latest")?)

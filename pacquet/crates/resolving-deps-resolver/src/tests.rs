@@ -318,10 +318,6 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
     assert!(tree.packages.contains_key("b@1.0.0"));
     assert!(tree.packages.contains_key("shared@1.0.0"));
 
-    // `shared` is a leaf (no deps / peers); both `a` and `b` must
-    // point at the same `NodeId` and the tree must carry exactly one
-    // `shared` entry. Mirrors upstream's
-    // [`pkgIsLeaf` reuse](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1580).
     let a_tree = tree.dependencies_tree.get(&tree.direct[0].node_id).unwrap();
     let b_tree = tree.dependencies_tree.get(&tree.direct[1].node_id).unwrap();
     let shared_via_a = a_tree.children.realized().get("shared").unwrap();
@@ -336,17 +332,10 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
 /// a workspace-link dependency whose linked package declares peer
 /// dependencies (the babylon `@dev/shared-ui-components` shape) must
 /// short-circuit in the tree builder. Mirrors upstream's
-/// [`isLinkedDependency` arm](https://github.com/pnpm/pnpm/blob/cc4ff817aa/installing/deps-resolver/src/resolveDependencies.ts#L926-L937):
+/// [`isLinkedDependency` arm](https://github.com/pnpm/pnpm/blob/cc4ff817aa/installing/deps-resolver/src/resolveDependencies.ts#L926-L937).
 ///
-/// 1. The tree node carries `depth = -1`.
-/// 2. The tree node's `children` map is empty — the link target
-///    resolves its own deps as a separate importer, not as nested
-///    transitive deps of the parent.
-/// 3. The package's `peer_dependencies` is empty — peer matching is
-///    the linked importer's responsibility.
-///
-/// Together these ensure the peer-resolution stage's `depth == -1`
-/// short-circuit kicks in and the link node's depPath stays
+/// The short-circuit is what makes the peer-resolution stage's
+/// `depth == -1` arm kick in so the link node's depPath stays
 /// `link:<rel-path>` with no peer-graph suffix.
 #[tokio::test]
 async fn workspace_link_node_is_short_circuited_in_tree() {
@@ -365,10 +354,6 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
             manifest: Some(std::sync::Arc::new(serde_json::json!({
                 "name": "shared",
                 "version": "1.0.0",
-                // The linked package itself carries peers — these
-                // must NOT propagate to the parent's tree because
-                // pnpm's `isLinkedDependency` branch sets
-                // `resolvedPackage: { name, version }` only.
                 "peerDependencies": { "react": "^18.0.0" },
                 "dependencies": { "lodash": "^4.0.0" },
             }))),
@@ -521,9 +506,6 @@ mod block_exotic_subdeps {
         result
     }
 
-    /// A transitive dep resolved via an exotic protocol fails the
-    /// install when `block_exotic_subdeps` is on. Mirrors upstream's
-    /// `EXOTIC_SUBDEP` error.
     #[tokio::test]
     async fn rejects_exotic_transitive_dep() {
         let mut table = HashMap::new();
@@ -577,8 +559,6 @@ mod block_exotic_subdeps {
         }
     }
 
-    /// An exotic *direct* dep still resolves — the gate only fires
-    /// past the importer.
     #[tokio::test]
     async fn allows_exotic_direct_dep() {
         let mut table = HashMap::new();
@@ -616,7 +596,6 @@ mod block_exotic_subdeps {
         assert_eq!(tree.direct[0].alias, "is-negative");
     }
 
-    /// A registry subdep is fine when the gate is on.
     #[tokio::test]
     async fn allows_registry_subdep() {
         let mut table = HashMap::new();
@@ -659,7 +638,6 @@ mod block_exotic_subdeps {
         .expect("registry subdep must pass");
     }
 
-    /// With the gate off, an exotic subdep walks like any other.
     #[tokio::test]
     async fn allows_exotic_subdep_when_disabled() {
         let mut table = HashMap::new();
@@ -722,8 +700,6 @@ mod peers {
     };
     use pacquet_deps_path::DepPath;
 
-    /// A pure leaf — no peer dependencies — should land in the graph
-    /// with its depPath equal to its pkgIdWithPatchHash.
     #[tokio::test]
     async fn pure_package_has_dep_path_equal_to_pkg_id() {
         let mut table = HashMap::new();
@@ -816,9 +792,6 @@ mod peers {
         }
     }
 
-    /// `parent → child` where `child` declares `react` as a peer and
-    /// `parent` also depends on `react`: the peer resolves against the
-    /// sibling, and `child`'s depPath gains a `(react@…)` suffix.
     #[tokio::test]
     async fn peer_resolved_against_sibling_at_parent_level() {
         let mut table = HashMap::new();
@@ -877,8 +850,6 @@ mod peers {
         assert!(result.peer_dependency_issues.bad.is_empty());
     }
 
-    /// Missing peer: `react-dom` requires `react` but the importer
-    /// doesn't include it. We expect an issue + no resolved peer.
     #[tokio::test]
     async fn missing_peer_is_reported() {
         let mut table = HashMap::new();
@@ -914,17 +885,12 @@ mod peers {
 
         let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
         assert!(result.peer_dependency_issues.missing.contains_key("react"));
-        // No resolved peer ⇒ react-dom stays pure.
         assert_eq!(
             result.direct_dependencies_by_alias.get("react-dom"),
             Some(&DepPath::from("react-dom@18.0.0".to_string())),
         );
     }
 
-    /// Bad peer: the importer carries `react@17` but `react-dom@18`
-    /// requires `react@^18`. An issue surfaces; the peer is still
-    /// recorded as resolved (the pick is intentional, the warning is
-    /// informational).
     #[tokio::test]
     async fn bad_peer_version_is_reported() {
         let mut table = HashMap::new();
@@ -973,8 +939,6 @@ mod peers {
         assert_eq!(bad.len(), 1);
         assert_eq!(bad[0].found_version, "17.0.0");
         assert_eq!(bad[0].wanted_range, "^18.0.0");
-        // Peer-suffix uses the resolved (17.0.0) version — the install
-        // proceeds with the picked candidate.
         assert_eq!(
             result.direct_dependencies_by_alias.get("react-dom"),
             Some(&DepPath::from("react-dom@18.0.0(react@17.0.0)".to_string())),
@@ -1604,14 +1568,11 @@ mod peers {
         .await
         .unwrap();
 
-        // Every package appears in `packages` exactly once — cycle
-        // break did not duplicate or drop anything.
         assert!(tree.packages.contains_key("foo@1.0.0"));
         assert!(tree.packages.contains_key("bar@1.0.0"));
         assert!(tree.packages.contains_key("qar@1.0.0"));
         assert!(tree.packages.contains_key("zoo@1.0.0"));
 
-        // Peer resolution completes without panicking on the cycle.
         let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
         // Every resolved package surfaces a graph entry, even though
@@ -2134,16 +2095,6 @@ mod peers {
     /// Ported from upstream pnpm's
     /// [`path to external link is not added to the lockfile, when it resolves a peer dependency`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/install/excludeLinksFromLockfile.ts#L224-L243)
     /// e2e test, narrowed to the peer-resolution slice.
-    ///
-    /// Scenario: a registry package `abc` peer-depends on `peer-a`. The
-    /// importer also depends on `peer-a` via a bare `link:` to an
-    /// external directory (outside the lockfile root). With
-    /// `excludeLinksFromLockfile = true`, the link's parent-ref node
-    /// id gets remapped to `link:node_modules/peer-a`, the peer suffix
-    /// uses `link_path_to_peer_version("node_modules/peer-a") =
-    /// "node_modules+peer-a"`, and the snapshot child edge for the
-    /// peer points at the same `link:node_modules/peer-a` instead of
-    /// the original absolute path.
     #[tokio::test]
     async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
         use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
@@ -2270,10 +2221,6 @@ mod patched_dependencies {
         group
     }
 
-    /// Resolved-package id gets `(patch_hash=…)` appended for an exact-
-    /// version `patchedDependencies` match, the patch key is recorded as
-    /// applied, and the depPath the install layer reads carries the
-    /// patch suffix.
     #[tokio::test]
     async fn appends_patch_hash_to_pkg_id_and_records_applied_key() {
         let mut table = HashMap::new();
@@ -2315,8 +2262,6 @@ mod patched_dependencies {
         );
     }
 
-    /// Range entries match via `semver.satisfies` and contribute their
-    /// configured key to `applied_patches`.
     #[tokio::test]
     async fn range_match_applies_patch_and_records_user_key() {
         let mut table = HashMap::new();
@@ -2357,9 +2302,6 @@ mod patched_dependencies {
         assert!(tree.applied_patches.contains("foo@^1.0.0"));
     }
 
-    /// Configured patches that match no resolved package leave
-    /// `applied_patches` empty and the ids unchanged — the
-    /// `ERR_PNPM_UNUSED_PATCH` check downstream picks the absence up.
     #[tokio::test]
     async fn unused_patch_leaves_ids_and_applied_set_alone() {
         let mut table = HashMap::new();
@@ -2393,8 +2335,6 @@ mod patched_dependencies {
         assert!(tree.applied_patches.is_empty());
     }
 
-    /// Two ranges that both satisfy the resolved version surface
-    /// `ERR_PNPM_PATCH_KEY_CONFLICT` rather than picking arbitrarily.
     #[tokio::test]
     async fn ambiguous_range_match_fails_with_patch_key_conflict() {
         let mut table = HashMap::new();
@@ -2475,11 +2415,6 @@ mod optional_propagation {
         (tmp, manifest)
     }
 
-    /// A direct dep declared under `optionalDependencies` lands on the
-    /// resolved package with `optional: true`. Its sibling under
-    /// `dependencies` stays `optional: false`. Mirrors upstream's
-    /// `getResolvedPackage({ optional: currentIsOptional })` seed on
-    /// the first visit.
     #[tokio::test]
     async fn direct_optional_dep_seeds_resolved_package_optional_true() {
         let mut table = HashMap::new();
@@ -2527,10 +2462,6 @@ mod optional_propagation {
         );
     }
 
-    /// A transitive dep reached only through an `optionalDependencies`
-    /// edge inherits the flag: `current_is_optional` propagates down
-    /// the recursion (`wanted.optional || parent.optional`) so every
-    /// descendant of an optional root carries `optional: true`.
     #[tokio::test]
     async fn transitive_dep_under_optional_inherits_optional_true() {
         let mut table = HashMap::new();
@@ -2580,10 +2511,6 @@ mod optional_propagation {
         );
     }
 
-    /// A package reachable from BOTH a non-optional and an optional
-    /// path AND-folds back to `optional: false`. Mirrors upstream's
-    /// `resolvedPkgsById[id].optional = resolvedPkgsById[id].optional && currentIsOptional`
-    /// arm on every subsequent visit — a single non-optional path wins.
     #[tokio::test]
     async fn shared_dep_via_non_optional_and_optional_paths_keeps_optional_false() {
         let mut table = HashMap::new();
@@ -2648,11 +2575,6 @@ mod optional_propagation {
         );
     }
 
-    /// A package's own `optionalDependencies` child inherits the
-    /// transitive optional flag: an edge marked optional on the
-    /// parent's manifest contributes `true` to the child's
-    /// `current_is_optional` regardless of how the parent itself was
-    /// reached.
     #[tokio::test]
     async fn manifest_level_optional_dependencies_edge_propagates_to_child() {
         let mut table = HashMap::new();
@@ -2960,12 +2882,6 @@ mod level_preferred_versions {
         }
     }
 
-    /// The varint shape: `parent` pins `pinned@5.0.0` next to
-    /// `consumer`, whose own `pinned: ~5.0.0` child must see the
-    /// sibling-resolved `5.0.0` among its preferred versions —
-    /// upstream's per-level fold
-    /// (resolveDependencies.ts#L717-L746). The importer's own direct
-    /// deps resolve with no overlay.
     #[tokio::test]
     async fn child_resolution_prefers_parent_level_sibling_versions() {
         let mut table = HashMap::new();
@@ -3035,10 +2951,6 @@ mod level_preferred_versions {
         );
     }
 
-    /// An `npm:` alias consults the overlay under its *inner* target
-    /// name — the name the npm picker resolves (`spec.name`), not the
-    /// outer alias — mirroring upstream, where the per-level fold keys
-    /// entries by the resolved package name.
     #[tokio::test]
     async fn npm_alias_child_consults_overlay_by_inner_name() {
         let mut table = HashMap::new();

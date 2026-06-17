@@ -96,7 +96,6 @@ fn package_should_be_built_false_when_main_exists_and_prepare_absent() {
         "name": "x", "version": "0.0.0",
         "scripts": { "prepublish": "true" },
     });
-    // Prepublish is set, main exists → upstream says "don't build".
     assert!(!package_should_be_built(&manifest, dir.path()));
 }
 
@@ -218,7 +217,6 @@ fn prepare_allows_untrusted_manifest_identity_by_dep_path() {
 fn safe_join_path_rejects_escapes() {
     let dir = tempdir().unwrap();
     let root = dir.path();
-    // `..` escape — canonical form lives outside `root`.
     let err = safe_join_path(root, Some("../escape")).unwrap_err();
     assert!(matches!(err, PreparePackageError::InvalidPath { .. }));
 }

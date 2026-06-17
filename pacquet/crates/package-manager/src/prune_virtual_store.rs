@@ -29,12 +29,7 @@ use crate::SkippedSnapshots;
 /// Decide whether the virtual-store sweep should run this install.
 ///
 /// Port of pnpm's `pruneVirtualStore` gate at
-/// <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L471-L473>:
-/// never prune the shared global virtual store; otherwise prune unless a
-/// recorded `prunedAt` is still within `modules_cache_max_age`. A
-/// missing prior `.modules.yaml` (`prior_pruned_at == None`), an empty
-/// timestamp, or a non-positive max-age each force a prune, matching the
-/// upstream falsy checks.
+/// <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L471-L473>.
 ///
 /// `is_global_virtual_store` is decided by the caller from the resolved
 /// paths (see [`same_dir`]), not the `enableGlobalVirtualStore` flag
@@ -62,12 +57,6 @@ pub fn should_prune_virtual_store(
 /// `true` when `pruned_at` is older than `max_age_minutes`. Port of
 /// pnpm's `cacheExpired` at
 /// <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L1180-L1182>.
-///
-/// An unparsable timestamp counts as *not* expired, matching upstream:
-/// `new Date("garbage").valueOf()` is `NaN`, and `NaN > max_age` is
-/// `false`, so pnpm skips the prune. A timestamp in the future also
-/// counts as fresh (upstream's subtraction goes negative there, never
-/// `>` `max_age`).
 fn cache_expired(pruned_at: &str, max_age_minutes: u64, now: SystemTime) -> bool {
     let Ok(pruned_at) = httpdate::parse_http_date(pruned_at) else {
         return false;

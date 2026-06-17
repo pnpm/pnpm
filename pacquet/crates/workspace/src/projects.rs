@@ -6,19 +6,6 @@
 //! and
 //! [`findPackages`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/findPackages.ts).
 //!
-//! Behavior preserved against upstream:
-//!
-//! - Glob-walk the workspace root using the user's `packages:` patterns
-//!   (defaulting to `['.', '**']` when omitted, matching tinyglobby's
-//!   call site upstream).
-//! - Always include the workspace root itself, per
-//!   <https://github.com/pnpm/pnpm/issues/1986>.
-//! - Filter `**/node_modules/**` and `**/bower_components/**` so a
-//!   pre-existing install doesn't surface synthetic projects.
-//! - Dedupe matches (a path can satisfy multiple patterns) and sort
-//!   lexicographically by `rootDir`, matching upstream's
-//!   `lexCompare(path.dirname(path1), path.dirname(path2))`.
-//!
 //! Out of scope (tracked as upstream parity follow-ups):
 //!
 //! - `engines` / `os` / `cpu` installability filtering. Issue [#431]
@@ -200,10 +187,6 @@ pub fn find_workspace_projects_no_check(
         }
     }
 
-    // Upstream's `findPackages` always includes the workspace root,
-    // even when no `packages:` pattern matches it
-    // (https://github.com/pnpm/pnpm/issues/1986). Mirror that by
-    // unconditionally adding the root's manifest if present.
     let root_manifest = workspace_root.join("package.json");
     if root_manifest.is_file() {
         manifest_paths.insert(root_manifest);

@@ -177,16 +177,6 @@ pub enum LinkBinsError {
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
 /// its bins into `bins_dir`. Mirrors pnpm v11's `linkBins(modulesDir, binsDir)`
 /// at <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts>.
-///
-/// Skips:
-/// - The `.bin` and `.pacquet` directories themselves (and any other
-///   dot-prefixed entry, matching pnpm).
-/// - Entries whose `package.json` cannot be read (legitimate when a directory
-///   under `node_modules` happens to not be a package, e.g. an empty scope
-///   directory).
-///
-/// Scoped packages are recursed: `node_modules/@scope/foo` becomes one
-/// candidate. This mirrors `binNamesAndPaths` in upstream `linkBins`.
 pub fn link_bins<Sys>(modules_dir: &Path, bins_dir: &Path) -> Result<(), LinkBinsError>
 where
     Sys: FsReadDir
@@ -276,18 +266,6 @@ fn read_package<Sys: FsReadFile>(
 /// Link every bin declared by `packages` into `bins_dir`, applying the same
 /// conflict resolution upstream uses.
 ///
-/// Conflict resolution mirrors `resolveCommandConflicts`:
-///
-/// 1. **Direct wins over Hoisted.** If exactly one candidate is
-///    [`BinOrigin::Direct`], it wins outright — a direct dep's bin
-///    must never be shadowed by a transitive's bin with the same
-///    name. Mirrors upstream's `preferDirectCmds` partition at
-///    <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92>.
-/// 2. Ownership wins. If exactly one package owns the bin name (via
-///    [`pkg_owns_bin`]), it wins outright.
-/// 3. Otherwise lexical comparison on the package name, lower wins. Stable
-///    and deterministic regardless of the order packages were discovered.
-///
 /// Pacquet's first iteration does not resolve same-package multi-version
 /// conflicts via semver (a feature upstream uses for hoisting), since the
 /// virtual-store layout means each bin source is a unique
@@ -360,13 +338,6 @@ fn pick_winner(
     candidate: &str,
     candidate_origin: BinOrigin,
 ) -> bool {
-    // Highest tier: a Direct candidate beats a Hoisted incumbent and
-    // a Direct incumbent shuts out a Hoisted candidate. When both
-    // sides agree (both Direct or both Hoisted), fall through to the
-    // ownership / lexical rules so the existing tier behavior is
-    // unchanged inside each origin bucket. Mirrors upstream's
-    // `preferDirectCmds` partition at
-    // <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92>.
     match (existing_origin, candidate_origin) {
         (BinOrigin::Hoisted, BinOrigin::Direct) => return true,
         (BinOrigin::Direct, BinOrigin::Hoisted) => return false,
@@ -377,8 +348,6 @@ fn pick_winner(
     match (existing_owns, candidate_owns) {
         (true, false) => false,
         (false, true) => true,
-        // Both own (or neither): fall through to lexical compare. Picking the
-        // smaller name keeps results deterministic across input orderings.
         _ => candidate < existing,
     }
 }
@@ -387,16 +356,6 @@ fn pick_winner(
 /// plus the `.cmd` and `.ps1` Windows-style siblings *when the host
 /// is Windows*. Idempotent on warm reinstalls via
 /// [`is_shim_pointing_at`].
-///
-/// Platform gating mirrors pnpm:
-///
-/// - `@zkochan/cmd-shim` defaults `createCmdFile: isWindows`
-///   ([index.js#L32](https://github.com/pnpm/cmd-shim/blob/0d79ca9534/src/index.ts#L32)),
-///   so `.cmd` only lands on Windows.
-/// - pnpm's `bins.linker` overrides `createPwshFile` per call as
-///   `POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm'`, where
-///   [`POWER_SHELL_IS_SUPPORTED = IS_WINDOWS`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L28).
-///   So `.ps1` also only lands on Windows.
 ///
 /// The chmod step (`set_executable` for the canonical shim and
 /// `ensure_executable_bits` for the target binary, matching pnpm's
@@ -504,10 +463,7 @@ where
     // enough for the install tests this PR ports. `NotFound` is
     // swallowed because the target may legitimately have been
     // removed by an unrelated process between extraction and shim
-    // linking. Everything else (`PermissionDenied`, `EROFS`,
-    // AppArmor deny, foreign uid) surfaces as `LinkBinsError::Chmod`
-    // so real failures don't disappear silently. Mirrors pnpm's
-    // `fixBin` ENOENT guard.
+    // linking.
     match Sys::ensure_executable_bits(target_path) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}

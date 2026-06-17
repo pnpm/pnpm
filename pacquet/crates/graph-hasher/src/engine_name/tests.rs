@@ -16,8 +16,6 @@ fn parse_node_version_handles_common_shapes() {
     assert_eq!(parse_node_version_output("v20.18.1"), Some(20));
     assert_eq!(parse_node_version_output("18.20.4"), Some(18));
     assert_eq!(parse_node_version_output("v25.0.0-nightly"), Some(25));
-    // Garbage returns `None` so the caller can fall through to
-    // the no-cache path.
     assert_eq!(parse_node_version_output(""), None);
     assert_eq!(parse_node_version_output("not a version"), None);
     assert_eq!(parse_node_version_output("v.broken"), None);
@@ -36,10 +34,8 @@ fn engine_name_host_default_has_expected_shape() {
     assert!(parts[2][4..].parse::<u32>().is_ok(), "node version must be numeric: {name:?}");
 }
 
-/// `detect_node_version` returns the full version string with
-/// the leading `v` stripped. `node` is a hard prerequisite for
-/// the test suite — if it isn't on `PATH` that's a test-env
-/// bug, so we `expect` rather than skip.
+/// `node` is a hard prerequisite for the test suite — if it isn't on
+/// `PATH` that's a test-env bug, so we `expect` rather than skip.
 #[test]
 fn detect_node_version_strips_leading_v() {
     let version = detect_node_version().expect("`node` must be on PATH for the test suite");

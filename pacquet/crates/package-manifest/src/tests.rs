@@ -192,8 +192,6 @@ fn resolve_registry_dependency_unversioned_npm_alias_defaults_to_latest() {
 
 #[test]
 fn resolve_registry_dependency_picks_last_at_for_alias() {
-    // Mirrors pnpm's `lastIndexOf('@')` so prerelease/build metadata
-    // containing `@` would still be split at the *final* `@`.
     assert_eq!(
         PackageManifest::resolve_registry_dependency("foo-rc", "npm:@scope/foo@1.0.0-rc.1",),
         ("@scope/foo", "1.0.0-rc.1"),
@@ -221,10 +219,6 @@ fn convert_engines_runtime_lifts_devengines_runtime_into_devdependencies() {
     );
 }
 
-/// Upstream warns and skips; pacquet skips silently. The staleness
-/// check still surfaces the gap.
-/// Mirrors upstream's
-/// [`convertEnginesRuntimeToDependencies() skips runtime entries without a version`](https://github.com/pnpm/pnpm/blob/9cad8274fd/pkg-manifest/utils/test/convertEnginesRuntimeToDependencies.test.ts#L8-L21).
 #[test]
 fn convert_engines_runtime_skips_entries_without_a_version() {
     let mut manifest = json!({
@@ -239,8 +233,6 @@ fn convert_engines_runtime_skips_entries_without_a_version() {
     assert!(manifest.get("devDependencies").is_none(), "manifest: {manifest}");
 }
 
-/// Upstream gates the runtime reification on that flag, so an `error`
-/// or `warn` setup must not silently morph into a `runtime:` dep.
 #[test]
 fn convert_engines_runtime_only_reifies_onfail_download() {
     for on_fail in ["warn", "error", "ignore"] {
@@ -261,10 +253,6 @@ fn convert_engines_runtime_only_reifies_onfail_download() {
     }
 }
 
-/// An explicit user-declared entry in the target dependencies bucket
-/// wins over the reified runtime, matching upstream's
-/// [`manifest[dependenciesFieldName]?.[runtimeName]`](https://github.com/pnpm/pnpm/blob/9cad8274fd/pkg-manifest/utils/src/convertEnginesRuntimeToDependencies.ts#L17)
-/// short-circuit.
 #[test]
 fn convert_engines_runtime_preserves_explicit_user_dep() {
     let mut manifest = json!({
@@ -302,10 +290,6 @@ fn convert_engines_runtime_handles_array_form_with_multiple_runtimes() {
     assert_eq!(dev.get("bun").and_then(|v| v.as_str()), Some("runtime:1.1.40"));
 }
 
-/// `engines.runtime` (rather than `devEngines.runtime`) targets
-/// `dependencies` — upstream calls
-/// `convertEnginesRuntimeToDependencies(manifest, 'engines', 'dependencies')`
-/// alongside the `devEngines` pass.
 #[test]
 fn convert_engines_runtime_targets_dependencies_for_engines_field() {
     let mut manifest = json!({
@@ -353,10 +337,6 @@ fn from_path_applies_convert_engines_runtime() {
     assert_eq!(node_spec, Some("runtime:24.6.0"));
 }
 
-/// `from_path` surfaces `NoImporterManifestFound` (the typed
-/// equivalent of pnpm's `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`)
-/// when the path does not exist, rather than letting the
-/// underlying ENOENT escape as a generic IO error.
 #[test]
 fn from_path_errors_no_importer_when_missing() {
     let dir = tempdir().unwrap();
@@ -369,10 +349,6 @@ fn from_path_errors_no_importer_when_missing() {
     );
 }
 
-/// `add_dependency` rejects manifests where the target
-/// dependency group exists but holds a non-object value (a quirk
-/// upstream allows on disk but cannot insert into). Pin that the
-/// error is the typed `InvalidAttribute` and not a panic.
 #[test]
 fn add_dependency_errors_when_field_is_not_an_object() {
     let dir = tempdir().unwrap();
@@ -461,8 +437,6 @@ fn remove_dependencies_clears_all_fields_without_save_type() {
     assert!(value.get("dependencies").and_then(|d| d.get("bar")).is_some(), "`bar` must remain");
 }
 
-/// With a `save_type`, only that field is touched — but `peerDependencies`
-/// and `dependenciesMeta` are still cleared, matching pnpm's `removeDeps`.
 #[test]
 fn remove_dependencies_with_save_type_keeps_other_dependency_fields() {
     let (mut manifest, _dir) = manifest_from_json(json!({
@@ -484,10 +458,6 @@ fn remove_dependencies_with_save_type_keeps_other_dependency_fields() {
     );
 }
 
-/// `safe_read_package_json_from_dir` surfaces non-NotFound IO
-/// errors via `PackageManifestError::Io`, rather than swallowing
-/// them as `Ok(None)`. Mirrors upstream's contract: `null` is
-/// returned only on ENOENT.
 #[cfg(unix)]
 #[test]
 fn safe_read_surfaces_non_not_found_io_errors() {
@@ -501,10 +471,6 @@ fn safe_read_surfaces_non_not_found_io_errors() {
     assert!(matches!(err, PackageManifestError::Io(_)), "expected Io error, got {err:?}");
 }
 
-/// `convert_engines_runtime_to_dependencies` ignores `devEngines.runtime`
-/// entries whose value is neither an array nor a single object.
-/// Pin that the function returns without mutating the manifest in
-/// that case, instead of panicking.
 #[test]
 fn convert_engines_ignores_non_array_non_object_runtime_entries() {
     let mut manifest = json!({

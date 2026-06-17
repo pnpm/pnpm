@@ -302,10 +302,6 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
 // <https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-installer/test/install/autoInstallPeers.ts>
 // ---------------------------------------------------------------------------
 
-/// Port of "auto install non-optional peer dependencies": only the
-/// required peer is hoisted; optional peers without a preferred-version
-/// hint stay missing. Mirrors the lockfile snapshot
-/// `[abc-optional-peers(peer-a), peer-a]` upstream asserts on.
 #[tokio::test]
 async fn auto_install_skips_optional_peers_without_preferred_versions() {
     let mut table = HashMap::new();
@@ -434,9 +430,6 @@ async fn keeps_locked_optional_peer_over_lower_sibling_version() {
     );
 }
 
-/// Port of "auto install the common peer dependency": two consumers
-/// each declare a peer-c range that share an exact-version intersection
-/// (`1` and `1.0.0`). The single intersected pick lands in the tree.
 #[tokio::test]
 async fn auto_install_dedupes_via_range_intersection_when_identical() {
     let mut table = HashMap::new();
@@ -490,10 +483,6 @@ async fn auto_install_dedupes_via_range_intersection_when_identical() {
     assert_eq!(peer_c_entries.len(), 1, "expected one peer-c entry, got: {peer_c_entries:?}");
 }
 
-/// Port of "do not auto install when there is no common peer dependency
-/// range intersection": with `autoInstallPeersFromHighestMatch: false`
-/// the picker drops the peer when the ranges don't reduce to one
-/// unique string. The consumers stay pure (no peer suffix).
 #[tokio::test]
 async fn auto_install_does_not_install_when_no_intersection() {
     let mut table = HashMap::new();
@@ -536,10 +525,6 @@ async fn auto_install_does_not_install_when_no_intersection() {
     assert!(!direct.contains(&"peer-c"), "peer-c must not be hoisted on conflict: {direct:?}");
 }
 
-/// Port of "auto install latest when there is no common peer dependency
-/// range intersection": same setup as above but with
-/// `autoInstallPeersFromHighestMatch: true`, the picker joins the
-/// ranges with `||` and the resolver picks a satisfying version.
 #[tokio::test]
 async fn auto_install_from_highest_match_installs_on_conflict() {
     let mut table = HashMap::new();
@@ -587,10 +572,6 @@ async fn auto_install_from_highest_match_installs_on_conflict() {
     assert!(direct.contains(&"peer-c"), "peer-c should land via `||` join: {direct:?}");
 }
 
-/// Port of "hoist a peer dependency in order to reuse it by other
-/// dependencies, when it satisfies them": a sibling that already
-/// brings the peer's exact version into scope is reused by the
-/// hoist-picker via preferred-versions, so we don't re-resolve.
 #[tokio::test]
 async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
     let mut table = HashMap::new();
@@ -671,9 +652,6 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
     }
 }
 
-/// Port of "don't auto-install a peer dependency, when that dependency
-/// is in the root": a direct dep at the importer level satisfies the
-/// peer, so the hoist-picker doesn't add a fresh entry.
 #[tokio::test]
 async fn auto_install_does_not_hoist_when_root_already_has_dep() {
     let mut table = HashMap::new();
@@ -703,8 +681,6 @@ async fn auto_install_does_not_hoist_when_root_already_has_dep() {
         .await
         .unwrap();
 
-    // The picker must not re-resolve `x` via the peer's `^1.0.0` range
-    // when the root already pinned it at `1.0.0`.
     let calls = resolver.calls.lock().unwrap();
     let x_ranges: Vec<String> =
         calls.iter().filter(|(n, _)| n == "x").map(|(_, r)| r.clone()).collect();
@@ -954,9 +930,6 @@ async fn meta_only_peer_provider_from_direct_child_is_not_appended_as_hidden_dir
     );
 }
 
-/// Port of "don't install the same missing peer dependency twice": a
-/// transitive chain where each layer adds the same peer must produce a
-/// single hoisted entry.
 #[tokio::test]
 async fn auto_install_does_not_install_same_missing_peer_twice() {
     let mut table = HashMap::new();
@@ -1060,10 +1033,6 @@ async fn auto_install_prefers_peer_version_pinned_in_importer_peerdeps() {
     );
 }
 
-/// Port of "auto install hoisted peer dependency": when the same peer
-/// name is brought into the graph by a regular `dependencies` edge of
-/// one consumer (at an exact version) and as a peer of another, the
-/// regular-dep version wins via the preferred-versions table.
 #[tokio::test]
 async fn auto_install_hoisted_peer_dep_reuses_regular_dep_version() {
     let mut table = HashMap::new();

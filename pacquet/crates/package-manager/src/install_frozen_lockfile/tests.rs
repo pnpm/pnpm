@@ -6,7 +6,6 @@ use std::collections::HashMap;
 /// `dependencies.node: 'runtime:<v>'` is the desugared form pnpm's
 /// resolver writes when a dep declares its own `engines.runtime`
 /// (see [`installing/deps-resolver/src/resolveDependencies.ts:1477-1479`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-resolver/src/resolveDependencies.ts#L1477-L1479)).
-/// The helper pulls the bare major back out.
 #[test]
 fn picks_up_runtime_pin_from_dependencies() {
     let mut deps = HashMap::new();
@@ -20,8 +19,7 @@ fn picks_up_runtime_pin_from_dependencies() {
 
 /// A plain semver `node` dep (no `runtime:` prefix) is not an
 /// `engines.runtime` pin — workspaces can depend on the `node`
-/// npm package without intending it as the script runner. The
-/// helper must skip these.
+/// npm package without intending it as the script runner.
 #[test]
 fn ignores_non_runtime_node_dep() {
     let mut deps = HashMap::new();
@@ -33,9 +31,8 @@ fn ignores_non_runtime_node_dep() {
     assert_eq!(find_own_runtime_node_major(&snapshot), None);
 }
 
-/// Scoped `node` (`@scope/node`) isn't pnpm's runtime alias —
-/// only the bare unscoped `node` alias counts. Matches the
-/// sibling [`super::find_runtime_node_major`] check.
+/// Matches the sibling [`super::find_runtime_node_major`] check:
+/// only the bare unscoped `node` alias counts as a runtime pin.
 #[test]
 fn ignores_scoped_node_alias() {
     let mut deps = HashMap::new();
@@ -47,8 +44,8 @@ fn ignores_scoped_node_alias() {
     assert_eq!(find_own_runtime_node_major(&snapshot), None);
 }
 
-/// A snapshot with no `dependencies` map yields `None` — the
-/// install-wide fallback handles those.
+/// The install-wide fallback handles snapshots that carry no
+/// `dependencies` map of their own.
 #[test]
 fn empty_dependencies_yields_none() {
     let snapshot = SnapshotEntry::default();

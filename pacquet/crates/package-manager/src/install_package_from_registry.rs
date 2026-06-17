@@ -149,12 +149,6 @@ impl InstallPackageFromRegistry<'_> {
             let unpacked_size = manifest_unpacked_size(resolution.manifest.as_deref());
             let file_count = manifest_file_count(resolution.manifest.as_deref());
 
-            // `pnpm:progress resolved` mirrors pnpm's emit at
-            // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-resolver/src/resolveDependencies.ts#L1586>:
-            // one event per package once the resolver has picked a
-            // version. Emit before the tarball download so consumers
-            // see resolved → fetched/found_in_store → imported in
-            // order.
             Reporter::emit(&LogEvent::Progress(ProgressLog {
                 level: LogLevel::Debug,
                 message: ProgressMessage::Resolved {
@@ -217,9 +211,6 @@ impl InstallPackageFromRegistry<'_> {
             }));
         }
 
-        // The per-parent symlink is the only step that runs on every
-        // visit. Mirrors pnpm: one `pnpm:progress` sequence per
-        // package, plus one symlink per direct edge.
         symlink_package(&save_path, &symlink_path)
             .map_err(InstallPackageFromRegistryError::SymlinkPackage)?;
 

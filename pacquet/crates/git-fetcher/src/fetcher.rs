@@ -230,9 +230,8 @@ fn wrap_prepare_error(_repo: &str, err: PreparePackageError) -> GitFetcherError 
     GitFetcherError::Prepare(err)
 }
 
-/// True iff `commit` is exactly a 40-character hexadecimal git SHA.
-/// Rejects everything else (short SHAs, ref names, option-shaped
-/// strings like `--upload-pack=…`) before the value reaches `git`.
+/// True iff `commit` is exactly a 40-character hexadecimal git SHA,
+/// validated before the value reaches `git`.
 fn is_valid_commit_hash(commit: &str) -> bool {
     commit.len() == 40 && commit.bytes().all(|b| b.is_ascii_hexdigit())
 }

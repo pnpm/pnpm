@@ -79,11 +79,8 @@ pub struct CliArgs {
     /// consumed by `install`.
     ///
     /// As a global multi-value flag, occurrences collect only within one
-    /// side of the subcommand boundary: `pacquet -F a -F b install` and
-    /// `pacquet install -F a -F b` both yield `[a, b]`, but mixing sides
-    /// (`pacquet -F a install -F b`) keeps only the subcommand-side
-    /// occurrence. This is a clap limitation; pass all selectors on the
-    /// same side.
+    /// side of the subcommand boundary; mixing sides is a clap limitation,
+    /// so pass all selectors on the same side.
     #[clap(short = 'F', long, global = true)]
     pub filter: Vec<String>,
 

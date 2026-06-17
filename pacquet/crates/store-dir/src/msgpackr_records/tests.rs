@@ -6,8 +6,6 @@ use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 
-/// Decoding fixture bytes produced by msgpackr yields the same
-/// `PackageFilesIndex` we'd get from a vanilla msgpack round-trip.
 fn decode(bytes: &[u8]) -> PackageFilesIndex {
     let plain = transcode_to_plain_msgpack(bytes).expect("transcode succeeds");
     rmp_serde::from_slice::<PackageFilesIndex>(&plain)
@@ -48,8 +46,6 @@ fn decodes_one_file_fixture_from_msgpackr() {
     assert_eq!(decoded.requires_build, None);
 }
 
-/// Fixture: "two-file index" — exercises record **reuse** (the second
-/// `CafsFileInfo` starts with a bare slot byte 0x41).
 #[test]
 fn decodes_two_file_fixture_with_record_reuse() {
     let bytes: [u8; 103] = [
@@ -77,7 +73,6 @@ fn decodes_two_file_fixture_with_record_reuse() {
     assert_eq!(index_js.checked_at, None);
 }
 
-/// Fixture: "with requiresBuild" — boolean top-level field.
 #[test]
 fn decodes_requires_build_true() {
     let bytes: [u8; 83] = [
@@ -92,9 +87,6 @@ fn decodes_requires_build_true() {
     assert_eq!(decoded.requires_build, Some(true));
 }
 
-/// Fixture: "no checkedAt" — proves msgpackr emits a *different* record
-/// shape (3 fields instead of 4) when an optional field is absent, and
-/// our `Option<u64>` deserializer copes.
 #[test]
 fn decodes_file_without_checked_at() {
     let bytes: [u8; 57] = [
@@ -108,8 +100,6 @@ fn decodes_file_without_checked_at() {
     assert_eq!(info.checked_at, None);
 }
 
-/// Fixture: "with sideEffects" — nested map inside a record field,
-/// plus a second record slot for the inner struct.
 #[test]
 fn decodes_side_effects() {
     let bytes: [u8; 113] = [
@@ -160,9 +150,6 @@ fn round_trips_plain_msgpack_through_transcoder() {
     assert_eq!(decoded, original);
 }
 
-/// Plain msgpack bytes that contain no `float`-encoded integers should
-/// still pass through the transcoder byte-for-byte — the narrowing
-/// rule must not touch anything that isn't a float header.
 #[test]
 fn plain_msgpack_without_floats_passes_through_unchanged() {
     // { "size": 17, "mode": 420 } — purely integer values, no
@@ -312,10 +299,6 @@ fn encode_roundtrips_single_file() {
 
 #[test]
 fn encode_roundtrips_many_files_sharing_one_slot() {
-    // Second and subsequent `CafsFileInfo` instances must be
-    // emitted as bare slot references (one byte), not re-defined.
-    // A tarball with N files collapses N × ~34 bytes of field
-    // names into N × 1 byte — that's the whole point of records.
     let mut files = HashMap::new();
     for i in 0..5 {
         files.insert(format!("file{i}.js"), sample_cafs(1000 + i as u64, true));
@@ -330,9 +313,6 @@ fn encode_roundtrips_many_files_sharing_one_slot() {
     let bytes = encode_package_files_index(&original).unwrap();
     let record_def_headers =
         bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
-    // Exactly two record defs: one for `PackageFilesIndex`, one
-    // for the first `CafsFileInfo` instance. The other four
-    // `CafsFileInfo` instances must reference that slot.
     assert_eq!(
         record_def_headers, 2,
         "expected one def per distinct shape, got bytes {bytes:02x?}",
@@ -363,13 +343,6 @@ fn encode_handles_fixint_in_slot_range_safely() {
 
 #[test]
 fn encode_omits_checked_at_when_none() {
-    // `None` `checkedAt` is *omitted* from the record schema
-    // rather than encoded as `nil` — matches msgpackr's
-    // field-omit-when-absent behaviour, so pnpm's reader sees the
-    // same object shape it would produce on its own output (the
-    // `checkedAt` property is missing, not `null`). Round-trip
-    // through our transcoder still recovers `None` because
-    // `Option<u64>` deserializes a missing field to `None`.
     let mut files = HashMap::new();
     files.insert("f".to_string(), sample_cafs(100, false));
     let original = PackageFilesIndex {
@@ -380,8 +353,6 @@ fn encode_omits_checked_at_when_none() {
         side_effects: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
-    // No `checkedAt` string should appear — the schema for this
-    // `CafsFileInfo` only has `[digest, mode, size]`.
     let needle = b"checkedAt";
     assert!(
         bytes.windows(needle.len()).all(|window| window != needle),
@@ -392,11 +363,6 @@ fn encode_omits_checked_at_when_none() {
 
 #[test]
 fn encode_allocates_separate_slots_for_distinct_cafs_shapes() {
-    // Two `CafsFileInfo` instances with different shapes — one
-    // carries `checkedAt`, the other doesn't — must land in
-    // different slots. Same shape reuses its slot, which is the
-    // whole point of records. msgpackr does the same: slot 0x41
-    // for the first shape seen, 0x42 for the next new one, etc.
     let mut files = HashMap::new();
     files.insert("with_ts.js".to_string(), sample_cafs(10, true));
     files.insert("no_ts_a.js".to_string(), sample_cafs(20, false));
@@ -411,10 +377,6 @@ fn encode_allocates_separate_slots_for_distinct_cafs_shapes() {
     let bytes = encode_package_files_index(&original).unwrap();
     let record_def_headers =
         bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
-    // Exactly three defs: `PackageFilesIndex`, `CafsFileInfo` with
-    // checkedAt, `CafsFileInfo` without checkedAt. The third file
-    // (second no-ts instance) shares the no-ts slot, so no fourth
-    // def.
     assert_eq!(
         record_def_headers, 3,
         "expected three defs (outer + two CafsFileInfo shapes), got bytes {bytes:02x?}",
@@ -475,11 +437,6 @@ fn encode_outer_field_order_matches_msgpackr() {
 
 #[test]
 fn encode_omits_requires_build_when_none() {
-    // When `requires_build` is `None`, it must not appear in the
-    // record schema at all — matching msgpackr's own behaviour of
-    // field-omit-when-absent for plain JS objects with missing
-    // properties. This keeps the byte output minimal for the
-    // common case (pacquet rarely populates requires_build).
     let idx = PackageFilesIndex {
         manifest: None,
         requires_build: None,
@@ -488,8 +445,6 @@ fn encode_omits_requires_build_when_none() {
         side_effects: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
-    // Scan for the bytes that spell "requiresBuild" — must not
-    // appear anywhere in the output.
     let needle = b"requiresBuild";
     assert!(
         bytes.windows(needle.len()).all(|window| window != needle),
@@ -520,11 +475,6 @@ fn encode_side_effects_roundtrip() {
 
 #[test]
 fn encode_side_effects_with_only_added_omits_deleted_field() {
-    // A `SideEffectsDiff` with `deleted: None` must not emit a
-    // `deleted` field name in the record schema. Emitting
-    // `deleted: nil` would produce a JS shape (`{ added, deleted:
-    // null }`) different from what msgpackr itself produces for
-    // the same Rust input (`{ added }`).
     let mut added = HashMap::new();
     added.insert("foo.so".to_string(), sample_cafs(42, true));
     let mut side_effects = HashMap::new();
@@ -546,10 +496,6 @@ fn encode_side_effects_with_only_added_omits_deleted_field() {
 
 #[test]
 fn encode_allocates_separate_slots_for_distinct_side_effects_shapes() {
-    // Two `SideEffectsDiff` instances with distinct shapes (one
-    // with only `added`, one with only `deleted`) must land in
-    // different slots, mirroring msgpackr's behaviour on the same
-    // input.
     let mut linux_added = HashMap::new();
     linux_added.insert("foo.so".to_string(), sample_cafs(42, true));
     let mut side_effects = HashMap::new();
@@ -569,9 +515,6 @@ fn encode_allocates_separate_slots_for_distinct_side_effects_shapes() {
     let bytes = encode_package_files_index(&original).unwrap();
     let record_def_headers =
         bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
-    // Three defs: outer `PackageFilesIndex`, `SideEffectsDiff`
-    // shape-`added`, `SideEffectsDiff` shape-`deleted`. The inner
-    // `CafsFileInfo` adds a fourth.
     assert_eq!(
         record_def_headers, 4,
         "expected defs for outer + two distinct side-effects shapes + CafsFileInfo, got bytes {bytes:02x?}",
@@ -639,8 +582,6 @@ fn encode_record_encodes_nested_objects_in_manifest() {
     };
     let bytes = encode_package_files_index(&idx).unwrap();
 
-    // Outer PackageFilesIndex def + nested manifest object def + nested
-    // `bin` object def + nested `directories` object def = 4 defs.
     let record_defs =
         bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
     assert_eq!(
@@ -648,8 +589,6 @@ fn encode_record_encodes_nested_objects_in_manifest() {
         "expected 4 record defs (outer + manifest + bin + directories), got bytes {bytes:02x?}",
     );
 
-    // Round-trip the manifest through the transcoder to verify the
-    // bytes a msgpackr 1.11.8 reader would consume parse cleanly.
     assert_eq!(roundtrip(&idx), idx);
 }
 
@@ -675,9 +614,6 @@ fn encode_shares_slot_for_same_shaped_nested_objects() {
     let bytes = encode_package_files_index(&idx).unwrap();
     let record_defs =
         bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
-    // Outer + manifest + ONE shape `{ cli }` shared by both nested
-    // maps = 3 defs. If the encoder allocated a new slot per
-    // instance instead of sharing, this would be 4.
     assert_eq!(
         record_defs, 3,
         "expected slot reuse for same-shape objects, got bytes {bytes:02x?}",

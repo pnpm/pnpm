@@ -206,8 +206,7 @@ impl CreateVirtualDirBySnapshot<'_> {
 
 /// Map pacquet's configured [`PackageImportMethod`] to the value
 /// `pnpm:progress imported`'s `method` field carries. pnpm only
-/// distinguishes the three resolved methods; for `Auto` and
-/// `CloneOrCopy` the optimistic first-attempt method is `clone`.
+/// distinguishes the three resolved methods.
 /// See the comment at the emit site for why this is best-effort.
 pub(crate) fn optimistic_wire_method(method: PackageImportMethod) -> WireImportMethod {
     match method {

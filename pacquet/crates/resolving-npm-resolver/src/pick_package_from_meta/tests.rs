@@ -76,9 +76,6 @@ fn spec(name: &str, fetch_spec: &str, spec_type: RegistryPackageSpecType) -> Reg
     }
 }
 
-/// `latest` dist-tag wins when it satisfies the range — even when a
-/// higher non-latest version also satisfies. Matches upstream's
-/// short-circuit at pickPackageFromMeta.ts#L185-L189.
 #[test]
 fn version_range_prefers_latest_when_in_range() {
     let pkg = make_package(
@@ -134,9 +131,6 @@ fn partial_lte_upper_bound_returns_none_on_overflow() {
     assert_eq!(super::partial_lte_upper_bound(&format!("1.{}", u64::MAX)), None);
 }
 
-/// `*` is a special case: `semver.satisfies` rejects prereleases, so
-/// upstream short-circuits to return `latest` for `*` regardless.
-/// See pnpm/pnpm#865.
 #[test]
 fn version_range_star_uses_latest_even_when_prerelease() {
     let pkg = make_package("acme", &[("1.0.0-beta.1", None)], &[("latest", "1.0.0-beta.1")]);
@@ -149,10 +143,6 @@ fn version_range_star_uses_latest_even_when_prerelease() {
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.0.0-beta.1"));
 }
 
-/// Deprecated-fallback fires when latest is out of range, the max
-/// satisfying version is deprecated, and other non-deprecated
-/// versions still satisfy. Matches the loop at
-/// pickPackageFromMeta.ts#L194-L201.
 #[test]
 fn version_range_deprecated_max_triggers_non_deprecated_retry() {
     let pkg = make_package(
@@ -169,10 +159,6 @@ fn version_range_deprecated_max_triggers_non_deprecated_retry() {
     assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
 }
 
-/// If every in-range version is deprecated, the fallback finds
-/// nothing and the picker returns the deprecated max anyway —
-/// matches upstream's `if (maxNonDeprecatedVersion) return …`
-/// guard.
 #[test]
 fn version_range_all_deprecated_returns_deprecated_max() {
     let pkg = make_package(
@@ -205,8 +191,6 @@ fn lowest_version_picker_picks_min_in_range() {
     assert_eq!(pick_lowest_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
 }
 
-/// `*` lowest pick uses the smallest version (`HashMap` iteration is
-/// unordered, so the picker has to sort).
 #[test]
 fn lowest_version_star_picks_smallest() {
     let pkg = make_package(
@@ -223,8 +207,6 @@ fn lowest_version_star_picks_smallest() {
     assert_eq!(pick_lowest_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
 }
 
-/// Preferred-versions bias: a tag selector for `next` lifts the
-/// version that tag points to above the otherwise-max pick.
 #[test]
 fn preferred_versions_tag_selector_wins() {
     let pkg = make_package(
@@ -247,9 +229,6 @@ fn preferred_versions_tag_selector_wins() {
     assert!(pick_version_by_version_range(&opts).is_some());
 }
 
-/// Higher-weight selectors beat lower-weight ones. Mirrors the
-/// `EXISTING_VERSION_SELECTOR_WEIGHT` vs `DIRECT_DEP_SELECTOR_WEIGHT`
-/// shape upstream uses to make existing-lockfile pins stick.
 #[test]
 fn preferred_versions_higher_weight_wins() {
     let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None), ("1.2.0", None)], &[]);
@@ -307,9 +286,6 @@ fn pick_from_meta_version_spec_reads_versions() {
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.0.0"));
 }
 
-/// Returns `Ok(None)` when no version satisfies — distinct from the
-/// `NoVersions` error, which fires when the packument itself is
-/// empty.
 #[test]
 fn pick_from_meta_returns_none_when_no_satisfying_version() {
     let pkg = make_package("acme", &[("1.0.0", None)], &[("latest", "1.0.0")]);
@@ -323,9 +299,6 @@ fn pick_from_meta_returns_none_when_no_satisfying_version() {
     assert!(picked.is_none());
 }
 
-/// An empty `versions` map with `time.unpublished.versions` set
-/// surfaces as `Unpublished`. Matches upstream's check at
-/// pickPackageFromMeta.ts#L60-L62.
 #[test]
 fn pick_from_meta_unpublished_marker_propagates() {
     let mut pkg = make_package("acme", &[], &[]);
@@ -348,8 +321,6 @@ fn pick_from_meta_unpublished_marker_propagates() {
     assert!(matches!(err, PickPackageFromMetaError::Unpublished { .. }), "got {err:?}");
 }
 
-/// An empty `versions` map without an `unpublished` marker surfaces
-/// as `NoVersions`.
 #[test]
 fn pick_from_meta_empty_meta_surfaces_no_versions() {
     let pkg = make_package("acme", &[], &[]);
@@ -363,9 +334,6 @@ fn pick_from_meta_empty_meta_surfaces_no_versions() {
     assert!(matches!(err, PickPackageFromMetaError::NoVersions { .. }), "got {err:?}");
 }
 
-/// `publishedBy` + abbreviated metadata + missing `modified` fails
-/// closed with `MissingTime`. Matches the `assertMetaHasTime` call
-/// at pickPackageFromMeta.ts#L51.
 #[test]
 fn pick_from_meta_published_by_missing_time_fails() {
     let pkg = make_package("acme", &[("1.0.0", None)], &[("latest", "1.0.0")]);
@@ -384,9 +352,6 @@ fn pick_from_meta_published_by_missing_time_fails() {
     assert!(matches!(err, PickPackageFromMetaError::MissingTime { .. }), "got {err:?}");
 }
 
-/// `publishedBy` + abbreviated metadata + `modified` *before* the
-/// cutoff takes the package-level shortcut: every version is old
-/// enough, no filter needed, picker proceeds.
 #[test]
 fn pick_from_meta_published_by_modified_shortcut() {
     let mut pkg = make_package("acme", &[("1.0.0", None)], &[("latest", "1.0.0")]);
@@ -406,10 +371,6 @@ fn pick_from_meta_published_by_modified_shortcut() {
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.0.0"));
 }
 
-/// Boundary case: `modified == cutoff` is *inclusive* — every
-/// version was published at most at the cutoff, which the
-/// per-version filter would treat as mature. Shortcut accepts it
-/// rather than fetching full metadata.
 #[test]
 fn pick_from_meta_modified_shortcut_inclusive_at_cutoff() {
     let mut pkg = make_package("acme", &[("1.0.0", None)], &[("latest", "1.0.0")]);
@@ -429,8 +390,6 @@ fn pick_from_meta_modified_shortcut_inclusive_at_cutoff() {
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.0.0"));
 }
 
-/// `publishedBy` + full metadata: versions past the cutoff drop out,
-/// and the picker only considers mature versions.
 #[test]
 fn pick_from_meta_published_by_filters_immature_versions() {
     let mut pkg = make_package(
@@ -458,8 +417,6 @@ fn pick_from_meta_published_by_filters_immature_versions() {
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.1.0"));
 }
 
-/// `publishedByExclude` returning `AnyVersion` (a bare-name match)
-/// skips the maturity filter entirely.
 #[test]
 fn pick_from_meta_published_by_bare_name_exclude_skips_filter() {
     let mut pkg = make_package("acme", &[("1.0.0", None), ("2.0.0", None)], &[("latest", "2.0.0")]);
@@ -480,12 +437,9 @@ fn pick_from_meta_published_by_bare_name_exclude_skips_filter() {
         &spec("acme", "*", RegistryPackageSpecType::Range),
     )
     .expect("ok");
-    // Filter skipped → 2.0.0 is the max in range.
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("2.0.0"));
 }
 
-/// `publishedByExclude` returning `ExactVersions` allows the listed
-/// versions through the filter as if they were mature.
 #[test]
 fn pick_from_meta_published_by_trusted_version_passes_filter() {
     let mut pkg = make_package("acme", &[("1.0.0", None), ("2.0.0", None)], &[("latest", "2.0.0")]);
@@ -506,23 +460,14 @@ fn pick_from_meta_published_by_trusted_version_passes_filter() {
         &spec("acme", "*", RegistryPackageSpecType::Range),
     )
     .expect("ok");
-    // 2.0.0 is past the cutoff but trusted → wins.
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("2.0.0"));
 }
 
-/// `filter_pkg_metadata_by_publish_date` rewrites a dist-tag pointing
-/// to a dropped version to the highest within-cutoff version of the
-/// same major (for non-`latest` tags).
 #[test]
 fn filter_rewrites_dist_tag_to_within_cutoff_max_of_same_major() {
     let mut pkg = make_package(
         "acme",
-        &[
-            ("1.0.0", None),
-            ("1.1.0", None),
-            ("1.2.0", None), // dropped
-            ("2.0.0", None), // dropped
-        ],
+        &[("1.0.0", None), ("1.1.0", None), ("1.2.0", None), ("2.0.0", None)],
         &[("latest", "2.0.0"), ("lts", "1.2.0")],
     );
     pkg.time = Some(make_time_map(&[
@@ -541,8 +486,6 @@ fn filter_rewrites_dist_tag_to_within_cutoff_max_of_same_major() {
     );
 }
 
-/// `*` lowest pick respects publishedBy filtering: dropped versions
-/// don't show up as the min.
 #[test]
 fn lowest_picker_with_published_by_drops_immature_min() {
     let mut pkg = make_package(
@@ -551,7 +494,7 @@ fn lowest_picker_with_published_by_drops_immature_min() {
         &[("latest", "1.2.0")],
     );
     pkg.time = Some(make_time_map(&[
-        ("1.0.0", "2025-06-01T00:00:00.000Z"), // dropped
+        ("1.0.0", "2025-06-01T00:00:00.000Z"),
         ("1.1.0", "2024-06-01T00:00:00.000Z"),
         ("1.2.0", "2024-12-01T00:00:00.000Z"),
     ]));
@@ -570,9 +513,6 @@ fn lowest_picker_with_published_by_drops_immature_min() {
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.1.0"));
 }
 
-/// A range pick whose winning version carries an undecodable manifest
-/// fragment retries against the remaining versions — the undecodable
-/// entry behaves as if it were absent from the packument.
 #[test]
 fn pick_from_meta_skips_undecodable_winner_and_retries() {
     let pkg: Package = serde_json::from_str(
@@ -596,9 +536,6 @@ fn pick_from_meta_skips_undecodable_winner_and_retries() {
     assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("1.0.0"));
 }
 
-/// An exact-version spec naming an undecodable manifest yields no
-/// match (there is no other candidate to retry) rather than looping
-/// or erroring.
 #[test]
 fn pick_from_meta_returns_none_for_undecodable_exact_version() {
     let pkg: Package = serde_json::from_str(
@@ -621,18 +558,11 @@ fn pick_from_meta_returns_none_for_undecodable_exact_version() {
     assert!(picked.is_none());
 }
 
-/// The dist-tag repopulation tie-break prefers a non-deprecated
-/// candidate over a higher deprecated one (and only falls back to
-/// deprecated candidates when nothing else matches the tag family).
 #[test]
 fn filter_tag_rewrite_prefers_non_deprecated_candidate() {
     let mut pkg = make_package(
         "acme",
-        &[
-            ("2.1.0", None),
-            ("2.2.0", Some("use 3.x")),
-            ("2.5.0", None), // dropped by the cutoff
-        ],
+        &[("2.1.0", None), ("2.2.0", Some("use 3.x")), ("2.5.0", None)],
         &[("old", "2.5.0")],
     );
     pkg.time = Some(make_time_map(&[

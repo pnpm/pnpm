@@ -527,10 +527,8 @@ fn write_cas_entry(
 /// each file payload as a slice of that buffer instead of allocating a
 /// fresh `Vec<u8>` and `read_to_end`-ing every entry.
 ///
-/// Every tar-side failure — a corrupt entries iterator, a mangled
-/// header (bad mode, bad size), an invalid file offset, a path decode
-/// error, a path whose components would escape the CAFS root — comes
-/// back as [`TarballError::ReadTarballEntries`] instead of panicking.
+/// Every tar-side failure comes back as
+/// [`TarballError::ReadTarballEntries`] instead of panicking.
 /// Non-UTF-8 entry paths are coerced via
 /// [`std::path::Path::to_string_lossy`], matching pnpm's string-based
 /// handling so a mixed install against the shared `index.db` stays
@@ -1477,16 +1475,10 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
 }
 
 /// Whether a [`TarballError`] from one tarball-fetch attempt should be
-/// retried. Matches pnpm's
-/// [`remoteTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L76-L84)
-/// policy *exactly*: only HTTP 401, 403, 404 (and the git-prepare
-/// failure code, which doesn't apply to registry tarballs) fail fast.
-/// Every other failure — arbitrary 4xx, 5xx, network reset, timeout,
-/// integrity mismatch, gzip / tar parse error, CAFS write hiccup —
-/// retries until the budget is exhausted.
+/// retried.
 ///
-/// In particular this means we retry integrity mismatches and decode
-/// errors. pnpm wraps the body fetch *and* the post-download
+/// We retry integrity mismatches and decode errors. pnpm wraps the
+/// body fetch *and* the post-download
 /// `addFilesFromTarball` (integrity check + extraction) in one retried
 /// closure for the same reason: a corrupted byte on the wire that
 /// happens to escape TCP framing can break either the integrity check

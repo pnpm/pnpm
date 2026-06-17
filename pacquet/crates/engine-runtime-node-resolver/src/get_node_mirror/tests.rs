@@ -27,8 +27,6 @@ fn uses_defaults_when_unconfigured() {
     assert_eq!(get_node_mirror(None, "release"), "https://nodejs.org/download/release/");
 }
 
-/// Missing trailing slash on a configured mirror is appended so the
-/// caller can concatenate `v<version>/...` without a guard.
 #[test]
 fn appends_trailing_slash_when_missing() {
     let mirrors =

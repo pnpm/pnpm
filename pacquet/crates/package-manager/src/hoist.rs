@@ -187,17 +187,11 @@ pub struct HoistInputs<'a> {
     /// Snapshot keys that should not be hoisted because they were
     /// skipped (typically: skipped optional deps). The hoist BFS still
     /// walks into them so the children of a skipped optional dep can
-    /// be considered for hoisting — but the skipped dep itself is
-    /// kept out of `hoistedDependencies` (mirrors upstream's
-    /// `opts.skipped.has(node.depPath)` branch).
+    /// be considered for hoisting.
     pub skipped: &'a HashSet<PackageKey>,
-    /// Boolean matcher built from `Config.hoist_pattern`. Mirrors
-    /// upstream's `createMatcher(privateHoistPattern)`.
+    /// Boolean matcher built from `Config.hoist_pattern`.
     pub private_pattern: Matcher,
     /// Boolean matcher built from `Config.public_hoist_pattern`.
-    /// Public matches override private matches at the per-alias
-    /// decision below — same precedence as upstream's
-    /// `createGetAliasHoistType`.
     pub public_pattern: Matcher,
 }
 
@@ -235,24 +229,7 @@ pub struct HoistResult {
 /// composed with
 /// [`hoistGraph`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L207-L267).
 ///
-/// Algorithm:
-///
-/// 1. Seed BFS from each importer's direct deps. Track depth (root's
-///    direct deps are depth 0; their children depth 1; etc.).
-/// 2. Sort all collected nodes by `(depth, nodeId)` so resolution
-///    is deterministic and matches upstream's `sort` step.
-/// 3. For each child alias of every visited node, ask the matchers
-///    whether to hoist (public wins over private). If the alias was
-///    already taken — case-insensitively, and seeded with the root
-///    importer's direct-dep names — skip.
-/// 4. Record the (node, alias) → kind in
-///    `hoisted_dependencies_by_node_id`. If the target snapshot
-///    is in the graph and not in `skipped`, also record its
-///    `(snapshot_key, alias) → kind` in `hoisted_dependencies` and
-///    claim the alias.
-///
-/// Returns `None` when the graph is empty (mirroring upstream's early
-/// return; spares the symlink pass any work).
+/// Returns `None` when the graph is empty.
 #[must_use]
 pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistResult> {
     if input.graph.is_empty() {
@@ -338,9 +315,7 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     entries.sort_by(|a, b| a.depth.cmp(&b.depth).then_with(|| a.sort_key.cmp(&b.sort_key)));
 
     // Seed `hoisted_aliases` with every direct-dep name of the root
-    // importer (`"."`). Upstream does the same — names already
-    // present at the root must not be re-hoisted under different
-    // versions. Workspace importers' deps don't seed this set
+    // importer (`"."`). Workspace importers' deps don't seed this set
     // because they live in their own `node_modules` and don't
     // collide with the root.
     let mut hoisted_aliases: HashSet<String> = input
@@ -384,10 +359,8 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
             if hoisted_aliases.contains(&alias_norm) {
                 continue;
             }
-            // Record (childNodeId, alias) → kind unconditionally —
-            // upstream does too, even when the target snapshot is
-            // missing or skipped. The symlink pass tolerates
-            // missing nodes via its own guard.
+            // Record (childNodeId, alias) → kind unconditionally; the
+            // symlink pass tolerates missing nodes via its own guard.
             hoisted_dependencies_by_node_id
                 .entry(child_node_id.clone())
                 .or_default()
@@ -515,15 +488,9 @@ pub fn symlink_hoisted_dependencies(
     for (node_id, alias_map) in hoisted_by_node_id {
         // Skipped snapshots never get a virtual-store slot, so a
         // hoist symlink at their slot path would dangle (Unix) or
-        // fail as a junction (Windows). Mirrors the guard
-        // `get_hoisted_dependencies` already applies before
-        // recording the *parent's* hoisting decisions —
-        // `hoisted_dependencies_by_node_id` records the
-        // (target, alias) pair unconditionally upstream of that
-        // guard (matching pnpm's structure), so the filter has to
-        // run here too. Covers slice 4 (`fetch_failed`), slice 5
-        // (`optional_excluded`), and the slice 1 installability
-        // path uniformly.
+        // fail as a junction (Windows). `hoisted_dependencies_by_node_id`
+        // records the (target, alias) pair unconditionally, so the
+        // filter has to run here too.
         if skipped.contains(node_id) {
             continue;
         }

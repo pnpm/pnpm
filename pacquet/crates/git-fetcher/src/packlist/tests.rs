@@ -203,8 +203,6 @@ fn gitignore_excludes_when_no_npmignore() {
 
 #[test]
 fn npmignore_does_not_drop_always_included_files() {
-    // Even when `.npmignore` says to drop README/LICENSE/etc., they
-    // must still ship — npm-packlist's always-included override.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
@@ -224,8 +222,6 @@ fn npmignore_does_not_drop_always_included_files() {
 
 #[test]
 fn npmignore_in_subdir_applies_to_subtree_only() {
-    // A nested `.npmignore` should narrow only its own subtree, not
-    // override the root's view.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
@@ -251,7 +247,6 @@ fn bundle_dependencies_subtree_is_included() {
     touch(root, "index.js");
     touch(root, "node_modules/dep/package.json");
     touch(root, "node_modules/dep/lib.js");
-    // Sibling node_modules entry that is NOT bundled — must not ship.
     touch(root, "node_modules/other/package.json");
     touch(root, "node_modules/other/lib.js");
 
@@ -292,8 +287,6 @@ fn bundled_dependencies_legacy_spelling_works() {
 
 #[test]
 fn bundle_dependency_missing_dir_is_silently_skipped() {
-    // A bundleDependencies entry that's not actually on disk should
-    // not crash the fetcher — npm-packlist treats it as a no-op.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
@@ -313,8 +306,7 @@ fn npmignore_in_parent_dir_does_not_leak_in() {
     // which would let a `.gitignore` above `pkg_dir` exclude files
     // inside it. The packlist must depend only on the package
     // directory's own contents — we set `parents(false)` precisely
-    // to prevent this. Test: drop a `.gitignore` *above* the pkg dir
-    // saying to exclude `index.js`, then confirm the file still ships.
+    // to prevent this.
     let dir = tempdir().unwrap();
     fs::write(dir.path().join(".gitignore"), "index.js\n").unwrap();
     let root = dir.path().join("pkg");
@@ -333,11 +325,9 @@ fn npmignore_in_parent_dir_does_not_leak_in() {
 
 #[test]
 fn bundle_dependencies_rejects_path_traversal() {
-    // Defense-in-depth regression: a malicious manifest with a `..`
-    // in bundleDependencies must not let the fetcher read files
-    // outside the package directory. Build a "valid" sibling dir
-    // outside the package's node_modules and prove its files don't
-    // end up in the result.
+    // Defense-in-depth: a malicious manifest with a `..` in
+    // bundleDependencies must not let the fetcher read files outside
+    // the package directory.
     let dir = tempdir().unwrap();
     let root = dir.path().join("pkg");
     fs::create_dir_all(&root).unwrap();
@@ -364,8 +354,6 @@ fn bundle_dependencies_rejects_path_traversal() {
 
 #[test]
 fn always_excluded_dir_segments_only_match_vcs() {
-    // A literal VCS dir segment excludes everything under it, but a
-    // file whose basename merely contains a VCS name is not excluded.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
@@ -428,9 +416,7 @@ fn bundle_dependencies_self_cycle_is_caught() {
     // bundle pointing back at itself (or any cycle reachable through
     // the canonical-path chain) must not stack-overflow the fetcher.
     // The visited-set + depth cap inside `packlist_inner` stops the
-    // recursion; the test just confirms the fetcher returns without
-    // panicking and includes the one-level bundle's files exactly
-    // once.
+    // recursion.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
@@ -477,9 +463,6 @@ fn bundle_dependencies_self_cycle_is_caught() {
 
 #[test]
 fn main_field_pointing_at_always_excluded_basename_is_refused() {
-    // Pass 3 force-includes `main` / `bin` only after running them
-    // through `should_always_exclude`, so the always-excluded set wins
-    // over a `"main": "package-lock.json"`.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
@@ -503,10 +486,8 @@ fn main_field_pointing_at_always_excluded_basename_is_refused() {
 
 #[test]
 fn bin_field_pointing_at_vcs_segment_is_refused() {
-    // Same idea for `bin`: a manifest pointing `bin/cli` at
-    // `.git/something` (silly but possible) must not re-add a VCS
-    // file. Uses a basename inside a `.git` segment to hit the dir-
-    // segment exclusion path rather than the basename one.
+    // Uses a basename inside a `.git` segment to hit the dir-segment
+    // exclusion path rather than the basename one.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");

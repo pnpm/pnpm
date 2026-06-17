@@ -12,8 +12,6 @@ fn no_home() -> Option<PathBuf> {
 #[test]
 fn prefers_xdg_config_home_on_every_os_without_consulting_home() {
     for os in ["linux", "macos", "windows"] {
-        // The home thunk panics: the XDG branch must short-circuit
-        // before it is ever called.
         let dir = config_dir("pnpm", os, Some("/srv/xdg"), Some(r"C:\LocalAppData"), || {
             unreachable!("home must not be consulted when XDG_CONFIG_HOME is set")
         });

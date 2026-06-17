@@ -23,18 +23,11 @@ fn cas_map(entries: &[(&str, PathBuf)]) -> HashMap<String, PathBuf> {
     entries.iter().map(|(k, v)| ((*k).to_string(), v.clone())).collect()
 }
 
-/// Force re-imports both with and without `keep_modules_dir` go down
-/// the same stage-and-swap path. Bundle them here so the call sites
-/// stay terse.
 const FORCE_KEEP: ImportIndexedDirOpts =
     ImportIndexedDirOpts { force: true, keep_modules_dir: true };
 const FORCE_ONLY: ImportIndexedDirOpts =
     ImportIndexedDirOpts { force: true, keep_modules_dir: false };
 
-/// Smoke test: with no existing target and default opts (matching the
-/// isolated linker's call shape), populate the directory like
-/// upstream `tryImportIndexedDir`. The opts don't matter here because
-/// the fresh-target branch is shared.
 #[test]
 fn fresh_target_links_files() {
     let tmp = tempdir().unwrap();
@@ -88,13 +81,6 @@ fn existing_target_short_circuits_under_default_opts() {
     assert_eq!(fs::read(target.join("extra.txt")).unwrap(), b"keep me");
 }
 
-/// The defining test for the hoisted-linker call shape: a re-install
-/// with `force` + `keep_modules_dir` must replace every file in the
-/// package directory but leave a pre-existing `node_modules/`
-/// subdirectory (and everything inside it) untouched. Models the
-/// hoisted-linker pattern of "rimraf orphans, then re-import each
-/// package over the top, where some packages have already had their
-/// nested deps installed by a sibling pass".
 #[test]
 fn force_keep_replaces_files_and_preserves_node_modules() {
     let tmp = tempdir().unwrap();
@@ -126,11 +112,9 @@ fn force_keep_replaces_files_and_preserves_node_modules() {
     assert_eq!(fs::read(target.join("node_modules/.placeholder")).unwrap(), b"keep me");
 }
 
-/// With `force` but not `keep_modules_dir`, an existing
-/// `node_modules/` is removed along with everything else. This isn't
-/// a call shape any current pacquet linker uses, but the parameter
-/// space requires it: `force=true, keep_modules_dir=false` is a valid
-/// `ImportIndexedDirOpts` and matches pnpm's `importIndexedDir(...,
+/// This isn't a call shape any current pacquet linker uses, but the
+/// parameter space requires it: `force=true, keep_modules_dir=false` is
+/// a valid `ImportIndexedDirOpts` and matches pnpm's `importIndexedDir(...,
 /// { force: true })` without the `keepModulesDir` flag.
 #[test]
 fn force_without_keep_clobbers_node_modules() {
@@ -161,10 +145,7 @@ fn force_without_keep_clobbers_node_modules() {
     );
 }
 
-/// If the package directory exists but has no `node_modules/`, the
-/// force re-install still wipes the stale files. Variant of the
-/// previous test that exercises the "preserve" branch when there's
-/// nothing to preserve.
+/// Exercises the "preserve" branch when there's nothing to preserve.
 #[test]
 fn force_keep_without_node_modules_replaces_cleanly() {
     let tmp = tempdir().unwrap();
@@ -192,10 +173,8 @@ fn force_keep_without_node_modules_replaces_cleanly() {
     assert!(!target.join("top.txt").exists(), "stale top-level file must be removed");
 }
 
-/// A regular file occupying the target path is replaced with the
-/// freshly-imported directory under `force`. The hoisted-linker call
-/// site shouldn't hit this in practice, but bailing out would wedge
-/// the install.
+/// The hoisted-linker call site shouldn't hit this in practice, but
+/// bailing out would wedge the install.
 #[test]
 fn force_replaces_regular_file_target() {
     let tmp = tempdir().unwrap();
@@ -220,9 +199,6 @@ fn force_replaces_regular_file_target() {
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"contents");
 }
 
-/// A symlink occupying the target path is unlinked (not followed)
-/// under `force` and replaced with the imported package. The
-/// pointee — if it exists — must not be touched.
 #[test]
 #[cfg(unix)]
 fn force_replaces_symlink_target_without_following() {
@@ -255,10 +231,8 @@ fn force_replaces_symlink_target_without_following() {
     assert_eq!(fs::read(pointee.join("sentinel.txt")).unwrap(), b"untouched");
 }
 
-/// Deeply-nested files in the indexed map land in the right places on
-/// a fresh install. Sanity-checks that the parent-dir pre-pass is
-/// reached on the fresh-target branch (shared between default and
-/// force opts).
+/// Sanity-checks that the parent-dir pre-pass is reached on the
+/// fresh-target branch (shared between default and force opts).
 #[test]
 fn fresh_target_creates_nested_directories() {
     let tmp = tempdir().unwrap();
@@ -282,12 +256,9 @@ fn fresh_target_creates_nested_directories() {
     assert_eq!(fs::read(target.join("lib/deep/nested/file.js")).unwrap(), b"deeper");
 }
 
-/// If the indexed file map names a `node_modules/...` entry while the
-/// destination already has a real `node_modules/` to preserve, surface
-/// the collision rather than silently merging. Upstream's
-/// `moveOrMergeModulesDirs` would merge; pacquet's slice-1 consumer
-/// (the hoisted-linker) never produces this state, so erroring loudly
-/// is the right call until a real caller demands the merge.
+/// Upstream's `moveOrMergeModulesDirs` would merge; pacquet's slice-1
+/// consumer (the hoisted-linker) never produces this state, so erroring
+/// loudly is the right call until a real caller demands the merge.
 #[test]
 fn node_modules_collision_in_file_map_errors() {
     let tmp = tempdir().unwrap();
@@ -526,9 +497,6 @@ fn concurrent_force_imports_into_different_targets_do_not_collide() {
     assert!(!target_b.join("stale.txt").exists());
 }
 
-/// Core of the pnpm/pnpm#12204 port (commit cbfeeef328): a marker-less
-/// partial directory is repaired, not treated as complete, and the repair
-/// is non-destructive.
 #[test]
 fn partial_dir_without_marker_is_repaired() {
     let tmp = tempdir().unwrap();
@@ -560,9 +528,7 @@ fn partial_dir_without_marker_is_repaired() {
     assert_eq!(fs::read(target.join("leftover.txt")).unwrap(), b"keep me");
 }
 
-/// Mirror of [`partial_dir_without_marker_is_repaired`]: a present marker
-/// short-circuits the whole import, even with other files missing (pnpm's
-/// `pkgExistsAtTargetDir` checks only the marker).
+/// pnpm's `pkgExistsAtTargetDir` checks only the marker.
 #[test]
 fn existing_marker_short_circuits_even_when_other_files_missing() {
     let tmp = tempdir().unwrap();
@@ -589,8 +555,6 @@ fn existing_marker_short_circuits_even_when_other_files_missing() {
     assert!(!target.join("lib/index.js").exists(), "skipped import must not link other files");
 }
 
-/// With no `package.json`, the marker falls back to the lexicographically
-/// smallest filename, and a directory missing it is still repaired.
 #[test]
 fn fallback_marker_repairs_when_no_package_json() {
     let tmp = tempdir().unwrap();
@@ -619,8 +583,8 @@ fn fallback_marker_repairs_when_no_package_json() {
     assert_eq!(fs::read(target.join("b.txt")).unwrap(), b"B");
 }
 
-/// A fresh import places the marker and leaves no staging temp behind (a
-/// leaked `*_pacquet-stage_*` file would mean the rename never happened).
+/// A leaked `*_pacquet-stage_*` file would mean the marker rename never
+/// happened.
 #[test]
 fn fresh_import_places_marker_and_leaks_no_temp() {
     let tmp = tempdir().unwrap();
@@ -650,9 +614,8 @@ fn fresh_import_places_marker_and_leaks_no_temp() {
     }
 }
 
-/// Marker-only map into a non-existent target: with the non-marker loop
-/// empty, the target must still be created before the marker is staged
-/// into it.
+/// With the non-marker loop empty, the target must still be created
+/// before the marker is staged into it.
 #[test]
 fn marker_only_map_creates_target_and_places_marker() {
     let tmp = tempdir().unwrap();

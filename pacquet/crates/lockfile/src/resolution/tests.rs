@@ -86,9 +86,6 @@ fn deserialize_tarball_resolution_with_git_hosted() {
 
 #[test]
 fn deserialize_tarball_resolution_backfills_git_hosted() {
-    // Lockfiles written by older pnpm versions don't carry `gitHosted`; the
-    // loader back-fills it for entries whose URL matches a known git host.
-    // Mirrors upstream's `enrichGitHostedFlag`.
     eprintln!("CASE: codeload.github.com");
     let yaml = text_block! {
         "tarball: https://codeload.github.com/foo/bar/tar.gz/abc1234"
@@ -143,8 +140,6 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
     assert_eq!(received, expected);
 
     eprintln!("CASE: github.com without tar.gz (must not back-fill)");
-    // Upstream's prefix check requires both the host prefix *and* a `tar.gz`
-    // substring — release pages aren't tarballs.
     let yaml = text_block! {
         "tarball: https://codeload.github.com/foo/bar/zip/abc1234"
     };
@@ -187,9 +182,6 @@ fn serialize_tarball_resolution() {
 
 #[test]
 fn deserialize_tarball_resolution_with_path() {
-    // Git-hosted tarballs from monorepos carry an optional sub-path
-    // that points at the directory to pack. Mirrors pnpm's
-    // `TarballResolution.path`.
     let yaml = text_block! {
         "tarball: https://codeload.github.com/foo/bar/tar.gz/abc1234"
         "gitHosted: true"
@@ -346,9 +338,6 @@ fn serialize_git_resolution_with_path() {
     assert_eq!(received, expected);
 }
 
-/// A `BinaryResolution` for a tarball-shape runtime (Linux / macOS
-/// Node), `bin` as a single string, no `prefix`. Mirrors what pnpm's
-/// node-resolver writes for the `.tar.gz` branch.
 #[test]
 fn deserialize_binary_resolution_tarball() {
     let yaml = text_block! {
@@ -372,11 +361,6 @@ fn deserialize_binary_resolution_tarball() {
     assert_eq!(received, expected);
 }
 
-/// A `BinaryResolution` for a zip-shape runtime (Windows Node), `bin`
-/// as a name map, and `prefix` carrying the archive's top-level
-/// directory name. Mirrors what pnpm's node-resolver writes for the
-/// `.zip` branch at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/engine/runtime/node-resolver/src/index.ts>.
 #[test]
 fn deserialize_binary_resolution_zip_with_map_and_prefix() {
     let yaml = text_block! {
@@ -403,10 +387,6 @@ fn deserialize_binary_resolution_zip_with_map_and_prefix() {
     assert_eq!(received, expected);
 }
 
-/// Round-trip a `BinaryResolution` so the serialized form pacquet
-/// emits matches the shape upstream's resolver writes. Guards the
-/// field ordering (and `prefix` omission for the tarball case) so a
-/// lockfile pacquet round-trips stays diff-stable against pnpm.
 #[test]
 fn serialize_binary_resolution_tarball() {
     let resolution = LockfileResolution::Binary(BinaryResolution {
@@ -420,8 +400,6 @@ fn serialize_binary_resolution_tarball() {
     });
     let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
-    // Binary resolutions render in block style (excluded from the single-line
-    // rule) with keys deep-sorted; `prefix: None` skips serialization.
     let expected = text_block! {
         "resolution:"
         "  archive: tarball"
@@ -433,10 +411,6 @@ fn serialize_binary_resolution_tarball() {
     assert_eq!(received, expected);
 }
 
-/// A `VariationsResolution` wrapping two `BinaryResolution` variants
-/// — the typical Node runtime shape: one variant per `(os, cpu)`
-/// pair. `libc` only set on the linux-musl variant (when present);
-/// omitted everywhere else.
 #[test]
 fn deserialize_variations_resolution() {
     let yaml = text_block! {
@@ -475,10 +449,6 @@ fn deserialize_variations_resolution() {
     assert_eq!(variations.variants[1].targets[0].libc.as_deref(), Some("musl"));
 }
 
-/// Round-trip a single-variant `VariationsResolution`. Pinning the
-/// emitted shape so the variant list, the inner resolution
-/// discriminator, and the targets array all serialise in the same
-/// order pnpm writes.
 #[test]
 fn serialize_variations_resolution() {
     let resolution = LockfileResolution::Variations(VariationsResolution {
@@ -546,10 +516,6 @@ fn selector(os: &str, cpu: &str, libc: Option<&str>) -> PlatformSelector {
     PlatformSelector { os: os.to_string(), cpu: cpu.to_string(), libc: libc.map(str::to_string) }
 }
 
-/// The picker returns the first variant whose `targets[]` contains an
-/// `(os, cpu, libc)` triple matching the selector. Mirrors upstream's
-/// declaration-order semantics — `Array.prototype.find` in
-/// `selectPlatformVariant`.
 #[test]
 fn pick_first_matching_variant() {
     let variants = vec![
@@ -566,10 +532,6 @@ fn pick_first_matching_variant() {
     assert_eq!(picked.targets, vec![target("linux", "x64", None)]);
 }
 
-/// One variant can cover multiple host triples; the picker matches
-/// against any entry in the variant's `targets[]`. Real-world Node
-/// archives ship a single `darwin` tarball that covers both `x64`
-/// and `arm64` via separate target entries.
 #[test]
 fn pick_matches_any_target_in_a_variant() {
     let variants = vec![variant(
@@ -580,20 +542,12 @@ fn pick_matches_any_target_in_a_variant() {
     assert!(picked.is_some());
 }
 
-/// No variant matching the host triple → `None`. The install
-/// dispatcher will surface this as a typed "no variant matches host
-/// platform" error (Slice D).
 #[test]
 fn pick_returns_none_when_no_variant_matches() {
     let variants = vec![variant("darwin-arm64", vec![target("darwin", "arm64", None)])];
     assert!(select_platform_variant(&variants, &selector("linux", "x64", Some("glibc"))).is_none());
 }
 
-/// On a musl host, the glibc-default variant must NOT win silently.
-/// Upstream rejects a `None`-libc variant when the selector requests
-/// `musl`, requiring an exact `libc: "musl"` annotation to match.
-/// Without this, a musl host would attempt to run a glibc-linked
-/// binary.
 #[test]
 fn pick_rejects_default_variant_for_musl_host() {
     let variants = vec![variant("linux-x64-glibc", vec![target("linux", "x64", None)])];
@@ -603,12 +557,6 @@ fn pick_rejects_default_variant_for_musl_host() {
     );
 }
 
-/// When two variants both match the same `(os, cpu, libc)` triple,
-/// declaration order wins — mirroring upstream's `Array.prototype.find`
-/// in `selectPlatformVariant`. Pinning this guards against a future
-/// refactor that reorders the iteration (e.g., to a `BTreeMap` keyed
-/// by triple) since pnpm-written lockfiles can rely on the order
-/// (e.g., listing a preferred build before a fallback).
 #[test]
 fn pick_returns_first_when_multiple_variants_match() {
     let variants = vec![
@@ -623,7 +571,6 @@ fn pick_returns_first_when_multiple_variants_match() {
     assert_eq!(inner.url, "first-darwin-arm64", "declaration order must win");
 }
 
-/// A musl variant is picked only when the selector requests musl.
 #[test]
 fn pick_matches_musl_variant_for_musl_host() {
     let variants = vec![
@@ -635,31 +582,18 @@ fn pick_matches_musl_variant_for_musl_host() {
     assert_eq!(picked.targets, vec![target("linux", "x64", Some("musl"))]);
 }
 
-/// `libc_matches` truth table. Pinning each cell guards the
-/// upstream contract in
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L100-L107>:
-/// `None`-libc selector or `"glibc"` selector → variant libc must be
-/// `None`; any other selector value → exact match.
 #[test]
 fn libc_matches_truth_table() {
-    // Selector says "no libc constraint" (non-Linux host): only
-    // the default (unannotated) variant matches.
     assert!(libc_matches(None, None));
     assert!(!libc_matches(Some("musl"), None));
     assert!(!libc_matches(Some("glibc"), None));
 
-    // Selector says "glibc" (Linux glibc host): same rule as None.
     assert!(libc_matches(None, Some("glibc")));
     assert!(!libc_matches(Some("musl"), Some("glibc")));
 
-    // Selector says "musl" (Linux musl host): require exact musl
-    // annotation; the default variant is rejected.
     assert!(libc_matches(Some("musl"), Some("musl")));
     assert!(!libc_matches(None, Some("musl")));
 
-    // Selector says an unknown libc (future-compat): require
-    // exact match. The default variant is rejected so a future
-    // libc value can't be silently aliased to glibc.
     assert!(libc_matches(Some("uclibc"), Some("uclibc")));
     assert!(!libc_matches(None, Some("uclibc")));
     assert!(!libc_matches(Some("glibc"), Some("uclibc")));

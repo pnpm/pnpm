@@ -1117,27 +1117,15 @@ fn retry_opts_delay_does_not_overflow() {
     assert_eq!(opts.delay_for(u32::MAX), Duration::from_mins(1));
 }
 
-/// pnpm's
-/// [`remoteTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L76-L84)
-/// rejects only HTTP 401, 403, 404 (and the git-prepare error code,
-/// which doesn't apply to registry tarballs). Every other failure
-/// — arbitrary 4xx, 5xx, network reset, integrity mismatch, gzip
-/// or tar parse error — falls through to `op.retry(error)` and is
-/// retried. Diverging here was the original bug behind [#259].
-///
-/// [#259]: https://github.com/pnpm/pacquet/issues/259
 #[test]
 fn retry_classification_matches_pnpm_policy() {
     let url = "https://example.test/pkg.tgz".to_string();
     let mk_http =
         |status: u16| TarballError::HttpStatus(HttpStatusError { url: url.clone(), status });
 
-    // Fail-fast set — exactly the three codes pnpm short-circuits on.
     for code in [401u16, 403, 404] {
         assert!(!is_transient_error(&mk_http(code)), "HTTP {code} should fail fast");
     }
-    // Everything else, including arbitrary 4xx that pnpm does not
-    // single out, must retry.
     for code in [400u16, 408, 409, 410, 418, 420, 422, 429, 500, 502, 503, 504] {
         assert!(is_transient_error(&mk_http(code)), "HTTP {code} should retry");
     }
@@ -1179,11 +1167,6 @@ fn fast_retry_opts() -> RetryOpts {
     }
 }
 
-/// First request returns 503 (transient per pnpm's policy), the
-/// retry returns 200 with the real fastify-error tarball. The
-/// retry loop must drive the full pipeline — network → integrity
-/// → extract — to completion on the second attempt, which is the
-/// core fix for [#259](https://github.com/pnpm/pacquet/issues/259).
 #[tokio::test]
 async fn retries_then_succeeds_on_transient_5xx() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -1225,11 +1208,6 @@ async fn retries_then_succeeds_on_transient_5xx() {
     drop(store_dir_keep);
 }
 
-/// pnpm's tarball fetcher retries integrity mismatches by re-running
-/// the full `addFilesFromTarball` closure on the next attempt. With
-/// a body that never matches the integrity hash, the loop must
-/// retry until the budget is exhausted and then surface a
-/// `Checksum` error — not fail fast on the first mismatch.
 #[tokio::test]
 async fn retries_integrity_mismatch_until_exhausted() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -1309,10 +1287,6 @@ async fn fails_fast_on_404() {
     drop(store_dir_keep);
 }
 
-/// pnpm retries arbitrary 4xx codes that aren't 401/403/404 (any
-/// `FetchError` throws to the outer catch, which only short-circuits
-/// on the explicit no-retry set). 410 Gone is the canonical example
-/// — semantically permanent but pnpm still hits it `retries+1` times.
 #[tokio::test]
 async fn retries_other_4xx_codes() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -1352,9 +1326,6 @@ async fn retries_other_4xx_codes() {
     drop(store_dir_keep);
 }
 
-/// Persistent 5xx must stop after `retries + 1` total tries. Pairs
-/// with `retries_then_succeeds_on_transient_5xx` to bracket both
-/// success and exhaustion paths.
 #[tokio::test]
 async fn retry_exhaustion_returns_last_error() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -2517,12 +2488,9 @@ fn build_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
     buf
 }
 
-/// Happy path: a zip with two file entries under a top-level
-/// `node-vX.Y.Z-darwin-arm64/` directory is extracted with the
-/// prefix stripped from each `cas_paths` key. Mirrors upstream's
-/// `basenamePrefix` strip — the install dispatcher will later
-/// resolve `bin/node` against `cas_paths` and that lookup must
-/// hit the stripped form, not the prefixed form.
+/// The install dispatcher will later resolve `bin/node` against
+/// `cas_paths` and that lookup must hit the stripped form, not the
+/// prefixed form.
 #[test]
 fn extract_zip_strips_prefix_from_entry_paths() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
@@ -2671,10 +2639,6 @@ fn extract_zip_rejects_directory_entry_with_parent_component() {
     drop(tempdir);
 }
 
-/// `archive_prefix: None` keeps entry paths verbatim — same as
-/// upstream's `basename === ''` branch in `extractZipToTarget`.
-/// A zip without a top-level wrapper directory must round-trip
-/// each entry's path into `cas_paths` as-is.
 #[test]
 fn extract_zip_uses_entry_path_when_no_prefix() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
@@ -2876,9 +2840,6 @@ mod normalize_bundled_manifest_tests {
 
     #[test]
     fn returns_none_for_non_object() {
-        // Mirrors upstream's type guard at the top of
-        // `normalizeBundledManifest` — a non-object input degrades to
-        // `None` rather than panicking.
         assert_eq!(normalize_bundled_manifest(&json!("not an object")), None);
         assert_eq!(normalize_bundled_manifest(&json!(null)), None);
         assert_eq!(normalize_bundled_manifest(&json!(42)), None);

@@ -141,9 +141,6 @@ fn parse_pkg_and_parent_selector_parent_child() {
 
 #[test]
 fn catalog_protocol_with_missing_entry_errors() {
-    // An empty catalog table can never resolve a `catalog:` value;
-    // upstream surfaces this as `ERR_PNPM_CATALOG_IN_OVERRIDES` with
-    // the underlying "No catalog entry" message.
     let input = HashMap::from([("foo".to_string(), "catalog:default".to_string())]);
     let err = parse_overrides(&input, &Catalogs::new()).unwrap_err();
     let ParseOverridesError::CatalogInOverrides { message } = err else {
@@ -155,12 +152,6 @@ fn catalog_protocol_with_missing_entry_errors() {
     );
 }
 
-/// `catalog:` resolves to the catalog's specifier when the entry exists.
-/// Matches upstream's
-/// [`parseOverrides`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L28-L41)
-/// behavior where `matchCatalogResolveResult.found` returns the
-/// resolved specifier and the entry's `newBareSpecifier` is rewritten
-/// to it.
 #[test]
 fn catalog_protocol_resolves_to_catalog_specifier() {
     let mut catalogs = Catalogs::new();
@@ -173,7 +164,6 @@ fn catalog_protocol_resolves_to_catalog_specifier() {
     assert_eq!(out, vec![vo("foo", "^1.2.3", None, sel("foo", None))]);
 }
 
-/// `catalog:name` looks up the named catalog by name.
 #[test]
 fn catalog_protocol_with_named_catalog_resolves() {
     let mut catalogs = Catalogs::new();
@@ -186,10 +176,6 @@ fn catalog_protocol_with_named_catalog_resolves() {
     assert_eq!(out, vec![vo("bar", "2.0.0", None, sel("bar", None))]);
 }
 
-/// `create_overrides_map_from_parsed` flattens the parsed entries back
-/// into the `selector → newBareSpecifier` map shape — with catalog
-/// resolution already applied. Mirrors upstream's
-/// [`createOverridesMapFromParsed`](https://github.com/pnpm/pnpm/blob/4a36b9a110/lockfile/settings-checker/src/createOverridesMapFromParsed.ts).
 #[test]
 fn create_overrides_map_returns_resolved_specifiers() {
     let mut catalogs = Catalogs::new();

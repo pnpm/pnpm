@@ -89,11 +89,6 @@ impl Lockfile {
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(error) => return error.pipe(LoadLockfileError::ReadFile).pipe(Err),
         };
-        // Skip the env lockfile document if present (first document in
-        // pnpm v11's combined format). Mirrors upstream `_read` at
-        // <https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/fs/src/read.ts#L103-L110>:
-        // an empty main document (env-only file) is treated as if the
-        // lockfile is absent.
         let main = extract_main_document(&content);
         if main.trim().is_empty() {
             return Ok(None);

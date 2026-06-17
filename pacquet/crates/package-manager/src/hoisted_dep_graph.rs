@@ -9,16 +9,7 @@
 //! lockfile plus an optional *current* lockfile and runs
 //! `pacquet_real_hoist::hoist` to get the directory shape, then
 //! assembles a [`LockfileToDepGraphResult`] keyed by the computed
-//! absolute directory of every node. Optional packages whose
-//! `cpu` / `os` / `libc` / `engines` don't fit the current host
-//! are added to `result.skipped` rather than emitted into the
-//! graph; required incompatible packages proceed with a
-//! (yet-to-be-wired) warning, matching upstream
-//! `package_is_installable`'s `null | true | false` shape. When a
-//! current lockfile is supplied, the walker runs a second
-//! `force: true, skipped: empty` pass over it to populate
-//! `result.prev_graph` — the input Slice 5's linker diffs against
-//! to identify orphaned directories. Store I/O (`fetching` /
+//! absolute directory of every node. Store I/O (`fetching` /
 //! `files_index_file`) is still deferred — those fields are
 //! populated by the linker, which kicks off store fetches when it
 //! has a real consumer for the handles.
@@ -318,11 +309,6 @@ pub enum HoistedDepGraphError {
     /// `ERR_PNPM_UNSUPPORTED_PLATFORM` /
     /// `ERR_PNPM_INVALID_NODE_VERSION`) as upstream, and the
     /// inner error already carries the package id for context.
-    ///
-    /// Optional packages on incompatible platforms do *not* take
-    /// this path — they are added to `result.skipped` and
-    /// silently skipped, matching upstream's
-    /// `pnpm:skipped-optional-dependency` semantics.
     #[display("{_0}")]
     #[diagnostic(transparent)]
     Installability(#[error(source)] Box<InstallabilityError>),
@@ -337,14 +323,6 @@ pub enum HoistedDepGraphError {
 /// wanted lockfile, plus an optional *current* lockfile to diff
 /// against. Ports upstream's
 /// [`lockfileToHoistedDepGraph`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/lockfileToHoistedDepGraph.ts#L65-L85).
-///
-/// When `current_lockfile` is `Some` and the lockfile has a
-/// non-empty `packages:` map, the function runs an extra pass
-/// over that lockfile with `force: true` and `skipped: empty` to
-/// produce `prev_graph` — the graph the previous install
-/// produced, used by Slice 5's linker to identify orphaned
-/// directories. Mirrors upstream's pre-await branch at
-/// [`lockfileToHoistedDepGraph.ts:70-79`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/lockfileToHoistedDepGraph.ts#L70-L79).
 ///
 /// The store-controller-bound `fetching` / `files_index_file`
 /// fields on each graph node remain default-valued — those are

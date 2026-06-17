@@ -2,8 +2,6 @@ use super::{CalcDepStateOptions, DepsGraphNode, calc_dep_state, transitively_req
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 
-/// Mirrors the "`include_dep_graph_hash`: false" path at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L36>.
 #[test]
 fn engine_only_key() {
     let graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -21,7 +19,6 @@ fn engine_only_key() {
     assert_eq!(result, "darwin;arm64;node20");
 }
 
-/// Mirrors lines 40-42 of `calcDepState`.
 #[test]
 fn patch_appended_without_dep_graph_hash() {
     let graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -39,10 +36,6 @@ fn patch_appended_without_dep_graph_hash() {
     assert_eq!(result, "linux;x64;node22;patch=sha256-abc");
 }
 
-/// Dep-graph hash for a leaf (no children) is `hash_object({
-/// id, deps: {} })`. Both sites that consult `deps={}` (the
-/// leaf case at `calcLeafGlobalVirtualStorePath` and the
-/// children-elided case for cycle/missing-node) must agree.
 #[test]
 fn dep_graph_hash_for_leaf_uses_id_and_empty_deps() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -133,8 +126,6 @@ fn diamond_graph_resolves_consistently() {
     assert!(result.contains(";deps="), "result must include deps section: {result:?}");
 }
 
-/// The walk terminates via the parents-set short-circuit. Mirrors
-/// upstream's `if (!parents.has(node.fullPkgId))` guard at line 66.
 #[test]
 fn cyclic_graph_terminates_and_is_stable() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -161,8 +152,6 @@ fn cyclic_graph_terminates_and_is_stable() {
     assert_eq!(h1, h2);
 }
 
-/// Both patch and dep graph hashes append in upstream's order:
-/// `<engine>;deps=<h>;patch=<h>`. Mirrors index.js:36-42.
 #[test]
 fn dep_graph_and_patch_concatenate_in_upstream_order() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -269,11 +258,8 @@ fn transitively_requires_build_returns_false_for_unrelated_tree() {
     assert_eq!(cache.get("leaf@1.0.0"), Some(&false));
 }
 
-/// Missing node: returns `false` and caches `false`. Mirrors
-/// upstream's `if (!node) { cache[depPath] = false; return false }`
-/// branch — the install-time graph build can drop entries for
-/// resolutions the linker rejects later, so the walker must not
-/// panic on missing keys.
+/// The install-time graph build can drop entries for resolutions the
+/// linker rejects later, so the walker must not panic on missing keys.
 #[test]
 fn transitively_requires_build_caches_false_for_missing_node() {
     let graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -290,12 +276,6 @@ fn transitively_requires_build_caches_false_for_missing_node() {
     assert_eq!(cache.get("ghost@1.0.0"), Some(&false));
 }
 
-/// Cycle: a → b → a with no builder anywhere. The walk must
-/// terminate and return `false`. Cache state on `a` is `false`
-/// (the post-loop write), `b` is also `false`. The cycle short
-/// circuit at upstream's `if (parents.has(depPath)) return false`
-/// fires once but doesn't taint the eventual cache write at
-/// the frame that owns `a`.
 #[test]
 fn transitively_requires_build_cycle_terminates() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -326,16 +306,10 @@ fn transitively_requires_build_cycle_terminates() {
     assert!(parents.is_empty(), "parents set must be restored to empty");
 }
 
-/// Cycle with builder elsewhere in the tree: `a → b → a` plus
-/// `a → builder`. The cycle must not short-circuit `a`'s overall
-/// answer to `false` — the sibling builder visit still drives
-/// `a` to `true`. Verifies that the no-cache-on-cycle behaviour
-/// is what makes this work.
 #[test]
 fn transitively_requires_build_cycle_does_not_mask_sibling_builder() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    // Use a BTreeMap-style two-key insert so child iteration
-    // order can take either path; both must yield `true`.
+    // Two children so child iteration order can take either path.
     let mut a_children = HashMap::new();
     a_children.insert("b".to_string(), "b@1.0.0".to_string());
     a_children.insert("c".to_string(), "builder@1.0.0".to_string());

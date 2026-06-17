@@ -14,11 +14,6 @@ use pacquet_registry::PinnedVersion;
 /// `whichVersionIsPinned(prev) ?? whichVersionIsPinned(bare) ?? default`
 /// precedence
 /// (<https://github.com/pnpm/pnpm/blob/681b593eb2/resolving/npm-resolver/src/index.ts#L806-L814>).
-///
-/// A `catalog:` reference carries no pin of its own — the pin lives in the
-/// catalog entry it points to — so it returns `None` even when the catalog
-/// name happens to parse as a version (e.g. `catalog:express4-21`), matching
-/// the upstream guard.
 #[must_use]
 pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
     if spec.starts_with("catalog:") {

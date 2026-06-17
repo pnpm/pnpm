@@ -21,9 +21,6 @@ fn make_slot(
     slot
 }
 
-/// `prune()` is a no-op when the store has no `links/` directory.
-/// Mirrors upstream's
-/// `if (!await pathExists(linksDir)) return` short-circuit.
 #[test]
 fn prune_is_noop_without_links_dir() {
     let store = tempdir().unwrap();
@@ -44,11 +41,6 @@ fn prune_keeps_everything_when_no_projects() {
     assert!(slot.exists(), "no-project prune must leave slots intact");
 }
 
-/// End-to-end: register two projects, delete one's directory,
-/// run prune. The dead project's symlink should be unlinked from
-/// `<store>/projects/` and any slot ONLY the dead project
-/// referenced gets removed; slots the live project still
-/// references survive.
 #[test]
 fn prune_removes_dead_project_slots_and_keeps_live_slots() {
     let store = tempdir().unwrap();
@@ -83,12 +75,9 @@ fn prune_removes_dead_project_slots_and_keeps_live_slots() {
 
     assert!(live_slot.exists(), "slot referenced by live project must survive");
     assert!(!dead_slot.exists(), "slot only referenced by dead project must be swept");
-    // Empty `<version>/` and `<name>/` parents must be cleaned up.
     assert!(!links.join("@").join("dead-pkg").exists(), "empty name dir gone");
 }
 
-/// Shared-slot case: two projects reference the same slot.
-/// Removing one project must not delete the shared slot.
 #[test]
 fn prune_keeps_slot_referenced_by_any_surviving_project() {
     let store = tempdir().unwrap();
@@ -122,8 +111,6 @@ fn prune_keeps_slot_referenced_by_any_surviving_project() {
     assert!(shared_slot.exists(), "shared slot survives when one referencer remains");
 }
 
-/// Orphan-slot case: a slot exists under `<store>/links/...` but
-/// no project references it. Prune should remove it.
 #[test]
 fn prune_removes_orphan_slot_unreferenced_by_any_project() {
     let store = tempdir().unwrap();
@@ -146,9 +133,6 @@ fn prune_removes_orphan_slot_unreferenced_by_any_project() {
     assert!(!orphan.exists(), "orphan slot must be swept");
 }
 
-/// Transitive case: project's `node_modules/foo` → slot. The
-/// slot's own `node_modules/bar` → another slot. Both slots must
-/// be marked reachable.
 #[test]
 fn prune_marks_transitive_slot_reachable() {
     let store = tempdir().unwrap();

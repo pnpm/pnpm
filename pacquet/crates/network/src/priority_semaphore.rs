@@ -124,10 +124,6 @@ impl PrioritySemaphore {
                 free: permits,
                 latency_in_flight: 0,
                 throughput_in_flight: 0,
-                // Half the pool, but never all of it: a reserve that
-                // covers every permit (the `permits == 1` case) would
-                // invert the starvation guarantee — queued downloads
-                // would block metadata outright instead of sharing.
                 throughput_reserve: permits.div_ceil(2).min(permits.saturating_sub(1)),
                 next_seq: 0,
                 latency_waiters: VecDeque::new(),
@@ -182,9 +178,7 @@ impl SemState {
     }
 
     /// Pop the waiter the grant policy picks next, or `None` when both
-    /// queues are empty: throughput work below its reserve goes first,
-    /// then queued latency work, then throughput work above the
-    /// reserve.
+    /// queues are empty.
     fn next_waiter(&mut self) -> Option<(Waiter, Class)> {
         if self.throughput_in_flight < self.throughput_reserve
             && let Some(waiter) = self.throughput_waiters.pop()

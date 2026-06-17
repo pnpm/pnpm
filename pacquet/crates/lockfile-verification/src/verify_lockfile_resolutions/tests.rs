@@ -145,8 +145,6 @@ impl ResolutionVerifier for FailFor {
     }
 }
 
-/// Empty verifier list is a no-op — neither emits nor errors. Lets
-/// the install path skip the gate when no policy is configured.
 #[tokio::test]
 async fn no_verifiers_is_a_noop() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -169,8 +167,6 @@ async fn no_verifiers_is_a_noop() {
     assert!(EVENTS.lock().unwrap().is_empty(), "no-op must not emit");
 }
 
-/// Lockfile without `packages:` is a no-op — there's nothing to
-/// verify. Mirrors upstream's `!lockfile.packages` guard.
 #[tokio::test]
 async fn no_packages_section_is_a_noop() {
     let yaml = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n";
@@ -185,8 +181,6 @@ async fn no_packages_section_is_a_noop() {
     assert!(result.is_ok());
 }
 
-/// All verifiers pass → success path returns `Ok`, fires
-/// `Started` + `Done`, no `Failed`.
 #[tokio::test]
 async fn all_ok_emits_started_then_done() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -234,8 +228,6 @@ async fn all_ok_emits_started_then_done() {
     }
 }
 
-/// Single `MIN_AGE` violation → resolves to the per-policy variant
-/// with that one entry in the breakdown.
 #[tokio::test]
 async fn single_violation_picks_per_policy_variant() {
     let lockfile = parse(SINGLE_PKG_LOCKFILE);
@@ -254,8 +246,6 @@ async fn single_violation_picks_per_policy_variant() {
     assert!(breakdown.contains("react@17.0.2"), "got: {breakdown}");
 }
 
-/// Two verifiers with different codes both rejecting → mixed batch
-/// escalates to `LockfileResolutionVerification`.
 #[tokio::test]
 async fn mixed_code_batch_escalates() {
     let lockfile = parse(TWO_PKG_LOCKFILE);
@@ -280,9 +270,6 @@ async fn mixed_code_batch_escalates() {
     assert!(acme < bravo, "expected acme before bravo: {breakdown}");
 }
 
-/// Per-candidate fan-out stops at the first verifier that rejects —
-/// a single (name, version) never produces two violations even when
-/// multiple verifiers would have flagged it.
 #[tokio::test]
 async fn per_candidate_fan_out_stops_at_first_failure() {
     let lockfile = parse(SINGLE_PKG_LOCKFILE);
@@ -298,9 +285,6 @@ async fn per_candidate_fan_out_stops_at_first_failure() {
     assert_eq!(violations[0].code, "MINIMUM_RELEASE_AGE_VIOLATION");
 }
 
-/// `collect_resolution_policy_violations` returns the data without
-/// short-circuiting on the first batch. Used by auto-collect and
-/// strict-mode prompt callers.
 #[tokio::test]
 async fn collect_returns_data_for_all_violations() {
     let lockfile = parse(TWO_PKG_LOCKFILE);
@@ -314,8 +298,6 @@ async fn collect_returns_data_for_all_violations() {
     assert_eq!(violations.len(), 2);
 }
 
-/// Failed-path emit fires — the `Failed` variant pairs with the
-/// `Started` even when the runner returns Err.
 #[tokio::test]
 async fn failed_path_emits_failed_terminator() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -348,14 +330,9 @@ async fn failed_path_emits_failed_terminator() {
     }
 }
 
-/// The deduplicating-by-(name, version, resolution) candidate
-/// collector means a snapshot key like `react@17.0.2(react@17.0.2)`
-/// alongside the bare `react@17.0.2` would still only verify once.
 /// Pacquet's `Lockfile` keeps `packages:` keyed by the bare
 /// `react@17.0.2` already, so the duplicate would have to live in
-/// `snapshots:` — which today's collector doesn't walk. This guards
-/// the contract that a single packages-section entry produces a
-/// single verification call.
+/// `snapshots:` — which today's collector doesn't walk.
 #[tokio::test]
 async fn one_packages_entry_yields_one_verification() {
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -448,10 +425,6 @@ async fn uninterested_verifier_skips_candidate_fan_out() {
     assert_eq!(CALLS.load(Ordering::SeqCst), 0);
 }
 
-/// End-to-end cache wiring: a successful first run records the
-/// verification; a second run against the same lockfile +
-/// trustworthy verifier policies hits the cache and never invokes
-/// `verify` again.
 #[tokio::test]
 async fn second_run_with_cache_skips_fan_out() {
     static CALLS: AtomicUsize = AtomicUsize::new(0);
@@ -512,10 +485,6 @@ async fn second_run_with_cache_skips_fan_out() {
     assert_eq!(CALLS.load(Ordering::SeqCst), 1, "second run skipped via cache");
 }
 
-/// A cache hit with active policy verifiers announces itself with a
-/// single `Cached` event instead of the `Started`/`Done` pair, so the
-/// short-circuit doesn't look like the policy gate never ran
-/// (pnpm/pnpm#12324).
 #[tokio::test]
 async fn cache_hit_emits_cached_event() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -571,9 +540,8 @@ async fn cache_hit_emits_cached_event() {
     }
 }
 
-/// A cache hit with no policy verifiers stays silent — the shape-only
-/// run that every install performs must not announce supply-chain
-/// policies the user never configured.
+/// The shape-only run that every install performs must not announce
+/// supply-chain policies the user never configured.
 #[tokio::test]
 async fn cache_hit_with_no_policy_verifiers_stays_silent() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

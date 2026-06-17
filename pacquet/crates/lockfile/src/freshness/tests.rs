@@ -157,8 +157,6 @@ fn manifest_bumps_specifier_returns_specifier_diff() {
     assert_eq!(modified.1, "^18.0.0");
 }
 
-/// The flat-union pre-pass treats `dependencies`, `devDependencies`,
-/// and `optionalDependencies` equally.
 #[test]
 fn matching_across_all_three_dep_fields_satisfies() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -258,12 +256,6 @@ fn spec_diff_display_lists_added_removed_modified() {
     assert!(rendered.contains("react (lockfile: ^17.0.2, manifest: ^18.0.0)"));
 }
 
-/// Two deps swapped between fields with same cardinality on each
-/// side: lockfile has `react` under `dependencies` + `typescript`
-/// under `devDependencies`, manifest swaps them. The flat-union diff
-/// over `(deps ∪ devDeps ∪ optDeps)` matches because the union is
-/// identical, so the per-field check is the only thing that can
-/// catch this.
 #[test]
 fn cross_field_swap_with_same_cardinalities_caught_by_per_field_check() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -328,8 +320,6 @@ fn publish_directory_mismatch_returns_publish_directory_mismatch() {
     );
 }
 
-/// A `dependenciesMeta` `injected` flag mismatch is drift, but two
-/// `None`s and `None`-vs-empty-object are considered equal.
 #[test]
 fn dependencies_meta_mismatch_returns_dependencies_meta_mismatch() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -375,10 +365,6 @@ fn no_importer_message_uses_bracket_quoted_id() {
     );
 }
 
-/// Multi-element `removed` and `modified` buckets exercise the
-/// plural arm of `noun_verb_for` *and* the comma separator inside
-/// the per-bucket loops. The single-item display test above only
-/// hits the singular branch and the first-iteration of the loop.
 #[test]
 fn spec_diff_display_lists_plural_removed_and_modified_with_separators() {
     let mut diff = super::SpecDiff::default();
@@ -396,8 +382,6 @@ fn spec_diff_display_lists_plural_removed_and_modified_with_separators() {
     assert!(rendered.contains("2 dependencies are mismatched:"), "got: {rendered:?}");
 }
 
-/// Pinpoint singular-vs-plural wording per bucket so the n==1 case
-/// doesn't silently regress.
 #[test]
 fn spec_diff_display_uses_singular_for_count_of_one() {
     let mut diff = super::SpecDiff::default();
@@ -410,12 +394,6 @@ fn spec_diff_display_uses_singular_for_count_of_one() {
     assert!(!rendered.contains("dependencies were added"));
 }
 
-/// `dependenciesMeta: {}` on the manifest with no `dependenciesMeta`
-/// on the importer should match — empty object and absent are
-/// equivalent. Mirrors upstream's `?? {}` coercion at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts#L56-L58>.
-/// Ports the upstream test at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/test/satisfiesPackageManifest.ts#L232-L252>.
 #[test]
 fn dependencies_meta_empty_object_equivalent_to_absent() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -440,9 +418,6 @@ fn dependencies_meta_empty_object_equivalent_to_absent() {
     assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
 }
 
-/// `publishDirectory` happy-path: lockfile and manifest agree on the
-/// directory. Ports the upstream test at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/test/satisfiesPackageManifest.ts#L314-L334>.
 #[test]
 fn publish_directory_match_satisfies() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -468,15 +443,6 @@ fn publish_directory_match_satisfies() {
     assert!(satisfies_package_manifest(importer, &manifest, ".", &|_: &str| false).is_ok());
 }
 
-/// Same dep listed in both `dependencies` and `devDependencies` on
-/// the manifest, only in `dependencies` on the lockfile — should
-/// pass because upstream's per-field check filters out a dep from
-/// `devDependencies` when it also exists in `dependencies` /
-/// `optionalDependencies` (precedence: optional > prod > dev).
-/// Mirrors upstream's `pkgDepNames` filter at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts#L69-L84>.
-/// Ports the upstream test at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/test/satisfiesPackageManifest.ts#L211-L230>.
 #[test]
 fn same_dep_in_prod_and_dev_counts_under_prod() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -504,7 +470,6 @@ fn same_dep_in_prod_and_dev_counts_under_prod() {
     );
 }
 
-/// `optionalDependencies` wins precedence over `dependencies`.
 #[test]
 fn same_dep_in_prod_and_optional_counts_under_optional() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -532,11 +497,6 @@ fn same_dep_in_prod_and_optional_counts_under_optional() {
     );
 }
 
-/// Manifest has prod-only deps; lockfile has prod deps plus an
-/// empty `devDependencies` map. Should satisfy — absent and empty
-/// must be treated alike on the importer side too. Ports the
-/// upstream test at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/test/satisfiesPackageManifest.ts#L20-L31>.
 #[test]
 fn importer_empty_dev_dependencies_equivalent_to_absent() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -652,9 +612,6 @@ fn check_settings_returns_drift_when_catalog_snapshot_entry_is_removed_from_conf
 // `ignoredOptionalDependencies` — umbrella <https://github.com/pnpm/pacquet/issues/434> slice 7
 // ---------------------------------------------------------------------------
 
-/// Sorted equality: both sides empty (`None` and `[]` equivalent).
-/// Mirrors upstream's
-/// [`getOutdatedLockfileSetting.ts:58-60`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L58-L60).
 #[test]
 fn check_settings_passes_when_both_sides_empty() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -687,9 +644,6 @@ fn check_settings_passes_when_both_sides_empty() {
     );
 }
 
-/// Order-insensitive compare — upstream sorts both arrays before
-/// the equality check, so a config that lists patterns in a
-/// different order must still pass.
 #[test]
 fn check_settings_passes_when_sets_match_regardless_of_order() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -772,9 +726,6 @@ fn check_settings_returns_drift_when_lockfile_has_set_but_config_does_not() {
 // `getOutdatedLockfileSetting` overrides check
 // ---------------------------------------------------------------------------
 
-/// Both sides empty / absent → no drift. Mirrors upstream's
-/// `equals(lockfile.overrides ?? {}, overrides ?? {})` semantics: a
-/// missing key on either side is treated as the empty map.
 #[test]
 fn check_settings_passes_when_overrides_both_empty() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -809,9 +760,6 @@ fn check_settings_passes_when_overrides_both_empty() {
     );
 }
 
-/// Identical maps pass regardless of key insertion order — the
-/// comparison normalizes through `BTreeMap`. Mirrors upstream's
-/// order-insensitive `equals` from Ramda.
 #[test]
 fn check_settings_passes_when_overrides_match_regardless_of_order() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -920,9 +868,6 @@ fn check_settings_returns_drift_when_config_has_overrides_but_lockfile_does_not(
 // upstream's `getOutdatedLockfileSetting` patchedDependencies check
 // ---------------------------------------------------------------------------
 
-/// Matching `patchedDependencies` maps pass; the comparison is
-/// order-insensitive via `BTreeMap`. Mirrors upstream's
-/// `!equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})`.
 #[test]
 fn check_settings_passes_when_patched_dependencies_match() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -981,7 +926,6 @@ fn check_settings_returns_drift_when_patch_hash_changes() {
     assert_eq!(c.get("graceful-fs@4.2.11").map(String::as_str), Some("newhash"));
 }
 
-/// Absent on the config side normalizes to the empty map.
 #[test]
 fn check_settings_returns_drift_when_patch_removed_from_config() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -1007,8 +951,6 @@ fn check_settings_returns_drift_when_patch_removed_from_config() {
     assert!(c.is_empty());
 }
 
-/// No `packageExtensionsChecksum` on either side is the steady
-/// state for the default install; the gate must accept it.
 #[test]
 fn check_settings_returns_ok_when_no_package_extensions_checksum_on_either_side() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -1123,10 +1065,6 @@ fn check_settings_returns_drift_when_config_has_checksum_but_lockfile_does_not()
     assert_eq!(c.as_deref(), Some("sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="));
 }
 
-/// `overrides` is checked before `ignoredOptionalDependencies` — when
-/// both have drifted, the overrides drift is the one reported, matching
-/// upstream's check ordering at
-/// <https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L50-L56>.
 #[test]
 fn check_settings_reports_overrides_before_ignored_optional() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -1263,8 +1201,6 @@ fn check_settings_returns_drift_when_config_disables_inject_workspace_packages()
 // `getOutdatedLockfileSetting` peersSuffixMaxLength check
 // ---------------------------------------------------------------------------
 
-/// An unset `settings.peersSuffixMaxLength` decays to the default
-/// (1000), matching upstream's "unset == default" semantics.
 #[test]
 fn check_settings_passes_when_peers_suffix_max_length_unset_and_config_is_default() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {

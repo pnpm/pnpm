@@ -37,9 +37,7 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
 /// `resolveSrcOnTrueSymlink(src, dest) = path.relative(path.dirname(dest), src)`.
 ///
 /// Returns an absolute path when no relative form exists between the
-/// two arguments. This matches Node.js's `path.win32.relative`, which
-/// returns the absolute `to` argument when the paths share no common
-/// root (different drives, different UNC shares).
+/// two arguments.
 fn relative_target_for(original: &Path, link: &Path) -> PathBuf {
     let parent = link.parent().unwrap_or_else(|| Path::new(""));
     relative_target_inner(original, parent)
@@ -157,25 +155,10 @@ pub struct ForceSymlinkOutcome {
 /// pnpm's [`symlinkDir`](https://github.com/pnpm/symlink-dir/blob/v10.0.1/src/index.ts#L22)
 /// with its default `{ overwrite: true }` semantics.
 ///
-/// Behavior:
-///
-/// - **Parent missing** (`NotFound` on the underlying symlink call) →
-///   `create_dir_all` the parent and retry. Matches upstream's
-///   `fs.mkdir(dirname(path), { recursive: true })` arm.
-/// - **A symlink already exists at `link`**:
-///   - Pointing at `target` → return `{ reused: true }` (no-op).
-///   - Pointing elsewhere → `remove_symlink_dir` and retry.
-/// - **A regular file or non-empty directory occupies `link`** →
-///   rename it to `<parent>/.ignored_<basename>` and retry. If the
-///   rename fails because the source disappeared between the
-///   `AlreadyExists` and the rename, surface the initial
-///   `AlreadyExists` error rather than the rename's `NotFound`.
-///   The `warning` field carries upstream's "moved" message so a
-///   reporter can tell the user what happened.
-///
-/// Returns the same `(reused, warning)` shape upstream's TypeScript
-/// `forceSymlink` returns, so reporters can mirror the pnpm warning
-/// surface.
+/// When a regular file or directory occupies `link` and the rename
+/// that moves it aside fails because the source disappeared between
+/// the `AlreadyExists` and the rename, the initial `AlreadyExists`
+/// error is surfaced rather than the rename's `NotFound`.
 pub fn force_symlink_dir(target: &Path, link: &Path) -> io::Result<ForceSymlinkOutcome> {
     force_symlink_inner(target, link, false)
 }

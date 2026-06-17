@@ -977,8 +977,6 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
     .run::<SilentReporter>()
     .expect("a corrupt cache overlay must degrade to a rebuild, not abort the install");
 
-    // The postinstall re-ran over the pristine files, regenerating its
-    // output — proving the gate fell through to the build path.
     assert!(
         pkg_dir.join("generated.txt").exists(),
         "rebuild must run when the cached overlay can't be materialized",
@@ -1884,9 +1882,6 @@ async fn upload_error_does_not_interrupt_install() {
     drop(writer);
     writer_task.await.expect("await writer").expect("writer succeeds");
 
-    // The postinstall-generated artifact is on disk — proves the
-    // build ran end-to-end and the swallowed upload error didn't
-    // short-circuit the loop.
     assert!(
         pkg_dir.join("generated.txt").exists(),
         "postinstall-created file must be present after a swallowed upload failure",

@@ -67,11 +67,6 @@ fn per_registry_tls_default_is_empty() {
 
 #[test]
 fn per_registry_from_map_drops_empty_entries() {
-    // pnpm's `configByUri[uri].tls` only materializes when a field
-    // gets set, so an empty `RegistryTls` shouldn't take up a slot
-    // either. Otherwise the lookup would return a hit that yields
-    // an all-`None` override — defeating the point of falling back
-    // to top-level fields.
     let tls_map = build_map(&[
         ("//keep.example/", registry_with(Some("ca"), None, None)),
         ("//drop.example/", RegistryTls::default()),
@@ -82,9 +77,6 @@ fn per_registry_from_map_drops_empty_entries() {
 
 #[test]
 fn pick_for_url_exact_match_wins() {
-    // Step 1 of pickSettingByUrl: an exact URL match short-circuits
-    // before nerf-darting kicks in. This lets a user pin a specific
-    // tarball URL's TLS without affecting the rest of the registry.
     let exact = "https://registry.example.com/pkg/-/pkg-1.0.0.tgz";
     let tls_map = build_map(&[
         (exact, registry_with(Some("exact-ca"), None, None)),
@@ -95,8 +87,6 @@ fn pick_for_url_exact_match_wins() {
 
 #[test]
 fn pick_for_url_nerf_dart_match() {
-    // Step 2: with no exact match, the nerf-darted URL hits the
-    // `//host/` key.
     let tls_map = build_map(&[("//registry.example.com/", registry_with(Some("ca"), None, None))]);
     assert_eq!(
         tls_map.pick_for_url("https://registry.example.com/pkg"),
@@ -106,8 +96,6 @@ fn pick_for_url_nerf_dart_match() {
 
 #[test]
 fn pick_for_url_shorter_path_prefix() {
-    // Step 4: a `//host/scope/` key matches any URL under that
-    // path, mirroring pnpm's nerf-dart prefix walk.
     let tls_map = build_map(&[(
         "//registry.example.com/scope/",
         registry_with(Some("scope-ca"), None, None),
@@ -120,9 +108,6 @@ fn pick_for_url_shorter_path_prefix() {
 
 #[test]
 fn pick_for_url_strips_port_on_retry() {
-    // Steps 3 + 5: a `//host/` key matches a URL that carries an
-    // explicit port. The port-strip retry walks back through the
-    // earlier steps.
     let tls_map = build_map(&[("//registry.example.com/", registry_with(Some("ca"), None, None))]);
     assert_eq!(
         tls_map.pick_for_url("https://registry.example.com:8443/pkg"),
@@ -138,7 +123,6 @@ fn pick_for_url_misses_when_host_differs() {
 
 #[test]
 fn pick_for_url_misses_when_path_doesnt_share_prefix() {
-    // `//host/foo/` shouldn't match a URL under `/bar/`.
     let tls_map =
         build_map(&[("//registry.example.com/foo/", registry_with(Some("ca"), None, None))]);
     assert_eq!(tls_map.pick_for_url("https://registry.example.com/bar/pkg"), None);

@@ -56,11 +56,6 @@ fn write_patch(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
     path
 }
 
-/// Happy path: applying the upstream is-positive patch over
-/// is-positive's actual `index.js` produces the expected output.
-/// Mirrors upstream's
-/// [`'install with patchedDependencies'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/test/install/patch.ts)
-/// happy-path coverage at the unit level.
 #[test]
 fn applies_modify_against_existing_file() {
     let patched = tempdir().unwrap();
@@ -74,9 +69,6 @@ fn applies_modify_against_existing_file() {
     assert_eq!(after, IS_POSITIVE_INDEX_JS_PATCHED);
 }
 
-/// `ERR_PNPM_PATCH_NOT_FOUND` for a missing patch file. Mirrors
-/// upstream's
-/// [`if (err.code === 'ENOENT') throw new PnpmError('PATCH_NOT_FOUND', ...)`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/apply-patch/src/index.ts).
 #[test]
 fn missing_patch_file_errors_patch_not_found() {
     let patched = tempdir().unwrap();
@@ -85,9 +77,6 @@ fn missing_patch_file_errors_patch_not_found() {
     assert!(matches!(err, PatchApplyError::PatchNotFound { .. }), "got: {err:?}");
 }
 
-/// `ERR_PNPM_INVALID_PATCH` when the patch body can't be parsed —
-/// e.g. truncated hunk header. Mirrors upstream's `catch (err) ...
-/// throw new PnpmError('INVALID_PATCH', ...)` branch.
 #[test]
 fn malformed_patch_errors_invalid_patch() {
     let patched = tempdir().unwrap();
@@ -102,9 +91,6 @@ fn malformed_patch_errors_invalid_patch() {
     assert!(matches!(err, PatchApplyError::InvalidPatch { .. }), "got: {err:?}");
 }
 
-/// `ERR_PNPM_PATCH_FAILED` when a hunk can't be applied — e.g. the
-/// context doesn't match the on-disk file. Mirrors upstream's
-/// `if (!success) throw new PnpmError('PATCH_FAILED', ...)`.
 #[test]
 fn unmatching_hunk_errors_patch_failed() {
     let patched = tempdir().unwrap();
@@ -118,8 +104,6 @@ fn unmatching_hunk_errors_patch_failed() {
     assert!(matches!(err, PatchApplyError::PatchFailed { .. }), "got: {err:?}");
 }
 
-/// `ERR_PNPM_PATCH_FAILED` when the target file is missing. The
-/// patch refers to `index.js` but the patched dir is empty.
 #[test]
 fn missing_target_file_errors_patch_failed() {
     let patched = tempdir().unwrap();
@@ -130,7 +114,6 @@ fn missing_target_file_errors_patch_failed() {
     assert!(matches!(err, PatchApplyError::PatchFailed { .. }), "got: {err:?}");
 }
 
-/// File creation: a patch that adds a brand-new file (`--- /dev/null`).
 #[test]
 fn applies_create_for_new_file() {
     let patched = tempdir().unwrap();
@@ -153,13 +136,6 @@ new file mode 100644
     assert_eq!(after, "first line\nsecond line\n");
 }
 
-/// Target-file reads use lossy UTF-8 decoding, matching Node's
-/// `fs.readFile(..., 'utf8')` and the patch-file reader. A target
-/// file with stray non-UTF-8 bytes must NOT cause `Modify` to
-/// fail with `InvalidData` — those bytes round-trip through
-/// `String::from_utf8_lossy` as U+FFFD before
-/// [`diffy::apply`] sees them.
-///
 /// The patch context here is the U+FFFD chars themselves, so we
 /// can construct a real patch that applies cleanly against the
 /// lossy-decoded target.
@@ -256,8 +232,6 @@ deleted file mode 100644
     assert!(message.contains("escapes target dir"), "got: {message}");
 }
 
-/// `Create` refuses to overwrite an existing file. Matches `patch`
-/// and `git apply` semantics for `--- /dev/null` hunks.
 #[test]
 fn create_on_existing_file_errors() {
     let patched = tempdir().unwrap();
@@ -280,13 +254,9 @@ new file mode 100644
         panic!("expected PatchFailed, got: {err:?}");
     };
     assert!(message.contains("already exists"), "got: {message}");
-    // The original file must be untouched.
     assert_eq!(fs::read_to_string(&target).unwrap(), "i was here first\n");
 }
 
-/// `Delete` validates hunks before unlinking. A stale patch (one
-/// whose `-` lines don't match the actual file content) must NOT
-/// silently remove the file.
 #[test]
 fn delete_with_mismatching_hunks_errors_without_unlinking() {
     let patched = tempdir().unwrap();
@@ -312,8 +282,6 @@ deleted file mode 100644
     assert!(target.exists(), "file must NOT be unlinked when the patch doesn't match");
 }
 
-/// File deletion: a patch that removes an existing file
-/// (`+++ /dev/null`). The target is unlinked.
 #[test]
 fn applies_delete_for_removed_file() {
     let patched = tempdir().unwrap();
@@ -336,10 +304,6 @@ deleted file mode 100644
     assert!(!target.exists(), "deleted target must be gone");
 }
 
-/// Reading the patch-file path itself can fail with errors other
-/// than `NotFound` — here, the patch path is a directory rather
-/// than a file. The classifier must surface this as `ReadPatchFile`
-/// (not `PatchNotFound`).
 #[cfg(unix)]
 #[test]
 fn read_patch_file_surfaces_non_not_found_error() {
@@ -355,11 +319,6 @@ fn read_patch_file_surfaces_non_not_found_error() {
     );
 }
 
-/// A delete patch that does not consume the entire file leaves
-/// non-empty content behind after `diffy::apply`. The implementation
-/// must refuse to remove the file in that case rather than silently
-/// dropping the unpatched tail. Tests the `if !after.is_empty()`
-/// guard in the Delete arm.
 #[test]
 fn delete_patch_leaving_non_empty_result_errors_without_unlinking() {
     let patched = tempdir().unwrap();
@@ -392,9 +351,6 @@ fn delete_patch_leaving_non_empty_result_errors_without_unlinking() {
     assert!(target.exists(), "target must NOT be unlinked when content remains");
 }
 
-/// Rename and copy file operations are not yet supported. A patch
-/// that contains one of these headers must error cleanly via
-/// `PatchFailed`, not silently no-op.
 #[test]
 fn rename_operation_errors_as_unsupported() {
     let patched = tempdir().unwrap();
@@ -422,10 +378,6 @@ fn rename_operation_errors_as_unsupported() {
     }
 }
 
-/// `Create` resolves the parent dir via `create_dir_all`. When the
-/// parent path is a regular file rather than a directory, that call
-/// fails and must surface as `PatchFailed` with a `create parent of`
-/// prefix.
 #[cfg(unix)]
 #[test]
 fn create_with_unwritable_parent_path_errors() {
@@ -496,11 +448,9 @@ diff --git a/file.txt b/file.txt
 
     apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
 
-    // Content stays at the post-patch state — we didn't double-patch.
     let after = fs::read_to_string(patched.path().join("file.txt")).unwrap();
     assert_eq!(after, already_patched);
 
-    // Sanity: a fresh file at the original state still applies normally.
     let fresh = tempdir().unwrap();
     fs::write(fresh.path().join("file.txt"), original).unwrap();
     apply_patch_to_dir(fresh.path(), &patch).expect("fresh apply must succeed");
@@ -540,12 +490,8 @@ fn modify_does_not_mutate_hardlinked_store_file() {
     let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
 
-    // Slot has patched content.
     assert_eq!(fs::read_to_string(&slot_file).unwrap(), IS_POSITIVE_INDEX_JS_PATCHED);
-    // Store copy is untouched.
     assert_eq!(fs::read_to_string(&store_file).unwrap(), IS_POSITIVE_INDEX_JS);
-    // And the slot points at a new inode now — the unlink broke the
-    // shared-inode link cleanly.
     assert_ne!(
         fs::metadata(&slot_file).unwrap().ino(),
         fs::metadata(&store_file).unwrap().ino(),
@@ -607,7 +553,6 @@ fn modify_does_not_destroy_target_on_write_failure() {
     fs::set_permissions(patched.path(), fs::Permissions::from_mode(dir_mode)).unwrap();
 
     err.expect_err("apply must surface the write failure");
-    // The crucial invariant: the original target survives untouched.
     assert_eq!(
         fs::read_to_string(&target).unwrap(),
         IS_POSITIVE_INDEX_JS,
@@ -615,10 +560,6 @@ fn modify_does_not_destroy_target_on_write_failure() {
     );
 }
 
-/// Re-applying a Create patch over a file that already exists with the
-/// expected post-patch content is treated as no-op. A genuine
-/// pre-existing file with different content still errors (covered by
-/// [`create_on_existing_file_errors`]).
 #[test]
 fn create_on_already_created_file_with_matching_content_is_noop() {
     let patched = tempdir().unwrap();
@@ -642,10 +583,6 @@ new file mode 100644
     assert_eq!(fs::read_to_string(&target).unwrap(), "first line\nsecond line\n");
 }
 
-/// Re-applying a Delete patch when the target is already gone is a
-/// no-op. Mirrors upstream's `@pnpm/patch-package` reverse-dry-run
-/// idempotency: re-running `pnpm install` after a previously
-/// successful delete must not error.
 #[test]
 fn delete_on_already_deleted_file_is_noop() {
     let patched = tempdir().unwrap();

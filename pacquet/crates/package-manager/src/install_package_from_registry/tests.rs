@@ -219,11 +219,10 @@ pub async fn should_install_package_from_pre_resolved_result() {
     let virtual_store_path = slot_dir.join("node_modules").join(&real_name);
     assert!(virtual_store_path.is_dir());
 
-    // Make sure the symlink resolves to the correct path. pacquet
-    // writes the contents as a path relative to the link's parent
-    // (matching upstream `symlink-dir`), so canonicalize via the
-    // link itself rather than comparing `read_link` output against
-    // the absolute store path.
+    // pacquet writes the symlink contents as a path relative to the
+    // link's parent (matching upstream `symlink-dir`), so
+    // canonicalize via the link itself rather than comparing
+    // `read_link` output against the absolute store path.
     let symlink_path = modules_dir.path().join("@pnpm.e2e/hello-world-js-bin");
     assert_eq!(
         dunce::canonicalize(&symlink_path).expect("canonicalize symlink"),
@@ -233,12 +232,9 @@ pub async fn should_install_package_from_pre_resolved_result() {
     drop((store_dir, modules_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
-/// Second-edge install for the same `(name, version)` must NOT emit
-/// `pnpm:progress resolved` or `pnpm:progress imported` — those are
-/// per-package signals upstream, not per-edge. The second visitor
-/// only refreshes the per-parent symlink. Pin the contract here so a
-/// future refactor that moves the gate can't quietly reintroduce
-/// per-edge spam.
+/// Progress events are per-package signals upstream, not per-edge.
+/// Pin the contract here so a future refactor that moves the gate
+/// can't quietly reintroduce per-edge spam.
 #[tokio::test]
 async fn second_visit_skips_progress_emits_but_still_links() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -345,13 +341,9 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     drop((store_dir, modules_dir, second_parent_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
-/// `InstallPackageFromRegistry::run` emits the `pnpm:progress` per-
-/// package sequence: `resolved` before the tarball download, then
-/// `fetched` (or `found_in_store` on a cache hit) from inside
-/// `DownloadTarballToStore`, then `imported` after `create_cas_files`
-/// returns Ok. Pin the order with a recording reporter — a regression
-/// in either the sequence or the `package_id`/`requester` payload
-/// would currently slip through since the tarball-side and
+/// Pin the order with a recording reporter — a regression in either
+/// the sequence or the `package_id`/`requester` payload would
+/// currently slip through since the tarball-side and
 /// frozen-lockfile-side tests don't exercise this code path.
 #[tokio::test]
 async fn install_emits_progress_sequence() {
@@ -424,10 +416,8 @@ async fn install_emits_progress_sequence() {
         })
         .collect();
 
-    // Order: resolved → fetched (or found_in_store on a warm rerun)
-    // → imported. The mock store is a tempdir, so the first install
-    // always goes through the network path → `Fetched`. Pin the
-    // shape so a future re-ordering breaks the test.
+    // The mock store is a tempdir, so the first install always goes
+    // through the network path → `Fetched` (not `found_in_store`).
     let kinds: Vec<&'static str> = progress
         .iter()
         .map(|message| match message {
@@ -443,10 +433,6 @@ async fn install_emits_progress_sequence() {
         "unexpected progress sequence: {progress:?}",
     );
 
-    // Pin the (`package_id`, `requester`) on the resolved event —
-    // the install layer threads `requester` here as the install
-    // root; `package_id` is `{name}@{version}` once the version is
-    // resolved.
     match &progress[0] {
         ProgressMessage::Resolved { package_id, requester } => {
             assert_eq!(package_id, "@pnpm.e2e/hello-world-js-bin@1.0.0");
@@ -458,11 +444,10 @@ async fn install_emits_progress_sequence() {
     drop((store_dir, modules_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
-/// Regression test: a `ResolveResult` whose `name_ver` is `None`
-/// (every non-npm resolver — git / tarball / local) must surface as
-/// [`InstallPackageFromRegistryError::UnsupportedResolution`] rather
-/// than panicking. Pins the install path's contract once the git
-/// resolver is wired into the chain.
+/// A missing `name_ver` (every non-npm resolver — git / tarball /
+/// local) must surface as an error rather than panicking. Pins the
+/// install path's contract once the git resolver is wired into the
+/// chain.
 #[tokio::test]
 async fn install_returns_unsupported_resolution_when_name_ver_missing() {
     let store_dir = tempdir().unwrap();

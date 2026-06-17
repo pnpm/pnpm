@@ -32,14 +32,8 @@ pub(crate) struct ImportedFiles {
     pub files_index: HashMap<String, CafsFileInfo>,
 }
 
-/// Safely join a relative path onto a trusted root.
-///
-/// Rejects anything that wouldn't stay under `root`:
-///
-/// - Absolute paths (`/etc/passwd`, `C:\foo`, etc.) — refuse.
-/// - `..` / root / drive-prefix components — refuse.
-/// - `.` components — silently dropped.
-/// - Normal segments — pushed onto `root` one at a time.
+/// Safely join a relative path onto a trusted root, rejecting anything
+/// that wouldn't stay under `root`.
 ///
 /// Both `materialize_into` and `import_into_cas` receive their
 /// relative paths from the install dispatcher's `cas_paths` map,

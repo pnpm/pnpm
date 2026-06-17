@@ -313,16 +313,6 @@ fn build_has_bin_set(
         packages
             .iter()
             .filter(|(_, meta)| {
-                // Runtime resolutions (`Binary` / `Variations`)
-                // always synthesize a `package.json` carrying the
-                // lockfile-declared `bin` field
-                // (see `synthesize_runtime_manifest_bytes` in
-                // `install_package_by_snapshot.rs`), so they
-                // always have bins — even when `hasBin` is absent
-                // from the lockfile metadata (which pnpm v11 does
-                // not emit for runtime entries today). Including
-                // them here unconditionally keeps the bin-link
-                // dispatch consistent with the synthesis step.
                 meta.has_bin == Some(true)
                     || matches!(
                         meta.resolution,
@@ -615,8 +605,7 @@ fn find_slot_own_package_dir(slot_dir: &Path, modules_dir: &Path) -> Option<Path
 }
 
 /// Like [`pacquet_cmd_shim::link_bins`] but skipping the slot's own package
-/// from the candidate set. Without this, a slot for `tsc@5.0.0` would link
-/// its own `tsc` bin into its own `node_modules/.bin`, which pnpm doesn't.
+/// from the candidate set.
 fn link_bins_excluding<Sys>(
     modules_dir: &Path,
     bins_dir: &Path,

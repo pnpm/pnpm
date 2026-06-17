@@ -18,7 +18,6 @@ fn posix_quote_wraps_unsafe_strings() {
 
 #[test]
 fn posix_quote_escapes_embedded_single_quotes() {
-    // The `shlex` escape for an embedded quote is `'"'"'`.
     assert_eq!(posix_quote("it's"), r#"'it'"'"'s'"#);
 }
 

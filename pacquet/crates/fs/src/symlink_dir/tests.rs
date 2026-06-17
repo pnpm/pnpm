@@ -16,10 +16,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use tempfile::tempdir;
 
-/// On Unix, [`symlink_dir`] writes the symlink contents as a path
-/// relative to the link's parent directory, matching upstream's
-/// `resolveSrcOnTrueSymlink(src, dest) = path.relative(dirname(dest),
-/// src)`.
 #[cfg(unix)]
 #[test]
 fn unix_symlink_contents_are_relative_to_link_parent() {
@@ -32,7 +28,6 @@ fn unix_symlink_contents_are_relative_to_link_parent() {
     symlink_dir(&target, &link).expect("symlink_dir succeeds");
 
     let contents = fs::read_link(&link).expect("read_link the symlink we just wrote");
-    // Upstream emits exactly this relative path.
     assert_eq!(
         contents,
         PathBuf::from("..").join("packages").join("pkg-a"),
@@ -41,12 +36,6 @@ fn unix_symlink_contents_are_relative_to_link_parent() {
     assert!(link.exists(), "symlink must resolve to an existing directory");
 }
 
-/// [`force_symlink_dir`] is idempotent: calling it twice with the
-/// same `(target, link)` pair returns `reused: true` on the second
-/// call without rewriting the on-disk symlink. Matches upstream's
-/// `forceSymlink` returning `{ reused: true }` when
-/// `isExistingSymlinkUpToDate` finds the link already points at the
-/// requested target.
 #[test]
 fn force_symlink_dir_returns_reused_when_already_pointing_at_target() {
     let root = tempdir().expect("create temp dir");
@@ -69,11 +58,6 @@ fn force_symlink_dir_returns_reused_when_already_pointing_at_target() {
     );
 }
 
-/// When `link` already exists pointing at a *different* target,
-/// [`force_symlink_dir`] unlinks the stale symlink and re-creates it
-/// to point at the requested target. Mirrors upstream's
-/// `forceSymlink` "stale link" arm: `await fs.unlink(path); return
-/// forceSymlink(target, path, opts);`.
 #[test]
 fn force_symlink_dir_retargets_a_stale_symlink() {
     let root = tempdir().expect("create temp dir");
@@ -94,11 +78,6 @@ fn force_symlink_dir_retargets_a_stale_symlink() {
     assert_eq!(resolved, want, "symlink must now resolve to the fresh target");
 }
 
-/// When a regular file occupies the link path, [`force_symlink_dir`]
-/// renames it out of the way to `<parent>/.ignored_<basename>`, then
-/// creates the symlink. Matches upstream's
-/// `forceSymlink`+`renameOverwrite` flow. The returned `warning`
-/// carries the "Old entity moved" message a reporter can surface.
 #[test]
 fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
     let root = tempdir().expect("create temp dir");
@@ -123,11 +102,6 @@ fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
     assert!(ignored_path.is_file(), "displaced occupant must live at {ignored_path:?}");
 }
 
-/// When the link's parent directory doesn't exist yet,
-/// [`force_symlink_dir`] creates the parent chain with
-/// `create_dir_all` and retries. Matches upstream's `forceSymlink`
-/// ENOENT branch: `await fs.mkdir(dirname(path), { recursive: true
-/// }); await forceSymlink(target, path, opts);`.
 #[test]
 fn force_symlink_dir_creates_missing_parent_directories() {
     let root = tempdir().expect("create temp dir");
@@ -175,10 +149,6 @@ fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
     assert!(relative_target_for(target, link).is_relative());
 }
 
-/// After [`force_symlink_dir`] places a symlink, [`read_symlink_dir`]
-/// returns the same contents. The combination covers the round-trip
-/// pacquet's prune sweep needs (write a slot link with
-/// `force_symlink_dir`, later inspect it with `read_symlink_dir`).
 #[test]
 fn read_symlink_dir_reads_back_what_force_symlink_dir_wrote() {
     let root = tempdir().expect("create temp dir");

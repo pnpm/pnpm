@@ -155,8 +155,6 @@ fn parse_runtime_prefix_with_peer_suffix() {
     assert_eq!(parsed.to_string(), "runtime:22.0.0(node@22.0.0)");
 }
 
-/// Bare semver (the only shape pre-pnpm-v11) has
-/// `Prefix::None` and Display omits the prefix.
 #[test]
 fn parse_bare_semver_has_no_prefix() {
     let parsed: PkgVerPeer = "1.21.3".parse().expect("parse bare");
@@ -238,10 +236,6 @@ fn parse_codeload_tarball_url_round_trips() {
     assert_eq!(parsed.to_string(), url);
 }
 
-/// A non-semver version slot composes with the parenthesised peer
-/// suffix the same way `file:` and `runtime:` shapes do — the version
-/// is everything before the first `(`, the suffix is everything from
-/// the first `(` to the trailing `)`.
 #[test]
 fn parse_non_semver_with_peer_suffix() {
     let parsed: PkgVerPeer =

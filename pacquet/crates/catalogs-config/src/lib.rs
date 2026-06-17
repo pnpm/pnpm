@@ -30,9 +30,6 @@ pub enum InvalidCatalogsConfigurationError {
 /// Project the catalog-shaped fields from a parsed workspace manifest
 /// into a single flat [`Catalogs`] map.
 ///
-/// Returns an empty map when `workspace_manifest` is `None`, matching
-/// the upstream "no workspace manifest → no catalogs" branch.
-///
 /// Mirrors upstream's `getCatalogsFromWorkspaceManifest`
 /// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/config/src/getCatalogsFromWorkspaceManifest.ts#L5-L30)).
 pub fn get_catalogs_from_workspace_manifest(

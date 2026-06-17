@@ -308,17 +308,12 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
 
-    // The symlink lives under the importer's `node_modules/` and
-    // points at the sibling's `rootDir`, NOT into the virtual store.
     let symlink_path = workspace_root.join("packages/web/node_modules/shared");
     assert!(
         is_symlink_or_junction(&symlink_path).unwrap(),
         "expected a symlink at {symlink_path:?}",
     );
 
-    // Confirm the reporter saw a `pnpm:root added` with the
-    // resolved `link:` payload as `version` and the importer's
-    // own `rootDir` as `prefix`.
     let captured = EVENTS.lock().unwrap();
     let added: Vec<(&str, &AddedRoot)> = captured
         .iter()
@@ -440,11 +435,9 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
         .expect("symlink should succeed");
     };
 
-    // First link: the symlink is created, so one `pnpm:root added`.
     link();
     assert_eq!(count_added(&EVENTS), 1, "the first link of a new dep emits one added event");
 
-    // Second link over the now-existing symlink: reused, so no event.
     EVENTS.lock().unwrap().clear();
     link();
     assert_eq!(count_added(&EVENTS), 0, "re-linking a reused symlink emits no added event");
@@ -693,9 +686,6 @@ fn custom_modules_dir_propagates_to_each_importer() {
         is_symlink_or_junction(&expected).unwrap(),
         "expected per-importer symlink under the configured `modulesDir`: {expected:?}",
     );
-    // The default `node_modules/` must NOT exist under the
-    // importer's rootDir — that would mean the symlink stage
-    // ignored the override.
     assert!(
         !workspace_root.join("packages/web/node_modules").exists(),
         "no `node_modules/` should be created when `modulesDir` overrides the suffix",

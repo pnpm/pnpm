@@ -40,9 +40,7 @@ fn undecodable_fragment_behaves_as_absent() {
         }"#,
     );
 
-    // The key is listed (key scans never hydrate)...
     assert!(package.versions.contains_key("9.9.9"));
-    // ...but hydration fails closed to "absent" instead of erroring.
     assert!(package.versions.get("9.9.9").is_none());
     assert!(package.versions.get("1.0.0").is_some());
     assert_eq!(package.versions.iter().count(), 1);
@@ -93,9 +91,6 @@ fn filtered_keeps_slots_without_hydration() {
     assert!(filtered.get("1.0.0").is_some());
 }
 
-/// `pinned_version` walks satisfying candidates from highest to
-/// lowest, so an undecodable winner falls back to the next match
-/// instead of reporting no match for the whole range.
 #[test]
 fn pinned_version_falls_back_past_undecodable_highest() {
     let package = parse_package(
@@ -112,9 +107,6 @@ fn pinned_version_falls_back_past_undecodable_highest() {
     assert_eq!(pinned.version.to_string(), "1.0.0");
 }
 
-/// `latest` degrades to `None` on registry data it can't use — a
-/// dangling dist-tag or an undecodable manifest — instead of
-/// panicking.
 #[test]
 fn latest_returns_none_for_dangling_or_undecodable_tag() {
     let undecodable = parse_package(
@@ -148,8 +140,6 @@ fn is_deprecated_probes_without_hydrating() {
     assert!(!package.versions.is_deprecated("1.2.0"));
     assert!(package.versions.is_deprecated("1.3.0"));
     assert!(package.versions.is_deprecated("1.4.0"));
-    // Absent version and undecodable-probe fragments read as not
-    // deprecated, matching the absent-version contract of `get`.
     assert!(!package.versions.is_deprecated("9.9.9"));
     assert!(!package.versions.is_deprecated("1.9.0"));
 
@@ -166,9 +156,6 @@ fn is_deprecated_probes_without_hydrating() {
     }
 }
 
-/// A fragment that mentions `"deprecated"` only in an unrelated nested
-/// position (a dependency literally named `deprecated`) must fall
-/// through to the real parse and report not-deprecated.
 #[test]
 fn is_deprecated_ignores_unrelated_key_text() {
     let package = parse_package(

@@ -50,8 +50,6 @@ fn identical_leaves_hash_identically() {
     assert_eq!(first.len(), 64, "sha256 hex digest is 64 chars");
 }
 
-/// Mirrors upstream's contribution of `ENGINE_NAME` (vs `null`) to
-/// the hash payload at `deps/graph-hasher/src/index.ts:140-146`.
 #[test]
 fn engine_string_changes_hash() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -94,12 +92,6 @@ fn engine_string_changes_hash() {
     assert_ne!(with_other_engine, with_null);
 }
 
-/// Engine-agnostic gating: when `built_dep_paths` excludes the
-/// snapshot and its subtree, two different `engine` strings
-/// hash to the *same* digest. This is the whole point of the
-/// `transitivelyRequiresBuild` gating — pure-JS leaves survive
-/// Node.js upgrades because their GVS hash drops the engine
-/// contribution.
 #[test]
 fn engine_agnostic_when_subtree_has_no_builders() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -110,7 +102,6 @@ fn engine_agnostic_when_subtree_has_no_builders() {
             children: HashMap::new(),
         },
     );
-    // builtDepPaths exists but doesn't contain pure-js. Gating fires.
     let built: HashSet<String> = std::iter::once("someone-else@1.0.0".to_string()).collect();
     let mut cache_a = HashMap::new();
     let mut br_a = HashMap::new();
@@ -138,9 +129,6 @@ fn engine_agnostic_when_subtree_has_no_builders() {
     );
 }
 
-/// Gating's positive case: when the snapshot itself is in
-/// `built_dep_paths`, the engine *is* included — two different
-/// engines diverge. Symmetric with [`engine_agnostic_when_subtree_has_no_builders`].
 #[test]
 fn engine_included_when_self_in_built_set() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -175,9 +163,6 @@ fn engine_included_when_self_in_built_set() {
     assert_ne!(darwin, linux, "builder must partition by engine string");
 }
 
-/// Gating's transitive case: a non-builder snapshot whose
-/// child *is* a builder also includes the engine. Mirrors
-/// upstream's recursion at index.ts:241-245.
 #[test]
 fn engine_included_for_ancestor_of_builder() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -218,11 +203,6 @@ fn engine_included_for_ancestor_of_builder() {
     assert_ne!(darwin, linux, "ancestor of a builder must partition by engine string");
 }
 
-/// `built_dep_paths = None` reproduces the always-include-engine
-/// behaviour: two different engines hash differently even for a
-/// snapshot that no builder reaches. Mirrors upstream's
-/// `builtDepPaths === undefined || ...` short-circuit at
-/// index.ts:140.
 #[test]
 fn none_built_dep_paths_disables_gating() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -256,9 +236,6 @@ fn none_built_dep_paths_disables_gating() {
     assert_ne!(darwin, linux, "without builtDepPaths gating, engine is always part of the hash");
 }
 
-/// Two snapshots whose children differ (same `full_pkg_id`,
-/// different deps) hash differently — the GVS path includes the
-/// transitive dep contribution.
 #[test]
 fn different_children_change_hash() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
@@ -299,11 +276,6 @@ fn different_children_change_hash() {
     assert_ne!(with_dep, without_dep, "same root, different children must not collide on GVS hash");
 }
 
-/// The leaf hasher must produce the same digest as the general graph
-/// hasher fed a single childless node with `engine = null`. This ties
-/// `calc_leaf_global_virtual_store_path` to the already-parity-tested
-/// `calc_graph_node_hash` recursion, so the leaf path stays byte-for-
-/// byte identical to what pnpm computes.
 #[test]
 fn leaf_matches_single_node_graph_hash() {
     let full = "leaf@1.0.0:sha512-x";
@@ -322,9 +294,6 @@ fn leaf_matches_single_node_graph_hash() {
     );
 }
 
-/// With no subdeps, the subdeps hasher collapses to the leaf hasher:
-/// an empty `deps` map hashes identically to `calcLeafGlobalVirtualStorePath`'s
-/// `{ id, deps: {} }`.
 #[test]
 fn with_empty_subdeps_equals_leaf() {
     let full = "@scope/cfg@2.0.0:sha512-y";
@@ -334,9 +303,6 @@ fn with_empty_subdeps_equals_leaf() {
     );
 }
 
-/// Adding an optional subdep, and changing its resolved id, must each
-/// change the parent's GVS path — otherwise a subdep version swap would
-/// silently reuse the parent's existing leaf directory.
 #[test]
 fn subdeps_partition_the_hash() {
     let parent = "cfg@1.0.0:sha512-p";

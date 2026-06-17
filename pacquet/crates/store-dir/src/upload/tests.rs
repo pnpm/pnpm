@@ -24,10 +24,6 @@ fn map(entries: &[(&str, CafsFileInfo)]) -> HashMap<String, CafsFileInfo> {
         .collect()
 }
 
-/// Identical maps produce an empty diff. The `added` and `deleted`
-/// fields stay `None` (not `Some(empty)`) so the msgpack payload
-/// elides them entirely — matches the `if (deleted.length > 0)` /
-/// `if (added.size > 0)` guards upstream.
 #[test]
 fn identical_maps_yield_no_diff() {
     let files = map(&[("a", info("d-a", 0o644, 1))]);
@@ -56,8 +52,6 @@ fn deleted_only() {
     assert_eq!(deleted, vec!["gone".to_string()]);
 }
 
-/// Mirrors the `baseFiles.get(file)!.digest !== sideEffectsFiles.get(file)!.digest`
-/// branch at upstream's calculateDiff:418-421.
 #[test]
 fn digest_change_appears_in_added() {
     let base = map(&[("f.txt", info("d-old", 0o644, 1))]);
@@ -68,8 +62,6 @@ fn digest_change_appears_in_added() {
     assert_eq!(added.get("f.txt").unwrap().digest, "d-new");
 }
 
-/// Mirrors upstream's `baseFiles.get(file)!.mode
-/// !== sideEffectsFiles.get(file)!.mode` branch.
 #[test]
 fn mode_change_appears_in_added() {
     let base = map(&[("f.sh", info("d", 0o644, 1))]);

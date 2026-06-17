@@ -16,8 +16,6 @@ fn no_flags_includes_all_groups() {
 
 #[test]
 fn prod_includes_only_dependencies() {
-    // Mirrors pnpm's `makeIncludeDependenciesFromCLI` with
-    // `production === true`: dependencies only.
     let groups = options(true, false, false).include_direct();
     assert_eq!(groups, vec![DependencyGroup::Prod]);
 }
@@ -30,9 +28,6 @@ fn dev_includes_only_dev_dependencies() {
 
 #[test]
 fn no_optional_alone_does_not_drop_optional() {
-    // Faithful to pnpm's quirk: `--no-optional` only excludes
-    // optionalDependencies when combined with `--prod` or `--dev`,
-    // because the inclusion formula reads the raw CLI flags.
     let groups = options(false, false, true).include_direct();
     assert_eq!(
         groups,

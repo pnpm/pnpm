@@ -22,8 +22,6 @@ fn make_config(gvs: bool, virtual_store_dir: PathBuf, gvs_dir: PathBuf) -> Confi
     config
 }
 
-/// With GVS off, the layout produces the flat-name layout
-/// (`<virtual_store_dir>/<flat-name>`).
 #[test]
 fn slot_dir_uses_flat_name_when_gvs_off() {
     let config = make_config(
@@ -39,10 +37,6 @@ fn slot_dir_uses_flat_name_when_gvs_off() {
     );
 }
 
-/// With GVS on and a single snapshot, the layout produces the
-/// `<root>/<scope>/<name>/<version>/<hash>` shape upstream's tests
-/// assert against. The hash is opaque; we only check the prefix
-/// and depth.
 #[test]
 fn slot_dir_uses_gvs_layout_when_gvs_on() {
     let config = make_config(
@@ -141,12 +135,6 @@ fn slot_dir_prefixes_unscoped_with_at_slash_under_gvs() {
         .expect("unscoped GVS slots live under <root>/@/<name>/<version>/<hash>");
 }
 
-/// End-to-end gating check: a pure-JS snapshot's GVS slot is
-/// engine-agnostic when an empty `AllowBuildPolicy` is supplied
-/// (matches upstream's
-/// [`enableGlobalVirtualStore: true` → `allowBuilds ??= {}`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L342-L344)
-/// shape). Two installs that differ only in the `engine` string
-/// produce the *same* slot directory.
 #[test]
 fn slot_dir_engine_agnostic_with_empty_allow_build_policy() {
     let config = make_config(
@@ -202,10 +190,6 @@ fn slot_dir_engine_agnostic_with_empty_allow_build_policy() {
     );
 }
 
-/// Symmetric to [`slot_dir_engine_agnostic_with_empty_allow_build_policy`]:
-/// when the snapshot is in `allow_builds`, the engine *is* part
-/// of the slot path. Two installs that differ in `engine` end up
-/// in different directories.
 #[test]
 fn slot_dir_engine_specific_when_snapshot_is_built() {
     let config = make_config(
@@ -402,13 +386,6 @@ fn cross_pinning_siblings_get_distinct_slots() {
     assert_ne!(slot_22, slot_20, "cross-pinning builders must land on distinct GVS slots");
 }
 
-/// `lockfile_to_dep_graph` builds each node's `pkg_id_with_patch_hash`
-/// via upstream's `getPkgIdWithPatchHash` semantics — strip the
-/// peer-graph suffix but **keep** the `(patch_hash=…)` segment. Two
-/// patched snapshots with different peer suffixes therefore land on
-/// one `pkg_id_with_patch_hash`, mirroring pnpm's side-effects-cache
-/// keying. See
-/// [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L63-L70).
 #[test]
 fn full_pkg_id_keeps_patch_hash_when_present() {
     let patched_key: PackageKey =
@@ -448,10 +425,6 @@ fn full_pkg_id_keeps_patch_hash_when_present() {
     );
 }
 
-/// The GVS version segment is the semver for a registry dep, and
-/// the literal `undefined` for an injected `file:` directory dep —
-/// mirroring pnpm's `nameVerFromPkgSnapshot` → `undefined` and
-/// keeping the `:` out of the slot path. See pnpm/pnpm#12038.
 #[test]
 fn gvs_version_segment_renders_file_deps_as_undefined() {
     let semver: PackageKey = "foo@1.2.3".parse().unwrap();

@@ -102,8 +102,6 @@ fn matcher_with_index_semantics() {
     assert_eq!(matcher.matches("baz"), None);
 }
 
-/// Empty list never matches — upstream's `case 0` of
-/// `createMatcherWithIndex`.
 #[test]
 fn empty_pattern_list_never_matches() {
     let matcher = create_matcher(&[]);
@@ -112,8 +110,6 @@ fn empty_pattern_list_never_matches() {
     assert_eq!(matcher.matches("anything"), None);
 }
 
-/// Pattern characters that are regex-special in upstream get
-/// escaped before compilation, so they match literally here too.
 #[test]
 fn regex_special_chars_are_literal() {
     let matcher = create_matcher(&pats(["a.b"]));
@@ -129,7 +125,6 @@ fn regex_special_chars_are_literal() {
     assert!(!matcher.matches("foo"));
 }
 
-/// `*` matches the empty string — pattern `a*b` accepts `ab`.
 #[test]
 fn star_matches_empty() {
     let matcher = create_matcher(&pats(["a*b"]));
@@ -138,14 +133,12 @@ fn star_matches_empty() {
     assert!(matcher.matches("axxxb"));
 }
 
-/// Triple-segment patterns find segments greedily but in order.
 #[test]
 fn multi_segment_glob_in_order() {
     let matcher = create_matcher(&pats(["a*b*c"]));
     assert!(matcher.matches("abc"));
     assert!(matcher.matches("axxbxxc"));
     assert!(!matcher.matches("acb"));
-    // Last segment must be the suffix — `c` not at end fails.
     assert!(!matcher.matches("axbcx"));
 }
 

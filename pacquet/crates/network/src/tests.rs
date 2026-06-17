@@ -84,8 +84,6 @@ fn no_proxy_none_matches_nothing() {
 
 #[test]
 fn parse_proxy_url_auto_prefixes_missing_scheme() {
-    // pnpm-parity: `proxy.example:8080` is treated as
-    // `http://proxy.example:8080`.
     let url = parse_proxy_url("proxy.example:8080").expect("parses with retry");
     assert_eq!(url.scheme(), "http");
     assert_eq!(url.host_str(), Some("proxy.example"));

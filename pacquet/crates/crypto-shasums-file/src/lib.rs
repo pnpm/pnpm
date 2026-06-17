@@ -156,11 +156,9 @@ pub enum PickFileChecksumError {
 
 /// Download `<shasums_url>` and decode every `<hex>  <filename>` row.
 ///
-/// Mirrors upstream's
-/// [`fetchShasumsFile`](https://github.com/pnpm/pnpm/blob/1627943d2a/crypto/shasums-file/src/index.ts#L11-L27).
-/// Empty lines are skipped; whitespace between the hash and the
-/// filename is split on `\s+` to tolerate the double-space the
-/// upstream files actually use *and* any future formatting drift.
+/// Whitespace between the hash and the filename is split on `\s+` to
+/// tolerate the double-space the upstream files actually use *and* any
+/// future formatting drift.
 pub async fn fetch_shasums_file(
     http_client: &ThrottledClient,
     shasums_url: &str,
@@ -330,12 +328,9 @@ pub fn parse_shasums_file(body: &str) -> Vec<ShasumsFileItem> {
 
 /// Pull the integrity of one file out of a body the caller already has.
 ///
-/// Mirrors upstream's
-/// [`pickFileChecksumFromShasumsFile`](https://github.com/pnpm/pnpm/blob/1627943d2a/crypto/shasums-file/src/index.ts#L46-L67):
-/// match on a row ending in `  <file_name>` (two spaces — the format
+/// Matches on a row ending in `  <file_name>` (two spaces — the format
 /// upstream's files actually use, *not* the `\s+` permissive split
-/// [`fetch_shasums_file`] tolerates), validate the hex hash is exactly
-/// 64 lower-case hex characters, then re-encode it as `sha256-<b64>`.
+/// [`fetch_shasums_file`] tolerates).
 pub fn pick_file_checksum_from_shasums_file(
     body: &str,
     file_name: &str,

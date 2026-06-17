@@ -44,10 +44,6 @@ fn registry_metadata() -> PackageMetadata {
     }
 }
 
-/// A registry-resolution snapshot's `full_pkg_id` is
-/// `<pkg_id>:<integrity>` — no fall-through to `hashObject`.
-/// Mirrors upstream's `createFullPkgId` branch at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L268-L270>.
 #[test]
 fn registry_resolution_full_pkg_id_uses_integrity_verbatim() {
     let pkg = key("@scope/foo", "1.0.0");
@@ -64,8 +60,6 @@ fn registry_resolution_full_pkg_id_uses_integrity_verbatim() {
     );
 }
 
-/// `snapshots[].dependencies` populates the children map. Each
-/// alias resolves to the `PackageKey` of the dep entry.
 #[test]
 fn dependencies_become_children() {
     let parent_key = key("parent", "1.0.0");
@@ -90,11 +84,6 @@ fn dependencies_become_children() {
     assert_eq!(resolved, &child_key);
 }
 
-/// `snapshots[].optional_dependencies` is folded into `children`
-/// alongside regular deps — the dep-state hash doesn't distinguish
-/// the two. Mirrors upstream's
-/// [`lockfileDepsToGraphChildren`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L252-L261)
-/// spreading `{ ...dependencies, ...optionalDependencies }`.
 #[test]
 fn optional_dependencies_fold_into_children() {
     let parent_key = key("parent", "1.0.0");
@@ -119,10 +108,6 @@ fn optional_dependencies_fold_into_children() {
     assert!(parent_node.children.contains_key("optional"));
 }
 
-/// Snapshot whose metadata entry is missing from `packages:` is
-/// skipped silently. The cache lookup for that snapshot will miss
-/// (no graph node → empty deps hash), which means `BuildModules`'s
-/// `is_built` gate falls through to "rebuild" — safe default.
 #[test]
 fn snapshot_without_metadata_is_skipped() {
     let pkg = key("orphan", "1.0.0");
@@ -133,8 +118,6 @@ fn snapshot_without_metadata_is_skipped() {
     assert!(graph.is_empty(), "orphan snapshot must not produce a graph node");
 }
 
-/// `build_deps_subgraph` with empty roots produces an empty graph
-/// — the pure-JS install case where no snapshot is `requires_build`.
 #[test]
 fn subgraph_with_empty_roots_is_empty() {
     let parent_key = key("a", "1.0.0");
@@ -153,10 +136,6 @@ fn subgraph_with_empty_roots_is_empty() {
     assert!(graph.is_empty(), "empty roots must produce an empty graph");
 }
 
-/// `build_deps_subgraph` walks the forward closure of each root.
-/// For `a -> b -> c` with `a` as the only root, all three nodes
-/// land in the graph; `d` (unrelated) does not. Mirrors the
-/// `calc_dep_state` recursion's reach.
 #[test]
 fn subgraph_walks_forward_closure() {
     let key_a = key("a", "1.0.0");
@@ -185,9 +164,6 @@ fn subgraph_walks_forward_closure() {
     assert!(!graph.contains_key(&key_d), "d is unrelated; must not be included");
 }
 
-/// `build_deps_subgraph` terminates on a dependency cycle —
-/// `a -> b -> a` enqueues `a` and `b` once each, then bails on
-/// re-visits.
 #[test]
 fn subgraph_terminates_on_cycle() {
     let key_a = key("a", "1.0.0");

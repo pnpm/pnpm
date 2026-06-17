@@ -82,16 +82,13 @@ fn register_is_idempotent_on_repeat() {
     assert_eq!(entries.len(), 1, "still exactly one entry after re-register");
 }
 
-/// Subdir guard: when the store lives inside the project, the
-/// function is a silent no-op — registering would otherwise create
-/// a self-referential symlink. The `STORE_VERSION` subdir
-/// (`store_dir.root()` after [`StoreDir::new`] routes the path
-/// through [`From<PathBuf>`] and applies the suffix) is
-/// materialised on disk so [`path_contains`]'s canonical-form
-/// comparison sees both sides as canonical paths even on macOS,
-/// where `/tmp` symlinks to `/private/tmp` and a missing target
-/// would silently fall back to lexical comparison and miss the
-/// containment.
+/// The `STORE_VERSION` subdir (`store_dir.root()` after
+/// [`StoreDir::new`] routes the path through [`From<PathBuf>`] and
+/// applies the suffix) must be materialised on disk so
+/// [`path_contains`]'s canonical-form comparison sees both sides as
+/// canonical paths even on macOS, where `/tmp` symlinks to
+/// `/private/tmp` and a missing target would silently fall back to
+/// lexical comparison and miss the containment.
 #[test]
 fn register_skips_when_store_is_inside_project() {
     let project = tempdir().unwrap();
@@ -106,10 +103,6 @@ fn register_skips_when_store_is_inside_project() {
     );
 }
 
-/// `get_registered_projects` on a store with no `projects/` dir
-/// returns an empty vec — the registry doesn't exist until the
-/// first `register_project` write. Mirrors upstream's
-/// `if (err.code === 'ENOENT') return []` branch.
 #[test]
 fn get_returns_empty_when_registry_dir_absent() {
     let store = tempdir().unwrap();
@@ -133,8 +126,6 @@ fn get_lists_a_registered_project() {
     );
 }
 
-/// Mirrors upstream's
-/// `if (err.code === 'ENOENT') { await fs.unlink(linkPath); ... }`.
 #[test]
 fn get_unlinks_stale_entry_and_skips_it() {
     let project = tempdir().unwrap();
@@ -178,9 +169,6 @@ fn get_keeps_live_and_drops_stale_when_mixed() {
     assert_eq!(remaining.len(), 1, "exactly one registry entry left");
 }
 
-/// Dotfile entries (e.g. `.DS_Store`) are skipped — they're never
-/// real registry entries. Matches upstream's
-/// `if (entry.name.startsWith('.')) return`.
 #[test]
 fn get_skips_dotfile_entries() {
     let project = tempdir().unwrap();

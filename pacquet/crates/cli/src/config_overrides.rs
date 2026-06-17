@@ -28,10 +28,6 @@ impl ConfigOverrides {
     /// Pull `--config.<key>=<value>` tokens out of `argv` and collect
     /// them. Returns the parsed overrides together with the remaining
     /// argv tokens (in their original order) for clap to parse.
-    ///
-    /// Malformed tokens — `--config.foo` with no `=`, or `--config.=value`
-    /// with an empty key — are dropped: clap would reject `--config.*` as
-    /// unknown anyway, and the dropped tokens carry no usable signal.
     pub fn extract<Argv>(argv: Argv) -> (Self, Vec<OsString>)
     where
         Argv: IntoIterator<Item = OsString>,

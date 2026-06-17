@@ -1680,12 +1680,7 @@ pub(crate) fn parent_ids_contain_sequence(
 
 /// Whether a freshly resolved node landed back on its previously
 /// recorded lockfile entry — pnpm's `parentPkg.updated == false` arm,
-/// which keeps the prior child refs alive. Compares suffix-stripped
-/// forms on both sides: `resolved_pkg_id` is the canonical dep-path id
-/// ([`build_pkg_id_with_patch_hash`]'s output, which may carry a
-/// `(patch_hash=…)` suffix and `name@`-prefixes `file:`/git/tarball
-/// ids), and the recorded key may carry peer and patch-hash suffixes —
-/// none of which change *which package version* the parent is.
+/// which keeps the prior child refs alive.
 fn landed_on_prior_entry(prior_key: &PkgNameVerPeer, resolved_pkg_id: &str) -> bool {
     prior_key.without_peer().to_string() == pacquet_deps_path::remove_suffix(resolved_pkg_id)
 }

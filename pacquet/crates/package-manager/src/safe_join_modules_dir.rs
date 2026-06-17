@@ -1,9 +1,7 @@
 //! Join a `node_modules` directory with a dependency alias and reject
-//! aliases that aren't valid npm package names before the join. The
-//! alias becomes a directory name inside `node_modules`, so a
-//! path-traversal alias (`../../../escape`) would escape the directory
-//! and a reserved alias (`.bin`, `.pnpm`, `node_modules`) would
-//! overwrite pnpm-owned layout. Mirrors pnpm's
+//! aliases that aren't valid npm package names before the join, because
+//! the alias becomes a directory name inside `node_modules`. Mirrors
+//! pnpm's
 //! [`safeJoinModulesDir`](https://github.com/pnpm/pnpm/blob/main/fs/symlink-dependency/src/safeJoinModulesDir.ts)
 //! and routes through the same [`is_valid_dependency_alias`]
 //! check pacquet applies to direct-dependency aliases at resolution
@@ -29,7 +27,7 @@ pub struct InvalidDependencyAliasError {
 
 /// `modules.join(alias)` guarded by a package-name validity check.
 /// Returns [`InvalidDependencyAliasError`] when `alias` is not a valid
-/// npm package name (path-traversal, absolute, or reserved).
+/// npm package name.
 pub fn safe_join_modules_dir(
     modules: &Path,
     alias: &str,

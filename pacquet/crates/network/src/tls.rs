@@ -169,8 +169,7 @@ impl RegistryTls {
 
 impl PerRegistryTls {
     /// Build from a nerf-darted → [`RegistryTls`] map. Drops empty
-    /// entries (matches pnpm — an empty `tls` object is the same as
-    /// no entry at all).
+    /// entries.
     #[must_use]
     pub fn from_map(by_uri: HashMap<String, RegistryTls>) -> Self {
         let by_uri: HashMap<_, _> = by_uri.into_iter().filter(|(_, v)| !v.is_empty()).collect();

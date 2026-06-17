@@ -74,10 +74,6 @@ fn build_dedupe_map(
             else {
                 continue;
             };
-            // The injected dep can be rewritten to a symlink only when
-            // every one of its children is also present (as the same
-            // depPath) on the target project's own direct deps. The
-            // empty set is trivially a subset.
             let target_direct = direct_by_importer.get(&target_project_id);
             let children_match = node.children.iter().all(|(child_alias, child_dep_path)| {
                 target_direct.and_then(|map| map.get(child_alias)) == Some(child_dep_path)

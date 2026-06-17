@@ -69,18 +69,9 @@ impl StoreDir {
     /// `<store_dir>/links`. Mirrors upstream's
     /// [`pruneGlobalVirtualStore`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L21-L58).
     ///
-    /// Behaviour:
-    /// - No `links/` directory yet: silent no-op (matches upstream's
-    ///   `if (!await pathExists(linksDir)) return`).
-    /// - No registered projects: prints `pnpm`'s informational message
-    ///   and returns. Pacquet doesn't yet thread the install-time
-    ///   reporter into store-dir, so the message goes to stderr via
-    ///   `eprintln!` until [#344] lands the proper reporter wiring.
-    /// - Otherwise: mark-and-sweep as documented in the module-level
-    ///   comment. The removed-slot count is reported to stderr to
-    ///   match upstream's `globalInfo("Removed N package(s) ...")`
-    ///   message — the function itself returns `()` like upstream's
-    ///   `Promise<void>` shape.
+    /// Pacquet doesn't yet thread the install-time reporter into
+    /// store-dir, so the informational messages go to stderr via
+    /// `eprintln!` until [#344] lands the proper reporter wiring.
     ///
     /// Returns `Ok(())` on success; surfaces I/O errors from the mark
     /// or sweep walks as [`PruneError`]. Stale registry entries are

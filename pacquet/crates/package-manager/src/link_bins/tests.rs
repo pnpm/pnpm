@@ -63,14 +63,6 @@ fn writes_child_bins_into_slot_own_package_node_modules() {
     let shim_path = parent_dir.join("node_modules/.bin/child");
     assert!(shim_path.exists(), "expected shim at {shim_path:?}");
     let body = read_to_string(&shim_path).unwrap();
-    // Layout, with shim at A and target at B, relative path `A → B`:
-    //
-    //   <slot>/node_modules/parent/node_modules/.bin/child   (shim, A)
-    //   <slot>/node_modules/child/cli.js                     (target, B)
-    //
-    // Common prefix is `<slot>/node_modules`. A has three extra
-    // segments after that (`parent`, `node_modules`, `.bin`); B has
-    // two (`child`, `cli.js`). Relative = `../../../child/cli.js`.
     assert!(
         body.contains(r#""$basedir/../../../child/cli.js""#),
         "shim must reference the sibling child via the right number of `..`s, got:\n{body}",

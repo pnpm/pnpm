@@ -33,7 +33,6 @@ fn copy_materializes_the_file_contents() {
         .expect("link_file should succeed");
 
     assert_eq!(fs::read(&dst).unwrap(), b"hello");
-    // A plain copy leaves the two files as independent inodes.
     let src_ino = fs::metadata(&src).unwrap();
     let dst_ino = fs::metadata(&dst).unwrap();
     #[cfg(unix)]

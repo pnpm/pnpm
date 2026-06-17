@@ -21,10 +21,6 @@ pub struct RemoveDependencyOptions {
 impl RemoveDependencyOptions {
     /// Convert the `--save-*` flags to the targeted [`DependencyGroup`],
     /// or `None` to remove from any field.
-    ///
-    /// Mirrors pnpm's
-    /// [`getSaveType`](https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/getSaveType.ts):
-    /// `--save-dev` wins over `--save-optional` over `--save-prod`.
     fn save_type(&self) -> Option<DependencyGroup> {
         let &RemoveDependencyOptions { save_prod, save_dev, save_optional } = self;
         if save_dev {
