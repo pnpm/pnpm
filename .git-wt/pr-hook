@@ -22,8 +22,9 @@ PROMPT="Review and fix PR #$PR_NUMBER. Steps:
 4. Address every review comment — fix the code as requested or as appropriate.
 5. Look for any other bugs, issues, or style problems in the changed code and fix those too.
 6. Run the relevant tests to verify your fixes work.
-7. Give me a summary of what you found and what you changed, including any conflicts you resolved.
-Do NOT push. Leave all non-merge changes unstaged for me to review."
+7. Commit your changes and push them.
+8. Give me a summary of what you found and what you changed, including any conflicts you resolved.
+9. Wait for new comments in the PR to appear. If they do, go back to step 4."
 
 case "$AGENT_CLI" in
   claude)
