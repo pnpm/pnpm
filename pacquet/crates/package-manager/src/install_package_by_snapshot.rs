@@ -718,7 +718,7 @@ fn node_extras_filter(path: &str) -> bool {
 /// keyed by `pkg.name`); everything else returns `None` and the
 /// full archive contents land in the CAS unfiltered.
 ///
-/// The filter is cached in a [`std::sync::OnceLock`] so per-snapshot
+/// The filter is cached in a [`std::sync::LazyLock`] so per-snapshot
 /// `Arc::clone`s share one trait object — `IgnoreEntryFilter` is
 /// a `dyn Fn`, so cheap to clone, and we don't want to allocate
 /// the Arc once per runtime install.
@@ -726,8 +726,7 @@ fn archive_filter_for(package_key: &PackageKey) -> Option<Arc<IgnoreEntryFilter>
     if package_key.name.scope.is_some() || package_key.name.bare != "node" {
         return None;
     }
-    static FILTER: std::sync::OnceLock<Arc<IgnoreEntryFilter>> = std::sync::OnceLock::new();
-    let filter = FILTER.get_or_init(|| {
+    static FILTER: std::sync::LazyLock<Arc<IgnoreEntryFilter>> = std::sync::LazyLock::new(|| {
         // `fn(&str) -> bool` implements `Fn(&str) -> bool + Send +
         // Sync`, so an `Arc<fn(...)>` unsizes to
         // `Arc<dyn Fn(...) + Send + Sync>` (the trait-object type
@@ -736,7 +735,7 @@ fn archive_filter_for(package_key: &PackageKey) -> Option<Arc<IgnoreEntryFilter>
         let inner: Arc<IgnoreEntryFilter> = Arc::new(node_extras_filter);
         inner
     });
-    Some(Arc::clone(filter))
+    Some(Arc::clone(&FILTER))
 }
 
 /// Fetch a [`BinaryResolution`] into the CAS, returning the

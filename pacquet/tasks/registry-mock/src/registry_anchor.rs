@@ -6,7 +6,7 @@ use std::{
     fs::{self, File, OpenOptions, TryLockError},
     mem::forget,
     path::{Path, PathBuf},
-    sync::OnceLock,
+    sync::LazyLock,
 };
 use sysinfo::{Pid, Signal};
 
@@ -55,8 +55,9 @@ impl Drop for RegistryAnchor {
 
 impl RegistryAnchor {
     fn path() -> &'static Path {
-        static PATH: OnceLock<PathBuf> = OnceLock::new();
-        PATH.get_or_init(|| temp_dir().join("pacquet-registry-mock-anchor.json"))
+        static PATH: LazyLock<PathBuf> =
+            LazyLock::new(|| temp_dir().join("pacquet-registry-mock-anchor.json"));
+        PATH.as_path()
     }
 
     fn load() -> Self {
@@ -134,8 +135,7 @@ impl Drop for GuardFile {
 
 impl GuardFile {
     fn path() -> &'static File {
-        static PATH: OnceLock<File> = OnceLock::new();
-        PATH.get_or_init(|| {
+        static PATH: LazyLock<File> = LazyLock::new(|| {
             OpenOptions::new()
                 .read(true)
                 .write(true)
@@ -143,7 +143,8 @@ impl GuardFile {
                 .truncate(false)
                 .open(temp_dir().join("pacquet-registry-mock-anchor.lock"))
                 .expect("open the guard file")
-        })
+        });
+        &PATH
     }
 
     fn lock() -> Self {

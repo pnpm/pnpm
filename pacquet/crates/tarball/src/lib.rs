@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     io::{Cursor, Read},
     path::{Component, PathBuf},
-    sync::{Arc, OnceLock},
+    sync::{Arc, LazyLock},
     time::{Duration, Instant, UNIX_EPOCH},
 };
 
@@ -43,8 +43,9 @@ use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 ///
 /// [#269]: https://github.com/pnpm/pacquet/pull/269
 fn post_download_semaphore() -> &'static Semaphore {
-    static SEM: OnceLock<Semaphore> = OnceLock::new();
-    SEM.get_or_init(|| Semaphore::new(num_cpus::get().saturating_mul(2).max(4)))
+    static SEM: LazyLock<Semaphore> =
+        LazyLock::new(|| Semaphore::new(num_cpus::get().saturating_mul(2).max(4)));
+    &SEM
 }
 
 /// Dedicated rayon pool for the per-file CAS-write phase of extraction
@@ -65,8 +66,7 @@ fn post_download_semaphore() -> &'static Semaphore {
 /// Returns `None` if the pool can't be built, in which case the caller
 /// falls back to the global pool.
 fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
-    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
-    POOL.get_or_init(|| {
+    static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
         rayon::ThreadPoolBuilder::new()
             .num_threads(num_cpus::get().max(1))
             .thread_name(|index| format!("cas-write-{index}"))
@@ -79,8 +79,8 @@ fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
                 );
             })
             .ok()
-    })
-    .as_ref()
+    });
+    POOL.as_ref()
 }
 
 /// Reqwest's own [`std::fmt::Display`] for a request-stage failure renders as

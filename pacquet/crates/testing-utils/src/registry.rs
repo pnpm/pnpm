@@ -1,7 +1,7 @@
 use pnpr::Config;
 use std::{
     net::{Ipv4Addr, TcpListener},
-    sync::OnceLock,
+    sync::LazyLock,
     thread,
 };
 
@@ -29,8 +29,9 @@ struct TestRegistryInstance {
 
 impl TestRegistryInstance {
     fn get() -> &'static Self {
-        static INSTANCE: OnceLock<TestRegistryInstance> = OnceLock::new();
-        INSTANCE.get_or_init(Self::start)
+        static INSTANCE: LazyLock<TestRegistryInstance> =
+            LazyLock::new(TestRegistryInstance::start);
+        &INSTANCE
     }
 
     fn start() -> Self {

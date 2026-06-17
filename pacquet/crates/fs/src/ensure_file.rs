@@ -210,7 +210,7 @@ pub fn ensure_file(
 ///
 /// **Coordination contract.** Callers handing in the same `&Path`
 /// always receive the same `Mutex<()>`. The hasher is initialised
-/// once per process (`OnceLock<RandomState>`) so the path-to-stripe
+/// once per process (`LazyLock<RandomState>`) so the path-to-stripe
 /// mapping stays stable for the lifetime of the process; writers
 /// (`ensure_file`) and verifiers (`check_pkg_files_integrity`) of the
 /// same path are guaranteed to meet on the same lock and serialise.
@@ -225,9 +225,8 @@ pub fn ensure_file(
 /// `write_all` is still running.
 pub fn cas_write_lock(file_path: &Path) -> &'static Mutex<()> {
     use std::collections::hash_map::RandomState;
-    static BUILDER: std::sync::OnceLock<RandomState> = std::sync::OnceLock::new();
-    let builder = BUILDER.get_or_init(RandomState::new);
-    let mut hasher = builder.build_hasher();
+    static BUILDER: std::sync::LazyLock<RandomState> = std::sync::LazyLock::new(RandomState::new);
+    let mut hasher = BUILDER.build_hasher();
     std::hash::Hash::hash(file_path, &mut hasher);
     let stripe = (hasher.finish() as usize) & (NUM_CAS_LOCK_STRIPES - 1);
     &CAS_LOCK_STRIPES[stripe]
