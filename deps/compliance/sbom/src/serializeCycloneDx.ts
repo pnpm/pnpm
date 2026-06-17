@@ -13,6 +13,7 @@ export interface CycloneDxOptions {
   sbomAuthors?: string[]
   sbomSupplier?: string
   specVersion?: string
+  compact?: boolean
 }
 
 export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions): string {
@@ -185,7 +186,7 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
     dependencies: bomDependencies,
   }
 
-  return JSON.stringify(bom, null, 2)
+  return JSON.stringify(bom, null, opts?.compact ? undefined : 2)
 }
 
 function splitScopedName (fullName: string): { group: string | undefined, name: string } {
