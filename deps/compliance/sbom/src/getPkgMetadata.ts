@@ -119,6 +119,11 @@ export function bugsUrlFromField (field: unknown): string | undefined {
     return undefined
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined
+  // Drop any embedded credentials: an SBOM is a shareable/published artifact,
+  // so a `bugs` URL like `https://user:token@tracker/...` must not leak the
+  // secret into externalReferences[].url. The tracker URL itself is still useful.
+  parsed.username = ''
+  parsed.password = ''
   // Emit the normalized URL, not the raw input: `new URL` strips CR/LF/tab and
   // percent-encodes spaces and control characters, so a crafted `bugs` value
   // can't push raw whitespace or control chars into the CycloneDX

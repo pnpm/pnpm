@@ -151,6 +151,12 @@ describe('bugsUrlFromField', () => {
     expect(bugsUrlFromField('https://example.com/a b')).toBe('https://example.com/a%20b')
   })
 
+  it('strips embedded credentials so the SBOM does not leak them', () => {
+    expect(bugsUrlFromField('https://user:token@tracker.example/a/b/issues')).toBe('https://tracker.example/a/b/issues')
+    expect(bugsUrlFromField('https://only-user@tracker.example/x')).toBe('https://tracker.example/x')
+    expect(bugsUrlFromField({ url: 'https://u:p@tracker.example/i' })).toBe('https://tracker.example/i')
+  })
+
   it('drops malformed URLs, non-http schemes, emails, and missing values', () => {
     expect(bugsUrlFromField('https://')).toBeUndefined()
     expect(bugsUrlFromField('not a url')).toBeUndefined()
