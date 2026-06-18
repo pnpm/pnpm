@@ -254,6 +254,83 @@ fn version_conflict_keeps_loser_at_parent() {
     assert_eq!(b_under_c_refs.len(), 1);
 }
 
+/// The most-depended-on version of a shared name wins the root
+/// slot, even when a less-used version is discovered first in the
+/// depth-first walk. `aa` (visited first, alphabetically) pulls
+/// `x@1.0.0`; `cc` and `dd` both pull `x@2.0.0`. A first-visitor
+/// rule would hoist `x@1.0.0`; the popularity preference hoists the
+/// more-used `x@2.0.0` and leaves `x@1.0.0` nested under `aa`.
+/// Ports the "most used version wins" guarantee of yarn's
+/// `getHoistIdentMap`.
+#[test]
+fn most_used_version_wins_root_slot() {
+    let mut importers = HashMap::new();
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("aa"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("cc"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("dd"), resolved_dep("1.0.0"));
+    importers.insert(
+        Lockfile::ROOT_IMPORTER_KEY.to_string(),
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
+    );
+
+    let mut snapshots = HashMap::new();
+    let mut aa_deps = HashMap::new();
+    aa_deps.insert(pkg_name("x"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
+    let mut cc_deps = HashMap::new();
+    cc_deps.insert(pkg_name("x"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    let mut dd_deps = HashMap::new();
+    dd_deps.insert(pkg_name("x"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    snapshots.insert(
+        dep_key("aa", "1.0.0"),
+        SnapshotEntry { dependencies: Some(aa_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(
+        dep_key("cc", "1.0.0"),
+        SnapshotEntry { dependencies: Some(cc_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(
+        dep_key("dd", "1.0.0"),
+        SnapshotEntry { dependencies: Some(dd_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(dep_key("x", "1.0.0"), SnapshotEntry::default());
+    snapshots.insert(dep_key("x", "2.0.0"), SnapshotEntry::default());
+
+    let lockfile = Lockfile {
+        lockfile_version: lockfile_version(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers,
+        packages: None,
+        snapshots: Some(snapshots),
+    };
+
+    let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
+    let root_children = result.dependencies.borrow();
+    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["aa", "cc", "dd", "x"], "one x at root: {result:#?}");
+    let x_at_root = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "x").unwrap().0);
+    let x_refs = x_at_root.references.borrow();
+    assert!(
+        x_refs.contains("x@2.0.0"),
+        "the more-used x@2.0.0 wins root over the first-visited x@1.0.0: {x_refs:?}",
+    );
+    let dep_aa = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "aa").unwrap().0);
+    let aa_kids = dep_aa.dependencies.borrow();
+    assert_eq!(aa_kids.len(), 1, "aa keeps its conflicting x@1.0.0");
+    let x_under_aa = aa_kids[0].0.references.borrow();
+    assert!(
+        x_under_aa.contains("x@1.0.0"),
+        "the less-used x stays nested under aa: {x_under_aa:?}"
+    );
+}
+
 #[test]
 fn deep_chain_flattens_in_one_pass() {
     let mut importers = HashMap::new();
