@@ -16,7 +16,7 @@ use miette::Diagnostic;
 use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry};
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     fmt::Write as _,
     rc::Rc,
 };
@@ -659,6 +659,18 @@ enum AbsorbDecision {
     Border,
 }
 
+/// Immutable context shared across every [`hoist_subtree`] call in
+/// one [`hoist_into_root`] pass: the hoisting root, the active
+/// border-name set, and the per-name preferred-ident map. Bundled
+/// into one struct so the recursive walker stays under the argument
+/// limit; only `root_index`, `visited`, and the per-node position
+/// (`node`, `ancestor_path`, `under_border`) vary per call.
+struct HoistCtx<'a> {
+    root: &'a Rc<HoisterResult>,
+    border_names: &'a BTreeSet<String>,
+    hoist_ident_map: &'a HashMap<String, VecDeque<String>>,
+}
+
 /// Walk the result tree and hoist every eligible descendant of
 /// `root` onto `root` itself, iterating until the graph reaches a
 /// fixed point.
@@ -692,18 +704,6 @@ enum AbsorbDecision {
 /// DAG sharing and accepts a more conservative ruling in the
 /// rare cross-path mismatch cases. The cost is layouts that are
 /// sometimes more nested than pnpm's, never less.
-/// Immutable context shared across every [`hoist_subtree`] call in
-/// one [`hoist_into_root`] pass: the hoisting root, the active
-/// border-name set, and the per-name preferred-ident map. Bundled
-/// into one struct so the recursive walker stays under the argument
-/// limit; only `root_index`, `visited`, and the per-node position
-/// (`node`, `ancestor_path`, `under_border`) vary per call.
-struct HoistCtx<'a> {
-    root: &'a Rc<HoisterResult>,
-    border_names: &'a BTreeSet<String>,
-    hoist_ident_map: &'a HashMap<String, Vec<String>>,
-}
-
 fn hoist_into_root(root: &Rc<HoisterResult>, root_locator: &str, opts: &HoistOpts) {
     let mut root_index: HashMap<String, RcByPtr<HoisterResult>> =
         root.dependencies.borrow().iter().map(|dep| (dep.0.name.clone(), dep.clone())).collect();
@@ -742,7 +742,7 @@ fn hoist_into_root(root: &Rc<HoisterResult>, root_locator: &str, opts: &HoistOpt
         let mut shifted = false;
         for (name, idents) in &mut hoist_ident_map {
             if idents.len() > 1 && !root_index.contains_key(name) {
-                idents.remove(0);
+                idents.pop_front();
                 shifted = true;
             }
         }
@@ -791,7 +791,7 @@ impl PreferenceEntry {
 /// currently-preferred ident and shifts it as passes progress.
 /// Ports
 /// <https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts>.
-fn build_hoist_ident_map(root: &Rc<HoisterResult>) -> HashMap<String, Vec<String>> {
+fn build_hoist_ident_map(root: &Rc<HoisterResult>) -> HashMap<String, VecDeque<String>> {
     let mut preference: IndexMap<(String, String), PreferenceEntry> = IndexMap::new();
     let mut seen: HashSet<*const HoisterResult> = HashSet::new();
     seen.insert(Rc::as_ptr(root));
@@ -808,11 +808,11 @@ fn build_hoist_ident_map(root: &Rc<HoisterResult>) -> HashMap<String, Vec<String
     // Seed the result with the root and its direct deps so their
     // idents always rank first. Mirrors `getHoistIdentMap`'s initial
     // `identMap` construction before the sorted append loop.
-    let mut ident_map: IndexMap<String, Vec<String>> = IndexMap::new();
-    ident_map.insert(root.name.clone(), vec![root_ident]);
+    let mut ident_map: IndexMap<String, VecDeque<String>> = IndexMap::new();
+    ident_map.insert(root.name.clone(), VecDeque::from([root_ident]));
     for dep in &root_children {
         if !root.peer_names.contains(&dep.name) {
-            ident_map.insert(dep.name.clone(), vec![node_ident(dep)]);
+            ident_map.insert(dep.name.clone(), VecDeque::from([node_ident(dep)]));
         }
     }
 
@@ -829,7 +829,7 @@ fn build_hoist_ident_map(root: &Rc<HoisterResult>) -> HashMap<String, Vec<String
         }
         let idents = ident_map.entry(name).or_default();
         if !idents.contains(&ident) {
-            idents.push(ident);
+            idents.push_back(ident);
         }
     }
 
@@ -878,12 +878,12 @@ fn add_dependent(
 /// [hoist.ts:387](https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L387).
 fn is_preferred_ident(
     child: &HoisterResult,
-    hoist_ident_map: &HashMap<String, Vec<String>>,
+    hoist_ident_map: &HashMap<String, VecDeque<String>>,
 ) -> bool {
     let Some(idents) = hoist_ident_map.get(&child.name) else {
         return true;
     };
-    let Some(preferred) = idents.first() else {
+    let Some(preferred) = idents.front() else {
         return true;
     };
     child.references.borrow().iter().next().is_some_and(|reference| reference == preferred)
