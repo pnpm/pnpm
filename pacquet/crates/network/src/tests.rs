@@ -19,6 +19,7 @@ use super::{
     ProxyError, ThrottledClient, TlsConfig, parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
+use pacquet_testing_utils::env_guard::EnvGuard;
 use reqwest::Url;
 
 fn list(entries: &[&str]) -> NoProxySetting {
@@ -422,6 +423,48 @@ fn for_installs_strict_ssl_default_is_true() {
         &NetworkSettings::default(),
     )
     .expect("strict-ssl unset builds");
+}
+
+#[test]
+fn node_extra_ca_certs_is_loaded_and_failures_are_non_fatal() {
+    // `EnvGuard` serializes env-mutating tests process-wide and restores
+    // the prior value on drop — including on panic — so a failing
+    // `.expect()` below can't leak `NODE_EXTRA_CA_CERTS` into a sibling
+    // test. `for_installs` re-reads the var on each call.
+    let env = EnvGuard::snapshot(["NODE_EXTRA_CA_CERTS"]);
+    let fixture = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test-ca.pem");
+
+    let build = || {
+        ThrottledClient::for_installs(
+            &ProxyConfig::default(),
+            &TlsConfig::default(),
+            &PerRegistryTls::default(),
+            &NetworkSettings::default(),
+        )
+    };
+
+    // Empty value: nothing to add.
+    env.set("NODE_EXTRA_CA_CERTS", "");
+    assert!(super::load_node_extra_ca_certs().is_empty());
+
+    // A valid PEM bundle parses into one trust root, and a client built
+    // with it succeeds.
+    env.set("NODE_EXTRA_CA_CERTS", fixture);
+    assert_eq!(super::load_node_extra_ca_certs().len(), 1);
+    build().expect("NODE_EXTRA_CA_CERTS pointing at a valid PEM builds");
+
+    // A readable file that isn't valid PEM: ignored → empty.
+    let bad =
+        std::env::temp_dir().join(format!("pacquet-node-extra-ca-{}.pem", std::process::id()));
+    std::fs::write(&bad, b"not a certificate").expect("write temp ca bundle");
+    env.set("NODE_EXTRA_CA_CERTS", &bad);
+    assert!(super::load_node_extra_ca_certs().is_empty());
+    let _ = std::fs::remove_file(&bad);
+
+    // A nonexistent file: unreadable, ignored → empty.
+    env.set("NODE_EXTRA_CA_CERTS", "/pacquet/does-not-exist.pem");
+    assert!(super::load_node_extra_ca_certs().is_empty());
+    // `env` restores NODE_EXTRA_CA_CERTS on drop.
 }
 
 #[test]

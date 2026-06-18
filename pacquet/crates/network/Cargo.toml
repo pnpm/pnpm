@@ -19,9 +19,10 @@ tokio       = { workspace = true, features = ["time"] }
 tracing     = { workspace = true }
 
 [dev-dependencies]
-mockito           = { workspace = true }
-pretty_assertions = { workspace = true }
-tokio             = { workspace = true, features = ["macros", "rt-multi-thread"] }
+mockito               = { workspace = true }
+pacquet-testing-utils = { workspace = true }
+pretty_assertions     = { workspace = true }
+tokio                 = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

@@ -3983,6 +3983,7 @@ dependencies = [
  "derive_more",
  "miette 7.6.0",
  "mockito",
+ "pacquet-testing-utils",
  "pipe-trait",
  "pretty_assertions",
  "reqwest 0.13.4",
