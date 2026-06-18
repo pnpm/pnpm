@@ -9,10 +9,11 @@ use crate::State;
 use clap::Args;
 use owo_colors::{OwoColorize, Stream};
 use pacquet_config::matcher::{Matcher, create_matcher};
-use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer, PkgVerPeer};
+use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
 use pacquet_package_manifest::DependencyGroup;
 use std::{
     collections::{HashMap, HashSet},
+    fmt,
     io::Write,
 };
 
@@ -29,6 +30,27 @@ struct WhyResult {
     name: String,
     version: String,
     dependents: Vec<DependentNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum ParentNode {
+    Package(PkgNameVerPeer),
+    Importer(String),
+}
+
+impl fmt::Display for ParentNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParentNode::Package(key) => write!(f, "{key}"),
+            ParentNode::Importer(id) => write!(f, "{id}"),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ImporterInfo {
+    name: String,
+    version: String,
 }
 
 #[derive(Debug, Args)]
@@ -63,7 +85,32 @@ impl WhyArgs {
         };
 
         let matcher = create_matcher(&self.packages);
-        let results = build_dependents_tree(lockfile, &matcher);
+
+        let manifest_value = state.manifest.value();
+        let root_name = manifest_value
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("the root project")
+            .to_string();
+        let root_version =
+            manifest_value.get("version").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+        let mut importer_info = HashMap::new();
+        for importer_id in lockfile.importers.keys() {
+            if importer_id == Lockfile::ROOT_IMPORTER_KEY {
+                importer_info.insert(
+                    importer_id.clone(),
+                    ImporterInfo { name: root_name.clone(), version: root_version.clone() },
+                );
+            } else {
+                importer_info.insert(
+                    importer_id.clone(),
+                    ImporterInfo { name: importer_id.clone(), version: String::new() },
+                );
+            }
+        }
+
+        let results = build_dependents_tree(lockfile, &matcher, &importer_info);
 
         if results.is_empty() {
             return Ok(());
@@ -71,7 +118,7 @@ impl WhyArgs {
 
         let output = render_tree(&results, self.depth);
         let mut stdout = std::io::stdout();
-        let _ = writeln!(stdout, "{output}");
+        let _ = write!(stdout, "{output}");
         let _ = stdout.flush();
 
         Ok(())
@@ -80,7 +127,11 @@ impl WhyArgs {
 
 const MAX_REVERSE_WALK_DEPTH: usize = 64;
 
-fn build_dependents_tree(lockfile: &Lockfile, matcher: &Matcher) -> Vec<WhyResult> {
+fn build_dependents_tree(
+    lockfile: &Lockfile,
+    matcher: &Matcher,
+    importer_info: &HashMap<String, ImporterInfo>,
+) -> Vec<WhyResult> {
     let Some(packages) = lockfile.packages.as_ref() else {
         return vec![];
     };
@@ -112,21 +163,21 @@ fn build_dependents_tree(lockfile: &Lockfile, matcher: &Matcher) -> Vec<WhyResul
         forward_edges.insert(key.clone(), edges);
     }
 
-    let mut reverse_map: HashMap<PkgNameVerPeer, Vec<(PkgNameVerPeer, String)>> = HashMap::new();
+    let mut reverse_map: HashMap<PkgNameVerPeer, Vec<(ParentNode, String)>> = HashMap::new();
 
-    if let Some(importer) = lockfile.root_project() {
-        let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    for importer_id in importer_info.keys() {
+        let Some(importer) = lockfile.importers.get(importer_id.as_str()) else {
+            continue;
+        };
         for group in groups {
             if let Some(deps) = importer.get_map_by_group(group) {
                 for (alias, spec) in deps {
                     if let Some(target_key) = spec.version.resolved_key(alias) {
-                        reverse_map.entry(target_key).or_default().push((
-                            PkgNameVerPeer::new(
-                                PkgName::parse(".").unwrap(),
-                                "0.0.0".parse::<PkgVerPeer>().unwrap(),
-                            ),
-                            alias.to_string(),
-                        ));
+                        reverse_map
+                            .entry(target_key)
+                            .or_default()
+                            .push((ParentNode::Importer(importer_id.clone()), alias.to_string()));
                     }
                 }
             }
@@ -139,7 +190,7 @@ fn build_dependents_tree(lockfile: &Lockfile, matcher: &Matcher) -> Vec<WhyResul
                 reverse_map
                     .entry(target_key.clone())
                     .or_default()
-                    .push((parent_key.clone(), alias.clone()));
+                    .push((ParentNode::Package(parent_key.clone()), alias.clone()));
             }
         }
     }
@@ -163,7 +214,9 @@ fn build_dependents_tree(lockfile: &Lockfile, matcher: &Matcher) -> Vec<WhyResul
             continue;
         }
 
-        let dependents = walk_reverse(key, &reverse_map, &mut HashSet::new(), 0);
+        let mut visited = HashSet::new();
+        visited.insert(ParentNode::Package(key.clone()));
+        let dependents = walk_reverse(key, &reverse_map, &mut visited, 0, importer_info);
 
         results.push(WhyResult { name: name.clone(), version, dependents });
     }
@@ -175,9 +228,10 @@ fn build_dependents_tree(lockfile: &Lockfile, matcher: &Matcher) -> Vec<WhyResul
 
 fn walk_reverse(
     node_key: &PkgNameVerPeer,
-    reverse_map: &HashMap<PkgNameVerPeer, Vec<(PkgNameVerPeer, String)>>,
-    visited: &mut HashSet<PkgNameVerPeer>,
+    reverse_map: &HashMap<PkgNameVerPeer, Vec<(ParentNode, String)>>,
+    visited: &mut HashSet<ParentNode>,
     depth: usize,
+    importer_info: &HashMap<String, ImporterInfo>,
 ) -> Vec<DependentNode> {
     if depth >= MAX_REVERSE_WALK_DEPTH {
         return vec![];
@@ -189,44 +243,46 @@ fn walk_reverse(
 
     let mut dependents = Vec::new();
 
-    for (parent_key, _alias) in edges {
-        let is_root_importer = parent_key.name.scope.is_none() && parent_key.name.bare == ".";
+    for (parent_node, _alias) in edges {
+        match parent_node {
+            ParentNode::Importer(importer_id) => {
+                let info = importer_info.get(importer_id.as_str());
+                dependents.push(DependentNode {
+                    name: info.map_or_else(|| importer_id.clone(), |i| i.name.clone()),
+                    version: info.map_or_else(String::new, |i| i.version.clone()),
+                    dep_field: None,
+                    dependents: vec![],
+                });
+            }
+            ParentNode::Package(parent_key) => {
+                if visited.contains(parent_node) {
+                    dependents.push(DependentNode {
+                        name: parent_key.name.to_string(),
+                        version: parent_key.suffix.version().to_string(),
+                        dep_field: None,
+                        dependents: vec![],
+                    });
+                    continue;
+                }
 
-        if is_root_importer {
-            dependents.push(DependentNode {
-                name: "project".to_string(),
-                version: "0.0.0".to_string(),
-                dep_field: None,
-                dependents: vec![],
-            });
-            continue;
+                visited.insert(parent_node.clone());
+
+                let parent_name = parent_key.name.to_string();
+                let parent_version = parent_key.suffix.version().to_string();
+
+                let child_dependents =
+                    walk_reverse(parent_key, reverse_map, visited, depth + 1, importer_info);
+
+                visited.remove(parent_node);
+
+                dependents.push(DependentNode {
+                    name: parent_name,
+                    version: parent_version,
+                    dep_field: None,
+                    dependents: child_dependents,
+                });
+            }
         }
-
-        if visited.contains(parent_key) {
-            dependents.push(DependentNode {
-                name: parent_key.name.to_string(),
-                version: parent_key.suffix.version().to_string(),
-                dep_field: None,
-                dependents: vec![],
-            });
-            continue;
-        }
-
-        visited.insert(parent_key.clone());
-
-        let parent_name = parent_key.name.to_string();
-        let parent_version = parent_key.suffix.version().to_string();
-
-        let child_dependents = walk_reverse(parent_key, reverse_map, visited, depth + 1);
-
-        visited.remove(parent_key);
-
-        dependents.push(DependentNode {
-            name: parent_name,
-            version: parent_version,
-            dep_field: None,
-            dependents: child_dependents,
-        });
     }
 
     dependents

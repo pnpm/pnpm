@@ -54,7 +54,7 @@ fn why_shows_reverse_tree_for_direct_dep() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains(PKG), "should mention the package: {stdout}");
     assert!(stdout.contains("100.0.0"), "should show the version: {stdout}");
-    assert!(stdout.contains("project"), "should show the project as a dependent: {stdout}");
+    assert!(stdout.contains("test-why"), "should show the project as a dependent: {stdout}");
 }
 
 #[test]
@@ -69,7 +69,7 @@ fn why_shows_reverse_tree_for_transitive_dep() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains(DEP), "should mention the package: {stdout}");
     assert!(stdout.contains(PKG), "should show PKG as a dependent: {stdout}");
-    assert!(stdout.contains("project"), "should show the project as a dependent: {stdout}");
+    assert!(stdout.contains("test-why"), "should show the project as a dependent: {stdout}");
 }
 
 #[test]
