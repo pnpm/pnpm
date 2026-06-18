@@ -26,7 +26,8 @@
 //! keeps catching the next default that needs porting.
 
 use crate::{
-    CatalogMode, Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, ScriptsPrependNodePath,
+    CatalogMode, Config, LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode,
+    ScriptsPrependNodePath,
 };
 use std::collections::BTreeSet;
 
@@ -139,6 +140,8 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
             scripts_prepend_node_path_scalar(cfg.scripts_prepend_node_path),
         ),
         ("node-linker", node_linker_scalar(cfg.node_linker)),
+        ("node-experimental-package-map", Bool(cfg.node_experimental_package_map)),
+        ("node-package-map-type", node_package_map_type_scalar(cfg.node_package_map_type)),
         ("resolution-mode", resolution_mode_scalar(cfg.resolution_mode)),
         ("catalog-mode", catalog_mode_scalar(cfg.catalog_mode)),
         ("save-catalog-name", save_catalog_name_scalar(cfg.save_catalog_name.as_deref())),
@@ -173,6 +176,13 @@ fn node_linker_scalar(value: NodeLinker) -> Scalar {
         NodeLinker::Isolated => s("isolated"),
         NodeLinker::Hoisted => s("hoisted"),
         NodeLinker::Pnp => s("pnp"),
+    }
+}
+
+fn node_package_map_type_scalar(value: NodePackageMapType) -> Scalar {
+    match value {
+        NodePackageMapType::Standard => s("standard"),
+        NodePackageMapType::Loose => s("loose"),
     }
 }
 

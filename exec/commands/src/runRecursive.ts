@@ -6,6 +6,7 @@ import { throwOnCommandFail } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
+  makeNodePackageMapOption,
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
@@ -34,6 +35,8 @@ export type RecursiveRunOpts = Pick<Config,
 | 'stream'
 | 'syncInjectedDepsAfterScripts'
 | 'workspaceDir'
+| 'nodeExperimentalPackageMap'
+| 'modulesDir'
 > & Pick<ConfigContext, 'rootProjectManifest'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
@@ -74,6 +77,8 @@ export async function runRecursive (
       : 'pipe'
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
+  const existsPackageMap = existsInDir.bind(null, path.join(opts.modulesDir ?? 'node_modules', '.package-map.json'))
+  const workspacePackageMapPath = opts.nodeExperimentalPackageMap && opts.workspaceDir && existsPackageMap(opts.workspaceDir)
 
   const requiredScripts = opts.requiredScripts ?? []
   if (requiredScripts.includes(scriptName)) {
@@ -135,7 +140,14 @@ export async function runRecursive (
           if (pnpPath) {
             lifecycleOpts.extraEnv = {
               ...lifecycleOpts.extraEnv,
-              ...makeNodeRequireOption(pnpPath),
+              ...makeNodeRequireOption(pnpPath, lifecycleOpts.extraEnv),
+            }
+          }
+          const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(prefix))
+          if (packageMapPath) {
+            lifecycleOpts.extraEnv = {
+              ...lifecycleOpts.extraEnv,
+              ...makeNodePackageMapOption(packageMapPath, lifecycleOpts.extraEnv),
             }
           }
 

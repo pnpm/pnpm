@@ -338,6 +338,7 @@ fn build_modules_collects_ignored_builds() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -402,6 +403,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -454,6 +456,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -526,6 +529,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 2,
         skipped: &SkippedSnapshots::default(),
@@ -591,6 +595,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -679,6 +684,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -840,6 +846,7 @@ fn using_side_effects_cache_skips_rebuild() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -964,6 +971,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1079,6 +1087,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1145,6 +1154,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1210,6 +1220,7 @@ fn fail_when_failing_postinstall_is_required() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1297,6 +1308,7 @@ fn frozen_backstop_run(
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1620,6 +1632,7 @@ async fn write_path_populates_side_effects_row() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1739,6 +1752,7 @@ async fn write_path_disabled_skips_upload() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1866,6 +1880,7 @@ async fn upload_error_does_not_interrupt_install() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2101,6 +2116,7 @@ new file mode 100644
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2215,6 +2231,7 @@ new file mode 100644
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2300,6 +2317,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),

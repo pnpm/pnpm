@@ -48,6 +48,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'merge-git-branch-lockfiles-branch-pattern',
     'modules-dir',
     'network-concurrency',
+    'node-experimental-package-map',
+    'node-package-map-type',
     'node-linker',
     'noproxy',
     'package-import-method',

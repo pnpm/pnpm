@@ -265,6 +265,8 @@ export interface Config extends OptionsFromRootManifest {
   globalPkgDir: string
   lockfile?: boolean
   dedupeInjectedDeps?: boolean
+  nodeExperimentalPackageMap?: boolean
+  nodePackageMapType?: 'standard' | 'loose'
   nodeOptions?: string
   pmOnFail?: 'download' | 'error' | 'warn' | 'ignore'
   runtime?: boolean

@@ -26,6 +26,7 @@ import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
+  makeNodePackageMapOption,
   makeNodeRequireOption,
   runLifecycleHooksConcurrently,
 } from '@pnpm/exec.lifecycle'
@@ -51,7 +52,7 @@ import {
   writeCurrentLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile.fs'
-import { writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { PACKAGE_MAP_FILENAME, writePackageMap, writePackageMapFromDependenciesGraph, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
@@ -179,6 +180,8 @@ export interface HeadlessOptions {
   skipRuntimes?: boolean
   enableModulesDir?: boolean
   virtualStoreOnly?: boolean
+  nodeExperimentalPackageMap?: boolean
+  nodePackageMapType?: 'standard' | 'loose'
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
   useGitBranchLockfile?: boolean
   useLockfile?: boolean
@@ -539,6 +542,40 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
+  const shouldWritePackageMap = opts.enableModulesDir !== false && opts.nodeLinker !== 'pnp' && !opts.virtualStoreOnly
+  if (shouldWritePackageMap) {
+    // Omit the importer self-mapping when a project has no name: the map keys
+    // dependencies by package name, so falling back to the importer id (`.` or
+    // a path) would emit a non-package-name key. Matches pacquet.
+    const importerNames = Object.fromEntries(
+      selectedProjects.map(({ manifest, id }) => [id, manifest.name])
+    )
+    if (opts.nodeLinker === 'hoisted') {
+      await writePackageMapFromDependenciesGraph({
+        directDependenciesByImporterId,
+        graph,
+        importerNames,
+        lockfile: filteredLockfile,
+        lockfileDir,
+        packageMapType: opts.nodePackageMapType,
+        packageIdStrategy: 'path',
+        rootModulesDir,
+      })
+    } else {
+      await writePackageMap(filteredLockfile, {
+        importerNames,
+        lockfileDir,
+        locationByDepPath: Object.fromEntries(
+          Object.values(graph).map((node) => [node.depPath, node.dir])
+        ),
+        packageMapType: opts.nodePackageMapType,
+        rootModulesDir,
+        virtualStoreDir,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      })
+    }
+  }
+
   if (opts.ignoreScripts) {
     for (const { id, manifest } of selectedProjects) {
       if (opts.ignoreScripts && ((manifest?.scripts) != null) &&
@@ -577,7 +614,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (opts.enablePnp) {
       extraEnv = {
         ...extraEnv,
-        ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
+        ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'), extraEnv),
+      }
+    }
+    if (opts.nodeExperimentalPackageMap && shouldWritePackageMap) {
+      extraEnv = {
+        ...extraEnv,
+        ...makeNodePackageMapOption(path.join(rootModulesDir, PACKAGE_MAP_FILENAME), extraEnv),
       }
     }
     // Dependency lifecycle scripts must not run on an unverified lockfile.
@@ -715,6 +758,12 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   summaryLogger.debug({ prefix: lockfileDir })
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest && !skipPostImportLinking) {
+    if (opts.nodeExperimentalPackageMap && shouldWritePackageMap) {
+      scriptsOpts.extraEnv = {
+        ...scriptsOpts.extraEnv,
+        ...makeNodePackageMapOption(path.join(rootModulesDir, PACKAGE_MAP_FILENAME), scriptsOpts.extraEnv),
+      }
+    }
     // The projects' own lifecycle scripts import dependency code linked from
     // the lockfile, so they are held to the same gate as dependency builds —
     // also on the `enableModulesDir: false` path that skips buildModules.

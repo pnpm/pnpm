@@ -1,6 +1,6 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, NodeLinker,
-    PackageImportMethod, fs,
+    NodePackageMapType, PackageImportMethod, fs,
 };
 use crate::defaults::default_store_dir;
 use pacquet_store_dir::StoreDir;
@@ -96,6 +96,8 @@ inert_link_probe!(HostNoHome);
 pub fn have_default_values() {
     let value = Config::new();
     assert_eq!(value.node_linker, NodeLinker::default());
+    assert!(!value.node_experimental_package_map);
+    assert_eq!(value.node_package_map_type, NodePackageMapType::Standard);
     assert_eq!(value.package_import_method, PackageImportMethod::default());
     assert!(value.prefer_frozen_lockfile);
     assert!(value.symlink);
@@ -1446,6 +1448,49 @@ pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
         config.virtual_store_dir_max_length, 50,
         "env var must win over pnpm-workspace.yaml",
     );
+}
+
+#[test]
+pub fn package_map_settings_load_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "nodeExperimentalPackageMap: true\nnodePackageMapType: loose\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.node_experimental_package_map);
+    assert_eq!(config.node_package_map_type, NodePackageMapType::Loose);
+}
+
+#[test]
+pub fn package_map_settings_load_from_env() {
+    struct HostWithPackageMapEnv;
+    impl EnvVar for HostWithPackageMapEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_NODE_EXPERIMENTAL_PACKAGE_MAP" => Some("true".to_owned()),
+                "PNPM_CONFIG_NODE_PACKAGE_MAP_TYPE" => Some("loose".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithPackageMapEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithPackageMapEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithPackageMapEnv);
+
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostWithPackageMapEnv>(tmp.path()).expect("loads");
+    assert!(config.node_experimental_package_map);
+    assert_eq!(config.node_package_map_type, NodePackageMapType::Loose);
 }
 
 #[test]

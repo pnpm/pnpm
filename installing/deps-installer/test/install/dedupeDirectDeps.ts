@@ -92,6 +92,7 @@ test('dedupe direct dependencies', async () => {
   expect(Array.from(fs.readdirSync('node_modules').sort())).toEqual([
     '.bin',
     '.modules.yaml',
+    '.package-map.json',
     '.pnpm',
     '@pnpm.e2e',
     'foo',

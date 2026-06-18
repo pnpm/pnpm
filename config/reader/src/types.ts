@@ -75,6 +75,8 @@ export const pnpmTypes = {
   'minimum-release-age-strict': Boolean,
   'modules-dir': String,
   'network-concurrency': Number,
+  'node-experimental-package-map': Boolean,
+  'node-package-map-type': ['standard', 'loose'],
   'node-linker': ['pnp', 'isolated', 'hoisted'],
   noproxy: String,
   'npm-path': String,

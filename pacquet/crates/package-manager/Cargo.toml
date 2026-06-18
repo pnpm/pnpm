@@ -66,6 +66,7 @@ pathdiff        = { workspace = true }
 pipe-trait      = { workspace = true }
 rayon           = { workspace = true }
 reflink-copy    = { workspace = true }
+serde           = { workspace = true }
 serde_json      = { workspace = true }
 ssri            = { workspace = true }
 tokio           = { workspace = true }

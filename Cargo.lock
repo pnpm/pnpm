@@ -4067,6 +4067,7 @@ dependencies = [
  "pretty_assertions",
  "rayon",
  "reflink-copy",
+ "serde",
  "serde-saphyr",
  "serde_json",
  "sha2",

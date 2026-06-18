@@ -28,6 +28,7 @@ const f = fixtures(import.meta.dirname)
 const IS_WINDOWS = isWindows()
 
 const testOnNonWindows = IS_WINDOWS ? test.skip : test
+const testOnNode27Plus = semver.major(process.versions.node) >= 27 ? test : test.skip
 
 test('spec not specified in package.json.dependencies', async () => {
   const project = prepareEmpty()
@@ -52,6 +53,308 @@ test.skip('ignoring some files in the dependency', async () => {
   expect(fs.existsSync(path.resolve('node_modules', 'is-positive', 'package.json'))).toBeTruthy()
   // readme.md was ignored
   expect(fs.existsSync(path.resolve('node_modules', 'is-positive', 'readme.md'))).toBeFalsy()
+})
+
+test('writes a package map for Node.js package-map resolution', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(rootDependencyId).toBe('@pnpm.e2e/pkg-with-1-dep@100.0.0')
+  expect(packageMap.packages[rootDependencyId]).toMatchObject({
+    url: './.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep',
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': expect.stringMatching(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep@100\./),
+    },
+  })
+  project.has('.package-map.json')
+
+  fs.rmSync(path.resolve('node_modules/.package-map.json'))
+  await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true }))
+  project.has('.package-map.json')
+})
+
+test('writes a package map that resolves against the global virtual store layout', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+  }))
+
+  const expectMapResolvesOnDisk = (): void => {
+    const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+    const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+    // The global virtual store nests by name/version/content-hash, unlike the
+    // flat local `.pnpm` layout, so the url must come from the real location.
+    expect(packageMap.packages[rootDependencyId].url).toContain('links/@pnpm.e2e/pkg-with-1-dep/100.0.0/')
+    for (const entry of Object.values<{ url: string }>(packageMap.packages)) {
+      expect(fs.existsSync(path.resolve('node_modules', entry.url))).toBe(true)
+    }
+  }
+  expectMapResolvesOnDisk()
+
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({
+    fastUnpack: false,
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    frozenLockfile: true,
+  }))
+  expectMapResolvesOnDisk()
+})
+
+test('writes a loose package map for Node.js package-map resolution', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/foo@100.0.0',
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ], testDefaults({
+    fastUnpack: false,
+    nodePackageMapType: 'loose',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(packageMap.packages[rootDependencyId].dependencies).toMatchObject({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': expect.stringMatching(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep@100\./),
+    '@pnpm.e2e/foo': '@pnpm.e2e/foo@100.0.0',
+  })
+})
+
+test('writes a package map for hoisted node linker from the real layout', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(rootDependencyId).toBe('@pnpm.e2e/pkg-with-1-dep')
+  expect(packageMap.packages[rootDependencyId]).toMatchObject({
+    url: './@pnpm.e2e/pkg-with-1-dep',
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '@pnpm.e2e/pkg-with-1-dep',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': expect.stringMatching(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep/),
+    },
+  })
+  project.has('.package-map.json')
+})
+
+test('writes a loose package map for hoisted node linker', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/foo@100.0.0',
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+    nodePackageMapType: 'loose',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(packageMap.packages[rootDependencyId].dependencies).toMatchObject({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': expect.stringMatching(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep/),
+    '@pnpm.e2e/foo': '@pnpm.e2e/foo',
+  })
+})
+
+test('does not inject a package map into lifecycle scripts when virtualStoreOnly skips map materialization', async () => {
+  prepareEmpty()
+  fs.mkdirSync('pkg')
+  const marker = path.resolve('package-map-env-ok')
+  fs.writeFileSync('pkg/package.json', JSON.stringify({
+    name: 'pkg',
+    version: '1.0.0',
+    scripts: {
+      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+    },
+  }), 'utf8')
+
+  await addDependenciesToPackage({}, ['file:./pkg'], testDefaults({
+    allowBuilds: { 'pkg@file:pkg': true },
+    nodeExperimentalPackageMap: true,
+    virtualStoreOnly: true,
+  }))
+
+  expect(fs.existsSync(path.resolve('node_modules/.package-map.json'))).toBeFalsy()
+  expect(fs.existsSync(marker)).toBeTruthy()
+})
+
+test('does not write or inject a package map when modules directory creation is disabled', async () => {
+  prepareEmpty()
+  const marker = path.resolve('package-map-env-ok')
+  const manifest: ProjectManifest = {
+    name: 'project',
+    version: '1.0.0',
+    scripts: {
+      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+    },
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+
+  await install(manifest, testDefaults({ ignoreScripts: true }))
+  rimrafSync('node_modules')
+
+  await install(manifest, testDefaults({
+    enableModulesDir: false,
+    frozenLockfile: true,
+    nodeExperimentalPackageMap: true,
+  }))
+
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeFalsy()
+  expect(fs.existsSync(marker)).toBeTruthy()
+})
+
+testOnNode27Plus('package map can resolve package dependencies at runtime with Node.js', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  const rootDependencyDir = path.resolve('node_modules', packageMap.packages[rootDependencyId].url)
+  const dependencyId = packageMap.packages[rootDependencyId].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']
+
+  rimrafSync(path.join(rootDependencyDir, 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))
+
+  fs.writeFileSync(
+    path.join(rootDependencyDir, 'package-map-smoke.cjs'),
+    `
+const dep = require('@pnpm.e2e/dep-of-pkg-with-1-dep')()
+if (dep.name !== '@pnpm.e2e/dep-of-pkg-with-1-dep') {
+  throw new Error(\`unexpected dependency name: \${dep.name}\`)
+}
+if (!dep.version.startsWith('100.')) {
+  throw new Error(\`unexpected dependency version: \${dep.version}\`)
+}
+`,
+    'utf8'
+  )
+
+  await execa('node', [
+    `--experimental-package-map=${path.resolve('node_modules/.package-map.json')}`,
+    path.join(rootDependencyDir, 'package-map-smoke.cjs'),
+  ])
+
+  expect(dependencyId).toMatch(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep@100\./)
+})
+
+testOnNode27Plus('hoisted package map can resolve package dependencies at runtime with Node.js', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  const rootDependencyDir = path.resolve('node_modules', packageMap.packages[rootDependencyId].url)
+  const dependencyId = packageMap.packages[rootDependencyId].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']
+
+  fs.writeFileSync(
+    path.join(rootDependencyDir, 'package-map-smoke.cjs'),
+    `
+const dep = require('@pnpm.e2e/dep-of-pkg-with-1-dep')()
+if (dep.name !== '@pnpm.e2e/dep-of-pkg-with-1-dep') {
+  throw new Error(\`unexpected dependency name: \${dep.name}\`)
+}
+if (!dep.version.startsWith('100.')) {
+  throw new Error(\`unexpected dependency version: \${dep.version}\`)
+}
+`,
+    'utf8'
+  )
+
+  await execa('node', [
+    `--experimental-package-map=${path.resolve('node_modules/.package-map.json')}`,
+    path.join(rootDependencyDir, 'package-map-smoke.cjs'),
+  ])
+
+  expect(dependencyId).toMatch(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep/)
+})
+
+testOnNode27Plus('hoisted package map blocks undeclared hoisted dependencies at runtime with Node.js', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/foo@100.0.0',
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  const rootDependencyDir = path.resolve('node_modules', packageMap.packages[rootDependencyId].url)
+  expect(packageMap.packages[rootDependencyId].dependencies['@pnpm.e2e/foo']).toBeUndefined()
+
+  const smokeFile = path.join(rootDependencyDir, 'package-map-undeclared-smoke.cjs')
+  fs.writeFileSync(
+    smokeFile,
+    `
+require('@pnpm.e2e/foo/package.json')
+`,
+    'utf8'
+  )
+
+  await execa('node', [smokeFile])
+  await expect(execa('node', [
+    `--experimental-package-map=${path.resolve('node_modules/.package-map.json')}`,
+    smokeFile,
+  ])).rejects.toMatchObject({
+    exitCode: 1,
+    stderr: expect.stringContaining('MODULE_NOT_FOUND'),
+  })
+})
+
+testOnNode27Plus('loose hoisted package map allows undeclared hoisted dependencies at runtime with Node.js', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/foo@100.0.0',
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+    nodePackageMapType: 'loose',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  const rootDependencyDir = path.resolve('node_modules', packageMap.packages[rootDependencyId].url)
+  expect(packageMap.packages[rootDependencyId].dependencies['@pnpm.e2e/foo']).toBe('@pnpm.e2e/foo')
+
+  const smokeFile = path.join(rootDependencyDir, 'package-map-loose-smoke.cjs')
+  fs.writeFileSync(
+    smokeFile,
+    `
+const foo = require('@pnpm.e2e/foo/package.json')
+if (foo.name !== '@pnpm.e2e/foo') {
+  throw new Error(\`unexpected package name: \${foo.name}\`)
+}
+`,
+    'utf8'
+  )
+
+  await execa('node', [
+    `--experimental-package-map=${path.resolve('node_modules/.package-map.json')}`,
+    smokeFile,
+  ])
 })
 
 test('no dependencies (lodash)', async () => {
@@ -1143,7 +1446,7 @@ test('installing with no symlinks with PnP', async () => {
     })
   )
 
-  expect([...fs.readdirSync(path.resolve('node_modules'))]).toStrictEqual(['.bin', '.modules.yaml', '.pnpm'])
+  expect([...fs.readdirSync(path.resolve('node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.package-map.json', '.pnpm'])
   expect([...fs.readdirSync(path.resolve('node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
 
   expect(project.readCurrentLockfile()).toBeTruthy()
@@ -1250,3 +1553,16 @@ test('install should not hang on circular peer dependencies', async () => {
   // cspell:disable-next-line
   await addDependenciesToPackage({}, ['@medusajs/medusa-js@6.1.7'], testDefaults())
 })
+
+function makeAssertNoPackageMapNodeOptionsScript (marker: string): string {
+  const scriptPath = path.resolve('assert-no-package-map-node-options.cjs')
+  fs.writeFileSync(scriptPath, `
+const fs = require('node:fs')
+
+if ((process.env.NODE_OPTIONS || '').includes('--experimental-package-map')) {
+  throw new Error('unexpected package map NODE_OPTIONS')
+}
+fs.writeFileSync(process.argv[2], 'ok')
+`, 'utf8')
+  return `node ${JSON.stringify(scriptPath)} ${JSON.stringify(marker)}`
+}

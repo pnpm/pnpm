@@ -825,7 +825,7 @@ test('installing with no symlinks but with PnP', async () => {
     symlink: false,
   }))
 
-  expect([...fs.readdirSync(path.join(prefix, 'node_modules'))]).toStrictEqual(['.bin', '.modules.yaml', '.pnpm'])
+  expect([...fs.readdirSync(path.join(prefix, 'node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.package-map.json', '.pnpm'])
   expect([...fs.readdirSync(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
 
   const project = assertProject(prefix)

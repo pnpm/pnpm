@@ -151,7 +151,6 @@ catalog:
   '@yarnpkg/extensions': 2.0.6
   '@yarnpkg/lockfile': ^1.1.0
   '@yarnpkg/nm': 4.0.7
-  '@yarnpkg/parsers': 3.0.3
   '@yarnpkg/pnp': ^4.1.6
   '@zkochan/cmd-shim': ^9.0.6
   '@zkochan/retry': ^0.2.0

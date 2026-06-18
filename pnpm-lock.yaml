@@ -515,9 +515,6 @@ catalogs:
     '@yarnpkg/nm':
       specifier: 4.0.7
       version: 4.0.7
-    '@yarnpkg/parsers':
-      specifier: 3.0.3
-      version: 3.0.3
     '@yarnpkg/pnp':
       specifier: ^4.1.6
       version: 4.1.7
@@ -5402,9 +5399,6 @@ importers:
       '@yarnpkg/lockfile':
         specifier: 'catalog:'
         version: 1.1.0
-      '@yarnpkg/parsers':
-        specifier: 'catalog:'
-        version: 3.0.3
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
@@ -5426,6 +5420,9 @@ importers:
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
+      js-yaml:
+        specifier: 'catalog:'
+        version: '@zkochan/js-yaml@0.0.11'
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -5487,6 +5484,9 @@ importers:
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
+      '@types/js-yaml':
+        specifier: 'catalog:'
+        version: 4.0.9
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2

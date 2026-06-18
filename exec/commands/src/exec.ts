@@ -6,7 +6,7 @@ import { type Config, type ConfigContext, getWorkspaceConcurrency, types } from 
 import { lifecycleLogger, type LifecycleMessage } from '@pnpm/core-loggers'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
-import { makeNodeRequireOption } from '@pnpm/exec.lifecycle'
+import { makeNodePackageMapOption, makeNodeRequireOption } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath, ProjectsGraph } from '@pnpm/types'
@@ -45,6 +45,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'unsafe-perm',
       'workspace-concurrency',
       'reporter-hide-prefix',
+      'node-experimental-package-map',
+      'node-package-map-type',
     ], types),
     'shell-mode': Boolean,
     'resume-from': String,
@@ -154,6 +156,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 | 'lockfileDir'
 | 'modulesDir'
 | 'nodeOptions'
+| 'nodeExperimentalPackageMap'
 | 'pnpmHomeDir'
 | 'recursive'
 | 'reporter'
@@ -220,6 +223,8 @@ export async function handler (
   const result = createEmptyRecursiveSummary(chunks)
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
+  const existsPackageMap = existsInDir.bind(null, path.join(opts.modulesDir ?? 'node_modules', '.package-map.json'))
+  const workspacePackageMapPath = opts.nodeExperimentalPackageMap && opts.workspaceDir && existsPackageMap(opts.workspaceDir)
 
   let exitCode = 0
   const prependPaths = [
@@ -235,15 +240,21 @@ export async function handler (
         const startTime = process.hrtime()
         try {
           const pnpPath = workspacePnpPath ?? existsPnp(prefix)
-          const extraEnv = {
+          const packageMapPath = workspacePackageMapPath || (opts.nodeExperimentalPackageMap && existsPackageMap(prefix))
+          const extraEnv: Record<string, string | undefined> = {
             ...opts.extraEnv,
-            ...(pnpPath ? makeNodeRequireOption(pnpPath) : {}),
+            ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
+          }
+          if (pnpPath) {
+            Object.assign(extraEnv, makeNodeRequireOption(pnpPath, extraEnv))
+          }
+          if (packageMapPath) {
+            Object.assign(extraEnv, makeNodePackageMapOption(packageMapPath, extraEnv))
           }
           const env = makeEnv({
             extraEnv: {
               ...extraEnv,
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
-              ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
             },
             prependPaths,
             userAgent: opts.userAgent,

@@ -61,6 +61,14 @@ pub enum NodeLinker {
     Pnp,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NodePackageMapType {
+    #[default]
+    Standard,
+    Loose,
+}
+
 /// Controls how far dependencies are hoisted under
 /// `nodeLinker: hoisted`, mirroring yarn's `nmHoistingLimits`.
 ///
@@ -424,6 +432,16 @@ pub struct Config {
 
     /// Defines what linker should be used for installing Node packages.
     pub node_linker: NodeLinker,
+
+    /// When true, pacquet writes `node_modules/.package-map.json` for
+    /// Node's `--experimental-package-map` loader flag. Default
+    /// `false`, matching pnpm's opt-in setting.
+    pub node_experimental_package_map: bool,
+
+    /// Selects the package-map dependency surface. Pacquet currently
+    /// materializes only the standard map for isolated installs; loose
+    /// and hoisted maps require layout-aware writers.
+    pub node_package_map_type: NodePackageMapType,
 
     /// When symlink is set to false, pnpm creates a virtual store directory without any symlinks.
     /// It is a useful setting together with node-linker=pnp.

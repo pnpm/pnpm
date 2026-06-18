@@ -239,6 +239,10 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     LinkHoistedModules(#[error(source)] crate::LinkHoistedModulesError),
 
+    #[display("failed to write package map: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    WritePackageMap(#[error(source)] crate::WritePackageMapError),
+
     #[diagnostic(transparent)]
     LinkBins(#[error(source)] LinkBinsError),
 
@@ -394,6 +398,9 @@ impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFre
             }
             HoistedLinkerError::SymlinkDirectDependencies(error) => {
                 InstallWithFreshLockfileError::SymlinkDirectDependencies(error)
+            }
+            HoistedLinkerError::WritePackageMap(error) => {
+                InstallWithFreshLockfileError::WritePackageMap(error)
             }
         }
     }
@@ -1606,6 +1613,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // adapter shape); `hoisted_locations` carries the walker's
         // placements so `.modules.yaml` round-trips them.
         let (hoisted_dependencies, hoisted_locations) = if is_hoisted {
+            let project_manifests = importer_manifests
+                .iter()
+                .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+                .collect::<Vec<_>>();
             // Reuse the host probed once above for the engine-name key, so
             // a hoisted install with installability constraints spawns
             // `node --version` only once. `None` when nothing constrained
@@ -1622,6 +1633,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     layout: &layout,
                     importers: &built_lockfile.importers,
                     dependency_groups: &dependency_groups,
+                    project_manifests: &project_manifests,
                     walker_lockfile_dir: lockfile_dir,
                     symlink_workspace_root: symlink_root,
                     host_node: host_node.as_ref(),
@@ -1791,6 +1803,45 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             None => engine_name,
         };
 
+        // Write `node_modules/.package-map.json` before the build phase, since
+        // `build_extra_env` below points lifecycle scripts' `NODE_OPTIONS` at
+        // it. `layout` already resolves each snapshot to its real on-disk slot
+        // (flat or global-virtual-store). Reached only after materialization,
+        // mirroring the frozen path's write in `InstallFrozenLockfile::run`, so
+        // the `lockfile_only` early return never writes a map for an unlinked
+        // tree.
+        if crate::should_write_package_map(config, node_linker) {
+            let project_manifests = importer_manifests
+                .iter()
+                .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+                .collect::<Vec<_>>();
+            crate::package_map::write_package_map(
+                &built_lockfile,
+                &crate::package_map::PackageMapOptions {
+                    lockfile_dir,
+                    modules_dir: &config.modules_dir,
+                    package_map_type: config.node_package_map_type,
+                    layout: &layout,
+                    project_manifests: &project_manifests,
+                },
+            )
+            .map_err(InstallWithFreshLockfileError::WritePackageMap)?;
+        }
+
+        let mut build_extra_env = HashMap::new();
+        if let Some(node_options) = &config.node_options {
+            build_extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+        }
+        if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+            let package_map_path =
+                config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
+            let node_options = build_extra_env.get("NODE_OPTIONS").map(String::as_str);
+            build_extra_env.insert(
+                "NODE_OPTIONS".to_string(),
+                crate::make_node_package_map_option(&package_map_path, node_options),
+            );
+        }
+
         // Run lifecycle scripts, report ignored builds, and re-link
         // top-level bins — the same build phase the frozen path runs, so
         // `pacquet add esbuild` reports the blocked `esbuild` build (and
@@ -1815,6 +1866,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
                 requires_build_by_snapshot: &requires_build_by_snapshot,
                 engine_name: engine_name.as_deref(),
+                extra_env: &build_extra_env,
                 store_index_writer: &store_index_writer,
                 skipped: &skipped,
                 hoisted_pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),

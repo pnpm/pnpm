@@ -54,6 +54,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'lockfile',
     'modules-dir',
     'network-concurrency',
+    'node-experimental-package-map',
+    'node-package-map-type',
     'node-linker',
     'noproxy',
     'npm-path',

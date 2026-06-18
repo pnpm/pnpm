@@ -3,6 +3,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
+use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
 use serde_json::Value;
 use std::{
@@ -128,6 +129,13 @@ impl RunArgs {
         let mut extra_env = HashMap::new();
         if let Some(node_options) = &config.node_options {
             extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+        }
+        if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
+            let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+            extra_env.insert(
+                "NODE_OPTIONS".to_string(),
+                make_node_package_map_option(&package_map_path, node_options),
+            );
         }
 
         let init_cwd: PathBuf = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());

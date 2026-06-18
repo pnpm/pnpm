@@ -91,6 +91,8 @@ export interface StrictInstallOptions {
   engineStrict: boolean
   allowBuilds?: Record<string, boolean | string>
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
+  nodeExperimentalPackageMap: boolean
+  nodePackageMapType: 'standard' | 'loose'
   nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
   ignoredOptionalDependencies: string[]
@@ -327,6 +329,8 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     updateChecksums: false,
     nodeVersion: opts.nodeVersion,
     nodeLinker: 'isolated',
+    nodeExperimentalPackageMap: false,
+    nodePackageMapType: 'standard',
     overrides: {},
     ownLifecycleHooksStdio: 'inherit',
     ignoreCompatibilityDb: false,

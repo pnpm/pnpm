@@ -143,6 +143,8 @@ export async function getConfig (opts: {
     'dedupe-injected-deps': true,
     'disallow-workspace-cycles': false,
     'enable-modules-dir': true,
+    'node-experimental-package-map': false,
+    'node-package-map-type': 'standard',
     'enable-pre-post-scripts': true,
     'exclude-links-from-lockfile': false,
     'extend-node-path': true,

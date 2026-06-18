@@ -5,9 +5,9 @@
 
 use super::{
     Install, InstallError, UpToDateFastPathCheck, install_already_up_to_date,
-    load_workspace_projects,
+    load_workspace_projects, should_write_package_map,
 };
-use pacquet_config::Config;
+use pacquet_config::{Config, NodePackageMapType};
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_modules_yaml::{
     DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, LayoutVersion, Modules, NodeLinker,
@@ -99,6 +99,17 @@ fn workspace_without_packages_field_enumerates_root_only() {
         .collect();
 
     assert_eq!(names, vec!["root"]);
+}
+
+#[test]
+fn package_map_writer_is_gated_to_supported_pacquet_mode() {
+    let mut config = Config::new();
+    assert!(should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
+    assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Hoisted));
+    assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Pnp));
+
+    config.node_package_map_type = NodePackageMapType::Loose;
+    assert!(should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
 }
 
 #[tokio::test]
