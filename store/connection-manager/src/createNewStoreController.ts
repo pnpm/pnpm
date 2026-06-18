@@ -39,6 +39,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'minimumReleaseAgeExclude'
 | 'minimumReleaseAgeIgnoreMissingTime'
 | 'minimumReleaseAgeStrict'
+| 'nativeBinDependencies'
 | 'networkConcurrency'
 | 'noProxy'
 | 'offline'
@@ -102,6 +103,7 @@ export async function createNewStoreController (
     configByUri: opts.configByUri,
     registries: opts.registries,
     namedRegistries: opts.namedRegistries,
+    nativeBinDependencies: opts.nativeBinDependencies,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
