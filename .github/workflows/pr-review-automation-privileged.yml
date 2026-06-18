@@ -27,9 +27,13 @@ jobs:
     permissions:
       # Downloading an artifact from the triggering run requires actions: read.
       actions: read
-      # Adding a label via the issues REST API is governed by issues: write
-      # even when the target is a PR. No other scope is needed.
+      # The POST /issues/{n}/labels endpoint is shared between issues and PRs,
+      # but the governing permission depends on the target: labeling a pull
+      # request needs pull-requests: write (issues: write only covers issues).
+      # The reviews this acts on are always on PRs, so pull-requests: write is
+      # the one that matters; issues: write is kept for completeness.
       issues: write
+      pull-requests: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # The webhook is optional; the Discord step is skipped when it is unset. Only
