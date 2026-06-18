@@ -1730,8 +1730,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     )
     stats = result.stats
     if (shouldWritePackageMap) {
+      // Omit the importer self-mapping when a project has no name (see the
+      // deps-restorer write): a non-package-name key like `.` would be invalid.
       const importerNames = Object.fromEntries(
-        projects.map(({ manifest, id }) => [id, manifest.name ?? id])
+        projects.map(({ manifest, id }) => [id, manifest.name])
       )
       await writePackageMap(result.currentLockfile, {
         importerNames,

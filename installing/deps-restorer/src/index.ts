@@ -544,8 +544,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
   const shouldWritePackageMap = opts.enableModulesDir !== false && opts.nodeLinker !== 'pnp' && !opts.virtualStoreOnly
   if (shouldWritePackageMap) {
+    // Omit the importer self-mapping when a project has no name: the map keys
+    // dependencies by package name, so falling back to the importer id (`.` or
+    // a path) would emit a non-package-name key. Matches pacquet.
     const importerNames = Object.fromEntries(
-      selectedProjects.map(({ manifest, id }) => [id, manifest.name ?? id])
+      selectedProjects.map(({ manifest, id }) => [id, manifest.name])
     )
     if (opts.nodeLinker === 'hoisted') {
       await writePackageMapFromDependenciesGraph({
