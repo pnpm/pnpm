@@ -87,13 +87,33 @@ fn why_with_glob_pattern() {
 }
 
 #[test]
-fn why_fails_without_lockfile() {
+fn why_without_lockfile_returns_empty() {
     let (_root, workspace, _anchor) = setup();
 
     write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
 
     let output = pacquet(&workspace, ["why", PKG]).output().expect("run pacquet why");
-    assert!(!output.status.success(), "why without lockfile should fail");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("No lockfile"), "should show error about missing lockfile: {stderr}");
+    assert!(output.status.success(), "why without lockfile should succeed like pnpm: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.is_empty(), "should produce no output without lockfile: {stdout}");
+}
+
+#[test]
+fn why_depth_limits_output() {
+    let (_root, workspace, _anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output_full =
+        pacquet(&workspace, ["why", DEP]).output().expect("run pacquet why --depth unset");
+    let output_depth1 = pacquet(&workspace, ["why", DEP, "--depth", "1"])
+        .output()
+        .expect("run pacquet why --depth 1");
+
+    let full_stdout = String::from_utf8_lossy(&output_full.stdout);
+    let depth1_stdout = String::from_utf8_lossy(&output_depth1.stdout);
+    assert!(full_stdout.contains("test-why"), "full output shows project: {full_stdout}");
+    assert!(depth1_stdout.contains(DEP), "depth=1 output still shows the target: {depth1_stdout}");
+    assert!(depth1_stdout.contains(PKG), "depth=1 output shows direct parent: {depth1_stdout}");
 }

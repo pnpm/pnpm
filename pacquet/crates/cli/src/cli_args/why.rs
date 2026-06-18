@@ -77,12 +77,7 @@ impl WhyArgs {
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
         let Some(lockfile) = lockfile else {
-            let dir =
-                state.manifest.path().parent().unwrap_or_else(|| state.manifest.path()).display();
-            return Err(miette::miette!(
-                code = "ERR_PNPM_OUTDATED_NO_LOCKFILE",
-                "No lockfile in directory \"{dir}\". Run `pacquet install` to generate one."
-            ));
+            return Ok(());
         };
 
         let matcher = create_matcher(&self.packages);
@@ -198,7 +193,7 @@ fn build_dependents_tree(
     }
 
     for edges in reverse_map.values_mut() {
-        edges.sort_by_key(|a| a.0.to_string());
+        edges.sort_by_cached_key(|a| a.0.to_string());
     }
 
     let mut results: Vec<WhyResult> = Vec::new();
@@ -391,11 +386,23 @@ fn dep_field_name(field: DependencyGroup) -> &'static str {
 }
 
 fn bold(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
+    let cleaned = sanitize(text);
+    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
 }
 
 fn dim(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
+    let cleaned = sanitize(text);
+    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
+}
+
+fn sanitize(text: &str) -> std::borrow::Cow<'_, str> {
+    if text.bytes().any(|b| b < 0x20 && b != b'\n' && b != b'\t') {
+        std::borrow::Cow::Owned(
+            text.chars().filter(|c| !c.is_control() || *c == '\n' || *c == '\t').collect(),
+        )
+    } else {
+        std::borrow::Cow::Borrowed(text)
+    }
 }
 
 #[cfg(test)]
