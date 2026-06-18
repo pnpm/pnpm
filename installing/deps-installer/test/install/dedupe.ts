@@ -212,6 +212,89 @@ test('ignore version of root dependency when it is incompatible with the indirec
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
 })
 
+test('refreshes a stale transitive pin to a higher direct-dependency version at resolution time', async () => {
+  // The stale transitive pin is refreshed during resolution, so the older
+  // version is never resolved or fetched (no post-resolution pruning).
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/pkg-with-1-dep@100.0.0'],
+    testDefaults()
+  )
+
+  expect(project.readLockfile().packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(
+    manifest,
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'],
+    testDefaults()
+  )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+})
+
+test('does not refresh an aliased transitive dependency', async () => {
+  // pkg-with-1-aliased-dep depends on `dep: npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0`.
+  // An `npm:` specifier is not a plain semver range, so the refresh skips
+  // the edge and the older version is kept (no misfire on aliases).
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0'],
+    testDefaults()
+  )
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(
+    manifest,
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'],
+    testDefaults()
+  )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+})
+
+test('refreshing a stale transitive pin is idempotent', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/pkg-with-1-dep@100.0.0'],
+    testDefaults()
+  )
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  const { updatedManifest: manifestWithBoth } = await addDependenciesToPackage(
+    manifest,
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'],
+    testDefaults()
+  )
+
+  const convergedPackages = project.readLockfile().packages
+  expect(convergedPackages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+
+  // A second install over the converged lockfile must not reintroduce or
+  // churn the refreshed edge.
+  await install(manifestWithBoth, testDefaults())
+  expect(project.readLockfile().packages).toStrictEqual(convergedPackages)
+})
+
 test('prefer dist-tag specified for top dependency', async () => {
   const project = prepareEmpty()
 
