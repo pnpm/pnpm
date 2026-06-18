@@ -2,7 +2,10 @@ import { afterEach, expect, test } from '@jest/globals'
 
 import { getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest.js'
 
-const ORIGINAL_ENV = process.env
+// Shallow-copy at module load: `process.env` is a mutable object, so a bare
+// reference would capture subsequent test mutations and `afterEach` would
+// "restore" from the polluted state.
+const ORIGINAL_ENV = { ...process.env }
 
 afterEach(() => {
   process.env = { ...ORIGINAL_ENV }
@@ -142,6 +145,11 @@ test('getOptionsFromPnpmSettings() keeps ${VAR} placeholders literal in resoluti
   // lockfile. Users who need env expansion should move the override to
   // `pnpm-workspace.yaml`, which still expands env vars through
   // `replaceEnvInSettings`.
+  //
+  // Set the env var to a sentinel so the test fails loudly if the code
+  // ever regresses to expanding (the assertion against the literal
+  // placeholder would then receive "1.0.0" instead).
+  process.env.PNPM_TEST_VERSION = '1.0.0'
   const options = getOptionsFromPnpmSettings(process.cwd(), {}, {
     resolutions: {
       foo: '${PNPM_TEST_VERSION}',

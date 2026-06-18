@@ -109,9 +109,18 @@ function assertValidOverrides (overrides: unknown, fieldName: 'overrides' | 'res
   }
   for (const [selector, spec] of Object.entries(overrides)) {
     if (typeof spec !== 'string') {
-      throw new PnpmError(errorCode, `The value of ${fieldName}.${selector} should be a string, but got ${renderReceivedType(spec)}`)
+      throw new PnpmError(errorCode, `The value of ${fieldName}.${sanitizeForLog(selector)} should be a string, but got ${renderReceivedType(spec)}`)
     }
   }
+}
+
+// Strip ASCII control characters (incl. `\n`, `\r`, `\t`) from a manifest-
+// sourced string before it is interpolated into an error/warning message.
+// Repo-controlled values can otherwise inject fake log lines or ANSI escape
+// sequences into CI output. Non-string inputs are returned unchanged.
+function sanitizeForLog (value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\u0000-\u001F\u007F]/g, '?')
 }
 
 function renderReceivedType (value: unknown): string {
@@ -177,7 +186,7 @@ function warnAboutDeprecatedVersionReferences (overrides: Record<string, string>
   })
   if (selectors.length === 0) return
   globalWarn(
-    `The "$" version reference syntax in overrides is deprecated (used by: ${selectors.join(', ')}). ` +
+    `The "$" version reference syntax in overrides is deprecated (used by: ${selectors.map(sanitizeForLog).join(', ')}). ` +
     'Define the version in a catalog and reference it with the "catalog:" protocol instead. ' +
     'See https://pnpm.io/catalogs'
   )
@@ -204,6 +213,6 @@ function replaceVersionReferences (dep: Record<string, string>, spec: string): s
   if (newSpec) return newSpec
   throw new PnpmError(
     'CANNOT_RESOLVE_OVERRIDE_VERSION',
-    `Cannot resolve version ${spec} in overrides. The direct dependencies don't have dependency "${dependencyName}".`
+    `Cannot resolve version ${sanitizeForLog(spec)} in overrides. The direct dependencies don't have dependency "${sanitizeForLog(dependencyName)}".`
   )
 }
