@@ -893,24 +893,24 @@ impl ReporterState {
                 format!(
                     "{} Verifying lockfile{path} against supply-chain policies ({})...",
                     self.colors.cyan("?"),
-                    entries_label(*entries),
+                    progress_label(0, *entries),
                 )
             }
-            LockfileVerificationMessage::Done { entries, elapsed_ms, lockfile_path, .. } => {
+            LockfileVerificationMessage::Done { entries, checked, elapsed_ms, lockfile_path, .. } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
                 format!(
                     "{} Lockfile{path} passes supply-chain policies ({} in {})",
                     self.colors.green("✓"),
-                    entries_label(*entries),
+                    progress_label(*checked, *entries),
                     pretty_ms(u128::from(*elapsed_ms)),
                 )
             }
-            LockfileVerificationMessage::Failed { entries, elapsed_ms, lockfile_path, .. } => {
+            LockfileVerificationMessage::Failed { entries, checked, elapsed_ms, lockfile_path, .. } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
                 format!(
                     "{} Lockfile{path} failed supply-chain policy check ({} in {})",
                     self.colors.red("✗"),
-                    entries_label(*entries),
+                    progress_label(*checked, *entries),
                     pretty_ms(u128::from(*elapsed_ms)),
                 )
             }
@@ -1032,8 +1032,12 @@ fn lifecycle_ids(message: &LifecycleMessage) -> (&str, &str, &str) {
     }
 }
 
-fn entries_label(entries: u64) -> String {
-    if entries == 1 { "1 entry".to_string() } else { format!("{entries} entries") }
+fn progress_label(checked: u64, entries: u64) -> String {
+    if entries == 1 {
+        format!("{checked}/1 entry")
+    } else {
+        format!("{checked}/{entries} entries")
+    }
 }
 
 fn remove_optional_from_prod(manifest: &Value) -> Value {
