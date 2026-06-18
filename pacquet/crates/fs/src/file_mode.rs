@@ -25,6 +25,28 @@ pub fn cas_path_is_executable(path: &Path) -> bool {
     path.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.ends_with("-exec"))
 }
 
+/// Re-add executable bits to `target` when the CAS source path carries the
+/// `-exec` suffix. The CAS encodes executability purely in that suffix (see
+/// [`cas_path_is_executable`]), so it is the source of truth: a `copy` or
+/// `reflink` that materializes a freshly-created `0o644` target — `fs::copy`
+/// on overlayfs, Linux `FICLONE` reflink always — would otherwise leave a
+/// native binary non-executable. Non-executable entries (no `-exec` suffix)
+/// are left untouched, so the mode is never widened and no `set_permissions`
+/// syscall is paid on the non-exec majority. On Windows this is a no-op
+/// because POSIX permission bits do not apply.
+pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    if cas_path_is_executable(cas_path) {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(target)?.permissions();
+        perms.set_mode(perms.mode() | EXEC_MASK);
+        std::fs::set_permissions(target, perms)?;
+    }
+    #[cfg(not(unix))]
+    let _ = (cas_path, target);
+    Ok(())
+}
+
 /// Set file mode to 777 on POSIX platforms such as Linux or macOS,
 /// or do nothing on Windows.
 #[cfg_attr(windows, allow(unused))]

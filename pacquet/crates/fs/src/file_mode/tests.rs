@@ -35,3 +35,45 @@ fn make_file_executable_sets_exec_bits() {
     let mode = file.metadata().expect("stat").permissions().mode();
     assert_eq!(mode & EXEC_MASK, EXEC_MASK, "all exec bits should be set, got {mode:o}");
 }
+
+/// A CAS source ending in `-exec` re-adds the exec bits to a target that
+/// lost them (e.g. a `0o644` file a Linux `FICLONE` reflink just created).
+/// The suffix is the source of truth, so the target ends up `0o755`.
+#[cfg(unix)]
+#[test]
+fn restore_exec_bit_adds_bits_for_exec_suffix() {
+    use super::restore_exec_bit_from_cas_suffix;
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let cas_path = Path::new("files/1b/59d9-exec");
+    let target = tmp.path().join("dst");
+    fs::write(&target, b"#!/usr/bin/env node\n").expect("write target");
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o644)).expect("seed mode");
+
+    restore_exec_bit_from_cas_suffix(cas_path, &target).expect("restore exec bit");
+
+    let mode = fs::metadata(&target).expect("stat").permissions().mode() & 0o777;
+    assert_eq!(mode, 0o755, "exec-suffixed CAS entry must land executable, got {mode:o}");
+}
+
+/// A CAS source without the `-exec` suffix leaves the target mode
+/// untouched — restoration must never widen a restrictive mode, so a
+/// `0o600` file stays `0o600`.
+#[cfg(unix)]
+#[test]
+fn restore_exec_bit_does_not_widen_non_exec_suffix() {
+    use super::restore_exec_bit_from_cas_suffix;
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let cas_path = Path::new("files/1b/59d9");
+    let target = tmp.path().join("dst");
+    fs::write(&target, b"private data\n").expect("write target");
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).expect("seed mode");
+
+    restore_exec_bit_from_cas_suffix(cas_path, &target).expect("restore is a no-op here");
+
+    let mode = fs::metadata(&target).expect("stat").permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600, "non-exec CAS entry must not gain exec bits, got {mode:o}");
+}

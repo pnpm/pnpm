@@ -219,11 +219,9 @@ fn try_import<Reporter: self::Reporter>(
             }
             Err(error) => Err(error),
         },
-        PackageImportMethod::Clone => {
-            reflink_copy::reflink(source_file, target_link).inspect(|()| {
-                log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
-            })
-        }
+        PackageImportMethod::Clone => clone_file(source_file, target_link).inspect(|()| {
+            log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
+        }),
         PackageImportMethod::CloneOrCopy => {
             static CLONE_OR_COPY_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
             clone_or_copy_link::<Reporter>(logged, &CLONE_OR_COPY_STATE, source_file, target_link)
@@ -236,25 +234,26 @@ fn try_import<Reporter: self::Reporter>(
 
 /// `fs::copy` plus exec-bit restoration for the copy fallback tier.
 ///
-/// `fs::copy` already carries a regular file's mode across on Unix, but
-/// a CAS entry's executable bit can be lost when a copy / reflink
-/// fallback materializes it (observed on overlayfs), leaving a native
-/// binary at `0o644`. The CAS encodes executability purely in the
-/// `-exec` path suffix, so that suffix is the source of truth: when it
-/// is present we re-add the exec bits, mirroring `git-fetcher`'s
-/// `materialize_into`. Non-executable files are left exactly as
-/// `fs::copy` produced them — we never widen their mode and never pay a
-/// `set_permissions` syscall for them.
+/// `fs::copy` carries a regular file's mode across on Unix, but a CAS
+/// entry's executable bit can still be lost on materialization (observed
+/// on overlayfs), so we re-add it from the `-exec` suffix via
+/// [`pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix`].
 fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     fs::copy(source_file, target_link)?;
-    #[cfg(unix)]
-    if pacquet_fs::file_mode::cas_path_is_executable(source_file) {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(target_link)?.permissions();
-        perms.set_mode(perms.mode() | pacquet_fs::file_mode::EXEC_MASK);
-        fs::set_permissions(target_link, perms)?;
-    }
-    Ok(())
+    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+}
+
+/// `reflink_copy::reflink` plus exec-bit restoration for the clone tier.
+///
+/// Linux `reflink` uses `FICLONE`, which clones only the data into a
+/// freshly-created `0o644` target and drops the source's exec bit, so the
+/// same `-exec`-suffix restoration the copy tier does is required here.
+/// (macOS `clonefile` already carries the mode across, so the restoration
+/// leaves it unchanged — it still runs for platform parity, paying one
+/// redundant `set_permissions` per executable there.)
+fn clone_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
+    reflink_copy::reflink(source_file, target_link)?;
+    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
 }
 
 /// EXDEV = "cross-device link not permitted". Linux / macOS / BSD all
@@ -318,8 +317,14 @@ fn auto_link<Reporter: self::Reporter>(
 ) -> io::Result<()> {
     loop {
         match state.load(Ordering::Relaxed) {
+            // Match on the reflink result alone: only a reflink failure means the
+            // tier is unusable on this FS pair and should downgrade. Restoration
+            // runs after reflink created the target, so its error is terminal
+            // (`?`) — downgrading on it would re-attempt hardlink against that
+            // just-created file and mask the real error behind `AlreadyExists`.
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
+                    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
                     log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }
@@ -365,8 +370,11 @@ fn clone_or_copy_link<Reporter: self::Reporter>(
 ) -> io::Result<()> {
     loop {
         match state.load(Ordering::Relaxed) {
+            // See `auto_link`: only the reflink itself may downgrade (to copy
+            // here); the post-reflink restoration error is terminal.
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
+                    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
                     log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }
