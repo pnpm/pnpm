@@ -47,8 +47,8 @@ export interface NativeBinResolveResult {
  * linked with no launcher shim and no lifecycle scripts.
  *
  * Returns `null` when the wrapper has no platform-tagged optional dependency
- * (so the caller falls back to a normal tarball resolution). This mirrors the
- * guard Bun's native-binlink optimization uses.
+ * (so the caller falls back to a normal tarball resolution), the same guard
+ * Bun applies before treating a package as a native binary dependency.
  */
 export async function resolveNativeBinVariations (
   ctx: ResolveNativeBinVariationsContext,
