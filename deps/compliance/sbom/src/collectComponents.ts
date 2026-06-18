@@ -54,8 +54,6 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
   const depTypes = detectDepTypes(opts.lockfile)
   const importerIds = opts.includedImporterIds ?? Object.keys(opts.lockfile.importers) as ProjectId[]
 
-
-
   const componentsMap = new Map<string, SbomComponent>()
   const relationships: SbomRelationship[] = []
   const rootPurl = `pkg:npm/${encodePurlName(opts.rootName)}@${opts.rootVersion}`
@@ -141,9 +139,15 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
       let parentPurl = rootPurl
       if (!importerIdSet.has(importerId as ProjectId)) {
         const info = opts.workspacePackages?.[importerId as ProjectId]
+        // A reachable workspace importer with no resolved package info (e.g. its
+        // manifest could not be read) is skipped entirely; walking it would
+        // misattribute its dependencies to the root component.
         if (!info) return
         parentPurl = buildPurl({ name: info.name, version: info.version })
       }
+      // Drop this importer's peer entries before walking. With the per-importer
+      // walk above, this prunes a peer's exclusive subtree without hiding a
+      // package that is also a real dependency here or in another importer.
       const peerNames = opts.excludePeerNamesByImporter?.get(importerId)
       const filteredStep = (peerNames?.size)
         ? {
