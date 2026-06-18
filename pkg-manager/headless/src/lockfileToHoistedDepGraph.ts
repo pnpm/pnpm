@@ -15,6 +15,7 @@ import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeJoinModulesDir } from '@pnpm/symlink-dependency'
 import { type DepPath, type SupportedArchitectures, type ProjectId, type Registries, type AllowBuild } from '@pnpm/types'
 import {
   type FetchPackageToStoreFunction,
@@ -216,7 +217,7 @@ async function fetchDeps (
       return
     }
 
-    const dir = path.join(modules, dep.name)
+    const dir = safeJoinModulesDir(modules, dep.name)
     const depLocation = path.relative(opts.lockfileDir, dir)
     const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>

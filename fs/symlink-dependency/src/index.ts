@@ -3,6 +3,7 @@ import symlinkDir from 'symlink-dir'
 
 import { safeJoinModulesDir } from './safeJoinModulesDir.js'
 
+export { safeJoinModulesDir } from './safeJoinModulesDir.js'
 export { symlinkDirectRootDependency } from './symlinkDirectRootDependency.js'
 
 export async function symlinkDependency (

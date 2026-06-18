@@ -1823,6 +1823,12 @@ importers:
       get-npm-tarball-url:
         specifier: 'catalog:'
         version: 2.1.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.4
+      validate-npm-package-name:
+        specifier: 'catalog:'
+        version: 5.0.0
     devDependencies:
       '@pnpm/config.deps-installer':
         specifier: workspace:*
@@ -1836,6 +1842,12 @@ importers:
       '@pnpm/testing.temp-store':
         specifier: workspace:*
         version: link:../../testing/temp-store
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
+      '@types/validate-npm-package-name':
+        specifier: 'catalog:'
+        version: 4.0.2
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
@@ -3498,6 +3510,9 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 6.0.5
+      validate-npm-package-name:
+        specifier: 'catalog:'
+        version: 5.0.0
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -3508,6 +3523,9 @@ importers:
       '@pnpm/symlink-dependency':
         specifier: workspace:*
         version: 'link:'
+      '@types/validate-npm-package-name':
+        specifier: 'catalog:'
+        version: 4.0.2
 
   hooks/pnpmfile:
     dependencies:
@@ -19237,7 +19255,7 @@ snapshots:
   '@yarnpkg/core@4.2.0(typanion@3.14.0)':
     dependencies:
       '@arcanis/slice-ansi': 1.1.1
-      '@types/semver': 7.5.3
+      '@types/semver': 7.7.1
       '@types/treeify': 1.0.3
       '@yarnpkg/fslib': 3.1.5
       '@yarnpkg/libzip': 3.2.2(@yarnpkg/fslib@3.1.5)

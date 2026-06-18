@@ -2,6 +2,8 @@ import getNpmTarballUrl from 'get-npm-tarball-url'
 import { PnpmError } from '@pnpm/error'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type ConfigDependencies, type Registries } from '@pnpm/types'
+import { assertValidConfigDepName } from './assertValidConfigDepName.js'
+import { assertValidConfigDepVersion } from './assertValidConfigDepVersion.js'
 
 interface NormalizeConfigDepsOpts {
   registries: Registries
@@ -18,10 +20,14 @@ type NormalizedConfigDeps = Record<string, {
 export function normalizeConfigDeps (configDependencies: ConfigDependencies, opts: NormalizeConfigDepsOpts): NormalizedConfigDeps {
   const deps: NormalizedConfigDeps = {}
   for (const [pkgName, pkgSpec] of Object.entries(configDependencies)) {
+    // Validate before building any path from the name or version: both become
+    // path segments of the directories pnpm creates during install.
+    assertValidConfigDepName(pkgName)
     const registry = pickRegistryForPackage(opts.registries, pkgName)
 
     if (typeof pkgSpec === 'object') {
       const { version, integrity } = parseIntegrity(pkgName, pkgSpec.integrity)
+      assertValidConfigDepVersion(pkgName, version)
       deps[pkgName] = {
         version,
         resolution: {
@@ -34,6 +40,7 @@ export function normalizeConfigDeps (configDependencies: ConfigDependencies, opt
 
     if (typeof pkgSpec === 'string') {
       const { version, integrity } = parseIntegrity(pkgName, pkgSpec)
+      assertValidConfigDepVersion(pkgName, version)
       deps[pkgName] = {
         version,
         resolution: {
