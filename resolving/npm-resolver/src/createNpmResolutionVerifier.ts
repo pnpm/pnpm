@@ -21,7 +21,7 @@ import {
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import { BUILTIN_NAMED_REGISTRIES } from './parseBareSpecifier.js'
 import type { PackageMetaCache } from './pickPackage.js'
-import { getPkgMirrorPath, loadMeta, warnMissingTimeFieldOnce } from './pickPackage.js'
+import { getPkgMetaCacheKey, getPkgMirrorPath, loadMeta, warnMissingTimeFieldOnce } from './pickPackage.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
@@ -455,20 +455,13 @@ function fetchFullMetaForTrust (
   let cachedPromise = context.fullMetaForTrustCache.get(cacheKey)
   if (cachedPromise == null) {
     // Fast path: if the resolver already upgraded to full meta for this
-    // name during the same install (e.g. minimumReleaseAge active),
-    // reuse that document. Abbreviated meta is rejected here — it lacks
-    // per-version `time` and per-version trust evidence, both required
-    // by failIfTrustDowngraded.
-    //
-    // Limitation: the resolver's `metaCache` keys by `${name}:full` —
-    // it doesn't include the registry (pickPackage.ts cacheKey shape).
-    // If two registries serve packages of the same name in one install
-    // the resolver itself silently keeps the first fetch; the verifier
-    // here inherits that scope. The name check below is a defensive
-    // guard against accidental cache mixups; tightening this to a
-    // registry-qualified read needs the resolver's `metaCache` key
-    // shape to change first.
-    const shared = readSharedMetaForTrust(context.sharedMetaCache, name)
+    // (registry, name) during the same install (e.g. minimumReleaseAge
+    // active), reuse that document. Abbreviated meta is rejected here —
+    // it lacks per-version `time` and per-version trust evidence, both
+    // required by failIfTrustDowngraded. The read is registry-qualified
+    // (see `getPkgMetaCacheKey`), so a package of the same name served by
+    // a different registry can't be returned here.
+    const shared = readSharedMetaForTrust(context.sharedMetaCache, registry, name)
     if (shared != null) {
       cachedPromise = Promise.resolve(projectTrustMeta(shared))
     } else {
@@ -565,11 +558,12 @@ interface PublishedAtLookupContext {
    */
   cutoffMs: number
   /**
-   * Resolver-owned LRU (per-install) keyed by `${name}` (abbreviated)
-   * or `${name}:full` (full meta). When the resolver has already
-   * fetched a package during this install, the verifier reuses that
-   * packument instead of re-paying the disk/network round-trip — the
-   * fresh-install path otherwise fetches every entry twice. Optional:
+   * Resolver-owned LRU (per-install) keyed via `getPkgMetaCacheKey`
+   * (registry + name, with a `:full` suffix for full meta). When the
+   * resolver has already fetched a package during this install, the
+   * verifier reuses that packument instead of re-paying the disk/network
+   * round-trip — the fresh-install path otherwise fetches every entry
+   * twice. Optional:
    * the frozen-install path runs without a resolver and never
    * populates this cache, so the verifier's own fetch chain still
    * carries the cold case.
@@ -721,10 +715,9 @@ function fetchAbbreviatedMeta (
     // Fast path: the resolver's per-install LRU already holds this
     // packument from its own pickPackage pass — abbreviated or full.
     // Project it for the shortcut and skip the disk/network round-trip.
-    // Mismatch on `name` is the same risk the resolver carries today
-    // (its cache key omits the registry), so reuse is no less correct
-    // than the resolver's own get.
-    const shared = readSharedMeta(context.sharedMetaCache, name)
+    // The read is registry-qualified (see `getPkgMetaCacheKey`), so it
+    // can only return this registry's own packument.
+    const shared = readSharedMeta(context.sharedMetaCache, registry, name)
     if (shared != null) {
       cachedPromise = Promise.resolve(projectAbbreviatedMeta(shared))
     } else {
@@ -741,35 +734,35 @@ function fetchAbbreviatedMeta (
 
 function readSharedMeta (
   cache: PackageMetaCache | undefined,
+  registry: string,
   name: string
 ): PackageMeta | undefined {
   if (cache == null) return undefined
-  // Prefer the full entry — a `name:full` hit subsumes the abbreviated
-  // hit (full meta carries every field the abbreviated form does, plus
+  // Prefer the full entry — a `:full` hit subsumes the abbreviated hit
+  // (full meta carries every field the abbreviated form does, plus
   // `time` and per-version trust evidence the trust check needs). The
-  // resolver only populates `name:full` when the install ran with
-  // `minimumReleaseAge` configured, otherwise the bare `name` key holds
-  // the abbreviated form.
-  return validateSharedMeta(cache.get(`${name}:full`), name) ??
-    validateSharedMeta(cache.get(name), name)
+  // resolver only populates the `:full` key when the install ran with
+  // `minimumReleaseAge` configured, otherwise the bare key holds the
+  // abbreviated form.
+  return validateSharedMeta(cache.get(getPkgMetaCacheKey(registry, name, true)), name) ??
+    validateSharedMeta(cache.get(getPkgMetaCacheKey(registry, name, false)), name)
 }
 
 function readSharedMetaForTrust (
   cache: PackageMetaCache | undefined,
+  registry: string,
   name: string
 ): PackageMeta | undefined {
   if (cache == null) return undefined
   // Abbreviated meta is rejected for the trust check — it lacks
   // per-version `time` and per-version trust evidence.
-  return validateSharedMeta(cache.get(`${name}:full`), name)
+  return validateSharedMeta(cache.get(getPkgMetaCacheKey(registry, name, true)), name)
 }
 
-// Defensive guard against the resolver's `name`-only cache key
-// returning something unexpected. The known correctness gap (two
-// registries serving the same package name share one cache slot)
-// is inherited from the resolver itself — see the `pickPackage.ts`
-// cacheKey shape; the verifier can't be stricter than the resolver
-// without changing both. This name check at least catches accidental
+// Defensive guard against the resolver's `metaCache` returning an
+// unexpected entry. The cache key is registry-qualified (see
+// `getPkgMetaCacheKey`), so a package of the same name from another
+// registry can't be returned; this name check catches accidental
 // returns of a different package (cache corruption, factory misuse)
 // rather than silently feeding wrong data to the trust / age check.
 function validateSharedMeta (meta: PackageMeta | undefined, name: string): PackageMeta | undefined {

@@ -270,3 +270,46 @@ test('resolveFromNamedRegistry() throws when the specifier names an invalid scop
     code: 'ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME',
   })
 })
+
+test('the same package name served by two registries does not collide in the in-memory metadata cache', async () => {
+  // Both registries serve `@acme/private`, but point at different tarballs.
+  interceptGhAcmePrivate(GH_REGISTRY)
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const enterpriseMeta = JSON.parse(JSON.stringify(ghAcmePrivateMeta))
+  for (const version of Object.values<any>(enterpriseMeta.versions)) {
+    version.dist.tarball = version.dist.tarball.replace('https://npm.pkg.github.com', 'https://npm.enterprise.example.com')
+  }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  const slash = '%2F'
+  getMockAgent().get(ENTERPRISE_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: `/@acme${slash}private`, method: 'GET' })
+    .reply(200, enterpriseMeta)
+
+  const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+    namedRegistries: { work: ENTERPRISE_REGISTRY },
+  })
+
+  // Resolving from the gh registry first populates the shared in-memory cache.
+  const ghResult = await resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'gh:2.0.0' }, {})
+  expect(ghResult).toMatchObject({
+    id: '@acme/private@2.0.0',
+    resolution: {
+      tarball: 'https://npm.pkg.github.com/download/@acme/private/2.0.0/acme-private-2.0.0.tgz',
+    },
+  })
+
+  // Resolving the same name from the enterprise registry must use that
+  // registry's own metadata — not the cached gh packument, whose tarball would
+  // point at the wrong host (a cross-registry confusion bug if the in-memory
+  // cache key omitted the registry).
+  const workResult = await resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'work:2.0.0' }, {})
+  expect(workResult).toMatchObject({
+    id: '@acme/private@2.0.0',
+    resolution: {
+      tarball: 'https://npm.enterprise.example.com/download/@acme/private/2.0.0/acme-private-2.0.0.tgz',
+    },
+  })
+})

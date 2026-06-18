@@ -211,8 +211,11 @@ export async function pickPackage (
   const metaDir = fullMetadata
     ? (ctx.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR)
     : ABBREVIATED_META_DIR
-  // Cache key includes fullMetadata to avoid returning abbreviated metadata when full metadata is requested.
-  const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
+  // Cache key includes the registry so a package of the same name served by two
+  // registries in one install can't share a slot (which would resolve the wrong
+  // tarball/integrity), and includes fullMetadata so a full-metadata request is
+  // never served the abbreviated form.
+  const cacheKey = getPkgMetaCacheKey(opts.registry, spec.name, fullMetadata)
   const pkgMirror = getPkgMirrorPath(ctx.cacheDir, metaDir, opts.registry, spec.name)
   const cachedMeta = ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
@@ -586,6 +589,20 @@ export function encodePkgName (pkgName: string): string {
     return `${pkgName}_${createHexHash(pkgName)}`
   }
   return pkgName
+}
+
+/**
+ * Key for the in-memory `metaCache` holding a package's registry metadata. The
+ * registry is part of the key so that a package of the same name served by two
+ * registries in one install can't collide on a single slot (which would resolve
+ * the wrong tarball/integrity); `fullMetadata` keeps the abbreviated and full
+ * documents in distinct slots. `\x00` can't appear in a registry URL or a
+ * package name, so it's an unambiguous separator. The verifier reads this same
+ * cache and must build the key with this function.
+ */
+export function getPkgMetaCacheKey (registry: string, pkgName: string, fullMetadata: boolean): string {
+  const key = `${registry}\x00${pkgName}`
+  return fullMetadata ? `${key}:full` : key
 }
 
 /**
