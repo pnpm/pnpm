@@ -1,5 +1,20 @@
 # @pnpm/building.after-install
 
+## 1102.0.1
+
+### Patch Changes
+
+- 9e0c375: Fixed `pnpm install` repeatedly prompting to remove and reinstall `node_modules` in a workspace package when `enableGlobalVirtualStore` is enabled. The post-install build step recorded a per-project `node_modules/.pnpm` virtual store directory in `node_modules/.modules.yaml`, overwriting the global `<storeDir>/links` value the install step had written. The next install then detected a virtual-store mismatch (`ERR_PNPM_UNEXPECTED_VIRTUAL_STORE`). The build step now derives the same global virtual store directory as the install step [#12307](https://github.com/pnpm/pnpm/issues/12307).
+- Updated dependencies [302a2f7]
+- Updated dependencies [3d1fd20]
+- Updated dependencies [0474a9c]
+  - @pnpm/config.reader@1101.10.0
+  - @pnpm/bins.linker@1100.0.15
+  - @pnpm/exec.lifecycle@1100.1.0
+  - @pnpm/store.connection-manager@1100.3.1
+  - @pnpm/installing.context@1100.0.19
+  - @pnpm/worker@1100.2.1
+
 ## 1102.0.0
 
 ### Patch Changes

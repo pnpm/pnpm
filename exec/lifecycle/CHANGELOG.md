@@ -1,5 +1,16 @@
 # @pnpm/lifecycle
 
+## 1100.1.0
+
+### Minor Changes
+
+- 0474a9c: Added support for generating Node.js package maps at `node_modules/.package-map.json` during isolated and hoisted installs. Added the `node-experimental-package-map` setting to inject the generated map into pnpm-managed Node.js script environments, and the `node-package-map-type` setting to choose between `standard` and `loose` package maps.
+
+### Patch Changes
+
+- Updated dependencies [3d1fd20]
+  - @pnpm/bins.linker@1100.0.15
+
 ## 1100.0.18
 
 ### Patch Changes

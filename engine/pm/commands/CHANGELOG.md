@@ -1,5 +1,26 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.24
+
+### Patch Changes
+
+- Updated dependencies [29ab905]
+- Updated dependencies [bee4bf4]
+- Updated dependencies [302a2f7]
+- Updated dependencies [3d1fd20]
+- Updated dependencies [61969fb]
+- Updated dependencies [0474a9c]
+  - @pnpm/resolving.npm-resolver@1102.0.1
+  - @pnpm/installing.env-installer@1102.0.1
+  - @pnpm/config.reader@1101.10.0
+  - @pnpm/bins.linker@1100.0.15
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/installing.deps-restorer@1102.1.0
+  - @pnpm/installing.client@1100.2.9
+  - @pnpm/global.commands@1100.0.29
+  - @pnpm/store.connection-manager@1100.3.1
+  - @pnpm/store.controller@1102.0.1
+
 ## 1101.1.23
 
 ### Patch Changes

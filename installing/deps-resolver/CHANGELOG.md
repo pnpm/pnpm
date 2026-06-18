@@ -1,5 +1,18 @@
 # @pnpm/resolve-dependencies
 
+## 1100.2.4
+
+### Patch Changes
+
+- 96bdd57: Fix `link:` workspace protocol switching to `file:` after `pnpm rm` is run from inside a workspace package whose target workspace dependency has its own dependencies, when `injectWorkspacePackages: true` is set. Follow-up to [#10575](https://github.com/pnpm/pnpm/pull/10575), which fixed the same symptom for workspace packages without dependencies.
+- 5c12968: Fix recursive updates of transitive dependencies when the update command mixes transitive dependency patterns with direct dependency selectors. For example, `pnpm up -r "@babel/core" uuid` now updates matching transitive `@babel/core` dependencies even when `uuid` is a direct dependency selector [#12103](https://github.com/pnpm/pnpm/issues/12103).
+- 531f2a3: Fixed `pnpm update` rewriting a `workspace:` dependency that points at a local path (e.g. `workspace:../packages/foo/dist`) into a normalized `link:` or version-range specifier. Such specifiers are now preserved verbatim when the workspace protocol is preserved [#3902](https://github.com/pnpm/pnpm/issues/3902).
+- fe66535: Fixed a lockfile non-convergence bug where an incremental install kept a duplicate transitive dependency that a fresh install would not produce. When a package is reused from the lockfile, its child edges are taken verbatim and bypass the preferred-versions walk, so a transitive dependency could stay pinned to an older version even after a direct dependency resolved to a higher version that satisfies the same range. The resolver now refreshes such a stale pin to the higher direct-dependency version during resolution — so the older version is never resolved or fetched, and the incremental result converges to the fresh one.
+- 817f99d: Fixed lockfile churn where a package's `transitivePeerDependencies` could be dropped (and shift between packages) when the package participates in a dependency cycle. A cycle re-entry resolves against truncated children, so it must not be cached as "pure"; otherwise sibling occurrences of the same package short-circuit and lose transitive peers depending on traversal order [#5108](https://github.com/pnpm/pnpm/issues/5108).
+- Updated dependencies [29ab905]
+  - @pnpm/resolving.npm-resolver@1102.0.1
+  - @pnpm/fetching.pick-fetcher@1100.0.12
+
 ## 1100.2.3
 
 ### Patch Changes

@@ -1,5 +1,34 @@
 # @pnpm/releasing.commands
 
+## 1100.5.1
+
+### Patch Changes
+
+- e85aea2: Avoid reading `README.md` from disk when publishing if the publish manifest already provides a `readme` field. The README is now only read lazily, inside `createExportableManifest`, when it is actually needed.
+- 9d0a300: Fixed `pnpm version --recursive` so it honors the workspace selection. In recursive mode the version bump now applies to the packages resolved from the workspace filter (`selectedProjectsGraph`), matching the behavior of `pnpm publish --recursive`, instead of always bumping every workspace package [#11348](https://github.com/pnpm/pnpm/issues/11348).
+- Updated dependencies [302a2f7]
+- Updated dependencies [c112b61]
+- Updated dependencies [1b02b47]
+- Updated dependencies [61969fb]
+- Updated dependencies [9d79ba1]
+- Updated dependencies [0474a9c]
+- Updated dependencies [223d060]
+- Updated dependencies [e85aea2]
+- Updated dependencies [0474a9c]
+- Updated dependencies [6d35338]
+- Updated dependencies [4ca9247]
+- Updated dependencies [eba03e0]
+  - @pnpm/config.reader@1101.10.0
+  - @pnpm/installing.commands@1100.10.0
+  - @pnpm/fs.indexed-pkg-importer@1100.0.15
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/network.git-utils@1100.0.2
+  - @pnpm/releasing.exportable-manifest@1100.1.7
+  - @pnpm/exec.lifecycle@1100.1.0
+  - @pnpm/engine.runtime.node-resolver@1101.1.8
+  - @pnpm/installing.client@1100.2.9
+  - @pnpm/engine.runtime.commands@1100.1.6
+
 ## 1100.5.0
 
 ### Minor Changes

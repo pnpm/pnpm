@@ -1,5 +1,23 @@
 # @pnpm/config.deps-installer
 
+## 1102.0.1
+
+### Patch Changes
+
+- bee4bf4: Security: validate config dependency names and versions from the env lockfile (`pnpm-lock.yaml`) before using them to build filesystem paths. A committed lockfile with a traversal-shaped `configDependencies` name (such as `../../PWNED`) or version (such as `../../../PWNED`) could previously cause `pnpm install` to create symlinks or write package files outside `node_modules/.pnpm-config` and the store. Names must now be valid npm package names and versions must be exact semver versions; the same validation is applied to optional subdependencies of config dependencies, and to the legacy workspace-manifest format before any lockfile is written. See [GHSA-qrv3-253h-g69c](https://github.com/pnpm/pnpm/security/advisories/GHSA-qrv3-253h-g69c).
+- Updated dependencies [29ab905]
+- Updated dependencies [96bdd57]
+- Updated dependencies [61969fb]
+- Updated dependencies [5c12968]
+- Updated dependencies [531f2a3]
+- Updated dependencies [fe66535]
+- Updated dependencies [817f99d]
+  - @pnpm/resolving.npm-resolver@1102.0.1
+  - @pnpm/installing.deps-resolver@1100.2.4
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/store.controller@1102.0.1
+  - @pnpm/worker@1100.2.1
+
 ## 1102.0.0
 
 ### Patch Changes

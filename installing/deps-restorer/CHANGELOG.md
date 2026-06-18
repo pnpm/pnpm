@@ -1,5 +1,27 @@
 # @pnpm/headless
 
+## 1102.1.0
+
+### Minor Changes
+
+- 0474a9c: Added support for generating Node.js package maps at `node_modules/.package-map.json` during isolated and hoisted installs. Added the `node-experimental-package-map` setting to inject the generated map into pnpm-managed Node.js script environments, and the `node-package-map-type` setting to choose between `standard` and `loose` package maps.
+
+### Patch Changes
+
+- Updated dependencies [3d1fd20]
+- Updated dependencies [61969fb]
+- Updated dependencies [0474a9c]
+  - @pnpm/bins.linker@1100.0.15
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/exec.lifecycle@1100.1.0
+  - @pnpm/lockfile.to-pnp@1100.1.0
+  - @pnpm/building.during-install@1102.0.1
+  - @pnpm/installing.linking.hoist@1100.0.15
+  - @pnpm/deps.graph-builder@1100.0.17
+  - @pnpm/installing.linking.real-hoist@1100.1.3
+  - @pnpm/installing.package-requester@1102.0.0
+  - @pnpm/worker@1100.2.1
+
 ## 1102.0.0
 
 ### Patch Changes

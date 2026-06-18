@@ -1,5 +1,50 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.10.0
+
+### Minor Changes
+
+- c112b61: Added a `--dry-run` option to `pnpm install`. It runs a full dependency resolution and reports what an install would change, but writes nothing to disk (no lockfile, no `node_modules`) and always exits with code 0. This mirrors the preview semantics of `npm install --dry-run` [#7340](https://github.com/pnpm/pnpm/issues/7340).
+- 0474a9c: Added support for generating Node.js package maps at `node_modules/.package-map.json` during isolated and hoisted installs. Added the `node-experimental-package-map` setting to inject the generated map into pnpm-managed Node.js script environments, and the `node-package-map-type` setting to choose between `standard` and `loose` package maps.
+
+### Patch Changes
+
+- 9d79ba1: Register the `pnpm update --no-save` flag in the CLI help and option parser.
+- 0474a9c: Fixed `pnpm import` for Yarn v2 lockfiles when `js-yaml` v4 is installed.
+- 223d060: Document the `--cpu`, `--os` and `--libc` flags in the output of `pnpm install --help`. These flags were already supported but were only documented on the website [#12359](https://github.com/pnpm/pnpm/issues/12359).
+- 6d35338: `pnpm install` detects changes inside local file dependencies again. The optimistic repeat-install fast path only tracks manifest and lockfile modification times, so edits inside a local dependency's directory (or a repacked local tarball) were reported as "Already up to date". Projects with local file dependencies (`file:` and bare local path or tarball specifiers, declared directly or through `pnpm.overrides`) now always run a full install, which refetches those dependencies, matching pnpm v10 behavior [#11795](https://github.com/pnpm/pnpm/issues/11795).
+- eba03e0: Fix `pnpm install` reporting "Already up to date" after a catalog entry in `pnpm-workspace.yaml` was reverted to a previous version. After an update modified a catalog, the workspace state cache stored the pre-update catalog versions, so reverting the entry back to its original version was not detected as an outdated state [#12418](https://github.com/pnpm/pnpm/issues/12418).
+- Updated dependencies [29ab905]
+- Updated dependencies [bee4bf4]
+- Updated dependencies [302a2f7]
+- Updated dependencies [c112b61]
+- Updated dependencies [61969fb]
+- Updated dependencies [9e0c375]
+- Updated dependencies [0474a9c]
+- Updated dependencies [6d35338]
+- Updated dependencies [1c05876]
+- Updated dependencies [eba03e0]
+- Updated dependencies [3b54d79]
+- Updated dependencies [293921a]
+  - @pnpm/resolving.npm-resolver@1102.0.1
+  - @pnpm/installing.env-installer@1102.0.1
+  - @pnpm/config.reader@1101.10.0
+  - @pnpm/installing.dedupe.check@1100.1.0
+  - @pnpm/installing.deps-installer@1102.1.0
+  - @pnpm/deps.status@1100.1.2
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/building.after-install@1102.0.1
+  - @pnpm/catalogs.config@1100.0.1
+  - @pnpm/workspace.projects-filter@1100.0.22
+  - @pnpm/workspace.root-finder@1100.0.2
+  - @pnpm/deps.inspection.outdated@1100.1.9
+  - @pnpm/workspace.projects-graph@1100.0.19
+  - @pnpm/global.commands@1100.0.29
+  - @pnpm/store.connection-manager@1100.3.1
+  - @pnpm/workspace.state@1100.0.23
+  - @pnpm/installing.context@1100.0.19
+  - @pnpm/store.controller@1102.0.1
+
 ## 1100.9.0
 
 ### Minor Changes

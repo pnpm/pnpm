@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 1100.1.7
+
+### Patch Changes
+
+- e85aea2: Avoid reading `README.md` from disk when publishing if the publish manifest already provides a `readme` field. The README is now only read lazily, inside `createExportableManifest`, when it is actually needed.
+
 ## 1100.1.6
 
 ### Patch Changes

@@ -1,5 +1,31 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.4.0
+
+### Minor Changes
+
+- 1495cb0: Added per-package SBOM generation with `--out` and `--split` flags. Use `--out out/%s.cdx.json` to write one SBOM per workspace package to individual files, or `--split` for NDJSON output to stdout. When `--filter` selects a single package, the SBOM root component now uses that package's metadata. Workspace inter-dependencies (`workspace:` protocol) and their transitive dependencies are included. Author, repository, and license fall back to the root manifest when the package doesn't define them.
+
+### Patch Changes
+
+- Updated dependencies [302a2f7]
+- Updated dependencies [c112b61]
+- Updated dependencies [61969fb]
+- Updated dependencies [9d79ba1]
+- Updated dependencies [0474a9c]
+- Updated dependencies [223d060]
+- Updated dependencies [0474a9c]
+- Updated dependencies [6d35338]
+- Updated dependencies [dcededc]
+- Updated dependencies [1495cb0]
+- Updated dependencies [eba03e0]
+  - @pnpm/config.reader@1101.10.0
+  - @pnpm/installing.commands@1100.10.0
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/deps.compliance.sbom@1100.2.0
+  - @pnpm/deps.compliance.audit@1101.0.17
+  - @pnpm/deps.compliance.license-scanner@1100.0.20
+
 ## 1101.3.5
 
 ### Patch Changes

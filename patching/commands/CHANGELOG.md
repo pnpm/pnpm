@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.1.6
+
+### Patch Changes
+
+- Updated dependencies [302a2f7]
+- Updated dependencies [c112b61]
+- Updated dependencies [61969fb]
+- Updated dependencies [9d79ba1]
+- Updated dependencies [0474a9c]
+- Updated dependencies [223d060]
+- Updated dependencies [0474a9c]
+- Updated dependencies [6d35338]
+- Updated dependencies [eba03e0]
+  - @pnpm/config.reader@1101.10.0
+  - @pnpm/installing.commands@1100.10.0
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/store.connection-manager@1100.3.1
+  - @pnpm/fetching.pick-fetcher@1100.0.12
+
 ## 1100.1.5
 
 ### Patch Changes

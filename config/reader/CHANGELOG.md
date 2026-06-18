@@ -1,5 +1,22 @@
 # @pnpm/config
 
+## 1101.10.0
+
+### Minor Changes
+
+- 0474a9c: Added support for generating Node.js package maps at `node_modules/.package-map.json` during isolated and hoisted installs. Added the `node-experimental-package-map` setting to inject the generated map into pnpm-managed Node.js script environments, and the `node-package-map-type` setting to choose between `standard` and `loose` package maps.
+
+### Patch Changes
+
+- 302a2f7: No longer warn about using both `packageManager` and `devEngines.packageManager` when the two fields pin the same package manager at the same version with the same integrity hash (e.g. both `pnpm@11.5.1+sha512.…`). Previously the hash was stripped from the legacy `packageManager` field but not from `devEngines.packageManager`, so even identical specifications looked like a mismatch [#12028](https://github.com/pnpm/pnpm/issues/12028).
+
+  The warning still fires on any genuine divergence, and several cases now state the specific reason instead of a single generic message: a different package manager, a different version, or contradictory integrity hashes for the same version.
+
+- Updated dependencies [61969fb]
+- Updated dependencies [eba03e0]
+  - @pnpm/network.git-utils@1100.0.2
+  - @pnpm/catalogs.config@1100.0.1
+
 ## 1101.9.0
 
 ### Minor Changes

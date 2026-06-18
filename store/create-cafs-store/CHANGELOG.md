@@ -1,5 +1,13 @@
 # @pnpm/create-cafs-store
 
+## 1100.0.15
+
+### Patch Changes
+
+- 30c7590: Create shorter CAFS temporary package directories to leave room for lifecycle scripts that create IPC socket paths under TMPDIR.
+- Updated dependencies [1b02b47]
+  - @pnpm/fs.indexed-pkg-importer@1100.0.15
+
 ## 1100.0.14
 
 ### Patch Changes

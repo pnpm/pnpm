@@ -1,5 +1,11 @@
 # @pnpm/lockfile.settings-checker
 
+## 1100.0.19
+
+### Patch Changes
+
+- @pnpm/lockfile.verification@1100.0.19
+
 ## 1100.0.18
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/package-store
 
+## 1102.0.1
+
+### Patch Changes
+
+- Updated dependencies [30c7590]
+  - @pnpm/store.create-cafs-store@1100.0.15
+  - @pnpm/installing.package-requester@1102.0.0
+  - @pnpm/worker@1100.2.1
+
 ## 1102.0.0
 
 ### Minor Changes

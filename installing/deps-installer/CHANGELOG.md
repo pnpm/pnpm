@@ -1,5 +1,43 @@
 # @pnpm/core
 
+## 1102.1.0
+
+### Minor Changes
+
+- 0474a9c: Added support for generating Node.js package maps at `node_modules/.package-map.json` during isolated and hoisted installs. Added the `node-experimental-package-map` setting to inject the generated map into pnpm-managed Node.js script environments, and the `node-package-map-type` setting to choose between `standard` and `loose` package maps.
+
+### Patch Changes
+
+- c112b61: Added a `--dry-run` option to `pnpm install`. It runs a full dependency resolution and reports what an install would change, but writes nothing to disk (no lockfile, no `node_modules`) and always exits with code 0. This mirrors the preview semantics of `npm install --dry-run` [#7340](https://github.com/pnpm/pnpm/issues/7340).
+- 1c05876: Avoid relinking unchanged child dependencies and remove stale child links during warm installs.
+- 3b54d79: `pnpm update` now keeps lockfile `overrides` that resolve through a catalog in sync with the catalog. Previously, when an override referenced a catalog (e.g. `overrides: { foo: 'catalog:' }`) and `pnpm update` bumped that catalog entry, the lockfile's `catalogs` advanced while the resolved `overrides` kept the old version. The resulting lockfile was internally inconsistent, so a later `pnpm install --frozen-lockfile` failed with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
+- Updated dependencies [96bdd57]
+- Updated dependencies [3d1fd20]
+- Updated dependencies [61969fb]
+- Updated dependencies [5c12968]
+- Updated dependencies [9e0c375]
+- Updated dependencies [0474a9c]
+- Updated dependencies [531f2a3]
+- Updated dependencies [fe66535]
+- Updated dependencies [817f99d]
+- Updated dependencies [eba03e0]
+  - @pnpm/installing.deps-resolver@1100.2.4
+  - @pnpm/bins.linker@1100.0.15
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/building.after-install@1102.0.1
+  - @pnpm/exec.lifecycle@1100.1.0
+  - @pnpm/installing.deps-restorer@1102.1.0
+  - @pnpm/lockfile.to-pnp@1100.1.0
+  - @pnpm/catalogs.config@1100.0.1
+  - @pnpm/building.during-install@1102.0.1
+  - @pnpm/installing.linking.hoist@1100.0.15
+  - @pnpm/installing.context@1100.0.19
+  - @pnpm/pnpr.client@1.2.2
+  - @pnpm/installing.package-requester@1102.0.0
+  - @pnpm/worker@1100.2.1
+  - @pnpm/lockfile.verification@1100.0.19
+  - @pnpm/lockfile.settings-checker@1100.0.19
+
 ## 1102.0.0
 
 ### Minor Changes
