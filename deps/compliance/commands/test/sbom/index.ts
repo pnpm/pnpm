@@ -313,6 +313,56 @@ test('pnpm sbom --exclude-peers keeps a package that is a peer in one importer a
   expect(componentNames).toContain('is-number')
 })
 
+test('pnpm sbom --exclude-peers drops peers reached through a workspace link in a filtered run', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-workspace-link', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const appADir = path.join(workspaceDir, 'packages/app-a')
+  const filteredGraph = Object.fromEntries(
+    Object.entries(selectedProjectsGraph).filter(([p]) => p === appADir)
+  )
+
+  // Filtered to app-a, which links peer-lib. peer-lib's auto-installed peer
+  // (is-odd) is walked through that link, so its peer names must be filtered
+  // too — not only the selected app-a's. The graph the peers are read from must
+  // therefore cover the whole workspace, not just the selected subset.
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: appADir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    selectedProjectsGraph: filteredGraph,
+    allProjectsGraph,
+    excludePeers: true,
+  })
+
+  expect(exitCode).toBe(0)
+  const parsed = JSON.parse(output)
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive') // app-a's own dependency
+  expect(componentNames).toContain('peer-lib') // the linked workspace package
+  expect(componentNames).not.toContain('is-odd') // peer-lib's peer
+  expect(componentNames).not.toContain('is-number') // only reachable through is-odd
+})
+
 test('pnpm sbom marks dev-only components with scope "excluded" (cyclonedx)', async () => {
   const workspaceDir = tempDir()
   f.copy('with-dev-dependency', workspaceDir)

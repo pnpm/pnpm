@@ -336,17 +336,25 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
   let excludePeerNamesByImporter: Map<string, Set<string>> | undefined
   if (opts.excludePeers) {
     const byImporter = new Map<string, Set<string>>()
-    if (opts.selectedProjectsGraph) {
-      for (const [projectDir, { package: project }] of Object.entries(opts.selectedProjectsGraph)) {
-        byImporter.set(getLockfileImporterId(lockfileDir, projectDir), peerNamesFromManifest(project.manifest))
+    // Prefer the in-memory project graph(s): no extra filesystem reads, and
+    // reading from both graphs (not only the selected subset) covers the extra
+    // workspace packages collectSbomComponents reaches through `link:` deps, so
+    // their peers are filtered too in a filtered run.
+    const graphs = [opts.allProjectsGraph, opts.selectedProjectsGraph].filter(Boolean)
+    if (graphs.length > 0) {
+      for (const graph of graphs) {
+        for (const [projectDir, { package: project }] of Object.entries(graph!)) {
+          byImporter.set(getLockfileImporterId(lockfileDir, projectDir), peerNamesFromManifest(project.manifest))
+        }
       }
     } else {
-      // No project graph was selected, so collectSbomComponents walks every
-      // importer in the lockfile. Resolve each importer's own manifest so peers
-      // in workspace packages are dropped too, not only those in the directory
-      // pnpm ran in. safeReadProjectManifestOnly returns null (rather than
-      // throwing) for an importer whose manifest is gone (e.g. a stale lockfile),
-      // and skips the installability check that would otherwise abort the SBOM.
+      // No project graph (e.g. a single-package repo or `--lockfile-only`
+      // outside a workspace), so collectSbomComponents walks every importer in
+      // the lockfile. Resolve each importer's own manifest from disk so peers in
+      // workspace packages are dropped too, not only those in the directory pnpm
+      // ran in. safeReadProjectManifestOnly returns null (rather than throwing)
+      // for an importer whose manifest is gone (e.g. a stale lockfile), and skips
+      // the installability check that would otherwise abort the SBOM.
       const lockfileRoot = await realpath(lockfileDir)
       // Bound the fan-out: a large workspace can have many importers, and
       // reading every manifest at once would spike open file descriptors.

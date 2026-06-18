@@ -1,0 +1,8 @@
+{
+  "name": "peer-lib",
+  "version": "0.1.0",
+  "dependencies": {},
+  "peerDependencies": {
+    "is-odd": "3.0.1"
+  }
+}
