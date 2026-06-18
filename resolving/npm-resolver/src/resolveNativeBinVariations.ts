@@ -132,13 +132,13 @@ function getPlatformTargets (manifest: PackageInRegistry): PlatformAssetTarget[]
   // for musl) lists. Skip negations and entries missing os/cpu — those aren't
   // the per-platform packages this optimization targets.
   if (!manifest.os?.length || !manifest.cpu?.length) return []
-  const libcs = manifest.libc?.length ? manifest.libc : [undefined]
+  const libcValues = manifest.libc?.length ? manifest.libc : [undefined]
   const targets: PlatformAssetTarget[] = []
   for (const os of manifest.os) {
     if (os.startsWith('!')) continue
     for (const cpu of manifest.cpu) {
       if (cpu.startsWith('!')) continue
-      for (const libc of libcs) {
+      for (const libc of libcValues) {
         targets.push({ os, cpu, ...(libc === 'musl' ? { libc: 'musl' } : {}) })
       }
     }

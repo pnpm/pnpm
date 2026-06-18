@@ -29,8 +29,8 @@ function wrapperMeta () {
         version: '1.0.0',
         bin: { pacquet: 'bin/pacquet' },
         optionalDependencies: {
-          '@pacquet/darwin-arm64': '1.0.0',
-          '@pacquet/linux-x64': '1.0.0',
+          'pacquet-darwin-arm64': '1.0.0',
+          'pacquet-linux-x64': '1.0.0',
         } as Record<string, string>,
         dist: {
           integrity: 'sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC==',
@@ -55,7 +55,7 @@ function platformMeta (name: string, os: string, cpu: string, integrity: string)
         dist: {
           integrity,
           shasum: '1111111111111111111111111111111111111111',
-          tarball: `https://registry.npmjs.org/${name}/-/${name.slice(name.indexOf('/') + 1)}-1.0.0.tgz`,
+          tarball: `https://registry.npmjs.org/${name}/-/${name}-1.0.0.tgz`,
         },
       },
     },
@@ -73,10 +73,10 @@ afterEach(async () => {
 test('a native bin dependency resolves to a variations resolution over its platform packages', async () => {
   const pool = getMockAgent().get(registries.default.replace(/\/$/, ''))
   pool.intercept({ path: '/pacquet', method: 'GET' }).reply(200, wrapperMeta())
-  pool.intercept({ path: '/@pacquet%2Fdarwin-arm64', method: 'GET' })
-    .reply(200, platformMeta('@pacquet/darwin-arm64', 'darwin', 'arm64', DARWIN_INTEGRITY))
-  pool.intercept({ path: '/@pacquet%2Flinux-x64', method: 'GET' })
-    .reply(200, platformMeta('@pacquet/linux-x64', 'linux', 'x64', LINUX_INTEGRITY))
+  pool.intercept({ path: '/pacquet-darwin-arm64', method: 'GET' })
+    .reply(200, platformMeta('pacquet-darwin-arm64', 'darwin', 'arm64', DARWIN_INTEGRITY))
+  pool.intercept({ path: '/pacquet-linux-x64', method: 'GET' })
+    .reply(200, platformMeta('pacquet-linux-x64', 'linux', 'x64', LINUX_INTEGRITY))
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
@@ -93,7 +93,7 @@ test('a native bin dependency resolves to a variations resolution over its platf
         resolution: {
           type: 'binary',
           archive: 'tarball',
-          url: 'https://registry.npmjs.org/@pacquet/darwin-arm64/-/darwin-arm64-1.0.0.tgz',
+          url: 'https://registry.npmjs.org/pacquet-darwin-arm64/-/pacquet-darwin-arm64-1.0.0.tgz',
           integrity: DARWIN_INTEGRITY,
           bin: { pacquet: 'pacquet' },
         },
@@ -103,7 +103,7 @@ test('a native bin dependency resolves to a variations resolution over its platf
         resolution: {
           type: 'binary',
           archive: 'tarball',
-          url: 'https://registry.npmjs.org/@pacquet/linux-x64/-/linux-x64-1.0.0.tgz',
+          url: 'https://registry.npmjs.org/pacquet-linux-x64/-/pacquet-linux-x64-1.0.0.tgz',
           integrity: LINUX_INTEGRITY,
           bin: { pacquet: 'pacquet' },
         },

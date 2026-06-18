@@ -756,12 +756,12 @@ fn platform_targets_from_version(version: &PackageVersion) -> Vec<PlatformAssetT
         return Vec::new();
     }
     let libc_list = string_array(version.other.get("libc"));
-    let libcs: Vec<Option<String>> =
+    let libc_values: Vec<Option<String>> =
         if libc_list.is_empty() { vec![None] } else { libc_list.into_iter().map(Some).collect() };
     let mut targets = Vec::new();
     for os in os_list.iter().filter(|os| !os.starts_with('!')) {
         for cpu in cpu_list.iter().filter(|cpu| !cpu.starts_with('!')) {
-            for libc in &libcs {
+            for libc in &libc_values {
                 targets.push(PlatformAssetTarget {
                     os: os.clone(),
                     cpu: cpu.clone(),
