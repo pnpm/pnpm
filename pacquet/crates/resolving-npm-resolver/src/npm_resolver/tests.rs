@@ -1184,7 +1184,9 @@ async fn native_bin_dependency_resolves_to_platform_variations() {
     let targets: Vec<(&str, &str)> = variations
         .variants
         .iter()
-        .flat_map(|variant| variant.targets.iter().map(|t| (t.os.as_str(), t.cpu.as_str())))
+        .flat_map(|variant| {
+            variant.targets.iter().map(|target| (target.os.as_str(), target.cpu.as_str()))
+        })
         .collect();
     assert!(targets.contains(&("darwin", "arm64")), "{targets:?}");
     assert!(targets.contains(&("linux", "x64")), "{targets:?}");
