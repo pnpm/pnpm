@@ -752,7 +752,11 @@ export async function resolveDependencies (
     if (currentParentPkgAliases[pkgAddress.alias] !== true) {
       currentParentPkgAliases[pkgAddress.alias] = pkgAddress
     }
-    if (pkgAddress.updated) {
+    // Only mark direct dependencies as updated. Marking transitive dependencies
+    // here would force re-resolution of unrelated transitive references to the
+    // same package, churning the lockfile when the previous resolution was
+    // still valid (see issue #11456).
+    if (pkgAddress.updated && options.currentDepth === 0) {
       ctx.updatedSet.add(pkgAddress.alias)
     }
     const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]

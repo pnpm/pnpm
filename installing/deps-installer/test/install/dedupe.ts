@@ -403,3 +403,35 @@ test('when resolving dependencies, prefer versions that are used by direct depen
   const lockfile = project.readLockfile()
   expect(lockfile.snapshots['@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0']).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/11456
+test('preserve existing transitive resolution when an unrelated direct dep introduces a new version of the same package', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  // @pnpm.e2e/has-foo-as-dep-and-subdep -> @pnpm.e2e/requires-any-foo -> @pnpm.e2e/foo: "*"
+  // After the initial install, requires-any-foo's transitive foo is locked to 100.0.0.
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-foo-as-dep-and-subdep'],
+    testDefaults()
+  )
+
+  let lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/requires-any-foo@1.0.0'])
+    .toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
+
+  // Add an unrelated direct dep whose own subdep pins @pnpm.e2e/foo to 100.1.0.
+  // The new version satisfies requires-any-foo's "*" range, but the existing
+  // 100.0.0 resolution is still valid and should not be replaced.
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/has-foo-100.1.0-dep-1'], testDefaults())
+
+  lockfile = project.readLockfile()
+  // Sanity-check that the competing branch was actually introduced.
+  // Without this, the assertion below could pass even if the test fixture
+  // ever stops pulling in @pnpm.e2e/foo@100.1.0.
+  expect(lockfile.snapshots['@pnpm.e2e/has-foo-100.1.0-dep-1@1.0.0'])
+    .toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.1.0')
+  expect(lockfile.snapshots['@pnpm.e2e/requires-any-foo@1.0.0'])
+    .toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
+})
