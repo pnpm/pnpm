@@ -4802,6 +4802,7 @@ dependencies = [
  "libsql",
  "miette 7.6.0",
  "mockito",
+ "node-semver",
  "object_store",
  "pacquet-config",
  "pacquet-config-dir",
@@ -4831,6 +4832,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wax",
+ "zip",
 ]
 
 [[package]]

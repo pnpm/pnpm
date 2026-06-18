@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -9,7 +9,8 @@ use pacquet_config::TrustPolicy;
 use pacquet_lockfile::LockfileResolution;
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_resolving_resolver_base::{
-    LatestQuery, ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackage,
+    LatestQuery, PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
+    ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackage,
     WorkspacePackages, WorkspacePackagesByVersion,
 };
 use pretty_assertions::assert_eq;
@@ -81,6 +82,29 @@ fn build_resolver_with_registries(
         retry_opts: RetryOpts::default(),
     };
     (resolver, cache_dir)
+}
+
+#[derive(Debug)]
+struct RejectVersions {
+    versions: HashSet<String>,
+}
+
+impl PackageVersionGuard for RejectVersions {
+    fn check<'a>(&'a self, _name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a> {
+        Box::pin(async move {
+            if self.versions.contains(version) {
+                Ok(PackageVersionGuardDecision::Reject { reason: format!("{version} is blocked") })
+            } else {
+                Ok(PackageVersionGuardDecision::Allow)
+            }
+        })
+    }
+}
+
+fn reject_versions(versions: &[&str]) -> Arc<dyn PackageVersionGuard> {
+    Arc::new(RejectVersions {
+        versions: versions.iter().map(|version| (*version).to_string()).collect(),
+    })
 }
 
 /// Packument body for `@jsr/foo__bar` — the npm-shaped name JSR
@@ -181,6 +205,49 @@ async fn range_specifier_picks_max_in_range() {
     assert_eq!(result.alias.as_deref(), Some("acme"));
     assert!(result.policy_violation.is_none());
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
+}
+
+#[tokio::test]
+async fn package_version_guard_excludes_rejected_versions_and_repicks() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let opts = ResolveOptions {
+        package_version_guard: Some(reject_versions(&["1.1.0"])),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let name_ver = result.name_ver.as_ref().expect("name_ver");
+    assert_eq!(name_ver.suffix.to_string(), "1.0.0");
+    assert_eq!(result.latest.as_deref(), Some("1.0.0"));
+}
+
+#[tokio::test]
+async fn package_version_guard_repopulates_latest_tag() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let opts = ResolveOptions {
+        package_version_guard: Some(reject_versions(&["1.1.0"])),
+        ..ResolveOptions::default()
+    };
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
 }
 
 #[tokio::test]

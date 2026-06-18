@@ -14,8 +14,8 @@ use crate::install_package_from_registry::{
 };
 use dashmap::DashSet;
 use pacquet_resolving_resolver_base::{
-    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
-    WantedDependency,
+    LatestQuery, PackageVersionGuard, ResolveFuture, ResolveLatestFuture, ResolveOptions,
+    ResolveResult, Resolver, WantedDependency,
 };
 use std::sync::Arc;
 
@@ -49,6 +49,10 @@ pub struct ResolvedPackageHint<'a> {
 /// Implemented by the pnpr server to stream fetch frames to the client.
 pub trait ResolutionObserver: Send + Sync {
     fn on_resolved(&self, hint: ResolvedPackageHint<'_>);
+
+    fn package_version_guard(&self) -> Option<Arc<dyn PackageVersionGuard>> {
+        None
+    }
 }
 
 /// Wraps an inner [`Resolver`], forwarding each tarball-shaped result to

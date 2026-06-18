@@ -225,6 +225,40 @@ pub type WorkspacePackagesByVersion = BTreeMap<String, WorkspacePackage>;
 /// [`WorkspacePackages`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L246).
 pub type WorkspacePackages = BTreeMap<String, WorkspacePackagesByVersion>;
 
+/// Verdict returned by a resolver-time package-version guard.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageVersionGuardDecision {
+    /// The candidate may be used.
+    Allow,
+    /// The candidate must be ignored and the resolver should try the
+    /// next matching version, when one exists.
+    Reject { reason: String },
+}
+
+/// Error from a package-version guard. Boxed so guard implementations
+/// can keep their own error shape.
+pub type PackageVersionGuardError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+/// Boxed-future return type for [`PackageVersionGuard::check`].
+pub type PackageVersionGuardFuture<'a> = Pin<
+    Box<
+        dyn Future<Output = Result<PackageVersionGuardDecision, PackageVersionGuardError>>
+            + Send
+            + 'a,
+    >,
+>;
+
+/// Optional resolver-time policy that can reject a concrete
+/// `name@version` candidate before it is committed to the lockfile.
+///
+/// A guard is expected to be deterministic for the duration of one
+/// resolve call. Callers that consult external services should cache
+/// per `(name, version)` within that operation so repeated graph edges
+/// don't multiply network traffic.
+pub trait PackageVersionGuard: Send + Sync + std::fmt::Debug {
+    fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a>;
+}
+
 /// Reload behavior the dispatcher passes per-resolve. Mirrors pnpm's
 /// [`ResolveOptions.update`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L291)
 /// tri-state (`false | 'compatible' | 'latest'`).
@@ -316,6 +350,12 @@ pub struct ResolveOptions {
     /// resolution. Mirrors upstream's `dryRun` flag at the resolver
     /// boundary.
     pub dry_run: bool,
+    /// Optional guard that rejects concrete npm package versions after
+    /// the normal picker selects them. The npm resolvers then exclude
+    /// the rejected version and pick again, so a vulnerable or otherwise
+    /// disallowed high version can fall back to a lower safe version
+    /// instead of aborting the whole resolution.
+    pub package_version_guard: Option<Arc<dyn PackageVersionGuard>>,
     /// When `true`, reject exotic (git, tarball, file, ...) dependencies
     /// appearing anywhere below the importer. Direct dependencies are
     /// still allowed; only transitive deps are gated. The check

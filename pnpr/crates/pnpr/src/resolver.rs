@@ -39,6 +39,7 @@
 //! forwards its per-registry credentials, so private dependencies resolve
 //! as the caller.
 
+pub(crate) mod osv;
 mod protocol;
 mod resolve;
 mod verdict_cache;
@@ -68,9 +69,11 @@ use pacquet_package_manager::{
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, ObservedDistStats, PackageMetaCache, observed_dist_stats_sink,
 };
-use pacquet_resolving_resolver_base::ResolutionVerifier;
+use pacquet_resolving_resolver_base::{PackageVersionGuard, ResolutionVerifier};
 use pacquet_store_dir::StoreDir;
 use sha2::{Digest, Sha256};
+
+pub(crate) use self::osv::{OsvIndex, load_osv_index};
 
 use self::{protocol::ResolveRequest, verdict_cache::VerdictCache};
 
@@ -102,6 +105,7 @@ pub(crate) struct Resolver {
     /// only if the database couldn't be opened — verification then runs
     /// every time (uncached) rather than failing the server.
     verdict_cache: Option<VerdictCache>,
+    osv_index: Option<Arc<OsvIndex>>,
 }
 
 struct CachedResolution {
@@ -113,11 +117,12 @@ impl Resolver {
     pub(crate) fn get_or_init<'a>(
         cell: &'a OnceLock<Resolver>,
         config: &RegistryConfig,
+        osv_index: Option<Arc<OsvIndex>>,
     ) -> &'a Resolver {
-        cell.get_or_init(|| Resolver::build(config))
+        cell.get_or_init(|| Resolver::build(config, osv_index))
     }
 
-    fn build(config: &RegistryConfig) -> Resolver {
+    fn build(config: &RegistryConfig, osv_index: Option<Arc<OsvIndex>>) -> Resolver {
         let store_dir = config.cache_storage.join("pnpr-store");
         let cache_dir = config.cache_storage.join("pnpr-cache");
         // Best-effort: a real failure here (e.g. a permission problem)
@@ -134,6 +139,7 @@ impl Resolver {
             resolution_cache_ttl: config.packument_ttl,
             configs: Mutex::new(HashMap::new()),
             verdict_cache,
+            osv_index,
         }
     }
 
@@ -215,6 +221,8 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
 
     // Resolve against the client's registries, not the server's own.
     let config = runtime.config_for(&request);
+    let package_version_guard =
+        runtime.osv_index.as_ref().map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
 
     // The caller's forwarded upstream credentials, threaded through
     // resolve/verify but kept out of the interned `config` so it never
@@ -251,6 +259,12 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     // fetched, so there's nothing to add and the response is the bare
     // `done` frame.
     if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
+        if let Some(osv_index) = runtime.osv_index.as_ref() {
+            let violations = osv_violations_for_lockfile(osv_index, &lockfile);
+            if !violations.is_empty() {
+                return ndjson_single_frame(&violations_frame(&violations));
+            }
+        }
         let mut frames = verified_dist_stats
             .map(|sizes| frozen_package_frames(config, &lockfile, &sizes))
             .unwrap_or_default();
@@ -266,7 +280,14 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
         && let Some(lockfile) =
             cached_resolution(&runtime.resolution_cache, runtime.resolution_cache_ttl, key)
     {
-        return ndjson_single_frame(&done_frame(&lockfile));
+        if let Some(osv_index) = runtime.osv_index.as_ref() {
+            let violations = osv_violations_for_lockfile(osv_index, &lockfile);
+            if violations.is_empty() {
+                return ndjson_single_frame(&done_frame(&lockfile));
+            }
+        } else {
+            return ndjson_single_frame(&done_frame(&lockfile));
+        }
     }
 
     // Streaming resolve. Run it in a detached task that pushes one
@@ -274,14 +295,24 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     // observer, then a terminal `done` / `error` frame. The response
     // body drains the channel as frames arrive.
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
-    let observer: Arc<dyn pacquet_package_manager::ResolutionObserver> =
-        Arc::new(StreamObserver { tx: tx.clone() });
+    let observer: Arc<dyn pacquet_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
+        tx: tx.clone(),
+        package_version_guard: package_version_guard.clone(),
+    });
     let client = Arc::clone(&runtime.client);
     let cache = Arc::clone(&runtime.resolution_cache);
     let cache_ttl = runtime.resolution_cache_ttl;
+    let final_osv_index = runtime.osv_index.clone();
     tokio::spawn(async move {
         match resolve::resolve(config, &client, &request, &request_auth, Some(observer)).await {
             Ok(lockfile) => {
+                if let Some(osv_index) = final_osv_index.as_ref() {
+                    let violations = osv_violations_for_lockfile(osv_index, &lockfile);
+                    if !violations.is_empty() {
+                        let _ = tx.send(violations_frame(&violations));
+                        return;
+                    }
+                }
                 if let Some(key) = resolution_cache_key {
                     store_resolution(&cache, cache_ttl, key, &lockfile);
                 }
@@ -311,7 +342,7 @@ pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> R
     };
 
     if request.trust_lockfile {
-        return ndjson_single_frame(&verify_done_frame());
+        return verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile);
     }
 
     let config = runtime.config_for(&request);
@@ -321,7 +352,7 @@ pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> R
         // The dist stats the verifier observed feed `/v1/resolve`'s sized
         // `package` frames; this endpoint's client prefetches from its own
         // lockfile before the verdict arrives, so only the verdict is sent.
-        Ok(_) => ndjson_single_frame(&verify_done_frame()),
+        Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile),
         Err(VerifyFailure::Internal(response)) => response,
         Err(VerifyFailure::Violations(violations)) => {
             ndjson_single_frame(&violations_frame(&violations))
@@ -421,6 +452,7 @@ const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
 /// frame silently — the resolve still runs to completion server-side.
 struct StreamObserver {
     tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+    package_version_guard: Option<Arc<dyn PackageVersionGuard>>,
 }
 
 impl pacquet_package_manager::ResolutionObserver for StreamObserver {
@@ -428,6 +460,10 @@ impl pacquet_package_manager::ResolutionObserver for StreamObserver {
         if let Ok(line) = ndjson_line(&package_frame(&hint)) {
             let _ = self.tx.send(line);
         }
+    }
+
+    fn package_version_guard(&self) -> Option<Arc<dyn PackageVersionGuard>> {
+        self.package_version_guard.clone()
     }
 }
 
@@ -549,6 +585,74 @@ fn verify_done_frame() -> Vec<u8> {
         .unwrap_or_else(|_| br#"{"type":"error","message":"verification failed"}"#.to_vec())
 }
 
+const OSV_VULNERABILITY_CODE: &str = "ERR_PNPM_OSV_VULNERABILITY";
+
+fn verify_done_or_osv_violations(
+    osv_index: Option<&Arc<OsvIndex>>,
+    lockfile: &Lockfile,
+) -> Response {
+    let Some(osv_index) = osv_index else {
+        return ndjson_single_frame(&verify_done_frame());
+    };
+    let violations = osv_violations_for_lockfile(osv_index, lockfile);
+    if violations.is_empty() {
+        ndjson_single_frame(&verify_done_frame())
+    } else {
+        ndjson_single_frame(&violations_frame(&violations))
+    }
+}
+
+fn osv_violations_for_lockfile(index: &OsvIndex, lockfile: &Lockfile) -> Vec<serde_json::Value> {
+    let Some(packages) = lockfile.packages.as_ref() else {
+        return Vec::new();
+    };
+
+    let mut seen = std::collections::BTreeSet::new();
+    let mut violations = Vec::new();
+    for (package_key, snapshot) in packages {
+        if !is_osv_checkable_resolution(&snapshot.resolution) {
+            continue;
+        }
+        let name = package_key.name.to_string();
+        let version = package_key.suffix.version().to_string();
+        if !seen.insert((name.clone(), version.clone())) {
+            continue;
+        }
+        let ids = index.vulnerability_ids(&name, &version);
+        if !ids.is_empty() {
+            violations.push(serde_json::json!({
+                "name": name,
+                "version": version,
+                "code": OSV_VULNERABILITY_CODE,
+                "reason": format!(
+                    "is listed in the local OSV database as vulnerable ({})",
+                    ids.join(", "),
+                ),
+            }));
+        }
+    }
+    violations
+}
+
+fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bool {
+    match resolution {
+        LockfileResolution::Registry(_) => true,
+        LockfileResolution::Tarball(tarball) => {
+            if tarball.git_hosted == Some(true) {
+                return false;
+            }
+            reqwest::Url::parse(&tarball.tarball).is_ok_and(|url| {
+                let scheme = url.scheme();
+                scheme == "http" || scheme == "https"
+            })
+        }
+        LockfileResolution::Directory(_)
+        | LockfileResolution::Git(_)
+        | LockfileResolution::Binary(_)
+        | LockfileResolution::Variations(_) => false,
+    }
+}
+
 /// Serialize one frame to a newline-terminated NDJSON line.
 fn ndjson_line(value: &serde_json::Value) -> Result<Vec<u8>, serde_json::Error> {
     let mut bytes = serde_json::to_vec(value)?;
@@ -638,20 +742,25 @@ async fn verify_input_lockfile(
     if let Some(cache) = runtime.verdict_cache.as_ref()
         && cache.is_verified(&hash, |policy| {
             verifiers.iter().all(|verifier| verifier.can_trust_past_check(policy))
+                && runtime.osv_index.as_ref().is_none_or(|index| index.can_trust_policy(policy))
         })
     {
         return Ok(None);
     }
 
     let violations = collect_resolution_policy_violations(lockfile, &verifiers, None).await;
-    if violations.is_empty() {
+    let osv_violations = runtime
+        .osv_index
+        .as_ref()
+        .map_or_else(Vec::new, |index| osv_violations_for_lockfile(index, lockfile));
+    if violations.is_empty() && osv_violations.is_empty() {
         if let Some(cache) = runtime.verdict_cache.as_ref() {
-            cache.record(&hash, &merge_policies(&verifiers));
+            cache.record(&hash, &merge_policies(&verifiers, runtime.osv_index.as_ref()));
         }
         return Ok(Some(dist_stats));
     }
 
-    let rendered: Vec<serde_json::Value> = violations
+    let mut rendered: Vec<serde_json::Value> = violations
         .iter()
         .map(|violation| {
             serde_json::json!({
@@ -662,6 +771,7 @@ async fn verify_input_lockfile(
             })
         })
         .collect();
+    rendered.extend(osv_violations);
     Err(VerifyFailure::Violations(rendered))
 }
 
@@ -672,12 +782,16 @@ async fn verify_input_lockfile(
 /// client's own cache would write.
 fn merge_policies(
     verifiers: &[Arc<dyn ResolutionVerifier>],
+    osv_index: Option<&Arc<OsvIndex>>,
 ) -> serde_json::Map<String, serde_json::Value> {
     let mut merged = serde_json::Map::new();
     for verifier in verifiers {
         for (key, value) in verifier.policy() {
             merged.insert(key.clone(), value.clone());
         }
+    }
+    if let Some(osv_index) = osv_index {
+        merged.extend(osv_index.policy());
     }
     merged
 }

@@ -489,6 +489,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // The pnpr override when supplied, else the config's npmrc headers;
         // shared by every registry-touching resolver below.
         let auth_headers = auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers));
+        let package_version_guard =
+            resolution_observer.as_ref().and_then(|observer| observer.package_version_guard());
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Materialise the caller's iterator into a `Vec` so the same
         // group set can be replayed into both the resolver (consumes
@@ -1160,6 +1162,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                         trust_policy,
                         trust_policy_exclude: trust_policy_exclude.clone(),
                         trust_policy_ignore_after: config.trust_policy_ignore_after,
+                        package_version_guard: package_version_guard.clone(),
                         project_dir,
                         lockfile_dir: lockfile_dir.to_path_buf(),
                         workspace_packages: workspace_packages.clone(),

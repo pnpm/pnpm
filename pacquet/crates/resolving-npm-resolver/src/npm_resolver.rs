@@ -34,9 +34,9 @@ use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolutio
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolutionPolicyViolation, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
-    WorkspacePackages, parse_packument_timestamp,
+    LatestInfo, LatestQuery, PackageVersionGuardDecision, ResolutionPolicyViolation, ResolveError,
+    ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
+    WantedDependency, WorkspacePackages, parse_packument_timestamp,
 };
 
 use crate::{
@@ -337,20 +337,6 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
     ) -> Result<Option<PickedFromRegistry>, ResolveError> {
         let overlay_selectors =
             crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
-        let pick_opts = PickPackageOptions {
-            registry,
-            preferred_version_selectors: overlay_selectors
-                .as_ref()
-                .or_else(|| opts.preferred_versions.get(&spec.name)),
-            published_by: opts.published_by,
-            published_by_exclude: opts.published_by_exclude.as_ref(),
-            pick_lowest_version: opts.pick_lowest_version,
-            include_latest_tag: opts.update == UpdateBehavior::Latest,
-            dry_run: opts.dry_run,
-            optional,
-            update_checksums: opts.update_checksums,
-        };
-
         let ctx = PickPackageContext {
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
@@ -365,15 +351,25 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             retry_opts: self.retry_opts,
         };
 
-        let pick_result = pick_package(&ctx, spec, &pick_opts)
-            .await
-            .map_err(|err| Box::new(err) as ResolveError)?;
-
-        let Some(version) = pick_result.picked_package else {
-            return Ok(None);
-        };
-
-        Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }))
+        pick_from_registry_with_guard(
+            &ctx,
+            PickFromRegistryOptions {
+                registry,
+                spec,
+                preferred_version_selectors: overlay_selectors
+                    .as_ref()
+                    .or_else(|| opts.preferred_versions.get(&spec.name)),
+                published_by: opts.published_by,
+                published_by_exclude: opts.published_by_exclude.as_ref(),
+                pick_lowest_version: opts.pick_lowest_version,
+                include_latest_tag: opts.update == UpdateBehavior::Latest,
+                dry_run: opts.dry_run,
+                optional,
+                update_checksums: opts.update_checksums,
+                package_version_guard: opts.package_version_guard.as_ref(),
+            },
+        )
+        .await
     }
 
     /// Latest-version companion. Mirrors upstream's
@@ -510,6 +506,69 @@ fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
 pub(crate) struct PickedFromRegistry {
     pub(crate) meta: std::sync::Arc<Package>,
     pub(crate) version: std::sync::Arc<PackageVersion>,
+}
+
+pub(crate) struct PickFromRegistryOptions<'a> {
+    pub registry: &'a str,
+    pub spec: &'a RegistryPackageSpec,
+    pub preferred_version_selectors: Option<&'a pacquet_resolving_resolver_base::VersionSelectors>,
+    pub published_by: Option<DateTime<Utc>>,
+    pub published_by_exclude: Option<&'a PackageVersionPolicy>,
+    pub pick_lowest_version: bool,
+    pub include_latest_tag: bool,
+    pub dry_run: bool,
+    pub optional: bool,
+    pub update_checksums: bool,
+    pub package_version_guard:
+        Option<&'a Arc<dyn pacquet_resolving_resolver_base::PackageVersionGuard>>,
+}
+
+pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    opts: PickFromRegistryOptions<'_>,
+) -> Result<Option<PickedFromRegistry>, ResolveError> {
+    let mut blocked_versions = std::collections::HashSet::new();
+    loop {
+        let pick_opts = PickPackageOptions {
+            registry: opts.registry,
+            preferred_version_selectors: opts.preferred_version_selectors,
+            published_by: opts.published_by,
+            published_by_exclude: opts.published_by_exclude,
+            pick_lowest_version: opts.pick_lowest_version,
+            include_latest_tag: opts.include_latest_tag,
+            dry_run: opts.dry_run,
+            optional: opts.optional,
+            update_checksums: opts.update_checksums,
+            blocked_versions: (!blocked_versions.is_empty()).then_some(&blocked_versions),
+        };
+        let pick_result = pick_package(ctx, opts.spec, &pick_opts)
+            .await
+            .map_err(|err| Box::new(err) as ResolveError)?;
+
+        let Some(version) = pick_result.picked_package else {
+            return Ok(None);
+        };
+        let Some(guard) = opts.package_version_guard else {
+            return Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }));
+        };
+
+        let version_str = version.version.to_string();
+        match guard.check(&opts.spec.name, &version_str).await? {
+            PackageVersionGuardDecision::Allow => {
+                return Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }));
+            }
+            PackageVersionGuardDecision::Reject { reason } => {
+                tracing::debug!(
+                    target: "pacquet_resolving_npm_resolver",
+                    name = %opts.spec.name,
+                    version = %version_str,
+                    reason,
+                    "package version rejected by resolver guard",
+                );
+                blocked_versions.insert(version_str);
+            }
+        }
+    }
 }
 
 /// Input bundle for [`build_resolve_result`]. Grouped so the

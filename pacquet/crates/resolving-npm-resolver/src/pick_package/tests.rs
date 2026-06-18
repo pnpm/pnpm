@@ -75,6 +75,7 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
         dry_run: false,
         optional: false,
         update_checksums: false,
+        blocked_versions: None,
     }
 }
 

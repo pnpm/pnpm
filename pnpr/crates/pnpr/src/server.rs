@@ -72,6 +72,9 @@ struct AppInner {
     /// Lazily-built engine backing the `/v1/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
+    /// Local OSV index, loaded before the server accepts requests when
+    /// `osv.enabled` is set.
+    osv_index: Option<Arc<crate::resolver::OsvIndex>>,
 }
 
 /// Per-package serialization for the read-modify-write packument flows
@@ -155,6 +158,16 @@ pub fn router(config: Config) -> Router {
 /// by [`serve`] to wire the persistent file-backed stores, and by
 /// tests that want to override the bcrypt cost or pre-seed users.
 pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
+    let osv_index = crate::resolver::load_osv_index(&config)
+        .expect("enabled OSV database must load before building pnpr router");
+    router_with_auth_and_osv(config, auth, osv_index)
+}
+
+fn router_with_auth_and_osv(
+    config: Config,
+    auth: AuthState,
+    osv_index: Option<Arc<crate::resolver::OsvIndex>>,
+) -> Router {
     let storage =
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
     let upstreams: IndexMap<String, Upstream> = config
@@ -170,6 +183,7 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
             auth,
             package_locks: PackageLocks::new(),
             resolver: std::sync::OnceLock::new(),
+            osv_index,
         }),
     };
     Router::new()
@@ -259,9 +273,10 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
 /// connections.
 pub async fn serve(config: Config) -> crate::error::Result<()> {
     crate::journal::recover_publish_journal(&config).await?;
+    let osv_index = crate::resolver::load_osv_index(&config)?;
     let auth = AuthState::load(&config.auth, &config.backend).await?;
     let listen = config.listen;
-    let app = router_with_auth(config, auth);
+    let app = router_with_auth_and_osv(config, auth, osv_index);
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpr listening");
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
@@ -279,11 +294,12 @@ pub async fn serve_listener(
 ) -> crate::error::Result<()> {
     let listen = listener.local_addr()?;
     crate::journal::recover_publish_journal(&config).await?;
+    let osv_index = crate::resolver::load_osv_index(&config)?;
     // Load the configured auth backends here too — going through
     // `router` would silently fall back to in-memory auth and ignore a
     // persisted htpasswd / SQLite store or a configured `backend:`.
     let auth = AuthState::load(&config.auth, &config.backend).await?;
-    let app = router_with_auth(config, auth);
+    let app = router_with_auth_and_osv(config, auth, osv_index);
     tracing::info!(%listen, "pnpr listening");
     axum::serve(NodelayTcpListener(listener), app)
         .with_graceful_shutdown(shutdown_signal())
@@ -1998,13 +2014,19 @@ async fn serve_resolve(State(state): State<AppState>, body: axum::body::Bytes) -
     // read gate here: the client fetches every tarball directly from the
     // registry with its own credentials, and resolution uses the client's
     // forwarded credentials for private packages.
-    let runtime =
-        crate::resolver::Resolver::get_or_init(&state.inner.resolver, &state.inner.config);
+    let runtime = crate::resolver::Resolver::get_or_init(
+        &state.inner.resolver,
+        &state.inner.config,
+        state.inner.osv_index.clone(),
+    );
     crate::resolver::handle_resolve(runtime, body).await
 }
 
 async fn serve_verify_lockfile(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
-    let runtime =
-        crate::resolver::Resolver::get_or_init(&state.inner.resolver, &state.inner.config);
+    let runtime = crate::resolver::Resolver::get_or_init(
+        &state.inner.resolver,
+        &state.inner.config,
+        state.inner.osv_index.clone(),
+    );
     crate::resolver::handle_verify_lockfile(runtime, body).await
 }

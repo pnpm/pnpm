@@ -42,6 +42,15 @@ struct Args {
     /// refetched. When omitted, the loaded config's value wins.
     #[arg(long)]
     packument_ttl_secs: Option<u64>,
+
+    /// Enable local OSV npm vulnerability checks. Requires a local OSV
+    /// npm database zip at --osv-db or <cache>/osv/npm/all.zip.
+    #[arg(long)]
+    osv: bool,
+
+    /// Path to the local OSV npm database zip or extracted JSON directory.
+    #[arg(long)]
+    osv_db: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -79,6 +88,12 @@ async fn main() -> miette::Result<()> {
     }
     if let Some(ttl_secs) = args.packument_ttl_secs {
         config.packument_ttl = Duration::from_secs(ttl_secs);
+    }
+    if args.osv {
+        config.osv.enabled = true;
+    }
+    if let Some(osv_db) = args.osv_db {
+        config.osv.path = Some(osv_db);
     }
     init_logging(&config.logs);
     log_config_source(&source);

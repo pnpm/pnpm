@@ -1,6 +1,8 @@
-use std::collections::BTreeMap;
-
 use pacquet_config::Config as PacquetConfig;
+use pacquet_resolving_resolver_base::{
+    PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
+};
+use std::{collections::BTreeMap, sync::Arc};
 
 use super::{
     protocol::{ResolveRequest, ResolveRequestProject},
@@ -15,6 +17,15 @@ fn config() -> PacquetConfig {
 
 fn deps(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
     entries.iter().map(|(name, spec)| ((*name).to_string(), (*spec).to_string())).collect()
+}
+
+#[derive(Debug)]
+struct AllowAllVersions;
+
+impl PackageVersionGuard for AllowAllVersions {
+    fn check<'a>(&'a self, _name: &'a str, _version: &'a str) -> PackageVersionGuardFuture<'a> {
+        Box::pin(async { Ok(PackageVersionGuardDecision::Allow) })
+    }
 }
 
 #[test]
@@ -66,7 +77,8 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
     use pacquet_package_manager::{ResolutionObserver, ResolvedPackageHint};
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let observer = super::StreamObserver { tx };
+    let observer =
+        super::StreamObserver { tx, package_version_guard: Some(Arc::new(AllowAllVersions)) };
 
     let hint = |unpacked_size, file_count| ResolvedPackageHint {
         id: "acme@1.0.0",
