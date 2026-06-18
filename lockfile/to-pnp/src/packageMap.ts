@@ -60,9 +60,12 @@ export async function writePackageMap (
   opts: PackageMapOptions
 ): Promise<void> {
   await fs.mkdir(opts.rootModulesDir, { recursive: true })
+  // Serialized compact, not pretty-printed: it lives in `node_modules` and is
+  // read by tooling, not humans, so the formatting only adds CPU and bytes on
+  // the install path.
   await fs.writeFile(
     path.join(opts.rootModulesDir, PACKAGE_MAP_FILENAME),
-    `${JSON.stringify(lockfileToPackageMap(lockfile, opts), null, 2)}\n`,
+    `${JSON.stringify(lockfileToPackageMap(lockfile, opts))}\n`,
     'utf8'
   )
 }
@@ -71,9 +74,10 @@ export async function writePackageMapFromDependenciesGraph (
   opts: DependenciesGraphPackageMapOptions
 ): Promise<void> {
   await fs.mkdir(opts.rootModulesDir, { recursive: true })
+  // Compact serialization, like `writePackageMap` above.
   await fs.writeFile(
     path.join(opts.rootModulesDir, PACKAGE_MAP_FILENAME),
-    `${JSON.stringify(dependenciesGraphToPackageMap(opts), null, 2)}\n`,
+    `${JSON.stringify(dependenciesGraphToPackageMap(opts))}\n`,
     'utf8'
   )
 }

@@ -56,7 +56,7 @@ pub(crate) fn write_package_map(
     opts: &PackageMapOptions<'_>,
 ) -> Result<(), WritePackageMapError> {
     std::fs::create_dir_all(opts.modules_dir).map_err(WritePackageMapError::CreateDir)?;
-    let mut contents = serde_json::to_vec_pretty(&lockfile_to_package_map(lockfile, opts))
+    let mut contents = serde_json::to_vec(&lockfile_to_package_map(lockfile, opts))
         .map_err(WritePackageMapError::Serialize)?;
     contents.push(b'\n');
     // Hardened atomic write (temp file + rename): never follows a symlink an
@@ -73,7 +73,7 @@ pub(crate) fn write_hoisted_package_map(
 ) -> Result<(), WritePackageMapError> {
     std::fs::create_dir_all(opts.modules_dir).map_err(WritePackageMapError::CreateDir)?;
     let mut contents =
-        serde_json::to_vec_pretty(&dependencies_graph_to_package_map(lockfile, graph, opts))
+        serde_json::to_vec(&dependencies_graph_to_package_map(lockfile, graph, opts))
             .map_err(WritePackageMapError::Serialize)?;
     contents.push(b'\n');
     // Hardened atomic write (temp file + rename): never follows a symlink an
