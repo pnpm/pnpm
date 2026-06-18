@@ -77,6 +77,38 @@ test('writes a package map for Node.js package-map resolution', async () => {
   project.has('.package-map.json')
 })
 
+test('writes a package map that resolves against the global virtual store layout', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+  }))
+
+  const expectMapResolvesOnDisk = (): void => {
+    const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+    const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+    // The global virtual store nests by name/version/content-hash, unlike the
+    // flat local `.pnpm` layout, so the url must come from the real location.
+    expect(packageMap.packages[rootDependencyId].url).toContain('links/@pnpm.e2e/pkg-with-1-dep/100.0.0/')
+    for (const entry of Object.values<{ url: string }>(packageMap.packages)) {
+      expect(fs.existsSync(path.resolve('node_modules', entry.url))).toBe(true)
+    }
+  }
+  expectMapResolvesOnDisk()
+
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({
+    fastUnpack: false,
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    frozenLockfile: true,
+  }))
+  expectMapResolvesOnDisk()
+})
+
 test('writes a loose package map for Node.js package-map resolution', async () => {
   prepareEmpty()
 

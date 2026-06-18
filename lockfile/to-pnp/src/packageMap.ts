@@ -28,6 +28,13 @@ export interface PackageMapOptions {
   rootModulesDir: string
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
+  /**
+   * Real on-disk directory of each package, keyed by depPath. Required for the
+   * global virtual store, where packages live at a content-hashed path that
+   * cannot be derived from the depPath alone. Falls back to the local
+   * `<virtualStoreDir>/<depPathToFilename>` layout when a depPath is absent.
+   */
+  locationByDepPath?: Record<string, string>
 }
 
 export interface DependenciesGraphPackageMapOptions {
@@ -130,7 +137,7 @@ export function lockfileToPackageMap (
 
   for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {}).sort(([a], [b]) => compareStrings(a, b))) {
     const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-    const packageDir = joinPath(
+    const packageDir = opts.locationByDepPath?.[depPath] ?? joinPath(
       opts.virtualStoreDir,
       depPathToFilename(depPath as DepPath, opts.virtualStoreDirMaxLength),
       'node_modules',

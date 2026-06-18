@@ -562,6 +562,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       await writePackageMap(filteredLockfile, {
         importerNames,
         lockfileDir,
+        locationByDepPath: Object.fromEntries(
+          Object.values(graph).map((node) => [node.depPath, node.dir])
+        ),
         packageMapType: opts.nodePackageMapType,
         rootModulesDir,
         virtualStoreDir,

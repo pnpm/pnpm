@@ -1736,6 +1736,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       await writePackageMap(result.currentLockfile, {
         importerNames,
         lockfileDir: ctx.lockfileDir,
+        locationByDepPath: Object.fromEntries(
+          Object.values(dependenciesGraph).map((node) => [node.depPath, node.dir])
+        ),
         packageMapType: opts.nodePackageMapType,
         rootModulesDir: ctx.rootModulesDir,
         virtualStoreDir: ctx.virtualStoreDir,
