@@ -139,7 +139,7 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// ships per-platform native binaries as `optionalDependencies` is
     /// resolved to a `variations` resolution over those platform packages
     /// instead of the wrapper tarball, so only the host's binary is
-    /// fetched and linked. Sourced from [`Config::native_bin_dependencies`].
+    /// fetched and linked. Sourced from `Config::native_bin_dependencies`.
     pub native_bin_dependencies: HashSet<String>,
 }
 
