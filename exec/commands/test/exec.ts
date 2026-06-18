@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
+import { makeNodeRequireOption } from '@pnpm/exec.lifecycle'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -66,10 +67,11 @@ test('exec should merge node options with PnP require option', async () => {
     nodeOptions: '--max-old-space-size=4096',
   }, ['eslint'])
 
+  // The require path is quoted and backslash-escaped on Windows, so derive the
+  // expected value from the same helper exec uses instead of hardcoding it.
+  const { NODE_OPTIONS } = makeNodeRequireOption(pnpPath, { NODE_OPTIONS: '--max-old-space-size=4096' })
   expect(execa).toHaveBeenCalledWith('eslint', [], expect.objectContaining({
-    env: expect.objectContaining({
-      NODE_OPTIONS: `--max-old-space-size=4096 --require=${pnpPath}`,
-    }),
+    env: expect.objectContaining({ NODE_OPTIONS }),
   }))
 })
 
