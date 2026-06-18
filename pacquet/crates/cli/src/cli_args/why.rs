@@ -4,6 +4,7 @@
 //! [`why` command](https://github.com/pnpm/pnpm/blob/deps/inspection/commands/src/listing/why.ts)
 //! and the reverse-tree builder in
 //! [`buildDependentsTree`](https://github.com/pnpm/pnpm/blob/deps/inspection/tree-builder/src/buildDependentsTree.ts).
+//!
 
 use crate::State;
 use clap::Args;
@@ -110,7 +111,7 @@ impl WhyArgs {
             }
         }
 
-        let results = build_dependents_tree(lockfile, &matcher, &importer_info);
+        let results = build_dependents_tree(lockfile, &matcher, &importer_info, self.depth);
 
         if results.is_empty() {
             return Ok(());
@@ -131,6 +132,7 @@ fn build_dependents_tree(
     lockfile: &Lockfile,
     matcher: &Matcher,
     importer_info: &HashMap<String, ImporterInfo>,
+    max_depth: Option<usize>,
 ) -> Vec<WhyResult> {
     let Some(packages) = lockfile.packages.as_ref() else {
         return vec![];
@@ -216,7 +218,16 @@ fn build_dependents_tree(
 
         let mut visited = HashSet::new();
         visited.insert(ParentNode::Package(key.clone()));
-        let dependents = walk_reverse(key, &reverse_map, &mut visited, 0, importer_info);
+        let mut expanded = HashSet::new();
+        let dependents = walk_reverse(
+            key,
+            &reverse_map,
+            &mut visited,
+            &mut expanded,
+            0,
+            max_depth,
+            importer_info,
+        );
 
         results.push(WhyResult { name: name.clone(), version, dependents });
     }
@@ -230,10 +241,12 @@ fn walk_reverse(
     node_key: &PkgNameVerPeer,
     reverse_map: &HashMap<PkgNameVerPeer, Vec<(ParentNode, String)>>,
     visited: &mut HashSet<ParentNode>,
+    expanded: &mut HashSet<ParentNode>,
     depth: usize,
+    max_depth: Option<usize>,
     importer_info: &HashMap<String, ImporterInfo>,
 ) -> Vec<DependentNode> {
-    if depth >= MAX_REVERSE_WALK_DEPTH {
+    if depth >= MAX_REVERSE_WALK_DEPTH || max_depth.is_some_and(|max| depth >= max) {
         return vec![];
     }
 
@@ -265,13 +278,31 @@ fn walk_reverse(
                     continue;
                 }
 
+                if expanded.contains(parent_node) {
+                    dependents.push(DependentNode {
+                        name: parent_key.name.to_string(),
+                        version: parent_key.suffix.version().to_string(),
+                        dep_field: None,
+                        dependents: vec![],
+                    });
+                    continue;
+                }
+
                 visited.insert(parent_node.clone());
+                expanded.insert(parent_node.clone());
 
                 let parent_name = parent_key.name.to_string();
                 let parent_version = parent_key.suffix.version().to_string();
 
-                let child_dependents =
-                    walk_reverse(parent_key, reverse_map, visited, depth + 1, importer_info);
+                let child_dependents = walk_reverse(
+                    parent_key,
+                    reverse_map,
+                    visited,
+                    expanded,
+                    depth + 1,
+                    max_depth,
+                    importer_info,
+                );
 
                 visited.remove(parent_node);
 
@@ -285,6 +316,7 @@ fn walk_reverse(
         }
     }
 
+    dependents.sort_by(|a, b| a.name.cmp(&b.name).then(a.version.cmp(&b.version)));
     dependents
 }
 

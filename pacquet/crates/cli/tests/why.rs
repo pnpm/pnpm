@@ -38,7 +38,7 @@ fn why_fails_without_package_name() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("requires a package name"),
-        "should show error about missing package name: {stderr}"
+        "should show error about missing package name: {stderr}",
     );
 }
 
