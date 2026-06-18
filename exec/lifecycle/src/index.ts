@@ -5,7 +5,7 @@ import { runLifecycleHooksConcurrently, type RunLifecycleHooksConcurrentlyOption
 
 export function makeNodeRequireOption (modulePath: string, env?: Record<string, string | undefined>): { NODE_OPTIONS: string } {
   let { NODE_OPTIONS } = env ?? process.env
-  NODE_OPTIONS = `${NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ''} --require=${modulePath}`.trim()
+  NODE_OPTIONS = `${NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ''} --require=${quotePathIfNeeded(modulePath)}`.trim()
   return { NODE_OPTIONS }
 }
 

@@ -363,6 +363,34 @@ test('lockfileToPackageMap uses file urls and link ids for Windows cross-drive l
   expect(packageMap.packages['link:D:/external/linked'].url).toBe('file:///D:/external/linked')
 })
 
+test('lockfileToPackageMap detects a Windows-absolute link target on a POSIX lockfile dir', () => {
+  const packageMap = lockfileToPackageMap({
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          linked: 'link:C:\\external\\linked',
+        },
+        specifiers: {},
+      },
+    },
+    lockfileVersion: '5',
+    packages: {},
+  }, {
+    importerNames: {},
+    lockfileDir: '/repo',
+    rootModulesDir: '/repo/node_modules',
+    virtualStoreDir: '/repo/node_modules/.pnpm',
+    virtualStoreDirMaxLength: 120,
+  })
+
+  // Without stripping `link:` before picking the path flavor, the target is
+  // misread as a relative path and resolved under the importer dir.
+  expect(packageMap.packages['.'].dependencies).toStrictEqual({
+    linked: 'link:C:/external/linked',
+  })
+  expect(packageMap.packages['link:C:/external/linked'].url).toBe('file:///C:/external/linked')
+})
+
 test('dependenciesGraphToPackageMap uses file urls and link ids for Windows cross-drive links', () => {
   const packageMap = dependenciesGraphToPackageMap({
     directDependenciesByImporterId: {

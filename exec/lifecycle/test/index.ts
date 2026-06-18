@@ -31,6 +31,19 @@ test('makeNodeRequireOption() preserves existing NODE_OPTIONS', () => {
   })
 })
 
+test('makeNodeRequireOption() quotes and escapes module paths with backslashes or whitespace', () => {
+  expect(makeNodeRequireOption('C:\\project\\.pnp.cjs', {
+    NODE_OPTIONS: '',
+  })).toStrictEqual({
+    NODE_OPTIONS: '--require="C:\\\\project\\\\.pnp.cjs"',
+  })
+  expect(makeNodeRequireOption('/project with space/.pnp.cjs', {
+    NODE_OPTIONS: '',
+  })).toStrictEqual({
+    NODE_OPTIONS: '--require="/project with space/.pnp.cjs"',
+  })
+})
+
 test('makeNodeRequireOption() falls back to NODE_OPTIONS from process.env', () => {
   const nodeOptions = process.env.NODE_OPTIONS
   process.env.NODE_OPTIONS = '--trace-warnings'

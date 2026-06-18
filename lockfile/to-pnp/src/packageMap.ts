@@ -347,9 +347,12 @@ interface LinkTarget {
 }
 
 function resolveLinkTarget (lockfileDir: string, importerId: string | undefined, ref: string): LinkTarget {
-  const pathUtils = getPathUtils(lockfileDir, ref)
-  const importerDir = pathUtils.resolve(lockfileDir, importerId ?? '.')
   const linkPath = ref.slice(5)
+  // Detect the path flavor from `linkPath`, not the raw `ref`: the `link:`
+  // prefix would hide a Windows-absolute target (e.g. `link:C:\x`) from the
+  // drive-letter check, making it look relative on POSIX.
+  const pathUtils = getPathUtils(lockfileDir, linkPath)
+  const importerDir = pathUtils.resolve(lockfileDir, importerId ?? '.')
   const dir = pathUtils.isAbsolute(linkPath)
     ? linkPath
     : pathUtils.resolve(importerDir, linkPath)

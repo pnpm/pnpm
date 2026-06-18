@@ -30,7 +30,7 @@ pub enum WritePackageMapError {
     #[display("failed to serialize package map: {_0}")]
     Serialize(#[error(source)] serde_json::Error),
     #[display("failed to write package map: {_0}")]
-    Write(#[error(source)] std::io::Error),
+    Write(#[error(source)] pacquet_fs::EnsureFileError),
 }
 
 pub(crate) struct PackageMapOptions<'a> {
@@ -59,7 +59,10 @@ pub(crate) fn write_package_map(
     let mut contents = serde_json::to_vec_pretty(&lockfile_to_package_map(lockfile, opts))
         .map_err(WritePackageMapError::Serialize)?;
     contents.push(b'\n');
-    std::fs::write(opts.modules_dir.join(PACKAGE_MAP_FILENAME), contents)
+    // Hardened atomic write (temp file + rename): never follows a symlink an
+    // attacker (or a crashed prior install) may have pre-seeded at the target,
+    // and never leaves a torn file a concurrent reader could observe.
+    pacquet_fs::ensure_file(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
         .map_err(WritePackageMapError::Write)
 }
 
@@ -73,7 +76,10 @@ pub(crate) fn write_hoisted_package_map(
         serde_json::to_vec_pretty(&dependencies_graph_to_package_map(lockfile, graph, opts))
             .map_err(WritePackageMapError::Serialize)?;
     contents.push(b'\n');
-    std::fs::write(opts.modules_dir.join(PACKAGE_MAP_FILENAME), contents)
+    // Hardened atomic write (temp file + rename): never follows a symlink an
+    // attacker (or a crashed prior install) may have pre-seeded at the target,
+    // and never leaves a torn file a concurrent reader could observe.
+    pacquet_fs::ensure_file(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
         .map_err(WritePackageMapError::Write)
 }
 
