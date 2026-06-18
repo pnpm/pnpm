@@ -1043,7 +1043,6 @@ overrides:
   glob@>=10.3.7 <=11.0.3: ^11.1.0
   handlebars@>=4.0.0 <4.7.9: '>=4.7.9'
   hosted-git-info@1: npm:@pnpm/hosted-git-info@1.0.0
-  http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
   js-yaml@<3.14.2: ^3.14.2
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.11
