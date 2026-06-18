@@ -47,7 +47,9 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "get-npm-tarball-url": "catalog:"
+    "get-npm-tarball-url": "catalog:",
+    "semver": "catalog:",
+    "validate-npm-package-name": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -57,6 +59,8 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/testing.temp-store": "workspace:*",
+    "@types/semver": "catalog:",
+    "@types/validate-npm-package-name": "catalog:",
     "load-json-file": "catalog:",
     "read-yaml-file": "catalog:"
   },
