@@ -28,9 +28,8 @@ jobs:
       # Downloading an artifact from the triggering run requires actions: read.
       actions: read
       # Adding a label via the issues REST API is governed by issues: write
-      # even when the target is a PR.
+      # even when the target is a PR. No other scope is needed.
       issues: write
-      pull-requests: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Webhook URL is optional; the Discord step is skipped when the secret is unset.
@@ -47,6 +46,22 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: pr-review-event
+
+      - name: Distinguish a missing artifact from a failed download
+        if: steps.download.outcome != 'success'
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          # No artifact is the expected, benign case: the capture job is skipped for
+          # non-approval reviews. But if the artifact does exist and we still failed
+          # to download it, the run would otherwise pass as a silent no-op — surface
+          # that as an error so a missed label/announcement is observable in CI.
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts" --paginate --jq '.artifacts[].name')"
+          if printf '%s\n' "$artifacts" | grep -qx 'pr-review-event'; then
+            echo "::error::pr-review-event artifact exists but could not be downloaded"
+            exit 1
+          fi
+          echo "::notice::No pr-review-event artifact (non-approval review); nothing to do"
 
       - name: Parse the event
         id: event
