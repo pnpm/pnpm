@@ -10,7 +10,7 @@ use crate::State;
 use clap::Args;
 use owo_colors::{OwoColorize, Stream};
 use pacquet_config::matcher::{Matcher, create_matcher};
-use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
+use pacquet_lockfile::{Lockfile, PackageKey, PackageMetadata, PkgNameVerPeer};
 use pacquet_package_manifest::DependencyGroup;
 use std::{
     collections::{HashMap, HashSet},
@@ -48,10 +48,22 @@ impl fmt::Display for ParentNode {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum ReverseKey {
+    Package(PkgNameVerPeer),
+    Importer(String),
+}
+
 #[derive(Debug)]
 struct ImporterInfo {
     name: String,
     version: String,
+}
+
+struct WalkCtx<'a> {
+    reverse_map: &'a HashMap<ReverseKey, Vec<(ParentNode, String)>>,
+    importer_info: &'a HashMap<String, ImporterInfo>,
+    packages: &'a HashMap<PackageKey, PackageMetadata>,
 }
 
 #[derive(Debug, Args)]
@@ -123,6 +135,43 @@ impl WhyArgs {
 
 const MAX_REVERSE_WALK_DEPTH: usize = 64;
 
+fn display_version(
+    key: &PkgNameVerPeer,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+) -> String {
+    let metadata_key = key.without_peer();
+    packages
+        .and_then(|p| p.get(&metadata_key))
+        .and_then(|m| m.version.clone())
+        .unwrap_or_else(|| key.suffix.version().to_string())
+}
+
+fn resolve_link_to_importer(
+    parent_importer_id: &str,
+    link_target: &str,
+    importer_ids: &HashMap<String, impl std::any::Any>,
+) -> Option<String> {
+    let resolved = normalize_path(parent_importer_id, link_target)?;
+    importer_ids.contains_key(&resolved).then_some(resolved)
+}
+
+fn normalize_path(base: &str, relative: &str) -> Option<String> {
+    let mut parts: Vec<&str> = Vec::new();
+    for part in base.split('/').filter(|s| !s.is_empty()) {
+        parts.push(part);
+    }
+    for part in relative.split('/') {
+        match part {
+            "" | "." => continue,
+            ".." => {
+                parts.pop()?;
+            }
+            other => parts.push(other),
+        }
+    }
+    Some(parts.join("/"))
+}
+
 fn build_dependents_tree(
     lockfile: &Lockfile,
     matcher: &Matcher,
@@ -160,7 +209,7 @@ fn build_dependents_tree(
         forward_edges.insert(key.clone(), edges);
     }
 
-    let mut reverse_map: HashMap<PkgNameVerPeer, Vec<(ParentNode, String)>> = HashMap::new();
+    let mut reverse_map: HashMap<ReverseKey, Vec<(ParentNode, String)>> = HashMap::new();
 
     let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
     for importer_id in importer_info.keys() {
@@ -172,7 +221,15 @@ fn build_dependents_tree(
                 for (alias, spec) in deps {
                     if let Some(target_key) = spec.version.resolved_key(alias) {
                         reverse_map
-                            .entry(target_key)
+                            .entry(ReverseKey::Package(target_key))
+                            .or_default()
+                            .push((ParentNode::Importer(importer_id.clone()), alias.to_string()));
+                    } else if let Some(link_target) = spec.version.as_link_target()
+                        && let Some(resolved_id) =
+                            resolve_link_to_importer(importer_id, link_target, &lockfile.importers)
+                    {
+                        reverse_map
+                            .entry(ReverseKey::Importer(resolved_id))
                             .or_default()
                             .push((ParentNode::Importer(importer_id.clone()), alias.to_string()));
                     }
@@ -185,7 +242,7 @@ fn build_dependents_tree(
         for (alias, target) in edges {
             if let Some(target_key) = target {
                 reverse_map
-                    .entry(target_key.clone())
+                    .entry(ReverseKey::Package(target_key.clone()))
                     .or_default()
                     .push((ParentNode::Package(parent_key.clone()), alias.clone()));
             }
@@ -193,18 +250,20 @@ fn build_dependents_tree(
     }
 
     for edges in reverse_map.values_mut() {
-        edges.sort_by_cached_key(|a| a.0.to_string());
+        edges.sort_by_cached_key(|entry| entry.0.to_string());
     }
+
+    let ctx = WalkCtx { reverse_map: &reverse_map, importer_info, packages };
 
     let mut results: Vec<WhyResult> = Vec::new();
 
     for key in packages.keys() {
         let name = key.name.to_string();
-        let version = key.suffix.version().to_string();
+        let version = display_version(key, Some(packages));
 
         let matched = matcher.matches(&name)
             || reverse_map
-                .get(key)
+                .get(&ReverseKey::Package(key.clone()))
                 .is_some_and(|edges| edges.iter().any(|(_parent, alias)| matcher.matches(alias)));
 
         if !matched {
@@ -215,37 +274,65 @@ fn build_dependents_tree(
         visited.insert(ParentNode::Package(key.clone()));
         let mut expanded = HashSet::new();
         let dependents = walk_reverse(
-            key,
-            &reverse_map,
+            &ReverseKey::Package(key.clone()),
+            &ctx,
             &mut visited,
             &mut expanded,
             0,
             max_depth,
-            importer_info,
         );
 
         results.push(WhyResult { name: name.clone(), version, dependents });
     }
 
-    results.sort_by(|a, b| a.name.cmp(&b.name).then(a.version.cmp(&b.version)));
+    for importer_id in importer_info.keys() {
+        let info = importer_info.get(importer_id.as_str());
+        let name = info.map_or_else(|| importer_id.clone(), |i| i.name.clone());
+
+        let matched = matcher.matches(&name)
+            || reverse_map
+                .get(&ReverseKey::Importer(importer_id.clone()))
+                .is_some_and(|edges| edges.iter().any(|(_parent, alias)| matcher.matches(alias)));
+
+        if !matched {
+            continue;
+        }
+
+        let mut visited = HashSet::new();
+        visited.insert(ParentNode::Importer(importer_id.clone()));
+        let mut expanded = HashSet::new();
+        let dependents = walk_reverse(
+            &ReverseKey::Importer(importer_id.clone()),
+            &ctx,
+            &mut visited,
+            &mut expanded,
+            0,
+            max_depth,
+        );
+
+        let version = info.map_or_else(String::new, |i| i.version.clone());
+        results.push(WhyResult { name: name.clone(), version, dependents });
+    }
+
+    results
+        .sort_by(|left, right| left.name.cmp(&right.name).then(left.version.cmp(&right.version)));
 
     results
 }
 
 fn walk_reverse(
-    node_key: &PkgNameVerPeer,
-    reverse_map: &HashMap<PkgNameVerPeer, Vec<(ParentNode, String)>>,
+    node_key: &ReverseKey,
+    ctx: &WalkCtx<'_>,
     visited: &mut HashSet<ParentNode>,
     expanded: &mut HashSet<ParentNode>,
     depth: usize,
     max_depth: Option<usize>,
-    importer_info: &HashMap<String, ImporterInfo>,
 ) -> Vec<DependentNode> {
     if depth >= MAX_REVERSE_WALK_DEPTH || max_depth.is_some_and(|max| depth >= max) {
         return vec![];
     }
 
-    let Some(edges) = reverse_map.get(node_key) else {
+    let Some(edges) = ctx.reverse_map.get(node_key) else {
         return vec![];
     };
 
@@ -254,7 +341,7 @@ fn walk_reverse(
     for (parent_node, _alias) in edges {
         match parent_node {
             ParentNode::Importer(importer_id) => {
-                let info = importer_info.get(importer_id.as_str());
+                let info = ctx.importer_info.get(importer_id.as_str());
                 dependents.push(DependentNode {
                     name: info.map_or_else(|| importer_id.clone(), |i| i.name.clone()),
                     version: info.map_or_else(String::new, |i| i.version.clone()),
@@ -266,7 +353,7 @@ fn walk_reverse(
                 if visited.contains(parent_node) {
                     dependents.push(DependentNode {
                         name: parent_key.name.to_string(),
-                        version: parent_key.suffix.version().to_string(),
+                        version: display_version(parent_key, Some(ctx.packages)),
                         dep_field: None,
                         dependents: vec![],
                     });
@@ -276,7 +363,7 @@ fn walk_reverse(
                 if expanded.contains(parent_node) {
                     dependents.push(DependentNode {
                         name: parent_key.name.to_string(),
-                        version: parent_key.suffix.version().to_string(),
+                        version: display_version(parent_key, Some(ctx.packages)),
                         dep_field: None,
                         dependents: vec![],
                     });
@@ -287,16 +374,15 @@ fn walk_reverse(
                 expanded.insert(parent_node.clone());
 
                 let parent_name = parent_key.name.to_string();
-                let parent_version = parent_key.suffix.version().to_string();
+                let parent_version = display_version(parent_key, Some(ctx.packages));
 
                 let child_dependents = walk_reverse(
-                    parent_key,
-                    reverse_map,
+                    &ReverseKey::Package(parent_key.clone()),
+                    ctx,
                     visited,
                     expanded,
                     depth + 1,
                     max_depth,
-                    importer_info,
                 );
 
                 visited.remove(parent_node);
@@ -311,7 +397,8 @@ fn walk_reverse(
         }
     }
 
-    dependents.sort_by(|a, b| a.name.cmp(&b.name).then(a.version.cmp(&b.version)));
+    dependents
+        .sort_by(|left, right| left.name.cmp(&right.name).then(left.version.cmp(&right.version)));
     dependents
 }
 
@@ -396,9 +483,9 @@ fn dim(text: &str) -> String {
 }
 
 fn sanitize(text: &str) -> std::borrow::Cow<'_, str> {
-    if text.bytes().any(|b| b < 0x20 && b != b'\n' && b != b'\t') {
+    if text.bytes().any(|byte| byte < 0x20 && byte != b'\n' && byte != b'\t') {
         std::borrow::Cow::Owned(
-            text.chars().filter(|c| !c.is_control() || *c == '\n' || *c == '\t').collect(),
+            text.chars().filter(|ch| !ch.is_control() || *ch == '\n' || *ch == '\t').collect(),
         )
     } else {
         std::borrow::Cow::Borrowed(text)

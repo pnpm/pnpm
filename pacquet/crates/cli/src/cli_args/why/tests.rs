@@ -69,3 +69,28 @@ fn test_render_tree_respects_depth() {
     assert!(output.contains("express@4.18.2"));
     assert!(!output.contains("project@0.0.0"));
 }
+
+#[test]
+fn test_normalize_path_simple() {
+    assert_eq!(normalize_path("packages/a", "../b"), Some("packages/b".to_string()));
+}
+
+#[test]
+fn test_normalize_path_nested() {
+    assert_eq!(normalize_path("packages/a", "../../other"), Some("other".to_string()));
+}
+
+#[test]
+fn test_normalize_path_dot() {
+    assert_eq!(normalize_path("packages/a", "./sibling"), Some("packages/a/sibling".to_string()));
+}
+
+#[test]
+fn test_normalize_path_empty() {
+    assert_eq!(normalize_path("packages/a", ""), Some("packages/a".to_string()));
+}
+
+#[test]
+fn test_normalize_path_too_many_parents() {
+    assert_eq!(normalize_path("a", "../../b"), None);
+}
