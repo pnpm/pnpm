@@ -141,8 +141,8 @@ fn display_version(
 ) -> String {
     let metadata_key = key.without_peer();
     packages
-        .and_then(|p| p.get(&metadata_key))
-        .and_then(|m| m.version.clone())
+        .and_then(|pkg_map| pkg_map.get(&metadata_key))
+        .and_then(|meta| meta.version.clone())
         .unwrap_or_else(|| key.suffix.version().to_string())
 }
 
@@ -157,7 +157,7 @@ fn resolve_link_to_importer(
 
 fn normalize_path(base: &str, relative: &str) -> Option<String> {
     let mut parts: Vec<&str> = Vec::new();
-    for part in base.split('/').filter(|s| !s.is_empty()) {
+    for part in base.split('/').filter(|segment| !segment.is_empty()) {
         parts.push(part);
     }
     for part in relative.split('/') {
