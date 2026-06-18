@@ -942,6 +942,62 @@ fn walker_multi_importer_version_conflict_nests_loser() {
     assert_ne!(root_a, foo_a, "conflict resolves to two distinct dirs");
 }
 
+/// The #873 workspace invariant: when the root importer and a
+/// workspace project pin conflicting versions of the same name, the
+/// root's version wins the top-level `node_modules` slot and the
+/// project's version nests under the project. Locks in the popularity
+/// preference (root deps rank first) together with the per-importer
+/// walk. Mirrors upstream's `installing/deps-restorer/test/index.ts`
+/// workspace-hoisted case where the root's `webpack@5.65.0` lands at
+/// the root and `foo`'s `webpack@2.7.0` nests under `foo`.
+#[test]
+fn walker_workspace_root_version_wins_root_slot() {
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("webby"), resolved_dep("5.0.0"));
+
+    let mut app_deps = ResolvedDependencyMap::new();
+    app_deps.insert(pkg_name("webby"), resolved_dep("2.0.0"));
+
+    let mut packages = HashMap::new();
+    packages.insert(dep_key("webby", "5.0.0"), metadata_stub());
+    packages.insert(dep_key("webby", "2.0.0"), metadata_stub());
+
+    let mut snapshots = HashMap::new();
+    snapshots.insert(dep_key("webby", "5.0.0"), SnapshotEntry::default());
+    snapshots.insert(dep_key("webby", "2.0.0"), SnapshotEntry::default());
+
+    let lockfile = workspace_lockfile(
+        vec![(Lockfile::ROOT_IMPORTER_KEY, root_deps), ("packages/app", app_deps)],
+        packages,
+        snapshots,
+    );
+    let lockfile_dir = PathBuf::from("/repo");
+    let opts = LockfileToHoistedDepGraphOptions {
+        lockfile_dir: lockfile_dir.clone(),
+        ..LockfileToHoistedDepGraphOptions::default()
+    };
+    let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
+
+    let root_webby = lockfile_dir.join("node_modules").join("webby");
+    let nested_webby = lockfile_dir.join("packages/app").join("node_modules").join("webby");
+
+    assert_eq!(
+        result.graph[&root_webby].dep_path,
+        DepPath::from("webby@5.0.0".to_string()),
+        "the root importer's version wins the top-level slot",
+    );
+    assert_eq!(
+        result.graph[&nested_webby].dep_path,
+        DepPath::from("webby@2.0.0".to_string()),
+        "the workspace project's conflicting version nests under the project",
+    );
+    assert_eq!(
+        result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY]["webby"],
+        root_webby,
+    );
+    assert_eq!(result.direct_dependencies_by_importer_id["packages/app"]["webby"], nested_webby,);
+}
+
 #[test]
 fn walker_forwards_external_dependencies_to_hoister() {
     let mut root_deps = ResolvedDependencyMap::new();
