@@ -80,3 +80,63 @@ fn owner_missing_record_is_written_once_per_generation() {
         "a new ownership generation records afresh",
     );
 }
+
+mod higher_direct_dep_version {
+    use std::collections::HashMap;
+
+    use node_semver::{Range, Version};
+
+    use super::super::{DirectDepVersions, higher_direct_dep_version};
+
+    fn direct(name: &str, versions: &[&str]) -> DirectDepVersions {
+        let parsed =
+            versions.iter().map(|raw| raw.parse::<Version>().expect("parse version")).collect();
+        HashMap::from([(name.to_string(), parsed)])
+    }
+
+    fn ver(raw: &str) -> Version {
+        raw.parse().expect("parse version")
+    }
+
+    fn range(raw: &str) -> Range {
+        raw.parse().expect("parse range")
+    }
+
+    #[test]
+    fn picks_the_highest_in_range_version_above_the_pin() {
+        let direct = direct("foo", &["1.1.0", "1.5.0", "2.0.0"]);
+        assert_eq!(
+            higher_direct_dep_version(Some(&direct), "foo", &ver("1.0.0"), &range("^1.0.0")),
+            Some(ver("1.5.0")),
+        );
+    }
+
+    #[test]
+    fn none_when_no_direct_version_is_higher() {
+        let direct = direct("foo", &["1.0.0"]);
+        assert!(
+            higher_direct_dep_version(Some(&direct), "foo", &ver("1.0.0"), &range("^1.0.0"))
+                .is_none(),
+        );
+    }
+
+    #[test]
+    fn does_not_refresh_a_prerelease_onto_a_stable_range() {
+        // Matches pnpm's `semver.satisfies(.., true)`: a prerelease does not
+        // satisfy a range that doesn't admit prereleases, so no refresh.
+        let direct = direct("foo", &["1.2.0-beta.1"]);
+        assert!(
+            higher_direct_dep_version(Some(&direct), "foo", &ver("1.0.0"), &range("^1.0.0"))
+                .is_none(),
+        );
+    }
+
+    #[test]
+    fn refreshes_a_prerelease_when_the_range_admits_it() {
+        let direct = direct("foo", &["1.2.0-beta.1"]);
+        assert_eq!(
+            higher_direct_dep_version(Some(&direct), "foo", &ver("1.0.0"), &range(">=1.2.0-0")),
+            Some(ver("1.2.0-beta.1")),
+        );
+    }
+}
