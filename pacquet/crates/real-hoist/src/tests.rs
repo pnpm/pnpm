@@ -327,7 +327,7 @@ fn most_used_version_wins_root_slot() {
     let x_under_aa = aa_kids[0].0.references.borrow();
     assert!(
         x_under_aa.contains("x@1.0.0"),
-        "the less-used x stays nested under aa: {x_under_aa:?}"
+        "the less-used x stays nested under aa: {x_under_aa:?}",
     );
 }
 

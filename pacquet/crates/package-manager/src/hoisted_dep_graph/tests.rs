@@ -942,8 +942,8 @@ fn walker_multi_importer_version_conflict_nests_loser() {
     assert_ne!(root_a, foo_a, "conflict resolves to two distinct dirs");
 }
 
-/// The #873 workspace invariant: when the root importer and a
-/// workspace project pin conflicting versions of the same name, the
+/// The cross-importer workspace invariant: when the root importer and
+/// a workspace project pin conflicting versions of the same name, the
 /// root's version wins the top-level `node_modules` slot and the
 /// project's version nests under the project. Locks in the popularity
 /// preference (root deps rank first) together with the per-importer
@@ -995,7 +995,7 @@ fn walker_workspace_root_version_wins_root_slot() {
         result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY]["webby"],
         root_webby,
     );
-    assert_eq!(result.direct_dependencies_by_importer_id["packages/app"]["webby"], nested_webby,);
+    assert_eq!(result.direct_dependencies_by_importer_id["packages/app"]["webby"], nested_webby);
 }
 
 #[test]
