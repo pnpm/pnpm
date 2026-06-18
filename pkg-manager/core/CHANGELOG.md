@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 1016.4.4
+
+### Patch Changes
+
+- Updated dependencies [352ae48]
+  - @pnpm/symlink-dependency@1000.0.20
+  - @pnpm/headless@1010.1.16
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.20
+  - @pnpm/worker@1000.6.11
+  - @pnpm/build-modules@1007.0.17
+  - @pnpm/plugin-commands-rebuild@1008.0.19
+  - @pnpm/package-requester@1011.2.6
+
 ## 1016.4.3
 
 ### Patch Changes

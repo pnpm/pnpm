@@ -1,5 +1,12 @@
 # @pnpm/worker
 
+## 1000.6.11
+
+### Patch Changes
+
+- Updated dependencies [352ae48]
+  - @pnpm/symlink-dependency@1000.0.20
+
 ## 1000.6.10
 
 ### Patch Changes

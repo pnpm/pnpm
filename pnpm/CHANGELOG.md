@@ -1,5 +1,17 @@
 # pnpm
 
+## 10.34.4
+
+### Patch Changes
+
+- 352ae48: Security: validate config dependency names and versions before using them to build filesystem paths. A `pnpm-workspace.yaml` with a traversal-shaped `configDependencies` name (such as `../../PWNED`) or version (such as `../../../PWNED`) could previously cause `pnpm install` to create symlinks or write package files outside `node_modules/.pnpm-config` and the store. Names must now be valid npm package names and versions must be exact semver versions. See [GHSA-qrv3-253h-g69c](https://github.com/pnpm/pnpm/security/advisories/GHSA-qrv3-253h-g69c).
+- 352ae48: Reject path-traversal and reserved dependency aliases (such as `../../../escape`, `.bin`, `.pnpm`, or `node_modules`) that come from a lockfile rather than a freshly resolved manifest. A crafted lockfile alias could otherwise be joined directly under a hoisted `node_modules` directory, letting package files be written outside the intended install root or overwrite pnpm-owned layout.
+
+  The `nodeLinker: hoisted` graph builder now validates each alias at the directory sink (`safeJoinModulesDir`), matching the validation pnpm already performs when resolving aliases from manifests. See [GHSA-fr4h-3cph-29xv](https://github.com/pnpm/pnpm/security/advisories/GHSA-fr4h-3cph-29xv).
+
+- 352ae48: Prevent `pnpm patch-remove` from removing files outside the configured patches directory.
+- 217fbe0: Hardened the warning printed when a project `.npmrc` uses environment variables in registry/auth settings: the suggested `pnpm config set` command is now only included for keys made up of shell-inert characters. Because the key comes from a repository-controlled `.npmrc` and a shell expands `$(...)`, backticks, and `$VAR` even inside double quotes, a crafted key could otherwise have turned the suggested copy-paste command into command execution.
+
 ## 10.34.3
 
 ### Patch Changes
