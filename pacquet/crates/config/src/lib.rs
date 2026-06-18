@@ -27,8 +27,9 @@ use std::{
 
 pub use crate::defaults::{
     PACQUET_VERSION, available_parallelism, default_git_shallow_hosts,
-    default_peers_suffix_max_length, default_unsafe_perm, default_virtual_store_dir_max_length,
-    default_workspace_concurrency, is_unsafe_perm_posix, resolve_child_concurrency,
+    default_native_bin_dependencies, default_peers_suffix_max_length, default_unsafe_perm,
+    default_virtual_store_dir_max_length, default_workspace_concurrency, is_unsafe_perm_posix,
+    resolve_child_concurrency,
 };
 use crate::defaults::{
     default_cache_dir, default_child_concurrency, default_config_dir,
@@ -1187,6 +1188,16 @@ pub struct Config {
     /// <https://github.com/npm/git/blob/1e1dbd26bd/lib/clone.js#L13-L19>.
     #[default(_code = "default_git_shallow_hosts()")]
     pub git_shallow_hosts: Vec<String>,
+
+    /// Package names whose per-platform native binaries (shipped as
+    /// `optionalDependencies` alongside a JavaScript launcher shim) are
+    /// installed by fetching only the host's binary and linking it
+    /// directly, skipping the launcher and the package's lifecycle
+    /// scripts. The default list ships with `pacquet` and `@pnpm/pacquet`;
+    /// `nativeBinDependencies` in `pnpm-workspace.yaml` extends it.
+    /// Mirrors pnpm's `nativeBinDependencies` setting.
+    #[default(_code = "default_native_bin_dependencies()")]
+    pub native_bin_dependencies: Vec<String>,
 
     /// `supportedArchitectures` from `pnpm-workspace.yaml`. Threaded
     /// into the installability check at install time (via

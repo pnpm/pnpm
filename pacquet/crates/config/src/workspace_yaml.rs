@@ -289,6 +289,12 @@ pub struct WorkspaceSettings {
     /// replaces the built-in defaults rather than merging).
     pub git_shallow_hosts: Option<Vec<String>>,
 
+    /// `nativeBinDependencies` from `pnpm-workspace.yaml`. Overrides
+    /// [`Config::native_bin_dependencies`] wholesale when set (mirrors
+    /// pnpm's settings precedence, where `pnpm-workspace.yaml` replaces
+    /// the built-in defaults rather than merging).
+    pub native_bin_dependencies: Option<Vec<String>>,
+
     /// `supportedArchitectures` from `pnpm-workspace.yaml`. Drives the
     /// optional-dependency platform check at install time: a
     /// `name: ['darwin'], cpu: ['arm64']` setting tells pacquet to
@@ -730,6 +736,7 @@ impl WorkspaceSettings {
             network_concurrency, fetch_timeout, user_agent,
             enable_global_virtual_store,
             git_shallow_hosts,
+            native_bin_dependencies,
             resolution_mode, catalog_mode, registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,

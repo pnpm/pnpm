@@ -25,12 +25,20 @@
 //!   store. Pacquet today goes through the picker unconditionally;
 //!   restoring the fast path is a separate item.
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use chrono::{DateTime, Utc};
+use futures_util::future::try_join_all;
 use node_semver::Version;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
-use pacquet_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+use pacquet_lockfile::{
+    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PkgName, PkgNameVer,
+    PlatformAssetResolution, PlatformAssetTarget, TarballResolution, VariationsResolution,
+};
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::{
@@ -127,6 +135,12 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// [`PickPackageContext::retry_opts`]. Sourced from the install's
     /// `fetch-retries` config.
     pub retry_opts: RetryOpts,
+    /// Package names treated as native bin dependencies: a wrapper that
+    /// ships per-platform native binaries as `optionalDependencies` is
+    /// resolved to a `variations` resolution over those platform packages
+    /// instead of the wrapper tarball, so only the host's binary is
+    /// fetched and linked. Sourced from [`Config::native_bin_dependencies`].
+    pub native_bin_dependencies: HashSet<String>,
 }
 
 impl<Cache: PackageMetaCache + 'static> Resolver for NpmResolver<Cache> {
@@ -262,7 +276,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(Some(result));
         }
 
-        let result = build_resolve_result(BuildResolveResult {
+        let mut result = build_resolve_result(BuildResolveResult {
             meta: &picked.meta,
             picked: &picked.version,
             spec: &spec,
@@ -274,7 +288,98 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             picked_manifest_cache: &self.picked_manifest_cache,
         })?;
 
+        if self.native_bin_dependencies.contains(picked.version.name.as_str())
+            && let Some((resolution, bin)) =
+                self.resolve_native_bin_variations(&picked.version, opts).await?
+        {
+            result.resolution = resolution;
+            result.manifest = result.manifest.map(|manifest| {
+                let mut value = (*manifest).clone();
+                if let serde_json::Value::Object(map) = &mut value {
+                    map.insert("bin".to_string(), bin);
+                }
+                Arc::new(value)
+            });
+        }
+
         Ok(Some(result))
+    }
+
+    /// Synthesize a `variations` resolution for a native bin dependency.
+    /// Fetches each platform `optionalDependencies` packument and turns
+    /// it into a platform variant pointing directly at that package's
+    /// tarball, with the launcher's command names mapped to the native
+    /// binary at the package root. Returns the variations resolution and
+    /// the host's `bin` map (for the package manifest), or `None` when the
+    /// wrapper has no platform-tagged optional dependency — in which case
+    /// the caller keeps the normal tarball resolution. Mirrors pnpm's
+    /// `resolveNativeBinVariations`.
+    async fn resolve_native_bin_variations(
+        &self,
+        wrapper: &PackageVersion,
+        opts: &ResolveOptions,
+    ) -> Result<Option<(LockfileResolution, serde_json::Value)>, ResolveError> {
+        let Some(optional_dependencies) = wrapper.optional_dependencies.as_ref() else {
+            return Ok(None);
+        };
+        let command_names = command_names_from_wrapper(wrapper);
+        if command_names.is_empty() {
+            return Ok(None);
+        }
+
+        let variants: Vec<PlatformAssetResolution> =
+            try_join_all(optional_dependencies.iter().map(|(dep_name, dep_spec)| {
+                self.fetch_platform_variant(dep_name, dep_spec, opts, &command_names)
+            }))
+            .await?
+            .into_iter()
+            .flatten()
+            .collect();
+
+        if variants.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some((
+            LockfileResolution::Variations(VariationsResolution { variants }),
+            host_bin_value(&command_names),
+        )))
+    }
+
+    /// Resolve one platform `optionalDependencies` entry into a
+    /// [`PlatformAssetResolution`]. Returns `None` when the entry can't be
+    /// resolved or carries no os/cpu (so it isn't a per-platform package).
+    async fn fetch_platform_variant(
+        &self,
+        dep_name: &str,
+        dep_spec: &str,
+        opts: &ResolveOptions,
+        command_names: &[String],
+    ) -> Result<Option<PlatformAssetResolution>, ResolveError> {
+        let registry = pick_registry_for_package(&self.registries, dep_name, Some(dep_spec));
+        let Some(spec) = parse_bare_specifier(dep_spec, Some(dep_name), "latest", &registry) else {
+            return Ok(None);
+        };
+        let Some(picked) = self.pick_from_registry(&registry, &spec, opts, true).await? else {
+            return Ok(None);
+        };
+        let targets = platform_targets_from_version(&picked.version);
+        if targets.is_empty() {
+            return Ok(None);
+        }
+        let Some(integrity) = picked.version.dist.integrity.clone() else {
+            return Ok(None);
+        };
+        let ext = if targets.iter().all(|target| target.os == "win32") { ".exe" } else { "" };
+        Ok(Some(PlatformAssetResolution {
+            resolution: LockfileResolution::Binary(BinaryResolution {
+                url: picked.version.dist.tarball.clone(),
+                integrity,
+                bin: bin_paths(command_names, ext),
+                archive: BinaryArchive::Tarball,
+                prefix: None,
+            }),
+            targets,
+        }))
     }
 
     /// JSR counterpart to the npm path. Mirrors upstream's
@@ -606,6 +711,82 @@ pub(crate) fn build_resolve_result(
         alias: alias.map(str::to_string),
         policy_violation,
     })
+}
+
+/// Command names the launcher exposes. Object-form `bin` lists them
+/// directly; string-form names a single command after the unscoped
+/// package name. Read off the wrapper's catch-all manifest map.
+fn command_names_from_wrapper(wrapper: &PackageVersion) -> Vec<String> {
+    match wrapper.other.get("bin") {
+        Some(serde_json::Value::Object(map)) => map.keys().cloned().collect(),
+        Some(serde_json::Value::String(_)) => vec![scopeless_name(&wrapper.name).to_string()],
+        _ => Vec::new(),
+    }
+}
+
+/// Map each command name to the native binary at the package root
+/// (`<command>` plus `ext`), matching the layout pacquet/`@pnpm/exe`
+/// publish.
+fn bin_paths(command_names: &[String], ext: &str) -> BinarySpec {
+    BinarySpec::Map(
+        command_names.iter().map(|name| (name.clone(), format!("{name}{ext}"))).collect(),
+    )
+}
+
+/// Host `bin` map for the package manifest (`<command>` plus the host's
+/// executable extension).
+fn host_bin_value(command_names: &[String]) -> serde_json::Value {
+    let ext = if cfg!(windows) { ".exe" } else { "" };
+    serde_json::Value::Object(
+        command_names
+            .iter()
+            .map(|name| (name.clone(), serde_json::Value::String(format!("{name}{ext}"))))
+            .collect(),
+    )
+}
+
+/// Expand a platform package's `os`/`cpu`/`libc` arrays into the
+/// `(os, cpu, libc?)` targets it covers. Skips negations and entries
+/// missing os/cpu (not per-platform packages). Only `libc: musl` is
+/// annotated; every other value is the default (`None`).
+fn platform_targets_from_version(version: &PackageVersion) -> Vec<PlatformAssetTarget> {
+    let os_list = string_array(version.other.get("os"));
+    let cpu_list = string_array(version.other.get("cpu"));
+    if os_list.is_empty() || cpu_list.is_empty() {
+        return Vec::new();
+    }
+    let libc_list = string_array(version.other.get("libc"));
+    let libcs: Vec<Option<String>> =
+        if libc_list.is_empty() { vec![None] } else { libc_list.into_iter().map(Some).collect() };
+    let mut targets = Vec::new();
+    for os in os_list.iter().filter(|os| !os.starts_with('!')) {
+        for cpu in cpu_list.iter().filter(|cpu| !cpu.starts_with('!')) {
+            for libc in &libcs {
+                targets.push(PlatformAssetTarget {
+                    os: os.clone(),
+                    cpu: cpu.clone(),
+                    libc: libc.as_deref().filter(|libc| *libc == "musl").map(str::to_string),
+                });
+            }
+        }
+    }
+    targets
+}
+
+/// Read a manifest field that npm serves as either a string or an array
+/// of strings (`os`, `cpu`, `libc`) into a `Vec<String>`.
+fn string_array(value: Option<&serde_json::Value>) -> Vec<String> {
+    match value {
+        Some(serde_json::Value::Array(items)) => {
+            items.iter().filter_map(|item| item.as_str().map(str::to_string)).collect()
+        }
+        Some(serde_json::Value::String(single)) => vec![single.clone()],
+        _ => Vec::new(),
+    }
+}
+
+fn scopeless_name(name: &str) -> &str {
+    name.rsplit('/').next().unwrap_or(name)
 }
 
 /// Resolver-time `trustPolicy='no-downgrade'` check on a fresh pick.

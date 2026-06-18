@@ -20,19 +20,20 @@ pacquet-resolving-resolver-base        = { workspace = true }
 pacquet-workspace-range-resolver       = { workspace = true }
 pacquet-workspace-spec                 = { workspace = true }
 
-chrono      = { workspace = true }
-dashmap     = { workspace = true }
-derive_more = { workspace = true }
-indexmap    = { workspace = true }
-miette      = { workspace = true }
-node-semver = { workspace = true }
-pipe-trait  = { workspace = true }
-reqwest     = { workspace = true }
-serde       = { workspace = true }
-serde_json  = { workspace = true }
-sha2        = { workspace = true }
-tokio       = { workspace = true }
-tracing     = { workspace = true }
+chrono       = { workspace = true }
+dashmap      = { workspace = true }
+derive_more  = { workspace = true }
+futures-util = { workspace = true }
+indexmap     = { workspace = true }
+miette       = { workspace = true }
+node-semver  = { workspace = true }
+pipe-trait   = { workspace = true }
+reqwest      = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+sha2         = { workspace = true }
+tokio        = { workspace = true }
+tracing      = { workspace = true }
 
 [dev-dependencies]
 pacquet-resolving-default-resolver = { workspace = true }

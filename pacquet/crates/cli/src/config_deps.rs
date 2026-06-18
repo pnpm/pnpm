@@ -196,6 +196,7 @@ impl EnvInstallerContext {
             full_metadata: false,
             filter_metadata: false,
             retry_opts,
+            native_bin_dependencies: std::collections::HashSet::default(),
         };
 
         Ok(Self {

@@ -102,6 +102,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         filter: Vec::new(),
         filter_prod: Vec::new(),
         git_shallow_hosts: pacquet_config::default_git_shallow_hosts(),
+        native_bin_dependencies: Vec::new(),
         supported_architectures: None,
         ignored_optional_dependencies: None,
         overrides: None,
@@ -156,6 +157,7 @@ async fn resolve_via_mock(
         full_metadata: false,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
+        native_bin_dependencies: std::collections::HashSet::default(),
     };
     let wanted = WantedDependency {
         alias: Some(alias.to_string()),
