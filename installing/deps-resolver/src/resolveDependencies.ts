@@ -714,6 +714,7 @@ export async function resolveDependencies (
 ): Promise<ResolvedDependenciesResult> {
   const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
     preferredDependencies: options.preferredDependencies,
+    preferredVersions,
     prefix: options.prefix,
     proceed: options.proceed || ctx.forceFullResolution,
     registries: ctx.registries,
@@ -1411,6 +1412,7 @@ function getDepsToResolve (
   wantedLockfile: LockfileObject,
   options: {
     preferredDependencies?: ResolvedDependencies
+    preferredVersions?: PreferredVersions
     prefix: string
     proceed: boolean
     registries: Registries
@@ -1430,6 +1432,7 @@ function getDepsToResolve (
   })
   for (const wantedDependency of wantedDependencies) {
     let reference = undefined as undefined | string
+    let preferredVersion = undefined as undefined | string
     let proceed = proceedAll
     if (wantedDependency.alias) {
       const satisfiesWanted = satisfiesWanted2Args.bind(null, wantedDependency)
@@ -1437,7 +1440,26 @@ function getDepsToResolve (
         resolvedDependencies[wantedDependency.alias] &&
         (satisfiesWanted(resolvedDependencies[wantedDependency.alias]) || resolvedDependencies[wantedDependency.alias].startsWith('file:'))
       ) {
-        reference = resolvedDependencies[wantedDependency.alias]
+        const pinnedRef = resolvedDependencies[wantedDependency.alias]
+        // Reusing a lockfile pin verbatim bypasses the preferred-versions
+        // walk, so a transitive edge stays on a stale lower version even
+        // when a direct dependency resolved to a higher version in range.
+        const pinned = pinnedRef.startsWith('file:')
+          ? undefined
+          : getPinnedNameVer(wantedLockfile, pinnedRef, wantedDependency.alias)
+        const higherDirectVersion = pinned == null
+          ? undefined
+          : findHigherDirectDepVersion(options.preferredVersions, pinned.name, pinned.version, wantedDependency.bareSpecifier)
+        if (higherDirectVersion != null) {
+          // `preferredVersion` (singular) overrides the
+          // EXISTING_VERSION_SELECTOR_WEIGHT stability bias that would
+          // otherwise re-pick the lower version. The lower version is then
+          // never resolved or fetched.
+          proceed = true
+          preferredVersion = higherDirectVersion
+        } else {
+          reference = pinnedRef
+        }
       } else if (
         // If dependencies that were used by the previous version of the package
         // satisfy the newer version's requirements, then pnpm tries to keep
@@ -1474,6 +1496,7 @@ function getDepsToResolve (
     }
     extendedWantedDeps.push({
       infoFromLockfile,
+      preferredVersion,
       proceed,
       wantedDependency,
     })
@@ -1504,6 +1527,51 @@ function referenceSatisfiesWantedSpec (
     return true
   }
   return semver.satisfies(version, wantedDep.bareSpecifier, true)
+}
+
+function getPinnedNameVer (
+  lockfile: LockfileObject,
+  reference: string,
+  alias: string
+): { name: string, version: string } | undefined {
+  const depPath = dp.refToRelative(reference, alias)
+  if (depPath === null) return undefined
+  const pkgSnapshot = lockfile.packages?.[depPath]
+  if (pkgSnapshot == null) return undefined
+  return nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+}
+
+// The highest version a direct dependency (the only deterministic,
+// resolved-first anchor) resolved to that is higher than the
+// lockfile-pinned `pinnedVersion` and still satisfies the edge's range, or
+// `undefined` when none exists. Direct-dependency versions are marked with
+// DIRECT_DEP_SELECTOR_WEIGHT in preferredVersions.
+function findHigherDirectDepVersion (
+  preferredVersions: PreferredVersions | undefined,
+  pinnedName: string,
+  pinnedVersion: string,
+  bareSpecifier: string
+): string | undefined {
+  if (preferredVersions == null) return undefined
+  if (!semver.valid(pinnedVersion)) return undefined
+  if (semver.validRange(bareSpecifier) === null) return undefined
+  const selectors = preferredVersions[pinnedName]
+  if (selectors == null) return undefined
+  let best: string | undefined
+  for (const [candidate, selector] of Object.entries(selectors)) {
+    if (
+      typeof selector === 'object' &&
+      selector.selectorType === 'version' &&
+      selector.weight === DIRECT_DEP_SELECTOR_WEIGHT &&
+      semver.valid(candidate) &&
+      semver.gt(candidate, pinnedVersion) &&
+      semver.satisfies(candidate, bareSpecifier, true) &&
+      (best == null || semver.gt(candidate, best))
+    ) {
+      best = candidate
+    }
+  }
+  return best
 }
 
 export interface LockedPeerContext {

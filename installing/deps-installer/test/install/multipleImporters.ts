@@ -1962,3 +1962,54 @@ require("fs").writeFileSync("created-by-prepare", "", "utf8")`)
 
   expect(fs.existsSync('project-1/created-by-prepare')).toBeTruthy()
 })
+
+test("a direct-dependency bump in one importer converges another importer's transitive pin", async () => {
+  preparePackages([
+    { location: 'project-1', package: { name: 'project-1' } },
+    { location: 'project-2', package: { name: 'project-2' } },
+  ])
+
+  const importers: MutatedProject[] = [
+    { mutation: 'install', rootDir: path.resolve('project-1') as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  // project-1 pulls dep-of-pkg-with-1-dep transitively (via pkg-with-1-dep);
+  // project-2 depends on it directly. Only project-2 ever bumps it.
+  const allProjects = (directDepOfVersion: string) => [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+      },
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/dep-of-pkg-with-1-dep': directDepOfVersion },
+      },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await mutateModules(importers, testDefaults({ allProjects: allProjects('100.0.0') }))
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await mutateModules(importers, testDefaults({ allProjects: allProjects('100.1.0') }))
+
+  const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  // All importers' direct deps resolve before any transitive, so project-2's
+  // bumped 100.1.0 is in scope when project-1's transitive edge re-resolves.
+  // The refresh converges that edge to 100.1.0 too — matching a fresh install
+  // (no pin), where `^100.0.0` resolves to the latest 100.1.0 — and the stale
+  // 100.0.0 is pruned.
+  expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+})

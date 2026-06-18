@@ -41,7 +41,9 @@ use crate::{
     node_id::NodeId,
     resolved_tree::{DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree},
 };
-use pacquet_lockfile::{PkgNameVerPeer, SnapshotEntry};
+use pacquet_lockfile::{
+    PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
+};
 
 /// Which dependencies `pacquet update` excludes from lockfile-resolution
 /// reuse. An excluded package re-resolves to highest-in-range, and its
@@ -495,6 +497,10 @@ fn project_relative_cache_scope(
 /// meta from any manifest.
 pub(crate) type WantedSpec = (String, String, bool, bool);
 
+/// An importer's resolved direct-dependency versions, keyed by package
+/// name. See [`WorkspaceTreeCtx::direct_dep_versions`].
+type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
+
 /// One entry in [`WorkspaceTreeCtx`]'s `children_specs_by_id` map —
 /// `(child_alias, child_range, child_optional)` triples extracted from
 /// a resolved package's manifest's `dependencies` plus
@@ -596,6 +602,23 @@ pub struct WorkspaceTreeCtx {
     /// every other importer's hoist. Consumed via
     /// [`crate::HoistMissingScope`].
     first_walk_missing_by_pkg: Mutex<HashMap<String, OwnerMissingRecord>>,
+    /// Per importer: direct-dep aliases whose manifest specifier differs
+    /// from the prior lockfile (new deps included). Gates the stale-pin
+    /// refresh's reuse-decline; only a changed direct dep can re-resolve
+    /// away from a transitive occurrence's pin. Keyed by importer: this
+    /// crate resolves importers sequentially (no workspace-wide
+    /// directs-before-transitives barrier), so a shared map would refresh
+    /// one importer's edges from another's direct deps order-dependently.
+    /// (pnpm has that barrier and so converges cross-importer; pacquet
+    /// stays per-importer to stay deterministic.)
+    changed_direct_deps: Mutex<HashMap<String, HashSet<PkgName>>>,
+    /// Per importer: the parsed resolved versions of its direct
+    /// dependencies, recorded once the direct-dep level finishes resolving.
+    /// The `DIRECT_DEP_SELECTOR_WEIGHT` versions pnpm folds into
+    /// `preferredVersions`; consulted by [`fn@higher_direct_dep_version`].
+    /// `Arc` so the hot child walk snapshots the importer's map with one
+    /// lock + refcount bump instead of locking per edge.
+    direct_dep_versions: Mutex<HashMap<String, Arc<DirectDepVersions>>>,
 }
 
 /// One [`WorkspaceTreeCtx::first_walk_missing_by_pkg`] entry: the
@@ -629,6 +652,8 @@ impl Default for WorkspaceTreeCtx {
             registries: HashMap::new(),
             first_importer_by_pkg: Mutex::new(HashMap::new()),
             first_walk_missing_by_pkg: Mutex::new(HashMap::new()),
+            changed_direct_deps: Mutex::new(HashMap::new()),
+            direct_dep_versions: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -1066,6 +1091,7 @@ where
     } else {
         ReuseSource::Off
     };
+    record_changed_direct_deps(ctx, importer_id, &wanted);
     // Phase 1: resolve every direct dep before any subtree walk, so
     // the level's resolved versions seed the children's
     // preferred-versions overlay (upstream's per-level fold; the
@@ -1106,9 +1132,13 @@ where
         .await?;
     // The level chain extends any caller-seeded overlay so descendant
     // picks and cache keys keep honoring it.
+    let direct_versions = level_versions(ctx, &seeds);
+    // Recorded only now the level barrier has passed, so the subtree walk
+    // sees the resolved direct-dep versions.
+    record_direct_dep_versions(ctx, importer_id, &direct_versions);
     let children_overlay = PreferredVersionsOverlay::layer(
         ctx.base_opts.preferred_versions_overlay.clone(),
-        level_versions(ctx, &seeds),
+        direct_versions,
     );
     // Phase 2: walk each direct dep's children with the level overlay.
     let results = seeds
@@ -1254,7 +1284,14 @@ where
     // `synthesize_reused_result` is conservative: any shape it can't
     // faithfully reproduce (non-registry resolutions, missing metadata)
     // yields `None` here and the node falls through to a fresh resolve.
+    //
+    // Stale-pin refresh: a node depending on a changed direct dep is
+    // resolved fresh rather than reused, so its children walk against
+    // their manifest ranges where `walk_node_children` can redirect a
+    // stale pin onto the higher direct-dep version (reusing the subtree
+    // would keep the pin, leaving the lockfile non-convergent).
     if reuse.allows_reuse()
+        && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
         && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref())
     {
         return resolve_reused_node(
@@ -1543,17 +1580,42 @@ where
         // walk starts, so the level's resolved versions can feed the
         // grandchildren's preferred-versions overlay — upstream's
         // postponed-resolution barrier.
+        // Snapshot this importer's direct-dep versions once for the whole
+        // child fanout instead of locking per edge.
+        let direct_versions = lock_recoverable(&ctx.workspace.direct_dep_versions)
+            .get(&ctx.importer_id)
+            .map(Arc::clone);
         let child_seeds = child_specs
             .iter()
             .map(|(child_name, child_range, child_optional)| {
-                let child_wanted = WantedDependency {
+                let mut child_wanted = WantedDependency {
                     alias: Some(child_name.clone()),
                     bare_specifier: Some(child_range.clone()),
                     optional: Some(*child_optional),
                     ..WantedDependency::default()
                 };
-                let child_prior = prior_children_snapshot
+                let mut child_prior = prior_children_snapshot
                     .and_then(|snapshot| prior_child_key(snapshot, child_name, child_range));
+                // Stale-pin refresh: force the edge onto a higher in-range
+                // direct-dep version instead of reusing the pin, so the
+                // pinned version is never resolved or fetched. Mirrors
+                // pnpm's `getDepsToResolve` `preferredVersion` override.
+                let forced_version = child_prior
+                    .as_ref()
+                    .and_then(|key| key.suffix.version_semver().cloned())
+                    .zip(child_range.parse::<node_semver::Range>().ok())
+                    .and_then(|(pinned, range)| {
+                        higher_direct_dep_version(
+                            direct_versions.as_deref(),
+                            child_name,
+                            &pinned,
+                            &range,
+                        )
+                    });
+                if let Some(higher) = forced_version {
+                    child_wanted.bare_specifier = Some(higher.to_string());
+                    child_prior = None;
+                }
                 let next_ancestors = Arc::clone(&next_ancestors);
                 let pick_overlay = children_overlay.clone();
                 async move {
@@ -1899,6 +1961,106 @@ fn level_versions(ctx: &TreeCtx, seeds: &[NodeSeed]) -> BTreeMap<String, Vec<Str
         }
     }
     level
+}
+
+/// Record the importer direct deps whose manifest specifier differs from
+/// the prior lockfile's recorded specifier (a new dep counts as changed).
+/// See [`WorkspaceTreeCtx::changed_direct_deps`].
+fn record_changed_direct_deps(ctx: &TreeCtx, importer_id: &str, wanted: &[WantedSpec]) {
+    let prior = ctx
+        .workspace
+        .wanted_lockfile
+        .as_ref()
+        .and_then(|lockfile| lockfile.importers.get(importer_id));
+    let mut changed = lock_recoverable(&ctx.workspace.changed_direct_deps);
+    let bucket = changed.entry(importer_id.to_string()).or_default();
+    for (alias, spec, _optional, _injected) in wanted {
+        let unchanged = prior
+            .and_then(|importer| importer_dep_specifier(importer, alias))
+            .is_some_and(|recorded| recorded == spec);
+        if !unchanged && let Ok(name) = alias.parse::<PkgName>() {
+            bucket.insert(name);
+        }
+    }
+}
+
+/// The recorded specifier for direct-dep `alias` across the importer's
+/// prod / dev / optional dependency maps in the prior lockfile.
+fn importer_dep_specifier<'a>(importer: &'a ProjectSnapshot, alias: &str) -> Option<&'a str> {
+    let name: PkgName = alias.parse().ok()?;
+    let lookup = |map: Option<&'a ResolvedDependencyMap>| map.and_then(|deps| deps.get(&name));
+    lookup(importer.dependencies.as_ref())
+        .or_else(|| lookup(importer.optional_dependencies.as_ref()))
+        .or_else(|| lookup(importer.dev_dependencies.as_ref()))
+        .map(|dep| dep.specifier.as_str())
+}
+
+/// Store the importer's resolved (parsed) direct-dep versions for the
+/// per-edge stale-pin refresh. See [`WorkspaceTreeCtx::direct_dep_versions`].
+fn record_direct_dep_versions(
+    ctx: &TreeCtx,
+    importer_id: &str,
+    level: &BTreeMap<String, Vec<String>>,
+) {
+    let mut versions = lock_recoverable(&ctx.workspace.direct_dep_versions);
+    let by_name = Arc::make_mut(versions.entry(importer_id.to_string()).or_default());
+    for (name, level_versions) in level {
+        let bucket = by_name.entry(name.clone()).or_default();
+        for version in level_versions {
+            let Ok(parsed) = version.parse::<node_semver::Version>() else { continue };
+            if !bucket.contains(&parsed) {
+                bucket.push(parsed);
+            }
+        }
+    }
+}
+
+/// True when `snapshot` depends on one of this importer's changed direct
+/// deps (see [`WorkspaceTreeCtx::changed_direct_deps`]).
+fn reused_parent_has_changed_direct_child(ctx: &TreeCtx, snapshot: &SnapshotEntry) -> bool {
+    // Copy the (small) changed set out and drop the lock before scanning.
+    let importer_changed = {
+        let changed = lock_recoverable(&ctx.workspace.changed_direct_deps);
+        match changed.get(&ctx.importer_id) {
+            Some(set) if !set.is_empty() => set.clone(),
+            _ => return false,
+        }
+    };
+    let depends_on = |map: Option<&HashMap<PkgName, SnapshotDepRef>>| {
+        map.is_some_and(|deps| deps.keys().any(|name| importer_changed.contains(name)))
+    };
+    depends_on(snapshot.dependencies.as_ref())
+        || depends_on(snapshot.optional_dependencies.as_ref())
+}
+
+/// Reuse-decline gate: whether `prior_key`'s prior snapshot depends on a
+/// changed direct dep.
+fn node_depends_on_changed_direct_dep(ctx: &TreeCtx, prior_key: Option<&PkgNameVerPeer>) -> bool {
+    prior_key
+        .and_then(|key| ctx.workspace.wanted_lockfile.as_ref()?.snapshots.as_ref()?.get(key))
+        .is_some_and(|snapshot| reused_parent_has_changed_direct_child(ctx, snapshot))
+}
+
+/// The highest resolved direct-dependency version of `name` strictly
+/// above `pinned` that still satisfies `range`, or `None`. Anchored to
+/// direct deps (the deterministic, resolved-before-the-walk signal),
+/// mirroring pnpm's `findHigherDirectDepVersion`. `direct_versions` is the
+/// importer's snapshot, taken once per walk by [`fn@walk_node_children`].
+fn higher_direct_dep_version(
+    direct_versions: Option<&DirectDepVersions>,
+    name: &str,
+    pinned: &node_semver::Version,
+    range: &node_semver::Range,
+) -> Option<node_semver::Version> {
+    direct_versions?
+        .get(name)?
+        .iter()
+        // Plain semver satisfaction (not prerelease-inclusive), matching
+        // pnpm's `semver.satisfies(candidate, range, true)`: a prerelease
+        // direct dep only refreshes an edge whose range admits prereleases.
+        .filter(|&version| version > pinned && range.satisfies(version))
+        .max()
+        .cloned()
 }
 
 /// One reusable node: its prior-lockfile snapshot key plus the
