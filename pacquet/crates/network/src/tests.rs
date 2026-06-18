@@ -19,6 +19,7 @@ use super::{
     ProxyError, ThrottledClient, TlsConfig, parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
+use pacquet_testing_utils::env_guard::EnvGuard;
 use reqwest::Url;
 
 fn list(entries: &[&str]) -> NoProxySetting {
@@ -426,17 +427,12 @@ fn for_installs_strict_ssl_default_is_true() {
 
 #[test]
 fn node_extra_ca_certs_env_adds_root_and_tolerates_bad_path() {
-    // Serialize against any other env-mutating test in this binary and
-    // restore the prior value before returning. There is no shared
-    // `EnvGuard` helper in this crate, and one isn't needed for
-    // correctness: `apply_node_extra_ca_certs` is purely additive and
-    // silently ignores read/parse failures, so a value observed by a
-    // concurrent `for_installs` build can't change that build's
-    // outcome. The lock + restore only keep the test from leaking the
-    // var into a developer's shell or a sibling test's assertions.
-    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _guard = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let prior = std::env::var_os("NODE_EXTRA_CA_CERTS");
+    // `EnvGuard` serializes env-mutating tests process-wide and restores
+    // the prior value on drop — including on panic — so a failing
+    // `.expect()` below can't leak `NODE_EXTRA_CA_CERTS` into a sibling
+    // test. `for_installs` re-reads the var on each call, so the two
+    // phases below exercise the valid and bad-path branches in turn.
+    let env = EnvGuard::snapshot(["NODE_EXTRA_CA_CERTS"]);
 
     let build = || {
         ThrottledClient::for_installs(
@@ -447,25 +443,19 @@ fn node_extra_ca_certs_env_adds_root_and_tolerates_bad_path() {
         )
     };
 
-    // A valid PEM bundle is loaded and added as an extra trust root.
+    // A valid PEM bundle parses into one trust root and the client builds.
     let fixture = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test-ca.pem");
-    // SAFETY: serialized by `LOCK`; restored before the test returns.
-    unsafe { std::env::set_var("NODE_EXTRA_CA_CERTS", fixture) };
+    env.set("NODE_EXTRA_CA_CERTS", fixture);
+    assert_eq!(super::load_node_extra_ca_certs().len(), 1);
     build().expect("NODE_EXTRA_CA_CERTS pointing at a valid PEM builds");
 
-    // A missing / unreadable file is silently ignored, never fatal —
-    // matching pnpm's silent treatment of a missing `cafile`.
-    // SAFETY: serialized by `LOCK`; restored before the test returns.
-    unsafe { std::env::set_var("NODE_EXTRA_CA_CERTS", "/pacquet/does-not-exist.pem") };
+    // A missing / unreadable file yields no roots and is silently
+    // ignored, never fatal — matching pnpm's treatment of a missing
+    // `cafile`.
+    env.set("NODE_EXTRA_CA_CERTS", "/pacquet/does-not-exist.pem");
+    assert!(super::load_node_extra_ca_certs().is_empty());
     build().expect("NODE_EXTRA_CA_CERTS pointing at a missing file is ignored, not fatal");
-
-    // SAFETY: serialized by `LOCK`.
-    unsafe {
-        match prior {
-            Some(value) => std::env::set_var("NODE_EXTRA_CA_CERTS", value),
-            None => std::env::remove_var("NODE_EXTRA_CA_CERTS"),
-        }
-    }
+    // `env` restores NODE_EXTRA_CA_CERTS on drop.
 }
 
 #[test]

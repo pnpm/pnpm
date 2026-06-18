@@ -19,7 +19,7 @@
 //!
 //! One deliberate exception sits *outside* this struct: pacquet honors
 //! the `NODE_EXTRA_CA_CERTS` environment variable as an additional
-//! trust root (see `apply_node_extra_ca_certs` in `lib.rs`). pnpm-on-
+//! trust root (see `load_node_extra_ca_certs` in `lib.rs`). pnpm-on-
 //! Node already trusts that bundle implicitly via Node's TLS runtime,
 //! so a native port must read it explicitly to preserve real-world
 //! parity. It is applied at the client-builder layer, never folded
