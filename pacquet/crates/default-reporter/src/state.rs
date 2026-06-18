@@ -896,7 +896,13 @@ impl ReporterState {
                     progress_label(0, *entries),
                 )
             }
-            LockfileVerificationMessage::Done { entries, checked, elapsed_ms, lockfile_path, .. } => {
+            LockfileVerificationMessage::Done {
+                entries,
+                checked,
+                elapsed_ms,
+                lockfile_path,
+                ..
+            } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
                 format!(
                     "{} Lockfile{path} passes supply-chain policies ({} in {})",
@@ -905,7 +911,13 @@ impl ReporterState {
                     pretty_ms(u128::from(*elapsed_ms)),
                 )
             }
-            LockfileVerificationMessage::Failed { entries, checked, elapsed_ms, lockfile_path, .. } => {
+            LockfileVerificationMessage::Failed {
+                entries,
+                checked,
+                elapsed_ms,
+                lockfile_path,
+                ..
+            } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
                 format!(
                     "{} Lockfile{path} failed supply-chain policy check ({} in {})",
@@ -1033,11 +1045,7 @@ fn lifecycle_ids(message: &LifecycleMessage) -> (&str, &str, &str) {
 }
 
 fn progress_label(checked: u64, entries: u64) -> String {
-    if entries == 1 {
-        format!("{checked}/1 entry")
-    } else {
-        format!("{checked}/{entries} entries")
-    }
+    if entries == 1 { format!("{checked}/1 entry") } else { format!("{checked}/{entries} entries") }
 }
 
 fn remove_optional_from_prod(manifest: &Value) -> Value {
