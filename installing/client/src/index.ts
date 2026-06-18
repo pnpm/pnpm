@@ -2,7 +2,12 @@ import { NODE_EXTRAS_IGNORE_PATTERN } from '@pnpm/engine.runtime.node-resolver'
 import { PnpmError } from '@pnpm/error'
 import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
 import { createDirectoryFetcher } from '@pnpm/fetching.directory-fetcher'
-import type { BinaryFetcher, DirectoryFetcher, GitFetcher } from '@pnpm/fetching.fetcher-base'
+import type {
+  BinaryFetcher,
+  DirectoryFetcher,
+  GitFetcher,
+  LocalDirPackageImportMethod,
+} from '@pnpm/fetching.fetcher-base'
 import { createGitFetcher } from '@pnpm/fetching.git-fetcher'
 import { createTarballFetcher, type TarballFetchers } from '@pnpm/fetching.tarball-fetcher'
 import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
@@ -41,6 +46,7 @@ export type ClientOptions = {
   includeOnlyPackageFiles?: boolean
   preserveAbsolutePaths?: boolean
   fetchMinSpeedKiBps?: number
+  localDirPackageImportMethod?: LocalDirPackageImportMethod
 } & ResolverFactoryOptions & DispatcherOptions
   & Pick<ResolutionVerifierFactoryOptions,
   | 'minimumReleaseAge'
@@ -135,13 +141,28 @@ type Fetchers = {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
-  opts: Pick<ClientOptions, 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'userAgent' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps' | 'storeIndex'>
+  opts: Pick<ClientOptions,
+  | 'retry'
+  | 'gitShallowHosts'
+  | 'resolveSymlinksInInjectedDirs'
+  | 'unsafePerm'
+  | 'userAgent'
+  | 'includeOnlyPackageFiles'
+  | 'offline'
+  | 'fetchMinSpeedKiBps'
+  | 'storeIndex'
+  | 'localDirPackageImportMethod'
+  >
 ): Fetchers {
   const tarballFetchers = createTarballFetcher(fetchFromRegistry, getAuthHeader, opts)
   return {
     ...tarballFetchers,
     ...createGitFetcher(opts),
-    ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs, includeOnlyPackageFiles: opts.includeOnlyPackageFiles }),
+    ...createDirectoryFetcher({
+      resolveSymlinks: opts.resolveSymlinksInInjectedDirs,
+      includeOnlyPackageFiles: opts.includeOnlyPackageFiles,
+      localDirPackageImportMethod: opts.localDirPackageImportMethod,
+    }),
     ...createBinaryFetcher({
       fetch: fetchFromRegistry,
       fetchFromRemoteTarball: tarballFetchers.remoteTarball,

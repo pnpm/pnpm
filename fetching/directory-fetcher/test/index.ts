@@ -62,6 +62,21 @@ test('fetch including all files', async () => {
   ])
 })
 
+test('fetch can override the local directory package import method', async () => {
+  process.chdir(f.find('simple-pkg'))
+  const fetcher = createDirectoryFetcher({ localDirPackageImportMethod: 'clone-or-copy' })
+
+  // eslint-disable-next-line
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: '.',
+    type: 'directory',
+  }, {
+    lockfileDir: process.cwd(),
+  })
+
+  expect(fetchResult.packageImportMethod).toBe('clone-or-copy')
+})
+
 test('fetch a directory that has no package.json', async () => {
   process.chdir(f.find('no-manifest'))
   const fetcher = createDirectoryFetcher()
