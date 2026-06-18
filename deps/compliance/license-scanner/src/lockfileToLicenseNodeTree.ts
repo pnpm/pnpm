@@ -135,7 +135,7 @@ export async function lockfileToLicenseNodeTree (
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     includedImporterIds?: ProjectId[]
-  } & Omit<LicenseExtractOptions, 'storeIndex'>
+  } & Omit<LicenseExtractOptions, 'storeIndex' | 'indexCache'>
 ): Promise<LicenseNodeTree> {
   const importerWalkers = lockfileWalkerGroupImporterSteps(
     lockfile,
