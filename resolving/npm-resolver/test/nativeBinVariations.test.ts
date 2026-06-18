@@ -31,7 +31,7 @@ function wrapperMeta () {
         optionalDependencies: {
           '@pacquet/darwin-arm64': '1.0.0',
           '@pacquet/linux-x64': '1.0.0',
-        },
+        } as Record<string, string>,
         dist: {
           integrity: 'sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC==',
           shasum: '0000000000000000000000000000000000000000',
