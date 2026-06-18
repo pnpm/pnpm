@@ -432,14 +432,14 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
 /// documented in [`tls::TlsConfig`]: the variable is a process-global
 /// Node convention rather than a pnpm setting, and Node already honors
 /// it for pnpm today — so reading it *restores* parity rather than
-/// diverging from it. The certs are added in [`Self::for_installs`]
-/// (not [`apply_tls`]) so the `.npmrc`-derived [`TlsConfig`] stays
-/// env-free.
+/// diverging from it. The certs are added in
+/// [`ThrottledClient::for_installs`] (not [`apply_tls`]) so the
+/// `.npmrc`-derived [`TlsConfig`] stays env-free.
 ///
-/// Read and parsed once per [`Self::for_installs`] call — `for_installs`
-/// builds one client per per-registry override, so loading here (rather
-/// than inside the per-client builder) avoids re-reading and re-parsing
-/// the bundle N times during startup.
+/// Read and parsed once per [`ThrottledClient::for_installs`] call —
+/// that constructor builds one client per per-registry override, so
+/// loading here (rather than inside the per-client builder) avoids
+/// re-reading and re-parsing the bundle N times during startup.
 ///
 /// The resulting certs are additive and lowest-priority: layered under
 /// the `.npmrc` `ca` / `cafile` roots that [`apply_tls`] adds afterward
