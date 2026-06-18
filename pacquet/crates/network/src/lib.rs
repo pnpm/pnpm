@@ -448,9 +448,9 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
 /// file yields an empty list, matching pnpm's silent treatment of a
 /// missing `cafile` rather than failing the client build.
 fn load_node_extra_ca_certs() -> Vec<Certificate> {
-    let path = match std::env::var_os("NODE_EXTRA_CA_CERTS") {
-        Some(value) if !value.is_empty() => value,
-        _ => return Vec::new(),
+    let Some(path) = std::env::var_os("NODE_EXTRA_CA_CERTS").filter(|value| !value.is_empty())
+    else {
+        return Vec::new();
     };
     let Ok(bytes) = std::fs::read(&path) else {
         return Vec::new();
