@@ -8,11 +8,10 @@
 use crate::State;
 use clap::Args;
 use owo_colors::{OwoColorize, Stream};
-use pacquet_config::matcher::{Matcher, create_matcher};
+use pacquet_config::matcher::{create_matcher, Matcher};
 use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer, PkgVerPeer};
 use pacquet_package_manifest::DependencyGroup;
-use std::collections::{HashMap, HashSet};
-use std::io::Write;
+use std::{collections::{HashMap, HashSet}, io::Write};
 
 #[derive(Debug)]
 struct DependentNode {
@@ -143,7 +142,7 @@ fn build_dependents_tree(lockfile: &Lockfile, matcher: &Matcher) -> Vec<WhyResul
     }
 
     for edges in reverse_map.values_mut() {
-        edges.sort_by(|a, b| a.0.to_string().cmp(&b.0.to_string()));
+        edges.sort_by_key(|a| a.0.to_string());
     }
 
     let mut results: Vec<WhyResult> = Vec::new();
@@ -259,10 +258,10 @@ fn render_dependents(
     max_depth: Option<usize>,
     current_depth: usize,
 ) {
-    if let Some(max) = max_depth {
-        if current_depth >= max {
-            return;
-        }
+    if let Some(max) = max_depth
+        && current_depth >= max
+    {
+        return;
     }
 
     for (i, dep) in dependents.iter().enumerate() {

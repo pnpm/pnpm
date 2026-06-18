@@ -126,7 +126,7 @@ pub enum CliCommand {
     Update(UpdateArgs),
     /// Check for outdated packages
     Outdated(OutdatedArgs),
-    /// Shows the packages that depend on <pkg>
+    /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
     /// Removes packages from `node_modules` and from the project's `package.json`.
     // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
