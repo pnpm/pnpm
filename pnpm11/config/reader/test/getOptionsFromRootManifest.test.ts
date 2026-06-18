@@ -322,3 +322,20 @@ test('getOptionsFromPnpmSettings() resolves $version references in resolutions f
     bar: '1.2.3',
   })
 })
+
+test('getOptionsFromPnpmSettings() strips control chars from manifest-sourced selectors in error messages', () => {
+  // Repo-controlled manifest values that sneak control characters
+  // (newlines, ANSI escapes) into error messages could spoof CI log
+  // lines or hide subsequent output. `sanitizeForLog` replaces them
+  // with `?` before interpolation.
+  const maliciousSelector = 'name\n[ERROR] injected'
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {}, {
+    resolutions: {
+      [maliciousSelector]: 42 as unknown as string,
+    } as any, // eslint-disable-line
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_RESOLUTIONS',
+    // eslint-disable-next-line no-control-regex
+    message: expect.not.stringMatching(/[\u0000-\u001F\u007F]/),
+  }))
+})
