@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const fs = require("fs");
 const { platform, arch, env, version, release } = process;
 
 const PLATFORMS = {
@@ -24,8 +25,18 @@ const PLATFORMS = {
 
 const binPath = getBinPath();
 if (binPath) {
+  const nativeBinary = require.resolve(binPath);
+
+  // First-run optimization: every invocation through this JS shim pays full
+  // Node.js startup (~170ms) just to spawn the ~30ms native binary. Replace
+  // this shim file in place with the native binary so the `.bin/pacquet` entry
+  // the package manager already created resolves straight to it and no Node
+  // process is started next time. Best-effort — any failure leaves the shim in
+  // place and the slower-but-correct path keeps working.
+  relinkSelf(nativeBinary);
+
   const result = require("child_process").spawnSync(
-    require.resolve(binPath),
+    nativeBinary,
     process.argv.slice(2),
     {
       shell: false,
@@ -50,6 +61,55 @@ if (binPath) {
     "You can create an issue at https://github.com/pnpm/pacquet/issues for support."
   );
   process.exitCode = 1;
+}
+
+/**
+ * Replaces this shim file with the native binary so future invocations skip
+ * Node startup. Best-effort: returns silently on any condition where the swap
+ * wouldn't help or couldn't be applied, leaving the JS shim untouched.
+ *
+ * @param {string} nativeBinary Absolute path to the resolved native binary.
+ */
+function relinkSelf(nativeBinary) {
+  // On Windows the `.bin` entry is a generated `.cmd`/`.ps1` shim that invokes
+  // this file through Node, so swapping it for a binary wouldn't bypass Node.
+  if (platform === "win32") {
+    return;
+  }
+
+  // Under Yarn Plug'n'Play there is no real `.bin` symlink pointing at this
+  // file, so there is nothing to relink.
+  if (process.versions.pnp != null) {
+    return;
+  }
+
+  const shimPath = __filename;
+  const tempPath = `${shimPath}.pacquet-tmp`;
+  try {
+    fs.rmSync(tempPath, { force: true });
+    let linked = false;
+    try {
+      // A hard link avoids a second copy of the ~13MB binary on disk.
+      fs.linkSync(nativeBinary, tempPath);
+      linked = true;
+    } catch {
+      // Hard links can't cross filesystems; fall back to a copy.
+      fs.copyFileSync(nativeBinary, tempPath);
+    }
+    // The native binary is already mode 0755 in its package, so chmod is only
+    // needed for the fresh inode created by the copy fallback. chmod on the
+    // hard link would mutate the shared inode — under pnpm that's the
+    // content-addressable store blob other projects link to.
+    if (!linked) {
+      fs.chmodSync(tempPath, 0o755);
+    }
+    // Atomic swap so a concurrent invocation never sees a half-written file.
+    fs.renameSync(tempPath, shimPath);
+  } catch {
+    try {
+      fs.rmSync(tempPath, { force: true });
+    } catch {}
+  }
 }
 
 function getBinPath() {
