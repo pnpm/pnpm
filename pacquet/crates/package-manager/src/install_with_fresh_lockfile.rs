@@ -1873,6 +1873,30 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             ),
         }
 
+        // Write `node_modules/.package-map.json` from where this path's
+        // `layout` already resolves each snapshot to its real on-disk slot
+        // (flat or global-virtual-store), mirroring the frozen path's write
+        // in `InstallFrozenLockfile::run`. Reached only after materialization,
+        // so the `lockfile_only` early return never writes a map pointing at
+        // packages that were never linked.
+        if crate::should_write_package_map(config, node_linker) {
+            let project_manifests = importer_manifests
+                .iter()
+                .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+                .collect::<Vec<_>>();
+            crate::package_map::write_package_map(
+                &built_lockfile,
+                &crate::package_map::PackageMapOptions {
+                    lockfile_dir,
+                    modules_dir: &config.modules_dir,
+                    package_map_type: config.node_package_map_type,
+                    layout: &layout,
+                    project_manifests: &project_manifests,
+                },
+            )
+            .map_err(InstallWithFreshLockfileError::WritePackageMap)?;
+        }
+
         // Write `pnpm-lock.yaml` from the resolved graph. Mirrors
         // upstream's
         // [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/094aa6e57b/lockfile/fs/src/write.ts#L133)

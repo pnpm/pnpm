@@ -37,8 +37,10 @@ pub(crate) struct PackageMapOptions<'a> {
     pub lockfile_dir: &'a Path,
     pub modules_dir: &'a Path,
     pub package_map_type: NodePackageMapType,
-    pub virtual_store_dir: &'a Path,
-    pub virtual_store_dir_max_length: usize,
+    /// Resolves each snapshot to its real on-disk slot, so the map stays
+    /// correct under both the legacy flat layout and the content-hashed
+    /// global virtual store.
+    pub layout: &'a crate::VirtualStoreLayout,
     pub project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 
@@ -163,13 +165,13 @@ pub(crate) fn lockfile_to_package_map(
                 &mut packages,
                 id,
                 &mut package_dirs,
-                &package_dir(key, opts.virtual_store_dir, opts.virtual_store_dir_max_length),
+                &opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string()),
                 dependencies,
                 opts.modules_dir,
             );
             if let Some(loose_index) = loose_index.as_mut() {
                 let package_dir =
-                    package_dir(key, opts.virtual_store_dir, opts.virtual_store_dir_max_length);
+                    opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string());
                 if let Some(modules_dir) = get_node_modules_path(&package_dir) {
                     loose_index.add(&modules_dir, key.name.to_string(), key.to_string());
                 }
@@ -203,18 +205,14 @@ pub(crate) fn lockfile_to_package_map(
                 PackageMapPackage {
                     url: to_relative_url(
                         opts.modules_dir,
-                        &package_dir(
-                            key,
-                            opts.virtual_store_dir,
-                            opts.virtual_store_dir_max_length,
-                        ),
+                        &opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string()),
                     ),
                     dependencies,
                 }
             });
             if let Some(package_dirs) = package_dirs.as_mut() {
                 package_dirs.entry(id).or_insert_with(|| {
-                    package_dir(key, opts.virtual_store_dir, opts.virtual_store_dir_max_length)
+                    opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string())
                 });
             }
         }
@@ -680,17 +678,6 @@ fn resolve_link_target(lockfile_dir: &Path, importer_id: Option<&str>, target: &
     let dir = lexical_normalize(&dir);
     let id = link_target_id(pathdiff::diff_paths(&dir, lockfile_dir), &dir);
     LinkTarget { id, dir }
-}
-
-fn package_dir(
-    key: &PackageKey,
-    virtual_store_dir: &Path,
-    virtual_store_dir_max_length: usize,
-) -> PathBuf {
-    virtual_store_dir
-        .join(key.to_virtual_store_name(virtual_store_dir_max_length))
-        .join("node_modules")
-        .join(key.name.to_string())
 }
 
 fn importer_names(

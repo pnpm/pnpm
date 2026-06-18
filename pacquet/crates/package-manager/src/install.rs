@@ -1465,23 +1465,6 @@ where
         } else {
             None
         };
-        let package_map_lockfile = filtered_current_lockfile.as_ref().or(fresh_lockfile.as_ref());
-        if should_write_package_map(config, node_linker)
-            && let Some(package_map_lockfile) = package_map_lockfile
-        {
-            crate::package_map::write_package_map(
-                package_map_lockfile,
-                &crate::package_map::PackageMapOptions {
-                    lockfile_dir: &workspace_root,
-                    modules_dir: &config.modules_dir,
-                    package_map_type: config.node_package_map_type,
-                    virtual_store_dir: &config.virtual_store_dir,
-                    virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
-                    project_manifests: &project_manifests,
-                },
-            )
-            .map_err(InstallError::WritePackageMap)?;
-        }
 
         // Write `<virtual_store_dir>/lock.yaml`. Mirrors upstream's
         // `writeCurrentLockfile` call at
@@ -2267,7 +2250,7 @@ fn build_workspace_packages_map(
     Some(map)
 }
 
-fn should_write_package_map(_config: &Config, node_linker: NodeLinker) -> bool {
+pub(crate) fn should_write_package_map(_config: &Config, node_linker: NodeLinker) -> bool {
     node_linker == NodeLinker::Isolated
 }
 

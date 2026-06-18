@@ -3,7 +3,7 @@ use super::{
     dependencies_graph_to_package_map, link_target_id, lockfile_to_package_map,
     make_node_package_map_option, to_relative_url,
 };
-use crate::{DependenciesGraphNode, LockfileToDepGraphResult};
+use crate::{DependenciesGraphNode, LockfileToDepGraphResult, VirtualStoreLayout};
 use pacquet_lockfile::{
     ComVer, Lockfile, LockfileResolution, LockfileVersion, PackageKey, PkgIdWithPatchHash, PkgName,
     ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
@@ -19,6 +19,7 @@ use std::{
 #[test]
 fn builds_package_map_from_lockfile() {
     let cwd = std::env::current_dir().expect("current dir");
+    let layout = VirtualStoreLayout::legacy(cwd.join("node_modules/.pnpm"), 120);
     let root_manifest = manifest("root");
     let app_manifest = manifest("app");
     let linked_manifest = manifest("linked");
@@ -71,8 +72,7 @@ fn builds_package_map_from_lockfile() {
             lockfile_dir: &cwd,
             modules_dir: &cwd.join("node_modules"),
             package_map_type: pacquet_config::NodePackageMapType::Standard,
-            virtual_store_dir: &cwd.join("node_modules/.pnpm"),
-            virtual_store_dir_max_length: 120,
+            layout: &layout,
             project_manifests: &project_manifests,
         },
     );
@@ -132,6 +132,54 @@ fn builds_package_map_from_lockfile() {
 }
 
 #[test]
+fn lockfile_package_map_uses_global_virtual_store_layout() {
+    let cwd = std::env::current_dir().expect("current dir");
+    let mut config = pacquet_config::Config::new();
+    config.enable_global_virtual_store = true;
+    config.global_virtual_store_dir = cwd.join("store/links");
+    config.virtual_store_dir = cwd.join("node_modules/.pnpm");
+
+    let snapshots =
+        HashMap::from([("dep1@1.0.0".parse::<PackageKey>().unwrap(), SnapshotEntry::default())]);
+    // GVS precomputes a `<name>/<version>/<hash>` slot per snapshot; the
+    // package map must read those locations rather than the flat depPath name.
+    let layout = VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None);
+
+    let root_manifest = manifest("root");
+    let project_manifests = vec![(cwd.clone(), &root_manifest)];
+    let package_map = lockfile_to_package_map(
+        &Lockfile {
+            importers: HashMap::from([(
+                ".".to_string(),
+                ProjectSnapshot {
+                    dependencies: Some(deps(&[("dep1", "1.0.0")])),
+                    ..ProjectSnapshot::default()
+                },
+            )]),
+            snapshots: Some(snapshots),
+            ..empty_lockfile()
+        },
+        &PackageMapOptions {
+            lockfile_dir: &cwd,
+            modules_dir: &cwd.join("node_modules"),
+            package_map_type: pacquet_config::NodePackageMapType::Standard,
+            layout: &layout,
+            project_manifests: &project_manifests,
+        },
+    );
+
+    let url = &package_map.packages["dep1@1.0.0"].url;
+    assert!(
+        url.contains("store/links/") && url.contains("/dep1/1.0.0/"),
+        "expected a nested GVS slot url, got {url:?}",
+    );
+    assert!(
+        !url.contains("dep1@1.0.0/node_modules"),
+        "must not fall back to the flat local layout, got {url:?}",
+    );
+}
+
+#[test]
 fn link_target_id_uses_link_prefix_when_relative_path_cannot_be_computed() {
     let dir = PathBuf::from("/outside/store/pkg");
     assert_eq!(link_target_id(None, &dir), "link:/outside/store/pkg");
@@ -140,6 +188,7 @@ fn link_target_id_uses_link_prefix_when_relative_path_cannot_be_computed() {
 #[test]
 fn lockfile_package_map_loose_mode_includes_physical_ancestor_dependencies() {
     let cwd = std::env::current_dir().expect("current dir");
+    let layout = VirtualStoreLayout::legacy(cwd.join("node_modules/.pnpm"), 120);
     let root_manifest = manifest("root");
     let project_manifests = vec![(cwd.clone(), &root_manifest)];
     let lockfile = Lockfile {
@@ -159,8 +208,7 @@ fn lockfile_package_map_loose_mode_includes_physical_ancestor_dependencies() {
             lockfile_dir: &cwd,
             modules_dir: &cwd.join("node_modules"),
             package_map_type: pacquet_config::NodePackageMapType::Standard,
-            virtual_store_dir: &cwd.join("node_modules/.pnpm"),
-            virtual_store_dir_max_length: 120,
+            layout: &layout,
             project_manifests: &project_manifests,
         },
     );
@@ -170,8 +218,7 @@ fn lockfile_package_map_loose_mode_includes_physical_ancestor_dependencies() {
             lockfile_dir: &cwd,
             modules_dir: &cwd.join("node_modules"),
             package_map_type: pacquet_config::NodePackageMapType::Loose,
-            virtual_store_dir: &cwd.join("node_modules/.pnpm"),
-            virtual_store_dir_max_length: 120,
+            layout: &layout,
             project_manifests: &project_manifests,
         },
     );

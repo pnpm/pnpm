@@ -1200,7 +1200,7 @@ where
             BTreeMap::new()
         };
 
-        if matches!(node_linker, NodeLinker::Isolated) {
+        if crate::should_write_package_map(config, node_linker) {
             let included = IncludedDependencies {
                 dependencies: dependency_groups.contains(&DependencyGroup::Prod),
                 dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
@@ -1214,8 +1214,7 @@ where
                     lockfile_dir: workspace_root,
                     modules_dir: &config.modules_dir,
                     package_map_type: config.node_package_map_type,
-                    virtual_store_dir: &config.virtual_store_dir,
-                    virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
+                    layout: &layout,
                     project_manifests,
                 },
             )
