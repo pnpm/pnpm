@@ -395,7 +395,7 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .unwrap_or_else(|_| HeaderValue::from_static(DEFAULT_USER_AGENT));
     let mut default_headers = HeaderMap::with_capacity(1);
     default_headers.insert(USER_AGENT, user_agent);
-    Client::builder()
+    let builder = Client::builder()
         .http1_only()
         // Request gzip and transparently decompress it. Packuments are the
         // largest payloads pulled during resolution and registries serve
@@ -408,7 +408,45 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .connect_timeout(settings.fetch_timeout)
         .timeout(settings.fetch_timeout)
         .pool_idle_timeout(Duration::from_secs(4))
-        .hickory_dns(true)
+        .hickory_dns(true);
+    apply_node_extra_ca_certs(builder)
+}
+
+/// `NODE_EXTRA_CA_CERTS` names a PEM bundle that Node appends to its
+/// built-in trust store. pnpm-on-Node inherits that trust implicitly
+/// because it runs inside Node; pacquet is a native binary, so to keep
+/// real-world parity for users behind a corporate MITM proxy it reads
+/// the same variable explicitly and adds every certificate in the file
+/// as an additional trust root.
+///
+/// This is the one deliberate exception to the ".npmrc-only, no env
+/// vars" TLS parity policy documented in [`tls::TlsConfig`]: the
+/// variable is a process-global Node convention rather than a pnpm
+/// setting, and Node already honors it for pnpm today — so reading it
+/// *restores* parity rather than diverging from it. It lives in
+/// [`default_client_builder`] (not [`apply_tls`]) precisely so the
+/// `.npmrc`-derived [`TlsConfig`] stays env-free.
+///
+/// Additive and lowest-priority: layered under the `.npmrc` `ca` /
+/// `cafile` roots that [`apply_tls`] adds afterward and under the
+/// built-in webpki roots (ordering is immaterial — the rustls root
+/// store is a union). A missing, unreadable, or malformed file is
+/// silently ignored, matching pnpm's silent treatment of a missing
+/// `cafile` rather than failing the client build.
+fn apply_node_extra_ca_certs(mut builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
+    let path = match std::env::var_os("NODE_EXTRA_CA_CERTS") {
+        Some(value) if !value.is_empty() => value,
+        _ => return builder,
+    };
+    let Ok(bytes) = std::fs::read(&path) else {
+        return builder;
+    };
+    if let Ok(certs) = Certificate::from_pem_bundle(&bytes) {
+        for cert in certs {
+            builder = builder.add_root_certificate(cert);
+        }
+    }
+    builder
 }
 
 /// Apply [`TlsConfig`] onto a [`reqwest::ClientBuilder`]: register each

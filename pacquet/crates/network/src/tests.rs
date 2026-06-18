@@ -425,6 +425,50 @@ fn for_installs_strict_ssl_default_is_true() {
 }
 
 #[test]
+fn node_extra_ca_certs_env_adds_root_and_tolerates_bad_path() {
+    // Serialize against any other env-mutating test in this binary and
+    // restore the prior value before returning. There is no shared
+    // `EnvGuard` helper in this crate, and one isn't needed for
+    // correctness: `apply_node_extra_ca_certs` is purely additive and
+    // silently ignores read/parse failures, so a value observed by a
+    // concurrent `for_installs` build can't change that build's
+    // outcome. The lock + restore only keep the test from leaking the
+    // var into a developer's shell or a sibling test's assertions.
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _guard = LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let prior = std::env::var_os("NODE_EXTRA_CA_CERTS");
+
+    let build = || {
+        ThrottledClient::for_installs(
+            &ProxyConfig::default(),
+            &TlsConfig::default(),
+            &PerRegistryTls::default(),
+            &NetworkSettings::default(),
+        )
+    };
+
+    // A valid PEM bundle is loaded and added as an extra trust root.
+    let fixture = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test-ca.pem");
+    // SAFETY: serialized by `LOCK`; restored before the test returns.
+    unsafe { std::env::set_var("NODE_EXTRA_CA_CERTS", fixture) };
+    build().expect("NODE_EXTRA_CA_CERTS pointing at a valid PEM builds");
+
+    // A missing / unreadable file is silently ignored, never fatal —
+    // matching pnpm's silent treatment of a missing `cafile`.
+    // SAFETY: serialized by `LOCK`; restored before the test returns.
+    unsafe { std::env::set_var("NODE_EXTRA_CA_CERTS", "/pacquet/does-not-exist.pem") };
+    build().expect("NODE_EXTRA_CA_CERTS pointing at a missing file is ignored, not fatal");
+
+    // SAFETY: serialized by `LOCK`.
+    unsafe {
+        match prior {
+            Some(value) => std::env::set_var("NODE_EXTRA_CA_CERTS", value),
+            None => std::env::remove_var("NODE_EXTRA_CA_CERTS"),
+        }
+    }
+}
+
+#[test]
 fn for_installs_local_address_pinned() {
     use std::net::Ipv4Addr;
     let tls = TlsConfig { local_address: Some(Ipv4Addr::LOCALHOST.into()), ..TlsConfig::default() };
