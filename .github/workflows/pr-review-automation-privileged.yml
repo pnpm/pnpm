@@ -25,6 +25,8 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
+      # Downloading an artifact from the triggering run requires actions: read.
+      actions: read
       # Adding a label via the issues REST API is governed by issues: write
       # even when the target is a PR.
       issues: write
@@ -71,7 +73,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Add the reviewed label
-        if: steps.download.outcome == 'success'
+        if: steps.event.outcome == 'success'
         env:
           PR_NUMBER: ${{ steps.event.outputs.pr_number }}
           LABEL: ${{ steps.event.outputs.label }}
@@ -82,7 +84,7 @@ jobs:
 
       - name: Announce on Discord
         if: >-
-          steps.download.outcome == 'success' &&
+          steps.event.outcome == 'success' &&
           steps.event.outputs.announce == 'true' &&
           env.DISCORD_WEBHOOK != ''
         env:
