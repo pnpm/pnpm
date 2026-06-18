@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import type { TlsConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import { SocksClient } from 'socks'
-import { Agent, type Dispatcher, getGlobalDispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
+import { Agent, type Dispatcher, getGlobalDispatcher, MockAgent, ProxyAgent, setGlobalDispatcher } from 'undici'
 
 const DEFAULT_MAX_SOCKETS = 50
 const KEEP_ALIVE_TIMEOUT = 30_000 // 30 seconds
@@ -128,6 +128,11 @@ export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher
     return undefined
   }
 
+  const globalMockDispatcher = getGlobalMockDispatcherForTimeoutOnly(opts)
+  if (globalMockDispatcher) {
+    return globalMockDispatcher
+  }
+
   const parsedUri = new URL(uri)
 
   if ((opts.httpProxy || opts.httpsProxy) && !checkNoProxy(parsedUri, opts)) {
@@ -148,6 +153,7 @@ function hasClientCertificates (certs?: ClientCertificates): boolean {
 
 function needsCustomDispatcher (opts: DispatcherOptions): boolean {
   return Boolean(
+    (typeof opts.timeout === 'number' && opts.timeout > 0) ||
     opts.httpProxy ||
     opts.httpsProxy ||
     opts.ca ||
@@ -158,6 +164,49 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
     hasClientCertificates(opts.clientCertificates) ||
     opts.maxSockets
   )
+}
+
+// Because the default `fetchTimeout` is non-zero, a timeout alone now forces a
+// custom dispatcher (see needsCustomDispatcher). That would bypass a MockAgent
+// installed globally via setGlobalDispatcher, breaking every test that relies on
+// mocked responses without opting out of the timeout. When timeout is the only
+// customization, defer to the global MockAgent instead: mocked responses never
+// hit the network, so socket-level timeouts are meaningless there anyway.
+function getGlobalMockDispatcherForTimeoutOnly (opts: DispatcherOptions): Dispatcher | undefined {
+  if (!hasOnlyTimeoutCustomization(opts)) return undefined
+  const globalDispatcher = getGlobalDispatcher()
+  return globalDispatcher instanceof MockAgent ? globalDispatcher : undefined
+}
+
+function hasOnlyTimeoutCustomization (opts: DispatcherOptions): boolean {
+  return Boolean(
+    typeof opts.timeout === 'number' &&
+    opts.timeout > 0 &&
+    !opts.httpProxy &&
+    !opts.httpsProxy &&
+    !opts.ca &&
+    !opts.cert &&
+    !opts.key &&
+    !opts.localAddress &&
+    opts.strictSsl !== false &&
+    !hasClientCertificates(opts.clientCertificates) &&
+    !opts.maxSockets
+  )
+}
+
+function getTimeoutKey (opts: DispatcherOptions): string {
+  return typeof opts.timeout === 'number' && opts.timeout > 0 ? opts.timeout.toString() : '>no-timeout<'
+}
+
+function getAgentTimeoutOptions (opts: DispatcherOptions): Pick<Agent.Options, 'bodyTimeout' | 'connectTimeout' | 'headersTimeout'> {
+  if (typeof opts.timeout !== 'number' || opts.timeout <= 0) {
+    return {}
+  }
+  return {
+    bodyTimeout: opts.timeout,
+    connectTimeout: opts.timeout + 1,
+    headersTimeout: opts.timeout,
+  }
 }
 
 function parseProxyUrl (proxy: string, protocol: string): URL {
@@ -204,6 +253,7 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
     `https:${isHttps.toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
+    `timeout:${getTimeoutKey(opts)}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
     `ca:${(isHttps && ca?.toString()) || '-'}`,
     `cert:${(isHttps && cert?.toString()) || '-'}`,
@@ -238,6 +288,7 @@ function createHttpProxyDispatcher (
     token: proxyUrl.username
       ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
       : undefined,
+    ...getAgentTimeoutOptions(opts),
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
@@ -269,6 +320,7 @@ function createSocksDispatcher (
   const proxyPort = parseInt(proxyUrl.port, 10) || (socksType === 4 ? 1080 : 1080)
 
   return new Agent({
+    ...getAgentTimeoutOptions(opts),
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
@@ -325,6 +377,7 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
     `https:${isHttps.toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
+    `timeout:${getTimeoutKey(opts)}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
     `ca:${(isHttps && ca?.toString()) || '-'}`,
     `cert:${(isHttps && cert?.toString()) || '-'}`,
@@ -335,13 +388,9 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
     return DISPATCHER_CACHE.get(key)!
   }
 
-  const connectTimeout = typeof opts.timeout !== 'number' || opts.timeout === 0
-    ? 0
-    : opts.timeout + 1
-
   const agent = new Agent({
+    ...getAgentTimeoutOptions(opts),
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
-    connectTimeout,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     connect: isHttps

@@ -65,10 +65,9 @@ pub struct NetworkSettings {
     /// semaphore size. Default: [`default_network_concurrency`].
     pub network_concurrency: usize,
 
-    /// Per-request total deadline, applied as both reqwest's response
-    /// timeout and its connect timeout — mirroring pnpm, whose
-    /// `AbortSignal.timeout(fetchTimeout)` bounds the whole request and
-    /// whose undici `connectTimeout` is `fetchTimeout + 1`. Default:
+    /// Timeout for establishing a connection and for each stalled body
+    /// read. Steady downloads may take longer than this as long as each
+    /// read makes progress within the window. Default:
     /// [`DEFAULT_FETCH_TIMEOUT_MS`].
     pub fetch_timeout: Duration,
 
@@ -203,14 +202,12 @@ impl ThrottledClient {
     /// runs hundreds of fetches in seconds) but well below the
     /// typical edge keepalive.
     ///
-    /// [`NetworkSettings::fetch_timeout`] is the per-request deadline,
-    /// not the socket inactivity timeout. A default `reqwest::Client`
-    /// has no deadlines at all, so a stalled upstream hangs the install
-    /// indefinitely. It is applied as both the response timeout and the
-    /// connect timeout, mirroring pnpm — whose `AbortSignal.timeout`
-    /// bounds the whole fetch and whose undici `connectTimeout` is
-    /// `fetchTimeout + 1`. Default: [`DEFAULT_FETCH_TIMEOUT_MS`] (60s),
-    /// matching pnpm's `fetchTimeout`.
+    /// [`NetworkSettings::fetch_timeout`] applies to connection setup and
+    /// stalled reads, not the total body lifetime. A default
+    /// `reqwest::Client` has no read deadline, so a stalled upstream can
+    /// hang the install indefinitely, while a total response timeout cuts
+    /// off large tarballs that are still making progress. Default:
+    /// [`DEFAULT_FETCH_TIMEOUT_MS`] (60s), matching pnpm's `fetchTimeout`.
     ///
     /// `hickory_dns(true)` swaps reqwest's default resolver
     /// (tokio's `lookup_host`, which calls the platform's blocking
@@ -394,9 +391,8 @@ impl ThrottledClient {
 /// route through this helper so a single source of truth governs
 /// timeouts, HTTP-version, resolver, and the User-Agent header.
 ///
-/// `settings.fetch_timeout` drives both the per-request response
-/// timeout and the connect timeout (matching pnpm's `AbortSignal`
-/// total deadline and undici `connectTimeout = fetchTimeout + 1`).
+/// `settings.fetch_timeout` drives both connection setup and the maximum
+/// gap between body chunks.
 /// `settings.user_agent` is sent verbatim; a value that cannot be
 /// encoded as an HTTP header falls back to [`DEFAULT_USER_AGENT`].
 fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder {
@@ -415,7 +411,7 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .gzip(true)
         .default_headers(default_headers)
         .connect_timeout(settings.fetch_timeout)
-        .timeout(settings.fetch_timeout)
+        .read_timeout(settings.fetch_timeout)
         .pool_idle_timeout(Duration::from_secs(4))
         .hickory_dns(true)
 }

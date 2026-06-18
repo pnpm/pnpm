@@ -49,6 +49,16 @@ describe('getDispatcher', () => {
     expect(d1).not.toBe(d2)
   })
 
+  test('returns a dispatcher when timeout is set', () => {
+    expect(getDispatcher('https://registry.npmjs.org/foo', { timeout: 60_000 })).toBeDefined()
+  })
+
+  test('different timeouts produce different dispatchers', () => {
+    const d1 = getDispatcher('https://registry.npmjs.org/foo', { timeout: 30_000 })
+    const d2 = getDispatcher('https://registry.npmjs.org/foo', { timeout: 60_000 })
+    expect(d1).not.toBe(d2)
+  })
+
   test('clearDispatcherCache clears cached dispatchers', () => {
     const opts: DispatcherOptions = { strictSsl: false }
     const d1 = getDispatcher('https://registry.npmjs.org/foo', opts)

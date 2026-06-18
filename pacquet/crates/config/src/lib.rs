@@ -950,10 +950,10 @@ pub struct Config {
     #[default(_code = "pacquet_network::default_network_concurrency()")]
     pub network_concurrency: usize,
 
-    /// Per-request network timeout in milliseconds. Mirrors pnpm's
-    /// `fetchTimeout` (default `60000` — 60 s, see
-    /// [`pacquet_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both
-    /// the response and connect deadline of the reqwest client.
+    /// Network timeout in milliseconds. Mirrors pnpm's `fetchTimeout`
+    /// (default `60000` — 60 s, see
+    /// [`pacquet_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied to
+    /// connection setup and stalled response-body reads.
     #[default(_code = "default_fetch_timeout()")]
     pub fetch_timeout: u64,
 

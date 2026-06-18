@@ -1,4 +1,6 @@
 import fs from 'node:fs'
+import http from 'node:http'
+import type { AddressInfo, Socket } from 'node:net'
 import path from 'node:path'
 
 import { afterAll, expect, test } from '@jest/globals'
@@ -507,10 +509,34 @@ test('CI mode: frozen-lockfile can be overridden via updateConfig hook', async (
 
 test('installation fails with a timeout error', async () => {
   prepare()
+  const sockets = new Set<Socket>()
+  const server = http.createServer(() => {})
+  server.on('connection', (socket) => {
+    sockets.add(socket)
+    socket.on('close', () => sockets.delete(socket))
+  })
 
-  await expect(
-    execPnpm(['add', 'typescript@2.4.2', '--fetch-timeout=1', '--fetch-retries=0'])
-  ).rejects.toThrow()
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address() as AddressInfo
+
+  try {
+    await expect(
+      execPnpm([
+        'add',
+        'typescript@2.4.2',
+        `--registry=http://127.0.0.1:${port}/`,
+        '--fetch-timeout=50',
+        '--fetch-retries=0',
+      ])
+    ).rejects.toThrow()
+  } finally {
+    for (const socket of sockets) {
+      socket.destroy()
+    }
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => err ? reject(err) : resolve())
+    })
+  }
 })
 
 test('installation fails when the stored package name and version do not match the meta of the installed package', async () => {
