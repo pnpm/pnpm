@@ -18,7 +18,7 @@ use std::{
     io::Write,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct DependentNode {
     name: String,
     version: String,
@@ -63,7 +63,7 @@ struct ImporterInfo {
 struct WalkCtx<'a> {
     reverse_map: &'a HashMap<ReverseKey, Vec<(ParentNode, String)>>,
     importer_info: &'a HashMap<String, ImporterInfo>,
-    packages: &'a HashMap<PackageKey, PackageMetadata>,
+    packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
 }
 
 #[derive(Debug, Args)]
@@ -178,16 +178,21 @@ fn build_dependents_tree(
     importer_info: &HashMap<String, ImporterInfo>,
     max_depth: Option<usize>,
 ) -> Vec<WhyResult> {
-    let Some(packages) = lockfile.packages.as_ref() else {
-        return vec![];
-    };
-
+    let packages = lockfile.packages.as_ref();
     let snapshots = lockfile.snapshots.as_ref();
 
     let mut forward_edges: HashMap<PkgNameVerPeer, Vec<(String, Option<PkgNameVerPeer>)>> =
         HashMap::new();
 
-    for key in packages.keys() {
+    let node_keys: Vec<PackageKey> = if let Some(pkgs) = packages {
+        pkgs.keys().cloned().collect()
+    } else if let Some(snapshot_map) = snapshots {
+        snapshot_map.keys().cloned().collect()
+    } else {
+        return vec![];
+    };
+
+    for key in &node_keys {
         let Some(snapshot) = snapshots.and_then(|s| s.get(key)) else {
             continue;
         };
@@ -255,34 +260,20 @@ fn build_dependents_tree(
 
     let ctx = WalkCtx { reverse_map: &reverse_map, importer_info, packages };
 
-    let mut results: Vec<WhyResult> = Vec::new();
+    let mut matched_roots: Vec<(String, String, ReverseKey)> = Vec::new();
 
-    for key in packages.keys() {
+    for key in &node_keys {
         let name = key.name.to_string();
-        let version = display_version(key, Some(packages));
+        let version = display_version(key, packages);
 
         let matched = matcher.matches(&name)
             || reverse_map
                 .get(&ReverseKey::Package(key.clone()))
                 .is_some_and(|edges| edges.iter().any(|(_parent, alias)| matcher.matches(alias)));
 
-        if !matched {
-            continue;
+        if matched {
+            matched_roots.push((name, version, ReverseKey::Package(key.clone())));
         }
-
-        let mut visited = HashSet::new();
-        visited.insert(ParentNode::Package(key.clone()));
-        let mut expanded = HashSet::new();
-        let dependents = walk_reverse(
-            &ReverseKey::Package(key.clone()),
-            &ctx,
-            &mut visited,
-            &mut expanded,
-            0,
-            max_depth,
-        );
-
-        results.push(WhyResult { name: name.clone(), version, dependents });
     }
 
     for importer_id in importer_info.keys() {
@@ -294,24 +285,30 @@ fn build_dependents_tree(
                 .get(&ReverseKey::Importer(importer_id.clone()))
                 .is_some_and(|edges| edges.iter().any(|(_parent, alias)| matcher.matches(alias)));
 
-        if !matched {
-            continue;
+        if matched {
+            let version = info.map_or_else(String::new, |i| i.version.clone());
+            matched_roots.push((name, version, ReverseKey::Importer(importer_id.clone())));
         }
+    }
 
+    let mut memo: HashMap<(ReverseKey, usize), Vec<DependentNode>> = HashMap::new();
+    let mut results: Vec<WhyResult> = Vec::new();
+
+    for (name, version, root_key) in &matched_roots {
         let mut visited = HashSet::new();
-        visited.insert(ParentNode::Importer(importer_id.clone()));
+        match root_key {
+            ReverseKey::Package(key) => {
+                visited.insert(ParentNode::Package(key.clone()));
+            }
+            ReverseKey::Importer(id) => {
+                visited.insert(ParentNode::Importer(id.clone()));
+            }
+        }
         let mut expanded = HashSet::new();
-        let dependents = walk_reverse(
-            &ReverseKey::Importer(importer_id.clone()),
-            &ctx,
-            &mut visited,
-            &mut expanded,
-            0,
-            max_depth,
-        );
+        let dependents =
+            walk_reverse(root_key, &ctx, &mut visited, &mut expanded, &mut memo, 0, max_depth);
 
-        let version = info.map_or_else(String::new, |i| i.version.clone());
-        results.push(WhyResult { name: name.clone(), version, dependents });
+        results.push(WhyResult { name: name.clone(), version: version.clone(), dependents });
     }
 
     results
@@ -325,6 +322,7 @@ fn walk_reverse(
     ctx: &WalkCtx<'_>,
     visited: &mut HashSet<ParentNode>,
     expanded: &mut HashSet<ParentNode>,
+    memo: &mut HashMap<(ReverseKey, usize), Vec<DependentNode>>,
     depth: usize,
     max_depth: Option<usize>,
 ) -> Vec<DependentNode> {
@@ -335,6 +333,11 @@ fn walk_reverse(
     let Some(edges) = ctx.reverse_map.get(node_key) else {
         return vec![];
     };
+
+    let memo_key = (node_key.clone(), depth);
+    if let Some(cached) = memo.get(&memo_key) {
+        return cached.clone();
+    }
 
     let mut dependents = Vec::new();
 
@@ -353,7 +356,7 @@ fn walk_reverse(
                 if visited.contains(parent_node) {
                     dependents.push(DependentNode {
                         name: parent_key.name.to_string(),
-                        version: display_version(parent_key, Some(ctx.packages)),
+                        version: display_version(parent_key, ctx.packages),
                         dep_field: None,
                         dependents: vec![],
                     });
@@ -363,7 +366,7 @@ fn walk_reverse(
                 if expanded.contains(parent_node) {
                     dependents.push(DependentNode {
                         name: parent_key.name.to_string(),
-                        version: display_version(parent_key, Some(ctx.packages)),
+                        version: display_version(parent_key, ctx.packages),
                         dep_field: None,
                         dependents: vec![],
                     });
@@ -374,13 +377,14 @@ fn walk_reverse(
                 expanded.insert(parent_node.clone());
 
                 let parent_name = parent_key.name.to_string();
-                let parent_version = display_version(parent_key, Some(ctx.packages));
+                let parent_version = display_version(parent_key, ctx.packages);
 
                 let child_dependents = walk_reverse(
                     &ReverseKey::Package(parent_key.clone()),
                     ctx,
                     visited,
                     expanded,
+                    memo,
                     depth + 1,
                     max_depth,
                 );
@@ -399,6 +403,8 @@ fn walk_reverse(
 
     dependents
         .sort_by(|left, right| left.name.cmp(&right.name).then(left.version.cmp(&right.version)));
+
+    memo.insert(memo_key, dependents.clone());
     dependents
 }
 
@@ -447,7 +453,7 @@ fn render_dependents(
             bold(&dep.name),
             dim(&format!("@{}", dep.version)),
             dep.dep_field
-                .map(|f| format!(" {}", dim(&format!("({})", dep_field_name(f)))))
+                .map(|field| format!(" {}", dim(&format!("({})", dep_field_name(field)))))
                 .unwrap_or_default(),
         );
 
@@ -485,7 +491,11 @@ fn dim(text: &str) -> String {
 fn sanitize(text: &str) -> std::borrow::Cow<'_, str> {
     if text.bytes().any(|byte| byte < 0x20 && byte != b'\n' && byte != b'\t') {
         std::borrow::Cow::Owned(
-            text.chars().filter(|ch| !ch.is_control() || *ch == '\n' || *ch == '\t').collect(),
+            text.chars()
+                .filter(|character| {
+                    !character.is_control() || *character == '\n' || *character == '\t'
+                })
+                .collect(),
         )
     } else {
         std::borrow::Cow::Borrowed(text)
