@@ -1803,6 +1803,31 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             None => engine_name,
         };
 
+        // Write `node_modules/.package-map.json` before the build phase, since
+        // `build_extra_env` below points lifecycle scripts' `NODE_OPTIONS` at
+        // it. `layout` already resolves each snapshot to its real on-disk slot
+        // (flat or global-virtual-store). Reached only after materialization,
+        // mirroring the frozen path's write in `InstallFrozenLockfile::run`, so
+        // the `lockfile_only` early return never writes a map for an unlinked
+        // tree.
+        if crate::should_write_package_map(config, node_linker) {
+            let project_manifests = importer_manifests
+                .iter()
+                .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+                .collect::<Vec<_>>();
+            crate::package_map::write_package_map(
+                &built_lockfile,
+                &crate::package_map::PackageMapOptions {
+                    lockfile_dir,
+                    modules_dir: &config.modules_dir,
+                    package_map_type: config.node_package_map_type,
+                    layout: &layout,
+                    project_manifests: &project_manifests,
+                },
+            )
+            .map_err(InstallWithFreshLockfileError::WritePackageMap)?;
+        }
+
         let mut build_extra_env = HashMap::new();
         if let Some(node_options) = &config.node_options {
             build_extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
@@ -1871,30 +1896,6 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 ?error,
                 "store-index writer task panicked; some rows may not be persisted",
             ),
-        }
-
-        // Write `node_modules/.package-map.json` from where this path's
-        // `layout` already resolves each snapshot to its real on-disk slot
-        // (flat or global-virtual-store), mirroring the frozen path's write
-        // in `InstallFrozenLockfile::run`. Reached only after materialization,
-        // so the `lockfile_only` early return never writes a map pointing at
-        // packages that were never linked.
-        if crate::should_write_package_map(config, node_linker) {
-            let project_manifests = importer_manifests
-                .iter()
-                .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
-                .collect::<Vec<_>>();
-            crate::package_map::write_package_map(
-                &built_lockfile,
-                &crate::package_map::PackageMapOptions {
-                    lockfile_dir,
-                    modules_dir: &config.modules_dir,
-                    package_map_type: config.node_package_map_type,
-                    layout: &layout,
-                    project_manifests: &project_manifests,
-                },
-            )
-            .map_err(InstallWithFreshLockfileError::WritePackageMap)?;
         }
 
         // Write `pnpm-lock.yaml` from the resolved graph. Mirrors

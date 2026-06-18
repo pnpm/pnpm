@@ -364,6 +364,13 @@ function resolveLinkTarget (lockfileDir: string, importerId: string | undefined,
 }
 
 function toRelativeUrl (from: string, to: string): string {
+  // No meaningful relative path exists between a POSIX dir and a
+  // Windows-absolute target (or vice versa), so emit an absolute file URL
+  // rather than letting `path.win32.relative` produce a bogus relative string.
+  const toIsWindows = isWindowsAbsolutePath(to)
+  if (toIsWindows !== isWindowsAbsolutePath(from)) {
+    return pathToFileURL(to, { windows: toIsWindows }).href
+  }
   const pathUtils = getPathUtils(from, to)
   const relative = pathUtils.relative(from, to)
   if (pathUtils.isAbsolute(relative)) {
