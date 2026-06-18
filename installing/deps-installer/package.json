@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1102.0.0",
+  "version": "1102.1.0",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",

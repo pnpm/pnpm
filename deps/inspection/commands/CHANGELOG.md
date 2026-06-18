@@ -1,5 +1,34 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.4.0
+
+### Minor Changes
+
+- 293921a: feat(view): support searching project manifest upward when package name is omitted
+
+  When running `pnpm view` without a package name, the command now searches
+  upward for the nearest project manifest (`package.json`, `package.yaml`, or `package.json5`) and uses its `name` field.
+  If the manifest exists but lacks a `name` field, an error is thrown.
+
+  This change also replaces the `find-up` dependency with `empathic` for
+  improved performance and consistency across workspace tools.
+
+### Patch Changes
+
+- Updated dependencies [29ab905]
+- Updated dependencies [302a2f7]
+- Updated dependencies [61969fb]
+- Updated dependencies [3188ae7]
+- Updated dependencies [0474a9c]
+  - @pnpm/resolving.npm-resolver@1102.0.1
+  - @pnpm/config.reader@1101.10.0
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/deps.inspection.peers-checker@1100.0.15
+  - @pnpm/deps.inspection.outdated@1100.1.9
+  - @pnpm/resolving.default-resolver@1100.3.9
+  - @pnpm/global.commands@1100.0.29
+  - @pnpm/deps.inspection.list@1100.0.19
+
 ## 1100.3.7
 
 ### Patch Changes

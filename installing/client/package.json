@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.client",
-  "version": "1100.2.8",
+  "version": "1100.2.9",
   "description": "Creates the package resolve and fetch functions",
   "keywords": [
     "pnpm",

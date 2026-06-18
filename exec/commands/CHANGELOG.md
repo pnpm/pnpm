@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1100.3.0
+
+### Minor Changes
+
+- 179ebc4: `pnpm run --no-bail` now exits with a non-zero exit code when any of the executed scripts fail, while still running every matched script to completion. This makes the exit-code behavior of `--no-bail` consistent between recursive and non-recursive runs (recursive runs already failed at the end). Previously, a non-recursive `pnpm run --no-bail` always exited with code 0, even when a script failed [#8013](https://github.com/pnpm/pnpm/issues/8013).
+- 0474a9c: Added support for generating Node.js package maps at `node_modules/.package-map.json` during isolated and hoisted installs. Added the `node-experimental-package-map` setting to inject the generated map into pnpm-managed Node.js script environments, and the `node-package-map-type` setting to choose between `standard` and `loose` package maps.
+
+### Patch Changes
+
+- Updated dependencies [302a2f7]
+- Updated dependencies [c112b61]
+- Updated dependencies [61969fb]
+- Updated dependencies [9d79ba1]
+- Updated dependencies [0474a9c]
+- Updated dependencies [223d060]
+- Updated dependencies [0474a9c]
+- Updated dependencies [6d35338]
+- Updated dependencies [eba03e0]
+  - @pnpm/config.reader@1101.10.0
+  - @pnpm/installing.commands@1100.10.0
+  - @pnpm/deps.status@1100.1.2
+  - @pnpm/exec.lifecycle@1100.1.0
+  - @pnpm/installing.client@1100.2.9
+  - @pnpm/building.commands@1100.1.6
+  - @pnpm/engine.runtime.commands@1100.1.6
+  - @pnpm/workspace.injected-deps-syncer@1100.0.20
+
 ## 1100.2.5
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # pd
 
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [293921a]
+  - @pnpm/workspace.root-finder@1100.0.2
+
 ## 1100.0.15
 
 ### Patch Changes

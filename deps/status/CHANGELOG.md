@@ -1,5 +1,24 @@
 # @pnpm/deps.status
 
+## 1100.1.2
+
+### Patch Changes
+
+- 61969fb: Fix `pnpm install` with `optimisticRepeatInstall` incorrectly reporting `Already up to date` when `pnpm-lock.yaml` changed but project manifests did not. This affected workflows such as checking out or restoring only the lockfile [#12100](https://github.com/pnpm/pnpm/issues/12100).
+
+  Also fixes `checkDepsStatus` to use the correct lockfile path when `useGitBranchLockfile` is enabled, so the optimistic fast-path and lockfile modification detection work with `pnpm-lock.<branch>.yaml` files instead of always stat'ing `pnpm-lock.yaml`. Merge-conflict detection now reads the resolved lockfile name as well, and with `mergeGitBranchLockfiles` enabled every `pnpm-lock.*.yaml` is scanned for modifications and conflicts. The git branch is now resolved by reading `.git/HEAD` directly (no process spawn) and uses the workspace directory rather than `process.cwd()`.
+
+- 6d35338: `pnpm install` detects changes inside local file dependencies again. The optimistic repeat-install fast path only tracks manifest and lockfile modification times, so edits inside a local dependency's directory (or a repacked local tarball) were reported as "Already up to date". Projects with local file dependencies (`file:` and bare local path or tarball specifiers, declared directly or through `pnpm.overrides`) now always run a full install, which refetches those dependencies, matching pnpm v10 behavior [#11795](https://github.com/pnpm/pnpm/issues/11795).
+- Updated dependencies [302a2f7]
+- Updated dependencies [61969fb]
+- Updated dependencies [0474a9c]
+  - @pnpm/config.reader@1101.10.0
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/workspace.state@1100.0.23
+  - @pnpm/installing.context@1100.0.19
+  - @pnpm/lockfile.verification@1100.0.19
+  - @pnpm/lockfile.settings-checker@1100.0.19
+
 ## 1100.1.1
 
 ### Patch Changes

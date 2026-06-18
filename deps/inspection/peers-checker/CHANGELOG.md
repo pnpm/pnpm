@@ -1,5 +1,13 @@
 # @pnpm/deps.inspection.peers-checker
 
+## 1100.0.15
+
+### Patch Changes
+
+- 3188ae7: Fixed `pnpm peers check` to accept loose peer dependency ranges such as `>=3.16.0 || >=4.0.0-` when the installed peer version satisfies the range [#12149](https://github.com/pnpm/pnpm/issues/12149).
+- Updated dependencies [61969fb]
+  - @pnpm/lockfile.fs@1100.1.6
+
 ## 1100.0.14
 
 ### Patch Changes

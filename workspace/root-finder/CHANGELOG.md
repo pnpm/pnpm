@@ -1,5 +1,18 @@
 # @pnpm/find-workspace-dir
 
+## 1100.0.2
+
+### Patch Changes
+
+- 293921a: feat(view): support searching project manifest upward when package name is omitted
+
+  When running `pnpm view` without a package name, the command now searches
+  upward for the nearest project manifest (`package.json`, `package.yaml`, or `package.json5`) and uses its `name` field.
+  If the manifest exists but lacks a `name` field, an error is thrown.
+
+  This change also replaces the `find-up` dependency with `empathic` for
+  improved performance and consistency across workspace tools.
+
 ## 1100.0.1
 
 ### Patch Changes

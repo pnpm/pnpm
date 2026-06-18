@@ -1,5 +1,13 @@
 # @pnpm/resolving.bun-resolver
 
+## 1102.0.1
+
+### Patch Changes
+
+- Updated dependencies [29ab905]
+  - @pnpm/resolving.npm-resolver@1102.0.1
+  - @pnpm/worker@1100.2.1
+
 ## 1102.0.0
 
 ### Patch Changes

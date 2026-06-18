@@ -1,5 +1,12 @@
 # @pnpm/testing.temp-store
 
+## 1100.1.10
+
+### Patch Changes
+
+- @pnpm/installing.client@1100.2.9
+- @pnpm/store.controller@1102.0.1
+
 ## 1100.1.9
 
 ### Patch Changes

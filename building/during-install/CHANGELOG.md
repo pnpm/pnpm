@@ -1,5 +1,17 @@
 # @pnpm/building.during-install
 
+## 1102.0.1
+
+### Patch Changes
+
+- Updated dependencies [302a2f7]
+- Updated dependencies [3d1fd20]
+- Updated dependencies [0474a9c]
+  - @pnpm/config.reader@1101.10.0
+  - @pnpm/bins.linker@1100.0.15
+  - @pnpm/exec.lifecycle@1100.1.0
+  - @pnpm/worker@1100.2.1
+
 ## 1102.0.0
 
 ### Patch Changes

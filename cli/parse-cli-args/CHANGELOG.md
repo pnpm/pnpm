@@ -1,5 +1,12 @@
 # @pnpm/parse-cli-args
 
+## 1100.1.4
+
+### Patch Changes
+
+- Updated dependencies [293921a]
+  - @pnpm/workspace.root-finder@1100.0.2
+
 ## 1100.1.3
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/get-context
 
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies [61969fb]
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/installing.read-projects-context@1100.0.16
+  - @pnpm/store.controller@1102.0.1
+
 ## 1100.0.18
 
 ### Patch Changes

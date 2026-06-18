@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 1100.0.15
+
+### Patch Changes
+
+- 3d1fd20: Skip the redundant "target bin directory already contains an exe called node" warning on Windows when the existing `node.exe` already matches the target (same hard link or identical content) [pnpm/pnpm#12203](https://github.com/pnpm/pnpm/issues/12203).
+
 ## 1100.0.14
 
 ### Patch Changes

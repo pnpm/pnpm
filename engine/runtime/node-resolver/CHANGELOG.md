@@ -1,5 +1,14 @@
 # @pnpm/node.resolver
 
+## 1101.1.8
+
+### Patch Changes
+
+- 4ca9247: Preserve the existing Node.js runtime version prefix when resolving `node@runtime:<range>` to a concrete version.
+- Updated dependencies [302a2f7]
+- Updated dependencies [0474a9c]
+  - @pnpm/config.reader@1101.10.0
+
 ## 1101.1.7
 
 ### Patch Changes

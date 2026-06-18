@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 1101.0.17
+
+### Patch Changes
+
+- Updated dependencies [61969fb]
+  - @pnpm/lockfile.fs@1100.1.6
+
 ## 1101.0.16
 
 ### Patch Changes

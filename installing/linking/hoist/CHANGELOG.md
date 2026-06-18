@@ -1,5 +1,12 @@
 # @pnpm/hoist
 
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [3d1fd20]
+  - @pnpm/bins.linker@1100.0.15
+
 ## 1100.0.14
 
 ### Patch Changes
