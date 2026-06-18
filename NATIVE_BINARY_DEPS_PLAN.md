@@ -50,8 +50,8 @@ the binary inside each platform package is the **command name** at the package r
 
 ## Default list + setting
 
-- Setting: `nativeDependencies` (array of package names) in `pnpm-workspace.yaml`
-  (mirrors Bun's `nativeDependencies` field name).
+- Setting: `nativeBinDependencies` (array of package names) in `pnpm-workspace.yaml`
+  (mirrors Bun's `nativeBinDependencies` field name).
 - Hardcoded default: `['pacquet', '@pnpm/pacquet', '@pnpm/exe']`, user list extends it.
 - A package only takes the native path when it actually resolves a platform-matched
   optional dep (otherwise fall through to normal npm resolution) — same guard Bun uses.
@@ -60,19 +60,19 @@ the binary inside each platform package is the **command name** at the package r
 
 1. Branch inside `resolving/npm-resolver/src/index.ts` at the resolution-construction
    site (~`:588-607`, where `pickedPackage` + the `TarballResolution` are built):
-   when `pickedPackage.name ∈ nativeDependencies` and `pickedPackage.optionalDependencies`
+   when `pickedPackage.name ∈ nativeBinDependencies` and `pickedPackage.optionalDependencies`
    has platform packages, fetch each platform packument via the existing `ctx.pickPackage`
    machinery, build the `variants`, and return `resolution: { type: 'variations', variants }`
    plus a `manifest.bin` mapping. Otherwise return the normal tarball resolution.
    - Widen `NpmResolveResult.resolution` to `TarballResolution | VariationsResolution`.
-   - Thread `nativeDependencies` into `createNpmResolver` ctx (it's created in
+   - Thread `nativeBinDependencies` into `createNpmResolver` ctx (it's created in
      `default-resolver` from `pnpmOpts`).
    - Guard: only take the native path when ≥1 optional dep matches a real platform
      target; else fall through to the tarball (same guard Bun uses).
 2. Config setting:
-   - `config/reader/src/types.ts` (pnpmTypes) — add `native-dependencies: Array`.
-   - `config/reader/src/Config.ts` — `nativeDependencies?: string[]`.
-   - `core/types/src/package.ts` (PnpmSettings) — `nativeDependencies?: string[]`.
+   - `config/reader/src/types.ts` (pnpmTypes) — add `native-bin-dependencies: Array`.
+   - `config/reader/src/Config.ts` — `nativeBinDependencies?: string[]`.
+   - `core/types/src/package.ts` (PnpmSettings) — `nativeBinDependencies?: string[]`.
    - `config/reader/src/getOptionsFromRootManifest.ts` — pass through.
 4. Tests:
    - `resolving/native-binary-resolver/test/` — unit test the synthesis with a mocked
@@ -94,7 +94,7 @@ Pipeline already complete (`lockfile/src/resolution.rs`, `select_platform_varian
 
 ## Open decisions for the user
 
-- Names: setting `nativeDependencies`, package `@pnpm/resolving.native-binary-resolver`.
+- Names: setting `nativeBinDependencies`, package `@pnpm/resolving.native-binary-resolver`.
 - Should `@pnpm/exe` be in the default list given it currently relies on its own
   `preinstall`/`prepare` scripts (`pnpm/artifacts/exe`)? Switching it to the native
   path changes how pnpm-installs-pnpm behaves — worth a closer look / its own stage.

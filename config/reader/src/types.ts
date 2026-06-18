@@ -74,6 +74,7 @@ export const pnpmTypes = {
   'minimum-release-age-ignore-missing-time': Boolean,
   'minimum-release-age-strict': Boolean,
   'modules-dir': String,
+  'native-bin-dependencies': Array,
   'network-concurrency': Number,
   'node-experimental-package-map': Boolean,
   'node-package-map-type': ['standard', 'loose'],
