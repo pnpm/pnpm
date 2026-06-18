@@ -32,8 +32,10 @@ jobs:
       issues: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # Webhook URL is optional; the Discord step is skipped when the secret is unset.
-      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      # The webhook is optional; the Discord step is skipped when it is unset. Only
+      # a non-secret boolean is exposed job-wide — the secret itself is scoped to
+      # the Discord step. (Step-level env is not visible to that step's own `if`.)
+      HAS_DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK != '' }}
     steps:
       - name: Download the event artifact
         id: download
@@ -101,9 +103,10 @@ jobs:
         if: >-
           steps.event.outcome == 'success' &&
           steps.event.outputs.announce == 'true' &&
-          env.DISCORD_WEBHOOK != ''
+          env.HAS_DISCORD_WEBHOOK == 'true'
         env:
           PR_NUMBER: ${{ steps.event.outputs.pr_number }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           # PR title and URL are read as data and passed via jq --arg, never as code.
           # allowed_mentions parse:[] stops a PR title like "@everyone" from pinging the Discord server.
