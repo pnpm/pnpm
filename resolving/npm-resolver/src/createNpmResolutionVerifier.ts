@@ -738,14 +738,13 @@ function readSharedMeta (
   name: string
 ): PackageMeta | undefined {
   if (cache == null) return undefined
-  // Prefer the full entry — a `:full` hit subsumes the abbreviated hit
-  // (full meta carries every field the abbreviated form does, plus
-  // `time` and per-version trust evidence the trust check needs). The
-  // resolver only populates the `:full` key when the install ran with
-  // `minimumReleaseAge` configured, otherwise the bare key holds the
-  // abbreviated form.
-  return validateSharedMeta(cache.get(getPkgMetaCacheKey(registry, name, true)), name) ??
-    validateSharedMeta(cache.get(getPkgMetaCacheKey(registry, name, false)), name)
+  // Prefer a full entry — it carries every field the abbreviated form
+  // does, plus `time` and per-version trust evidence the trust check
+  // needs. The resolver only populates a full key when the install ran
+  // with `minimumReleaseAge` configured, otherwise the bare key holds
+  // the abbreviated form.
+  return readSharedFullMeta(cache, registry, name) ??
+    validateSharedMeta(cache.get(getPkgMetaCacheKey(registry, name, false, false)), name)
 }
 
 function readSharedMetaForTrust (
@@ -756,7 +755,20 @@ function readSharedMetaForTrust (
   if (cache == null) return undefined
   // Abbreviated meta is rejected for the trust check — it lacks
   // per-version `time` and per-version trust evidence.
-  return validateSharedMeta(cache.get(getPkgMetaCacheKey(registry, name, true)), name)
+  return readSharedFullMeta(cache, registry, name)
+}
+
+// The resolver keys full metadata as either filtered or unfiltered
+// depending on its own `filterMetadata` setting; the verifier doesn't
+// know which, and a filtered full packument keeps everything the
+// verifier reads (`time`, per-version `_npmUser`, `dist`), so try both.
+function readSharedFullMeta (
+  cache: PackageMetaCache,
+  registry: string,
+  name: string
+): PackageMeta | undefined {
+  return validateSharedMeta(cache.get(getPkgMetaCacheKey(registry, name, true, false)), name) ??
+    validateSharedMeta(cache.get(getPkgMetaCacheKey(registry, name, true, true)), name)
 }
 
 // Defensive guard against the resolver's `metaCache` returning an

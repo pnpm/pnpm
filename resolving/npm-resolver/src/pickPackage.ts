@@ -215,9 +215,9 @@ export async function pickPackage (
     : ABBREVIATED_META_DIR
   // Cache key includes the registry so a package of the same name served by two
   // registries in one install can't share a slot (which would resolve the wrong
-  // tarball/integrity), and includes fullMetadata so a full-metadata request is
-  // never served the abbreviated form.
-  const cacheKey = getPkgMetaCacheKey(opts.registry, spec.name, fullMetadata)
+  // tarball/integrity), plus fullMetadata/filterMetadata so a request is never
+  // served a less-detailed or differently-stripped document than it asked for.
+  const cacheKey = getPkgMetaCacheKey(opts.registry, spec.name, fullMetadata, ctx.filterMetadata === true)
   const pkgMirror = getPkgMirrorPath(ctx.cacheDir, metaDir, opts.registry, spec.name)
   // updateChecksums must reach the conditional registry request below, so it
   // can't be served from the in-memory cache — which may hold a disk-promoted
@@ -600,10 +600,16 @@ export function encodePkgName (pkgName: string): string {
  * Key for the in-memory `metaCache` holding a package's registry metadata. The
  * registry is part of the key so that a package of the same name served by two
  * registries in one install can't collide on a single slot (which would resolve
- * the wrong tarball/integrity); `fullMetadata` keeps the abbreviated and full
- * documents in distinct slots. `\x00` can't appear in a registry URL or a
- * package name, so it's an unambiguous separator. The verifier reads this same
- * cache and must build the key with this function.
+ * the wrong tarball/integrity). `fullMetadata` and `filterMetadata` keep the
+ * abbreviated, full, and filtered-full documents in distinct slots, mirroring
+ * the on-disk `metaDir` split: a `filterMetadata` resolver stores a `clearMeta`-
+ * stripped packument, so it must not share a slot with an unfiltered full one
+ * (reachable only when a `metaCache` is shared across resolvers with different
+ * settings). `filterMetadata` only narrows the full slot — abbreviated metadata
+ * shares one on-disk mirror regardless, so its key carries no filtered variant.
+ * `\x00` can't appear in a registry URL or a package name, so it's an
+ * unambiguous separator. The verifier reads this same cache and must build the
+ * key with this function.
  *
  * The registry is canonicalized to its origin plus a trailing-slashed path, so
  * the resolver (which may pass a configured named-registry URL verbatim) and
@@ -611,9 +617,10 @@ export function encodePkgName (pkgName: string): string {
  * key for the same logical registry instead of creating duplicate slots. Origin
  * and path are preserved, so two registries that genuinely differ never collapse.
  */
-export function getPkgMetaCacheKey (registry: string, pkgName: string, fullMetadata: boolean): string {
+export function getPkgMetaCacheKey (registry: string, pkgName: string, fullMetadata: boolean, filterMetadata: boolean): string {
   const key = `${canonicalizeRegistry(registry)}\x00${pkgName}`
-  return fullMetadata ? `${key}:full` : key
+  if (!fullMetadata) return key
+  return filterMetadata ? `${key}:full:filtered` : `${key}:full`
 }
 
 function canonicalizeRegistry (registry: string): string {

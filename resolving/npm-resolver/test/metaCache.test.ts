@@ -46,16 +46,24 @@ function createMetaCache (): PackageMetaCache {
 test('getPkgMetaCacheKey canonicalizes the registry so trailing-slash variants share one key', () => {
   // A configured named registry without a trailing slash and the verifier's
   // trailing-slashed prefix for the same registry must map to one cache slot.
-  expect(getPkgMetaCacheKey('https://reg.example.com', 'foo', false))
-    .toBe(getPkgMetaCacheKey('https://reg.example.com/', 'foo', false))
+  expect(getPkgMetaCacheKey('https://reg.example.com', 'foo', false, false))
+    .toBe(getPkgMetaCacheKey('https://reg.example.com/', 'foo', false, false))
 
   // Registries that genuinely differ by path are never collapsed.
-  expect(getPkgMetaCacheKey('https://reg.example.com/team-a/', 'foo', false))
-    .not.toBe(getPkgMetaCacheKey('https://reg.example.com/team-b/', 'foo', false))
+  expect(getPkgMetaCacheKey('https://reg.example.com/team-a/', 'foo', false, false))
+    .not.toBe(getPkgMetaCacheKey('https://reg.example.com/team-b/', 'foo', false, false))
 
   // Abbreviated and full documents keep distinct slots.
-  expect(getPkgMetaCacheKey(REGISTRY, 'foo', true))
-    .not.toBe(getPkgMetaCacheKey(REGISTRY, 'foo', false))
+  expect(getPkgMetaCacheKey(REGISTRY, 'foo', true, false))
+    .not.toBe(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))
+
+  // Filtered and unfiltered full metadata keep distinct slots (clearMeta
+  // strips the filtered form), but filterMetadata is irrelevant to the
+  // abbreviated key.
+  expect(getPkgMetaCacheKey(REGISTRY, 'foo', true, true))
+    .not.toBe(getPkgMetaCacheKey(REGISTRY, 'foo', true, false))
+  expect(getPkgMetaCacheKey(REGISTRY, 'foo', false, true))
+    .toBe(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))
 })
 
 test('updateChecksums bypasses the in-memory cache so a disk-promoted entry cannot skip revalidation', async () => {
@@ -80,7 +88,7 @@ test('updateChecksums bypasses the in-memory cache so a disk-promoted entry cann
   const first = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined })
   expect(first.pickedPackage?.version).toBe('1.0.0')
   expect(fetchedNames).toHaveLength(0)
-  expect(ctx.metaCache.has(getPkgMetaCacheKey(REGISTRY, 'foo', false))).toBe(true)
+  expect(ctx.metaCache.has(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))).toBe(true)
 
   // updateChecksums must still hit the registry, even though the warm in-memory
   // cache now holds a disk-sourced entry for this package.
