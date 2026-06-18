@@ -896,7 +896,7 @@ impl ReporterState {
                     entries_label(*entries),
                 )
             }
-            LockfileVerificationMessage::Done { entries, elapsed_ms, lockfile_path } => {
+            LockfileVerificationMessage::Done { entries, elapsed_ms, lockfile_path, .. } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
                 format!(
                     "{} Lockfile{path} passes supply-chain policies ({} in {})",
@@ -905,7 +905,7 @@ impl ReporterState {
                     pretty_ms(u128::from(*elapsed_ms)),
                 )
             }
-            LockfileVerificationMessage::Failed { entries, elapsed_ms, lockfile_path } => {
+            LockfileVerificationMessage::Failed { entries, elapsed_ms, lockfile_path, .. } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
                 format!(
                     "{} Lockfile{path} failed supply-chain policy check ({} in {})",
