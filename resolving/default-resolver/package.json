@@ -40,6 +40,7 @@
     "@pnpm/fetching.types": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/resolving.aqua-resolver": "workspace:*",
     "@pnpm/resolving.git-resolver": "workspace:*",
     "@pnpm/resolving.local-resolver": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",

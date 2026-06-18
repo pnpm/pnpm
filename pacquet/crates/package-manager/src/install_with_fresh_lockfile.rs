@@ -21,6 +21,7 @@ use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pacquet_resolving_aqua_resolver::AquaResolver;
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
     ManifestHook, ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
@@ -703,6 +704,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             DenoResolver::new(Arc::clone(&http_client_arc), Arc::clone(&npm_resolver));
         let bun_resolver =
             BunResolver::new(Arc::clone(&http_client_arc), Arc::clone(&npm_resolver));
+        let mut aqua_resolver = AquaResolver::new(Arc::clone(&http_client_arc));
+        aqua_resolver.offline = config.offline;
         let named_registry_resolver = NamedRegistryResolver {
             named_registries: merged_named_registries,
             registry_names: named_registry_aliases,
@@ -737,16 +740,16 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // Order mirrors upstream's chain at
         // <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L128-L147>:
         // custom resolvers → npm → jsr (folded into npm) → git →
-        // tarball → localScheme → node → deno → bun → namedRegistry →
-        // localPath. Custom resolvers join only when they implement
-        // both `canResolve` and `resolve` (upstream skips the others).
-        // The local-resolver split is required by named-registry: a
-        // `<alias>:@scope/pkg` specifier carries an embedded `/`,
-        // which the path-shape detector
+        // tarball → aqua → localScheme → node → deno → bun →
+        // namedRegistry → localPath. Custom resolvers join only when they
+        // implement both `canResolve` and `resolve` (upstream skips the
+        // others). The local-resolver split is required by
+        // named-registry: a `<alias>:@scope/pkg` specifier carries an
+        // embedded `/`, which the path-shape detector
         // (`contains_path_sep` in `parse_bare_specifier.rs`) would
         // otherwise claim and prevent the named-registry resolver
         // from running.
-        let mut chain: Vec<Box<dyn Resolver>> = Vec::with_capacity(custom_resolvers_raw.len() + 9);
+        let mut chain: Vec<Box<dyn Resolver>> = Vec::with_capacity(custom_resolvers_raw.len() + 10);
         chain.extend(
             custom_resolvers_raw
                 .iter()
@@ -761,6 +764,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             Box::new(ArcResolver(Arc::clone(&npm_resolver))) as Box<dyn Resolver>,
             Box::new(git_resolver),
             Box::new(tarball_resolver),
+            Box::new(aqua_resolver),
             Box::new(local_scheme_resolver),
             Box::new(node_resolver),
             Box::new(deno_resolver),

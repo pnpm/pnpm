@@ -8562,6 +8562,43 @@ importers:
         specifier: 'catalog:'
         version: 6.0.0
 
+  resolving/aqua-resolver:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
+      '@pnpm/fetching.types':
+        specifier: workspace:*
+        version: link:../../fetching/types
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 4.0.1
+      js-yaml:
+        specifier: 'catalog:'
+        version: '@zkochan/js-yaml@0.0.11'
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.4
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1
+      '@pnpm/resolving.aqua-resolver':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/js-yaml':
+        specifier: 'catalog:'
+        version: 4.0.9
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+
   resolving/default-resolver:
     dependencies:
       '@pnpm/engine.runtime.bun-resolver':
@@ -8585,6 +8622,9 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
+      '@pnpm/resolving.aqua-resolver':
+        specifier: workspace:*
+        version: link:../aqua-resolver
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: link:../git-resolver

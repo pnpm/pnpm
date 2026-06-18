@@ -49,6 +49,9 @@
       "path": "../../testing/mock-agent"
     },
     {
+      "path": "../aqua-resolver"
+    },
+    {
       "path": "../git-resolver"
     },
     {

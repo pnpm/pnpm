@@ -4049,6 +4049,7 @@ dependencies = [
  "pacquet-real-hoist",
  "pacquet-registry",
  "pacquet-reporter",
+ "pacquet-resolving-aqua-resolver",
  "pacquet-resolving-default-resolver",
  "pacquet-resolving-deps-resolver",
  "pacquet-resolving-git-resolver",
@@ -4190,6 +4191,27 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "pacquet-resolving-aqua-resolver"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "miette 7.6.0",
+ "mockito",
+ "node-semver",
+ "pacquet-lockfile",
+ "pacquet-network",
+ "pacquet-resolving-resolver-base",
+ "pretty_assertions",
+ "reqwest 0.13.4",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "ssri",
+ "tokio",
 ]
 
 [[package]]
