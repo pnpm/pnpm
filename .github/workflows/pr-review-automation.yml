@@ -1,99 +1,45 @@
 name: PR review automation
 
-# React to PR review submissions: announce CodeRabbit approvals, tag PRs that the
-# AI reviewers approved, and flag maintainer-approved PRs for automerge.
+# Capture PR review approvals from the AI reviewers and the maintainer. This
+# workflow only records the event as an artifact; the privileged follow-up
+# (pr-review-automation-privileged.yml) adds the label and posts to Discord.
+#
+# The split exists because pull_request_review runs triggered by a forked PR are
+# given a read-only token and no secrets, so the label/Discord steps cannot run
+# here. A workflow_run-triggered companion runs in the base-repo context with the
+# permissions and secrets those steps need.
 on:
   pull_request_review:
     types: [submitted]
 
-# No permissions by default; each job grants only what it needs.
 permissions: {}
 
 jobs:
-  on-coderabbit-approval:
+  capture:
     if: >-
       github.event.review.state == 'approved' &&
-      github.event.review.user.login == 'coderabbitai[bot]'
+      contains(fromJSON('["coderabbitai[bot]", "qodo-free-for-open-source-projects[bot]", "zkochan"]'), github.event.review.user.login)
     runs-on: ubuntu-latest
-    permissions:
-      # Adding a label via the issues REST API is governed by issues: write
-      # even when the target is a PR.
-      issues: write
-      pull-requests: write
+    permissions: {}
     env:
-      # Webhook URL is optional; the Discord step is skipped when the secret is unset.
-      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-      # PR fields are passed through the environment, never interpolated into a run script,
+      # PR fields are written to inert files, never interpolated into a script,
       # so an attacker-controlled PR title cannot inject shell commands.
       PR_NUMBER: ${{ github.event.pull_request.number }}
       PR_TITLE: ${{ github.event.pull_request.title }}
       PR_URL: ${{ github.event.pull_request.html_url }}
+      REVIEWER: ${{ github.event.review.user.login }}
     steps:
-      - name: Add the reviewed label
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Record the review event
         run: |
-          # gh pr edit --add-label is broken (it errors on the deprecated Projects-v1
-          # GraphQL field), so add the label through the issues REST API instead.
-          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f "labels[]=reviewed: coderabbit"
+          mkdir -p pr-review-event
+          printf '%s' "$PR_NUMBER" > pr-review-event/pr_number
+          printf '%s' "$REVIEWER" > pr-review-event/reviewer
+          printf '%s' "$PR_TITLE" > pr-review-event/title
+          printf '%s' "$PR_URL" > pr-review-event/url
 
-      - name: Announce on Discord
-        if: ${{ env.DISCORD_WEBHOOK != '' }}
-        run: |
-          # allowed_mentions parse:[] stops a PR title like "@everyone" from pinging the Discord server.
-          payload="$(jq -n \
-            --arg n "$PR_NUMBER" \
-            --arg t "$PR_TITLE" \
-            --arg u "$PR_URL" \
-            '{content: ("✅ CodeRabbit approved PR #" + $n + ": " + $t + "\n" + $u), allowed_mentions: {parse: []}}')"
-          curl -fsS \
-            --connect-timeout 5 \
-            --max-time 20 \
-            --retry 3 \
-            --retry-all-errors \
-            --retry-delay 2 \
-            -H "Content-Type: application/json" \
-            -d "$payload" \
-            "$DISCORD_WEBHOOK"
-
-  on-qodo-approval:
-    if: >-
-      github.event.review.state == 'approved' &&
-      github.event.review.user.login == 'qodo-free-for-open-source-projects[bot]'
-    runs-on: ubuntu-latest
-    permissions:
-      # Adding a label via the issues REST API is governed by issues: write
-      # even when the target is a PR.
-      issues: write
-      pull-requests: write
-    env:
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-    steps:
-      - name: Add the reviewed label
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # gh pr edit --add-label is broken (it errors on the deprecated Projects-v1
-          # GraphQL field), so add the label through the issues REST API instead.
-          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f "labels[]=reviewed: qodo"
-
-  on-maintainer-approval:
-    if: >-
-      github.event.review.state == 'approved' &&
-      github.event.review.user.login == 'zkochan'
-    runs-on: ubuntu-latest
-    permissions:
-      # Adding a label via the issues REST API is governed by issues: write
-      # even when the target is a PR.
-      issues: write
-      pull-requests: write
-    env:
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-    steps:
-      - name: Flag for automerge
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # gh pr edit --add-label is broken (it errors on the deprecated Projects-v1
-          # GraphQL field), so add the label through the issues REST API instead.
-          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f "labels[]=state: automerge"
+      - name: Upload the event artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pr-review-event
+          path: pr-review-event/
+          retention-days: 1
