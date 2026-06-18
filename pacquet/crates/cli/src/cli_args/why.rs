@@ -8,10 +8,13 @@
 use crate::State;
 use clap::Args;
 use owo_colors::{OwoColorize, Stream};
-use pacquet_config::matcher::{create_matcher, Matcher};
+use pacquet_config::matcher::{Matcher, create_matcher};
 use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer, PkgVerPeer};
 use pacquet_package_manifest::DependencyGroup;
-use std::{collections::{HashMap, HashSet}, io::Write};
+use std::{
+    collections::{HashMap, HashSet},
+    io::Write,
+};
 
 #[derive(Debug)]
 struct DependentNode {
