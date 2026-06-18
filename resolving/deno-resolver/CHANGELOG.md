@@ -1,5 +1,12 @@
 # @pnpm/resolving.deno-resolver
 
+## 1005.0.16
+
+### Patch Changes
+
+- @pnpm/worker@1000.6.11
+- @pnpm/node.fetcher@1001.0.32
+
 ## 1005.0.15
 
 ### Patch Changes

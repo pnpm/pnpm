@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 1002.1.19
+
+### Patch Changes
+
+- Updated dependencies [217fbe0]
+  - @pnpm/config@1004.11.5
+
 ## 1002.1.18
 
 ### Patch Changes

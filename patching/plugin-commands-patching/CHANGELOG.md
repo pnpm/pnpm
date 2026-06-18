@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.52
+
+### Patch Changes
+
+- 352ae48: Prevent `pnpm patch-remove` from removing files outside the configured patches directory.
+- Updated dependencies [217fbe0]
+  - @pnpm/config@1004.11.5
+  - @pnpm/cli-utils@1001.3.15
+  - @pnpm/plugin-commands-installation@1004.10.4
+  - @pnpm/store-connection-manager@1002.3.24
+
 ## 1000.3.51
 
 ### Patch Changes
