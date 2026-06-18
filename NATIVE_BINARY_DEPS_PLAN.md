@@ -9,13 +9,17 @@ native binaries as `optionalDependencies` (`pacquet`, `@pnpm/pacquet`, `@pnpm/ex
 install **only the one matching platform's native binary** and link its bin directly —
 no Node launcher shim, no lifecycle scripts.
 
-## Approach: reuse the existing variants pipeline
+## Approach: extend the npm resolver to emit one more resolution type
 
 pnpm and pacquet already have the full `variations`/`binary` resolution pipeline,
-used today only by the `runtime:` engine resolvers (node/bun/deno). We add **one new
-resolver per stack** that synthesizes a `VariationsResolution` for the listed
-packages. Everything downstream (lockfile, `selectPlatformVariant`, `BinaryFetcher`,
-bin-linking, no-scripts) is reused unchanged.
+used today only by the `runtime:` engine resolvers (node/bun/deno). The runtime
+resolvers are *separate* resolvers only because they fetch from non-npm sources.
+Native-deps packages are plain registry packages, so the synthesis belongs **inside
+the npm resolver** — it already fetches the wrapper packument and picks the version;
+it just returns a `VariationsResolution` instead of a `TarballResolution` for matching
+packages. No new resolver package, no resolver-chain change. Everything downstream
+(lockfile, `selectPlatformVariant`, `BinaryFetcher`, bin-linking, no-scripts) is reused
+unchanged.
 
 ### Synthesis shape (settled)
 
@@ -54,14 +58,18 @@ the binary inside each platform package is the **command name** at the package r
 
 ## pnpm (TypeScript) change map
 
-1. New package `resolving/native-binary-resolver` (template: `engine/runtime/node-resolver`).
-   - `resolveNativeBinaryDeps(ctx, wantedDependency, opts)`: claims the dep when
-     `alias ∈ nativeDependencies`, uses npm resolution for the wrapper, fetches each
-     platform packument, returns the `VariationsResolution`.
-2. Wire into the chain in `resolving/default-resolver/src/index.ts:133-144`, **before**
-   `resolveFromNpm` (it internally calls npm resolution for the wrapper + platform deps).
-   Thread the `nativeDependencies` list through `createResolver` options.
-3. Config setting:
+1. Branch inside `resolving/npm-resolver/src/index.ts` at the resolution-construction
+   site (~`:588-607`, where `pickedPackage` + the `TarballResolution` are built):
+   when `pickedPackage.name ∈ nativeDependencies` and `pickedPackage.optionalDependencies`
+   has platform packages, fetch each platform packument via the existing `ctx.pickPackage`
+   machinery, build the `variants`, and return `resolution: { type: 'variations', variants }`
+   plus a `manifest.bin` mapping. Otherwise return the normal tarball resolution.
+   - Widen `NpmResolveResult.resolution` to `TarballResolution | VariationsResolution`.
+   - Thread `nativeDependencies` into `createNpmResolver` ctx (it's created in
+     `default-resolver` from `pnpmOpts`).
+   - Guard: only take the native path when ≥1 optional dep matches a real platform
+     target; else fall through to the tarball (same guard Bun uses).
+2. Config setting:
    - `config/reader/src/types.ts` (pnpmTypes) — add `native-dependencies: Array`.
    - `config/reader/src/Config.ts` — `nativeDependencies?: string[]`.
    - `core/types/src/package.ts` (PnpmSettings) — `nativeDependencies?: string[]`.
