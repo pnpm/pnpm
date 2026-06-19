@@ -432,13 +432,14 @@ struct BfsEntry<'a> {
 /// (`<virtual_store_dir>/<key.virtual_store_name>/`); the hoist code
 /// never has to branch on `enable_global_virtual_store` itself.
 ///
-/// Existing symlinks are left in place — `EEXIST` from the underlying
-/// [`pacquet_fs::symlink_dir`] is swallowed, mirroring upstream's
-/// `symlinkDir({ overwrite: false })`. The "overwrite a
-/// virtual-store-resident link" branch upstream additionally does
-/// (via `resolveLinkTarget` + `isSubdir`) is intentionally not
-/// ported — see the `external_symlink_introspection` `known_failure`
-/// reason.
+/// Existing symlinks are introspected — if the existing entry is a
+/// symlink pointing at a target inside the virtual store
+/// (`layout.package_store_dir()` — the GVS links dir or the local
+/// `.pnpm` dir) or inside the internal pnpm directory (the parent of
+/// `private_hoisted_modules_dir`), the stale symlink is replaced.
+/// External symlinks (or non-symlink occupants) are left in place.
+/// Mirrors upstream's `resolveLinkTarget` + `isSubdir` pattern in
+/// [`symlinkHoistedDependency`](https://github.com/pnpm/pnpm/blob/cbe1a171bd/installing/linking/hoist/src/index.ts#L310-L343).
 ///
 /// Two-phase to amortize directory creation:
 ///
@@ -549,7 +550,16 @@ pub fn symlink_hoisted_dependencies(
             let dest = target_dir_root.join(alias);
             match pacquet_fs::symlink_dir(dep_dir.as_path(), &dest) {
                 Ok(()) => Ok(()),
-                Err(error) if error.kind() == ErrorKind::AlreadyExists => Ok(()),
+                Err(ref error) if error.kind() == ErrorKind::AlreadyExists => {
+                    update_stale_hoist_symlink(
+                        dep_dir.as_path(),
+                        &dest,
+                        layout.package_store_dir(),
+                        private_hoisted_modules_dir.parent().expect(
+                            "private_hoisted_modules_dir (<vs>/node_modules) always has a parent",
+                        ),
+                    )
+                }
                 Err(error) => Err(crate::SymlinkPackageError::SymlinkDir {
                     symlink_target: dep_dir.as_path().to_path_buf(),
                     symlink_path: dest,
@@ -569,6 +579,48 @@ fn name_to_dir(name: &PkgName) -> std::path::PathBuf {
         Some(scope) => std::path::PathBuf::from(format!("@{scope}")).join(&name.bare),
         None => std::path::PathBuf::from(&name.bare),
     }
+}
+
+/// Read the existing symlink at `dest` and decide whether it should
+/// be replaced. If it points inside `package_store_dir` or
+/// `internal_pnpm_dir` (a pnpm-internal symlink — e.g., a stale link
+/// from a prior non-GVS install), remove it and create a new symlink
+/// to `dep_dir`. External symlinks are left in place.
+///
+/// Mirrors upstream's
+/// [`symlinkHoistedDependency`](https://github.com/pnpm/pnpm/blob/cbe1a171bd/installing/linking/hoist/src/index.ts#L310-L343)
+/// `isSubdir(virtualStoreDir, …) || isSubdir(internalPnpmDir, …)` guard.
+fn update_stale_hoist_symlink(
+    dep_dir: &std::path::Path,
+    dest: &std::path::Path,
+    package_store_dir: &std::path::Path,
+    internal_pnpm_dir: &std::path::Path,
+) -> Result<(), crate::SymlinkPackageError> {
+    let Ok(existing_raw) = pacquet_fs::read_symlink_dir(dest) else {
+        return Ok(());
+    };
+    let existing = if existing_raw.is_relative() {
+        dest.parent().unwrap_or_else(|| std::path::Path::new("")).join(&existing_raw)
+    } else {
+        existing_raw
+    };
+    if !pacquet_fs::is_subdir(package_store_dir, &existing)
+        && !pacquet_fs::is_subdir(internal_pnpm_dir, &existing)
+    {
+        return Ok(());
+    }
+    pacquet_fs::remove_symlink_dir(dest).map_err(|error| {
+        crate::SymlinkPackageError::SymlinkDir {
+            symlink_target: dep_dir.to_path_buf(),
+            symlink_path: dest.to_path_buf(),
+            error,
+        }
+    })?;
+    pacquet_fs::symlink_dir(dep_dir, dest).map_err(|error| crate::SymlinkPackageError::SymlinkDir {
+        symlink_target: dep_dir.to_path_buf(),
+        symlink_path: dest.to_path_buf(),
+        error,
+    })
 }
 
 #[cfg(test)]

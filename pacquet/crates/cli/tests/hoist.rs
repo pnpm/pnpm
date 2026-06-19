@@ -641,17 +641,6 @@ mod known_failures {
         ))
     }
 
-    fn external_symlink_introspection() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet's `symlink_package` swallows EEXIST silently — the \
-             conservative path. Upstream additionally introspects the \
-             existing entry via `resolveLinkTarget` + `isSubdir` to \
-             distinguish a real directory (preserve), an external \
-             symlink (preserve), and a virtual-store-resident symlink \
-             (overwrite). That introspection isn't ported yet.",
-        ))
-    }
-
     /// Upstream: [`hoist.ts:24` "should hoist dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L24).
     /// Repeats the install both as non-headless and as
     /// `frozenLockfile: true` to assert `hoistedDependencies` is
@@ -661,18 +650,6 @@ mod known_failures {
     #[test]
     fn should_hoist_dependencies_repeat_install_preserves_map() {
         allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    /// Upstream: [`hoist.ts:71` "public hoist should not override directories that are already in the root of node_modules"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L71).
-    /// Tests that pre-existing real directories at the public hoist
-    /// target are preserved. Pacquet's `symlink_package` returns Ok
-    /// on `EEXIST` — the conservative path — but the upstream test
-    /// also covers the "external symlink" case which requires the
-    /// `resolveLinkTarget` + `isSubdir` introspection pacquet doesn't
-    /// yet do.
-    #[test]
-    fn public_hoist_preserves_existing_root_directories() {
-        allow_known_failure!(external_symlink_introspection());
     }
 
     /// Upstream: [`hoist.ts:121` "should remove hoisted dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L121).

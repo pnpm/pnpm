@@ -108,6 +108,45 @@ test('warm GVS reinstall skips internal linking', async () => {
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
 })
 
+test('switching from non-GVS to GVS replaces stale hoisted symlinks', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    storeDir,
+    privateHoistPattern: '*',
+  })
+  await execPnpm(['install'])
+
+  const depOfPkgWith1Dep = path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(fs.existsSync(depOfPkgWith1Dep)).toBeTruthy()
+  const oldTarget = path.resolve(path.dirname(depOfPkgWith1Dep), fs.readlinkSync(depOfPkgWith1Dep))
+  expect(oldTarget).toContain('.pnpm')
+
+  writeYamlFileSync(path.resolve('pnpm-workspace.yaml'), {
+    enableGlobalVirtualStore: true,
+    storeDir,
+    privateHoistPattern: '*',
+  })
+  await execPnpm(['install', '--config.confirmModulesPurge=false'])
+
+  const newTarget = path.resolve(path.dirname(depOfPkgWith1Dep), fs.readlinkSync(depOfPkgWith1Dep))
+  expect(newTarget).toContain(path.join(storeDir, 'v11', 'links'))
+
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
+
+  const globalVirtualStoreDir = path.join(storeDir, 'v11/links')
+  const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
+  expect(files).toHaveLength(1)
+  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+})
+
 test('the post-install build step preserves the global virtual store directory of a workspace package', async () => {
   // A workspace package that is also its own workspace root (its own
   // pnpm-workspace.yaml and lockfile). The root install runs a per-project

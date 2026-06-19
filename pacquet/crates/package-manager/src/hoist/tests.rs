@@ -474,6 +474,123 @@ fn build_hoist_graph_walks_dependencies() {
     assert!(!b_node.has_bin);
 }
 
+#[test]
+fn update_stale_hoist_symlink_replaces_virtual_store_resident_symlink() {
+    let dir = tempfile::tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("store/links");
+    std::fs::create_dir_all(&virtual_store_dir).unwrap();
+    let internal_pnpm_dir = dir.path().join("node_modules/.pnpm");
+    std::fs::create_dir_all(&internal_pnpm_dir).unwrap();
+    let private_hoisted = internal_pnpm_dir.join("node_modules");
+    std::fs::create_dir_all(&private_hoisted).unwrap();
+
+    let dep_dir = virtual_store_dir.join("@scope/name/1.0.0/hash/node_modules/@scope/name");
+    std::fs::create_dir_all(&dep_dir).unwrap();
+    let dest = private_hoisted.join("stale-dep");
+
+    let stale_target = virtual_store_dir.join("old-dep/node_modules/old-dep");
+    std::fs::create_dir_all(stale_target.parent().unwrap()).unwrap();
+    std::fs::create_dir_all(&stale_target).unwrap();
+    pacquet_fs::symlink_dir(&stale_target, &dest).unwrap();
+
+    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
+        .expect("should replace virtual-store-resident symlink");
+
+    let new_target_raw = std::fs::read_link(&dest).unwrap();
+    let new_target_abs =
+        pacquet_fs::lexical_normalize(&dest.parent().unwrap().join(&new_target_raw));
+    assert!(
+        pacquet_fs::is_subdir(&virtual_store_dir, &new_target_abs),
+        "stale symlink should be replaced with new target under virtual store dir; \
+         readlink returned {new_target_raw:?} → {new_target_abs:?}, expected under {virtual_store_dir:?}",
+    );
+}
+
+#[test]
+fn update_stale_hoist_symlink_replaces_internal_pnpm_symlink() {
+    let dir = tempfile::tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("store/links");
+    std::fs::create_dir_all(&virtual_store_dir).unwrap();
+    let internal_pnpm_dir = dir.path().join("node_modules/.pnpm");
+    std::fs::create_dir_all(&internal_pnpm_dir).unwrap();
+    let private_hoisted = internal_pnpm_dir.join("node_modules");
+    std::fs::create_dir_all(&private_hoisted).unwrap();
+
+    let dep_dir = virtual_store_dir.join("@scope/new-pkg/2.0.0/hash/node_modules/@scope/new-pkg");
+    std::fs::create_dir_all(&dep_dir).unwrap();
+    let dest = private_hoisted.join("stale-internal-dep");
+
+    let stale_target = internal_pnpm_dir.join("old-pkg/node_modules/old-pkg");
+    std::fs::create_dir_all(stale_target.parent().unwrap()).unwrap();
+    std::fs::create_dir_all(&stale_target).unwrap();
+    pacquet_fs::symlink_dir(&stale_target, &dest).unwrap();
+
+    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
+        .expect("should replace internal-pnpm-resident symlink");
+
+    let new_target_raw = std::fs::read_link(&dest).unwrap();
+    let new_target_abs =
+        pacquet_fs::lexical_normalize(&dest.parent().unwrap().join(&new_target_raw));
+    assert!(
+        pacquet_fs::is_subdir(&virtual_store_dir, &new_target_abs),
+        "stale symlink should be replaced with new target under virtual store dir; \
+         readlink returned {new_target_raw:?} → {new_target_abs:?}, expected under {virtual_store_dir:?}",
+    );
+}
+
+#[test]
+fn update_stale_hoist_symlink_preserves_external_symlink() {
+    let dir = tempfile::tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("store/links");
+    std::fs::create_dir_all(&virtual_store_dir).unwrap();
+    let internal_pnpm_dir = dir.path().join("node_modules/.pnpm");
+    std::fs::create_dir_all(&internal_pnpm_dir).unwrap();
+    let private_hoisted = internal_pnpm_dir.join("node_modules");
+    std::fs::create_dir_all(&private_hoisted).unwrap();
+
+    let dep_dir = virtual_store_dir.join("@scope/name/1.0.0/hash/node_modules/@scope/name");
+    std::fs::create_dir_all(&dep_dir).unwrap();
+    let dest = private_hoisted.join("external-dep");
+
+    let external_target = dir.path().join("some-project/node_modules/external-pkg");
+    std::fs::create_dir_all(external_target.parent().unwrap()).unwrap();
+    std::fs::create_dir_all(&external_target).unwrap();
+    pacquet_fs::symlink_dir(&external_target, &dest).unwrap();
+
+    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
+        .expect("should preserve external symlink");
+
+    let target = std::fs::read_link(&dest).unwrap();
+    let target_abs = dest.parent().unwrap().join(&target);
+    assert!(
+        pacquet_fs::lexical_normalize(&target_abs)
+            == pacquet_fs::lexical_normalize(&external_target),
+        "external symlink must be preserved unchanged",
+    );
+}
+
+#[test]
+fn update_stale_hoist_symlink_preserves_regular_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("store/links");
+    std::fs::create_dir_all(&virtual_store_dir).unwrap();
+    let internal_pnpm_dir = dir.path().join("node_modules/.pnpm");
+    std::fs::create_dir_all(&internal_pnpm_dir).unwrap();
+    let private_hoisted = internal_pnpm_dir.join("node_modules");
+    std::fs::create_dir_all(&private_hoisted).unwrap();
+
+    let dep_dir = virtual_store_dir.join("@scope/name/1.0.0/hash/node_modules/@scope/name");
+    std::fs::create_dir_all(&dep_dir).unwrap();
+    let dest = private_hoisted.join("existing-dir-dep");
+
+    std::fs::create_dir(&dest).unwrap();
+
+    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
+        .expect("should preserve directory");
+
+    assert!(dest.is_dir(), "regular directory must be preserved");
+}
+
 /// Helper: extract the (alias, kind) pairs at a given snapshot key
 /// for assertion purposes. Sorted for stable comparison.
 fn kinds_for(map: &HoistedDependencies, key: &str) -> Vec<(String, HoistKind)> {

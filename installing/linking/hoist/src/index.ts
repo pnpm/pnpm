@@ -276,7 +276,10 @@ async function symlinkHoistedDependencies<T extends string> (
     hoistedWorkspacePackages?: Record<string, HoistedWorkspaceProject>
   }
 ): Promise<void> {
-  const symlink = symlinkHoistedDependency.bind(null, opts)
+  const symlink = symlinkHoistedDependency.bind(null, {
+    virtualStoreDir: opts.virtualStoreDir,
+    internalPnpmDir: path.dirname(opts.privateHoistedModulesDir),
+  })
   const promises: Array<Promise<void>> = []
   for (const [hoistedDepNodeId, pkgAliases] of hoistedDependenciesByNodeId.entries()) {
     promises.push((async () => {
@@ -305,7 +308,7 @@ async function symlinkHoistedDependencies<T extends string> (
 }
 
 async function symlinkHoistedDependency (
-  opts: { virtualStoreDir: string },
+  opts: { virtualStoreDir: string, internalPnpmDir: string },
   depLocation: string,
   dest: string
 ): Promise<void> {
@@ -326,7 +329,7 @@ async function symlinkHoistedDependency (
     })
     return
   }
-  if (!isSubdir(opts.virtualStoreDir, existingSymlink)) {
+  if (!isSubdir(opts.virtualStoreDir, existingSymlink) && !isSubdir(opts.internalPnpmDir, existingSymlink)) {
     hoistLogger.debug({
       skipped: dest,
       existingSymlink,
