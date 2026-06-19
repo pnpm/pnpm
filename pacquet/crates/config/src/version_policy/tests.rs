@@ -152,7 +152,7 @@ fn create_policy_merges_exact_versions_and_unions_for_same_name() {
 #[test]
 fn create_policy_deduplicates_repeated_versions_across_rules() {
     let policy = create_package_version_policy(["form-data@4.0.6", "form-data@4.0.6"]).unwrap();
-    assert_eq!(policy.matches("form-data"), PolicyMatch::ExactVersions(vec!["4.0.6".to_string()]),);
+    assert_eq!(policy.matches("form-data"), PolicyMatch::ExactVersions(vec!["4.0.6".to_string()]));
 }
 
 #[test]
