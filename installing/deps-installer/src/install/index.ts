@@ -1,4 +1,4 @@
-import os from 'node:os'
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
@@ -261,8 +261,10 @@ async function getLocalFileDependencyProjects (
   opts: Pick<InstallOptions, 'autoInstallPeers' | 'ignoreLocalPackages' | 'includeDirect'>
 ): Promise<ProjectOptions[]> {
   if (opts.ignoreLocalPackages) return []
-  const localFileDependencyDirs: string[] = []
-  const seen = new Set<string>([path.resolve(rootDir)])
+  const resolvedRootDir = path.resolve(rootDir)
+  const rootDirRealPath = await realpathOrSelf(resolvedRootDir)
+  const candidateDirs: string[] = []
+  const seenCandidateDirs = new Set<string>([resolvedRootDir])
   for (const wantedDependency of getWantedDependencies(manifest, {
     autoInstallPeers: opts.autoInstallPeers ?? true,
     includeDirect: opts.includeDirect,
@@ -270,8 +272,20 @@ async function getLocalFileDependencyProjects (
     const localFileDir = resolveLocalFileDir(wantedDependency.bareSpecifier, rootDir)
     if (localFileDir == null) continue
     const resolvedDir = path.resolve(localFileDir)
-    if (seen.has(resolvedDir)) continue
+    if (seenCandidateDirs.has(resolvedDir) || !isSubdir(resolvedRootDir, resolvedDir)) continue
+    seenCandidateDirs.add(resolvedDir)
+    candidateDirs.push(resolvedDir)
+  }
+  const localFileDependencyDirs: string[] = []
+  const seen = new Set<string>([resolvedRootDir, rootDirRealPath])
+  const candidatesWithRealPaths = await Promise.all(candidateDirs.map(async (resolvedDir) => ({
+    resolvedDir,
+    resolvedDirRealPath: await realpathOrSelf(resolvedDir),
+  })))
+  for (const { resolvedDir, resolvedDirRealPath } of candidatesWithRealPaths) {
+    if (seen.has(resolvedDir) || seen.has(resolvedDirRealPath) || !isSubdir(rootDirRealPath, resolvedDirRealPath)) continue
     seen.add(resolvedDir)
+    seen.add(resolvedDirRealPath)
     localFileDependencyDirs.push(resolvedDir)
   }
   const localFileDependencyManifests = await Promise.all(localFileDependencyDirs.map(async (localFileDependencyDir) => ({
@@ -304,14 +318,21 @@ function mergeIgnoredBuilds (
 
 const LOCAL_TARBALL_SPECIFIER = /\.(?:tgz|tar(?:\.gz)?)$/i
 
+async function realpathOrSelf (dir: string): Promise<string> {
+  try {
+    return await fs.realpath(dir)
+  } catch {
+    return dir
+  }
+}
+
 function resolveLocalFileDir (specifier: string, rootDir: ProjectRootDir): string | null {
   if (!specifier.startsWith('file:') || LOCAL_TARBALL_SPECIFIER.test(specifier)) return null
   const filePath = specifier
     .slice('file:'.length)
     .replace(/\\/g, '/')
     .replace(/^\/+([a-z]:)/i, '$1')
-  if (!filePath) return null
-  if (filePath.startsWith('~/')) return path.resolve(os.homedir(), filePath.slice(2))
+  if (!filePath || filePath.startsWith('~/') || path.isAbsolute(filePath) || /^[a-z]:(?:\/|$)/i.test(filePath)) return null
   return path.resolve(rootDir, filePath)
 }
 

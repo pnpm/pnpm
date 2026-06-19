@@ -98,7 +98,7 @@ test('local directory with no package.json', async () => {
 
 test('install also installs direct file directory dependency projects', async () => {
   const project = prepareEmpty()
-  const localPkgDir = fs.mkdtempSync(path.resolve('..', 'local-pkg-install-test-'))
+  const localPkgDir = fs.mkdtempSync(path.resolve('local-pkg-install-test-'))
   try {
     fs.writeFileSync(path.join(localPkgDir, 'package.json'), JSON.stringify({
       name: 'local-pkg',
@@ -131,7 +131,7 @@ test('install also installs direct file directory dependency projects', async ()
 
 test('lockfileOnly skips direct file directory dependency projects but frozen install does not', async () => {
   const project = prepareEmpty()
-  const localPkgDir = fs.mkdtempSync(path.resolve('..', 'local-pkg-install-test-'))
+  const localPkgDir = fs.mkdtempSync(path.resolve('local-pkg-install-test-'))
   try {
     fs.writeFileSync(path.join(localPkgDir, 'package.json'), JSON.stringify({
       name: 'local-pkg',
@@ -154,6 +154,32 @@ test('lockfileOnly skips direct file directory dependency projects but frozen in
     await install(manifest, testDefaults({ frozenLockfile: true }))
     project.has('local-pkg')
     expect(fs.existsSync(path.join(localPkgDir, 'node_modules', 'is-positive'))).toBe(true)
+  } finally {
+    rimrafSync(localPkgDir)
+  }
+})
+
+test('install does not install direct file directory dependency projects outside the project root', async () => {
+  const project = prepareEmpty()
+  const localPkgDir = fs.mkdtempSync(path.resolve('..', 'local-pkg-install-test-'))
+  try {
+    fs.writeFileSync(path.join(localPkgDir, 'package.json'), JSON.stringify({
+      name: 'local-pkg',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    }), 'utf8')
+
+    await install({
+      dependencies: {
+        'local-pkg': `file:${normalizePath(path.relative(process.cwd(), localPkgDir))}`,
+      },
+    }, testDefaults())
+
+    project.has('local-pkg')
+    expect(fs.existsSync(path.join(localPkgDir, 'pnpm-lock.yaml'))).toBe(false)
+    expect(fs.existsSync(path.join(localPkgDir, 'node_modules'))).toBe(false)
   } finally {
     rimrafSync(localPkgDir)
   }
