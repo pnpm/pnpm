@@ -49,8 +49,12 @@ pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::R
     Ok(())
 }
 
-/// Set file mode to 777 on POSIX platforms such as Linux or macOS,
-/// or do nothing on Windows.
+/// Add the executable bits (`u+x g+x o+x`) to `file`, a no-op on Windows.
+///
+/// Skips the `set_permissions` syscall (and the ctime bump it would cause) when
+/// every exec bit is already set, so re-asserting executability on an
+/// already-correct file — a copy or a macOS reflink that carried the store mode
+/// across — costs only the stat.
 #[cfg_attr(windows, allow(unused))]
 pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
     #[cfg(unix)]
@@ -60,9 +64,10 @@ pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
             os::unix::fs::{MetadataExt, PermissionsExt},
         };
         let mode = file.metadata()?.mode();
-        let mode = mode | EXEC_MASK;
-        let permissions = Permissions::from_mode(mode);
-        file.set_permissions(permissions)
+        if mode & EXEC_MASK == EXEC_MASK {
+            return Ok(());
+        }
+        file.set_permissions(Permissions::from_mode(mode | EXEC_MASK))
     };
 
     #[cfg(windows)]

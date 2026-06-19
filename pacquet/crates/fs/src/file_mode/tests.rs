@@ -36,6 +36,26 @@ fn make_file_executable_sets_exec_bits() {
     assert_eq!(mode & EXEC_MASK, EXEC_MASK, "all exec bits should be set, got {mode:o}");
 }
 
+/// The already-exec short-circuit must only fire when *every* exec bit is set:
+/// a partially-executable `0o744` still has to be filled to `0o755`, while an
+/// already-`0o755` file is left exactly as-is.
+#[cfg(unix)]
+#[test]
+fn make_file_executable_fills_partial_bits_and_preserves_full() {
+    use super::make_file_executable;
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
+    let file = tmp.as_file();
+
+    file.set_permissions(std::fs::Permissions::from_mode(0o744)).expect("seed 0o744");
+    make_file_executable(file).expect("fill partial exec bits");
+    assert_eq!(file.metadata().unwrap().permissions().mode() & 0o777, 0o755);
+
+    make_file_executable(file).expect("already executable");
+    assert_eq!(file.metadata().unwrap().permissions().mode() & 0o777, 0o755);
+}
+
 /// A CAS source ending in `-exec` re-adds the exec bits to a target that
 /// lost them (e.g. a `0o644` file a Linux `FICLONE` reflink just created).
 /// The suffix is the source of truth, so the target ends up `0o755`.

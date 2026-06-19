@@ -249,8 +249,7 @@ fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
 /// freshly-created `0o644` target and drops the source's exec bit, so the
 /// same `-exec`-suffix restoration the copy tier does is required here.
 /// (macOS `clonefile` already carries the mode across, so the restoration
-/// leaves it unchanged — it still runs for platform parity, paying one
-/// redundant `set_permissions` per executable there.)
+/// finds the bits already set and skips the chmod.)
 fn clone_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     reflink_copy::reflink(source_file, target_link)?;
     restore_after_reflink(source_file, target_link)
