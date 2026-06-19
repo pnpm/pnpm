@@ -1,5 +1,5 @@
 ---
-"@pnpm/resolving.tarball-url": major
+"@pnpm/resolving.tarball-url": minor
 "@pnpm/lockfile.utils": patch
 "@pnpm/installing.env-installer": patch
 "pnpm": patch

@@ -344,8 +344,8 @@ pub fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
 
 /// Whether `tarball` is the canonical npm registry URL derived from `name`,
 /// `version`, and `registry` — i.e. it can be dropped from the lockfile and
-/// rebuilt on demand. The `%2f` unescape matches the URLs npm produces for
-/// scoped packages.
+/// rebuilt on demand. Percent-encoding is case-insensitive, so the unescape
+/// matches both `%2f` and `%2F` in the URLs npm produces for scoped packages.
 fn is_canonical_registry_tarball_url(
     tarball: &str,
     name: &str,
@@ -353,7 +353,7 @@ fn is_canonical_registry_tarball_url(
     registry: &str,
 ) -> bool {
     let expected = npm_tarball_url(name, version, registry);
-    let actual = tarball.replace("%2f", "/");
+    let actual = tarball.replace("%2f", "/").replace("%2F", "/");
     remove_protocol(&expected) == remove_protocol(&actual)
 }
 
@@ -395,10 +395,19 @@ fn scope_of(name: &str) -> Option<&str> {
     name.find('/').map(|sep| &name[..sep])
 }
 
-/// Strip the URL scheme (everything up to and including `://`). Port of pnpm's
-/// `removeProtocol` (`url.split('://')[1]`).
+/// Strip only a leading `http://` or `https://` scheme (case-insensitive) so
+/// URLs are compared protocol-insensitively, without truncating on a later
+/// `://` in the path or query. Port of pnpm's `removeProtocol`
+/// (`url.replace(/^https?:\/\//i, '')`).
 fn remove_protocol(url: &str) -> &str {
-    url.split_once("://").map_or(url, |(_, rest)| rest)
+    ["https://", "http://"]
+        .into_iter()
+        .find_map(|scheme| {
+            url.get(..scheme.len())
+                .filter(|head| head.eq_ignore_ascii_case(scheme))
+                .map(|_| &url[scheme.len()..])
+        })
+        .unwrap_or(url)
 }
 
 /// Intermediate helper type for serde.

@@ -648,3 +648,46 @@ fn to_lockfile_form_keeps_git_hosted_subdirectory_path_when_including_tarball_ur
     let actual = resolution.to_lockfile_form("foo", "1.0.0", "https://registry.npmjs.org/", true);
     assert_eq!(actual, resolution);
 }
+
+/// Percent-encoding is case-insensitive, so a scoped tarball using uppercase
+/// `%2F` is still the canonical URL and must be dropped just like `%2f`.
+#[test]
+fn to_lockfile_form_drops_scoped_tarball_with_uppercase_percent_encoding() {
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: "https://registry.npmjs.org/@babel%2Fcore/-/core-7.0.0.tgz".to_string(),
+        integrity: Some(integrity(SHA512)),
+        git_hosted: None,
+        path: None,
+    });
+    let actual =
+        resolution.to_lockfile_form("@babel/core", "7.0.0", "https://registry.npmjs.org/", false);
+    assert_eq!(
+        actual,
+        LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
+    );
+}
+
+/// A URL that merely starts with the canonical URL but carries a trailing
+/// `://suffix` is not canonical: stripping only the leading scheme keeps the
+/// suffix, so it must not be dropped (the previous split-on-first-`://` logic
+/// treated it as canonical).
+#[test]
+fn to_lockfile_form_keeps_tarball_with_trailing_scheme_separator() {
+    let tarball = "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz://suffix".to_string();
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: tarball.clone(),
+        integrity: Some(integrity(SHA512)),
+        git_hosted: None,
+        path: None,
+    });
+    let actual = resolution.to_lockfile_form("foo", "1.0.0", "https://registry.npmjs.org/", false);
+    assert_eq!(
+        actual,
+        LockfileResolution::Tarball(TarballResolution {
+            tarball,
+            integrity: Some(integrity(SHA512)),
+            git_hosted: None,
+            path: None,
+        }),
+    );
+}
