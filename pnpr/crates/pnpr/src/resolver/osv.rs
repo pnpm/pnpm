@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     fs::File,
     io::{Read, Seek},
@@ -77,12 +78,15 @@ impl OsvIndex {
     }
 
     pub(crate) fn vulnerability_ids(&self, name: &str, version: &str) -> Vec<String> {
-        let Some(advisories) = self.packages.get(name) else {
+        let Some(advisories) = self.packages.get(normalized_name(name).as_ref()) else {
             return Vec::new();
         };
+        // Parse the candidate once and share it across every advisory's
+        // range check; exact-version advisories never need the parse.
+        let parsed = Version::parse(version).ok();
         advisories
             .iter()
-            .filter(|advisory| advisory.affects(version))
+            .filter(|advisory| advisory.affects(version, parsed.as_ref()))
             .map(|advisory| advisory.id.clone())
             .collect()
     }
@@ -115,14 +119,14 @@ struct Advisory {
 }
 
 impl Advisory {
-    fn affects(&self, version: &str) -> bool {
+    fn affects(&self, version: &str, parsed: Option<&Version>) -> bool {
         if self.versions.contains(version) {
             return true;
         }
-        let Ok(parsed) = Version::parse(version) else {
+        let Some(parsed) = parsed else {
             return false;
         };
-        self.ranges.iter().any(|range| range.affects(&parsed))
+        self.ranges.iter().any(|range| range.affects(parsed))
     }
 }
 
@@ -329,7 +333,7 @@ fn ingest_record_bytes(
         if package.ecosystem != "npm" {
             continue;
         }
-        let name = package.name.clone();
+        let name = normalized_name(&package.name).into_owned();
         let advisory = advisory_from_affected(&record.id, affected);
         if advisory.versions.is_empty() && advisory.ranges.is_empty() {
             continue;
@@ -337,6 +341,19 @@ fn ingest_record_bytes(
         packages.entry(name).or_default().push(advisory);
     }
     Ok(())
+}
+
+/// Fold an npm package name to its case-insensitive key. npm forbids
+/// names that differ only in case, so lowercasing can't collide two
+/// distinct packages, and it keeps OSV lookups from missing an advisory
+/// when a lockfile name and the OSV dump disagree on casing. Borrows
+/// when the name is already lowercase (the common case).
+fn normalized_name(name: &str) -> Cow<'_, str> {
+    if name.bytes().any(|byte| byte.is_ascii_uppercase()) {
+        Cow::Owned(name.to_ascii_lowercase())
+    } else {
+        Cow::Borrowed(name)
+    }
 }
 
 fn advisory_from_affected(id: &str, affected: OsvAffected) -> Advisory {
