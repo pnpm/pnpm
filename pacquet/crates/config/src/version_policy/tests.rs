@@ -125,9 +125,6 @@ fn create_policy_distinct_name_rules() {
 
 #[test]
 fn create_policy_multiple_exact_version_rules_for_same_name_merge() {
-    // Regression test for pnpm/pnpm#12463: two separate exact-version
-    // entries for the same package must behave the same as a single
-    // disjunction entry containing the same versions.
     let policy = create_package_version_policy(["form-data@4.0.6", "form-data@2.5.6"]).unwrap();
     assert_eq!(
         policy.matches("form-data"),
@@ -157,20 +154,12 @@ fn create_policy_deduplicates_repeated_versions_across_rules() {
 
 #[test]
 fn create_policy_bare_rule_after_exact_keeps_exact_versions() {
-    // Once an exact-version rule has matched, a later bare-name rule
-    // with the same name must not widen the policy to every version —
-    // a wildcard listed after an exact rule would otherwise silently
-    // bypass the version restriction.
     let policy = create_package_version_policy(["axios@1.12.2", "axios"]).unwrap();
     assert_eq!(policy.matches("axios"), PolicyMatch::ExactVersions(vec!["1.12.2".to_string()]));
 }
 
 #[test]
 fn create_policy_bare_rule_listed_first_wins_over_later_exact() {
-    // First-match precedence between bare-name and exact-version
-    // rules: an `AnyVersion` rule listed first keeps its `true`
-    // semantics; a later exact entry for the same name does not
-    // narrow it.
     let policy = create_package_version_policy(["axios", "axios@1.12.2"]).unwrap();
     assert_eq!(policy.matches("axios"), PolicyMatch::AnyVersion);
 }

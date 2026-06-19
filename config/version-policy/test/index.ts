@@ -65,22 +65,14 @@ test('createPackageVersionPolicy()', () => {
     expect(match('form-data')).toStrictEqual(['4.0.6'])
   }
   {
-    // Once an exact-version rule has matched for the package, a later
-    // bare-name rule with the same name doesn't widen the policy to
-    // every version — the accumulated exact list wins.
     const match = createPackageVersionPolicy(['axios@1.12.2', 'axios'])
     expect(match('axios')).toStrictEqual(['1.12.2'])
   }
   {
-    // First-match precedence for bare-vs-exact: a bare-name rule
-    // listed first keeps its `true` (every version) semantics; later
-    // exact entries for the same name don't narrow it.
     const match = createPackageVersionPolicy(['axios', 'axios@1.12.2'])
     expect(match('axios')).toBe(true)
   }
   {
-    // Wildcard listed after an exact rule must not silently widen the
-    // exact-version exclusion to every version of the package.
     const match = createPackageVersionPolicy(['axios@1.12.2', 'ax*'])
     expect(match('axios')).toStrictEqual(['1.12.2'])
   }

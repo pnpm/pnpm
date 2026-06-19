@@ -111,12 +111,9 @@ pub enum PolicyMatch {
 }
 
 /// Matcher-based version policy built from a list of
-/// `<name-pattern>[@<version>||<version>...]` rules. Rules are walked
-/// in source order: consecutive matching `name@version[...]` rules
-/// have their version lists merged in source order with duplicates
-/// removed, and a bare-name (or wildcard) match terminates the walk —
-/// returning `AnyVersion` if no exact versions were accumulated, or
-/// the accumulated `ExactVersions` otherwise. Mirrors upstream's
+/// `<name-pattern>[@<version>||<version>...]` rules. See
+/// [`PackageVersionPolicy::matches`] for the evaluation semantics.
+/// Mirrors upstream's
 /// [`createPackageVersionPolicy`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/version-policy/src/index.ts#L6-L13).
 ///
 /// Used by `minimumReleaseAgeExclude` and `trustPolicyExclude`, both
