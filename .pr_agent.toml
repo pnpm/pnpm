@@ -49,8 +49,8 @@ auto_approve_for_low_review_effort = 2
 comments_location_policy = "both"
 inline_comments_severity_threshold = 2
 issues_user_guidelines = """
-Apply the review framework in REVIEW_GUIDE.md. Security vulnerabilities are the first review priority; performance regressions in pnpm, pacquet, and pnpr are the second priority. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
+Apply the review framework in REVIEW_GUIDE.md. Flag, in priority order: (1) security vulnerabilities; (2) performance regressions in pnpm, pacquet, and pnpr; (3) violations of the repository's documented code style, comment rules, and engineering conventions in AGENTS.md (its "Code Style", "Comments", and "Conventions" sections) and CONTRIBUTING.md — for example: not throwing PnpmError for user-facing errors, swallowed or over-broad error handling, reimplementing logic an existing repo utility already provides, hardcoding configurable values that should flow through @pnpm/config and command options, or comments that merely restate the code. Do not repeat issues eslint already enforces. Surface only issues tied to changed code, and explain the exploit path, impact, hot path, or the specific documented rule that is violated.
 """
 compliance_user_guidelines = """
-Enforce the security-sensitive and performance-sensitive contracts described in REVIEW_GUIDE.md.
+Enforce the security, performance, and documented-convention contracts in REVIEW_GUIDE.md and in AGENTS.md (its "Code Style", "Comments", and "Conventions" sections).
 """
