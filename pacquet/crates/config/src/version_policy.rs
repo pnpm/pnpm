@@ -158,26 +158,26 @@ impl PackageVersionPolicy {
     /// when no rule matched.
     #[must_use]
     pub fn matches(&self, pkg_name: &str) -> PolicyMatch {
-        let mut merged: Option<Vec<String>> = None;
+        let mut merged: Option<(Vec<String>, HashSet<String>)> = None;
         for rule in &self.rules {
             if !rule.name_matcher.matches(pkg_name) {
                 continue;
             }
             if rule.exact_versions.is_empty() {
                 return match merged {
-                    Some(versions) => PolicyMatch::ExactVersions(versions),
+                    Some((versions, _)) => PolicyMatch::ExactVersions(versions),
                     None => PolicyMatch::AnyVersion,
                 };
             }
-            let acc = merged.get_or_insert_with(Vec::new);
+            let (acc, seen) = merged.get_or_insert_with(|| (Vec::new(), HashSet::new()));
             for version in &rule.exact_versions {
-                if !acc.iter().any(|v| v == version) {
+                if seen.insert(version.clone()) {
                     acc.push(version.clone());
                 }
             }
         }
         match merged {
-            Some(versions) => PolicyMatch::ExactVersions(versions),
+            Some((versions, _)) => PolicyMatch::ExactVersions(versions),
             None => PolicyMatch::No,
         }
     }

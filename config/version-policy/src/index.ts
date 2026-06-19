@@ -73,6 +73,7 @@ export function expandPackageVersionSpecs (specs: string[]): Set<string> {
 
 function evaluateVersionPolicy (rules: VersionPolicyRule[], pkgName: string): boolean | string[] {
   let matchedVersions: string[] | undefined
+  let seen: Set<string> | undefined
   for (const { nameMatcher, exactVersions } of rules) {
     if (!nameMatcher(pkgName)) {
       continue
@@ -81,12 +82,13 @@ function evaluateVersionPolicy (rules: VersionPolicyRule[], pkgName: string): bo
       return matchedVersions ?? true
     }
     if (matchedVersions == null) {
-      matchedVersions = [...exactVersions]
-    } else {
-      for (const version of exactVersions) {
-        if (!matchedVersions.includes(version)) {
-          matchedVersions.push(version)
-        }
+      matchedVersions = []
+      seen = new Set()
+    }
+    for (const version of exactVersions) {
+      if (!seen!.has(version)) {
+        seen!.add(version)
+        matchedVersions.push(version)
       }
     }
   }
