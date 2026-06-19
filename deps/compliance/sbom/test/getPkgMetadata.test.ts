@@ -7,7 +7,7 @@ import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 
-import { getPkgMetadata } from '../lib/getPkgMetadata.js'
+import { bugsUrlFromField, getPkgMetadata } from '../lib/getPkgMetadata.js'
 
 const DEFAULT_REGISTRIES = {
   default: 'https://registry.npmjs.org/',
@@ -131,5 +131,38 @@ describe('getPkgMetadata', () => {
     )
 
     expect(result).toEqual({})
+  })
+})
+
+describe('bugsUrlFromField', () => {
+  it('keeps well-formed http(s) URLs and normalizes the scheme', () => {
+    expect(bugsUrlFromField('https://github.com/a/b/issues')).toBe('https://github.com/a/b/issues')
+    expect(bugsUrlFromField('http://example.com/bugs')).toBe('http://example.com/bugs')
+    // Uppercase scheme is accepted and normalized to lowercase by `new URL`.
+    expect(bugsUrlFromField('HTTPS://github.com/a/b/issues')).toBe('https://github.com/a/b/issues')
+    expect(bugsUrlFromField('  https://github.com/a/b/issues  ')).toBe('https://github.com/a/b/issues')
+    expect(bugsUrlFromField({ url: 'https://github.com/a/b/issues' })).toBe('https://github.com/a/b/issues')
+  })
+
+  it('normalizes away control characters and whitespace instead of emitting them raw', () => {
+    // `new URL` strips CR/LF/tab and percent-encodes spaces, so a crafted value
+    // can't push raw whitespace or control chars into the SBOM url field.
+    expect(bugsUrlFromField('https://example.com/\r\nSet-Cookie: x')).toBe('https://example.com/Set-Cookie:%20x')
+    expect(bugsUrlFromField('https://example.com/a b')).toBe('https://example.com/a%20b')
+  })
+
+  it('strips embedded credentials so the SBOM does not leak them', () => {
+    expect(bugsUrlFromField('https://user:token@tracker.example/a/b/issues')).toBe('https://tracker.example/a/b/issues')
+    expect(bugsUrlFromField('https://only-user@tracker.example/x')).toBe('https://tracker.example/x')
+    expect(bugsUrlFromField({ url: 'https://u:p@tracker.example/i' })).toBe('https://tracker.example/i')
+  })
+
+  it('drops malformed URLs, non-http schemes, emails, and missing values', () => {
+    expect(bugsUrlFromField('https://')).toBeUndefined()
+    expect(bugsUrlFromField('not a url')).toBeUndefined()
+    expect(bugsUrlFromField('bugs@example.com')).toBeUndefined()
+    expect(bugsUrlFromField('mailto:bugs@example.com')).toBeUndefined()
+    expect(bugsUrlFromField({ email: 'bugs@example.com' })).toBeUndefined()
+    expect(bugsUrlFromField(undefined)).toBeUndefined()
   })
 })

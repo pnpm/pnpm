@@ -8,6 +8,7 @@ import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { isSpdxLicenseExpression, resolveLicenseFromDir } from '@pnpm/deps.compliance.license-resolver'
 import {
+  bugsUrlFromField,
   collectSbomComponents,
   resolveWorkspaceDeps,
   type SbomComponentType,
@@ -377,6 +378,8 @@ async function generateSbomForProject (
     ?? (singleProject ? extractRepository(rootManifest) : undefined)
   const rootDescription = manifest.description
     ?? (singleProject ? rootManifest.description : undefined)
+  const rootBugsUrl = bugsUrlFromField(manifest.bugs)
+    ?? (singleProject ? bugsUrlFromField(rootManifest.bugs) : undefined)
 
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const includedImporterIds = opts.selectedProjectsGraph
@@ -407,6 +410,7 @@ async function generateSbomForProject (
     rootDescription,
     rootAuthor,
     rootRepository,
+    rootBugsUrl,
     sbomType: serialOpts.sbomType,
     include,
     registries: opts.registries,

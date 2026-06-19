@@ -14,6 +14,7 @@ export interface PkgMetadata {
   author?: string
   homepage?: string
   repository?: string
+  bugsUrl?: string
 }
 
 export interface GetPkgMetadataOptions {
@@ -64,6 +65,7 @@ async function extractMetadata (manifest: PackageManifest, files: Map<string, st
     author: parseAuthorField(manifest.author),
     homepage: manifest.homepage,
     repository: parseRepositoryField(manifest.repository),
+    bugsUrl: bugsUrlFromField(manifest.bugs),
   }
 }
 
@@ -94,4 +96,37 @@ function parseRepositoryField (field: unknown): string | undefined {
     return (field as { url: string }).url
   }
   return undefined
+}
+
+// `bugs` may be a URL string, a bare email, or `{ url, email }`. The CycloneDX
+// issue-tracker reference expects a URL, so parse the candidate and keep it only
+// when it is a well-formed http(s) URL — dropping email-only bug contacts and
+// malformed values like "https://". Exported so the command's root-package
+// handling uses the same rule.
+export function bugsUrlFromField (field: unknown): string | undefined {
+  let candidate: string | undefined
+  if (typeof field === 'string') {
+    candidate = field.trim()
+  } else if (field && typeof field === 'object' && 'url' in field) {
+    const value = (field as { url?: unknown }).url
+    if (typeof value === 'string') candidate = value.trim()
+  }
+  if (!candidate) return undefined
+  let parsed: URL
+  try {
+    parsed = new URL(candidate)
+  } catch {
+    return undefined
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined
+  // Drop any embedded credentials: an SBOM is a shareable/published artifact,
+  // so a `bugs` URL like `https://user:token@tracker/...` must not leak the
+  // secret into externalReferences[].url. The tracker URL itself is still useful.
+  parsed.username = ''
+  parsed.password = ''
+  // Emit the normalized URL, not the raw input: `new URL` strips CR/LF/tab and
+  // percent-encodes spaces and control characters, so a crafted `bugs` value
+  // can't push raw whitespace or control chars into the CycloneDX
+  // `externalReferences[].url` (whose format is an `iri-reference`).
+  return parsed.href
 }

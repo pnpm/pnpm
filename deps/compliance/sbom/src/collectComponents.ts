@@ -33,6 +33,7 @@ export interface CollectSbomComponentsOptions {
   rootDescription?: string
   rootAuthor?: string
   rootRepository?: string
+  rootBugsUrl?: string
   sbomType?: SbomComponentType
   include?: { [dependenciesField in DependenciesField]: boolean }
   registries: Registries
@@ -163,6 +164,7 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
       description: opts.rootDescription,
       author: opts.rootAuthor,
       repository: opts.rootRepository,
+      bugsUrl: opts.rootBugsUrl,
     },
     components: Array.from(componentsMap.values()),
     relationships,
@@ -195,7 +197,7 @@ async function walkStep (
       const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
       const tarballUrl = (resolution as TarballResolution).tarball ?? gitDownloadUrl(resolution)
 
-      let metadata: { license?: string, description?: string, author?: string, homepage?: string, repository?: string } = {}
+      let metadata: { license?: string, description?: string, author?: string, homepage?: string, repository?: string, bugsUrl?: string } = {}
       if (metadataOpts) {
         metadata = await getPkgMetadata(depPath, pkgSnapshot, opts.registries, metadataOpts)
       }
