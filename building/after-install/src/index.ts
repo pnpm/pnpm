@@ -14,7 +14,6 @@ import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import * as dp from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
 import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
@@ -405,9 +404,8 @@ async function _rebuild (
         : [path.join(pkgModulesDir(depPath), pkgInfo.name)]
       if (pkgRoots.length === 0) {
         if (pkgSnapshot.optional) return
-        throw new PnpmError('MISSING_HOISTED_LOCATIONS', `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml`, {
-          hint: 'If you installed your node_modules with pnpm older than v7.19.0, you may need to remove it and run "pnpm install"',
-        })
+        logger.debug({ message: `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml, skipping` })
+        return
       }
       const pkgRoot = pkgRoots[0]
       // If another project is already building this shared projection, wait for it
