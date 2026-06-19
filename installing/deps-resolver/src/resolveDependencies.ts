@@ -214,6 +214,7 @@ export interface ResolutionContext {
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
+  smartAutoDedupe?: boolean
 }
 
 interface PackageResolutionBarrier {
@@ -297,6 +298,12 @@ export interface ResolvedPackage {
   version: string
   peerDependencies: PeerDependencies
   optionalDependencies: Set<string>
+  // Original spec ranges declared in the package's manifest for its
+  // (regular + optional) dependencies. Captured only when the smart auto
+  // dedupe pass is enabled, so the pass can backtrack edges against the
+  // spec ranges that requested each child without re-reading manifests
+  // post-resolution. Undefined when the feature flag is off.
+  depSpecs?: Record<string, string>
   hasBin: boolean
   hasBundledDependencies: boolean
   patch?: PatchInfo
@@ -2050,6 +2057,7 @@ async function resolveDependency (
         wantedDependency,
         parentImporterId,
         optional: currentIsOptional,
+        captureDepSpecs: ctx.smartAutoDedupe === true,
       })
     } else {
       ctx.resolvedPkgsById[pkgResponse.body.id].prod = ctx.resolvedPkgsById[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
@@ -2165,6 +2173,7 @@ function getResolvedPackage (
     prepare: boolean
     optional: boolean
     wantedDependency: WantedDependency
+    captureDepSpecs: boolean
   }
 ): ResolvedPackage {
   const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
@@ -2190,6 +2199,17 @@ function getResolvedPackage (
     name: options.pkg.name,
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
+    // Build the depSpecs side-table only when the smart auto dedupe pass
+    // is enabled, to avoid the per-package allocation on every install.
+    // The regular deps come first so optionalDependencies wins on the
+    // (illegal-but-possible) overlap; the dedupe pass treats the two
+    // categories the same.
+    depSpecs: options.captureDepSpecs
+      ? {
+        ...options.pkg.dependencies,
+        ...options.pkg.optionalDependencies,
+      }
+      : undefined,
     patch: options.patch,
     peerDependencies,
     prepare: options.prepare,

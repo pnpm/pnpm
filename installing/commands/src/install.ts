@@ -321,6 +321,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'configDependencies'
 | 'dedupeInjectedDeps'
 | 'dedupeDirectDeps'
+| 'smartAutoDedupe'
 | 'dedupePeerDependents'
 | 'dedupePeers'
 | 'deployAllFiles'

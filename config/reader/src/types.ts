@@ -21,6 +21,7 @@ export const pnpmTypes = {
   'dedupe-peers': Boolean,
   'dedupe-direct-deps': Boolean,
   'dedupe-injected-deps': Boolean,
+  'smart-auto-dedupe': Boolean,
   dev: [null, true],
   dir: String,
   'disallow-workspace-cycles': Boolean,

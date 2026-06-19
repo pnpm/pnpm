@@ -147,6 +147,7 @@ export interface ResolveDependenciesOptions {
   trustPolicyExclude?: string[]
   trustPolicyIgnoreAfter?: number
   blockExoticSubdeps?: boolean
+  smartAutoDedupe?: boolean
 }
 
 export interface ResolveDependencyTreeResult {
@@ -239,6 +240,7 @@ export async function resolveDependencyTree<T> (
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     blockExoticSubdeps: opts.blockExoticSubdeps,
     resolutionPolicyViolations: [],
+    smartAutoDedupe: opts.smartAutoDedupe,
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {

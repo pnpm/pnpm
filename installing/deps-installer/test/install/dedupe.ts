@@ -368,6 +368,110 @@ test('prefer version of package that also satisfies the range of the same packag
   )
 })
 
+test('smartAutoDedupe rewrites a subdependency to a newer in-graph version that satisfies its spec', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/pkg-with-1-dep@100.0.0'],
+    testDefaults({ smartAutoDedupe: true })
+  )
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(
+    manifest,
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'],
+    testDefaults({ smartAutoDedupe: true })
+  )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+})
+
+test('smartAutoDedupe leaves the subdependency alone when the higher version does not satisfy the spec', async () => {
+  // The transitive subdep wants `^100.0.0`. Adding an unrelated higher
+  // major (`101.0.0`) as a direct dep must NOT cause the subdep to be
+  // rewritten to it, since `101.0.0` does not satisfy `^100.0.0`.
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/pkg-with-1-dep@100.0.0'],
+    testDefaults({ smartAutoDedupe: true })
+  )
+
+  await addDependenciesToPackage(
+    manifest,
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'],
+    testDefaults({ smartAutoDedupe: true })
+  )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+})
+
+test('smartAutoDedupe is off by default and leaves the older subdependency in place', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/pkg-with-1-dep@100.0.0'],
+    testDefaults()
+  )
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(
+    manifest,
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'],
+    testDefaults()
+  )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+})
+
+test('smartAutoDedupe runs on a plain install (not just on add), even with preferFrozenLockfile', async () => {
+  // Enabling smartAutoDedupe on an existing, up-to-date lockfile must take
+  // effect on the next install: the optimistic frozen fast-path is skipped
+  // so the dedupe pass actually runs.
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/pkg-with-1-dep@100.0.0'],
+    testDefaults()
+  )
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  const { updatedManifest: manifestWithBothVersions } = await addDependenciesToPackage(
+    manifest,
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'],
+    testDefaults()
+  )
+
+  expect(project.readLockfile().packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+
+  await install(manifestWithBothVersions, testDefaults({ smartAutoDedupe: true, preferFrozenLockfile: true }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+})
+
 test('when resolving dependencies, prefer versions that are used by direct dependencies over versions used in subdeps', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()

@@ -141,6 +141,7 @@ export async function getConfig (opts: {
     'dedupe-peers': false,
     'dedupe-direct-deps': false,
     'dedupe-injected-deps': true,
+    'smart-auto-dedupe': false,
     'disallow-workspace-cycles': false,
     'enable-modules-dir': true,
     'node-experimental-package-map': false,
