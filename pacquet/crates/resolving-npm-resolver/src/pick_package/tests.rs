@@ -1087,3 +1087,58 @@ async fn concurrent_picks_for_same_key_share_one_network_fetch() {
     }
     mock.assert_async().await;
 }
+
+#[tokio::test]
+async fn update_checksums_bypasses_warm_in_memory_cache() {
+    let mut server = mockito::Server::new_async().await;
+    // Only the update_checksums revalidation should hit the network; the first,
+    // non-update_checksums pick is served from the on-disk mirror.
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let preloaded: pacquet_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+
+    // Normal pick takes the on-disk fast path and promotes the packument into
+    // the in-memory cache.
+    let first = pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(first.picked_package.expect("picked").version.to_string(), "1.0.0");
+    assert!(meta_cache.get(&format!("{registry}\x00acme")).is_some(), "in-memory cache populated");
+
+    // update_checksums must still revalidate against the registry despite the
+    // warm in-memory cache holding a disk-sourced entry.
+    let update_opts = PickPackageOptions { update_checksums: true, ..default_opts(&registry) };
+    let second =
+        pick_package(&ctx, &version_spec("acme", "1.0.0"), &update_opts).await.expect("ok");
+    assert_eq!(second.picked_package.expect("picked").version.to_string(), "1.0.0");
+    mock.assert_async().await;
+}

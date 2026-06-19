@@ -71,12 +71,14 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
   includeLatestTag?: boolean
   optional?: boolean
   /**
-   * When true, skip the on-disk exact-version cache fast path so a
-   * stale on-disk packument can't satisfy the call without a
-   * conditional registry request. The in-memory cache is left alone:
-   * its entries can only be populated by this install's own fresh
-   * network fetches, so they're authoritative for second-and-onward
-   * lookups within the same install.
+   * When true, force a conditional registry request so a stale on-disk
+   * packument can't satisfy the call: the on-disk exact-version fast
+   * path is skipped, and the in-memory cache is bypassed too. The fast
+   * path now promotes disk-loaded packuments into the in-memory cache,
+   * so an entry there can no longer be assumed to come from this
+   * install's own fresh network fetch — on a shared or long-lived
+   * resolver it might be disk-sourced, which would short-circuit the
+   * revalidation updateChecksums exists to force.
    */
   updateChecksums?: boolean
 }
@@ -211,10 +213,16 @@ export async function pickPackage (
   const metaDir = fullMetadata
     ? (ctx.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR)
     : ABBREVIATED_META_DIR
-  // Cache key includes fullMetadata to avoid returning abbreviated metadata when full metadata is requested.
-  const cacheKey = fullMetadata ? `${spec.name}:full` : spec.name
+  // Cache key includes the registry so a package of the same name served by two
+  // registries in one install can't share a slot (which would resolve the wrong
+  // tarball/integrity), plus fullMetadata/filterMetadata so a request is never
+  // served a less-detailed or differently-stripped document than it asked for.
+  const cacheKey = getPkgMetaCacheKey(opts.registry, spec.name, fullMetadata, ctx.filterMetadata === true)
   const pkgMirror = getPkgMirrorPath(ctx.cacheDir, metaDir, opts.registry, spec.name)
-  const cachedMeta = ctx.metaCache.get(cacheKey)
+  // updateChecksums must reach the conditional registry request below, so it
+  // can't be served from the in-memory cache — which may hold a disk-promoted
+  // entry rather than a fresh network fetch (see the updateChecksums doc).
+  const cachedMeta = opts.updateChecksums ? undefined : ctx.metaCache.get(cacheKey)
   if (cachedMeta != null) {
     // The in-memory cache may hold abbreviated metadata from an earlier call
     // that didn't need `time` (no publishedBy then). If this call has
@@ -281,6 +289,7 @@ export async function pickPackage (
         try {
           const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, metaCachedInStore)
           if (pickedPackage) {
+            ctx.metaCache.set(cacheKey, metaCachedInStore)
             return {
               meta: metaCachedInStore,
               pickedPackage,
@@ -585,6 +594,43 @@ export function encodePkgName (pkgName: string): string {
     return `${pkgName}_${createHexHash(pkgName)}`
   }
   return pkgName
+}
+
+/**
+ * Key for the in-memory `metaCache` holding a package's registry metadata. The
+ * registry is part of the key so that a package of the same name served by two
+ * registries in one install can't collide on a single slot (which would resolve
+ * the wrong tarball/integrity). `fullMetadata` and `filterMetadata` keep the
+ * abbreviated, full, and filtered-full documents in distinct slots, mirroring
+ * the on-disk `metaDir` split: a `filterMetadata` resolver stores a `clearMeta`-
+ * stripped packument, so it must not share a slot with an unfiltered full one
+ * (reachable only when a `metaCache` is shared across resolvers with different
+ * settings). `filterMetadata` only narrows the full slot — abbreviated metadata
+ * shares one on-disk mirror regardless, so its key carries no filtered variant.
+ * `\x00` can't appear in a registry URL or a package name, so it's an
+ * unambiguous separator. The verifier reads this same cache and must build the
+ * key with this function.
+ *
+ * The registry is canonicalized to its origin plus a trailing-slashed path, so
+ * the resolver (which may pass a configured named-registry URL verbatim) and
+ * the verifier (which routes through trailing-slashed prefixes) converge on one
+ * key for the same logical registry instead of creating duplicate slots. Origin
+ * and path are preserved, so two registries that genuinely differ never collapse.
+ */
+export function getPkgMetaCacheKey (registry: string, pkgName: string, fullMetadata: boolean, filterMetadata: boolean): string {
+  const key = `${canonicalizeRegistry(registry)}\x00${pkgName}`
+  if (!fullMetadata) return key
+  return filterMetadata ? `${key}:full:filtered` : `${key}:full`
+}
+
+function canonicalizeRegistry (registry: string): string {
+  try {
+    const parsed = new URL(registry)
+    const pathname = parsed.pathname.endsWith('/') ? parsed.pathname : `${parsed.pathname}/`
+    return `${parsed.origin}${pathname}`
+  } catch {
+    return registry
+  }
 }
 
 /**

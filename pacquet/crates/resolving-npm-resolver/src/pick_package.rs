@@ -287,9 +287,14 @@ pub struct PickPackageOptions<'a> {
     /// either knob set to `true` makes the pick request full
     /// metadata.
     pub optional: bool,
-    /// `true` skips the on-disk exact-version fast path so a stale
-    /// disk packument can't satisfy the call without a conditional
-    /// registry request. Mirrors pnpm's `--update-checksums`.
+    /// `true` forces a conditional registry request so a stale disk
+    /// packument can't satisfy the call: the on-disk exact-version
+    /// fast path is skipped, and the in-memory cache is bypassed too.
+    /// The fast path now promotes disk-loaded packuments into the
+    /// in-memory cache, so an entry there can no longer be assumed to
+    /// come from this install's own fresh network fetch — on a shared
+    /// resolver it might be disk-sourced, which would short-circuit the
+    /// revalidation. Mirrors pnpm's `--update-checksums`.
     pub update_checksums: bool,
 }
 
@@ -427,8 +432,13 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         format!("{}\x00{}", opts.registry, spec.name)
     };
 
+    // updateChecksums must reach the conditional registry request below, so it
+    // can't be served from the in-memory cache — which may hold a disk-promoted
+    // entry rather than a fresh network fetch (see the `update_checksums` doc).
+    let use_mem_cache = !opts.update_checksums;
+
     // 1. In-memory cache.
-    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
+    if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
         return handle_cache_hit(
             ctx,
             spec,
@@ -457,7 +467,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // this re-check, every duplicate caller would still fall
     // through to the disk + network path even though they were
     // waiting precisely for the winner's fetch to complete.
-    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
+    if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
         return handle_cache_hit(
             ctx,
             spec,
