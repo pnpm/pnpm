@@ -37,10 +37,12 @@ pub fn cas_path_is_executable(path: &Path) -> bool {
 pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::Result<()> {
     #[cfg(unix)]
     if cas_path_is_executable(cas_path) {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(target)?.permissions();
-        perms.set_mode(perms.mode() | EXEC_MASK);
-        std::fs::set_permissions(target, perms)?;
+        // Open once and chmod through the fd. A path-based
+        // `metadata()` + `set_permissions()` pair leaves a TOCTOU window where
+        // a concurrent writer could swap `target` between the two calls and
+        // redirect the chmod onto an unintended inode; binding both to one
+        // opened file closes it. Defense-in-depth on the install hot path.
+        make_file_executable(&std::fs::File::open(target)?)?;
     }
     #[cfg(not(unix))]
     let _ = (cas_path, target);
