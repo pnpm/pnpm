@@ -168,12 +168,8 @@ fn materialize_into_rejects_traversal() {
     assert!(!target.path().parent().unwrap().join("escape").exists());
 }
 
-/// `materialize_into` restores the exec bit from the `-exec` CAS suffix
-/// even when the on-disk CAS file lost it (a prior copy/reflink fallback
-/// can leave it `0o644`). We strip the store file's exec bit first so the
-/// assertion proves restoration rather than `fs::copy`'s mode carry-over.
-/// A non-exec sibling must keep its restrictive mode — restoration never
-/// widens.
+/// Strip the store file's exec bit first so the assertion proves restoration,
+/// not `fs::copy`'s mode carry-over; the non-exec sibling pins the no-widen path.
 #[cfg(unix)]
 #[test]
 fn materialize_into_restores_exec_bit_from_cas_suffix() {

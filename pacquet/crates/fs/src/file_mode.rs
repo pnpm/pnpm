@@ -52,9 +52,8 @@ pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::R
 /// Add the executable bits (`u+x g+x o+x`) to `file`, a no-op on Windows.
 ///
 /// Skips the `set_permissions` syscall (and the ctime bump it would cause) when
-/// every exec bit is already set, so re-asserting executability on an
-/// already-correct file — a copy or a macOS reflink that carried the store mode
-/// across — costs only the stat.
+/// every exec bit is already set, so re-asserting executability on a file that
+/// already has it costs only the stat.
 #[cfg_attr(windows, allow(unused))]
 pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
     #[cfg(unix)]

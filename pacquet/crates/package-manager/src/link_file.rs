@@ -232,24 +232,15 @@ fn try_import<Reporter: self::Reporter>(
     }
 }
 
-/// `fs::copy` plus exec-bit restoration for the copy fallback tier.
-///
-/// `fs::copy` carries a regular file's mode across on Unix, but a CAS
-/// entry's executable bit can still be lost on materialization (observed
-/// on overlayfs), so we re-add it from the `-exec` suffix via
+/// `fs::copy` for the copy fallback tier, then exec-bit restoration via
 /// [`pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix`].
 fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     fs::copy(source_file, target_link)?;
     pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
 }
 
-/// `reflink_copy::reflink` plus exec-bit restoration for the clone tier.
-///
-/// Linux `reflink` uses `FICLONE`, which clones only the data into a
-/// freshly-created `0o644` target and drops the source's exec bit, so the
-/// same `-exec`-suffix restoration the copy tier does is required here.
-/// (macOS `clonefile` already carries the mode across, so the restoration
-/// finds the bits already set and skips the chmod.)
+/// `reflink_copy::reflink` for the clone tier, then exec-bit restoration via
+/// [`restore_after_reflink`].
 fn clone_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     reflink_copy::reflink(source_file, target_link)?;
     restore_after_reflink(source_file, target_link)
