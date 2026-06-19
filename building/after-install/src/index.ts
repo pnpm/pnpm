@@ -395,6 +395,10 @@ async function _rebuild (
       ? path.join(gvsDirByDepPath.get(depPath)!, 'node_modules')
       : path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
 
+  if (opts.nodeLinker === 'hoisted' && ctx.modulesFile?.hoistedLocations == null) {
+    logger.warn({ message: 'hoistedLocations is missing from node_modules/.modules.yaml. Run "pnpm install" to regenerate it.' })
+  }
+
   const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
     async () => {
       const pkgSnapshot = pkgSnapshots[depPath]
@@ -404,7 +408,7 @@ async function _rebuild (
         : [path.join(pkgModulesDir(depPath), pkgInfo.name)]
       if (pkgRoots.length === 0) {
         if (pkgSnapshot.optional) return
-        logger.debug({ message: `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml, skipping` })
+        logger.warn({ message: `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml, skipping. Run "pnpm install" to fix.` })
         return
       }
       const pkgRoot = pkgRoots[0]
