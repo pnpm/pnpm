@@ -15,125 +15,23 @@ This is the canonical review guide for the repository. The automated reviewers a
 
 ## Review priorities
 
-1. **Security first.** Treat manifests, lockfiles, registry metadata, tarballs, paths,
-   environment variables, lifecycle scripts, workspace config, and git metadata as
-   attacker-controlled.
-2. **Performance second.** `install`, `add`, `update`, `remove`, resolution, fetching,
+1. **Security first** (§1).
+2. **Performance second** (§2) — `install`, `add`, `update`, `remove`, resolution, fetching,
    linking, lockfile handling, store access, and pnpr request paths are hot paths.
-3. **Product fit.** Add surface (commands, settings, output) only when the benefit is clear
+3. **Product fit** — add surface (commands, settings, output) only when the benefit is clear
    and the result is maintainable.
-4. **Maintainability always.** Prefer the right abstraction and package boundary over a
+4. **Maintainability always** — prefer the right abstraction and package boundary over a
    one-off patch.
 
 ---
 
-## 1. First-pass triage: should this exist at all?
+## 1. Security review rules
 
-Many PRs are closed not because they're buggy but because the change doesn't make sense for
-pnpm. Before line-by-line review, ask:
-
-- **Is it duplicated or already solved?** By another PR, an existing command or setting,
-  `pnpm patch`, catalogs, or a different tool.
-- **Is it the right behavior?** Semantics come first.
-- **Does it actually help?** A performance PR with no measurement, or a negligible measured
-  gain, gets closed (see §6).
-- **Is the trade-off worth it?** A cosmetic or micro win that adds complexity, coupling, or
-  risk is a net negative.
-
-The single most useful question is **"What is the benefit of this?"** When you reject, say why
-in a sentence or two and link the superseding PR if one exists.
-
-### When a change doesn't belong
-
-Push back on changes that are mostly churn:
-
-- Style/grammar edits that don't change behavior.
-- Refactors that don't reduce complexity or unlock a needed change.
-- Commands or aliases added just because another tool has them.
-- Rare-case handling that adds permanent CLI complexity.
-- Error-prone "nice to have" compatibility that duplicates a better pnpm mechanism.
-
-Judge a change on the change itself; how it was authored is not a review criterion.
-
----
-
-## 2. Scope discipline
-
-One PR does one thing.
-
-- Unrelated changes get pulled out.
-- Dangerous or sweeping optimizations must be split so each can be reasoned about separately.
-- One changeset per logical change; don't bundle unrelated changes.
-
-For every touched file, ask "why was this needed for *this* PR?" If it isn't obvious from the
-goal, it comes out.
-
----
-
-## 3. Product and UX rules
-
-### Use established command semantics
-
-When matching npm functionality, use npm's recognized command name and behavior unless there's
-a deliberate reason to differ (`npm view` → `pnpm view`, not a new name or alias). Support the
-spec forms users expect (`foo@2`, dist-tags) without duplicating resolver logic. Don't copy
-npm's command sprawl.
-
-### Interop features must actually match
-
-Prior art from npm, Yarn, vlt, etc. is useful but not automatic justification. Check that
-syntax and semantics genuinely match pnpm. Steer users to the right existing mechanism instead.
-
-### Defaults and contracts are hard to change
-
-Changing a default usually needs a major version, a strong user signal (a poll or widespread
-demand), or an opt-in setting first.
-
-- **Dry-run is a strict contract:** it behaves like the real command but must not change
-  `node_modules`, lockfiles, manifests, or other state.
-- **Settings live where users expect them.** Workspace-wide policy belongs in
-  `pnpm-workspace.yaml` (camelCase) with the kebab-case CLI flag alongside; pnpm reads only
-  auth/network keys from `.npmrc`.
-- A behavior-changing strict setting must be prominently documented.
-
-### Avoid user-visible noise
-
-Don't add large or noisy logs unless the user can act on them.
-
----
-
-## 4. Architecture rules
-
-### Put logic in the owning layer
-
-- Spec parsing belongs in resolvers, not scattered callers.
-- Git/tarball policy checks belong in the git/tarball resolvers, returning verifiers that
-  validate resolutions against active policies — the same way the npm resolver verifies
-  `minimumReleaseAge` and `trustPolicy`.
-- Workspace selection belongs in the CLI dispatch layer, not re-derived inside handlers with
-  partial options.
-- If a runtime path needs metadata that resolution already computed, pass it through rather
-  than re-fetching or re-parsing.
-
-Avoid fixes that make unrelated packages learn resolver-specific details; prefer a precise gate
-where the ambiguous value is consumed.
-
-### Reuse before you write — but don't add ceremony
-
-Duplication is a frequent problem in this monorepo. Search `packages/`, `fs/`, `crypto/`,
-`text/`, `default-reporter`, and the manifest/lockfile utilities first, and prefer a maintained
-package over a custom reimplementation of parsing, serialization, or shell escaping. But reuse
-is the goal, not abstraction for its own sake — don't extract an indirection that doesn't
-reduce coupling.
-
----
-
-## 5. Security review rules
-
-Security is the first priority — review with a security-first lens. Surface plausible issues
-even when they're edge cases, but always explain the exploit path and impact on the *changed*
-code; never give generic security advice untethered from the diff. Security fixes themselves
-need precise threat modeling:
+Security is the first priority — review with a security-first lens. Treat manifests, lockfiles,
+registry metadata, tarballs, paths, environment variables, lifecycle scripts, workspace config,
+and git metadata as attacker-controlled. Surface plausible issues even when they're edge cases,
+but always explain the exploit path and impact on the *changed* code; never give generic
+security advice untethered from the diff. Security fixes themselves need precise threat modeling:
 
 - What input is attacker-controlled? Can a repo, package, registry response, lockfile, tarball,
   env var, or path influence a **trust decision**?
@@ -212,7 +110,7 @@ before it ships as a default.
 
 ---
 
-## 6. Performance review rules
+## 2. Performance review rules
 
 pnpm is performance-sensitive; be skeptical of extra work in common flows.
 
@@ -231,6 +129,99 @@ and cold-install rows where relevant; realistic dependency counts (2000–3000 p
 small project); and evidence the win is on a common path. A negligible gain that adds
 complexity isn't worth it — and the same evidence justifies *refusing* an optimization (cost is
 sub-0.1% or off the hot path).
+
+---
+
+## 3. First-pass triage: should this exist at all?
+
+Many PRs are closed not because they're buggy but because the change doesn't make sense for
+pnpm. Before line-by-line review, ask:
+
+- **Is it duplicated or already solved?** By another PR, an existing command or setting.
+- **Is it the right behavior?** Semantics come first.
+- **Does it actually help?** A performance PR with no measurement, or a negligible measured
+  gain, gets closed (see §2).
+- **Is the trade-off worth it?** A cosmetic or micro win that adds complexity, coupling, or
+  risk is a net negative.
+
+The single most useful question is **"What is the benefit of this?"** When you reject, say why
+in a sentence or two and link the superseding PR if one exists.
+
+### When a change doesn't belong
+
+Push back on changes that are mostly churn:
+
+- Style/grammar edits that don't change behavior.
+- Refactors that don't reduce complexity or unlock a needed change.
+- Commands or aliases added just because another tool has them.
+- Rare-case handling that adds permanent CLI complexity.
+- Error-prone "nice to have" compatibility that duplicates a better pnpm mechanism.
+
+Judge a change on the change itself; how it was authored is not a review criterion.
+
+---
+
+## 4. Scope discipline
+
+One PR does one thing.
+
+- Unrelated changes get pulled out.
+- Dangerous or sweeping optimizations must be split so each can be reasoned about separately.
+- One changeset per logical change; don't bundle unrelated changes.
+
+For every touched file, ask "why was this needed for *this* PR?" If it isn't obvious from the
+goal, it comes out.
+
+---
+
+## 5. Product and UX rules
+
+### Use established command semantics
+
+When matching npm functionality, use npm's recognized command name and behavior unless there's
+a deliberate reason to differ (`npm view` → `pnpm view`, not a new name or alias). Support the
+spec forms users expect (`foo@2`, dist-tags) without duplicating resolver logic. Don't copy
+npm's command sprawl.
+
+### Interop features must actually match
+
+Prior art from npm, Yarn, vlt, etc. is useful but not automatic justification. Check that
+syntax and semantics genuinely match pnpm. Steer users to the right existing mechanism instead.
+
+### Defaults and contracts are hard to change
+
+Changing a default usually needs a major version, a strong user signal (a poll or widespread
+demand), or an opt-in setting first.
+
+### Avoid user-visible noise
+
+Don't add large or noisy logs unless the user can act on them.
+
+---
+
+## 6. Architecture rules
+
+### Put logic in the owning layer
+
+- Spec parsing belongs in resolvers, not scattered callers.
+- Git/tarball policy checks belong in the git/tarball resolvers, returning verifiers that
+  validate resolutions against active policies — the same way the npm resolver verifies
+  `minimumReleaseAge` and `trustPolicy`.
+- Workspace selection belongs in the CLI dispatch layer, not re-derived inside handlers with
+  partial options.
+- If a runtime path needs metadata that resolution already computed, pass it through rather
+  than re-fetching or re-parsing.
+
+Avoid fixes that make unrelated packages learn resolver-specific details; prefer a precise gate
+where the ambiguous value is consumed.
+
+### Reuse before you write — but don't add ceremony
+
+Duplication is a frequent problem in this monorepo. Search `packages/`, `fs/`, `crypto/`,
+`text/`, `default-reporter`, and the manifest/lockfile utilities first, and prefer a maintained
+package over a custom reimplementation of parsing, serialization, or shell escaping. But reuse
+is the goal, not abstraction for its own sake — don't extract an indirection that doesn't
+reduce coupling.
 
 ---
 
@@ -325,7 +316,7 @@ The most frequent line-level review notes:
   everywhere it appears.
 
 **No unrelated churn**
-- No formatting or unrelated edits in the diff — the line-level form of §2.
+- No formatting or unrelated edits in the diff — the line-level form of §4.
 
 **Reuse repo libraries**
 - Don't add a dependency for a job an existing one already does — e.g. `symlink-dir`,
@@ -376,13 +367,13 @@ The voice is short, direct, and specific.
 
 For each PR, in order:
 
-1. **Should it exist?** Real, in scope, not duplicated, worth the cost/risk. (§1)
-2. **Security.** Walk the §5 checklist against the diff; explain any exploit path. (§5)
-3. **Performance.** Hot path or pitched as perf? Evidence at realistic scale? (§6)
-4. **Scope.** Every touched file justified; unrelated/dangerous changes split out. (§2)
-5. **Layer & reuse.** Logic in the owning layer; no reimplementation; no needless abstraction. (§4)
+1. **Should it exist?** Real, in scope, not duplicated, worth the cost/risk. (§3)
+2. **Security.** Walk the §1 checklist against the diff; explain any exploit path. (§1)
+3. **Performance.** Hot path or pitched as perf? Evidence at realistic scale? (§2)
+4. **Scope.** Every touched file justified; unrelated/dangerous changes split out. (§4)
+5. **Layer & reuse.** Logic in the owning layer; no reimplementation; no needless abstraction. (§6)
 6. **Product/contract.** npm-recognized semantics; defaults preserved or properly gated;
-   settings in `pnpm-workspace.yaml`; no log noise. (§3)
+   no log noise. (§5)
 7. **Tests.** Right level, meaningful, regression-proving, cross-platform where relevant. (§7)
 8. **Changeset.** Present iff user-visible; `"pnpm"` included; one per change; accurate. (§8)
 9. **Parity.** pacquet equivalent handled or explicitly deferred. (§9)
