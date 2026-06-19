@@ -246,6 +246,18 @@ Write a comment only when:
 
 Before adding a comment, ask: "Could I rename, restructure, or extract instead?" If yes, do that. The bar for prose-in-code is high; the bar for prose-that-restates-code is "don't."
 
+### Conventions
+
+Recurring engineering conventions in this codebase — the rules reviewers most often enforce:
+
+-   **Errors.** Throw `PnpmError` (from `@pnpm/error`) for user-reachable errors — they are part of the UX and carry a stable code. Programmer-error, type-guard, and unreachable-branch errors stay plain `Error`. Never swallow errors; catch only the specific expected code (not "any error" when you meant `ENOENT`). Throw on impossible states rather than continuing. Error messages must carry context, e.g. the offending path.
+-   **Naming.** Functions are verbs; types and fields are specific, not generic. Reuse existing terminology rather than inventing synonyms. File names follow the existing convention; rename a concept everywhere it appears.
+-   **Reuse repo libraries.** Don't add a dependency for a job an existing one already does — e.g. `symlink-dir` for symlinks, `micromatch`/`fast-glob` for globs, `sort-keys` for sorting, `js-yaml` for YAML, `delay` for timers, `PatchFile` from `lockfile.fs`. Deduplicate copy-pasted logic into a shared function or package.
+-   **String parsing.** Prefer plain string operations over a custom regular expression. When the input needs structured parsing with backtracking, use the existing parser-combinator pattern (`object/property-path`).
+-   **Dependency placement.** Shared infrastructure (the logger, etc.) is a peer dependency. (The narrowest-package rule is covered under "Code Reuse and Avoiding Duplication" above.)
+-   **Config and layering.** Configurable values flow through `@pnpm/config` and reach commands via options — don't hardcode them (CLI options are camelCased automatically). Command handlers return data and let the CLI print it, which keeps them unit-testable. Don't add a wrapper function that adds nothing.
+-   **Async and loops.** Prefer async fs and `async/await`; run independent work with `Promise.all`/`Promise.any` and `await` what must complete; hoist invariant work out of loops.
+
 ## Common Gotchas
 
 ### Error Type Checking in Jest (TypeScript only)

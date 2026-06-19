@@ -297,57 +297,7 @@ escaping when a proven library or local helper exists.
 
 ---
 
-## 12. Engineering conventions (line-level review)
-
-For general code style (Standard Style, import order, functions-over-classes) and how to write
-comments, see `AGENTS.md` → **Code Style** / **Comments** and `CONTRIBUTING.md` (pacquet has its
-own `pacquet/CODE_STYLE_GUIDE.md`); don't restate those here. The conventions below are the
-ones that recur specifically in *review*:
-
-**Errors**
-- User-reachable errors are `PnpmError` (from `@pnpm/error`) — they're UX and carry a stable
-  code. Programmer-error, type-guard, and unreachable-branch errors stay plain `Error`.
-- Never swallow errors; catch only the specific expected code (not "any error" when you meant
-  `ENOENT`).
-- Throw on impossible states rather than continuing.
-- Error messages must carry context (e.g. the offending path). Prefer throwing over an
-  interactive prompt.
-
-**Naming**
-- Functions are verbs; types and fields are specific, not generic. Reuse existing terminology
-  rather than inventing synonyms. File names follow the existing convention; rename a concept
-  everywhere it appears.
-
-**No unrelated churn**
-- No formatting or unrelated edits in the diff — the line-level form of §4.
-
-**Reuse repo libraries**
-- Don't add a dependency for a job an existing one already does — e.g. `symlink-dir`,
-  `micromatch`/`fast-glob`, `sort-keys`, `js-yaml`, `delay`, `PatchFile` from `lockfile.fs`.
-  Deduplicate copy-pasted logic into a shared function or package.
-
-**String parsing — reach for regex last**
-- Prefer plain string operations over a custom regular expression. When the input genuinely
-  needs structured parsing with backtracking, use the existing parser-combinator pattern
-  (`object/property-path`, [#9811](https://github.com/pnpm/pnpm/pull/9811)).
-
-**Dependency placement**
-- Shared infrastructure (the logger, etc.) is a **peer dependency**. Put a dep at the narrowest
-  package that needs it; move a non-runtime dep to `devDependencies`.
-
-**Config and layering**
-- Configurable values flow through `@pnpm/config` and into commands via options — don't
-  hardcode them. CLI options are camelCased automatically.
-- Command handlers return data; the CLI prints it. This keeps handlers unit-testable.
-- No wrapper function that adds nothing.
-
-**Async and loops**
-- Prefer async fs and `async/await`; run independent work with `Promise.all`/`Promise.any` and
-  `await` what must complete; hoist invariant work out of loops.
-
----
-
-## 13. How feedback is written
+## 12. How feedback is written
 
 The voice is short, direct, and specific.
 
@@ -362,7 +312,7 @@ The voice is short, direct, and specific.
 
 ---
 
-## 14. Reviewer's checklist
+## 13. Reviewer's checklist
 
 For each PR, in order:
 
@@ -377,7 +327,7 @@ For each PR, in order:
 8. **Changeset.** Present iff user-visible; `"pnpm"` included; one per change; accurate. (§8)
 9. **Parity.** pacquet equivalent handled or explicitly deferred. (§9)
 10. **Conventions.** `PnpmError`, no swallowed errors, good names, reused libraries, correct
-    dependency placement, config through options, no unrelated churn. (§12)
+    dependency placement, config through options. (`AGENTS.md` → Conventions)
 
 A change is mergeable when it is the **smallest correct, secure, in-scope version of a thing
 pnpm should do**, in the right layer, proven by a meaningful test, documented if user-visible,
