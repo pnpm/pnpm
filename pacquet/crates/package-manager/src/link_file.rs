@@ -152,12 +152,14 @@ pub fn link_file<Reporter: self::Reporter>(
 /// runs against a directory it just created — that protection is
 /// unneeded.
 ///
-/// EEXIST from the import syscall is still treated as a no-op:
-/// concurrent installs (or a sibling rayon worker writing the same
-/// CAFS path) can occasionally race past the freshness guarantee,
-/// and the kernel's atomic-create error is the right way to detect
-/// the contention. The content is content-addressed so the existing
-/// dirent is equivalent.
+/// EEXIST from the import syscall means a concurrent install (or a
+/// sibling rayon worker writing the same CAFS path) raced past the
+/// freshness guarantee. The content is content-addressed so the
+/// existing dirent is equivalent — but a reflink the winner used
+/// drops the exec bit, so we re-assert it from the `-exec` suffix
+/// instead of adopting a possibly-`0o644` binary. That re-assertion
+/// also heals a target an earlier failed restore left non-executable,
+/// which is why the clone tier no longer deletes on restore failure.
 pub fn import_into_fresh_target<Reporter: self::Reporter>(
     logged: &AtomicU8,
     method: PackageImportMethod,
@@ -172,11 +174,20 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
     // import layer — so there's nothing to gate on here.
     match try_import::<Reporter>(method, logged, source_file, target_link) {
         Ok(()) => Ok(()),
-        // Mirrors pnpm's `linkOrCopy`: on EEXIST, return without
-        // touching disk. A concurrent writer beat us to the target;
-        // contents are content-addressed so leaving theirs in place
-        // is equivalent.
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+        // A concurrent writer beat us to the target; its content is
+        // content-addressed and equivalent. pnpm's `linkOrCopy` returns
+        // here without touching disk, but pnpm's clone preserves the mode
+        // and pacquet's reflink does not — so re-assert the exec bit from
+        // the `-exec` suffix (idempotent, a no-op for non-exec entries)
+        // before adopting the dirent.
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+                .map_err(|error| LinkFileError::Import {
+                    from: source_file.to_path_buf(),
+                    to: target_link.to_path_buf(),
+                    error,
+                })
+        }
         Err(error) => Err(LinkFileError::Import {
             from: source_file.to_path_buf(),
             to: target_link.to_path_buf(),
@@ -240,25 +251,10 @@ fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
 }
 
 /// `reflink_copy::reflink` for the clone tier, then exec-bit restoration via
-/// [`restore_after_reflink`].
+/// [`pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix`].
 fn clone_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     reflink_copy::reflink(source_file, target_link)?;
-    restore_after_reflink(source_file, target_link)
-}
-
-/// Restore the exec bit after a reflink that just created `target`, removing
-/// the partial file if restoration fails.
-///
-/// reflink does not overwrite (unlike `fs::copy`), so a target left at `0o644`
-/// by a failed restore would be adopted as-is by the next repair pass —
-/// `import_into_fresh_target` treats the EEXIST as a no-op and never re-runs
-/// restoration — silently completing the package with a non-executable binary.
-fn restore_after_reflink(source_file: &Path, target_link: &Path) -> io::Result<()> {
-    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link).inspect_err(
-        |_| {
-            let _ = fs::remove_file(target_link);
-        },
-    )
+    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
 }
 
 /// EXDEV = "cross-device link not permitted". Linux / macOS / BSD all
@@ -329,7 +325,7 @@ fn auto_link<Reporter: self::Reporter>(
             // just-created file and mask the real error behind `AlreadyExists`.
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
-                    restore_after_reflink(source, target)?;
+                    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
                     log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }
@@ -379,7 +375,7 @@ fn clone_or_copy_link<Reporter: self::Reporter>(
             // here); the post-reflink restoration error is terminal.
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
-                    restore_after_reflink(source, target)?;
+                    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
                     log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }
