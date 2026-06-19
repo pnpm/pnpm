@@ -32,6 +32,20 @@ export interface WorkspaceManifest extends PnpmSettings {
    * in this definition through the `catalog:<name>` specifier.
    */
   catalogs?: WorkspaceNamedCatalogs
+
+  /**
+   * One or more references to other workspace manifests whose catalogs are
+   * merged into this one. Catalog entries defined directly in this manifest take
+   * precedence over the ones coming from the extended manifests.
+   *
+   * Each reference may be a directory that contains a `pnpm-workspace.yaml`, a
+   * direct path to a `pnpm-workspace.yaml` file (relative, absolute, or outside
+   * the workspace), a glob such as `packages/*`, or a path prefixed with the
+   * `<root>` token, which resolves to the monorepo root (the nearest ancestor
+   * directory that contains a `pnpm-workspace.yaml`). References are resolved
+   * recursively and circular references are reported as errors.
+   */
+  extends?: string | string[]
 }
 
 export async function readWorkspaceManifest (dir: string, cfgFileName: ConfigFileName = WORKSPACE_MANIFEST_FILENAME): Promise<WorkspaceManifest | undefined> {
@@ -76,8 +90,22 @@ export function validateWorkspaceManifest (manifest: unknown): asserts manifest 
   assertValidWorkspaceManifestPackages(manifest)
   assertValidWorkspaceManifestCatalog(manifest)
   assertValidWorkspaceManifestCatalogs(manifest)
+  assertValidWorkspaceManifestExtends(manifest)
 
   checkWorkspaceManifestAssignability(manifest)
+}
+
+function assertValidWorkspaceManifestExtends (manifest: { packages?: readonly string[], extends?: unknown }): asserts manifest is { extends?: string | string[] } {
+  if (manifest.extends == null) {
+    return
+  }
+
+  const entries = Array.isArray(manifest.extends) ? manifest.extends : [manifest.extends]
+  for (const entry of entries) {
+    if (typeof entry !== 'string' || entry.length === 0) {
+      throw new InvalidWorkspaceManifestError('The "extends" field should be a non-empty string or an array of non-empty strings')
+    }
+  }
 }
 
 function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {

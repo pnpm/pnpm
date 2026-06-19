@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { beforeEach, describe, expect, it, jest } from '@jest/globals'
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ProjectId, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
@@ -1595,6 +1595,122 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
     }
     const result = await checkDepsStatus(opts)
 
+    expect(result.upToDate).toBe(true)
+  })
+})
+
+describe('checkDepsStatus - per-project workspace manifest (extends)', () => {
+  const settings = {
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    preferWorkspacePackages: true,
+  }
+
+  let workspaceDir: string
+  let rootDir: ProjectRootDir
+  let childDir: ProjectRootDir
+  let lastValidatedTimestamp: number
+  let beforeLastValidation: number
+  let afterLastValidation: number
+
+  beforeEach(async () => {
+    jest.resetModules()
+    jest.clearAllMocks()
+
+    lastValidatedTimestamp = Date.now() - 10_000
+    beforeLastValidation = lastValidatedTimestamp - 10_000
+    afterLastValidation = lastValidatedTimestamp + 1_000
+
+    workspaceDir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-extends-status-')))
+    rootDir = workspaceDir as ProjectRootDir
+    childDir = path.join(workspaceDir, 'packages/child') as ProjectRootDir
+    await fs.mkdir(childDir, { recursive: true })
+
+    // Real per-project lockfiles, untouched since the last install, so that
+    // `scanWantedLockfiles` (which uses fs.statSync directly) sees them as
+    // present and unmodified — only the child manifest can flip the result.
+    const old = beforeLastValidation / 1000
+    await Promise.all([workspaceDir, childDir].map(async (dir) => {
+      const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
+      await fs.writeFile(lockfilePath, "lockfileVersion: '9.0'\n")
+      await fs.utimes(lockfilePath, old, old)
+    }))
+  })
+
+  afterEach(async () => {
+    await fs.rm(workspaceDir, { force: true, recursive: true })
+  })
+
+  function setup (childWorkspaceManifestMtime: number | undefined): void {
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings,
+      projects: {
+        [rootDir]: { name: 'root', version: '1.0.0' },
+        [childDir]: { name: 'child', version: '1.0.0' },
+      },
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
+      if (filePath.endsWith('pnpm-workspace.yaml')) {
+        return childWorkspaceManifestMtime == null
+          ? undefined
+          : ({ mtime: new Date(childWorkspaceManifestMtime), mtimeMs: childWorkspaceManifestMtime } as Stats)
+      }
+      // node_modules and the wanted lockfile of a modified project are reported
+      // as absent; projects declare no dependencies, so a missing modules dir is
+      // not an issue, and a modified project surfaces as "not up to date".
+      return undefined
+    })
+    jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue({
+      mtime: new Date(beforeLastValidation),
+      mtimeMs: beforeLastValidation,
+    } as Stats)
+  }
+
+  function makeOpts (sharedWorkspaceLockfile: boolean): CheckDepsStatusOptions {
+    return {
+      allProjects: [
+        {
+          rootDir,
+          rootDirRealPath: rootDir as unknown as ProjectRootDirRealPath,
+          manifest: { name: 'root', version: '1.0.0' },
+          writeProjectManifest: async () => {},
+        },
+        {
+          rootDir: childDir,
+          rootDirRealPath: childDir as unknown as ProjectRootDirRealPath,
+          manifest: { name: 'child', version: '1.0.0' },
+          writeProjectManifest: async () => {},
+        },
+      ],
+      workspaceDir,
+      rootProjectManifest: {},
+      rootProjectManifestDir: workspaceDir,
+      pnpmfile: [],
+      sharedWorkspaceLockfile,
+      ...settings,
+    }
+  }
+
+  it('takes the optimistic fast path when the child pnpm-workspace.yaml is unchanged', async () => {
+    setup(beforeLastValidation)
+    const result = await checkDepsStatus(makeOpts(false))
+    expect(result.upToDate).toBe(true)
+  })
+
+  it('is not up to date when a child pnpm-workspace.yaml changed (sharedWorkspaceLockfile: false)', async () => {
+    setup(afterLastValidation)
+    const result = await checkDepsStatus(makeOpts(false))
+    expect(result.upToDate).toBe(false)
+  })
+
+  it('ignores a changed child pnpm-workspace.yaml when sharedWorkspaceLockfile is true', async () => {
+    setup(afterLastValidation)
+    const result = await checkDepsStatus(makeOpts(true))
     expect(result.upToDate).toBe(true)
   })
 })

@@ -6,7 +6,7 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
-import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
+import { MANIFEST_BASE_NAMES, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -306,6 +306,21 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
       const modulesDirStatsPromise = statModulesDir(project)
+      // With a dedicated lockfile per project, a non-root project may have its
+      // own pnpm-workspace.yaml whose catalogs (possibly extended from another
+      // workspace manifest) feed that project's lockfile. Editing or adding it
+      // must invalidate the optimistic "nothing changed" exit below, so stat it
+      // alongside the project manifest. Shared-lockfile workspaces only honor
+      // the root catalogs, so this extra stat is skipped there.
+      //
+      // Deletion is intentionally not caught here: a stat cannot distinguish a
+      // project that never had a workspace manifest from one that just lost it,
+      // and tracking prior presence would mean extending the persisted
+      // workspace-state shape (a cross-implementation contract). The next
+      // `pnpm install` re-resolves the affected project and self-heals.
+      const workspaceManifestStatsPromise = !sharedWorkspaceLockfile && project.rootDir !== workspaceDir
+        ? safeStat(path.join(project.rootDir, WORKSPACE_MANIFEST_FILENAME))
+        : Promise.resolve(undefined)
       const manifestStats = await statManifestFile(project.rootDir)
       if (!manifestStats) {
         // this error should not happen
@@ -315,6 +330,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         project,
         manifestStats,
         modulesDirStats: await modulesDirStatsPromise,
+        workspaceManifestStats: await workspaceManifestStatsPromise,
       }
     }))
 
@@ -346,8 +362,9 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     }
 
     const modifiedProjects = allManifestStats.filter(
-      ({ manifestStats }) =>
-        manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
+      ({ manifestStats, workspaceManifestStats }) =>
+        manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp ||
+        (workspaceManifestStats != null && workspaceManifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp)
     )
 
     if ((modifiedProjects.length === 0) && !lockfilesModified) {

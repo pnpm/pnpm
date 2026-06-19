@@ -149,6 +149,28 @@ describe('readWorkspaceManifest() catalogs field', () => {
   })
 })
 
+describe('readWorkspaceManifest() extends field', () => {
+  test('works with an array of strings', async () => {
+    await expect(readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/extends-ok'))).resolves.toEqual({
+      packages: ['packages/**'],
+      extends: ['packages/a', 'packages/b'],
+    })
+  })
+
+  test('works with a single string', async () => {
+    await expect(readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/extends-string-ok'))).resolves.toEqual({
+      packages: ['packages/**'],
+      extends: 'packages/a',
+    })
+  })
+
+  test('throws on a non-string entry', async () => {
+    await expect(
+      readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/extends-invalid'))
+    ).rejects.toThrow('The "extends" field should be a non-empty string or an array of non-empty strings')
+  })
+})
+
 describe('readWorkspaceManifest() reads default catalog defined alongside named catalogs', () => {
   test('works when implicit default catalog is configured alongside named catalogs', async () => {
     await expect(readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/catalogs-ok'))).resolves.toEqual({
