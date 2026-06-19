@@ -280,16 +280,10 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
         && let Some(lockfile) =
             cached_resolution(&runtime.resolution_cache, runtime.resolution_cache_ttl, key)
     {
-        // A cached lockfile is only stored after passing the OSV check, so a
-        // hit is clean unless the OSV database changed since; re-check and fall
-        // through to a fresh resolve when it now flags a vulnerability.
-        let osv_clean = runtime
-            .osv_index
-            .as_ref()
-            .is_none_or(|index| osv_violations_for_lockfile(index, &lockfile).is_empty());
-        if osv_clean {
-            return ndjson_single_frame(&done_frame(&lockfile));
-        }
+        // The OSV index is immutable for this resolver instance and a lockfile
+        // is only stored after passing the OSV check, so a cache hit is already
+        // OSV-clean — no per-package re-scan needed on this warm path.
+        return ndjson_single_frame(&done_frame(&lockfile));
     }
 
     // Streaming resolve. Run it in a detached task that pushes one
