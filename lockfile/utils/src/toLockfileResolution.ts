@@ -1,6 +1,6 @@
 import type { LockfileResolution } from '@pnpm/lockfile.types'
 import type { Resolution, TarballResolution } from '@pnpm/resolving.resolver-base'
-import getNpmTarballUrl from 'get-npm-tarball-url'
+import { isCanonicalRegistryTarballUrl } from '@pnpm/resolving.tarball-url'
 
 export function toLockfileResolution (
   pkg: {
@@ -54,20 +54,6 @@ export function toLockfileResolution (
   }
 }
 
-// Whether `tarball` is the canonical npm registry URL derived from the package
-// name, version, and registry — i.e. it can be dropped from the lockfile and
-// rebuilt on demand. The `%2f` unescape matches the URLs npm produces for
-// scoped packages.
-function isCanonicalRegistryTarballUrl (
-  tarball: string,
-  pkg: { name: string, version: string },
-  registry: string
-): boolean {
-  const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
-  const actualTarball = tarball.replaceAll('%2f', '/')
-  return removeProtocol(expectedTarball) === removeProtocol(actualTarball)
-}
-
 // Inlined to avoid pulling @pnpm/fetching.pick-fetcher into the lockfile-utils
 // dep graph. Used as a fallback when callers haven't pre-set the
 // `gitHosted` field on TarballResolution.
@@ -82,8 +68,4 @@ export function isGitHostedTarballUrl (url: string): boolean {
     lowerUrl.startsWith('https://bitbucket.org/') ||
     lowerUrl.startsWith('https://gitlab.com/')
   ) && lowerUrl.includes('tar.gz')
-}
-
-function removeProtocol (url: string): string {
-  return url.split('://')[1]
 }

@@ -8,10 +8,10 @@ import { calcGlobalVirtualStorePathWithSubdeps, calcLeafGlobalVirtualStorePath }
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
+import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
 import type { StoreController } from '@pnpm/store.controller'
 import type { ConfigDependencies, Registries } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
-import getNpmTarballUrl from 'get-npm-tarball-url'
 import { symlinkDir } from 'symlink-dir'
 
 import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'

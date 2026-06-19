@@ -25,6 +25,9 @@
       "path": "../../resolving/resolver-base"
     },
     {
+      "path": "../../resolving/tarball-url"
+    },
+    {
       "path": "../types"
     }
   ]
