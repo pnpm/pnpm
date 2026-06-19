@@ -636,6 +636,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             full_metadata,
             filter_metadata: full_metadata,
             retry_opts: crate::retry_config::retry_opts_from_config(config),
+            native_bin_dependencies: config.native_bin_dependencies.iter().cloned().collect(),
         });
         let git_resolver = GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(&http_client_arc))),

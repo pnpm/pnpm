@@ -9,6 +9,13 @@ pub fn default_hoist_pattern() -> Vec<String> {
     vec!["*".to_string()]
 }
 
+/// Built-in native bin dependencies. Mirrors pnpm's
+/// `DEFAULT_NATIVE_BIN_DEPENDENCIES`.
+#[must_use]
+pub fn default_native_bin_dependencies() -> Vec<String> {
+    vec!["pacquet".to_string(), "@pnpm/pacquet".to_string()]
+}
+
 /// Default for `git_shallow_hosts`. Mirrors pnpm v11's default at
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L155-L162>,
 /// which follows

@@ -67,6 +67,7 @@ fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, Tem
         full_metadata: false,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
+        native_bin_dependencies: std::collections::HashSet::default(),
     };
     (resolver, cache_dir)
 }

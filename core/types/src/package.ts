@@ -195,6 +195,7 @@ export interface PnpmSettings {
   }
   auditConfig?: AuditConfig
   requiredScripts?: string[]
+  nativeBinDependencies?: string[]
   supportedArchitectures?: SupportedArchitectures
   nodeDownloadMirrors?: Record<string, string>
   httpProxy?: string

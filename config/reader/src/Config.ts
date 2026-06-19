@@ -227,6 +227,7 @@ export interface Config extends OptionsFromRootManifest {
   embedReadme?: boolean
   skipManifestObfuscation?: boolean
   gitShallowHosts?: string[]
+  nativeBinDependencies?: string[]
   legacyDirFiltering?: boolean
   allowBuilds?: Record<string, boolean | string>
   dedupePeerDependents?: boolean

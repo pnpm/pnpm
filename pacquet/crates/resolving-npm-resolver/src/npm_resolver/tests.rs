@@ -79,6 +79,7 @@ fn build_resolver_with_registries(
         full_metadata: false,
         filter_metadata: false,
         retry_opts: RetryOpts::default(),
+        native_bin_dependencies: std::collections::HashSet::default(),
     };
     (resolver, cache_dir)
 }
@@ -581,6 +582,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
             full_metadata: false,
             filter_metadata: false,
             retry_opts: RetryOpts::default(),
+            native_bin_dependencies: std::collections::HashSet::default(),
         };
         (resolver, cache_dir)
     };
@@ -1066,4 +1068,137 @@ async fn registry_pick_wins_when_workspace_version_does_not_match() {
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.id.as_str(), "acme@3.1.0");
+}
+
+/// A native bin dependency (a wrapper shipping per-platform binaries as
+/// `optionalDependencies`) resolves to a `variations` resolution over the
+/// platform packages, with each variant a binary-tarball resolution whose
+/// `bin` points at the native binary at the package root.
+#[tokio::test]
+async fn native_bin_dependency_resolves_to_platform_variations() {
+    const INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+
+    fn wrapper_body() -> String {
+        r#"{
+            "name": "pacquet",
+            "dist-tags": { "latest": "1.0.0" },
+            "versions": {
+                "1.0.0": {
+                    "name": "pacquet",
+                    "version": "1.0.0",
+                    "bin": { "pacquet": "bin/pacquet" },
+                    "optionalDependencies": {
+                        "pacquet-darwin-arm64": "1.0.0",
+                        "pacquet-linux-x64": "1.0.0"
+                    },
+                    "dist": {
+                        "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                        "shasum": "0000000000000000000000000000000000000000",
+                        "tarball": "https://registry/pacquet-1.0.0.tgz"
+                    }
+                }
+            }
+        }"#
+        .to_string()
+    }
+
+    fn platform_body(name: &str, os: &str, cpu: &str) -> String {
+        format!(
+            r#"{{
+                "name": "{name}",
+                "dist-tags": {{ "latest": "1.0.0" }},
+                "versions": {{
+                    "1.0.0": {{
+                        "name": "{name}",
+                        "version": "1.0.0",
+                        "os": ["{os}"],
+                        "cpu": ["{cpu}"],
+                        "dist": {{
+                            "integrity": "{INTEGRITY}",
+                            "shasum": "1111111111111111111111111111111111111111",
+                            "tarball": "https://registry/{name}-1.0.0.tgz"
+                        }}
+                    }}
+                }}
+            }}"#,
+        )
+    }
+
+    let mut server = mockito::Server::new_async().await;
+    let _wrapper = server
+        .mock("GET", "/pacquet")
+        .with_status(200)
+        .with_body(wrapper_body())
+        .create_async()
+        .await;
+    let _darwin = server
+        .mock("GET", "/pacquet-darwin-arm64")
+        .with_status(200)
+        .with_body(platform_body("pacquet-darwin-arm64", "darwin", "arm64"))
+        .create_async()
+        .await;
+    let _linux = server
+        .mock("GET", "/pacquet-linux-x64")
+        .with_status(200)
+        .with_body(platform_body("pacquet-linux-x64", "linux", "x64"))
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let mut registries = HashMap::new();
+    registries.insert("default".to_string(), format!("{}/", server.url()));
+    let resolver = NpmResolver {
+        registries,
+        named_registries: HashMap::new(),
+        http_client: Arc::new(ThrottledClient::default()),
+        auth_headers: Arc::new(AuthHeaders::default()),
+        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+        fetch_locker: shared_packument_fetch_locker(),
+        picked_manifest_cache: shared_picked_manifest_cache(),
+        cache_dir: Some(cache_dir.path().to_path_buf()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+        native_bin_dependencies: std::iter::once("pacquet".to_string()).collect(),
+    };
+
+    let wanted = WantedDependency {
+        alias: Some("pacquet".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect("resolve")
+        .expect("picks");
+
+    let LockfileResolution::Variations(variations) = &result.resolution else {
+        panic!("expected a variations resolution, got {:?}", result.resolution);
+    };
+    assert_eq!(variations.variants.len(), 2, "{variations:?}");
+
+    let targets: Vec<(&str, &str)> = variations
+        .variants
+        .iter()
+        .flat_map(|variant| {
+            variant.targets.iter().map(|target| (target.os.as_str(), target.cpu.as_str()))
+        })
+        .collect();
+    assert!(targets.contains(&("darwin", "arm64")), "{targets:?}");
+    assert!(targets.contains(&("linux", "x64")), "{targets:?}");
+
+    for variant in &variations.variants {
+        let LockfileResolution::Binary(binary) = &variant.resolution else {
+            panic!("expected a binary variant, got {:?}", variant.resolution);
+        };
+        assert!(matches!(binary.archive, pacquet_lockfile::BinaryArchive::Tarball));
+        let pacquet_lockfile::BinarySpec::Map(bin) = &binary.bin else {
+            panic!("expected a bin map, got {:?}", binary.bin);
+        };
+        assert_eq!(bin.get("pacquet").map(String::as_str), Some("pacquet"), "{bin:?}");
+    }
 }

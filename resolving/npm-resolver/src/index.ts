@@ -19,6 +19,7 @@ import type {
   ResolveOptions,
   ResolveResult,
   TarballResolution,
+  VariationsResolution,
   WantedDependency,
   WorkspacePackage,
   WorkspacePackages,
@@ -59,6 +60,10 @@ import {
   type PickPackageOptions,
 } from './pickPackage.js'
 import { pickPackageFromMeta, pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import {
+  DEFAULT_NATIVE_BIN_DEPENDENCIES,
+  resolveNativeBinVariations,
+} from './resolveNativeBinVariations.js'
 import { failIfTrustDowngraded } from './trustChecks.js'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from './violationCodes.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
@@ -149,12 +154,15 @@ export interface ResolverFactoryOptions {
    *  instead of creating a new LRU cache. Useful for servers that keep
    *  metadata in SQLite or persist it across requests. */
   metaCache?: PackageMetaCache
+  /** Extra package names to treat as native bin dependencies, on top of
+   *  {@link DEFAULT_NATIVE_BIN_DEPENDENCIES}. */
+  nativeBinDependencies?: string[]
 }
 
 export interface NpmResolveResult extends ResolveResult {
   latest?: string
   manifest: DependencyManifest
-  resolution: TarballResolution
+  resolution: TarballResolution | VariationsResolution
   resolvedVia: 'npm-registry'
 }
 
@@ -272,6 +280,7 @@ export function createNpmResolver (
     namedRegistryNames,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     peekManifestFromStore,
+    nativeBinDependencies: new Set([...DEFAULT_NATIVE_BIN_DEPENDENCIES, ...opts.nativeBinDependencies ?? []]),
   }
   const boundResolveFromNpm = resolveNpm.bind(null, ctx)
   const boundResolveFromJsr = resolveJsr.bind(null, ctx)
@@ -372,6 +381,7 @@ export interface ResolveFromNpmContext {
     name?: string
     version?: string
   }) => Promise<DependencyManifest | undefined>
+  nativeBinDependencies: ReadonlySet<string>
 }
 
 export type ResolveFromNpmOptions = {
@@ -600,6 +610,28 @@ async function resolveNpm (
     })
   }
   const publishedAt = meta.time?.[pickedPackage.version]
+  if (ctx.nativeBinDependencies.has(pickedPackage.name)) {
+    const nativeBin = await resolveNativeBinVariations(ctx, pickedPackage, { dryRun: opts.dryRun })
+    if (nativeBin != null) {
+      return {
+        id,
+        latest: meta['dist-tags'].latest,
+        manifest: { ...pickedPackage, bin: nativeBin.bin },
+        resolution: nativeBin.resolution,
+        resolvedVia: 'npm-registry',
+        publishedAt,
+        normalizedBareSpecifier,
+        policyViolation: detectMinReleaseAgeViolation({
+          name: pickedPackage.name,
+          version: pickedPackage.version,
+          publishedAt,
+          resolution: nativeBin.resolution,
+          publishedBy: opts.publishedBy,
+          publishedByExclude: opts.publishedByExclude,
+        }),
+      }
+    }
+  }
   return {
     id,
     latest: meta['dist-tags'].latest,
