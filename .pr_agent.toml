@@ -1,9 +1,7 @@
 [github_app]
 # Commands run automatically when a PR is opened.
-# /improve runs the code-suggestions tool, which is what evaluates auto-approval
-# (see the auto_approve_* settings under [config]). It's only on open, not on
-# push, to keep Qodo's per-PR usage low — re-evaluation happens for a freshly
-# opened PR, not on every commit.
+# /improve runs the code-suggestions tool, which also evaluates auto-approval
+# (see the auto_approve_* settings under [config]).
 pr_commands = [
     "/agentic_describe",
     "/agentic_review",
@@ -14,8 +12,12 @@ pr_commands = [
 handle_push_trigger = true
 
 # Commands run automatically on push (requires handle_push_trigger = true).
+# /improve is included so auto-approval is re-evaluated on every push, not only
+# at open — without it, a PR iterated after open is never re-approved even once
+# it is clean.
 push_commands = [
     "/agentic_review",
+    "/improve",
 ]
 
 [config]
@@ -36,8 +38,9 @@ ignore_pr_authors = [
 
 # Auto-approve a PR when Qodo finds nothing to fix. enable_auto_approval is the
 # required master switch (off by default). Both conditions below are evaluated by
-# the /improve tool (see pr_commands), so /improve must run for approval to fire,
-# and these flags only take effect from the config file on the default branch:
+# the /improve tool (see pr_commands and push_commands), so approval is re-checked
+# on open and on every push; these flags only take effect from the config file on
+# the default branch:
 #   - auto_approve_for_no_suggestions: approve when /improve yields zero suggestions.
 #   - auto_approve_for_low_review_effort: approve when the estimated review effort
 #     is at or below this score (1=trivial .. 5=very involved); 2 covers small PRs.
@@ -49,8 +52,8 @@ auto_approve_for_low_review_effort = 2
 comments_location_policy = "both"
 inline_comments_severity_threshold = 2
 issues_user_guidelines = """
-Apply the "AI Review Guidance" section in AGENTS.md. Security vulnerabilities are the first review priority; performance regressions in pnpm, pacquet, and pnpr are the second priority. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
+Apply the review framework in REVIEW_GUIDE.md. The repo's priority order — security first, performance second — applies to every reviewer. You are one of two bots: to avoid duplicate comments, you provide the primary depth on security and performance while CodeRabbit provides the primary depth on correctness and convention adherence; always still report any clear correctness bug or documented-convention violation you find. Lead on: (1) security vulnerabilities per REVIEW_GUIDE.md's "Security review rules"; (2) performance regressions in pnpm, pacquet, and pnpr per REVIEW_GUIDE.md's "Performance review rules". Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
 """
 compliance_user_guidelines = """
-Enforce the security-sensitive and performance-sensitive contracts described in AGENTS.md's "AI Review Guidance" section.
+Enforce the security and performance contracts in REVIEW_GUIDE.md's "Security review rules" and "Performance review rules" sections.
 """
