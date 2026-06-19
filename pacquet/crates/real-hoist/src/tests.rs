@@ -1,11 +1,15 @@
-use super::{HoistError, HoistOpts, HoisterResult, hoist};
+use super::{
+    HoistError, HoistOpts, HoisterResult, RcByPtr, build_hoist_ident_map, hoist, is_preferred_ident,
+};
+use indexmap::IndexSet;
 use pacquet_lockfile::{
     ComVer, Lockfile, LockfileSettings, LockfileVersion, PkgName, PkgNameVerPeer, PkgVerPeer,
     ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{BTreeSet, HashMap},
+    cell::RefCell,
+    collections::{BTreeSet, HashMap, VecDeque},
     rc::Rc,
 };
 
@@ -252,6 +256,80 @@ fn version_conflict_keeps_loser_at_parent() {
     let b_under_c_refs = c_kids[0].0.references.borrow();
     assert!(b_under_c_refs.contains("b@2.0.0"), "loser stays under c: {b_under_c_refs:?}");
     assert_eq!(b_under_c_refs.len(), 1);
+}
+
+/// The most-depended-on version of a shared name wins the root
+/// slot, even when a less-used version is discovered first in the
+/// depth-first walk — a first-visitor rule would hoist the wrong
+/// one. Ports the "most used version wins" guarantee of yarn's
+/// `getHoistIdentMap`.
+#[test]
+fn most_used_version_wins_root_slot() {
+    let mut importers = HashMap::new();
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("aa"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("cc"), resolved_dep("1.0.0"));
+    root_deps.insert(pkg_name("dd"), resolved_dep("1.0.0"));
+    importers.insert(
+        Lockfile::ROOT_IMPORTER_KEY.to_string(),
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
+    );
+
+    let mut snapshots = HashMap::new();
+    let mut aa_deps = HashMap::new();
+    aa_deps.insert(pkg_name("x"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
+    let mut cc_deps = HashMap::new();
+    cc_deps.insert(pkg_name("x"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    let mut dd_deps = HashMap::new();
+    dd_deps.insert(pkg_name("x"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
+    snapshots.insert(
+        dep_key("aa", "1.0.0"),
+        SnapshotEntry { dependencies: Some(aa_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(
+        dep_key("cc", "1.0.0"),
+        SnapshotEntry { dependencies: Some(cc_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(
+        dep_key("dd", "1.0.0"),
+        SnapshotEntry { dependencies: Some(dd_deps), ..SnapshotEntry::default() },
+    );
+    snapshots.insert(dep_key("x", "1.0.0"), SnapshotEntry::default());
+    snapshots.insert(dep_key("x", "2.0.0"), SnapshotEntry::default());
+
+    let lockfile = Lockfile {
+        lockfile_version: lockfile_version(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers,
+        packages: None,
+        snapshots: Some(snapshots),
+    };
+
+    let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
+    let root_children = result.dependencies.borrow();
+    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["aa", "cc", "dd", "x"], "one x at root: {result:#?}");
+    let x_at_root = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "x").unwrap().0);
+    let x_refs = x_at_root.references.borrow();
+    assert!(
+        x_refs.contains("x@2.0.0"),
+        "the more-used x@2.0.0 wins root over the first-visited x@1.0.0: {x_refs:?}",
+    );
+    let dep_aa = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "aa").unwrap().0);
+    let aa_kids = dep_aa.dependencies.borrow();
+    assert_eq!(aa_kids.len(), 1, "aa keeps its conflicting x@1.0.0");
+    let x_under_aa = aa_kids[0].0.references.borrow();
+    assert!(
+        x_under_aa.contains("x@1.0.0"),
+        "the less-used x stays nested under aa: {x_under_aa:?}",
+    );
 }
 
 #[test]
@@ -974,5 +1052,102 @@ fn hoist_workspace_packages_false_omits_workspace_children() {
         result.dependencies.borrow().is_empty(),
         "non-root importers omitted: {:?}",
         result.dependencies.borrow().iter().map(|child| child.0.name.clone()).collect::<Vec<_>>(),
+    );
+}
+
+/// Construct a [`HoisterResult`] node directly, for unit-testing the
+/// preference machinery without going through [`hoist`] (which only ever
+/// builds the `.` root with empty `peer_names`).
+fn result_node(
+    name: &str,
+    reference: &str,
+    peer_names: &[&str],
+    dependencies: Vec<Rc<HoisterResult>>,
+) -> Rc<HoisterResult> {
+    Rc::new(HoisterResult {
+        name: name.to_string(),
+        ident_name: name.to_string(),
+        references: RefCell::new(BTreeSet::from([reference.to_string()])),
+        peer_names: peer_names.iter().map(|&peer| peer.to_string()).collect(),
+        dependencies: RefCell::new(dependencies.into_iter().map(RcByPtr).collect::<IndexSet<_>>()),
+    })
+}
+
+/// A candidate whose name the root declares as its own peer dependency is
+/// kept out of the ident map, even when reachable through the root's
+/// non-peer descendants. Ports yarn's `!rootNode.peerNames.has(name)`
+/// guard in `getHoistIdentMap`.
+///
+/// [`hoist`] always builds the `.` root with empty `peer_names`, so the
+/// guard is unreachable from the public entry point. This drives
+/// [`build_hoist_ident_map`] directly with a root that declares a peer —
+/// the shape a per-importer hoisting root would take once those land.
+#[test]
+fn build_hoist_ident_map_skips_root_peer_names() {
+    let react = result_node("react", "react@18.0.0", &[], vec![]);
+    let app = result_node("app", "app@1.0.0", &[], vec![react]);
+    let root = result_node(".", "", &["react"], vec![app]);
+
+    let ident_map = build_hoist_ident_map(&root);
+    dbg!(&ident_map);
+    assert!(ident_map.contains_key("app"), "the non-peer child is recorded");
+    assert!(
+        !ident_map.contains_key("react"),
+        "a name the root declares as a peer is skipped even when reachable transitively",
+    );
+}
+
+/// When a *non-root* node declares one of its own children as a peer,
+/// `add_dependent` records that child as a peer-dependent but does not
+/// recurse into it (yarn's `entry.peerDependents.add` branch). The
+/// child's own exclusive subtree is therefore never discovered.
+///
+/// Reachable from `hoist` only with an exotic lockfile where a package
+/// lists the same name in both `dependencies` and `peerDependencies`;
+/// driving [`build_hoist_ident_map`] directly is simpler and lets the
+/// "subtree not walked" effect be asserted unambiguously.
+#[test]
+fn build_hoist_ident_map_records_node_peers_without_walking_their_subtree() {
+    let scheduler = result_node("scheduler", "scheduler@1.0.0", &[], vec![]);
+    let react = result_node("react", "react@18.0.0", &[], vec![scheduler]);
+    let app = result_node("app", "app@1.0.0", &["react"], vec![react]);
+    let root = result_node(".", "", &[], vec![app]);
+
+    let ident_map = build_hoist_ident_map(&root);
+    dbg!(&ident_map);
+    assert!(ident_map.contains_key("app"), "the regular dep is recorded");
+    assert!(ident_map.contains_key("react"), "the node's peer is still a candidate ident");
+    assert!(
+        !ident_map.contains_key("scheduler"),
+        "a peer's exclusive subtree is not walked, so its child never enters the map",
+    );
+}
+
+/// `is_preferred_ident` returns `true` for a name with no entry in the
+/// ident map. Unreachable from `hoist` (the map covers every name the
+/// walk encounters except root peers, and `hoist` builds the `.` root
+/// with no peers), so it is exercised by calling the guard directly.
+#[test]
+fn is_preferred_ident_allows_names_absent_from_the_map() {
+    let child = result_node("ghost", "ghost@1.0.0", &[], vec![]);
+    let ident_map: HashMap<String, VecDeque<String>> = HashMap::new();
+    assert!(
+        is_preferred_ident(&child, &ident_map),
+        "a name with no preference entry carries no constraint and hoists freely",
+    );
+}
+
+/// `is_preferred_ident` returns `true` when a name maps to an empty
+/// candidate list. [`build_hoist_ident_map`] never emits an empty
+/// `VecDeque` (every entry gets at least one ident), so this defensive
+/// guard is only reachable by constructing the empty list directly.
+#[test]
+fn is_preferred_ident_allows_empty_candidate_lists() {
+    let child = result_node("ghost", "ghost@1.0.0", &[], vec![]);
+    let ident_map: HashMap<String, VecDeque<String>> =
+        HashMap::from([("ghost".to_string(), VecDeque::new())]);
+    assert!(
+        is_preferred_ident(&child, &ident_map),
+        "an empty candidate list carries no constraint and hoists freely",
     );
 }
