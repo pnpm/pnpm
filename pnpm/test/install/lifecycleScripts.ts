@@ -333,6 +333,24 @@ test('auto-populated placeholders are merged with existing allowBuilds', async (
   expect(manifest?.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe('set this to true or false')
 })
 
+test('install --ignore-workspace does not overwrite allowBuilds in pnpm-workspace.yaml', () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': false,
+    },
+  })
+  const manifestBefore = fs.readFileSync('pnpm-workspace.yaml', 'utf8')
+
+  execPnpmSync(['install', '--ignore-workspace'])
+
+  expect(fs.readFileSync('pnpm-workspace.yaml', 'utf8')).toBe(manifestBefore)
+})
+
 test('selective rebuild preserves ignoredBuilds for packages not being rebuilt', async () => {
   const project = prepare({})
   writeYamlFileSync('pnpm-workspace.yaml', {

@@ -22,7 +22,7 @@ test('handleIgnoredBuilds does not update pnpm-workspace.yaml when workspace is 
   const workspaceManifestBefore = fs.readFileSync(workspaceManifestFile, 'utf8')
 
   await handleIgnoredBuilds({
-    cliOptions: { 'ignore-workspace': true },
+    ignoreWorkspace: true,
     rootProjectManifestDir: process.cwd(),
   }, new Set(['esbuild@0.25.0' as DepPath]))
 

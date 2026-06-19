@@ -8,7 +8,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>
-  cliOptions?: Record<string, unknown>
+  ignoreWorkspace?: boolean
   rootProjectManifestDir?: string
   workspaceDir?: string
   strictDepBuilds?: boolean
@@ -19,7 +19,8 @@ export async function handleIgnoredBuilds (
   ignoredBuilds: IgnoredBuilds | undefined
 ): Promise<void> {
   if (!ignoredBuilds?.size) return
-  if (!opts.cliOptions?.['ignore-workspace']) {
+  // allowBuilds is persisted in pnpm-workspace.yaml, which --ignore-workspace must not touch.
+  if (!opts.ignoreWorkspace) {
     await writeIgnoredBuildsToAllowBuilds(opts, ignoredBuilds)
   }
   if (opts.strictDepBuilds) {

@@ -117,6 +117,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'workspaceDir'
 | 'workspacePackagePatterns'
 | 'extraEnv'
+| 'ignoreWorkspace'
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
 | 'configDependencies'
