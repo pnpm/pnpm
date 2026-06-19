@@ -144,15 +144,13 @@ struct VersionPolicyRule {
 }
 
 impl PackageVersionPolicy {
-    /// Evaluate the policy against a package name. Walks rules in
-    /// source order, merging consecutive `name@version[...]` matches
-    /// (deduplicated). A bare-name (or wildcard) match short-circuits
-    /// the walk and returns the accumulated `ExactVersions` if any
-    /// were collected, or `AnyVersion` otherwise — first-match
-    /// precedence between exact and broader rules so a wildcard
-    /// listed after an exact-version rule never silently widens an
-    /// exclusion to every version of the package. `PolicyMatch::No`
-    /// when no rule matched.
+    /// Evaluate the policy against a package name, merging the exact
+    /// versions of all matching `name@version[...]` rules.
+    ///
+    /// A bare-name or wildcard rule matches every version, but never
+    /// widens exact versions already accumulated from earlier rules: a
+    /// wildcard listed after an exact-version rule does not silently
+    /// turn the exclusion into every version of the package.
     #[must_use]
     pub fn matches(&self, pkg_name: &str) -> PolicyMatch {
         let mut merged: Option<(Vec<String>, HashSet<String>)> = None;
