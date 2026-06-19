@@ -1,10 +1,12 @@
-use super::{HoistError, HoistOpts, HoisterResult, hoist};
+use super::{HoistError, HoistOpts, HoisterResult, RcByPtr, build_hoist_ident_map, hoist};
+use indexmap::IndexSet;
 use pacquet_lockfile::{
     ComVer, Lockfile, LockfileSettings, LockfileVersion, PkgName, PkgNameVerPeer, PkgVerPeer,
     ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use pretty_assertions::assert_eq;
 use std::{
+    cell::RefCell,
     collections::{BTreeSet, HashMap},
     rc::Rc,
 };
@@ -1051,5 +1053,50 @@ fn hoist_workspace_packages_false_omits_workspace_children() {
         result.dependencies.borrow().is_empty(),
         "non-root importers omitted: {:?}",
         result.dependencies.borrow().iter().map(|child| child.0.name.clone()).collect::<Vec<_>>(),
+    );
+}
+
+/// Construct a [`HoisterResult`] node directly, for unit-testing the
+/// preference machinery without going through [`hoist`] (which only ever
+/// builds the `.` root with empty `peer_names`).
+fn result_node(
+    name: &str,
+    reference: &str,
+    peer_names: &[&str],
+    dependencies: Vec<Rc<HoisterResult>>,
+) -> Rc<HoisterResult> {
+    Rc::new(HoisterResult {
+        name: name.to_string(),
+        ident_name: name.to_string(),
+        references: RefCell::new(BTreeSet::from([reference.to_string()])),
+        peer_names: peer_names.iter().map(|&peer| peer.to_string()).collect(),
+        dependencies: RefCell::new(dependencies.into_iter().map(RcByPtr).collect::<IndexSet<_>>()),
+    })
+}
+
+/// A candidate whose name the root declares as its own peer dependency is
+/// kept out of the ident map, even when reachable through the root's
+/// non-peer descendants. Ports yarn's `!rootNode.peerNames.has(name)`
+/// guard in `getHoistIdentMap`.
+///
+/// [`hoist`] always builds the `.` root with empty `peer_names`, so the
+/// guard is unreachable from the public entry point. This drives
+/// [`build_hoist_ident_map`] directly with a root that declares a peer —
+/// the shape a per-importer hoisting root would take once those land.
+#[test]
+fn build_hoist_ident_map_skips_root_peer_names() {
+    // `.` declares `react` as a peer; its non-peer child `app` pulls
+    // `react` in transitively, so `react` enters the preference map and
+    // then hits the peer-name guard.
+    let react = result_node("react", "react@18.0.0", &[], vec![]);
+    let app = result_node("app", "app@1.0.0", &[], vec![react]);
+    let root = result_node(".", "", &["react"], vec![app]);
+
+    let ident_map = build_hoist_ident_map(&root);
+    dbg!(&ident_map);
+    assert!(ident_map.contains_key("app"), "the non-peer child is recorded");
+    assert!(
+        !ident_map.contains_key("react"),
+        "a name the root declares as a peer is skipped even when reachable transitively",
     );
 }
