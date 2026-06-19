@@ -951,9 +951,6 @@ fn hoist_subtree(
             AbsorbDecision::Border
         } else {
             match root_index.get(&child.0.name) {
-                // Free slot, but only the currently-preferred ident
-                // may take it; a non-preferred version waits for the
-                // ident shift in `hoist_into_root`.
                 None if is_preferred_ident(&child.0, hoist_ident_map) => AbsorbDecision::Free,
                 None => AbsorbDecision::Defer,
                 Some(existing) if Rc::ptr_eq(&existing.0, &child.0) => AbsorbDecision::SameNode,
@@ -1007,16 +1004,11 @@ fn hoist_subtree(
                 | AbsorbDecision::PeerShadow
                 | AbsorbDecision::Border
                 | AbsorbDecision::Defer => {
-                    // Stays at the current parent. The version
-                    // already at root wins the slot, hoisting would
-                    // shadow a peer dependency, the candidate sits
-                    // beneath a `hoisting_limits` border, or its ident
-                    // is not the preferred one yet. Child's ancestor
-                    // path is the path through `node`; a later round
-                    // may revisit this candidate with a different peer
-                    // / conflict / preference context (the border
-                    // boundary is fixed so the Border verdict won't
-                    // change).
+                    // Stays at the current parent, so the child's
+                    // ancestor path is the path through `node`. A later
+                    // round may revisit it with a different peer /
+                    // conflict / preference context; only `Border` is
+                    // terminal, since the limit boundary never moves.
                     path_for_children.clone()
                 }
             }

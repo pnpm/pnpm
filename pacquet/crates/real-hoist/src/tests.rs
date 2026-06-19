@@ -260,11 +260,8 @@ fn version_conflict_keeps_loser_at_parent() {
 
 /// The most-depended-on version of a shared name wins the root
 /// slot, even when a less-used version is discovered first in the
-/// depth-first walk. `aa` (visited first, alphabetically) pulls
-/// `x@1.0.0`; `cc` and `dd` both pull `x@2.0.0`. A first-visitor
-/// rule would hoist `x@1.0.0`; the popularity preference hoists the
-/// more-used `x@2.0.0` and leaves `x@1.0.0` nested under `aa`.
-/// Ports the "most used version wins" guarantee of yarn's
+/// depth-first walk — a first-visitor rule would hoist the wrong
+/// one. Ports the "most used version wins" guarantee of yarn's
 /// `getHoistIdentMap`.
 #[test]
 fn most_used_version_wins_root_slot() {
@@ -1087,9 +1084,6 @@ fn result_node(
 /// the shape a per-importer hoisting root would take once those land.
 #[test]
 fn build_hoist_ident_map_skips_root_peer_names() {
-    // `.` declares `react` as a peer; its non-peer child `app` pulls
-    // `react` in transitively, so `react` enters the preference map and
-    // then hits the peer-name guard.
     let react = result_node("react", "react@18.0.0", &[], vec![]);
     let app = result_node("app", "app@1.0.0", &[], vec![react]);
     let root = result_node(".", "", &["react"], vec![app]);
@@ -1114,8 +1108,6 @@ fn build_hoist_ident_map_skips_root_peer_names() {
 /// "subtree not walked" effect be asserted unambiguously.
 #[test]
 fn build_hoist_ident_map_records_node_peers_without_walking_their_subtree() {
-    // `app` declares `react` as its own peer, so the peer branch records
-    // `react` but skips its exclusive child `scheduler`.
     let scheduler = result_node("scheduler", "scheduler@1.0.0", &[], vec![]);
     let react = result_node("react", "react@18.0.0", &[], vec![scheduler]);
     let app = result_node("app", "app@1.0.0", &["react"], vec![react]);

@@ -168,10 +168,8 @@ fn installing_with_hoisted_node_linker_and_no_lockfile() {
 /// Upstream: [`installing/deps-restorer/test/index.ts:859` "installing with node-linker=hoisted"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/test/index.ts#L859).
 ///
 /// The headless (frozen-lockfile) path materializes the hoisted
-/// layout from a pre-existing lockfile. Pacquet seeds the lockfile
-/// with a first `pacquet install`, tears down `node_modules`, then
-/// replays via `--frozen-lockfile` and asserts the same real-dir +
-/// version-conflict-nesting shape the fresh path produces.
+/// layout from a pre-existing lockfile, reproducing the same
+/// real-dir + version-conflict-nesting shape as a fresh install.
 #[test]
 fn installing_with_hoisted_node_linker_frozen() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -212,13 +210,13 @@ fn installing_with_hoisted_node_linker_frozen() {
 
 /// Upstream: [`installing/deps-restorer/test/index.ts:873` "installing in a workspace with node-linker=hoisted"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/test/index.ts#L873).
 ///
-/// Workspace-wide hoisting under the frozen path: the root importer
-/// and a workspace project pin conflicting versions of `ms`. The
-/// root's version wins the top-level `node_modules` slot (root deps
-/// rank first in the hoister's preference order) and the project's
-/// conflicting version nests under the project's own `node_modules`.
-/// Mirrors the upstream layout where the root's `webpack@5.65.0`
-/// lands at the root and `foo`'s `webpack@2.7.0` nests under `foo`.
+/// Workspace-wide hoisting under the frozen path. When the root
+/// importer and a workspace project pin conflicting versions of one
+/// name, the root's version wins the top-level slot — root deps rank
+/// first in the hoister's preference order — and the project's
+/// version nests under its own `node_modules`. Mirrors the upstream
+/// layout where the root's `webpack@5.65.0` lands at the root and
+/// `foo`'s `webpack@2.7.0` nests under `foo`.
 #[test]
 fn installing_in_a_workspace_with_hoisted_node_linker_frozen() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
