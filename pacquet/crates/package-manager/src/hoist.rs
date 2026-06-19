@@ -582,14 +582,19 @@ fn name_to_dir(name: &PkgName) -> std::path::PathBuf {
 }
 
 /// Read the existing symlink at `dest` and decide whether it should
-/// be replaced. If it points inside `package_store_dir` or
-/// `internal_pnpm_dir` (a pnpm-internal symlink — e.g., a stale link
-/// from a prior non-GVS install), remove it and create a new symlink
-/// to `dep_dir`. External symlinks are left in place.
+/// be replaced. If it already points at `dep_dir`, leave it untouched.
+/// If it points inside `package_store_dir` or `internal_pnpm_dir`
+/// (a pnpm-internal symlink — e.g., a stale link from a prior non-GVS
+/// install), remove it and create a new symlink to `dep_dir`. External
+/// symlinks (and non-symlink occupants) are left in place.
 ///
 /// Mirrors upstream's
 /// [`symlinkHoistedDependency`](https://github.com/pnpm/pnpm/blob/cbe1a171bd/installing/linking/hoist/src/index.ts#L310-L343)
 /// `isSubdir(virtualStoreDir, …) || isSubdir(internalPnpmDir, …)` guard.
+/// The already-correct fast path skips the unlink + recreate churn (and
+/// the transient missing-link window it opens) on warm reinstalls, the
+/// same way [`pacquet_fs::force_symlink_dir`] does — see its
+/// `existing_symlink_up_to_date` helper.
 fn update_stale_hoist_symlink(
     dep_dir: &std::path::Path,
     dest: &std::path::Path,
@@ -604,6 +609,9 @@ fn update_stale_hoist_symlink(
     } else {
         existing_raw
     };
+    if pacquet_fs::lexical_normalize(&existing) == pacquet_fs::lexical_normalize(dep_dir) {
+        return Ok(());
+    }
     if !pacquet_fs::is_subdir(package_store_dir, &existing)
         && !pacquet_fs::is_subdir(internal_pnpm_dir, &existing)
     {

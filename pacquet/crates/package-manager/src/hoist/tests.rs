@@ -591,6 +591,36 @@ fn update_stale_hoist_symlink_preserves_regular_directory() {
     assert!(dest.is_dir(), "regular directory must be preserved");
 }
 
+#[cfg(unix)]
+#[test]
+fn update_stale_hoist_symlink_is_noop_when_already_correct() {
+    use std::os::unix::fs::MetadataExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("store/links");
+    std::fs::create_dir_all(&virtual_store_dir).unwrap();
+    let internal_pnpm_dir = dir.path().join("node_modules/.pnpm");
+    std::fs::create_dir_all(&internal_pnpm_dir).unwrap();
+    let private_hoisted = internal_pnpm_dir.join("node_modules");
+    std::fs::create_dir_all(&private_hoisted).unwrap();
+
+    let dep_dir = virtual_store_dir.join("@scope/name/1.0.0/hash/node_modules/@scope/name");
+    std::fs::create_dir_all(&dep_dir).unwrap();
+    let dest = private_hoisted.join("already-correct-dep");
+    pacquet_fs::symlink_dir(&dep_dir, &dest).unwrap();
+
+    let ino_before = std::fs::symlink_metadata(&dest).unwrap().ino();
+
+    super::update_stale_hoist_symlink(&dep_dir, &dest, &virtual_store_dir, &internal_pnpm_dir)
+        .expect("should leave an already-correct symlink untouched");
+
+    let ino_after = std::fs::symlink_metadata(&dest).unwrap().ino();
+    assert_eq!(
+        ino_before, ino_after,
+        "an already-correct symlink must not be unlinked and recreated",
+    );
+}
+
 /// Helper: extract the (alias, kind) pairs at a given snapshot key
 /// for assertion purposes. Sorted for stable comparison.
 fn kinds_for(map: &HoistedDependencies, key: &str) -> Vec<(String, HoistKind)> {
