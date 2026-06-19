@@ -9,9 +9,11 @@ The central question for any PR:
 > user-visible contract, and without unacceptable security, performance, compatibility, or
 > maintenance cost — and is it the *smallest correct version* of itself?
 
-This is the canonical review guide for the repository. The automated reviewers apply it via
-[`.coderabbit.yaml`](./.coderabbit.yaml) and [`.pr_agent.toml`](./.pr_agent.toml), and
-[`AGENTS.md`](./AGENTS.md) points here.
+This is the canonical review guide for the repository, applied by human reviewers and by two
+automated reviewers — CodeRabbit ([`.coderabbit.yaml`](./.coderabbit.yaml)) and Qodo
+([`.pr_agent.toml`](./.pr_agent.toml)). To cut duplicate comments the bots divide review depth —
+CodeRabbit leads correctness and conventions, Qodo leads security and performance — but every
+reviewer applies the same priority order below. [`AGENTS.md`](./AGENTS.md) points here.
 
 ## Review priorities
 
