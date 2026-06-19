@@ -116,11 +116,75 @@ fn create_policy_scoped_bare_name_returns_any_version() {
 }
 
 #[test]
-fn create_policy_first_matching_rule_wins() {
+fn create_policy_distinct_name_rules() {
     let policy = create_package_version_policy(["axios@1.12.2", "lodash@4.17.21", "is-*"]).unwrap();
     assert_eq!(policy.matches("axios"), PolicyMatch::ExactVersions(vec!["1.12.2".to_string()]));
     assert_eq!(policy.matches("lodash"), PolicyMatch::ExactVersions(vec!["4.17.21".to_string()]));
     assert_eq!(policy.matches("is-odd"), PolicyMatch::AnyVersion);
+}
+
+#[test]
+fn create_policy_multiple_exact_version_rules_for_same_name_merge() {
+    // Regression test for pnpm/pnpm#12463: two separate exact-version
+    // entries for the same package must behave the same as a single
+    // disjunction entry containing the same versions.
+    let policy = create_package_version_policy(["form-data@4.0.6", "form-data@2.5.6"]).unwrap();
+    assert_eq!(
+        policy.matches("form-data"),
+        PolicyMatch::ExactVersions(vec!["4.0.6".to_string(), "2.5.6".to_string()]),
+    );
+}
+
+#[test]
+fn create_policy_merges_exact_versions_and_unions_for_same_name() {
+    let policy =
+        create_package_version_policy(["form-data@4.0.6", "form-data@2.5.6 || 2.5.7"]).unwrap();
+    assert_eq!(
+        policy.matches("form-data"),
+        PolicyMatch::ExactVersions(vec![
+            "4.0.6".to_string(),
+            "2.5.6".to_string(),
+            "2.5.7".to_string(),
+        ]),
+    );
+}
+
+#[test]
+fn create_policy_deduplicates_repeated_versions_across_rules() {
+    let policy = create_package_version_policy(["form-data@4.0.6", "form-data@4.0.6"]).unwrap();
+    assert_eq!(policy.matches("form-data"), PolicyMatch::ExactVersions(vec!["4.0.6".to_string()]),);
+}
+
+#[test]
+fn create_policy_bare_rule_after_exact_keeps_exact_versions() {
+    // Once an exact-version rule has matched, a later bare-name rule
+    // with the same name must not widen the policy to every version —
+    // a wildcard listed after an exact rule would otherwise silently
+    // bypass the version restriction.
+    let policy = create_package_version_policy(["axios@1.12.2", "axios"]).unwrap();
+    assert_eq!(policy.matches("axios"), PolicyMatch::ExactVersions(vec!["1.12.2".to_string()]));
+}
+
+#[test]
+fn create_policy_bare_rule_listed_first_wins_over_later_exact() {
+    // First-match precedence between bare-name and exact-version
+    // rules: an `AnyVersion` rule listed first keeps its `true`
+    // semantics; a later exact entry for the same name does not
+    // narrow it.
+    let policy = create_package_version_policy(["axios", "axios@1.12.2"]).unwrap();
+    assert_eq!(policy.matches("axios"), PolicyMatch::AnyVersion);
+}
+
+#[test]
+fn create_policy_wildcard_after_exact_keeps_exact_versions() {
+    let policy = create_package_version_policy(["axios@1.12.2", "ax*"]).unwrap();
+    assert_eq!(policy.matches("axios"), PolicyMatch::ExactVersions(vec!["1.12.2".to_string()]));
+}
+
+#[test]
+fn create_policy_wildcard_listed_first_wins_over_later_exact() {
+    let policy = create_package_version_policy(["ax*", "axios@1.12.2"]).unwrap();
+    assert_eq!(policy.matches("axios"), PolicyMatch::AnyVersion);
 }
 
 #[test]
