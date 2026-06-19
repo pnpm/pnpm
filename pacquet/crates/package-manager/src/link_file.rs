@@ -253,7 +253,22 @@ fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
 /// redundant `set_permissions` per executable there.)
 fn clone_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     reflink_copy::reflink(source_file, target_link)?;
-    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+    restore_after_reflink(source_file, target_link)
+}
+
+/// Restore the exec bit after a reflink that just created `target`, removing
+/// the partial file if restoration fails.
+///
+/// reflink does not overwrite (unlike `fs::copy`), so a target left at `0o644`
+/// by a failed restore would be adopted as-is by the next repair pass —
+/// `import_into_fresh_target` treats the EEXIST as a no-op and never re-runs
+/// restoration — silently completing the package with a non-executable binary.
+fn restore_after_reflink(source_file: &Path, target_link: &Path) -> io::Result<()> {
+    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link).inspect_err(
+        |_| {
+            let _ = fs::remove_file(target_link);
+        },
+    )
 }
 
 /// EXDEV = "cross-device link not permitted". Linux / macOS / BSD all
@@ -324,7 +339,7 @@ fn auto_link<Reporter: self::Reporter>(
             // just-created file and mask the real error behind `AlreadyExists`.
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
-                    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
+                    restore_after_reflink(source, target)?;
                     log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }
@@ -374,7 +389,7 @@ fn clone_or_copy_link<Reporter: self::Reporter>(
             // here); the post-reflink restoration error is terminal.
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
-                    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
+                    restore_after_reflink(source, target)?;
                     log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }
