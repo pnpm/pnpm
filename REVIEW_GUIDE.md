@@ -299,7 +299,10 @@ escaping when a proven library or local helper exists.
 
 ## 12. Engineering conventions (line-level review)
 
-The most frequent line-level review notes:
+For general code style (Standard Style, import order, functions-over-classes) and how to write
+comments, see `AGENTS.md` → **Code Style** / **Comments** and `CONTRIBUTING.md` (pacquet has its
+own `pacquet/CODE_STYLE_GUIDE.md`); don't restate those here. The conventions below are the
+ones that recur specifically in *review*:
 
 **Errors**
 - User-reachable errors are `PnpmError` (from `@pnpm/error`) — they're UX and carry a stable
@@ -342,10 +345,6 @@ The most frequent line-level review notes:
 - Prefer async fs and `async/await`; run independent work with `Promise.all`/`Promise.any` and
   `await` what must complete; hoist invariant work out of loops.
 
-**Style**
-- Follow StandardJS (no semicolons, no Prettier). Comments must earn their place
-  (see `AGENTS.md` → Comments).
-
 ---
 
 ## 13. How feedback is written
@@ -383,29 +382,3 @@ For each PR, in order:
 A change is mergeable when it is the **smallest correct, secure, in-scope version of a thing
 pnpm should do**, in the right layer, proven by a meaningful test, documented if user-visible,
 and mirrored in pacquet.
-
----
-
-## 15. Source threads
-
-Real decisions behind the rules above:
-
-- Yarn `resolutions` rejected; a deprecation message was enough —
-  [#11941](https://github.com/pnpm/pnpm/pull/11941#issuecomment-4740765822)
-- Dry-run must behave like the real install minus writes —
-  [#12270](https://github.com/pnpm/pnpm/pull/12270#issuecomment-4717095101) ·
-  [#12080](https://github.com/pnpm/pnpm/pull/12080#issuecomment-4726690874)
-- Security hardening gated on a performance design before becoming default —
-  [#11583](https://github.com/pnpm/pnpm/pull/11583#issuecomment-4463511857)
-- Policy checks belong in the git/tarball resolvers —
-  [#11805](https://github.com/pnpm/pnpm/pull/11805#issuecomment-4508128892)
-- A redundant import-state check; `package.json` written last is already the marker —
-  [#11170](https://github.com/pnpm/pnpm/pull/11170#issuecomment-4181025884)
-- Concurrent same-file writes must be tested, especially on Windows —
-  [#11087](https://github.com/pnpm/pnpm/pull/11087#issuecomment-4121103840)
-- Dangerous optimizations split into one PR each —
-  [#11083](https://github.com/pnpm/pnpm/pull/11083#issuecomment-4120809436)
-- Use npm's already-recognized command name; no extra aliases —
-  [#11064](https://github.com/pnpm/pnpm/pull/11064#issuecomment-4107201643)
-- Parser-combinator pattern for structured parsing —
-  [#9811](https://github.com/pnpm/pnpm/pull/9811)
