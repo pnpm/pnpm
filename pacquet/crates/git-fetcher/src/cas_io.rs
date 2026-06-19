@@ -15,7 +15,9 @@
 //!   import.
 
 use crate::error::GitFetcherError;
-use pacquet_fs::file_mode::{cas_path_is_executable, is_executable};
+use pacquet_fs::file_mode::{
+    cas_path_is_executable, is_executable, restore_exec_bit_from_cas_suffix,
+};
 use pacquet_store_dir::{CafsFileInfo, StoreDir};
 use std::{
     collections::HashMap,
@@ -94,20 +96,7 @@ pub(crate) fn materialize_into(
             fs::create_dir_all(parent).map_err(GitFetcherError::Io)?;
         }
         fs::copy(cas_path, &target).map_err(GitFetcherError::Io)?;
-        // Carry the executable bit across. The CAS uses a `-exec`
-        // suffix on the file name to encode the bit (matches pnpm's
-        // CAFS layout), so reading it back from the path is the only
-        // reliable signal — `fs::copy` itself doesn't reset POSIX
-        // permissions, but we may need to *add* the bit if the CAS
-        // file's filesystem-level mode lost it during an earlier
-        // copy or hardlink path elsewhere.
-        #[cfg(unix)]
-        if cas_path_is_executable(cas_path) {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = fs::metadata(&target).map_err(GitFetcherError::Io)?.permissions();
-            perms.set_mode(perms.mode() | pacquet_fs::file_mode::EXEC_MASK);
-            fs::set_permissions(&target, perms).map_err(GitFetcherError::Io)?;
-        }
+        restore_exec_bit_from_cas_suffix(cas_path, &target).map_err(GitFetcherError::Io)?;
     }
     Ok(())
 }

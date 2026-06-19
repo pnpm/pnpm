@@ -42,7 +42,7 @@ const ENFILE: i32 = 23;
 /// the helper is a thin pass-through there — the trailing `op()`
 /// after the `cfg(unix)` block is the one and only attempt on that
 /// platform. Pacquet's Windows build path otherwise stays unchanged.
-fn retry_on_fd_pressure<Func, Value>(mut op: Func) -> io::Result<Value>
+pub(crate) fn retry_on_fd_pressure<Func, Value>(mut op: Func) -> io::Result<Value>
 where
     Func: FnMut() -> io::Result<Value>,
 {

@@ -297,6 +297,7 @@ Rust-specific defaults:
 
 -   **Doc comments (`///`, `//!`) document the contract.** Preconditions, postconditions, panics, the reason the function exists. They are not a re-narration of the body.
 -   **Do not restate at call sites what the callee's doc comment already says.** If `///` on the function says "no-op when …", the caller should not repeat that. Update the doc once; let every call site benefit.
+-   **Put a shared *why* in one place.** When the same rationale underlies several related functions — peers that delegate to a common helper, or a type and its methods — document it once at that common home and reference it from the rest, instead of re-deriving it in each. This is the call-site rule applied sideways across peers, not just upward to a callee.
 -   **Tests are documentation. Do not duplicate them in prose.** If a behavioral scenario, edge case, failure mode, or worked example is already captured by a test (its name, its setup, its assertions), do not also narrate it in the doc comment on the implementation. The doc comment should state the contract once; the test demonstrates the behavior. The same applies in reverse: a test's own doc comment should not re-explain what the asserts already say, only the *why* if it is not obvious.
 -   **`// SAFETY:`, `// TODO:`, and similar prefixes are the exception.** They signal hidden invariants or known follow-ups that a reader cannot recover from the code alone.
 

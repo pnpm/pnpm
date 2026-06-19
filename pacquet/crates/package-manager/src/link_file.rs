@@ -152,12 +152,14 @@ pub fn link_file<Reporter: self::Reporter>(
 /// runs against a directory it just created — that protection is
 /// unneeded.
 ///
-/// EEXIST from the import syscall is still treated as a no-op:
-/// concurrent installs (or a sibling rayon worker writing the same
-/// CAFS path) can occasionally race past the freshness guarantee,
-/// and the kernel's atomic-create error is the right way to detect
-/// the contention. The content is content-addressed so the existing
-/// dirent is equivalent.
+/// EEXIST from the import syscall means a concurrent install (or a
+/// sibling rayon worker writing the same CAFS path) raced past the
+/// freshness guarantee. The content is content-addressed so the
+/// existing dirent is equivalent — but a reflink the winner used
+/// drops the exec bit, so we re-assert it from the `-exec` suffix
+/// instead of adopting a possibly-`0o644` binary. That re-assertion
+/// also heals a target an earlier failed restore left non-executable,
+/// which is why the clone tier no longer deletes on restore failure.
 pub fn import_into_fresh_target<Reporter: self::Reporter>(
     logged: &AtomicU8,
     method: PackageImportMethod,
@@ -172,11 +174,20 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
     // import layer — so there's nothing to gate on here.
     match try_import::<Reporter>(method, logged, source_file, target_link) {
         Ok(()) => Ok(()),
-        // Mirrors pnpm's `linkOrCopy`: on EEXIST, return without
-        // touching disk. A concurrent writer beat us to the target;
-        // contents are content-addressed so leaving theirs in place
-        // is equivalent.
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+        // A concurrent writer beat us to the target; its content is
+        // content-addressed and equivalent. pnpm's `linkOrCopy` returns
+        // here without touching disk, but pnpm's clone preserves the mode
+        // and pacquet's reflink does not — so re-assert the exec bit from
+        // the `-exec` suffix (idempotent, a no-op for non-exec entries)
+        // before adopting the dirent.
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+                .map_err(|error| LinkFileError::Import {
+                    from: source_file.to_path_buf(),
+                    to: target_link.to_path_buf(),
+                    error,
+                })
+        }
         Err(error) => Err(LinkFileError::Import {
             from: source_file.to_path_buf(),
             to: target_link.to_path_buf(),
@@ -219,11 +230,9 @@ fn try_import<Reporter: self::Reporter>(
             }
             Err(error) => Err(error),
         },
-        PackageImportMethod::Clone => {
-            reflink_copy::reflink(source_file, target_link).inspect(|()| {
-                log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
-            })
-        }
+        PackageImportMethod::Clone => clone_file(source_file, target_link).inspect(|()| {
+            log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
+        }),
         PackageImportMethod::CloneOrCopy => {
             static CLONE_OR_COPY_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
             clone_or_copy_link::<Reporter>(logged, &CLONE_OR_COPY_STATE, source_file, target_link)
@@ -234,27 +243,18 @@ fn try_import<Reporter: self::Reporter>(
     }
 }
 
-/// `fs::copy` plus exec-bit restoration for the copy fallback tier.
-///
-/// `fs::copy` already carries a regular file's mode across on Unix, but
-/// a CAS entry's executable bit can be lost when a copy / reflink
-/// fallback materializes it (observed on overlayfs), leaving a native
-/// binary at `0o644`. The CAS encodes executability purely in the
-/// `-exec` path suffix, so that suffix is the source of truth: when it
-/// is present we re-add the exec bits, mirroring `git-fetcher`'s
-/// `materialize_into`. Non-executable files are left exactly as
-/// `fs::copy` produced them — we never widen their mode and never pay a
-/// `set_permissions` syscall for them.
+/// `fs::copy` for the copy fallback tier, then exec-bit restoration via
+/// [`pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix`].
 fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     fs::copy(source_file, target_link)?;
-    #[cfg(unix)]
-    if pacquet_fs::file_mode::cas_path_is_executable(source_file) {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(target_link)?.permissions();
-        perms.set_mode(perms.mode() | pacquet_fs::file_mode::EXEC_MASK);
-        fs::set_permissions(target_link, perms)?;
-    }
-    Ok(())
+    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
+}
+
+/// `reflink_copy::reflink` for the clone tier, then exec-bit restoration via
+/// [`pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix`].
+fn clone_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
+    reflink_copy::reflink(source_file, target_link)?;
+    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link)
 }
 
 /// EXDEV = "cross-device link not permitted". Linux / macOS / BSD all
@@ -318,8 +318,14 @@ fn auto_link<Reporter: self::Reporter>(
 ) -> io::Result<()> {
     loop {
         match state.load(Ordering::Relaxed) {
+            // Match on the reflink result alone: only a reflink failure means the
+            // tier is unusable on this FS pair and should downgrade. Restoration
+            // runs after reflink created the target, so its error is terminal
+            // (`?`) — downgrading on it would re-attempt hardlink against that
+            // just-created file and mask the real error behind `AlreadyExists`.
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
+                    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
                     log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }
@@ -365,8 +371,11 @@ fn clone_or_copy_link<Reporter: self::Reporter>(
 ) -> io::Result<()> {
     loop {
         match state.load(Ordering::Relaxed) {
+            // See `auto_link`: only the reflink itself may downgrade (to copy
+            // here); the post-reflink restoration error is terminal.
             LINK_STATE_CLONE => match reflink_copy::reflink(source, target) {
                 Ok(()) => {
+                    pacquet_fs::file_mode::restore_exec_bit_from_cas_suffix(source, target)?;
                     log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
                     return Ok(());
                 }
