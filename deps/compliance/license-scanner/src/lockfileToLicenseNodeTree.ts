@@ -6,6 +6,7 @@ import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
 } from '@pnpm/lockfile.walker'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex } from '@pnpm/store.index'
 import type { DependenciesField, ProjectId, Registries, SupportedArchitectures } from '@pnpm/types'
 import { map as mapValues } from 'ramda'
@@ -43,6 +44,7 @@ export interface LicenseExtractOptions {
   registries: Registries
   supportedArchitectures?: SupportedArchitectures
   depTypes: DepTypes
+  indexCache?: Map<string, PackageFilesIndex>
 }
 
 export async function lockfileToLicenseNode (
@@ -88,6 +90,7 @@ export async function lockfileToLicenseNode (
           virtualStoreDirMaxLength: options.virtualStoreDirMaxLength,
           dir: options.dir,
           modulesDir: options.modulesDir ?? 'node_modules',
+          indexCache: options.indexCache,
         }
       )
 
@@ -132,7 +135,7 @@ export async function lockfileToLicenseNodeTree (
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     includedImporterIds?: ProjectId[]
-  } & Omit<LicenseExtractOptions, 'storeIndex'>
+  } & Omit<LicenseExtractOptions, 'storeIndex' | 'indexCache'>
 ): Promise<LicenseNodeTree> {
   const importerWalkers = lockfileWalkerGroupImporterSteps(
     lockfile,
@@ -141,6 +144,10 @@ export async function lockfileToLicenseNodeTree (
   )
   const depTypes = detectDepTypes(lockfile)
   const storeIndex = new StoreIndex(opts.storeDir)
+  // Peer-dep variants produce distinct depPaths that share one store entry.
+  // Reuse the decoded index across the walk so the second visit skips the
+  // SQLite read and msgpack decode. The cache lives only for this call.
+  const indexCache = new Map<string, PackageFilesIndex>()
   const dependencies = Object.fromEntries(
     await Promise.all(
       importerWalkers.map(async (importerWalker) => {
@@ -154,6 +161,7 @@ export async function lockfileToLicenseNodeTree (
           registries: opts.registries,
           supportedArchitectures: opts.supportedArchitectures,
           depTypes,
+          indexCache,
         })
         return [importerWalker.importerId, {
           dependencies: importerDeps,

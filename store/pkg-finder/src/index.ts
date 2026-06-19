@@ -10,6 +10,14 @@ export interface ReadPackageFileMapOptions {
   storeIndex: StoreIndex
   lockfileDir: string
   virtualStoreDirMaxLength: number
+  /**
+   * Optional cache of decoded package-file indexes shared across one
+   * traversal. When two depPaths resolve to the same store entry (peer-dep
+   * variants), the second read sees a hit and skips the SQLite read +
+   * msgpack decode. The caller owns the map's lifetime — drop it when the
+   * traversal ends.
+   */
+  indexCache?: Map<string, PackageFilesIndex>
 }
 
 /**
@@ -65,14 +73,18 @@ export async function readPackageFileMap (
     return undefined
   }
 
-  const pkgFilesIndex = opts.storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
-  if (!pkgFilesIndex) {
-    const err: NodeJS.ErrnoException = new Error(
-      `ENOENT: package index not found for '${pkgIndexFilePath}'`
-    )
-    err.code = 'ENOENT'
-    err.path = pkgIndexFilePath
-    throw err
+  let pkgFilesIndex = opts.indexCache?.get(pkgIndexFilePath)
+  if (pkgFilesIndex == null) {
+    pkgFilesIndex = opts.storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
+    if (!pkgFilesIndex) {
+      const err: NodeJS.ErrnoException = new Error(
+        `ENOENT: package index not found for '${pkgIndexFilePath}'`
+      )
+      err.code = 'ENOENT'
+      err.path = pkgIndexFilePath
+      throw err
+    }
+    opts.indexCache?.set(pkgIndexFilePath, pkgFilesIndex)
   }
   const { files: indexFiles } = pkgFilesIndex
   const files = new Map<string, string>()
