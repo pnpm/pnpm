@@ -248,6 +248,7 @@ async fn package_version_guard_repopulates_latest_tag() {
 
     let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
     assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert_eq!(result.latest.as_deref(), Some("1.0.0"));
 }
 
 #[tokio::test]
