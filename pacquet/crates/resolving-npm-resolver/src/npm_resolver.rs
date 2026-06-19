@@ -565,7 +565,14 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
                     reason,
                     "package version rejected by resolver guard",
                 );
-                blocked_versions.insert(version_str);
+                // A `false` return means the picker re-selected a version we
+                // already blocked, so filtering can't exclude it (e.g. the
+                // parsed version string doesn't match the packument key).
+                // Stop rather than loop forever, treating the package as
+                // having no acceptable version.
+                if !blocked_versions.insert(version_str) {
+                    return Ok(None);
+                }
             }
         }
     }
