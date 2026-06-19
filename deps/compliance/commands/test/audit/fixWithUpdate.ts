@@ -315,6 +315,67 @@ The remaining vulnerabilities are:
     }
   })
 
+  test('minimum-release-age limited vulnerability remains unresolved', async () => {
+    const tmp = f.prepare('update-min-release-age')
+
+    const pkgId = '@pnpm.e2e/bravo-dep@1.0.0' as DepPath
+
+    const { manifest: originalManifest } = await readProjectManifest(tmp)
+    expect(originalManifest).toBeTruthy()
+    expect(originalManifest.dependencies).toBeDefined()
+    expect(originalManifest.dependencies?.['@pnpm.e2e/bravo-dep']).toBe('^1.0.0')
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile).toBeTruthy()
+    expect(originalLockfile!.packages).toBeDefined()
+    expect(originalLockfile!.packages![pkgId]).toBeDefined()
+
+    const mockResponse = await loadJsonFile<Record<string, Record<string, string>[]>>(join(tmp, 'responses', 'min-release-age-vulnerability.json'))
+    expect(mockResponse).toBeTruthy()
+
+    getMockAgent().get(MOCK_REGISTRY)
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, mockResponse)
+
+    const { exitCode, output } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+      frozenMinimumReleaseAgeExclude: true,
+      // The mock registry publishes the vulnerable bravo-dep@1.0.0 at
+      // 2022-02-01 and the patched 1.0.1 at 2022-02-22. Place the maturity
+      // cutoff between the two so only the patched version is blocked.
+      minimumReleaseAge: (Date.now() - new Date('2022-02-10T00:00:00.000Z').getTime()) / (60 * 1000),
+    })
+
+    expect(output).toBe(`${chalk.green(0)} vulnerabilities were fixed, ${chalk.red(1)} vulnerability remains.
+
+The remaining vulnerabilities are:
+- (${chalk.bold.red('high')}) "${chalk.bold.red('Title: mock vulnerability in @pnpm.e2e/bravo-dep')}" ${chalk.blue('@pnpm.e2e/bravo-dep')}
+`)
+    expect(exitCode).toBe(1)
+
+    // The manifest should remain unchanged
+    const { manifest } = await readProjectManifest(tmp)
+    expect(manifest).toBeTruthy()
+    expect(manifest.dependencies).toBeDefined()
+    expect(manifest.dependencies?.['@pnpm.e2e/bravo-dep']).toBe('^1.0.0')
+
+    // The lockfile should remain unchanged
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(lockfile!.packages).toBeDefined()
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    // All packages should remain the same
+    for (const pkgId of Object.keys(originalLockfile!.packages!)) {
+      expect(packagesArray).toContain(pkgId)
+    }
+  })
+
   test('vulnerable package with multiple versions is updated', async () => {
     const tmp = f.prepare('update-multiple')
 

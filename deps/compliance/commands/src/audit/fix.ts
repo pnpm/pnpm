@@ -14,7 +14,7 @@ export async function fix (auditReport: AuditReport, opts: AuditOptions): Promis
   const fixableAdvisories = getFixableAdvisories(Object.values(auditReport.advisories), opts.auditConfig?.ignoreGhsas)
   const vulnOverrides = createOverrides(fixableAdvisories)
   if (Object.values(vulnOverrides).length === 0) return { vulnOverrides, addedAgeExcludes: [] }
-  const addedAgeExcludes = opts.minimumReleaseAge ? createMinimumReleaseAgeExcludes(fixableAdvisories) : []
+  const addedAgeExcludes = opts.minimumReleaseAge && !opts.frozenMinimumReleaseAgeExclude ? createMinimumReleaseAgeExcludes(fixableAdvisories) : []
   await writeSettings({
     updatedOverrides: vulnOverrides,
     addedMinimumReleaseAgeExcludes: addedAgeExcludes.length > 0 ? addedAgeExcludes : undefined,

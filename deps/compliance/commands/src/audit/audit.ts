@@ -62,6 +62,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     // For fix, use String instead of a list of allowed string values.
     // Otherwise, an unexpected value will get coerced to true because of the Boolean type.
     fix: [String, Boolean],
+    'frozen-minimum-release-age-exclude': Boolean,
     'ignore-registry-errors': Boolean,
     ignore: [String, Array],
     'ignore-unfixable': Boolean,
@@ -145,6 +146,10 @@ export function help (): string {
             name: '--ignore-unfixable',
           },
           {
+            description: 'Prevent --fix from adding entries to minimumReleaseAgeExclude. Patched versions newer than minimumReleaseAge will not be installable until they mature.',
+            name: '--frozen-minimum-release-age-exclude',
+          },
+          {
             description: 'Show vulnerabilities and select which ones to fix interactively',
             name: '--interactive',
             shortAlias: '-i',
@@ -159,6 +164,7 @@ export function help (): string {
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   fix?: boolean | 'override' | 'update'
+  frozenMinimumReleaseAgeExclude?: boolean
   ignoreRegistryErrors?: boolean
   interactive?: boolean
   json?: boolean
