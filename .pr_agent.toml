@@ -49,7 +49,7 @@ auto_approve_for_low_review_effort = 2
 comments_location_policy = "both"
 inline_comments_severity_threshold = 2
 issues_user_guidelines = """
-Apply the review framework in REVIEW_GUIDE.md. You are one of two PR reviewers; concentrate on security and performance (CodeRabbit leads correctness and convention adherence, so go lighter there). Lead on, in priority order: (1) security vulnerabilities — see REVIEW_GUIDE.md section 1 (manifests, lockfiles, tarballs, registry/auth, paths, lifecycle scripts, configDependencies, patches, and other trust decisions); (2) performance regressions in pnpm, pacquet, and pnpr — see REVIEW_GUIDE.md section 2 (extra filesystem I/O, network round trips, hot-path work, unmeasured perf claims). Still raise any clear correctness bug or documented-convention violation you notice. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
+Apply the review framework in REVIEW_GUIDE.md. You are one of two PR reviewers; concentrate on security and performance (CodeRabbit leads correctness and convention adherence, so go lighter there). Lead on, in priority order: (1) security vulnerabilities per REVIEW_GUIDE.md section 1; (2) performance regressions in pnpm, pacquet, and pnpr per REVIEW_GUIDE.md section 2. Still raise any clear correctness bug or documented-convention violation you notice. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
 """
 compliance_user_guidelines = """
 Enforce the security and performance contracts in REVIEW_GUIDE.md sections 1 and 2.
