@@ -414,8 +414,10 @@ pub fn filter_pkg_metadata_by_publish_date(
 
 /// Filter a packument's versions by string while keeping dist-tags
 /// usable. Tags that still point at a kept version are preserved; tags
-/// whose target was removed are rewritten to the best remaining version
-/// in the same family, matching the publish-date filter's behavior.
+/// whose target was removed are rewritten using the publish-date
+/// filter's dist-tag rules: `latest` may move to the best remaining
+/// version across any major, while other tags stay within the removed
+/// target's major/prerelease lane.
 #[must_use]
 pub fn filter_pkg_metadata_versions(meta: &Package, mut keep: impl FnMut(&str) -> bool) -> Package {
     // Decide on version strings alone; slots move as raw fragments, so
