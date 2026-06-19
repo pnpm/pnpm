@@ -126,9 +126,9 @@ Do not dismiss a failing test as a "pre-existing" failure that is unrelated to y
 
 ## AI Review Guidance
 
-The repository's review framework lives in **[REVIEW_GUIDE.md](./REVIEW_GUIDE.md)** — how changes are accepted or rejected, the security-first / performance-second priorities, the detailed security checklist and advisory regression themes, the test/changeset/parity expectations, and the line-level engineering conventions. Apply it when reviewing pull requests.
+The repository's review framework lives in **[REVIEW_GUIDE.md](./REVIEW_GUIDE.md)** — how changes are accepted or rejected, the security-first / performance-second priorities, the security checklist and advisory regression themes, and the test/changeset/parity expectations. Apply it when reviewing pull requests. (Code style, comments, and engineering conventions are documented above, under "Code Style".)
 
-Security is the first review priority and performance the second. Surface only issues tied to the changed code, and explain the exploit path, impact, or hot path affected. See REVIEW_GUIDE.md §5 (security) and §6 (performance) for the full checklist.
+Security is the first review priority and performance the second. Surface only issues tied to the changed code, and explain the exploit path, impact, or hot path affected. See the guide's Security and Performance review sections for the full checklist.
 
 ## Code Reuse and Avoiding Duplication
 
