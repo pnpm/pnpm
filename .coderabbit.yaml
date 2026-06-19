@@ -11,7 +11,7 @@ reviews:
   path_instructions:
     - path: "**/*"
       instructions: |
-        Apply the "AI Review Guidance" section in AGENTS.md. Security vulnerabilities are the first review priority; performance regressions in pnpm, pacquet, and pnpr are the second priority. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
+        Apply the review framework in REVIEW_GUIDE.md. Security vulnerabilities are the first review priority; performance regressions in pnpm, pacquet, and pnpr are the second priority. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
   # Walkthrough poem adds no review value.
   poem: false
   # Required for CodeRabbit to submit approving reviews at all. With this off

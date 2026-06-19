@@ -9,8 +9,9 @@ The central question for any PR:
 > user-visible contract, and without unacceptable security, performance, compatibility, or
 > maintenance cost — and is it the *smallest correct version* of itself?
 
-For the detailed security/performance review checklist the bots enforce, see the
-**"AI Review Guidance"** section of [`AGENTS.md`](./AGENTS.md).
+This is the canonical review guide for the repository. The automated reviewers apply it via
+[`.coderabbit.yaml`](./.coderabbit.yaml) and [`.pr_agent.toml`](./.pr_agent.toml), and
+[`AGENTS.md`](./AGENTS.md) points here.
 
 ## Review priorities
 
@@ -129,7 +130,9 @@ reduce coupling.
 
 ## 5. Security review rules
 
-Security is priority #1; apply the AI Review Guidance checklist in `AGENTS.md`. Security fixes
+Security is the first priority — review with a security-first lens. Surface plausible issues
+even when they're edge cases, but always explain the exploit path and impact on the *changed*
+code; never give generic security advice untethered from the diff. Security fixes themselves
 need precise threat modeling:
 
 - What input is attacker-controlled? Can a repo, package, registry response, lockfile, tarball,
@@ -138,7 +141,53 @@ need precise threat modeling:
 - Is the fix in the right layer, or does it only patch one call site?
 - Does it keep pnpm/pacquet parity where behavior is shared?
 
-Recurring calls:
+Treat as attacker-controlled: package metadata, tarball contents, lockfiles, workspace
+manifests, `.npmrc`/environment config, registry responses, git URLs, filesystem paths, and
+script names.
+
+Look especially for:
+
+- unsafe handling of package manifests, lockfiles, tarballs, registry responses, lifecycle
+  scripts, `configDependencies`, patches, and workspace links;
+- path traversal, symlink/hardlink, archive extraction, arbitrary file read/write/delete,
+  TOCTOU, and permissions mistakes;
+- command injection, shell-argument construction, environment-variable trust, executable
+  resolution, script-execution policy, and privilege-boundary mistakes;
+- registry/network/auth mistakes: token leakage, proxy handling, redirect behavior, TLS
+  assumptions, cache poisoning, integrity/hash verification, and downgrade/confusion attacks;
+- Rust memory, concurrency, and unsafe-FFI issues in pacquet, including panic-on-untrusted-input
+  denial of service.
+
+Advisory regression themes — recurring classes from past pnpm advisories:
+
+- repo-controlled `.npmrc` and `pnpm-workspace.yaml` must not expand victim environment secrets
+  into registry URLs, auth headers, proxy settings, token helpers, or other outbound requests;
+- user-level npm auth credentials must not be bound to a repository-selected registry unless the
+  registry scope and trust boundary are explicit;
+- lifecycle/build-script approval gates must cover all dependency sources and phases — git
+  dependencies, fetch/prepare/prepack/prepublish paths, `allowBuilds`, ignored-build reporting,
+  explicit denials, and pacquet parity;
+- opaque dependency identities (git, URL, tarball, file, directory, patch, alias locators) stay
+  byte-for-byte exact where used for trust; don't normalize away attacker-controlled suffixes or
+  confuse them with registry peer suffixes;
+- lockfile entries for remote/dynamic deps, GitHub/git deps, tarballs, commits, and integrity
+  fields must preserve enough immutable integrity data to reject changed content and avoid
+  missing-field bypasses;
+- treat lockfile fields and git metadata as untrusted input (especially `resolution.commit`,
+  refs, URLs); prevent command/argument injection and never pass attacker-controlled values as
+  executable flags;
+- path handling must reject traversal and root escape in bin names, `directories.bin`,
+  transitive aliases, patch files, tar/zip entries, symlink/hardlink targets, file/git deps,
+  Windows path separators, executable shims, permission changes, and delete/write destinations;
+- cache/store/global-metadata keys must include all trust-relevant inputs so overrides, scripts
+  policy, registry metadata, and lockfile state can't poison later installs or other workspaces;
+- archive extraction and package-identity code must match npm/registry semantics for duplicate
+  tar entries, stripped path components, symlinks, permissions, and manifest selection;
+- path-shortening, hashing, cache-naming, and content-addressing code must use
+  collision-resistant identifiers, and verify collisions can't redirect deps or overwrite
+  package contents.
+
+Recurring judgement calls:
 
 - **Never strip or normalize an attacker-relevant identifier.** Opaque/locator identities (git,
   URL, tarball, jsr/gh prefixes, registry suffixes) stay byte-for-byte exact where used for
@@ -328,7 +377,7 @@ The voice is short, direct, and specific.
 For each PR, in order:
 
 1. **Should it exist?** Real, in scope, not duplicated, worth the cost/risk. (§1)
-2. **Security.** Walk the `AGENTS.md` checklist against the diff; explain any exploit path. (§5)
+2. **Security.** Walk the §5 checklist against the diff; explain any exploit path. (§5)
 3. **Performance.** Hot path or pitched as perf? Evidence at realistic scale? (§6)
 4. **Scope.** Every touched file justified; unrelated/dangerous changes split out. (§2)
 5. **Layer & reuse.** Logic in the owning layer; no reimplementation; no needless abstraction. (§4)

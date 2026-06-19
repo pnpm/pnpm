@@ -49,8 +49,8 @@ auto_approve_for_low_review_effort = 2
 comments_location_policy = "both"
 inline_comments_severity_threshold = 2
 issues_user_guidelines = """
-Apply the "AI Review Guidance" section in AGENTS.md. Security vulnerabilities are the first review priority; performance regressions in pnpm, pacquet, and pnpr are the second priority. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
+Apply the review framework in REVIEW_GUIDE.md. Security vulnerabilities are the first review priority; performance regressions in pnpm, pacquet, and pnpr are the second priority. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
 """
 compliance_user_guidelines = """
-Enforce the security-sensitive and performance-sensitive contracts described in AGENTS.md's "AI Review Guidance" section.
+Enforce the security-sensitive and performance-sensitive contracts described in REVIEW_GUIDE.md.
 """
