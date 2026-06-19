@@ -668,9 +668,6 @@ catalogs:
     fuse-native:
       specifier: ^2.2.6
       version: 2.2.6
-    get-npm-tarball-url:
-      specifier: ^2.1.0
-      version: 2.1.0
     get-port:
       specifier: ^7.2.0
       version: 7.2.0
@@ -5420,9 +5417,6 @@ importers:
       detect-libc:
         specifier: 'catalog:'
         version: 2.1.2
-      get-npm-tarball-url:
-        specifier: 'catalog:'
-        version: 2.1.0
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
@@ -6309,6 +6303,9 @@ importers:
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
+      '@pnpm/resolving.tarball-url':
+        specifier: workspace:*
+        version: link:../../resolving/tarball-url
       '@pnpm/store.controller':
         specifier: workspace:*
         version: link:../../store/controller
@@ -6324,9 +6321,6 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
-      get-npm-tarball-url:
-        specifier: 'catalog:'
-        version: 2.1.0
       semver:
         specifier: 'catalog:'
         version: 7.8.4
@@ -7098,12 +7092,12 @@ importers:
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
+      '@pnpm/resolving.tarball-url':
+        specifier: workspace:*
+        version: link:../../resolving/tarball-url
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
-      get-npm-tarball-url:
-        specifier: 'catalog:'
-        version: 2.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -8926,6 +8920,15 @@ importers:
         specifier: workspace:*
         version: link:../../network/fetch
       '@pnpm/resolving.tarball-resolver':
+        specifier: workspace:*
+        version: 'link:'
+
+  resolving/tarball-url:
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1
+      '@pnpm/resolving.tarball-url':
         specifier: workspace:*
         version: 'link:'
 

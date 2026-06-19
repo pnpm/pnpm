@@ -91,7 +91,6 @@
     "chalk": "catalog:",
     "ci-info": "catalog:",
     "detect-libc": "catalog:",
-    "get-npm-tarball-url": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",

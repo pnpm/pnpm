@@ -209,7 +209,6 @@ catalog:
   fast-glob: ^3.3.3
   fs-extra: ^11.3.5
   fuse-native: ^2.2.6
-  get-npm-tarball-url: ^2.1.0
   get-port: ^7.2.0
   ghooks: 2.0.4
   graceful-fs: ^4.2.11
