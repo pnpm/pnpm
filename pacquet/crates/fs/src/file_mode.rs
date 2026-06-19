@@ -42,7 +42,12 @@ pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::R
         // a concurrent writer could swap `target` between the two calls and
         // redirect the chmod onto an unintended inode; binding both to one
         // opened file closes it. Defense-in-depth on the install hot path.
-        make_file_executable(&std::fs::File::open(target)?)?;
+        //
+        // Retry the open under fd-table exhaustion like every other open on
+        // the parallel import path: a transient `EMFILE`/`ENFILE` from a
+        // sibling rayon worker must not fail the install.
+        let file = crate::ensure_file::retry_on_fd_pressure(|| std::fs::File::open(target))?;
+        make_file_executable(&file)?;
     }
     #[cfg(not(unix))]
     let _ = (cas_path, target);
