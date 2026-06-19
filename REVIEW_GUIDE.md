@@ -68,9 +68,9 @@ Push back on changes that are mostly churn:
 - Rare scenarios that would add permanent complexity to the CLI.
 - "Nice to have" compatibility that is error-prone or duplicates a better pnpm mechanism.
 
-Be alert to **low-effort AI-generated PRs**: a change that doesn't fit how pnpm works, restates
-the obvious, or reworks a function without reason gets pushed back hard — *"This change
-doesn't make sense. I suspect it was created by AI."*
+Judge a change on the change itself — whether it fits how pnpm works, says something the code
+doesn't already, and has a reason to exist. Provenance is irrelevant: how a PR was authored
+is not a review criterion.
 
 ### Know the domain invariants before judging a change
 
@@ -85,8 +85,10 @@ points and check a change against them:
   formats; Node.js reads `type`/config only from `package.json`.
 - **Workspace projects share `<root>/node_modules/.pnpm`** — they don't each own a store; this
   drives where patches, hoisting, and links can live.
-- **pnpm doesn't control the registry**, isn't always installed from npm, and runs its own
-  bundled Node only to run itself. Don't reason about pnpm as if it were npm.
+- **Don't reason about pnpm as if it were npm.** It isn't always installed from npm, runs its
+  own bundled Node only to run itself, and the project now ships its own registry (pnpr) — so
+  registry-side behavior is in scope where pnpr is involved, not automatically "someone else's
+  problem."
 
 ---
 
@@ -116,17 +118,16 @@ answer isn't obvious from the PR's stated goal, ask — or have it removed.
 pnpm is a **package manager**, not a task runner or build orchestrator. Complex task
 configuration, scheduling, and the like are out of scope — *"We concentrate on package
 management not running tasks … maybe you should use a dedicated tool."* When a request is
-better solved upstream (registry behavior), in the user's own deps, or by a different tool,
-say so and point there rather than growing pnpm's surface.
+better solved in the user's own deps or by a different tool, say so and point there rather
+than growing pnpm's surface.
 
 ### Don't add strictness that trips legitimate workflows
 
 Before adding a warning, error, or "clean up unused X" enforcement, imagine the legitimate
-workflows it would punish. Shared company config is the recurring example: *"a company might
-share a default list of overrides"*, *"What if a company maintains a list of catalogs … some
-might not be used but could be used in the future."* Unused overrides/catalogs are not
-errors. When some signal is still useful, prefer an **opt-in command** to list them over a
-warning everyone pays for. False positives on valid setups are worse than silence.
+workflows it would punish — shared org-wide config that intentionally carries entries not used
+in every repo is a recurring example. When some signal is still useful, prefer an **opt-in
+command** over a warning everyone pays for. False positives on valid setups are worse than
+silence.
 
 ### Use established command semantics
 
@@ -328,8 +329,9 @@ Tests must prove the changed behavior, not just execute nearby code.
 - **Always include `"pnpm"` explicitly** with the right bump. Features/settings = `minor`;
   bug fixes and internal refactors = `patch`; breaking = `major`.
 - **One changeset per logical change.** The text is a user-facing release note — accurate,
-  concise, no implementation rationale (that goes in the commit message). If the code handles
-  only `.node`/`.dylib`/`.so`, the changeset must not mention `.dll`.
+  concise, no implementation rationale (that goes in the commit message). It must match what
+  the code actually does: don't describe behavior, platforms, or file types the change doesn't
+  cover.
 - **pacquet-only PRs don't get changesets**, despite the general rule.
 
 ---
@@ -365,7 +367,7 @@ costs in install size, maintenance, and runtime.
 ## 11. PR hygiene
 
 - One logical change per PR.
-- Don't open duplicate PRs for the same change; force-push the existing branch.
+- Don't open a duplicate PR for the same change; update the existing one.
 - Allow maintainers to push when collaboration is faster.
 - Rebase when conflicts or upstream changes make the branch stale.
 - Use the PR template and keep the title/summary current.
@@ -382,8 +384,10 @@ Above the macro accept/reject decision sits a dense layer of code-craft conventi
 comment-by-comment. These are the most frequent line-level review notes:
 
 **Errors**
-- **Always throw `PnpmError`** from `@pnpm/error`, never a bare `Error` — *"Use PnpmError",
-  "You should throw PnpmError."*
+- **User-reachable errors are `PnpmError`** from `@pnpm/error` — they're part of the UX, so
+  they carry a stable code — *"Use PnpmError", "You should throw PnpmError."* Errors that can
+  only come from programmer mistakes, type guards, or unreachable branches stay plain `Error`;
+  don't dress those up with a code.
 - **Never swallow errors.** *"don't mute this error"*, *"why should this error be ignored?"*
   Catch only the specific expected code — *"you now ignore any error, not just ENOENT."*
 - **Throw on impossible states** rather than continuing: *"This should never happen, so an
@@ -410,6 +414,13 @@ comment-by-comment. These are the most frequent line-level review notes:
   already have it in deps"*, *"no need to add a new dependency."* Don't pull in a second
   library for a job an existing one does (e.g. two YAML parsers).
 - Deduplicate copy-pasted logic into a shared function/package rather than repeating it.
+
+**String parsing — reach for regex last**
+- Prefer plain string operations (`split`, `slice`, `indexOf`, `startsWith`, …) over a custom
+  regular expression; people and AIs over-reach for clever regex.
+- When the input genuinely needs structured parsing with backtracking, use the existing
+  **parser-combinator** pattern (e.g. `object/property-path/`, introduced in
+  [#9811](https://github.com/pnpm/pnpm/pull/9811)) rather than a god-complex regex.
 
 **Dependency placement**
 - Shared infrastructure (the logger, etc.) must be a **peer dependency**, not a regular one —
