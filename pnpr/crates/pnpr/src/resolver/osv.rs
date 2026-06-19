@@ -17,6 +17,11 @@ use crate::{Config, error::RegistryError};
 
 const OSV_POLICY_KEY: &str = "osvNpmDatabase";
 
+/// Upper bound on the bytes read for a single OSV record (one zip entry
+/// or one directory file). OSV advisories are a few KB; this cap only
+/// exists so a crafted database can't exhaust memory at startup.
+const MAX_OSV_RECORD_BYTES: u64 = 16 * 1024 * 1024;
+
 #[derive(Debug)]
 pub(crate) struct OsvIndex {
     packages: HashMap<String, Vec<Advisory>>,
@@ -35,7 +40,16 @@ impl OsvIndex {
                 path.display(),
             )));
         }
-        Self::load_from_path(&path).map(Arc::new).map(Some)
+        let index = Self::load_from_path(&path)?;
+        // An enabled-but-empty index would make the guard a no-op and
+        // silently disable enforcement, so treat it as misconfiguration.
+        if index.packages.is_empty() {
+            return Err(invalid_config(format!(
+                "OSV is enabled but database {} yielded no npm advisories; check that the path points at the npm OSV dump",
+                path.display(),
+            )));
+        }
+        Ok(Some(Arc::new(index)))
     }
 
     pub(crate) fn load_from_path(path: &Path) -> Result<Self, RegistryError> {
@@ -219,16 +233,25 @@ fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
     })?;
     let mut packages = HashMap::new();
     for index in 0..archive.len() {
-        let mut entry = archive.by_index(index).map_err(|err| {
+        let entry = archive.by_index(index).map_err(|err| {
             invalid_config(format!("failed to read OSV zip entry in {}: {err}", path.display()))
         })?;
         if !entry.is_file() || !entry.name().ends_with(".json") {
             continue;
         }
-        let mut bytes = Vec::with_capacity(entry.size().min(1024 * 1024) as usize);
-        entry.read_to_end(&mut bytes).map_err(|err| {
-            invalid_config(format!("failed to read OSV zip entry {}: {err}", entry.name()))
-        })?;
+        let name = entry.name().to_string();
+        if entry.size() > MAX_OSV_RECORD_BYTES {
+            return Err(invalid_config(format!(
+                "OSV zip entry {name} is {} bytes, over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
+                entry.size(),
+            )));
+        }
+        // `take` also caps the read if the entry's declared size lies.
+        let mut bytes = Vec::with_capacity(entry.size() as usize);
+        entry
+            .take(MAX_OSV_RECORD_BYTES)
+            .read_to_end(&mut bytes)
+            .map_err(|err| invalid_config(format!("failed to read OSV zip entry {name}: {err}")))?;
         ingest_record_bytes(&mut packages, &bytes)?;
     }
     Ok(OsvIndex { packages, fingerprint })
@@ -253,6 +276,13 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
             || entry_path.extension().is_none_or(|extension| extension != "json")
         {
             continue;
+        }
+        let len = entry.metadata().map(|metadata| metadata.len()).unwrap_or_default();
+        if len > MAX_OSV_RECORD_BYTES {
+            return Err(invalid_config(format!(
+                "OSV record {} is {len} bytes, over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
+                entry_path.display(),
+            )));
         }
         hasher.update(entry_path.file_name().and_then(|name| name.to_str()).unwrap_or_default());
         let bytes = std::fs::read(&entry_path).map_err(|err| {

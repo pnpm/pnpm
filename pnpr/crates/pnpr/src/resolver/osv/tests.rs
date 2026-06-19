@@ -77,3 +77,28 @@ async fn package_version_guard_rejects_vulnerable_versions() {
         PackageVersionGuardDecision::Allow => panic!("expected rejection, got allow"),
     }
 }
+
+#[test]
+fn enabled_database_without_npm_advisories_is_rejected() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    // Only a non-npm advisory, so the npm index ends up empty.
+    fs::write(
+        dir.path().join("GHSA-pypi.json"),
+        r#"{
+          "id": "GHSA-pypi",
+          "affected": [{
+            "package": { "ecosystem": "PyPI", "name": "x" },
+            "versions": ["1.0.0"]
+          }]
+        }"#,
+    )
+    .expect("write record");
+
+    let listen = "127.0.0.1:4873".parse().expect("listen addr");
+    let mut config = crate::Config::proxy(listen, dir.path().to_path_buf());
+    config.osv.enabled = true;
+    config.osv.path = Some(dir.path().to_path_buf());
+
+    let err = super::load_osv_index(&config).expect_err("an empty npm index must be rejected");
+    assert!(format!("{err}").contains("no npm advisories"));
+}
