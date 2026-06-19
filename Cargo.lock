@@ -3524,7 +3524,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "walkdir",
- "which 8.0.2",
+ "which 8.0.4",
  "windows-sys 0.61.2",
 ]
 
@@ -3670,7 +3670,7 @@ version = "0.0.0"
 dependencies = [
  "clap",
  "serde_json",
- "which 8.0.2",
+ "which 8.0.4",
 ]
 
 [[package]]
@@ -3873,7 +3873,7 @@ dependencies = [
  "serde-saphyr",
  "serde_json",
  "tokio",
- "which 8.0.2",
+ "which 8.0.4",
 ]
 
 [[package]]
@@ -7116,9 +7116,9 @@ dependencies = [
 
 [[package]]
 name = "which"
-version = "8.0.2"
+version = "8.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81995fafaaaf6ae47a7d0cc83c67caf92aeb7e5331650ae6ff856f7c0c60c459"
+checksum = "48d7cd18d4acb58fb3cdfe9ea54e6cd96a4e7d4cc45c56338b236e82dad47248"
 dependencies = [
  "libc",
 ]
