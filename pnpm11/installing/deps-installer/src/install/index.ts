@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { getProjectNodePath, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
@@ -42,7 +43,7 @@ import {
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
 import { createDependencyOverrider, createOverriddenDependencyMatcher, createReadPackageHook, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
-import { getContext, type PnpmContext } from '@pnpm/installing.context'
+import { arrayOfWorkspacePackagesToMap, getContext, type PnpmContext, type ProjectOptions } from '@pnpm/installing.context'
 import {
   type DependenciesGraph,
   type DependenciesGraphNode,
@@ -95,7 +96,7 @@ import {
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
-import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
+import { isLocalFilesystemSpecifier, isTarballFilename, localFilePath } from '@pnpm/resolving.local-resolver'
 import { parseNpmAliasTarget } from '@pnpm/resolving.npm-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import {
@@ -241,19 +242,69 @@ export async function install (
   opts: Opts
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
+  const localFileDependencyProjects = opts.lockfileOnly ? [] : await getLocalFileDependencyProjects(manifest, rootDir, opts)
+  const rootProject = {
+    buildIndex: 0,
+    manifest,
+    rootDir,
+    binsDir: opts.binsDir,
+  }
+
+  let localIgnoredBuilds: IgnoredBuilds | undefined
+  /* eslint-disable no-await-in-loop */
+  for (const project of localFileDependencyProjects) {
+    const localOpts = {
+      ...opts,
+      confirmModulesPurge: false,
+      dir: project.rootDir,
+      frozenLockfile: false,
+      lockfileDir: project.rootDir,
+      storeController: opts.storeController ? { ...opts.storeController, close: async () => {} } : opts.storeController,
+      allProjects: [{ ...project, buildIndex: 0 }],
+      workspacePackages: opts.workspacePackages ?? arrayOfWorkspacePackagesToMap([project]),
+    }
+    const { ignoredBuilds } = (opts.pnprServer && canUsePnprForInstall(localOpts))
+      ? await installViaPnprServer({
+        manifest: project.manifest,
+        rootDir: project.rootDir,
+        opts: localOpts,
+        allInstallProjects: localOpts.allProjects,
+        rootProjectPreinstallRan: rootProjectRunsPreinstallEarly(
+          [{ rootDir: project.rootDir, mutation: 'install' }],
+          { ...localOpts, lockfileDir: project.rootDir }
+        ),
+      })
+      : await mutateModules([
+        {
+          mutation: 'install',
+          pruneDirectDependencies: opts.pruneDirectDependencies,
+          rootDir: project.rootDir,
+          update: opts.update,
+          updateMatching: opts.updateMatching,
+          updateToLatest: opts.updateToLatest,
+        },
+      ], localOpts)
+    localIgnoredBuilds = mergeIgnoredBuilds(localIgnoredBuilds, ignoredBuilds)
+  }
+  /* eslint-enable no-await-in-loop */
 
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
   if (opts.pnprServer && canUsePnprForInstall(opts)) {
-    return installViaPnprServer({
+    const result = await installViaPnprServer({
       manifest,
       rootDir,
       opts,
+      allInstallProjects: [rootProject],
       rootProjectPreinstallRan: rootProjectRunsPreinstallEarly(
         [{ rootDir, mutation: 'install' }],
         { ...opts, lockfileDir: opts.lockfileDir ?? rootDir }
       ),
     })
+    return {
+      ...result,
+      ignoredBuilds: mergeIgnoredBuilds(localIgnoredBuilds, result.ignoredBuilds),
+    }
   }
 
   const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModules(
@@ -271,15 +322,92 @@ export async function install (
     ],
     {
       ...opts,
-      allProjects: [{
-        buildIndex: 0,
-        manifest,
-        rootDir,
-        binsDir: opts.binsDir,
-      }],
+      allProjects: [rootProject],
+      workspacePackages: opts.workspacePackages ?? arrayOfWorkspacePackagesToMap([rootProject]),
     }
   )
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult }
+  return {
+    updatedCatalogs,
+    updatedManifest: projects[0].manifest,
+    ignoredBuilds: mergeIgnoredBuilds(localIgnoredBuilds, ignoredBuilds),
+    newLockfile,
+    resolutionPolicyViolations,
+    dryRunResult,
+  }
+}
+
+async function getLocalFileDependencyProjects (
+  manifest: ProjectManifest,
+  rootDir: ProjectRootDir,
+  opts: Pick<InstallOptions, 'autoInstallPeers' | 'ignoreLocalPackages' | 'includeDirect'>
+): Promise<ProjectOptions[]> {
+  if (opts.ignoreLocalPackages) return []
+  const resolvedRootDir = path.resolve(rootDir)
+  const rootDirRealPath = await realpathOrSelf(resolvedRootDir)
+  const candidateDirs: string[] = []
+  const seenCandidateDirs = new Set<string>([resolvedRootDir])
+  for (const wantedDependency of getWantedDependencies(manifest, {
+    autoInstallPeers: opts.autoInstallPeers ?? true,
+    includeDirect: opts.includeDirect,
+  })) {
+    const localFileDir = resolveLocalFileDir(wantedDependency.bareSpecifier, rootDir)
+    if (localFileDir == null) continue
+    const resolvedDir = path.resolve(localFileDir)
+    if (seenCandidateDirs.has(resolvedDir) || !isSubdir(resolvedRootDir, resolvedDir)) continue
+    seenCandidateDirs.add(resolvedDir)
+    candidateDirs.push(resolvedDir)
+  }
+  const localFileDependencyDirs: string[] = []
+  const seen = new Set<string>([resolvedRootDir, rootDirRealPath])
+  const candidatesWithRealPaths = await Promise.all(candidateDirs.map(async (resolvedDir) => ({
+    resolvedDir,
+    resolvedDirRealPath: await realpathOrSelf(resolvedDir),
+  })))
+  for (const { resolvedDir, resolvedDirRealPath } of candidatesWithRealPaths) {
+    if (seen.has(resolvedDir) || seen.has(resolvedDirRealPath) || !isSubdir(rootDirRealPath, resolvedDirRealPath)) continue
+    seen.add(resolvedDir)
+    seen.add(resolvedDirRealPath)
+    localFileDependencyDirs.push(resolvedDir)
+  }
+  const localFileDependencyManifests = await Promise.all(localFileDependencyDirs.map(async (localFileDependencyDir) => ({
+    manifest: await safeReadProjectManifestOnly(localFileDependencyDir),
+    rootDir: localFileDependencyDir as ProjectRootDir,
+  })))
+  const projects: ProjectOptions[] = []
+  for (const { manifest, rootDir } of localFileDependencyManifests) {
+    if (manifest == null) continue
+    projects.push({
+      buildIndex: projects.length,
+      manifest,
+      rootDir,
+    })
+  }
+  return projects
+}
+
+function mergeIgnoredBuilds (
+  current: IgnoredBuilds | undefined,
+  next: IgnoredBuilds | undefined
+): IgnoredBuilds | undefined {
+  if (next == null) return current
+  if (current == null) return new Set(next)
+  for (const ignoredBuild of next) {
+    current.add(ignoredBuild)
+  }
+  return current
+}
+
+async function realpathOrSelf (dir: string): Promise<string> {
+  try {
+    return await fs.realpath(dir)
+  } catch {
+    return dir
+  }
+}
+
+function resolveLocalFileDir (specifier: string, rootDir: ProjectRootDir): string | null {
+  if (!specifier.startsWith('file:') || isTarballFilename(specifier)) return null
+  return localFilePath(specifier, rootDir) ?? null
 }
 
 interface ProjectToBeInstalled {
@@ -3912,6 +4040,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
     manifest: ProjectManifest
     modulesDir?: string
     binsDir?: string
+    buildIndex?: number
     mutation?: MutatedProject['mutation']
     newDeps?: PnprNewDep[]
     rangeSpecStyle?: RangeSpecStyle
@@ -4116,7 +4245,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
           const modulesDir = pathAbsolute(p.modulesDir ?? opts.modulesDir ?? 'node_modules', p.rootDir)
           return [p.rootDir, {
             binsDir: p.binsDir ?? path.join(modulesDir, '.bin'),
-            buildIndex: i,
+            buildIndex: p.buildIndex ?? i,
             id: getLockfileImporterId(lockfileDir, p.rootDir),
             manifest: p.manifest,
             modulesDir,
