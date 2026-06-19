@@ -1,4 +1,6 @@
-use super::{HoistError, HoistOpts, HoisterResult, RcByPtr, build_hoist_ident_map, hoist};
+use super::{
+    HoistError, HoistOpts, HoisterResult, RcByPtr, build_hoist_ident_map, hoist, is_preferred_ident,
+};
 use indexmap::IndexSet;
 use pacquet_lockfile::{
     ComVer, Lockfile, LockfileSettings, LockfileVersion, PkgName, PkgNameVerPeer, PkgVerPeer,
@@ -7,7 +9,7 @@ use pacquet_lockfile::{
 use pretty_assertions::assert_eq;
 use std::{
     cell::RefCell,
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, VecDeque},
     rc::Rc,
 };
 
@@ -1098,5 +1100,62 @@ fn build_hoist_ident_map_skips_root_peer_names() {
     assert!(
         !ident_map.contains_key("react"),
         "a name the root declares as a peer is skipped even when reachable transitively",
+    );
+}
+
+/// When a *non-root* node declares one of its own children as a peer,
+/// `add_dependent` records that child as a peer-dependent but does not
+/// recurse into it (yarn's `entry.peerDependents.add` branch). The
+/// child's own exclusive subtree is therefore never discovered.
+///
+/// Reachable from `hoist` only with an exotic lockfile where a package
+/// lists the same name in both `dependencies` and `peerDependencies`;
+/// driving [`build_hoist_ident_map`] directly is simpler and lets the
+/// "subtree not walked" effect be asserted unambiguously.
+#[test]
+fn build_hoist_ident_map_records_node_peers_without_walking_their_subtree() {
+    // `app` declares `react` as its own peer, so the peer branch records
+    // `react` but skips its exclusive child `scheduler`.
+    let scheduler = result_node("scheduler", "scheduler@1.0.0", &[], vec![]);
+    let react = result_node("react", "react@18.0.0", &[], vec![scheduler]);
+    let app = result_node("app", "app@1.0.0", &["react"], vec![react]);
+    let root = result_node(".", "", &[], vec![app]);
+
+    let ident_map = build_hoist_ident_map(&root);
+    dbg!(&ident_map);
+    assert!(ident_map.contains_key("app"), "the regular dep is recorded");
+    assert!(ident_map.contains_key("react"), "the node's peer is still a candidate ident");
+    assert!(
+        !ident_map.contains_key("scheduler"),
+        "a peer's exclusive subtree is not walked, so its child never enters the map",
+    );
+}
+
+/// `is_preferred_ident` returns `true` for a name with no entry in the
+/// ident map. Unreachable from `hoist` (the map covers every name the
+/// walk encounters except root peers, and `hoist` builds the `.` root
+/// with no peers), so it is exercised by calling the guard directly.
+#[test]
+fn is_preferred_ident_allows_names_absent_from_the_map() {
+    let child = result_node("ghost", "ghost@1.0.0", &[], vec![]);
+    let ident_map: HashMap<String, VecDeque<String>> = HashMap::new();
+    assert!(
+        is_preferred_ident(&child, &ident_map),
+        "a name with no preference entry carries no constraint and hoists freely",
+    );
+}
+
+/// `is_preferred_ident` returns `true` when a name maps to an empty
+/// candidate list. [`build_hoist_ident_map`] never emits an empty
+/// `VecDeque` (every entry gets at least one ident), so this defensive
+/// guard is only reachable by constructing the empty list directly.
+#[test]
+fn is_preferred_ident_allows_empty_candidate_lists() {
+    let child = result_node("ghost", "ghost@1.0.0", &[], vec![]);
+    let ident_map: HashMap<String, VecDeque<String>> =
+        HashMap::from([("ghost".to_string(), VecDeque::new())]);
+    assert!(
+        is_preferred_ident(&child, &ident_map),
+        "an empty candidate list carries no constraint and hoists freely",
     );
 }
