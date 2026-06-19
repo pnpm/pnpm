@@ -52,6 +52,34 @@ test('createPackageVersionPolicy()', () => {
     const match = createPackageVersionPolicy(['pkg@1.0.0||1.0.1  ||  1.0.2'])
     expect(match('pkg')).toStrictEqual(['1.0.0', '1.0.1', '1.0.2'])
   }
+  {
+    const match = createPackageVersionPolicy(['form-data@4.0.6', 'form-data@2.5.6'])
+    expect(match('form-data')).toStrictEqual(['4.0.6', '2.5.6'])
+  }
+  {
+    const match = createPackageVersionPolicy(['form-data@4.0.6', 'form-data@2.5.6 || 2.5.7'])
+    expect(match('form-data')).toStrictEqual(['4.0.6', '2.5.6', '2.5.7'])
+  }
+  {
+    const match = createPackageVersionPolicy(['form-data@4.0.6', 'form-data@4.0.6'])
+    expect(match('form-data')).toStrictEqual(['4.0.6'])
+  }
+  {
+    const match = createPackageVersionPolicy(['axios@1.12.2', 'axios'])
+    expect(match('axios')).toStrictEqual(['1.12.2'])
+  }
+  {
+    const match = createPackageVersionPolicy(['axios', 'axios@1.12.2'])
+    expect(match('axios')).toBe(true)
+  }
+  {
+    const match = createPackageVersionPolicy(['axios@1.12.2', 'ax*'])
+    expect(match('axios')).toStrictEqual(['1.12.2'])
+  }
+  {
+    const match = createPackageVersionPolicy(['ax*', 'axios@1.12.2'])
+    expect(match('axios')).toBe(true)
+  }
 })
 
 test('createPackageVersionPolicyOrThrow() rewraps parser errors with INVALID_<KEY>', () => {
