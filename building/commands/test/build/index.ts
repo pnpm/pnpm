@@ -603,6 +603,7 @@ test('rebuild with NODE_ENV=production should rebuild dev dependencies', async (
     '--config.enableGlobalVirtualStore=false',
   ])
 
+  const origNodeEnv = process.env.NODE_ENV
   process.env.NODE_ENV = 'production'
 
   try {
@@ -618,7 +619,11 @@ test('rebuild with NODE_ENV=production should rebuild dev dependencies', async (
       allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
     }, [])
   } finally {
-    delete process.env.NODE_ENV
+    if (origNodeEnv === undefined) {
+      delete process.env.NODE_ENV
+    } else {
+      process.env.NODE_ENV = origNodeEnv
+    }
   }
 
   const modules = project.readModulesManifest()
