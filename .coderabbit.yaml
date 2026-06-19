@@ -11,7 +11,13 @@ reviews:
   path_instructions:
     - path: "**/*"
       instructions: |
-        Apply the review framework in REVIEW_GUIDE.md. You are one of two PR reviewers; concentrate on correctness, maintainability, and adherence to the repository's documented conventions (Qodo leads security and performance, so go lighter there). Lead on: (1) bugs and logic errors; (2) violations of the code style, comment rules, and engineering conventions documented in AGENTS.md (its "Code Style", "Comments", and "Conventions" sections) and CONTRIBUTING.md; (3) missed reuse or duplication across the monorepo. Still raise any clear security or performance problem you notice. Do not repeat issues eslint already enforces. Surface only issues tied to changed code, and name the bug or the specific documented rule that is violated.
+        Apply the review framework in REVIEW_GUIDE.md (it is stack-agnostic and covers pnpm, pacquet, and pnpr). You are one of two PR reviewers; concentrate on correctness, maintainability, and adherence to the documented conventions (Qodo leads security and performance, so go lighter there). Lead on: (1) bugs and logic errors; (2) violations of the documented code style, comment rules, and engineering conventions of the stack the changed file belongs to — for the TypeScript CLI see AGENTS.md ("Code Style", "Comments", "Conventions") and CONTRIBUTING.md, and for the Rust stacks see the pacquet/** and pnpr/** instructions below; (3) missed reuse or duplication across the monorepo. Still raise any clear security or performance problem you notice. Do not repeat issues the linters already enforce (eslint for TypeScript, clippy/dylint for Rust). Surface only issues tied to changed code, and name the bug or the specific documented rule that is violated.
+    - path: "pacquet/**"
+      instructions: |
+        pacquet is the Rust port of pnpm. For code style, comments, and conventions follow pacquet/AGENTS.md and pacquet/CODE_STYLE_GUIDE.md — the TypeScript conventions in the root AGENTS.md do not apply here. REVIEW_GUIDE.md's security, performance, scope, and parity framework still applies.
+    - path: "pnpr/**"
+      instructions: |
+        pnpr is the pnpm registry server (Rust). For code style, comments, and conventions follow pnpr/AGENTS.md and pnpr/CONTRIBUTING.md — the TypeScript conventions in the root AGENTS.md do not apply here. REVIEW_GUIDE.md's framework still applies.
   # Walkthrough poem adds no review value.
   poem: false
   # Required for CodeRabbit to submit approving reviews at all. With this off
