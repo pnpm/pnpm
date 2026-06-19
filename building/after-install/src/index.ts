@@ -120,7 +120,8 @@ export async function buildSelectedPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await extendBuildOptions(maybeOpts)
-  const ctx = await getContext({ ...opts, allProjects: projects })
+  const rebuildInclude = opts.include
+  const ctx = await getContext({ ...opts, include: undefined, allProjects: projects })
 
   if (ctx.currentLockfile?.packages == null) return {}
   const packages = ctx.currentLockfile.packages
@@ -155,7 +156,7 @@ export async function buildSelectedPkgs (
       pkgsToRebuild: new Set(pkgs),
       ...ctx,
     },
-    opts
+    { ...opts, include: rebuildInclude }
   )
   await writeModulesManifest(ctx.rootModulesDir, {
     prunedAt: new Date().toUTCString(),
@@ -194,7 +195,8 @@ export async function buildProjects (
     streamParser.on('data', reporter)
   }
   const opts = await extendBuildOptions(maybeOpts)
-  const ctx = await getContext({ ...opts, allProjects: projects })
+  const rebuildInclude = opts.include
+  const ctx = await getContext({ ...opts, include: undefined, allProjects: projects })
 
   let idsToRebuild: string[] = []
 
@@ -209,7 +211,7 @@ export async function buildProjects (
       pkgsToRebuild: new Set(idsToRebuild),
       ...ctx,
     },
-    opts
+    { ...opts, include: rebuildInclude }
   )
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((depPath) => !pkgsThatWereRebuilt.has(depPath))

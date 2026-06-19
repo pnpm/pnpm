@@ -603,28 +603,17 @@ test('rebuild with NODE_ENV=production should rebuild dev dependencies', async (
     '--config.enableGlobalVirtualStore=false',
   ])
 
-  const origNodeEnv = process.env.NODE_ENV
-  process.env.NODE_ENV = 'production'
-
-  try {
-    await rebuild.handler({
-      ...DEFAULT_OPTS,
-      cacheDir,
-      dir: process.cwd(),
-      pending: true,
-      registries: {
-        default: REGISTRY,
-      },
-      storeDir,
-      allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
-    }, [])
-  } finally {
-    if (origNodeEnv === undefined) {
-      delete process.env.NODE_ENV
-    } else {
-      process.env.NODE_ENV = origNodeEnv
-    }
-  }
+  // Run the actual pnpm CLI under NODE_ENV=production so the config loader
+  // picks up --production / --dev=false, which used to filter dev deps out
+  // of the rebuild graph.
+  await execa('node', [
+    pnpmBin,
+    'rebuild',
+    '--config.enableGlobalVirtualStore=false',
+    `--store-dir=${storeDir}`,
+  ], {
+    env: { ...process.env, NODE_ENV: 'production' },
+  })
 
   const modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
