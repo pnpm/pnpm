@@ -336,6 +336,10 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
 
+    #[diagnostic(code(pacquet_package_manager::remove_modules_dir))]
+    #[display("Failed to remove modules directory contents: {_0}")]
+    RemoveModulesDir(#[error(source)] std::io::Error),
+
     /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` for
     /// the project being installed. Mirrors upstream's
     /// `ERR_PNPM_OUTDATED_LOCKFILE` thrown from
@@ -1041,10 +1045,32 @@ where
             // upstream pnpm's `validateModules` prune side effects.
             let is_safe = config.modules_dir.file_name().is_some_and(|n| n == "node_modules");
             if is_safe {
-                if let Err(err) = std::fs::remove_dir_all(&config.modules_dir)
-                    && err.kind() != std::io::ErrorKind::NotFound
-                {
-                    tracing::warn!(?err, "failed to remove inconsistent modules directory");
+                match std::fs::read_dir(&config.modules_dir) {
+                    Ok(entries) => {
+                        for entry in entries.flatten() {
+                            let file_name = entry.file_name();
+                            let file_name_str = file_name.to_string_lossy();
+
+                            let is_hidden = file_name_str.starts_with('.');
+                            let is_pnpm_hidden = file_name_str == ".bin"
+                                || file_name_str == ".modules.yaml"
+                                || entry.path() == config.virtual_store_dir;
+
+                            if is_hidden && !is_pnpm_hidden {
+                                continue;
+                            }
+
+                            if entry.file_type().is_ok_and(|t| t.is_dir()) {
+                                std::fs::remove_dir_all(entry.path())
+                                    .map_err(InstallError::RemoveModulesDir)?;
+                            } else {
+                                std::fs::remove_file(entry.path())
+                                    .map_err(InstallError::RemoveModulesDir)?;
+                            }
+                        }
+                    }
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(err) => return Err(InstallError::RemoveModulesDir(err)),
                 }
             } else {
                 tracing::warn!(
