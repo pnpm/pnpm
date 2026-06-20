@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
     fs::File,
-    io::{Read, Seek},
+    io::Read,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -262,26 +262,20 @@ fn default_osv_path(config: &Config) -> PathBuf {
 }
 
 fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
-    // Fingerprint and parse the *same* open handle. Hashing one open and
-    // parsing a second would let an atomic replace of the path slip in
-    // between, so the recorded fingerprint could describe different bytes
-    // than the advisories actually loaded — and the verdict cache trusts
-    // that fingerprint to decide whether a cached pass still holds.
-    let mut file = File::open(path).map_err(|err| {
+    let file = File::open(path).map_err(|err| {
         invalid_config(format!("failed to open OSV database {}: {err}", path.display()))
-    })?;
-    let fingerprint = fingerprint_reader(&mut file).map_err(|err| {
-        invalid_config(format!("failed to hash OSV database {}: {err}", path.display()))
-    })?;
-    file.rewind().map_err(|err| {
-        invalid_config(format!("failed to rewind OSV database {}: {err}", path.display()))
     })?;
     let mut archive = zip::ZipArchive::new(file).map_err(|err| {
         invalid_config(format!("failed to read OSV zip {}: {err}", path.display()))
     })?;
     let mut packages = HashMap::new();
+    // Fingerprint the decompressed record contents while parsing (one
+    // pass over the same handle), not the raw archive bytes: that avoids
+    // a second full read and keeps the fingerprint stable across
+    // recompression/repackaging of identical advisory data.
+    let mut digests = Vec::new();
     for index in 0..archive.len() {
-        let entry = archive.by_index(index).map_err(|err| {
+        let mut entry = archive.by_index(index).map_err(|err| {
             invalid_config(format!("failed to read OSV zip entry in {}: {err}", path.display()))
         })?;
         if !entry.is_file() || !entry.name().ends_with(".json") {
@@ -294,19 +288,20 @@ fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
                 entry.size(),
             )));
         }
-        // `take` also caps the read if the entry's declared size lies.
+        // `take` caps the read in case the declared size lies.
         let mut bytes = Vec::with_capacity(entry.size() as usize);
-        entry
+        (&mut entry)
             .take(MAX_OSV_RECORD_BYTES)
             .read_to_end(&mut bytes)
             .map_err(|err| invalid_config(format!("failed to read OSV zip entry {name}: {err}")))?;
+        digests.push((name.clone(), record_digest(&name, &bytes)));
         ingest_record_bytes(&mut packages, &bytes)?;
     }
-    Ok(OsvIndex { packages, fingerprint })
+    Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
 }
 
 fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
-    let mut entries = std::fs::read_dir(path)
+    let entries = std::fs::read_dir(path)
         .map_err(|err| {
             invalid_config(format!("failed to read OSV directory {}: {err}", path.display()))
         })?
@@ -314,10 +309,9 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
         .map_err(|err| {
             invalid_config(format!("failed to read OSV directory {}: {err}", path.display()))
         })?;
-    entries.sort_by_key(std::fs::DirEntry::path);
 
     let mut packages = HashMap::new();
-    let mut hasher = Sha256::new();
+    let mut digests = Vec::new();
     for entry in entries {
         let entry_path = entry.path();
         if !entry_path.is_file()
@@ -341,32 +335,36 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
                 entry_path.display(),
             )));
         }
-        // Length-prefix each component so the hash input is unambiguous:
-        // plain concatenation of (name, bytes) lets two different
-        // directory states hash to the same stream, which would let an
-        // attacker with write access edit advisories while keeping the
-        // fingerprint (and thus a trusted verdict-cache pass) unchanged.
         let name = entry_path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
-        hasher.update((name.len() as u64).to_le_bytes());
-        hasher.update(name.as_bytes());
-        hasher.update((bytes.len() as u64).to_le_bytes());
-        hasher.update(&bytes);
+        digests.push((name.to_string(), record_digest(name, &bytes)));
         ingest_record_bytes(&mut packages, &bytes)?;
     }
-    Ok(OsvIndex { packages, fingerprint: format!("sha256:{:x}", hasher.finalize()) })
+    Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
 }
 
-fn fingerprint_reader(reader: &mut impl Read) -> std::io::Result<String> {
+/// Per-record content digest over a length-prefixed `(name, bytes)` so
+/// the encoding is unambiguous — plain concatenation would let two
+/// different record sets hash to the same input.
+fn record_digest(name: &str, bytes: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    let mut buf = vec![0_u8; 1024 * 64];
-    loop {
-        let read = reader.read(&mut buf)?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buf[..read]);
+    hasher.update((name.len() as u64).to_le_bytes());
+    hasher.update(name.as_bytes());
+    hasher.update((bytes.len() as u64).to_le_bytes());
+    hasher.update(bytes);
+    hasher.finalize().into()
+}
+
+/// Combine per-record digests into the database fingerprint. Sorting by
+/// record name makes the fingerprint independent of the order entries
+/// happen to appear in the archive or directory listing, so reordering
+/// alone doesn't invalidate cached verdicts.
+fn combine_fingerprint(mut digests: Vec<(String, [u8; 32])>) -> String {
+    digests.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut hasher = Sha256::new();
+    for (_, digest) in &digests {
+        hasher.update(digest);
     }
-    Ok(format!("sha256:{:x}", hasher.finalize()))
+    format!("sha256:{:x}", hasher.finalize())
 }
 
 fn ingest_record_bytes(
