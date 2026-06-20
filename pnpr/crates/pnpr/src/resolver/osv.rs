@@ -288,12 +288,19 @@ fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
                 entry.size(),
             )));
         }
-        // `take` caps the read in case the declared size lies.
+        // Read one past the cap so an underreported `entry.size()` can't
+        // silently truncate a record into still-valid JSON; reject if it
+        // actually exceeds the limit (matching the directory loader).
         let mut bytes = Vec::with_capacity(entry.size() as usize);
         (&mut entry)
-            .take(MAX_OSV_RECORD_BYTES)
+            .take(MAX_OSV_RECORD_BYTES + 1)
             .read_to_end(&mut bytes)
             .map_err(|err| invalid_config(format!("failed to read OSV zip entry {name}: {err}")))?;
+        if bytes.len() as u64 > MAX_OSV_RECORD_BYTES {
+            return Err(invalid_config(format!(
+                "OSV zip entry {name} is over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
+            )));
+        }
         digests.push(record_digest(&name, &bytes));
         ingest_record_bytes(&mut packages, &bytes)?;
     }
