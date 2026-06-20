@@ -644,7 +644,7 @@ fn current_source_pnpm_version() -> Option<String> {
 }
 
 fn pnpm_version_from(root_dir: &Path) -> Option<String> {
-    let path = root_dir.join("pnpm").join("package.json");
+    let path = root_dir.join("pnpm11").join("pnpm").join("package.json");
     let value = read_manifest_json(&path).ok()??;
     value.get("version").and_then(Value::as_str).map(ToString::to_string)
 }
