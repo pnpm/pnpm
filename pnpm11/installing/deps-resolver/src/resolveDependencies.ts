@@ -1085,7 +1085,7 @@ function hasActivePackageResolutionBeforeDepth (ctx: ResolutionContext, depth: n
   return false
 }
 
-function claimChildrenResolution (
+export function claimChildrenResolution (
   ctx: ResolutionContext,
   opts: {
     currentDepth: number
@@ -1139,11 +1139,14 @@ function claimChildrenResolution (
     ctx.hoistPeers &&
     !opts.parentIds.includes(opts.pkgId) &&
     existing.missingPeersOfChildren &&
-    (
-      existing.owner.depth >= opts.currentDepth ||
-      existing.missingPeersOfChildren.resolved
-    )
+    existing.owner.depth >= opts.currentDepth
   ) {
+    // Gating reuse on the owner's depth keeps a transitive optional peer's
+    // presence in the resolved suffix a function of graph structure, not of
+    // which occurrence happened to finish resolving first. A strictly shallower
+    // owner is excluded because its promise may still be unsettled here, and
+    // awaiting it can deadlock under auto-install-peers
+    // (https://github.com/pnpm/pnpm/issues/5454).
     missingPeersOfChildren = existing.missingPeersOfChildren
   }
   return {
