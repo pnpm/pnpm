@@ -603,7 +603,7 @@ fn osv_violations_for_lockfile(index: &OsvIndex, lockfile: &Lockfile) -> Vec<ser
         return Vec::new();
     };
 
-    let mut seen = std::collections::BTreeSet::new();
+    let mut seen = std::collections::HashSet::new();
     let mut violations = Vec::new();
     for (package_key, snapshot) in packages {
         if !is_osv_checkable_resolution(&snapshot.resolution) {
@@ -611,21 +611,25 @@ fn osv_violations_for_lockfile(index: &OsvIndex, lockfile: &Lockfile) -> Vec<ser
         }
         let name = package_key.name.to_string();
         let version = package_key.suffix.version().to_string();
+        let ids = index.vulnerability_ids(&name, &version);
+        if ids.is_empty() {
+            continue;
+        }
+        // Dedup only the rare vulnerable hits — several lockfile keys can
+        // share one name@version via peer suffixes — so the common
+        // (non-vulnerable) entry never pays for the set.
         if !seen.insert((name.clone(), version.clone())) {
             continue;
         }
-        let ids = index.vulnerability_ids(&name, &version);
-        if !ids.is_empty() {
-            violations.push(serde_json::json!({
-                "name": name,
-                "version": version,
-                "code": OSV_VULNERABILITY_CODE,
-                "reason": format!(
-                    "is listed in the local OSV database as vulnerable ({})",
-                    ids.join(", "),
-                ),
-            }));
-        }
+        violations.push(serde_json::json!({
+            "name": name,
+            "version": version,
+            "code": OSV_VULNERABILITY_CODE,
+            "reason": format!(
+                "is listed in the local OSV database as vulnerable ({})",
+                ids.join(", "),
+            ),
+        }));
     }
     violations
 }
@@ -649,11 +653,12 @@ fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bool {
 }
 
 /// Whether a tarball URL uses an http(s) scheme — the only schemes a
-/// registry artifact is served over. Case-insensitive so a tampered
-/// uppercase scheme can't slip past.
+/// registry artifact is served over. Case-insensitive (so a tampered
+/// uppercase scheme can't slip past) without allocating a lowercased copy.
 fn is_http_tarball_url(url: &str) -> bool {
-    let lower = url.to_ascii_lowercase();
-    lower.starts_with("https://") || lower.starts_with("http://")
+    let bytes = url.as_bytes();
+    bytes.get(..8).is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"https://"))
+        || bytes.get(..7).is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"http://"))
 }
 
 /// Serialize one frame to a newline-terminated NDJSON line.
