@@ -192,6 +192,10 @@ fn tarball_url_version_extracts_conventional_names_only() {
         tarball_url_version("https://r/foo/-/foo-1.2.3-beta.1.tgz", "foo"),
         Some("1.2.3-beta.1"),
     );
+    // Suffix matching is case-insensitive and covers `.tar.gz`, so a
+    // tampered lockfile can't dodge the cross-check with a variant.
+    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.TGZ", "foo"), Some("1.2.3"));
+    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tar.gz", "foo"), Some("1.2.3"));
     // Non-conventional naming yields None (fall back, don't misjudge).
     assert_eq!(tarball_url_version("https://r/weird.tgz", "foo"), None);
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);

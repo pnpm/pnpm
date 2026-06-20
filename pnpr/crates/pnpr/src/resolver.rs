@@ -656,10 +656,21 @@ fn osv_violations_for_lockfile(index: &OsvIndex, lockfile: &Lockfile) -> Vec<ser
 fn tarball_url_version<'a>(url: &'a str, name: &str) -> Option<&'a str> {
     let last = url.rsplit('/').next()?;
     let last = last.split(['?', '#']).next().unwrap_or(last);
-    let stem = last.strip_suffix(".tgz")?;
+    let stem = strip_tarball_suffix(last)?;
     let unscoped = name.rsplit('/').next().unwrap_or(name);
     let version = stem.strip_prefix(unscoped)?.strip_prefix('-')?;
     (!version.is_empty()).then_some(version)
+}
+
+/// Strip a `.tgz` / `.tar.gz` tarball suffix case-insensitively, so a
+/// tampered lockfile can't dodge the URL-version cross-check with a
+/// `.TGZ` or `.tar.gz` variant. Returns `None` for any other suffix.
+fn strip_tarball_suffix(name: &str) -> Option<&str> {
+    [".tar.gz", ".tgz"].into_iter().find_map(|suffix| {
+        let head_len = name.len().checked_sub(suffix.len())?;
+        let (head, tail) = (name.get(..head_len)?, name.get(head_len..)?);
+        tail.eq_ignore_ascii_case(suffix).then_some(head)
+    })
 }
 
 fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bool {
