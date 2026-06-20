@@ -458,9 +458,14 @@ fn parse_osv_version(raw: &str) -> Option<Version> {
     if parsed.is_none() {
         // Surface rather than silently drop: an unparsable bound means
         // this range won't be enforced, so a corrupt dump can't degrade
-        // coverage without leaving a trace in the logs.
+        // coverage without leaving a trace in the logs. Bound the logged
+        // value — an OSV field can be up to the per-record cap, so log a
+        // short prefix plus the full length instead of the raw string.
+        const MAX_LOGGED_CHARS: usize = 64;
+        let prefix: String = raw.chars().take(MAX_LOGGED_CHARS).collect();
         tracing::warn!(
-            version = raw,
+            version_prefix = %prefix,
+            version_len = raw.len(),
             "ignoring OSV range event with an unparsable version; that range will not be enforced",
         );
     }
