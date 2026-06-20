@@ -294,7 +294,7 @@ fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
             .take(MAX_OSV_RECORD_BYTES)
             .read_to_end(&mut bytes)
             .map_err(|err| invalid_config(format!("failed to read OSV zip entry {name}: {err}")))?;
-        digests.push((name.clone(), record_digest(&name, &bytes)));
+        digests.push(record_digest(&name, &bytes));
         ingest_record_bytes(&mut packages, &bytes)?;
     }
     Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
@@ -336,7 +336,7 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
             )));
         }
         let name = entry_path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
-        digests.push((name.to_string(), record_digest(name, &bytes)));
+        digests.push(record_digest(name, &bytes));
         ingest_record_bytes(&mut packages, &bytes)?;
     }
     Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
@@ -354,14 +354,15 @@ fn record_digest(name: &str, bytes: &[u8]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
-/// Combine per-record digests into the database fingerprint. Sorting by
-/// record name makes the fingerprint independent of the order entries
-/// happen to appear in the archive or directory listing, so reordering
-/// alone doesn't invalidate cached verdicts.
-fn combine_fingerprint(mut digests: Vec<(String, [u8; 32])>) -> String {
-    digests.sort_by(|a, b| a.0.cmp(&b.0));
+/// Combine per-record digests into the database fingerprint. Each digest
+/// already encodes its record's name and bytes, so sorting the digests
+/// makes the fingerprint independent of the order entries happen to
+/// appear in the archive or directory listing (even when two records
+/// share a name) — reordering alone doesn't invalidate cached verdicts.
+fn combine_fingerprint(mut digests: Vec<[u8; 32]>) -> String {
+    digests.sort_unstable();
     let mut hasher = Sha256::new();
-    for (_, digest) in &digests {
+    for digest in &digests {
         hasher.update(digest);
     }
     format!("sha256:{:x}", hasher.finalize())
