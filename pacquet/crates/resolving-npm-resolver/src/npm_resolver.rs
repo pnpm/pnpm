@@ -524,6 +524,11 @@ pub(crate) struct PickFromRegistryOptions<'a> {
         Option<&'a Arc<dyn pacquet_resolving_resolver_base::PackageVersionGuard>>,
 }
 
+/// Upper bound on guard rejections for one package before the resolver
+/// gives up. Far beyond any realistic run of consecutive blocked
+/// versions, so it only fires on a pathological/hostile packument.
+const GUARD_REPICK_LIMIT: usize = 1000;
+
 pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     opts: PickFromRegistryOptions<'_>,
@@ -586,6 +591,14 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
                 // already blocked, so it can't be excluded; stop rather than
                 // loop forever — every match really is blocked.
                 if !blocked_versions.insert(blocked_key) {
+                    return Err(all_versions_blocked(opts.spec, reason));
+                }
+                // Each rejection re-runs the picker over the packument, so an
+                // unbounded run is O(versions²). Cap it well above any real
+                // run of consecutive rejected versions to bound the work a
+                // hostile packument can force, treating the cap as "no
+                // acceptable version".
+                if blocked_versions.len() >= GUARD_REPICK_LIMIT {
                     return Err(all_versions_blocked(opts.spec, reason));
                 }
                 last_rejection = Some(reason);
