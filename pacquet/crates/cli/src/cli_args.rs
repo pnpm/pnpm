@@ -5,6 +5,7 @@ pub mod install;
 pub mod outdated;
 pub mod recursive;
 pub mod remove;
+pub mod restart;
 pub mod run;
 pub mod store;
 pub mod supported_architectures;
@@ -28,6 +29,7 @@ use pacquet_reporter::{
     ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, Reporter, SilentReporter,
 };
 use remove::RemoveArgs;
+use restart::RestartArgs;
 use run::RunArgs;
 use serde_json::Value;
 use std::{
@@ -143,6 +145,11 @@ pub enum CliCommand {
     Dlx(DlxArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
     Start,
+    /// Runs a package's "stop" script, if one was provided.
+    Stop,
+    /// Restarts a package. Runs "stop", "restart", and "start" scripts,
+    /// and associated pre- and post- scripts.
+    Restart(RestartArgs),
     /// Managing the package store.
     #[clap(subcommand)]
     Store(StoreCommand),
@@ -423,6 +430,16 @@ impl CliArgs {
                     .wrap_err("getting the package.json in current directory")?;
                 let command = manifest.script("start", true)?.unwrap_or("node server.js");
                 execute_shell(command).wrap_err(format!("executing command: \"{command}\""))?;
+            }
+            CliCommand::Stop => {
+                let manifest = PackageManifest::from_path(manifest_path())
+                    .wrap_err("getting the package.json in current directory")?;
+                if let Some(script) = manifest.script("stop", true)? {
+                    execute_shell(script).wrap_err(format!("executing command: \"{script}\""))?;
+                }
+            }
+            CliCommand::Restart(args) => {
+                args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
             }
             CliCommand::Store(command) => command.run(|| config().map(|m| &*m))?,
         }
