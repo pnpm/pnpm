@@ -42,9 +42,9 @@ fn is_modules_yaml_consistent(
     node_linker: pacquet_config::NodeLinker,
     included: pacquet_modules_yaml::IncludedDependencies,
 ) -> bool {
-    read_modules_manifest::<Host>(modules_dir).ok().flatten().is_some_and(|modules| {
-        super::modules_consistent_with(&modules, config, node_linker, included)
-    })
+    pacquet_modules_yaml::read_modules_layout::<Host>(modules_dir).ok().flatten().is_some_and(
+        |modules| super::modules_consistent_with(&modules, config, node_linker, included),
+    )
 }
 
 const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
@@ -5585,7 +5585,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
 /// — rather than short-circuiting to success and hiding it.
 #[test]
 fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
-    let modules = Modules {
+    let modules = pacquet_modules_yaml::ModulesLayout {
         ignored_builds: Some([pacquet_modules_yaml::DepPath::from("pkg@1.0.0".to_string())].into()),
         ..Default::default()
     };
@@ -7956,4 +7956,221 @@ async fn async_after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
     assert_eq!(hook_log.message, "All resolved");
 
     drop((dir, registry));
+}
+
+#[tokio::test]
+async fn test_install_purges_node_modules_on_layout_mismatch() {
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&project_root).unwrap();
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+
+    let mut config_isolated = Config::new();
+    config_isolated.lockfile = false;
+    config_isolated.store_dir = store_dir.clone().into();
+    config_isolated.modules_dir = modules_dir.clone();
+    config_isolated.virtual_store_dir = virtual_store_dir.clone();
+
+    let mut config_hoisted = Config::new();
+    config_hoisted.lockfile = false;
+    config_hoisted.store_dir = store_dir.clone().into();
+    config_hoisted.modules_dir = modules_dir.clone();
+    config_hoisted.virtual_store_dir = virtual_store_dir.clone();
+    config_hoisted.hoist_pattern = Some(vec![]);
+
+    let config_isolated = config_isolated.leak();
+    let config_hoisted = config_hoisted.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies: {}"
+        "packages: {}"
+        "snapshots: {}"
+    })
+    .unwrap();
+
+    // 1st install: Isolated node linker (default)
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config: config_isolated,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
+        frozen_lockfile: true,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("1st install success");
+
+    let canary_path = modules_dir.join("canary.txt");
+    std::fs::create_dir_all(&modules_dir).unwrap();
+    std::fs::write(&canary_path, "canary").unwrap();
+    assert!(canary_path.exists());
+
+    // 2nd install: Hoisted node linker
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config: config_hoisted,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
+        frozen_lockfile: true,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::Hoisted,
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("2nd install success");
+
+    assert!(!canary_path.exists(), "node_modules should be purged due to mismatch");
+}
+
+#[tokio::test]
+async fn test_install_resolve_only_ignores_layout_mismatch() {
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = project_root.join("package.json");
+    std::fs::create_dir_all(&project_root).unwrap();
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+
+    let mut config_isolated = Config::new();
+    config_isolated.lockfile = false;
+    config_isolated.store_dir = store_dir.clone().into();
+    config_isolated.modules_dir = modules_dir.clone();
+    config_isolated.virtual_store_dir = virtual_store_dir.clone();
+
+    let mut config_hoisted = Config::new();
+    config_hoisted.lockfile = false;
+    config_hoisted.store_dir = store_dir.clone().into();
+    config_hoisted.modules_dir = modules_dir.clone();
+    config_hoisted.virtual_store_dir = virtual_store_dir.clone();
+    config_hoisted.hoist_pattern = Some(vec![]);
+
+    let config_isolated = config_isolated.leak();
+    let config_hoisted = config_hoisted.leak();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies: {}"
+        "packages: {}"
+        "snapshots: {}"
+    })
+    .unwrap();
+
+    // 1st install: Isolated node linker (default)
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config: config_isolated,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
+        frozen_lockfile: true,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("1st install success");
+
+    let canary_path = modules_dir.join("canary.txt");
+    std::fs::create_dir_all(&modules_dir).unwrap();
+    std::fs::write(&canary_path, "canary").unwrap();
+    assert!(canary_path.exists());
+
+    // 2nd install: Hoisted node linker, but dry_run is true
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config: config_hoisted,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
+        frozen_lockfile: true,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::Hoisted,
+        lockfile_only: false,
+        dry_run: true,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("2nd install success");
+
+    // Canary should still exist because dry_run doesn't mutate node_modules
+    assert!(canary_path.exists(), "canary was deleted despite dry_run: true");
 }
