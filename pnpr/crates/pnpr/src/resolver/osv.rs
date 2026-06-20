@@ -344,15 +344,13 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
         {
             continue;
         }
-        // Bound the read itself with `take` rather than trusting a
-        // pre-read `metadata().len()`, which a concurrent swap could
-        // invalidate (TOCTOU) — matching the zip loader's guarantee.
-        let file = File::open(&entry_path).map_err(|err| {
+        // Open non-blocking so a concurrent swap of the path to a
+        // FIFO/socket after the `is_file` check can't make `open` itself
+        // block startup; then re-check the opened handle is a regular file
+        // before reading (the path check is racy on its own).
+        let file = open_osv_record(&entry_path).map_err(|err| {
             invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
         })?;
-        // Re-check the *opened handle* before reading: the earlier
-        // `is_file` check is on the path, so a concurrent swap to a
-        // FIFO/socket could otherwise make `read_to_end` block startup.
         let is_regular_file = file.metadata().is_ok_and(|metadata| metadata.is_file());
         if !is_regular_file {
             return Err(invalid_config(format!(
@@ -380,6 +378,21 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
 /// Per-record content digest over a length-prefixed `(name, bytes)` so
 /// the encoding is unambiguous — plain concatenation would let two
 /// different record sets hash to the same input.
+/// Open an OSV record file without blocking on it. On unix `O_NONBLOCK`
+/// keeps `open` from hanging if the path was raced into a FIFO with no
+/// writer; the caller still verifies the handle is a regular file before
+/// reading. A regular file ignores the flag for reads.
+#[cfg(unix)]
+fn open_osv_record(path: &Path) -> std::io::Result<File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK).open(path)
+}
+
+#[cfg(not(unix))]
+fn open_osv_record(path: &Path) -> std::io::Result<File> {
+    File::open(path)
+}
+
 fn record_digest(name: &str, bytes: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update((name.len() as u64).to_le_bytes());

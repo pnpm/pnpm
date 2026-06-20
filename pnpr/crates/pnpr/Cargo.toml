@@ -45,6 +45,7 @@ futures-util                    = { workspace = true }
 getrandom                       = { workspace = true }
 home                            = { workspace = true }
 indexmap                        = { workspace = true }
+libc                            = { workspace = true }
 libsql                          = { workspace = true }
 miette                          = { workspace = true }
 node-semver                     = { workspace = true }

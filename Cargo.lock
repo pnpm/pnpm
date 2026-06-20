@@ -4799,6 +4799,7 @@ dependencies = [
  "getrandom 0.4.2",
  "home",
  "indexmap 2.14.0",
+ "libc",
  "libsql",
  "miette 7.6.0",
  "mockito",
