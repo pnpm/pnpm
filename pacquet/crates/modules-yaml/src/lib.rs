@@ -466,11 +466,11 @@ where
     // uses the old `shamefullyHoist` flag without a `publicHoistPattern`,
     // synthesize the equivalent pattern so the consistency check matches what
     // `read_modules_manifest` would produce on a full read.
-    if let Some(shamefully_hoist) = manifest.shamefully_hoist {
-        if manifest.public_hoist_pattern.is_none() {
-            manifest.public_hoist_pattern =
-                Some(if shamefully_hoist { vec!["*".to_string()] } else { Vec::new() });
-        }
+    if let Some(shamefully_hoist) = manifest.shamefully_hoist
+        && manifest.public_hoist_pattern.is_none()
+    {
+        manifest.public_hoist_pattern =
+            Some(if shamefully_hoist { vec!["*".to_string()] } else { Vec::new() });
     }
 
     let stored_path = Path::new(&manifest.virtual_store_dir);
