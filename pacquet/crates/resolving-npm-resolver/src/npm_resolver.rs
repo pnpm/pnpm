@@ -575,17 +575,42 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
                     reason = %reason,
                     "package version rejected by resolver guard",
                 );
-                // A `false` return means the picker re-selected a version we
-                // already blocked, so filtering can't exclude it (e.g. the
-                // parsed version string doesn't match the packument key).
-                // Stop rather than loop forever — every match is blocked.
-                if !blocked_versions.insert(version_str) {
+                // Block by the *packument key*, which the next pick filters
+                // on. It usually equals the parsed manifest version, but a
+                // registry that serves a key differing from the manifest's
+                // `version` field would otherwise never get the candidate
+                // excluded — re-selecting it forever and wrongly reporting
+                // every version blocked when a lower one is still fine.
+                let blocked_key = blocked_packument_key(&pick_result.meta, &version, &version_str);
+                // A `false` return means the picker re-selected a key we
+                // already blocked, so it can't be excluded; stop rather than
+                // loop forever — every match really is blocked.
+                if !blocked_versions.insert(blocked_key) {
                     return Err(all_versions_blocked(opts.spec, reason));
                 }
                 last_rejection = Some(reason);
             }
         }
     }
+}
+
+/// The packument key for a picked version, so the guard loop can block the
+/// exact entry the next pick filters on. Fast-paths the common case where
+/// the parsed manifest version is itself the key; only falls back to
+/// locating the key by identity when a registry served a mismatched key.
+fn blocked_packument_key(
+    meta: &Package,
+    picked: &Arc<PackageVersion>,
+    version_str: &str,
+) -> String {
+    if meta.versions.contains_key(version_str) {
+        return version_str.to_string();
+    }
+    meta.versions
+        .keys()
+        .find(|key| meta.versions.get(key).is_some_and(|candidate| Arc::ptr_eq(&candidate, picked)))
+        .cloned()
+        .unwrap_or_else(|| version_str.to_string())
 }
 
 fn all_versions_blocked(spec: &RegistryPackageSpec, reason: String) -> ResolveError {
