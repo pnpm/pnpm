@@ -462,10 +462,7 @@ where
         })?;
     let Some(mut manifest) = parsed else { return Ok(None) };
 
-    // Mirror apply_legacy_shamefully_hoist: when the on-disk manifest still
-    // uses the old `shamefullyHoist` flag without a `publicHoistPattern`,
-    // synthesize the equivalent pattern so the consistency check matches what
-    // `read_modules_manifest` would produce on a full read.
+    // Normalize legacy shamefully_hoist to public_hoist_pattern.
     if let Some(shamefully_hoist) = manifest.shamefully_hoist
         && manifest.public_hoist_pattern.is_none()
     {

@@ -1055,9 +1055,7 @@ where
         let is_inconsistent = read_failed
             || match &modules_manifest {
                 Some(modules) => !modules_consistent_with(modules, config, node_linker, included),
-                // No manifest on disk means first install — not inconsistent.
-                // If the existence check itself fails (e.g. permissions), treat
-                // it conservatively as inconsistent so the purge is not skipped.
+                // Treat existence-check errors conservatively as inconsistent.
                 None => config
                     .modules_dir
                     .join(pacquet_modules_yaml::MODULES_FILENAME)
@@ -1104,9 +1102,11 @@ where
                                         .file_name()
                                         .is_some_and(|n| n == file_name_str.as_ref())
                                     || modules_manifest.as_ref().is_some_and(|manifest| {
-                                        let old_vs =
-                                            config.modules_dir.join(&manifest.virtual_store_dir);
-                                        // Ensure we only delete it if it's a descendant of modules_dir
+                                        let mut old_vs =
+                                            std::path::PathBuf::from(&manifest.virtual_store_dir);
+                                        if old_vs.is_relative() {
+                                            old_vs = config.modules_dir.join(old_vs);
+                                        }
                                         old_vs.starts_with(&config.modules_dir)
                                             && old_vs
                                                 .file_name()
