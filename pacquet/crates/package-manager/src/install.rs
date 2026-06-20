@@ -26,7 +26,7 @@ use pacquet_lockfile_verification::{
 };
 use pacquet_modules_yaml::{
     Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
-    WriteModulesError, read_modules_manifest, write_modules_manifest,
+    WriteModulesError, write_modules_manifest,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -644,7 +644,7 @@ where
             // to the full install rather than short-circuiting on a
             // swallowed read error.
             let fast_path_safe = if config.strict_dep_builds {
-                match read_modules_manifest::<Host>(&config.modules_dir) {
+                match pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
                     Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config)
                     {
                         Ok(Some(package_names)) => {
@@ -1036,7 +1036,11 @@ where
         // <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L913-L985>.
         // Parse `.modules.yaml` once and share it across the consistency,
         // newly-allowed, and unapproved-ignored checks below.
-        let modules_manifest_res = read_modules_manifest::<Host>(&config.modules_dir);
+        let modules_manifest_res = if !resolve_only || take_frozen_path {
+            pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir)
+        } else {
+            Ok(None)
+        };
         if let Err(err) = &modules_manifest_res {
             tracing::warn!(
                 target: "pacquet::install",
@@ -1073,7 +1077,13 @@ where
                     match std::fs::read_dir(&target) {
                         Ok(entries) => {
                             for entry_res in entries {
-                                let entry = entry_res.map_err(InstallError::RemoveModulesDir)?;
+                                let entry = match entry_res {
+                                    Ok(e) => e,
+                                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                                        continue;
+                                    }
+                                    Err(err) => return Err(InstallError::RemoveModulesDir(err)),
+                                };
                                 let file_name = entry.file_name();
                                 let file_name_str = file_name.to_string_lossy();
 
@@ -1105,13 +1115,16 @@ where
                                     #[cfg(not(windows))]
                                     let is_removed = false;
 
-                                    if !is_removed {
-                                        std::fs::remove_dir_all(entry.path())
-                                            .map_err(InstallError::RemoveModulesDir)?;
+                                    if !is_removed
+                                        && let Err(err) = std::fs::remove_dir_all(entry.path())
+                                        && err.kind() != std::io::ErrorKind::NotFound
+                                    {
+                                        return Err(InstallError::RemoveModulesDir(err));
                                     }
-                                } else {
-                                    std::fs::remove_file(entry.path())
-                                        .map_err(InstallError::RemoveModulesDir)?;
+                                } else if let Err(err) = std::fs::remove_file(entry.path())
+                                    && err.kind() != std::io::ErrorKind::NotFound
+                                {
+                                    return Err(InstallError::RemoveModulesDir(err));
                                 }
                             }
                         }
@@ -1239,7 +1252,7 @@ where
                 skip_runtimes,
                 node_linker,
                 tarball_mem_cache: Some(&tarball_mem_cache),
-                old_modules: modules_manifest,
+                seed_skipped: modules_manifest.map(|m| m.skipped.clone()),
             }
             .run::<Reporter>()
             .await
@@ -1925,7 +1938,7 @@ fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
 /// Mirrors the settings checks in upstream's
 /// [`validateModules`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts).
 fn modules_consistent_with(
-    modules: &Modules,
+    modules: &pacquet_modules_yaml::ModulesLayout,
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
@@ -1952,7 +1965,10 @@ fn modules_consistent_with(
 /// result by letting the full frozen install run, whose `BuildModules`
 /// re-evaluates the policy and rebuilds the now-allowed package (already
 /// built deps are skipped by the side-effects-cache `is_built` gate).
-fn has_newly_allowed_ignored_builds(modules: &Modules, config: &Config) -> bool {
+fn has_newly_allowed_ignored_builds(
+    modules: &pacquet_modules_yaml::ModulesLayout,
+    config: &Config,
+) -> bool {
     let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
         return false;
     };
@@ -1983,7 +1999,7 @@ fn has_newly_allowed_ignored_builds(modules: &Modules, config: &Config) -> bool 
 /// fast-path callers fall through to the full install on `Err`, which
 /// re-evaluates the policy and reports the real error.
 fn unapproved_recorded_ignored_builds(
-    modules: &Modules,
+    modules: &pacquet_modules_yaml::ModulesLayout,
     config: &Config,
 ) -> Result<Option<Vec<String>>, pacquet_config::version_policy::VersionPolicyError> {
     let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
@@ -2256,7 +2272,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
     // is treated conservatively the same way (its `Err` can't prove the
     // absence of recorded ignored builds).
     if config.strict_dep_builds {
-        match read_modules_manifest::<Host>(&config.modules_dir) {
+        match pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
             Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
                 Ok(Some(_)) => return None,
                 Ok(None) => {}

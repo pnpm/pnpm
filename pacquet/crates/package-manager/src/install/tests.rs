@@ -42,9 +42,9 @@ fn is_modules_yaml_consistent(
     node_linker: pacquet_config::NodeLinker,
     included: pacquet_modules_yaml::IncludedDependencies,
 ) -> bool {
-    read_modules_manifest::<Host>(modules_dir).ok().flatten().is_some_and(|modules| {
-        super::modules_consistent_with(&modules, config, node_linker, included)
-    })
+    pacquet_modules_yaml::read_modules_layout::<Host>(modules_dir).ok().flatten().is_some_and(
+        |modules| super::modules_consistent_with(&modules, config, node_linker, included),
+    )
 }
 
 const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
@@ -5585,7 +5585,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
 /// — rather than short-circuiting to success and hiding it.
 #[test]
 fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
-    let modules = Modules {
+    let modules = pacquet_modules_yaml::ModulesLayout {
         ignored_builds: Some([pacquet_modules_yaml::DepPath::from("pkg@1.0.0".to_string())].into()),
         ..Default::default()
     };

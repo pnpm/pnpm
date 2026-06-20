@@ -175,7 +175,7 @@ where
     /// re-fetching every tarball; `None` for installs without a shared
     /// prefetch in flight.
     pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
-    pub old_modules: Option<&'a pacquet_modules_yaml::Modules>,
+    pub seed_skipped: Option<Vec<String>>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -579,7 +579,7 @@ where
             skip_runtimes,
             node_linker,
             tarball_mem_cache,
-            old_modules,
+            seed_skipped,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -650,8 +650,8 @@ where
         // A read error (corrupt yaml, permissions) is degraded to
         // an empty seed — `.modules.yaml` is a cache artifact, not
         // an authoritative source. Missing file → empty seed.
-        let seed = if let Some(manifest) = old_modules {
-            SkippedSnapshots::from_strings(&manifest.skipped)
+        let seed = if let Some(skipped) = seed_skipped {
+            SkippedSnapshots::from_strings(&skipped)
         } else {
             match read_modules_manifest::<Host>(&config.modules_dir) {
                 Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
