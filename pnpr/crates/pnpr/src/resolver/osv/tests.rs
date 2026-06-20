@@ -230,3 +230,14 @@ fn enabled_database_without_npm_advisories_is_rejected() {
     let err = super::load_osv_index(&config).expect_err("an empty npm index must be rejected");
     assert!(format!("{err}").contains("no npm advisories"));
 }
+
+#[test]
+fn advisory_ids_are_capped_in_messages() {
+    let few: Vec<String> = (0..3).map(|i| format!("GHSA-{i}")).collect();
+    assert_eq!(super::format_advisory_ids(&few), "GHSA-0, GHSA-1, GHSA-2");
+
+    let many: Vec<String> = (0..25).map(|i| format!("GHSA-{i}")).collect();
+    let formatted = super::format_advisory_ids(&many);
+    assert!(formatted.ends_with("and 5 more"), "{formatted}");
+    assert_eq!(formatted.matches("GHSA-").count(), 20);
+}

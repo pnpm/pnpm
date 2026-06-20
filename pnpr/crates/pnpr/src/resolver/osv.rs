@@ -113,7 +113,7 @@ impl OsvIndex {
         PackageVersionGuardDecision::Reject {
             reason: format!(
                 "is listed in the local OSV database as vulnerable ({})",
-                ids.join(", "),
+                format_advisory_ids(&ids),
             ),
         }
     }
@@ -461,6 +461,17 @@ fn parse_osv_version(raw: &str) -> Option<Version> {
         );
     }
     parsed
+}
+
+/// Join advisory ids for a human-facing reason, capped so a package that
+/// matches a huge number of advisories can't inflate response or log
+/// payloads (which feed NDJSON frames and error messages).
+pub(crate) fn format_advisory_ids(ids: &[String]) -> String {
+    const MAX: usize = 20;
+    if ids.len() <= MAX {
+        return ids.join(", ");
+    }
+    format!("{}, and {} more", ids[..MAX].join(", "), ids.len() - MAX)
 }
 
 fn invalid_config(reason: String) -> RegistryError {
