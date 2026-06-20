@@ -229,7 +229,7 @@ fn scripts_prepend_node_path_scalar(value: ScriptsPrependNodePath) -> Scalar {
 /// config-reader source. Read live so the test tracks pnpm rather than
 /// a checked-in copy that could silently drift.
 fn read_pnpm_default_options() -> String {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../config/reader/src/index.ts");
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../pnpm11/config/reader/src/index.ts");
     let src = std::fs::read_to_string(path).unwrap_or_else(|err| {
         panic!(
             "read pnpm config-reader source at {path}: {err}. \
