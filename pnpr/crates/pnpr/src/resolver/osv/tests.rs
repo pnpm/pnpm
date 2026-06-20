@@ -95,6 +95,19 @@ fn duplicate_affected_blocks_yield_one_id() {
     assert_eq!(index.vulnerability_ids("dup", "1.0.0"), vec!["GHSA-dup"]);
 }
 
+#[cfg(unix)]
+#[test]
+fn non_regular_file_path_is_rejected() {
+    // A socket is neither a directory nor a regular file; loading it as a
+    // zip would risk blocking on the read, so it must fail fast instead.
+    let dir = tempfile::tempdir().expect("tempdir");
+    let socket_path = dir.path().join("osv.sock");
+    let _listener = std::os::unix::net::UnixListener::bind(&socket_path).expect("bind socket");
+
+    let err = OsvIndex::load_from_path(&socket_path).expect_err("a socket path must be rejected");
+    assert!(format!("{err}").contains("neither a directory nor a regular file"), "{err}");
+}
+
 #[tokio::test]
 async fn package_version_guard_rejects_vulnerable_versions() {
     let dir = tempfile::tempdir().expect("tempdir");

@@ -57,7 +57,17 @@ impl OsvIndex {
         if path.is_dir() {
             return load_from_directory(path);
         }
-        load_from_zip(path)
+        // Only treat a regular file as a zip. Opening and streaming a
+        // FIFO/socket/device for fingerprinting could block startup
+        // indefinitely (the OSV DB loads before the listen socket binds),
+        // so reject anything that isn't a directory or regular file.
+        if path.is_file() {
+            return load_from_zip(path);
+        }
+        Err(invalid_config(format!(
+            "OSV database {} is neither a directory nor a regular file; point osv.path at the npm OSV dump (a .zip file or an extracted directory)",
+            path.display(),
+        )))
     }
 
     pub(crate) fn policy(&self) -> serde_json::Map<String, serde_json::Value> {
