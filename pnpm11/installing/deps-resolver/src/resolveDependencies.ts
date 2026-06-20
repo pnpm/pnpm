@@ -1085,7 +1085,7 @@ function hasActivePackageResolutionBeforeDepth (ctx: ResolutionContext, depth: n
   return false
 }
 
-function claimChildrenResolution (
+export function claimChildrenResolution (
   ctx: ResolutionContext,
   opts: {
     currentDepth: number

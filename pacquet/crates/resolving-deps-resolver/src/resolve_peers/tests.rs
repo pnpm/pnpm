@@ -1095,6 +1095,108 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
     assert!(!graph.contains_key(&trimmed_provider_dep_path));
 }
 
+// Parity check for https://github.com/pnpm/pnpm/pull/12514.
+//
+// A shared package (`styled-jsx`) declaring an *optional* peer (`@babel/core`)
+// is reached through two occurrences at different depths: a shallow one whose
+// parent provides `@babel/core`, and a deeper one whose ancestors do not. The
+// shallow occurrence resolves the optional peer into its suffix; the deeper one
+// must not inherit it. In pnpm this could flip run to run when a shallow
+// "owner" occurrence's children finished resolving before a deeper consumer was
+// claimed — completion order leaking into the resolved suffix. pacquet resolves
+// the tree in a single deterministic walk, so the deeper occurrence's suffix is
+// a function of graph structure alone. Building a fresh tree (fresh `HashMap`s,
+// whose iteration order varies per process) on each iteration guards against any
+// hashing order leaking into the result the way completion order did upstream.
+#[test]
+fn shared_package_optional_transitive_peer_resolves_deterministically() {
+    fn build_tree() -> ResolvedTree {
+        let babel = NodeId::leaf("@babel/core@7.0.0");
+        let styled_shallow = NodeId::next();
+        let styled_deep = NodeId::next();
+        let app = NodeId::next();
+        let mid = NodeId::next();
+
+        let mut app_children = BTreeMap::new();
+        app_children.insert("styled-jsx".to_string(), styled_shallow.clone());
+        app_children.insert("@babel/core".to_string(), babel.clone());
+
+        let mut mid_children = BTreeMap::new();
+        mid_children.insert("styled-jsx".to_string(), styled_deep.clone());
+
+        ResolvedTree {
+            direct: vec![
+                DirectDep {
+                    alias: "app".to_string(),
+                    node_id: app.clone(),
+                    id: "app@1.0.0".to_string(),
+                },
+                DirectDep {
+                    alias: "mid".to_string(),
+                    node_id: mid.clone(),
+                    id: "mid@1.0.0".to_string(),
+                },
+            ],
+            packages: HashMap::from([
+                ("@babel/core@7.0.0".to_string(), package("@babel/core", "7.0.0", &[], true)),
+                (
+                    "styled-jsx@1.0.0".to_string(),
+                    package_with_peer_dependencies(
+                        "styled-jsx",
+                        "1.0.0",
+                        &[("@babel/core", "*", true)],
+                        false,
+                    ),
+                ),
+                ("app@1.0.0".to_string(), package("app", "1.0.0", &[], false)),
+                ("mid@1.0.0".to_string(), package("mid", "1.0.0", &[], false)),
+            ]),
+            dependencies_tree: HashMap::from([
+                (babel, tree_node("@babel/core@7.0.0", BTreeMap::new(), 1)),
+                (styled_shallow, tree_node("styled-jsx@1.0.0", BTreeMap::new(), 1)),
+                (styled_deep, tree_node("styled-jsx@1.0.0", BTreeMap::new(), 2)),
+                (app, tree_node("app@1.0.0", app_children, 0)),
+                (mid, tree_node("mid@1.0.0", mid_children, 1)),
+            ]),
+            all_peer_dep_names: HashSet::from(["@babel/core".to_string()]),
+            policy_violations: Vec::new(),
+            applied_patches: HashSet::new(),
+            children_by_id: HashMap::new(),
+        }
+    }
+
+    let styled_with_babel = DepPath::from("styled-jsx@1.0.0(@babel/core@7.0.0)");
+    let styled_without_babel = DepPath::from("styled-jsx@1.0.0");
+    let app_dep_path = DepPath::from("app@1.0.0");
+    let mid_dep_path = DepPath::from("mid@1.0.0");
+
+    let mut first_keys: Option<Vec<String>> = None;
+    for _ in 0..16 {
+        let mut tree = build_tree();
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+        // The shallow occurrence resolves the optional peer from its sibling; the
+        // deeper occurrence, with no provider in scope, keeps the bare suffix.
+        assert_eq!(
+            result.graph[&app_dep_path].children.get("styled-jsx"),
+            Some(&styled_with_babel),
+        );
+        assert_eq!(
+            result.graph[&mid_dep_path].children.get("styled-jsx"),
+            Some(&styled_without_babel),
+        );
+        assert!(result.graph.contains_key(&styled_with_babel));
+        assert!(result.graph.contains_key(&styled_without_babel));
+
+        let mut keys: Vec<String> = result.graph.keys().map(DepPath::to_string).collect();
+        keys.sort();
+        match &first_keys {
+            None => first_keys = Some(keys),
+            Some(expected) => assert_eq!(&keys, expected, "graph keys must not vary across runs"),
+        }
+    }
+}
+
 fn tree_node(pkg_id: &str, children: BTreeMap<String, NodeId>, depth: i32) -> DependenciesTreeNode {
     DependenciesTreeNode {
         resolved_package_id: pkg_id.to_string(),
