@@ -1041,6 +1041,7 @@ where
         } else {
             Ok(None)
         };
+        let read_failed = modules_manifest_res.is_err();
         if let Err(err) = &modules_manifest_res {
             tracing::warn!(
                 target: "pacquet::install",
@@ -1051,10 +1052,18 @@ where
         let old_modules = modules_manifest_res.ok().flatten();
         let modules_manifest = old_modules.as_ref();
 
-        let is_inconsistent = match &modules_manifest {
-            Some(modules) => !modules_consistent_with(modules, config, node_linker, included),
-            None => config.modules_dir.join(pacquet_modules_yaml::MODULES_FILENAME).exists(),
-        };
+        let is_inconsistent = read_failed
+            || match &modules_manifest {
+                Some(modules) => !modules_consistent_with(modules, config, node_linker, included),
+                // No manifest on disk means first install — not inconsistent.
+                // If the existence check itself fails (e.g. permissions), treat
+                // it conservatively as inconsistent so the purge is not skipped.
+                None => config
+                    .modules_dir
+                    .join(pacquet_modules_yaml::MODULES_FILENAME)
+                    .try_exists()
+                    .unwrap_or(true),
+            };
 
         if !resolve_only && is_inconsistent {
             // Settings mismatch forces a rewrite of node_modules, matching

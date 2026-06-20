@@ -256,6 +256,11 @@ pub struct ModulesLayout {
     pub registries: Option<BTreeMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
+    /// Legacy: the v5-era flag used to mean "hoist everything publicly."
+    /// Needed by [`read_modules_layout`] to apply the same normalization as
+    /// [`read_modules_manifest`] and avoid false-positive layout mismatches.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shamefully_hoist: Option<bool>,
     #[serde(default)]
     pub skipped: Vec<String>,
     #[serde(default)]
@@ -456,6 +461,17 @@ where
             ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
         })?;
     let Some(mut manifest) = parsed else { return Ok(None) };
+
+    // Mirror apply_legacy_shamefully_hoist: when the on-disk manifest still
+    // uses the old `shamefullyHoist` flag without a `publicHoistPattern`,
+    // synthesize the equivalent pattern so the consistency check matches what
+    // `read_modules_manifest` would produce on a full read.
+    if let Some(shamefully_hoist) = manifest.shamefully_hoist {
+        if manifest.public_hoist_pattern.is_none() {
+            manifest.public_hoist_pattern =
+                Some(if shamefully_hoist { vec!["*".to_string()] } else { Vec::new() });
+        }
+    }
 
     let stored_path = Path::new(&manifest.virtual_store_dir);
     let resolved = match (manifest.virtual_store_dir.is_empty(), stored_path.is_absolute()) {
