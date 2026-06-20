@@ -154,13 +154,28 @@ pub fn router(config: Config) -> Router {
     router_with_auth(config, AuthState::in_memory())
 }
 
+/// Fallible counterpart to [`router`]: surfaces a missing/invalid OSV
+/// database (when `osv.enabled`) as an error instead of panicking, for
+/// embedders that build the router directly rather than via [`serve`].
+pub fn try_router(config: Config) -> crate::error::Result<Router> {
+    try_router_with_auth(config, AuthState::in_memory())
+}
+
 /// Like [`router`] but with a caller-supplied [`AuthState`]. Used
 /// by [`serve`] to wire the persistent file-backed stores, and by
 /// tests that want to override the bcrypt cost or pre-seed users.
+///
+/// Panics if `osv.enabled` is set but the database can't load; call
+/// [`try_router_with_auth`] to handle that as a recoverable error.
 pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
-    let osv_index = crate::resolver::load_osv_index(&config)
-        .expect("enabled OSV database must load before building pnpr router");
-    router_with_auth_and_osv(config, auth, osv_index)
+    try_router_with_auth(config, auth)
+        .expect("enabled OSV database must load before building pnpr router")
+}
+
+/// Fallible counterpart to [`router_with_auth`].
+pub fn try_router_with_auth(config: Config, auth: AuthState) -> crate::error::Result<Router> {
+    let osv_index = crate::resolver::load_osv_index(&config)?;
+    Ok(router_with_auth_and_osv(config, auth, osv_index))
 }
 
 fn router_with_auth_and_osv(

@@ -34,4 +34,6 @@ pub use config::{
 pub use error::{RegistryError, Result};
 pub use journal::recover_publish_journal;
 pub use policy::{AccessList, AccessToken, Identity, PackagePolicies, PackagePolicy};
-pub use server::{router, router_with_auth, serve, serve_listener};
+pub use server::{
+    router, router_with_auth, serve, serve_listener, try_router, try_router_with_auth,
+};
