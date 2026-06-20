@@ -63,3 +63,35 @@ pub enum FetchMetadataError {
         error: tokio::task::JoinError,
     },
 }
+
+/// Raised when an external `PackageVersionGuard` rejects every
+/// version of a package that matched the request, leaving the picker no
+/// acceptable candidate. Distinct from "spec not supported": the spec is
+/// fine, but a policy (e.g. a vulnerability guard) blocked all matches.
+/// `reason` carries the guard's message for the last rejection.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Every version of {name} matching the request was rejected by the resolver guard ({reason})."
+)]
+#[diagnostic(code(pacquet_resolving_npm_resolver::all_versions_blocked))]
+pub struct AllVersionsBlockedError {
+    #[error(not(source))]
+    pub name: String,
+    pub reason: String,
+}
+
+/// Raised when the resolver-time guard rejected so many candidates for a
+/// package that the re-pick safety limit was hit. Distinct from
+/// [`AllVersionsBlockedError`]: the picker stopped at the cap rather than
+/// proving every matching version is blocked.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Resolving {name} hit the resolver guard's {limit}-version re-pick limit; too many candidates were rejected ({reason})."
+)]
+#[diagnostic(code(pacquet_resolving_npm_resolver::guard_repick_limit))]
+pub struct GuardRepickLimitError {
+    #[error(not(source))]
+    pub name: String,
+    pub limit: usize,
+    pub reason: String,
+}

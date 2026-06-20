@@ -110,6 +110,15 @@ pub struct Config {
     /// switches both to a shared networked-SQLite database so several
     /// stateless pnpr replicas see a consistent set of accounts.
     pub backend: BackendConfig,
+    /// Optional local OSV database used by the resolver to reject known
+    /// vulnerable npm package versions without live API calls.
+    pub osv: OsvConfig,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct OsvConfig {
+    pub enabled: bool,
+    pub path: Option<PathBuf>,
 }
 
 /// The resolved hosted-store backend. The object-store client is built
@@ -719,6 +728,9 @@ struct ConfigFile {
     /// config (silently ignored there).
     #[serde(default)]
     backend: Option<BackendFile>,
+    /// pnpr-only local OSV database settings.
+    #[serde(default)]
+    osv: OsvFile,
     #[serde(default)]
     uplinks: IndexMap<String, UplinkFile>,
     #[serde(default)]
@@ -777,6 +789,15 @@ struct TokensFile {
     file: Option<String>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OsvFile {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default)]
+    path: Option<String>,
+}
+
 impl Config {
     /// Default `listen` when one isn't supplied by the caller.
     pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:4873";
@@ -812,6 +833,7 @@ impl Config {
             logs: LogConfig::default(),
             hosted_store: HostedStoreConfig::Fs,
             backend: BackendConfig::Local,
+            osv: OsvConfig::default(),
         }
     }
 
@@ -832,6 +854,7 @@ impl Config {
             logs: LogConfig::default(),
             hosted_store: HostedStoreConfig::Fs,
             backend: BackendConfig::Local,
+            osv: OsvConfig::default(),
         }
     }
 
@@ -966,6 +989,7 @@ impl Config {
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
         let policies = build_policies(&file.packages)?;
+        let osv = build_osv_config(&file.osv, base_dir);
         let uplinks = file
             .uplinks
             .into_iter()
@@ -987,6 +1011,7 @@ impl Config {
             logs,
             hosted_store,
             backend,
+            osv,
         })
     }
 
@@ -1028,6 +1053,13 @@ fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
             max_users: file.htpasswd.max_users.map_or(MaxUsers::Unlimited, MaxUsers::from_yaml),
         },
         tokens: TokensConfig { file: tokens_file },
+    }
+}
+
+fn build_osv_config(file: &OsvFile, base_dir: &Path) -> OsvConfig {
+    OsvConfig {
+        enabled: file.enabled,
+        path: file.path.as_deref().map(|path| resolve_relative(path, base_dir)),
     }
 }
 

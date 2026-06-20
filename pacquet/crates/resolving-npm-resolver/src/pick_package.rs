@@ -51,6 +51,7 @@
 //! 3-5× behind pnpm on the `alotta-files` benchmark.
 
 use std::{
+    collections::HashSet,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -74,7 +75,8 @@ use crate::{
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, pick_lowest_version_by_version_range, pick_package_from_meta,
+        RegistryPackageSpecType, filter_pkg_metadata_versions,
+        pick_lowest_version_by_version_range, pick_package_from_meta,
         pick_version_by_version_range,
     },
 };
@@ -296,6 +298,11 @@ pub struct PickPackageOptions<'a> {
     /// resolver it might be disk-sourced, which would short-circuit the
     /// revalidation. Mirrors pnpm's `--update-checksums`.
     pub update_checksums: bool,
+    /// Concrete versions to ignore while picking. Used by callers that
+    /// apply an external resolver-time guard: after the guard rejects a
+    /// candidate, the caller asks the normal picker to try again over
+    /// the same packument with that version filtered out.
+    pub blocked_versions: Option<&'a HashSet<String>>,
 }
 
 /// Outcome of a successful [`pick_package`] call. Mirrors
@@ -490,7 +497,8 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 
         if ctx.offline {
             if let Some(meta) = meta_cached_in_store {
-                let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
+                let (meta, picked) =
+                    pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
                 return Ok(PickPackageResult { meta, picked_package: picked });
             }
             return Err(PickPackageError::NoOfflineMeta {
@@ -516,9 +524,10 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 }
                 ctx.meta_cache.set(cache_key.clone(), Arc::clone(&meta));
             }
-            let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
+            let (picked_meta, picked) =
+                pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
             if picked.is_some() {
-                return Ok(PickPackageResult { meta, picked_package: picked });
+                return Ok(PickPackageResult { meta: picked_meta, picked_package: picked });
             }
             // Fall through to fetch when disk had the meta but no
             // version satisfied the spec — the disk copy may be
@@ -547,7 +556,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // upgrade abbreviated→full. Pacquet's fetcher is
             // always full so this branch shouldn't fire today,
             // but the swallow-and-fall-through matches upstream.
-            if let Ok(Some(picked)) = pick_matching_version_fast(&picker_opts, spec, meta) {
+            if let Ok((picked_meta, Some(picked))) =
+                pick_from_meta_fast(&picker_opts, spec, Arc::clone(meta), opts.blocked_versions)
+            {
                 // Promote the disk-loaded packument into the
                 // install-scoped in-memory cache so later resolves
                 // for the same `(registry, name)` skip the
@@ -560,10 +571,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 if !opts.dry_run {
                     ctx.meta_cache.set(cache_key.clone(), Arc::clone(meta));
                 }
-                return Ok(PickPackageResult {
-                    meta: Arc::clone(meta),
-                    picked_package: Some(picked),
-                });
+                return Ok(PickPackageResult { meta: picked_meta, picked_package: Some(picked) });
             }
         }
     }
@@ -585,7 +593,8 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
         }
         if let Some(ref meta) = meta_cached_in_store
-            && let Ok(Some(picked)) = pick_matching_version_fast(&picker_opts, spec, meta)
+            && let Ok((picked_meta, Some(picked))) =
+                pick_from_meta_fast(&picker_opts, spec, Arc::clone(meta), opts.blocked_versions)
         {
             // Same rationale as the version-spec fast path above —
             // promote the disk-loaded packument into the
@@ -593,7 +602,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             if !opts.dry_run {
                 ctx.meta_cache.set(cache_key.clone(), Arc::clone(meta));
             }
-            return Ok(PickPackageResult { meta: Arc::clone(meta), picked_package: Some(picked) });
+            return Ok(PickPackageResult { meta: picked_meta, picked_package: Some(picked) });
         }
     }
 
@@ -631,8 +640,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                     pkg_name = %spec.name,
                     "metadata fetch failed; falling back to on-disk mirror",
                 );
-                let picked = pick_matching_version_final(&picker_opts, spec, &disk)?;
-                return Ok(PickPackageResult { meta: disk, picked_package: picked });
+                let (meta, picked) =
+                    pick_from_meta(&picker_opts, spec, disk, opts.blocked_versions)?;
+                return Ok(PickPackageResult { meta, picked_package: picked });
             }
             return Err(error.into());
         }
@@ -659,7 +669,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     if !opts.dry_run {
         ctx.meta_cache.set(cache_key, Arc::clone(&meta));
     }
-    let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
+    let (meta, picked) = pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
     Ok(PickPackageResult { meta, picked_package: picked })
 }
 
@@ -700,7 +710,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         }
         ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
-    let picked = pick_matching_version_final(picker_opts, spec, &meta)?;
+    let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
     Ok(PickPackageResult { meta, picked_package: picked })
 }
 
@@ -735,6 +745,47 @@ fn pick_matching_version_fast(
     } else {
         pick_ignoring_release_age(picker_opts, spec, meta)
     }
+}
+
+fn pick_from_meta_fast(
+    picker_opts: &PickerOpts<'_>,
+    spec: &RegistryPackageSpec,
+    meta: Arc<Package>,
+    blocked_versions: Option<&HashSet<String>>,
+) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageFromMetaError> {
+    let meta = filter_blocked_versions(meta, blocked_versions);
+    if meta.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
+        return Ok((meta, None));
+    }
+    let picked = pick_matching_version_fast(picker_opts, spec, &meta)?;
+    Ok((meta, picked))
+}
+
+fn pick_from_meta(
+    picker_opts: &PickerOpts<'_>,
+    spec: &RegistryPackageSpec,
+    meta: Arc<Package>,
+    blocked_versions: Option<&HashSet<String>>,
+) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageFromMetaError> {
+    let meta = filter_blocked_versions(meta, blocked_versions);
+    if meta.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
+        return Ok((meta, None));
+    }
+    let picked = pick_matching_version_final(picker_opts, spec, &meta)?;
+    Ok((meta, picked))
+}
+
+fn filter_blocked_versions(
+    meta: Arc<Package>,
+    blocked_versions: Option<&HashSet<String>>,
+) -> Arc<Package> {
+    let Some(blocked_versions) = blocked_versions else {
+        return meta;
+    };
+    if blocked_versions.is_empty() {
+        return meta;
+    }
+    Arc::new(filter_pkg_metadata_versions(&meta, |version| !blocked_versions.contains(version)))
 }
 
 /// Picker used at terminal return sites where there's no further

@@ -422,6 +422,7 @@ async fn resolve_explicit_registry_spec(
         dry_run: lockfile_only,
         optional: false,
         update_checksums: false,
+        blocked_versions: None,
     };
 
     let pick = pick_package(&ctx, &spec_parsed, &opts)

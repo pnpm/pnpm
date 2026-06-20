@@ -382,6 +382,24 @@ fn relative_cache_key_is_resolved_against_base_dir() {
 }
 
 #[test]
+fn osv_config_defaults_off_and_resolves_relative_path() {
+    let defaulted = Config::from_yaml_str(
+        "uplinks: {}\npackages: {}\n",
+        Path::new("/etc/pnpr"),
+        listen(),
+        None,
+    )
+    .unwrap();
+    assert!(!defaulted.osv.enabled);
+    assert_eq!(defaulted.osv.path, None);
+
+    let yaml = "osv:\n  enabled: true\n  path: ./osv/npm/all.zip\nuplinks: {}\npackages: {}\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert!(config.osv.enabled);
+    assert_eq!(config.osv.path, Some(PathBuf::from("/etc/pnpr/./osv/npm/all.zip")));
+}
+
+#[test]
 fn hosted_store_defaults_to_fs_without_an_s3_block() {
     let yaml = "storage: /var/lib/pnpr\nuplinks: {}\npackages: {}\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();

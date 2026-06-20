@@ -28,10 +28,12 @@ pub use auth::{
 };
 pub use config::{
     AuthConfig, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig,
-    HtpasswdConfig, LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, PackageAccess,
-    TokensConfig, UplinkConfig, default_cache_dir,
+    HtpasswdConfig, LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, OsvConfig,
+    PackageAccess, TokensConfig, UplinkConfig, default_cache_dir,
 };
 pub use error::{RegistryError, Result};
 pub use journal::recover_publish_journal;
 pub use policy::{AccessList, AccessToken, Identity, PackagePolicies, PackagePolicy};
-pub use server::{router, router_with_auth, serve, serve_listener};
+pub use server::{
+    router, router_with_auth, serve, serve_listener, try_router, try_router_with_auth,
+};

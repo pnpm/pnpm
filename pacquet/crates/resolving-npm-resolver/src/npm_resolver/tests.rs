@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -9,7 +9,8 @@ use pacquet_config::TrustPolicy;
 use pacquet_lockfile::LockfileResolution;
 use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pacquet_resolving_resolver_base::{
-    LatestQuery, ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackage,
+    LatestQuery, PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
+    ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackage,
     WorkspacePackages, WorkspacePackagesByVersion,
 };
 use pretty_assertions::assert_eq;
@@ -81,6 +82,29 @@ fn build_resolver_with_registries(
         retry_opts: RetryOpts::default(),
     };
     (resolver, cache_dir)
+}
+
+#[derive(Debug)]
+struct RejectVersions {
+    versions: HashSet<String>,
+}
+
+impl PackageVersionGuard for RejectVersions {
+    fn check<'a>(&'a self, _name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a> {
+        Box::pin(async move {
+            if self.versions.contains(version) {
+                Ok(PackageVersionGuardDecision::Reject { reason: format!("{version} is blocked") })
+            } else {
+                Ok(PackageVersionGuardDecision::Allow)
+            }
+        })
+    }
+}
+
+fn reject_versions(versions: &[&str]) -> Arc<dyn PackageVersionGuard> {
+    Arc::new(RejectVersions {
+        versions: versions.iter().map(|version| (*version).to_string()).collect(),
+    })
 }
 
 /// Packument body for `@jsr/foo__bar` — the npm-shaped name JSR
@@ -181,6 +205,140 @@ async fn range_specifier_picks_max_in_range() {
     assert_eq!(result.alias.as_deref(), Some("acme"));
     assert!(result.policy_violation.is_none());
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
+}
+
+#[tokio::test]
+async fn package_version_guard_excludes_rejected_versions_and_repicks() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let opts = ResolveOptions {
+        package_version_guard: Some(reject_versions(&["1.1.0"])),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let name_ver = result.name_ver.as_ref().expect("name_ver");
+    assert_eq!(name_ver.suffix.to_string(), "1.0.0");
+    assert_eq!(result.latest.as_deref(), Some("1.0.0"));
+}
+
+#[tokio::test]
+async fn package_version_guard_repopulates_latest_tag() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let opts = ResolveOptions {
+        package_version_guard: Some(reject_versions(&["1.1.0"])),
+        ..ResolveOptions::default()
+    };
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert_eq!(result.latest.as_deref(), Some("1.0.0"));
+}
+
+#[tokio::test]
+async fn package_version_guard_blocking_every_version_errors() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let opts = ResolveOptions {
+        package_version_guard: Some(reject_versions(&["1.0.0", "1.1.0"])),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    // Every matching version is rejected, so the resolver must surface a
+    // clear guard error rather than Ok(None) (which would read as an
+    // unsupported spec downstream).
+    let err = resolver.resolve(&wanted, &opts).await.expect_err("expected a guard error");
+    let message = err.to_string();
+    assert!(message.contains("acme"), "{message}");
+    assert!(message.contains("rejected by the resolver guard"), "{message}");
+}
+
+/// Packument whose `1.5.0+build` key carries a manifest `version` of
+/// `1.5.0` — i.e. the version-map key differs from the parsed manifest
+/// version, the case a malformed/malicious registry can produce.
+const MISMATCHED_KEY_BODY: &str = r#"{
+    "name": "acme",
+    "dist-tags": { "latest": "1.5.0+build" },
+    "modified": "2025-01-15T12:00:00.000Z",
+    "time": {
+        "1.0.0": "2024-01-10T08:30:00.000Z",
+        "1.5.0+build": "2024-12-10T08:30:00.000Z"
+    },
+    "versions": {
+        "1.0.0": {
+            "name": "acme",
+            "version": "1.0.0",
+            "dist": {
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/acme-1.0.0.tgz"
+            }
+        },
+        "1.5.0+build": {
+            "name": "acme",
+            "version": "1.5.0",
+            "dist": {
+                "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+                "shasum": "1111111111111111111111111111111111111111",
+                "tarball": "https://registry/acme-1.5.0.tgz"
+            }
+        }
+    }
+}"#;
+
+#[tokio::test]
+async fn package_version_guard_blocks_the_packument_key_not_the_parsed_version() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(MISMATCHED_KEY_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // The guard rejects the parsed manifest version `1.5.0`, whose
+    // packument key is `1.5.0+build`. The repick must still exclude that
+    // entry and fall back to `1.0.0`, rather than wrongly reporting that
+    // every version is blocked.
+    let opts = ResolveOptions {
+        package_version_guard: Some(reject_versions(&["1.5.0"])),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
 }
 
 #[tokio::test]

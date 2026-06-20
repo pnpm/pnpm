@@ -29,11 +29,14 @@ use pacquet_resolving_resolver_base::{
 };
 
 use crate::{
-    npm_resolver::{BuildResolveResult, PickedFromRegistry, build_resolve_result},
+    npm_resolver::{
+        BuildResolveResult, PickFromRegistryOptions, PickedFromRegistry, build_resolve_result,
+        pick_from_registry_with_guard,
+    },
     parse_bare_specifier::{
         NamedRegistryPackageSpec, parse_named_registry_specifier_to_registry_package_spec,
     },
-    pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
+    pick_package::{PackageMetaCache, PickPackageContext},
     pick_package_from_meta::RegistryPackageSpec,
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
@@ -199,20 +202,6 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
     ) -> Result<Option<PickedFromRegistry>, ResolveError> {
         let overlay_selectors =
             crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
-        let pick_opts = PickPackageOptions {
-            registry,
-            preferred_version_selectors: overlay_selectors
-                .as_ref()
-                .or_else(|| opts.preferred_versions.get(&spec.name)),
-            published_by: opts.published_by,
-            published_by_exclude: opts.published_by_exclude.as_ref(),
-            pick_lowest_version: opts.pick_lowest_version,
-            include_latest_tag: opts.update == UpdateBehavior::Latest,
-            dry_run: opts.dry_run,
-            optional,
-            update_checksums: opts.update_checksums,
-        };
-
         let ctx = PickPackageContext {
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
@@ -227,15 +216,25 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             retry_opts: self.retry_opts,
         };
 
-        let pick_result = pick_package(&ctx, spec, &pick_opts)
-            .await
-            .map_err(|err| Box::new(err) as ResolveError)?;
-
-        let Some(version) = pick_result.picked_package else {
-            return Ok(None);
-        };
-
-        Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }))
+        pick_from_registry_with_guard(
+            &ctx,
+            PickFromRegistryOptions {
+                registry,
+                spec,
+                preferred_version_selectors: overlay_selectors
+                    .as_ref()
+                    .or_else(|| opts.preferred_versions.get(&spec.name)),
+                published_by: opts.published_by,
+                published_by_exclude: opts.published_by_exclude.as_ref(),
+                pick_lowest_version: opts.pick_lowest_version,
+                include_latest_tag: opts.update == UpdateBehavior::Latest,
+                dry_run: opts.dry_run,
+                optional,
+                update_checksums: opts.update_checksums,
+                package_version_guard: opts.package_version_guard.as_ref(),
+            },
+        )
+        .await
     }
 }
 

@@ -45,8 +45,10 @@ futures-util                    = { workspace = true }
 getrandom                       = { workspace = true }
 home                            = { workspace = true }
 indexmap                        = { workspace = true }
+libc                            = { workspace = true }
 libsql                          = { workspace = true }
 miette                          = { workspace = true }
+node-semver                     = { workspace = true }
 object_store                    = { workspace = true }
 reqwest                         = { workspace = true }
 rusqlite                        = { workspace = true }
@@ -61,6 +63,7 @@ tower-http                      = { workspace = true }
 tracing                         = { workspace = true }
 tracing-subscriber              = { workspace = true, features = ["json"] }
 wax                             = { workspace = true }
+zip                             = { workspace = true }
 
 [dev-dependencies]
 mockito    = { workspace = true }

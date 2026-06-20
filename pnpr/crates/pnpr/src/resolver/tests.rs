@@ -1,6 +1,8 @@
-use std::collections::BTreeMap;
-
 use pacquet_config::Config as PacquetConfig;
+use pacquet_resolving_resolver_base::{
+    PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
+};
+use std::{collections::BTreeMap, sync::Arc};
 
 use super::{
     protocol::{ResolveRequest, ResolveRequestProject},
@@ -15,6 +17,15 @@ fn config() -> PacquetConfig {
 
 fn deps(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
     entries.iter().map(|(name, spec)| ((*name).to_string(), (*spec).to_string())).collect()
+}
+
+#[derive(Debug)]
+struct AllowAllVersions;
+
+impl PackageVersionGuard for AllowAllVersions {
+    fn check<'a>(&'a self, _name: &'a str, _version: &'a str) -> PackageVersionGuardFuture<'a> {
+        Box::pin(async { Ok(PackageVersionGuardDecision::Allow) })
+    }
 }
 
 #[test]
@@ -66,7 +77,8 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
     use pacquet_package_manager::{ResolutionObserver, ResolvedPackageHint};
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let observer = super::StreamObserver { tx };
+    let observer =
+        super::StreamObserver { tx, package_version_guard: Some(Arc::new(AllowAllVersions)) };
 
     let hint = |unpacked_size, file_count| ResolvedPackageHint {
         id: "acme@1.0.0",
@@ -133,4 +145,58 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
     );
     assert_eq!(frame["unpackedSize"], serde_json::json!(123_456));
     assert_eq!(frame["fileCount"], serde_json::json!(42));
+}
+
+#[test]
+fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() {
+    use pacquet_lockfile::{LockfileResolution, TarballResolution};
+
+    let tarball = |url: &str, git_hosted: Option<bool>| {
+        LockfileResolution::Tarball(TarballResolution {
+            tarball: url.to_string(),
+            integrity: None,
+            git_hosted,
+            path: None,
+        })
+    };
+
+    // `gitHosted: true` must not let a normal https registry tarball opt out.
+    assert!(super::is_osv_checkable_resolution(&tarball(
+        "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
+        Some(true),
+    )));
+    // A URL that strict parsing would reject is still scanned when it is http(s).
+    assert!(super::is_osv_checkable_resolution(&tarball(
+        "https://registry.npmjs.org/foo/-/foo 1.0.0.tgz",
+        None,
+    )));
+    // Genuinely git-hosted-by-URL tarballs are skipped regardless of the flag.
+    assert!(!super::is_osv_checkable_resolution(&tarball(
+        "https://codeload.github.com/foo/bar/tar.gz/abc123",
+        Some(false),
+    )));
+    // Non-http schemes are skipped.
+    assert!(!super::is_osv_checkable_resolution(&tarball("file:../foo.tgz", None)));
+}
+
+#[test]
+fn tarball_url_version_extracts_conventional_names_only() {
+    use super::tarball_url_version;
+
+    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tgz", "foo"), Some("1.2.3"));
+    // Scoped packages name the tarball file with the unscoped name.
+    assert_eq!(tarball_url_version("https://r/@s/foo/-/foo-1.2.3.tgz", "@s/foo"), Some("1.2.3"));
+    // Query/fragment are stripped; prerelease/build keep working.
+    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tgz?x=1", "foo"), Some("1.2.3"));
+    assert_eq!(
+        tarball_url_version("https://r/foo/-/foo-1.2.3-beta.1.tgz", "foo"),
+        Some("1.2.3-beta.1"),
+    );
+    // Suffix matching is case-insensitive and covers `.tar.gz`, so a
+    // tampered lockfile can't dodge the cross-check with a variant.
+    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.TGZ", "foo"), Some("1.2.3"));
+    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tar.gz", "foo"), Some("1.2.3"));
+    // Non-conventional naming yields None (fall back, don't misjudge).
+    assert_eq!(tarball_url_version("https://r/weird.tgz", "foo"), None);
+    assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
 }
