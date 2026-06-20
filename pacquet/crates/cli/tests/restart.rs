@@ -26,7 +26,7 @@ fn restart_runs_stop_restart_start_scripts() {
 
     pacquet.with_arg("restart").assert().success();
     let content = fs::read_to_string(&log_file).expect("read log file");
-    let lines: Vec<&str> = content.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    let lines: Vec<&str> = content.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
     assert_eq!(lines, vec!["stop", "restart", "start"]);
 
     drop(root);
@@ -117,7 +117,7 @@ fn restart_passes_args_to_scripts() {
         format!(
             "node -e \"require('fs').appendFileSync('{}', '{} ' + process.argv[1] + '\\n')\"",
             log_file.display(),
-            name
+            name,
         )
     };
     let manifest = json!({
@@ -134,7 +134,7 @@ fn restart_passes_args_to_scripts() {
 
     pacquet.with_arg("restart").with_arg("hello-world").assert().success();
     let content = fs::read_to_string(&log_file).expect("read log file");
-    let lines: Vec<&str> = content.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    let lines: Vec<&str> = content.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
     assert_eq!(lines, vec!["stop hello-world", "restart hello-world", "start hello-world"]);
 
     drop(root);
