@@ -64,7 +64,7 @@ pub enum FetchMetadataError {
     },
 }
 
-/// Raised when an external [`crate::PackageVersionGuard`] rejects every
+/// Raised when an external `PackageVersionGuard` rejects every
 /// version of a package that matched the request, leaving the picker no
 /// acceptable candidate. Distinct from "spec not supported": the spec is
 /// fine, but a policy (e.g. a vulnerability guard) blocked all matches.
