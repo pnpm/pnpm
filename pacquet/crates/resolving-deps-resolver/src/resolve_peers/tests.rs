@@ -1095,7 +1095,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
     assert!(!graph.contains_key(&trimmed_provider_dep_path));
 }
 
-// Parity check for https://github.com/pnpm/pnpm/pull/12514.
+// Parity check for <https://github.com/pnpm/pnpm/pull/12514>.
 //
 // A shared package (`styled-jsx`) declaring an *optional* peer (`@babel/core`)
 // is reached through two occurrences at different depths: a shallow one whose
