@@ -64,7 +64,8 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
             typeof errorCode === 'string' &&
             NO_RETRY_ERROR_CODES.has(errorCode)
           ) {
-            throw error
+            reject(error)
+            return
           }
           const retryTimeout = op.retry(err)
           if (retryTimeout === false) {
