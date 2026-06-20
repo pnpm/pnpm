@@ -76,14 +76,17 @@ export async function installConfigDepsAndLoadHooks (
   if (!config.ignorePnpmfile) {
     config.tryLoadDefaultPnpmfile = config.pnpmfile == null
     const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
+    let pluginPnpmfiles: string[] = []
     if (config.configDependencies) {
       const configModulesDir = path.join(config.lockfileDir ?? context.rootProjectManifestDir, 'node_modules/.pnpm-config')
-      pnpmfiles.unshift(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))
+      pluginPnpmfiles = [...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies)]
+      pnpmfiles.unshift(...pluginPnpmfiles)
     }
     const { hooks, finders, resolvedPnpmfilePaths } = await requireHooks(config.lockfileDir ?? config.dir, {
       globalPnpmfile: config.globalPnpmfile,
       pnpmfiles,
       tryLoadDefaultPnpmfile: config.tryLoadDefaultPnpmfile,
+      pluginPnpmfiles,
     })
     context.hooks = hooks
     context.finders = finders

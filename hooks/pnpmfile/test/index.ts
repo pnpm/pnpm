@@ -160,3 +160,24 @@ test('requireHooks throws if getCanonicalBinaryPath is defined in more than one 
   await expect(requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile1, pnpmfile2] }))
     .rejects.toThrow('getCanonicalBinaryPath hook defined in both')
 })
+
+test('requireHooks ignores getCanonicalBinaryPath defined in a plugin pnpmfile', async () => {
+  const pluginPnpmfile = path.join(import.meta.dirname, '__fixtures__/getCanonicalBinaryPath1.js')
+  const { hooks } = await requireHooks(import.meta.dirname, {
+    pnpmfiles: [pluginPnpmfile],
+    pluginPnpmfiles: [pluginPnpmfile],
+  })
+  expect(hooks.getCanonicalBinaryPath).toBeUndefined()
+})
+
+test('requireHooks does not let a plugin getCanonicalBinaryPath conflict with the project one', async () => {
+  const projectPnpmfile = path.join(import.meta.dirname, '__fixtures__/getCanonicalBinaryPath1.js')
+  const pluginPnpmfile = path.join(import.meta.dirname, '__fixtures__/getCanonicalBinaryPath2.js')
+  // The plugin also defines the hook, but it must neither win nor throw: the
+  // project's hook is used and the plugin's is silently ignored.
+  const { hooks } = await requireHooks(import.meta.dirname, {
+    pnpmfiles: [pluginPnpmfile, projectPnpmfile],
+    pluginPnpmfiles: [pluginPnpmfile],
+  })
+  expect(await hooks.getCanonicalBinaryPath!({ currentPnpmVersion: '1.0.0', rootDir: '/' })).toBe('/some/dir/pnpm')
+})

@@ -58,8 +58,17 @@ export async function requireHooks (
     globalPnpmfile?: string
     pnpmfiles?: string[]
     tryLoadDefaultPnpmfile?: boolean
+    /**
+     * Subset of `pnpmfiles` that come from config-dependency plugins (i.e.
+     * third-party published packages). They are loaded for their other hooks,
+     * but the `getCanonicalBinaryPath` hook is ignored from them: choosing the
+     * pnpm binary the process runs under must stay a decision of the project
+     * owner, not of an installed dependency.
+     */
+    pluginPnpmfiles?: string[]
   }
 ): Promise<RequireHooksResult> {
+  const pluginFiles = new Set((opts.pluginPnpmfiles ?? []).map((p) => pathAbsolute(p, prefix)))
   const pnpmfiles: PnpmfileEntry[] = []
   if (opts.globalPnpmfile) {
     pnpmfiles.push({
@@ -220,9 +229,12 @@ export async function requireHooks (
       cookedHooks.importPackage = fileHooks.importPackage
     }
 
-    // getCanonicalBinaryPath: only one allowed. Re-executing into a binary is a
-    // whole-process decision, so multiple providers would be ambiguous.
-    if (fileHooks.getCanonicalBinaryPath) {
+    // getCanonicalBinaryPath: only one allowed, and never honored from a plugin
+    // pnpmfile. Re-executing into a binary is a whole-process decision that must
+    // belong to the project owner, so a config-dependency plugin can neither
+    // provide it (security) nor trip the single-provider check (a plugin must
+    // not be able to break a project that legitimately defines the hook).
+    if (fileHooks.getCanonicalBinaryPath && !pluginFiles.has(file)) {
       if (canonicalBinaryPathProvider) {
         throw new PnpmError(
           'MULTIPLE_GET_CANONICAL_BINARY_PATH',
