@@ -228,9 +228,9 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
     const trail = [importerSegmentOf(importerId)]
     const roots: Array<{ name: string, depPath: DepPath }> = []
-    if (includeDeps) roots.push(...resolvedDepsToNamedDepPaths(importer.dependencies ?? {}))
-    if (includeDevDeps) roots.push(...resolvedDepsToNamedDepPaths(importer.devDependencies ?? {}))
-    if (includeOptDeps) roots.push(...resolvedDepsToNamedDepPaths(importer.optionalDependencies ?? {}))
+    if (includeDeps) appendNamedDepPaths(roots, importer.dependencies ?? {})
+    if (includeDevDeps) appendNamedDepPaths(roots, importer.devDependencies ?? {})
+    if (includeOptDeps) appendNamedDepPaths(roots, importer.optionalDependencies ?? {})
     for (const root of roots) {
       visit(root, trail)
     }
@@ -275,9 +275,9 @@ function createReachableVulnerabilitiesGetter (
       if (version && vulnerableNames.has(resolvedName)) {
         own.add(vulnerabilityKey(resolvedName, version, edge.depPath))
       }
-      children.push(...resolvedDepsToNamedDepPaths(pkgSnapshot.dependencies ?? {}))
+      appendNamedDepPaths(children, pkgSnapshot.dependencies ?? {})
       if (includeOptDeps) {
-        children.push(...resolvedDepsToNamedDepPaths(pkgSnapshot.optionalDependencies ?? {}))
+        appendNamedDepPaths(children, pkgSnapshot.optionalDependencies ?? {})
       }
     }
     partial.set(edge.depPath, own)
@@ -394,11 +394,19 @@ function recordPath (paths: AuditPathIndex, name: string, version: string, joine
 
 function resolvedDepsToNamedDepPaths (deps: ResolvedDependencies): Array<{ name: string, depPath: DepPath }> {
   const result: Array<{ name: string, depPath: DepPath }> = []
+  appendNamedDepPaths(result, deps)
+  return result
+}
+
+// Append rather than `target.push(...resolvedDepsToNamedDepPaths(deps))`: a
+// lockfile is untrusted input, and spreading a pathologically large dependency
+// list into push() arguments can exceed the engine's argument limit and throw,
+// crashing the audit. A loop also avoids the intermediate array.
+function appendNamedDepPaths (target: Array<{ name: string, depPath: DepPath }>, deps: ResolvedDependencies): void {
   for (const [alias, ref] of Object.entries(deps)) {
     const depPath = dp.refToRelative(ref, alias)
-    if (depPath != null) result.push({ name: alias, depPath })
+    if (depPath != null) target.push({ name: alias, depPath })
   }
-  return result
 }
 
 // Returns the set of depPaths that are reachable only through optional edges
