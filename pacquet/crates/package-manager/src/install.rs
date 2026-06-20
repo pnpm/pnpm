@@ -1039,7 +1039,19 @@ where
         {
             // Settings mismatch forces a rewrite of node_modules, matching
             // upstream pnpm's `validateModules` prune side effects.
-            let _ = std::fs::remove_dir_all(&config.modules_dir);
+            let is_safe = config.modules_dir.file_name().is_some_and(|n| n == "node_modules");
+            if is_safe {
+                if let Err(err) = std::fs::remove_dir_all(&config.modules_dir)
+                    && err.kind() != std::io::ErrorKind::NotFound
+                {
+                    tracing::warn!(?err, "failed to remove inconsistent modules directory");
+                }
+            } else {
+                tracing::warn!(
+                    ?config.modules_dir,
+                    "refusing to remove inconsistent modules directory outside the project root"
+                );
+            }
         }
 
         if take_frozen_path
