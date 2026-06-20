@@ -352,6 +352,31 @@ describe('audit', () => {
     expect(countReads(400) / countReads(200)).toBeLessThan(3)
   })
 
+  test('buildAuditPathIndex() handles a very deep dependency chain without overflowing the stack', () => {
+    // n0 -> n1 -> ... -> n(L-1) -> vuln is a single chain far deeper than the JS
+    // call-stack limit. A recursive walk (reachability or path traversal) would
+    // throw RangeError on this lockfile (a lockfile is untrusted input); the
+    // iterative implementation must complete and still report the leaf.
+    const L = 60_000
+    const packages: PackageSnapshots = {}
+    for (let i = 0; i < L; i++) {
+      const child = i + 1 < L ? `n${i + 1}` : 'vuln'
+      packages[`n${i}@1.0.0` as DepPath] = { dependencies: { [child]: '1.0.0' }, resolution: { integrity: `n${i}-integrity` } }
+    }
+    packages['vuln@1.0.0' as DepPath] = { resolution: { integrity: 'vuln-integrity' } }
+
+    const result = buildAuditPathIndex({
+      importers: { ['.' as ProjectId]: { dependencies: { n0: '1.0.0' }, specifiers: { n0: '^1.0.0' } } },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages,
+    }, new Set(['vuln']), { depTypes: {}, optionalOnly: new Set() })
+
+    const info = result['vuln']!.get('1.0.0')!
+    expect(info.paths).toHaveLength(1)
+    expect(info.paths[0].startsWith('.>n0>n1>')).toBe(true)
+    expect(info.paths[0].endsWith('>vuln')).toBe(true)
+  })
+
   test('buildAuditPathIndex() replaces slashes in workspace importer ids', () => {
     const lockfile = {
       importers: {

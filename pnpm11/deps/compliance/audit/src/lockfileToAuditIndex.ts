@@ -94,10 +94,20 @@ export function lockfileToAuditRequest (
   }
 
   // Build a visitor for one lockfile graph. The walker already de-duplicates
-  // by depPath internally, so we don't need a second visited set here.
+  // by depPath internally, so we don't need a second visited set here. An
+  // explicit frame stack stands in for recursion (registering each dependency
+  // before descending, preserving pre-order) so a deep dependency chain from an
+  // untrusted lockfile cannot overflow the call stack.
   const makeVisitor = (graphDepTypes: DepTypes, graphOptionalOnly: Set<DepPath>) => {
-    const visit = (step: LockfileWalkerStep): void => {
-      for (const { depPath, pkgSnapshot, next } of step.dependencies) {
+    return (rootStep: LockfileWalkerStep): void => {
+      const stack: Array<{ dependencies: LockfileWalkerStep['dependencies'], next: number }> = [{ dependencies: rootStep.dependencies, next: 0 }]
+      while (stack.length > 0) {
+        const frame = stack[stack.length - 1]
+        if (frame.next >= frame.dependencies.length) {
+          stack.pop()
+          continue
+        }
+        const { depPath, pkgSnapshot, next } = frame.dependencies[frame.next++]
         const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         if (version) {
           registerOccurrence({
@@ -107,10 +117,9 @@ export function lockfileToAuditRequest (
             optionalOnly: graphOptionalOnly.has(depPath),
           })
         }
-        visit(next())
+        stack.push({ dependencies: next().dependencies, next: 0 })
       }
     }
-    return visit
   }
 
   const visitMain = makeVisitor(depTypes, optionalOnly)
@@ -191,11 +200,21 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
   const packages = lockfile.packages ?? {}
   const reachableVulnerabilities = createReachableVulnerabilitiesGetter(lockfile, vulnerableNames, includeOptDeps)
 
-  // Reused across every root to avoid per-node Set cloning. visit adds the
-  // current depPath before recursing and removes it on the way back, so the
-  // set always reflects the current trail.
+  // Tracks the depPaths on the current DFS trail so cycles terminate. A frame is
+  // added when its node is opened and removed when the frame is unwound, so the
+  // set always reflects the path from the root to the current node. Explicit
+  // stack rather than recursion: a lockfile is untrusted input, and a deep
+  // dependency chain would otherwise overflow the call stack and crash the audit.
   const inTrail = new Set<DepPath>()
-  const visit = (edge: { name: string, depPath: DepPath }, trail: string[]): void => {
+  // The trail is a parent-linked chain of names rather than a copied array per
+  // node: copying would cost O(depth) memory and time at every node and make a
+  // deep chain O(depth^2). The chain is materialized into a path string only
+  // when a vulnerable node is recorded.
+  const stack: Array<{ depPath: DepPath, trail: TrailNode, children: Array<{ name: string, depPath: DepPath }>, next: number }> = []
+
+  // Apply the per-node logic and, unless the node is pruned, push a frame so its
+  // children are visited. Records a path when the node is itself vulnerable.
+  const open = (edge: { name: string, depPath: DepPath }, parentTrail: TrailNode): void => {
     const reachable = reachableVulnerabilities(edge)
     if (reachable.size === 0 || allReachableVulnerabilitiesSaturated(paths, reachable, depTypes, optionalOnly)) return
     if (inTrail.has(edge.depPath)) return
@@ -203,38 +222,60 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
     if (pkgSnapshot == null) return
     const { name, version } = nameVerFromPkgSnapshot(edge.depPath, pkgSnapshot)
     const resolvedName = name ?? edge.name
-    const fullPath = [...trail, resolvedName]
+    const trail: TrailNode = { name: resolvedName, parent: parentTrail }
     if (version && vulnerableNames.has(resolvedName)) {
-      recordPath(paths, resolvedName, version, fullPath.join('>'),
+      recordPath(paths, resolvedName, version, joinTrail(trail),
         depTypes[edge.depPath] === DepType.DevOnly,
         optionalOnly.has(edge.depPath))
     }
     if (allReachableVulnerabilitiesSaturated(paths, reachable, depTypes, optionalOnly)) return
-    inTrail.add(edge.depPath)
-    try {
-      for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.dependencies ?? {})) {
-        visit(child, fullPath)
-      }
-      if (includeOptDeps) {
-        for (const child of resolvedDepsToNamedDepPaths(pkgSnapshot.optionalDependencies ?? {})) {
-          visit(child, fullPath)
-        }
-      }
-    } finally {
-      inTrail.delete(edge.depPath)
+    const children: Array<{ name: string, depPath: DepPath }> = []
+    appendNamedDepPaths(children, pkgSnapshot.dependencies ?? {})
+    if (includeOptDeps) {
+      appendNamedDepPaths(children, pkgSnapshot.optionalDependencies ?? {})
     }
+    inTrail.add(edge.depPath)
+    stack.push({ depPath: edge.depPath, trail, children, next: 0 })
   }
 
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
-    const trail = [importerSegmentOf(importerId)]
+    const trail: TrailNode = { name: importerSegmentOf(importerId), parent: null }
     const roots: Array<{ name: string, depPath: DepPath }> = []
     if (includeDeps) appendNamedDepPaths(roots, importer.dependencies ?? {})
     if (includeDevDeps) appendNamedDepPaths(roots, importer.devDependencies ?? {})
     if (includeOptDeps) appendNamedDepPaths(roots, importer.optionalDependencies ?? {})
     for (const root of roots) {
-      visit(root, trail)
+      open(root, trail)
+      while (stack.length > 0) {
+        const frame = stack[stack.length - 1]
+        if (frame.next < frame.children.length) {
+          open(frame.children[frame.next++], frame.trail)
+        } else {
+          inTrail.delete(frame.depPath)
+          stack.pop()
+        }
+      }
     }
   }
+}
+
+// A node in the current DFS trail. Linking to the parent rather than copying the
+// whole path keeps per-node memory O(1); `joinTrail` walks the chain to the root
+// to produce the `a>b>c` string only when a path is actually recorded.
+interface TrailNode {
+  name: string
+  parent: TrailNode | null
+}
+
+function joinTrail (node: TrailNode): string {
+  const parts: string[] = []
+  let current: TrailNode | null = node
+  while (current != null) {
+    parts.push(current.name)
+    current = current.parent
+  }
+  parts.reverse()
+  return parts.join('>')
 }
 
 // For each node, the set of vulnerabilities reachable from it (itself included),
@@ -257,71 +298,100 @@ function createReachableVulnerabilitiesGetter (
   const sccStack: DepPath[] = []
   let counter = 0
 
-  const strongconnect = (edge: { name: string, depPath: DepPath }): void => {
-    const idx = counter++
-    index.set(edge.depPath, idx)
-    lowlink.set(edge.depPath, idx)
-    sccStack.push(edge.depPath)
-    onStack.add(edge.depPath)
+  // Iterative Tarjan: an explicit frame stack stands in for the recursive
+  // strongconnect, so a deep dependency chain from an untrusted lockfile cannot
+  // overflow the call stack. Each frame's `own` set is shared by reference with
+  // `partial`, so contributions merged in while the children run are visible
+  // when the SCC closes.
+  const buildScc = (rootEdge: { name: string, depPath: DepPath }): void => {
+    const work: Array<{ edge: { name: string, depPath: DepPath }, own: Set<string>, children: Array<{ name: string, depPath: DepPath }>, next: number }> = []
 
-    // Derive children from this single read rather than via a helper that would
-    // read the snapshot again.
-    const pkgSnapshot = packages[edge.depPath]
-    const own = new Set<string>()
-    const children: Array<{ name: string, depPath: DepPath }> = []
-    if (pkgSnapshot != null) {
-      const { name, version } = nameVerFromPkgSnapshot(edge.depPath, pkgSnapshot)
-      const resolvedName = name ?? edge.name
-      if (version && vulnerableNames.has(resolvedName)) {
-        own.add(vulnerabilityKey(resolvedName, version, edge.depPath))
-      }
-      appendNamedDepPaths(children, pkgSnapshot.dependencies ?? {})
-      if (includeOptDeps) {
-        appendNamedDepPaths(children, pkgSnapshot.optionalDependencies ?? {})
-      }
-    }
-    partial.set(edge.depPath, own)
+    const pushFrame = (edge: { name: string, depPath: DepPath }): void => {
+      index.set(edge.depPath, counter)
+      lowlink.set(edge.depPath, counter)
+      counter++
+      sccStack.push(edge.depPath)
+      onStack.add(edge.depPath)
 
-    for (const child of children) {
-      if (!index.has(child.depPath)) {
-        strongconnect(child)
-        lowlink.set(edge.depPath, Math.min(lowlink.get(edge.depPath)!, lowlink.get(child.depPath)!))
-      } else if (onStack.has(child.depPath)) {
-        lowlink.set(edge.depPath, Math.min(lowlink.get(edge.depPath)!, index.get(child.depPath)!))
-      }
-      // Finalized successors are already in `memo`; same-SCC ones are folded in
-      // when the SCC closes.
-      const childReachable = memo.get(child.depPath)
-      if (childReachable) addAll(own, childReachable)
-    }
-
-    if (lowlink.get(edge.depPath) === idx) {
-      const members: DepPath[] = []
-      // Reuse the first member's own set as the shared accumulator instead of
-      // allocating a fresh one, so the common singleton-SCC case finalizes
-      // without any extra Set allocation or copy.
-      let shared: Set<string> | undefined
-      let member: DepPath
-      do {
-        member = sccStack.pop()!
-        onStack.delete(member)
-        members.push(member)
-        const own = partial.get(member)!
-        partial.delete(member)
-        if (shared === undefined) {
-          shared = own
-        } else {
-          addAll(shared, own)
+      // Derive children from this single read rather than via a helper that would
+      // read the snapshot again.
+      const pkgSnapshot = packages[edge.depPath]
+      const own = new Set<string>()
+      const children: Array<{ name: string, depPath: DepPath }> = []
+      if (pkgSnapshot != null) {
+        const { name, version } = nameVerFromPkgSnapshot(edge.depPath, pkgSnapshot)
+        const resolvedName = name ?? edge.name
+        if (version && vulnerableNames.has(resolvedName)) {
+          own.add(vulnerabilityKey(resolvedName, version, edge.depPath))
         }
-      } while (member !== edge.depPath)
-      for (const m of members) {
-        memo.set(m, shared!)
+        appendNamedDepPaths(children, pkgSnapshot.dependencies ?? {})
+        if (includeOptDeps) {
+          appendNamedDepPaths(children, pkgSnapshot.optionalDependencies ?? {})
+        }
+      }
+      partial.set(edge.depPath, own)
+      work.push({ edge, own, children, next: 0 })
+    }
+
+    pushFrame(rootEdge)
+    while (work.length > 0) {
+      const frame = work[work.length - 1]
+      if (frame.next < frame.children.length) {
+        const child = frame.children[frame.next++]
+        if (!index.has(child.depPath)) {
+          pushFrame(child)
+          continue
+        }
+        if (onStack.has(child.depPath)) {
+          lowlink.set(frame.edge.depPath, Math.min(lowlink.get(frame.edge.depPath)!, index.get(child.depPath)!))
+        }
+        // Finalized successors are already in `memo`; same-SCC ones are folded in
+        // when the SCC closes.
+        const childReachable = memo.get(child.depPath)
+        if (childReachable) addAll(frame.own, childReachable)
+        continue
+      }
+
+      const edge = frame.edge
+      if (lowlink.get(edge.depPath) === index.get(edge.depPath)) {
+        const members: DepPath[] = []
+        // Reuse the first member's own set as the shared accumulator instead of
+        // allocating a fresh one, so the common singleton-SCC case finalizes
+        // without any extra Set allocation or copy.
+        let shared: Set<string> | undefined
+        let member: DepPath
+        do {
+          member = sccStack.pop()!
+          onStack.delete(member)
+          members.push(member)
+          const own = partial.get(member)!
+          partial.delete(member)
+          if (shared === undefined) {
+            shared = own
+          } else {
+            addAll(shared, own)
+          }
+        } while (member !== edge.depPath)
+        for (const m of members) {
+          memo.set(m, shared!)
+        }
+      }
+
+      work.pop()
+      // Apply the post-DFS update to the parent: propagate this node's lowlink
+      // and fold in its reachable set once finalized (same-SCC nodes are folded
+      // later, via `partial`, when the shared SCC root closes).
+      const parent = work[work.length - 1]
+      if (parent != null) {
+        lowlink.set(parent.edge.depPath, Math.min(lowlink.get(parent.edge.depPath)!, lowlink.get(edge.depPath)!))
+        const childReachable = memo.get(edge.depPath)
+        if (childReachable) addAll(parent.own, childReachable)
       }
     }
   }
 
   return (edge) => {
-    if (!index.has(edge.depPath)) strongconnect(edge)
+    if (!index.has(edge.depPath)) buildScc(edge)
     // strongconnect always finalizes the queried node's SCC, so its reachable
     // set is present afterwards. A missing entry would be a bug that silently
     // under-reports and hides a real finding, so fail loudly instead of
@@ -392,16 +462,10 @@ function recordPath (paths: AuditPathIndex, name: string, version: string, joine
   info.paths.push(joined)
 }
 
-function resolvedDepsToNamedDepPaths (deps: ResolvedDependencies): Array<{ name: string, depPath: DepPath }> {
-  const result: Array<{ name: string, depPath: DepPath }> = []
-  appendNamedDepPaths(result, deps)
-  return result
-}
-
-// Append rather than `target.push(...resolvedDepsToNamedDepPaths(deps))`: a
-// lockfile is untrusted input, and spreading a pathologically large dependency
-// list into push() arguments can exceed the engine's argument limit and throw,
-// crashing the audit. A loop also avoids the intermediate array.
+// Append rather than `target.push(...mapped(deps))`: a lockfile is untrusted
+// input, and spreading a pathologically large dependency list into push()
+// arguments can exceed the engine's argument limit and throw, crashing the
+// audit. Appending in a loop also avoids the intermediate array.
 function appendNamedDepPaths (target: Array<{ name: string, depPath: DepPath }>, deps: ResolvedDependencies): void {
   for (const [alias, ref] of Object.entries(deps)) {
     const depPath = dp.refToRelative(ref, alias)
@@ -448,16 +512,22 @@ export function collectOptionalOnlyDepPaths (
   return result
 }
 
+// Explicit stack rather than recursion: a lockfile is untrusted input, and a
+// deep dependency chain would otherwise overflow the call stack. Order does not
+// matter — the result is the reachable set, so a LIFO walk is equivalent.
 function walkReachable (lockfile: LockfileObject, depPaths: DepPath[], seen: Set<DepPath>, includeOptionalEdges: boolean): void {
   const packages = lockfile.packages ?? {}
-  for (const depPath of depPaths) {
+  const stack: DepPath[] = []
+  for (const depPath of depPaths) stack.push(depPath)
+  while (stack.length > 0) {
+    const depPath = stack.pop()!
     if (seen.has(depPath)) continue
     seen.add(depPath)
     const snapshot = packages[depPath]
     if (!snapshot) continue
-    walkReachable(lockfile, resolvedDepsToDepPaths(snapshot.dependencies ?? {}), seen, includeOptionalEdges)
+    for (const child of resolvedDepsToDepPaths(snapshot.dependencies ?? {})) stack.push(child)
     if (includeOptionalEdges) {
-      walkReachable(lockfile, resolvedDepsToDepPaths(snapshot.optionalDependencies ?? {}), seen, includeOptionalEdges)
+      for (const child of resolvedDepsToDepPaths(snapshot.optionalDependencies ?? {})) stack.push(child)
     }
   }
 }
