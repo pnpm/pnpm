@@ -23,6 +23,16 @@ const OSV_POLICY_KEY: &str = "osvNpmDatabase";
 /// exists so a crafted database can't exhaust memory at startup.
 const MAX_OSV_RECORD_BYTES: u64 = 16 * 1024 * 1024;
 
+/// Upper bound on a zip entry's name length. OSV filenames are short
+/// (`GHSA-….json`); this only rejects crafted names that would otherwise
+/// force large allocations at startup.
+const MAX_OSV_NAME_BYTES: usize = 4096;
+
+/// Upper bound on a stored advisory id. Real ids are short (`GHSA-…`,
+/// `CVE-…`); cap so an oversized id from a crafted record can't bloat
+/// in-memory state or the reason strings it feeds.
+const MAX_ADVISORY_ID_BYTES: usize = 256;
+
 #[derive(Debug)]
 pub(crate) struct OsvIndex {
     packages: HashMap<String, Vec<Advisory>>,
@@ -281,6 +291,14 @@ fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
         if !entry.is_file() || !entry.name().ends_with(".json") {
             continue;
         }
+        // Bound the name before cloning it into errors/fingerprint — a
+        // crafted zip can carry arbitrarily long entry names.
+        if entry.name().len() > MAX_OSV_NAME_BYTES {
+            return Err(invalid_config(format!(
+                "OSV zip entry name is {} bytes, over the {MAX_OSV_NAME_BYTES}-byte limit",
+                entry.name().len(),
+            )));
+        }
         let name = entry.name().to_string();
         if entry.size() > MAX_OSV_RECORD_BYTES {
             return Err(invalid_config(format!(
@@ -427,7 +445,21 @@ fn normalized_name(name: &str) -> Cow<'_, str> {
 
 fn advisory_from_affected(id: &str, affected: OsvAffected) -> Advisory {
     let ranges = affected.ranges.into_iter().filter_map(semver_range_from_osv).collect();
-    Advisory { id: id.to_string(), versions: affected.versions.into_iter().collect(), ranges }
+    Advisory {
+        id: truncate_advisory_id(id),
+        versions: affected.versions.into_iter().collect(),
+        ranges,
+    }
+}
+
+/// Cap a stored advisory id at a char boundary so a crafted record can't
+/// carry a multi-megabyte id into memory and reason strings.
+fn truncate_advisory_id(id: &str) -> String {
+    if id.len() <= MAX_ADVISORY_ID_BYTES {
+        return id.to_string();
+    }
+    let end = (0..=MAX_ADVISORY_ID_BYTES).rev().find(|&i| id.is_char_boundary(i)).unwrap_or(0);
+    format!("{}…", &id[..end])
 }
 
 fn semver_range_from_osv(range: OsvRange) -> Option<SemverRange> {

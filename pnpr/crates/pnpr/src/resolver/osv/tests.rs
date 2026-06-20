@@ -265,3 +265,23 @@ fn advisory_ids_are_capped_in_messages() {
     assert!(formatted.ends_with("and 5 more"), "{formatted}");
     assert_eq!(formatted.matches("GHSA-").count(), 20);
 }
+
+#[test]
+fn oversized_advisory_id_is_truncated() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let big_id = format!("GHSA-{}", "x".repeat(5000));
+    fs::write(
+        dir.path().join("GHSA-big.json"),
+        format!(
+            r#"{{"id":"{big_id}","affected":[{{"package":{{"ecosystem":"npm","name":"big"}},"versions":["1.0.0"]}}]}}"#,
+        ),
+    )
+    .expect("write record");
+
+    let index = OsvIndex::load_from_path(dir.path()).expect("load index");
+
+    let ids = index.vulnerability_ids("big", "1.0.0");
+    assert_eq!(ids.len(), 1);
+    assert!(ids[0].len() < 300, "id not truncated: {} bytes", ids[0].len());
+    assert!(ids[0].ends_with('…'), "truncated id should end with ellipsis");
+}
