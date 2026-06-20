@@ -63,7 +63,7 @@ fn create_forwards_args_to_package() {
     let touch_txt = workspace.join("touch.txt");
     assert!(touch_txt.exists(), "touch.txt must exist");
     let content = std::fs::read_to_string(&touch_txt).unwrap();
-    assert_eq!(content, "[\"--extra-arg\"]", "extra argument should be forwarded to the package");
+    assert_eq!(content, r#"["--extra-arg"]"#, "extra argument should be forwarded to the package");
 
     drop(root);
 }
@@ -86,7 +86,7 @@ fn create_allow_build_before_name_is_parsed() {
         .success();
 
     let touch_txt = workspace.join("touch.txt");
-    assert!(touch_txt.exists(), "the package should install and run with --allow-build",);
+    assert!(touch_txt.exists(), "the package should install and run with --allow-build");
     let content = std::fs::read_to_string(&touch_txt).unwrap();
     assert_eq!(
         content, "[]",
@@ -116,7 +116,7 @@ fn create_options_after_name_are_forwarded() {
     assert!(touch_txt.exists(), "touch.txt must exist");
     let content = std::fs::read_to_string(&touch_txt).unwrap();
     assert_eq!(
-        content, "[\"--allow-build=touch-file-one-bin\"]",
+        content, r#"["--allow-build=touch-file-one-bin"]"#,
         "options after name should be forwarded to the package",
     );
 
@@ -133,7 +133,7 @@ fn create_accepts_shell_mode_flag() {
     pacquet.with_arg("create").with_arg("-c").with_arg("touch-file-one-bin").assert().success();
 
     let touch_txt = workspace.join("touch.txt");
-    assert!(touch_txt.exists(), "the package should install and run with shell mode",);
+    assert!(touch_txt.exists(), "the package should install and run with shell mode");
     let content = std::fs::read_to_string(&touch_txt).unwrap();
     assert_eq!(
         content, "[]",
