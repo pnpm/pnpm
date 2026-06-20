@@ -46,12 +46,12 @@ const PKGS_NEEDING_CLI_COMPILE = new Set([
 
 export default async (workspaceDir: string) => { // eslint-disable-line
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
-  const pnpmManifest = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
+  const pnpmManifest = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm11/pnpm/package.json'))
   const pnpmVersion = pnpmManifest!.version!
   const pnpmMajorNumber = pnpmVersion.split('.')[0]
   const pnpmMajorKeyword = `pnpm${pnpmMajorNumber}`
   const nextTag = `next-${pnpmMajorNumber}`
-  const utilsDir = path.join(workspaceDir, '__utils__')
+  const utilsDir = path.join(workspaceDir, 'pnpm11/__utils__')
   const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
   if (lockfile == null) {
     throw new Error('no lockfile found')
@@ -242,7 +242,7 @@ async function updateTSConfig (
       },
       include: [
         '**/*.ts',
-        normalizePath(path.relative(testDir, path.join(context.workspaceDir, '__typings__/**/*.d.ts'))),
+        normalizePath(path.relative(testDir, path.join(context.workspaceDir, 'pnpm11/__typings__/**/*.d.ts'))),
       ],
       references: (tsConfig as any)?.compilerOptions?.composite === false // eslint-disable-line
         // If composite is explicitly set to false, we can't add the main
@@ -280,7 +280,7 @@ async function updateTSConfig (
       include: [
         'src/**/*.ts',
         'test/**/*.ts',
-        normalizePath(path.relative(dir, path.join(context.workspaceDir, '__typings__/**/*.d.ts'))),
+        normalizePath(path.relative(dir, path.join(context.workspaceDir, 'pnpm11/__typings__/**/*.d.ts'))),
       ],
     }, { indent: 2 }),
   ])
@@ -431,13 +431,13 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     scripts['.compile'] = scripts['.compile'].replace('tsc --build', 'tsgo --build')
   }
   let homepage: string
-  let repository: string | { type: 'git', url: string, directory: 'pnpm' }
+  let repository: string | { type: 'git', url: string, directory: 'pnpm11/pnpm' }
   if (manifest.name === CLI_PKG_NAME) {
     homepage = 'https://pnpm.io'
     repository = {
       type: 'git',
       url: 'git+https://github.com/pnpm/pnpm.git',
-      directory: 'pnpm',
+      directory: 'pnpm11/pnpm',
     }
     scripts.compile += ' && rimraf dist bin/nodes && pn bundle \
 && shx cp -r node-gyp-bin dist/node-gyp-bin \

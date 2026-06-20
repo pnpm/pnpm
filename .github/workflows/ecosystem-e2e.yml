@@ -55,7 +55,7 @@ jobs:
           path: |
             target/release/pacquet
             target/release/ecosystem-e2e
-            pnpm/dist
+            pnpm11/pnpm/dist
           retention-days: 1
           if-no-files-found: error
 
@@ -73,8 +73,8 @@ jobs:
         # and each gets its own log artifact.
         stack: [next, vite-react, angular, astro, sveltekit, nuxt, react-router]
     steps:
-      # The pnpm shim launches the repo's committed `pnpm/bin/pnpm.cjs`, so the
-      # checkout is still needed alongside the downloaded `pnpm/dist` bundle.
+      # The pnpm shim launches the repo's committed `pnpm11/pnpm/bin/pnpm.cjs`, so the
+      # checkout is still needed alongside the downloaded `pnpm11/pnpm/dist` bundle.
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -95,7 +95,7 @@ jobs:
         # .cjs that needs `node`. Wrap the repo's bin entry (which loads
         # dist/pnpm.mjs) so the run tests this repo's pnpm, not a system one.
         run: |
-          printf '#!/usr/bin/env bash\nexec node "%s/pnpm/bin/pnpm.cjs" "$@"\n' "$PWD" > pnpm-built
+          printf '#!/usr/bin/env bash\nexec node "%s/pnpm11/pnpm/bin/pnpm.cjs" "$@"\n' "$PWD" > pnpm-built
           chmod +x pnpm-built
 
       - name: Run ecosystem E2E

@@ -8,7 +8,7 @@ export default [
     ...eslintConfig,
     regexpPlugin.configs['flat/recommended'],
     {
-        files: ["pnpm/src/**/*.ts"],
+        files: ["pnpm11/pnpm/src/**/*.ts"],
         rules: {
             "import-x/no-extraneous-dependencies": "off",
         },
