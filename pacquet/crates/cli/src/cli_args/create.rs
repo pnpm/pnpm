@@ -14,12 +14,10 @@ use std::path::Path;
 /// and delegates to the existing `dlx` infrastructure.
 #[derive(Debug, Args)]
 pub struct CreateArgs {
-    /// The template name (e.g., `vite`, `create-vite`, `@scope/foo`).
-    pub name: Option<String>,
-
-    /// Arguments forwarded to the created package.
+    /// The template name (e.g., `vite`, `create-vite`, `@scope/foo`),
+    /// followed by any arguments forwarded to the created package.
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
-    pub args: Vec<String>,
+    pub command: Vec<String>,
 
     /// Package names allowed to run lifecycle (build) scripts during
     /// the install. May be repeated.
@@ -98,8 +96,10 @@ impl CreateArgs {
         dir: &Path,
         config: &'static mut Config,
     ) -> miette::Result<()> {
-        let CreateArgs { name, args, allow_build, shell_mode, cpu, os, libc } = self;
-        let name = name.ok_or(CreateError::MissingArgs)?;
+        let CreateArgs { command, allow_build, shell_mode, cpu, os, libc } = self;
+        let mut command_iter = command.into_iter();
+        let name = command_iter.next().ok_or(CreateError::MissingArgs)?;
+        let args: Vec<String> = command_iter.collect();
         let create_name = convert_to_create_name(&name);
         let dlx_args = DlxArgs {
             command: std::iter::once(create_name).chain(args).collect(),
@@ -115,73 +115,4 @@ impl CreateArgs {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::convert_to_create_name;
-
-    #[test]
-    fn unscoped_unprefixed_gets_create_prefix() {
-        assert_eq!(convert_to_create_name("foo"), "create-foo");
-    }
-
-    #[test]
-    fn unscoped_already_prefixed_is_unchanged() {
-        assert_eq!(convert_to_create_name("create-foo"), "create-foo");
-    }
-
-    #[test]
-    fn unscoped_empty_prefix_is_unchanged() {
-        assert_eq!(convert_to_create_name("create-"), "create-");
-    }
-
-    #[test]
-    fn unscoped_underscore_prefix_gets_double_prefix() {
-        assert_eq!(convert_to_create_name("create_no_dash"), "create-create_no_dash");
-    }
-
-    #[test]
-    fn scoped_unprefixed_gets_create_prefix() {
-        assert_eq!(convert_to_create_name("@scope/foo"), "@scope/create-foo");
-    }
-
-    #[test]
-    fn scoped_already_prefixed_is_unchanged() {
-        assert_eq!(convert_to_create_name("@scope/create-foo"), "@scope/create-foo");
-    }
-
-    #[test]
-    fn scoped_empty_prefix_is_unchanged() {
-        assert_eq!(convert_to_create_name("@scope/create-"), "@scope/create-");
-    }
-
-    #[test]
-    fn scoped_underscore_prefix_gets_double_prefix() {
-        assert_eq!(convert_to_create_name("@scope/create_no_dash"), "@scope/create-create_no_dash");
-    }
-
-    #[test]
-    fn plain_scope_gets_create() {
-        assert_eq!(convert_to_create_name("@scope"), "@scope/create");
-    }
-
-    #[test]
-    fn unscoped_with_version() {
-        assert_eq!(convert_to_create_name("foo@2.0.0"), "create-foo@2.0.0");
-        assert_eq!(convert_to_create_name("foo@latest"), "create-foo@latest");
-    }
-
-    #[test]
-    fn scoped_with_version() {
-        assert_eq!(convert_to_create_name("@scope/foo@2.0.0"), "@scope/create-foo@2.0.0");
-    }
-
-    #[test]
-    fn scoped_already_prefixed_with_version() {
-        assert_eq!(convert_to_create_name("@scope/create-a@2.0.0"), "@scope/create-a@2.0.0");
-    }
-
-    #[test]
-    fn plain_scope_with_version() {
-        assert_eq!(convert_to_create_name("@scope@2.0.0"), "@scope/create@2.0.0");
-        assert_eq!(convert_to_create_name("@scope@next"), "@scope/create@next");
-    }
-}
+mod tests;

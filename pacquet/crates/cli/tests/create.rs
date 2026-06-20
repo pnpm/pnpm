@@ -35,10 +35,13 @@ fn create_converts_name_and_runs_via_dlx() {
 
     pacquet.with_arg("create").with_arg("touch-file-one-bin").assert().success();
 
+    let touch_txt = workspace.join("touch.txt");
     assert!(
-        workspace.join("touch.txt").exists(),
+        touch_txt.exists(),
         "the package's bin should run in the process cwd and write `touch.txt`",
     );
+    let content = std::fs::read_to_string(&touch_txt).unwrap();
+    assert_eq!(content, "[]", "no extra arguments should be forwarded");
 
     drop(root);
 }
@@ -47,7 +50,8 @@ fn create_converts_name_and_runs_via_dlx() {
 #[cfg(unix)]
 #[test]
 fn create_forwards_args_to_package() {
-    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
 
     pacquet
         .with_arg("create")
@@ -55,6 +59,11 @@ fn create_forwards_args_to_package() {
         .with_arg("--extra-arg")
         .assert()
         .success();
+
+    let touch_txt = workspace.join("touch.txt");
+    assert!(touch_txt.exists(), "touch.txt must exist");
+    let content = std::fs::read_to_string(&touch_txt).unwrap();
+    assert_eq!(content, "[\"--extra-arg\"]", "extra argument should be forwarded to the package");
 
     drop(root);
 }
@@ -76,9 +85,12 @@ fn create_allow_build_before_name_is_parsed() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join("touch.txt").exists(),
-        "the package should install and run with --allow-build",
+    let touch_txt = workspace.join("touch.txt");
+    assert!(touch_txt.exists(), "the package should install and run with --allow-build",);
+    let content = std::fs::read_to_string(&touch_txt).unwrap();
+    assert_eq!(
+        content, "[]",
+        "--allow-build should be parsed/consumed by the CLI and not forwarded"
     );
 
     drop(root);
@@ -90,7 +102,8 @@ fn create_allow_build_before_name_is_parsed() {
 #[cfg(unix)]
 #[test]
 fn create_options_after_name_are_forwarded() {
-    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
 
     pacquet
         .with_arg("create")
@@ -98,6 +111,14 @@ fn create_options_after_name_are_forwarded() {
         .with_arg("--allow-build=touch-file-one-bin")
         .assert()
         .success();
+
+    let touch_txt = workspace.join("touch.txt");
+    assert!(touch_txt.exists(), "touch.txt must exist");
+    let content = std::fs::read_to_string(&touch_txt).unwrap();
+    assert_eq!(
+        content, "[\"--allow-build=touch-file-one-bin\"]",
+        "options after name should be forwarded to the package"
+    );
 
     drop(root);
 }
@@ -111,9 +132,12 @@ fn create_accepts_shell_mode_flag() {
 
     pacquet.with_arg("create").with_arg("-c").with_arg("touch-file-one-bin").assert().success();
 
-    assert!(
-        workspace.join("touch.txt").exists(),
-        "the package should install and run with shell mode",
+    let touch_txt = workspace.join("touch.txt");
+    assert!(touch_txt.exists(), "the package should install and run with shell mode",);
+    let content = std::fs::read_to_string(&touch_txt).unwrap();
+    assert_eq!(
+        content, "[]",
+        "shell mode flag should be parsed/consumed by the CLI and not forwarded"
     );
 
     drop(root);
