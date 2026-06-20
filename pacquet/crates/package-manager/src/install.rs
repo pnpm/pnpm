@@ -1041,9 +1041,10 @@ where
 
         let is_inconsistent = match &modules_manifest_res {
             Ok(Some(modules)) => !modules_consistent_with(modules, config, node_linker, included),
-            Ok(None) => false,
+            Ok(None) => config.modules_dir.join(pacquet_modules_yaml::MODULES_FILENAME).exists(),
             Err(_) => true,
         };
+        let old_modules = modules_manifest.cloned();
 
         if !resolve_only && is_inconsistent {
             // Settings mismatch forces a rewrite of node_modules, matching
@@ -1092,8 +1093,16 @@ where
                                 }
 
                                 if entry.file_type().is_ok_and(|t| t.is_dir()) {
-                                    std::fs::remove_dir_all(entry.path())
-                                        .map_err(InstallError::RemoveModulesDir)?;
+                                    #[cfg(windows)]
+                                    let is_removed =
+                                        pacquet_fs::remove_symlink_dir(entry.path()).is_ok();
+                                    #[cfg(not(windows))]
+                                    let is_removed = false;
+
+                                    if !is_removed {
+                                        std::fs::remove_dir_all(entry.path())
+                                            .map_err(InstallError::RemoveModulesDir)?;
+                                    }
                                 } else {
                                     std::fs::remove_file(entry.path())
                                         .map_err(InstallError::RemoveModulesDir)?;
@@ -1224,6 +1233,7 @@ where
                 skip_runtimes,
                 node_linker,
                 tarball_mem_cache: Some(&tarball_mem_cache),
+                old_modules: old_modules.clone(),
             }
             .run::<Reporter>()
             .await
@@ -1435,13 +1445,7 @@ where
         // A genuine read/parse failure (not `NotFound`) is treated as
         // "no prior manifest" — the safe direction (prune + fresh
         // `prunedAt`) — but logged rather than silently swallowed.
-        let prior_modules = match read_modules_manifest::<Host>(&config.modules_dir) {
-            Ok(modules) => modules,
-            Err(error) => {
-                tracing::warn!(?error, "failed to read .modules.yaml; treating as a fresh install");
-                None
-            }
-        };
+        let prior_modules = old_modules.clone();
         let now = SystemTime::now();
         let effective_virtual_store_dir = config.effective_virtual_store_dir();
         // Decide "this is the global store" from the resolved paths, not

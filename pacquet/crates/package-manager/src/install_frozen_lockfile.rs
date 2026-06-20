@@ -175,6 +175,7 @@ where
     /// re-fetching every tarball; `None` for installs without a shared
     /// prefetch in flight.
     pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
+    pub old_modules: Option<pacquet_modules_yaml::Modules>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -269,6 +270,9 @@ pub enum InstallFrozenLockfileError {
     #[display("failed to write package map: {_0}")]
     #[diagnostic(code(pacquet_package_manager::write_package_map))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
+
+    #[diagnostic(transparent)]
+    InstallError(#[error(source)] Box<crate::InstallError>),
 }
 
 /// Error type of `run_build_phase` and `resolve_snapshot_patches`.
@@ -575,7 +579,9 @@ where
             skip_runtimes,
             node_linker,
             tarball_mem_cache,
+            old_modules,
         } = self;
+
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Cloned so the iterator can be reused below for hoist's
         // direct-deps map. `Vec<DependencyGroup>` is tiny (≤4 enum
@@ -644,16 +650,20 @@ where
         // A read error (corrupt yaml, permissions) is degraded to
         // an empty seed — `.modules.yaml` is a cache artifact, not
         // an authoritative source. Missing file → empty seed.
-        let seed = match read_modules_manifest::<Host>(&config.modules_dir) {
-            Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
-            Ok(None) => SkippedSnapshots::new(),
-            Err(error) => {
-                tracing::warn!(
-                    target: "pacquet::install",
-                    ?error,
-                    "failed to read .modules.yaml for skipped seed; starting from empty",
-                );
-                SkippedSnapshots::new()
+        let seed = if let Some(manifest) = old_modules {
+            SkippedSnapshots::from_strings(&manifest.skipped)
+        } else {
+            match read_modules_manifest::<Host>(&config.modules_dir) {
+                Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
+                Ok(None) => SkippedSnapshots::new(),
+                Err(error) => {
+                    tracing::warn!(
+                        target: "pacquet::install",
+                        ?error,
+                        "failed to read .modules.yaml for skipped seed; starting from empty",
+                    );
+                    SkippedSnapshots::new()
+                }
             }
         };
 
