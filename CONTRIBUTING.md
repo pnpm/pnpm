@@ -193,7 +193,7 @@ Before you submit your Pull Request (PR) consider the following guidelines:
   ```
 
 - Create your patch, following [code style guidelines](#coding-style-guidelines), and **including appropriate test cases**.
-- Run `pnpm changeset` in the root of the repository and describe your changes. The resulting files should be committed as they will be used during release.
+- Run `pnpm changeset` in the root of the repository and describe your changes. The resulting files should be committed as they will be used during release. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset.
 - Run the full test suite and ensure that all tests pass.
 - Commit your changes using a descriptive commit message that follows our
   [commit message conventions](#commit-message-guidelines). Adherence to these conventions

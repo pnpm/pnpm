@@ -20,10 +20,6 @@ fn sample_resolution() -> LockfileResolution {
 /// `hoistedAliases` read-side compatibility.
 const ACCEPTS_DEP_PATH: &str = "accepts@1.3.7";
 
-/// `LockfileToDepGraphResult::default()` returns the empty
-/// graph the walker should emit when the lockfile has no
-/// importers — every collection is empty and `prev_graph` is
-/// `None` (no previous lockfile to diff against).
 #[test]
 fn default_result_is_empty() {
     let actual = LockfileToDepGraphResult::default();
@@ -37,10 +33,6 @@ fn default_result_is_empty() {
     assert!(actual.skipped.is_empty());
 }
 
-/// A `DependenciesGraphNode` can be constructed and inserted
-/// into a `DependenciesGraph` keyed by its `dir`. The walker
-/// will do exactly this for every package it visits; this
-/// test pins that the type composes correctly.
 #[test]
 fn graph_node_inserts_by_dir() {
     let dir = PathBuf::from("/repo/node_modules/accepts");
@@ -67,13 +59,8 @@ fn graph_node_inserts_by_dir() {
     assert_eq!(graph.get(&dir), Some(&node));
 }
 
-/// `DepHierarchy` is a recursive map: a `node_modules`
-/// directory points to its child packages, which in turn
-/// expose their own `node_modules` directories. The newtype
-/// wrapper exists because Rust doesn't allow recursive type
-/// aliases; the nesting itself must round-trip through
-/// `Default`-construction and equality so the walker can
-/// assemble it bottom-up.
+/// The newtype wrapper exists because Rust doesn't allow recursive type
+/// aliases.
 #[test]
 fn hierarchy_nests_recursively() {
     let mut inner_children = BTreeMap::new();
@@ -92,9 +79,6 @@ fn hierarchy_nests_recursively() {
     assert_eq!(accepts.0.len(), 1);
 }
 
-/// `LockfileToHoistedDepGraphOptions::default()` produces the
-/// shape a no-op walker would accept: empty lockfile dir,
-/// `autoInstallPeers: false`, no pre-skipped packages.
 #[test]
 fn options_default_is_empty() {
     let opts = LockfileToHoistedDepGraphOptions::default();
@@ -141,10 +125,9 @@ fn directory_resolution(directory: &str) -> LockfileResolution {
     DirectoryResolution { directory: directory.to_string() }.into()
 }
 
-/// Build a metadata stub for a package using a synthetic
-/// `directory:` resolution. Walker tests don't exercise
-/// resolution semantics — they only need *some* resolution so
-/// the graph node has a non-default value to inspect.
+/// Uses a synthetic `directory:` resolution: walker tests don't exercise
+/// resolution semantics — they only need *some* resolution so the graph node
+/// has a non-default value to inspect.
 fn metadata_stub() -> PackageMetadata {
     PackageMetadata {
         resolution: directory_resolution("/dev/null/stub"),
@@ -187,9 +170,7 @@ fn lockfile_with(
     }
 }
 
-/// A lockfile with no importers walks to an empty graph and a
-/// hierarchy with no root entry. Mirrors the
-/// `empty_lockfile_yields_empty_root` case from the hoister.
+/// Mirrors the `empty_lockfile_yields_empty_root` case from the hoister.
 #[test]
 fn walker_empty_lockfile_produces_empty_result() {
     let lockfile = Lockfile {
@@ -214,17 +195,10 @@ fn walker_empty_lockfile_produces_empty_result() {
 
     assert!(result.graph.is_empty(), "graph should be empty");
     assert!(result.hoisted_locations.is_empty(), "no locations recorded");
-    // `direct_dependencies_by_importer_id["."]` is always
-    // present (the root importer is implicit), but its inner
-    // map is empty when there are no children.
     assert_eq!(result.direct_dependencies_by_importer_id.len(), 1);
     assert!(result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY].is_empty());
 }
 
-/// `root → a` with `a` having no transitive deps: walker emits
-/// a single graph node at `<lockfile_dir>/node_modules/a`,
-/// populates `hoisted_locations["a@1.0.0"]`, and records `a` as
-/// the root's only direct dep.
 #[test]
 fn walker_single_root_dep_emits_one_node() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -264,11 +238,6 @@ fn walker_single_root_dep_emits_one_node() {
     );
 }
 
-/// `root → a → b` (no name conflict): the hoister flattens `b`
-/// to root, and the walker emits two graph nodes — both under
-/// `<lockfile_dir>/node_modules/`. `a`'s `children["b"]` points
-/// at `b`'s root-level directory (not `a/node_modules/b`),
-/// because the hoister moved it there.
 #[test]
 fn walker_transitive_dep_flattens_under_root() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -308,16 +277,10 @@ fn walker_transitive_dep_flattens_under_root() {
         "a's `children[\"b\"]` points at the hoisted (root-level) dir",
     );
 
-    // Both depPaths recorded at the root level only — no
-    // nesting needed because there's no version conflict.
     assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["node_modules/a".to_string()]);
     assert_eq!(result.hoisted_locations["b@1.0.0"], vec!["node_modules/b".to_string()]);
 }
 
-/// Version conflict: `root → {a@1, c}` plus `c → a@2`. `a@1`
-/// gets the root slot; `a@2` stays nested under `c`. The
-/// walker should record `a@1.0.0` at root and `a@2.0.0` at
-/// `node_modules/c/node_modules/a`.
 #[test]
 fn walker_version_conflict_keeps_loser_nested() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -365,14 +328,9 @@ fn walker_version_conflict_keeps_loser_nested() {
         vec!["node_modules/c/node_modules/a".to_string()],
     );
 
-    // `c`'s `children["a"]` points at the nested `a@2`, not the
-    // root's `a@1` — because hoisting kept the nested slot.
     assert_eq!(result.graph[&c_dir].children.get("a"), Some(&a2_dir));
 }
 
-/// Pre-`skipped` packages aren't emitted into the graph at all.
-/// Upstream's walker honors the input `skipped` set without
-/// re-checking installability; pacquet's walker does the same.
 #[test]
 fn walker_honors_pre_skipped_dep_path() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -455,9 +413,7 @@ fn metadata_with_os(os: &str) -> PackageMetadata {
     PackageMetadata { os: Some(vec![os.to_string()]), ..metadata_stub() }
 }
 
-/// Optional package whose `os` constraint excludes the current
-/// host is added to `result.skipped` and never emitted into the
-/// graph. Mirrors upstream's
+/// Mirrors upstream's
 /// `if (!opts.force && packageIsInstallable(...) === false) {
 /// opts.skipped.add(depPath); return; }`.
 #[test]
@@ -576,9 +532,8 @@ fn walker_force_bypasses_installability_check() {
     assert!(result.skipped.is_empty(), "force=true doesn't add to skipped");
 }
 
-/// Compatible host: a package with metadata targeting the
-/// current host is emitted normally. Sanity check that the
-/// installability path doesn't drop packages it shouldn't.
+/// Sanity check that the installability path doesn't drop packages it
+/// shouldn't.
 #[test]
 fn walker_emits_compatible_dep() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -601,8 +556,7 @@ fn walker_emits_compatible_dep() {
 
 // --- prev_graph tests ------------------------------------------------
 
-/// `current_lockfile: None` yields `prev_graph: None`. Mirrors
-/// upstream's `prevGraph = {}` fallback when no current
+/// Mirrors upstream's `prevGraph = {}` fallback when no current
 /// lockfile is supplied — pacquet uses `None` instead of an
 /// empty map, but the linker treats the two the same way (no
 /// orphans to remove on a fresh install).
@@ -628,10 +582,7 @@ fn prev_graph_none_when_current_lockfile_absent() {
     assert_eq!(result.graph.len(), 1, "wanted lockfile still produces the graph");
 }
 
-/// A current lockfile with no `packages:` map (a brand-new
-/// install in progress) also yields `prev_graph: None`.
-/// Mirrors upstream's `currentLockfile?.packages != null`
-/// guard.
+/// Mirrors upstream's `currentLockfile?.packages != null` guard.
 #[test]
 fn prev_graph_none_when_current_lockfile_has_no_packages() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -667,12 +618,9 @@ fn prev_graph_none_when_current_lockfile_has_no_packages() {
     assert!(result.prev_graph.is_none(), "current lockfile without packages → no prev_graph");
 }
 
-/// A current lockfile with `packages: Some(empty map)` also
-/// yields `prev_graph: None` — pacquet collapses null and
-/// empty into the same "no orphans" representation, since
-/// walking an empty `packages:` would just produce an empty
-/// graph anyway. Regression for the empty-map case Coderabbit
-/// flagged on the original 4d patch.
+/// Pacquet collapses null and empty into the same "no orphans"
+/// representation, since walking an empty `packages:` would just produce an
+/// empty graph anyway.
 #[test]
 fn prev_graph_none_when_current_lockfile_has_empty_packages() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -708,10 +656,8 @@ fn prev_graph_none_when_current_lockfile_has_empty_packages() {
     assert!(result.prev_graph.is_none(), "current lockfile with empty packages → no prev_graph");
 }
 
-/// A package present in the current lockfile but absent from
-/// the wanted lockfile surfaces in `prev_graph` while not
-/// appearing in `graph`. Slice 5's linker will subtract `graph`
-/// from `prev_graph` to find this directory and `rimraf` it.
+/// The linker subtracts `graph` from `prev_graph` to find orphan
+/// directories and `rimraf` them.
 #[test]
 fn prev_graph_contains_orphan_from_current_only_lockfile() {
     // Current install: root → {a, orphan}
@@ -796,8 +742,6 @@ fn prev_graph_includes_orphan_even_when_now_incompatible() {
         "force: true emits the orphan even though it would now fail installability",
     );
     assert!(result.graph.is_empty(), "wanted graph stays empty");
-    // The orphan must not appear in the wanted-walk's skipped
-    // set either — its installability check was never run.
     assert!(result.skipped.is_empty(), "skipped from wanted walk only, not prev walk");
 }
 
@@ -836,13 +780,6 @@ fn workspace_lockfile(
     }
 }
 
-/// `root → a@1.0.0`, `packages/foo → b@1.0.0`. Both packages
-/// hoist to the workspace root via the shared hoister tree
-/// (slice 9's `hoist_workspace_packages: true` default), so
-/// the walker emits one entry per importer in
-/// `direct_dependencies_by_importer_id` — root sees `a`,
-/// `packages/foo` sees `b` — both pointing at root-level
-/// `node_modules/<dep>` directories.
 #[test]
 fn walker_multi_importer_emits_per_importer_direct_deps() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -872,26 +809,19 @@ fn walker_multi_importer_emits_per_importer_direct_deps() {
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
     let modules = lockfile_dir.join("node_modules");
-    // Both packages live at the workspace root because the
-    // shared hoister tree dedupes them with no conflict.
     assert!(result.graph.contains_key(&modules.join("a")));
     assert!(result.graph.contains_key(&modules.join("b")));
-    // Per-importer direct deps reflect each project's view.
     assert_eq!(
         result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY]["a"],
         modules.join("a"),
     );
     assert_eq!(result.direct_dependencies_by_importer_id["packages/foo"]["b"], modules.join("b"));
-    // Workspace nodes themselves are NOT graph entries; only
-    // their package-bearing descendants are.
     assert!(!result.graph.values().any(|node| node.alias.as_deref() == Some("packages%2Ffoo")));
 }
 
-/// Hierarchy must include one entry per importer root: the
-/// workspace root for `.` and `<lockfile_dir>/<importer>` for
-/// each non-root importer. The slice 5 linker drives its
-/// per-importer parallel fan-out off this map, so an importer
-/// missing a hierarchy entry would be silently un-linked.
+/// The linker drives its per-importer parallel fan-out off the hierarchy
+/// map, so an importer missing a hierarchy entry would be silently
+/// un-linked.
 #[test]
 fn walker_multi_importer_emits_per_importer_hierarchy() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -965,26 +895,15 @@ fn walker_hoist_workspace_packages_false_emits_root_only() {
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
-    // Root importer's `a` survives; `b` (only reachable via
-    // `packages/foo`) does not show up in the graph.
     assert!(result.graph.contains_key(&lockfile_dir.join("node_modules").join("a")));
     assert!(!result.graph.contains_key(&lockfile_dir.join("node_modules").join("b")));
-    // `direct_dependencies_by_importer_id` carries only the
-    // root entry.
     assert_eq!(result.direct_dependencies_by_importer_id.len(), 1);
     assert!(result.direct_dependencies_by_importer_id.contains_key(Lockfile::ROOT_IMPORTER_KEY));
     assert!(!result.direct_dependencies_by_importer_id.contains_key("packages/foo"));
-    // Hierarchy carries only the workspace root.
     assert_eq!(result.hierarchy.len(), 1);
     assert!(result.hierarchy.contains_key(&lockfile_dir));
 }
 
-/// Version conflict across importers: root wants `a@1`,
-/// `packages/foo` wants `a@2`. The hoister resolves the conflict
-/// by hoisting one version to the root and nesting the other
-/// under the losing importer's `node_modules`. The walker
-/// emits both copies and each importer's direct-deps map
-/// points at the version it actually depends on.
 #[test]
 fn walker_multi_importer_version_conflict_nests_loser() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -1013,7 +932,6 @@ fn walker_multi_importer_version_conflict_nests_loser() {
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
-    // Both versions land in the graph.
     assert_eq!(result.graph.len(), 2);
     // Root sees a@1 (or a@2 — depends on hoister's tie-break)
     // and packages/foo sees the other version. Whichever wins
@@ -1024,12 +942,62 @@ fn walker_multi_importer_version_conflict_nests_loser() {
     assert_ne!(root_a, foo_a, "conflict resolves to two distinct dirs");
 }
 
-/// `external_dependencies` flows through to the hoister and
-/// strips matching aliases from the post-hoist result. Pins
-/// the slice 10 plumbing end-to-end: the walker observes an
-/// empty graph for the `external` alias because the hoister
-/// stripped it, even though the lockfile listed it as a
-/// direct dep.
+/// The cross-importer workspace invariant: when the root importer and
+/// a workspace project pin conflicting versions of the same name, the
+/// root's version wins the top-level `node_modules` slot and the
+/// project's version nests under the project. Locks in the popularity
+/// preference (root deps rank first) together with the per-importer
+/// walk. Mirrors upstream's `installing/deps-restorer/test/index.ts`
+/// workspace-hoisted case where the root's `webpack@5.65.0` lands at
+/// the root and `foo`'s `webpack@2.7.0` nests under `foo`.
+#[test]
+fn walker_workspace_root_version_wins_root_slot() {
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("webby"), resolved_dep("5.0.0"));
+
+    let mut app_deps = ResolvedDependencyMap::new();
+    app_deps.insert(pkg_name("webby"), resolved_dep("2.0.0"));
+
+    let mut packages = HashMap::new();
+    packages.insert(dep_key("webby", "5.0.0"), metadata_stub());
+    packages.insert(dep_key("webby", "2.0.0"), metadata_stub());
+
+    let mut snapshots = HashMap::new();
+    snapshots.insert(dep_key("webby", "5.0.0"), SnapshotEntry::default());
+    snapshots.insert(dep_key("webby", "2.0.0"), SnapshotEntry::default());
+
+    let lockfile = workspace_lockfile(
+        vec![(Lockfile::ROOT_IMPORTER_KEY, root_deps), ("packages/app", app_deps)],
+        packages,
+        snapshots,
+    );
+    let lockfile_dir = PathBuf::from("/repo");
+    let opts = LockfileToHoistedDepGraphOptions {
+        lockfile_dir: lockfile_dir.clone(),
+        ..LockfileToHoistedDepGraphOptions::default()
+    };
+    let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
+
+    let root_webby = lockfile_dir.join("node_modules").join("webby");
+    let nested_webby = lockfile_dir.join("packages/app").join("node_modules").join("webby");
+
+    assert_eq!(
+        result.graph[&root_webby].dep_path,
+        DepPath::from("webby@5.0.0".to_string()),
+        "the root importer's version wins the top-level slot",
+    );
+    assert_eq!(
+        result.graph[&nested_webby].dep_path,
+        DepPath::from("webby@2.0.0".to_string()),
+        "the workspace project's conflicting version nests under the project",
+    );
+    assert_eq!(
+        result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY]["webby"],
+        root_webby,
+    );
+    assert_eq!(result.direct_dependencies_by_importer_id["packages/app"]["webby"], nested_webby);
+}
+
 #[test]
 fn walker_forwards_external_dependencies_to_hoister() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -1052,9 +1020,6 @@ fn walker_forwards_external_dependencies_to_hoister() {
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
-    // `a` was reserved as an external; hoister stripped it
-    // from the top-level result, so the walker emits an
-    // empty graph and an empty root direct-deps map.
     assert!(result.graph.is_empty(), "external strips the alias from the hoist result");
     assert!(
         result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY].is_empty(),

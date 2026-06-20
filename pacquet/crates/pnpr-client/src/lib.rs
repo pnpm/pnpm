@@ -423,9 +423,6 @@ enum Frame {
         version: String,
         integrity: String,
         tarball: String,
-        /// Absent from frames sent by servers that predate the field
-        /// and for packages whose registry never published a
-        /// `dist.unpackedSize`.
         #[serde(rename = "unpackedSize", default)]
         unpacked_size: Option<usize>,
         #[serde(rename = "fileCount", default)]

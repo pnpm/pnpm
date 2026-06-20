@@ -94,10 +94,6 @@ fn lockfile_snapshots_seed_existing_version_selectors() {
 
 #[test]
 fn dual_source_match_bumps_weight() {
-    // foo@1.0.0 appears in both manifest (as direct dep) and lockfile (as snapshot).
-    // The combined weight should be DIRECT + EXISTING + 1 because the manifest entry
-    // started as a `Weighted(DIRECT)` and lockfile adds EXISTING on top (the `+1`
-    // path is for `Plain` selectors — see add_weight_to_version_selector).
     let mut snapshots = HashMap::new();
     snapshots.insert(PackageKey::from_str("foo@1.0.0").unwrap(), SnapshotEntry::default());
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
@@ -116,8 +112,6 @@ fn dual_source_match_bumps_weight() {
 
 #[test]
 fn duplicate_peer_suffix_snapshots_do_not_inflate_weight() {
-    // foo@1.0.0 with three different peer suffixes — uniqueNameVersions
-    // dedup ensures the weight is added once, not three times.
     let mut snapshots = HashMap::new();
     snapshots.insert(PackageKey::from_str("foo@1.0.0(a@1)").unwrap(), SnapshotEntry::default());
     snapshots.insert(PackageKey::from_str("foo@1.0.0(b@2)").unwrap(), SnapshotEntry::default());

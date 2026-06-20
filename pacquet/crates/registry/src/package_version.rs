@@ -77,9 +77,7 @@ pub struct PackageVersion {
     /// the upstream `if (info.deprecated)` truthiness check happens
     /// to handle both shapes silently. Rust serde is strict, so we
     /// route through a custom deserializer that normalizes the field
-    /// to `Option<String>`: a string stays a string, `false` becomes
-    /// `None`, `true` becomes `Some("")` (deprecated without a
-    /// recorded reason). Mirrors pnpm's
+    /// to `Option<String>`. Mirrors pnpm's
     /// [`PackageInRegistry.deprecated`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/packages/types/src/package.ts).
     #[serde(
         default,
@@ -307,9 +305,6 @@ impl PackageVersion {
 
     #[must_use]
     pub fn serialize(&self, pinned_version: PinnedVersion) -> String {
-        // A prerelease resolved version is written verbatim, ignoring the
-        // pinned prefix, matching pnpm's `createVersionSpecFromResolvedVersion`
-        // at <https://github.com/pnpm/pnpm/blob/086c5e91e8/pkg-manifest/utils/src/updateProjectManifestObject.ts#L29-L45>.
         if !self.version.pre_release.is_empty() {
             return self.version.to_string();
         }

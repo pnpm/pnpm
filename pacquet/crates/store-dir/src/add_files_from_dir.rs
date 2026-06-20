@@ -64,25 +64,16 @@ pub enum AddFilesFromDirError {
 }
 
 /// Walk `pkg_root` and write every regular file into `store_dir`'s
-/// CAFS, producing an `AddedFiles { files }` map. Symlinks are
-/// followed only when they resolve inside `pkg_root` (mirrors
-/// upstream's `isSubdir(rootDir, realPath)` containment check at
-/// [`addFilesFromDir.ts:112`](https://github.com/pnpm/pnpm/blob/7e3145f9fc/store/cafs/src/addFilesFromDir.ts#L112));
-/// out-of-root targets are silently skipped. A top-level
-/// `node_modules` directory is skipped unconditionally (upstream's
-/// `includeNodeModules` defaults to `false` and pacquet has no
-/// caller that flips it).
+/// CAFS, producing an `AddedFiles { files }` map.
 ///
 /// Cycle-safe: `WalkCtx.visited` is a *recursion-stack* set —
 /// each canonical directory path is inserted when we descend
 /// into it and removed when we return. A symlink pointing back
 /// at an ancestor of the current branch finds the ancestor's
-/// canonical path in `visited` and bails. Mirrors upstream's
-/// [`ctx.visited`](https://github.com/pnpm/pnpm/blob/7e3145f9fc/store/cafs/src/addFilesFromDir.ts#L121-L173)
-/// semantics: same directory can be visited twice if reached
-/// through two distinct paths (e.g. a shared subgraph), but
-/// cycles still terminate because the path-to-root is never
-/// re-entered.
+/// canonical path in `visited` and bails. The same directory can
+/// still be visited twice if reached through two distinct paths
+/// (e.g. a shared subgraph), because only the path-to-root is
+/// guarded.
 pub fn add_files_from_dir(
     store_dir: &StoreDir,
     pkg_root: &Path,
@@ -142,10 +133,6 @@ fn walk(
         let mut symlink_target_meta: Option<fs::Metadata> = None;
 
         if file_type.is_symlink() {
-            // Upstream's `getSymlinkStatIfContained`: realpath the
-            // symlink and validate it resolves inside the package
-            // root. Broken or out-of-root symlinks are skipped
-            // silently.
             let Ok(real) = dunce::canonicalize(&absolute) else { continue };
             if !real.starts_with(&ctx.canonical_root) {
                 continue;
@@ -166,10 +153,6 @@ fn walk(
             if ctx.visited.contains(&real_dir) {
                 continue;
             }
-            // Mirror upstream's top-level-only `node_modules` skip
-            // (`relativeDir !== '' || file.name !== 'node_modules'`).
-            // Pacquet's `includeNodeModules` is implicitly `false`
-            // because no caller has needed it yet.
             if relative_dir.is_empty() && name == "node_modules" {
                 continue;
             }

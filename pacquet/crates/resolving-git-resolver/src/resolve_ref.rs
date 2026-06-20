@@ -91,18 +91,6 @@ pub enum GitResolveRefError {
 ///
 /// Mirrors upstream's
 /// [`resolveRef`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/index.ts#L138-L149).
-///
-/// * Full 40-char hex commit → return as-is, no network round-trip.
-/// * Partial hex commit (7-40 chars, no range) → query `ls-remote`
-///   with no ref filter, then search ref tips for a single matching
-///   prefix. Surface [`GitResolveRefError::AmbiguousRef`] when the
-///   matched commit does not start with the partial hash.
-/// * Branch / tag (no range) → query `ls-remote <ref> <ref>^{}` and
-///   look up the resolved SHA in a fixed precedence order.
-/// * Semver range (`#semver:<range>`) → query `ls-remote` with no
-///   ref filter, filter tags to those matching upstream's
-///   `^refs/tags/v?\d+\.\d+\.\d+(?:[-+].+)?(?:\^\{\})?$` shape, run
-///   `maxSatisfying`, look up the chosen tag.
 pub async fn resolve_ref<Runner: GitCommandRunner + ?Sized>(
     runner: &Runner,
     repo: &str,

@@ -11,23 +11,39 @@ reviews:
   path_instructions:
     - path: "**/*"
       instructions: |
-        Apply the "AI Review Guidance" section in AGENTS.md. Security vulnerabilities are the first review priority; performance regressions in pnpm, pacquet, and pnpr are the second priority. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
+        Apply the review framework in REVIEW_GUIDE.md (it is stack-agnostic and covers pnpm, pacquet, and pnpr). The repo's priority order — security first, performance second, then correctness and conventions — applies to every reviewer. You are one of two bots: to avoid duplicate comments, Qodo provides the primary depth on security and performance while you provide the primary depth on correctness, maintainability, and the documented conventions; always still report any security or performance issue you find. Focus your added depth on: (1) bugs and logic errors; (2) violations of the documented code style, comment rules, and engineering conventions of the stack the changed file belongs to — for the TypeScript CLI see AGENTS.md ("Code Style", "Comments", "Conventions") and CONTRIBUTING.md, and for the Rust stacks see the pacquet/** and pnpr/** instructions below; (3) missed reuse or duplication across the monorepo. Still raise any clear security or performance problem you notice. Do not repeat issues the linters already enforce (eslint for TypeScript, clippy/dylint for Rust). Surface only issues tied to changed code, and name the bug or the specific documented rule that is violated.
+    - path: "pacquet/**"
+      instructions: |
+        pacquet is the Rust port of pnpm. For code style, comments, and conventions follow pacquet/AGENTS.md and pacquet/CODE_STYLE_GUIDE.md — the TypeScript conventions in the root AGENTS.md do not apply here. REVIEW_GUIDE.md's security, performance, scope, and parity framework still applies.
+    - path: "pnpr/**"
+      instructions: |
+        pnpr is the pnpm registry server (Rust). For code style, comments, and conventions follow pnpr/AGENTS.md and pnpr/CONTRIBUTING.md — the TypeScript conventions in the root AGENTS.md do not apply here. REVIEW_GUIDE.md's framework still applies.
   # Walkthrough poem adds no review value.
   poem: false
-  # PRs are squash-merged, so the PR title becomes the commit message; enforce Conventional Commits on it
-  # (the commit-msg hook only sees per-commit messages, not the squash title).
+  # Required for CodeRabbit to submit approving reviews at all. With this off
+  # (the default — and what the dashboard toggle resolves to for this repo)
+  # CodeRabbit only comments and never approves. Declared in-repo so approvals
+  # don't depend on dashboard state.
+  request_changes_workflow: true
+  # Pre-merge checks are on by default (and in the dashboard), so they're disabled
+  # explicitly here: they add a status block without review value for this repo, and
+  # title enforcement is already covered by the commit-msg hook and the squash-title
+  # convention. "off" is quoted so YAML doesn't read it as the boolean false.
   pre_merge_checks:
+    docstrings:
+      mode: "off"
     title:
-      mode: warning
-      requirements: |
-        The title must follow the Conventional Commits specification (e.g. feat:, fix:, docs:, refactor:, perf:, test:, chore:),
-        matching the prefixes documented in AGENTS.md.
+      mode: "off"
+    description:
+      mode: "off"
+    issue_assessment:
+      mode: "off"
   # Actually attach the chosen labels to the PR, not just suggest them in the walkthrough.
   auto_apply_labels: true
   # Custom labels assigned based on which product the diff touches. More than one may apply to a single PR.
   labeling_instructions:
-    - label: "product: pnpm"
-      instructions: "Apply when changes affect the TypeScript pnpm CLI (any code outside pacquet/ and pnpr/)."
+    - label: "product: pnpm@11"
+      instructions: "Apply only when changes are in the pnpm11/ directory (the TypeScript pnpm CLI, frozen at v11)."
     - label: "product: pacquet"
       instructions: "Apply when changes affect pacquet, the Rust port of the pnpm CLI (the pacquet/ directory)."
     - label: "product: pnpr"

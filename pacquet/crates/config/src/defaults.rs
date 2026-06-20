@@ -36,7 +36,6 @@ pub fn default_public_hoist_pattern() -> Vec<String> {
     Vec::new()
 }
 
-// Get the drive letter from a path on Windows. If it's not a Windows path, return None.
 #[cfg(windows)]
 fn get_drive_letter(current_dir: &Path) -> Option<char> {
     if let Some(Component::Prefix(prefix_component)) = current_dir.components().next()
@@ -62,12 +61,6 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
     PathBuf::from(format!("{current_drive}:\\.pnpm-store"))
 }
 
-/// If the `$PNPM_HOME` env variable is set, then `$PNPM_HOME/store`.
-/// If the `$XDG_DATA_HOME` env variable is set, then `$XDG_DATA_HOME/pnpm/store`.
-/// On Windows: `~/AppData/Local/pnpm/store` (same drive) or `<drive>:\.pnpm-store` (different drive).
-/// On macOS: `~/Library/pnpm/store`.
-/// On Linux: `~/.local/share/pnpm/store`.
-///
 /// Generic over [`EnvVar`], [`GetHomeDir`], and [`GetCurrentDir`]
 /// so unit tests can drive every branch — `PNPM_HOME` set,
 /// `XDG_DATA_HOME` set, neither set — without mutating the process
@@ -151,14 +144,6 @@ where
 ///
 /// Port of pnpm's
 /// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23).
-/// Resolution order:
-///
-/// 1. `$XDG_CACHE_HOME/pnpm` — set on Linux desktops following the
-///    XDG base-dir spec.
-/// 2. macOS: `~/Library/Caches/pnpm`.
-/// 3. Other non-Windows: `~/.cache/pnpm`.
-/// 4. Windows: `%LOCALAPPDATA%/pnpm-cache`, falling back to
-///    `~/.pnpm-cache` when `LOCALAPPDATA` is unset.
 ///
 /// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
 /// as [`default_store_dir`]: unit tests drive every branch without
@@ -202,9 +187,6 @@ pub fn default_virtual_store_dir() -> PathBuf {
 /// downstream. Pacquet doesn't have a `--global` CLI flag at all
 /// (only `install --frozen-lockfile`), so the only applicable
 /// upstream default is the `false` one.
-///
-/// pnpm/pacquet#444 originally cited the same `L392-L394` range but
-/// read it as an unconditional default — corrected here.
 pub fn default_enable_global_virtual_store() -> bool {
     false
 }
@@ -323,11 +305,7 @@ pub fn available_parallelism() -> u32 {
 
 /// Resolve `childConcurrency` from a possibly-negative yaml value
 /// to a concrete `u32`. Mirrors upstream's
-/// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34):
-///
-/// - `None` → default (`min(4, parallelism)`).
-/// - Positive `n` → `n`.
-/// - Zero or negative `n` → `max(1, parallelism - |n|)`.
+/// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34).
 ///
 /// The negative-offset semantics let users say "use all cores minus
 /// N" without hardcoding the core count.
@@ -363,17 +341,6 @@ pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, paralleli
 ///   process.getuid?.() !== 0,
 /// ```
 ///
-/// Truth table:
-/// - Windows or Cygwin → `true`. POSIX privilege drop doesn't
-///   apply; upstream's `process.platform === 'win32' ||
-///   process.platform === 'cygwin'` branch fires unconditionally.
-/// - POSIX (excluding Cygwin), not running as root → `true`. Nothing
-///   to drop from.
-/// - POSIX, running as root → `false`. Lifecycle scripts will run
-///   under TMPDIR isolation to `node_modules/.tmp`.
-/// - Anything else (e.g. `wasm32-*`) → `true`. No POSIX privilege
-///   model to drop into; behave like upstream's Windows branch.
-///
 /// Pacquet's executor doesn't currently consume `unsafe_perm` to
 /// actually drop uid/gid (upstream's own [`@pnpm/npm-lifecycle`
 /// implementation](https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/index.js#L236-L239)
@@ -396,15 +363,11 @@ pub fn default_unsafe_perm() -> bool {
     platform_unsafe_perm_default()
 }
 
-/// Windows / Cygwin branch — always `true` (no POSIX privilege
-/// drop applies).
 #[cfg(any(windows, target_os = "cygwin"))]
 fn platform_unsafe_perm_default() -> bool {
     true
 }
 
-/// POSIX (excluding Cygwin) — drop privileges only when running
-/// as root.
 #[cfg(all(unix, not(target_os = "cygwin")))]
 fn platform_unsafe_perm_default() -> bool {
     is_unsafe_perm_posix(posix_getuid())

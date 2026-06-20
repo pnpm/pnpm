@@ -91,13 +91,11 @@ fn private_hoist_default_pattern_hoists_transitives() {
 
     pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
 
-    // Direct dep is at the root.
     assert!(
         is_symlink_or_junction(&workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent"))
             .unwrap(),
         "direct dep symlink missing",
     );
-    // Transitive is privately hoisted.
     let private_hoist =
         workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/hello-world-js-bin");
     assert!(
@@ -132,7 +130,6 @@ fn public_hoist_star_hoists_to_root_node_modules() {
 
     pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
 
-    // Transitive should now be at the root, not under `.pnpm/`.
     let public_hoist = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     assert!(
         is_symlink_or_junction(&public_hoist).unwrap(),
@@ -167,7 +164,6 @@ fn both_patterns_empty_produces_no_hoist_symlinks() {
 
     pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
 
-    // Only the direct dep at the root.
     assert!(
         is_symlink_or_junction(&workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent"))
             .unwrap(),
@@ -307,7 +303,6 @@ fn private_hoist_pattern_filters_aliases() {
 
     pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
 
-    // `@pnpm.e2e/hello-world-js-bin` matches; should be private-hoisted.
     let private_hoist =
         workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/hello-world-js-bin");
     assert!(
@@ -394,18 +389,15 @@ fn public_hoist_bin_is_linked_via_root_bin_dir() {
 
     pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
 
-    // The hoisted alias has been symlinked into `<root>/node_modules/`.
     let alias_link = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     assert!(
         is_symlink_or_junction(&alias_link).unwrap(),
         "public hoist should link the alias under `<root>/node_modules/`",
     );
-    // And its bin lands in `<root>/node_modules/.bin/`. Pacquet's
-    // pipeline runs `SymlinkDirectDependencies` *before* the hoist
-    // pass, so the install path makes a second
+    // Pacquet's pipeline runs `SymlinkDirectDependencies` *before* the
+    // hoist pass, so the install path makes a second
     // `link_direct_dep_bins` call against the public-hoisted aliases
-    // after the symlinks are in place. Verify that path actually
-    // produces the expected shim.
+    // after the symlinks are in place.
     let bin_path = workspace.join("node_modules/.bin/hello-world-js-bin");
     assert!(bin_path.exists(), "public hoist should link bin at {bin_path:?}");
 
@@ -444,7 +436,6 @@ fn workspace_hoist_walks_every_importer() {
     // existing `storeDir`/`cacheDir` from `add_mocked_registry`).
     write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\n");
 
-    // Workspace package — has the transitive-bearing dep.
     let pkg_dir = workspace.join("packages/foo");
     fs::create_dir_all(&pkg_dir).expect("mkdir packages/foo");
     fs::write(
@@ -462,19 +453,12 @@ fn workspace_hoist_walks_every_importer() {
     generate_lockfile(pnpm);
     pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
 
-    // The workspace package's direct dep symlink lives under the
-    // workspace project's own `node_modules/`.
     assert!(
         is_symlink_or_junction(&pkg_dir.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent"))
             .unwrap(),
         "workspace package should have its direct dep linked under its own node_modules",
     );
 
-    // The transitive — reachable only via the workspace package —
-    // must still land in the shared `<vs>/node_modules` private
-    // hoist. This is what `workspace_hoist_walks_every_importer`
-    // catches: a regression that filters down to just the root
-    // importer would silently drop this entry.
     let private_hoist =
         workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/hello-world-js-bin");
     assert!(
@@ -516,7 +500,6 @@ fn fresh_install_hoisted_node_linker_lands_real_directories() {
         path.is_dir() && !is_symlink_or_junction(&path).unwrap()
     };
 
-    // Direct dep is a real directory carrying its own manifest.
     assert!(
         is_real_dir("node_modules/@pnpm.e2e/hello-world-js-bin-parent"),
         "direct dep should be a real directory under node_modules/, not a symlink",
@@ -525,7 +508,6 @@ fn fresh_install_hoisted_node_linker_lands_real_directories() {
         workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent/package.json").is_file(),
         "real directory should contain the package's package.json",
     );
-    // Transitive dep is hoisted flat to the top level as a real dir.
     assert!(
         is_real_dir("node_modules/@pnpm.e2e/hello-world-js-bin"),
         "transitive dep should be hoisted to a real directory at the top level",
@@ -542,12 +524,10 @@ fn fresh_install_hoisted_node_linker_lands_real_directories() {
         !workspace.join("node_modules/.pnpm/node_modules").exists(),
         "hoisted linker must not create a private-hoist `.pnpm/node_modules` tree",
     );
-    // The transitive's bin is shimmed into the top-level `.bin`.
     assert!(
         workspace.join("node_modules/.bin/hello-world-js-bin").exists(),
         "hoisted linker should link the transitive's bin into node_modules/.bin",
     );
-    // A fresh install writes a `pnpm-lock.yaml` for the next run.
     assert!(
         workspace.join("pnpm-lock.yaml").is_file(),
         "fresh install should write a wanted lockfile",
@@ -661,17 +641,6 @@ mod known_failures {
         ))
     }
 
-    fn external_symlink_introspection() -> KnownResult<()> {
-        Err(KnownFailure::new(
-            "Pacquet's `symlink_package` swallows EEXIST silently — the \
-             conservative path. Upstream additionally introspects the \
-             existing entry via `resolveLinkTarget` + `isSubdir` to \
-             distinguish a real directory (preserve), an external \
-             symlink (preserve), and a virtual-store-resident symlink \
-             (overwrite). That introspection isn't ported yet.",
-        ))
-    }
-
     /// Upstream: [`hoist.ts:24` "should hoist dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L24).
     /// Repeats the install both as non-headless and as
     /// `frozenLockfile: true` to assert `hoistedDependencies` is
@@ -681,18 +650,6 @@ mod known_failures {
     #[test]
     fn should_hoist_dependencies_repeat_install_preserves_map() {
         allow_known_failure!(partial_install_persists_hoisted_map());
-    }
-
-    /// Upstream: [`hoist.ts:71` "public hoist should not override directories that are already in the root of node_modules"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L71).
-    /// Tests that pre-existing real directories at the public hoist
-    /// target are preserved. Pacquet's `symlink_package` returns Ok
-    /// on `EEXIST` — the conservative path — but the upstream test
-    /// also covers the "external symlink" case which requires the
-    /// `resolveLinkTarget` + `isSubdir` introspection pacquet doesn't
-    /// yet do.
-    #[test]
-    fn public_hoist_preserves_existing_root_directories() {
-        allow_known_failure!(external_symlink_introspection());
     }
 
     /// Upstream: [`hoist.ts:121` "should remove hoisted dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L121).

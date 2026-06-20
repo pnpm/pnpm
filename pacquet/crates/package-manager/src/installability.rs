@@ -368,14 +368,6 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     let mut check_cache: HashMap<(PackageKey, bool), Option<InstallabilityError>> = HashMap::new();
 
     for (snapshot_key, snapshot) in snapshots {
-        // Seeded entries short-circuit the per-snapshot re-check.
-        // Mirrors upstream's `if (opts.skipped.has(depPath)) return`
-        // at
-        // <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L194>:
-        // a snapshot recorded as skipped on the previous install is
-        // not re-evaluated and emits no
-        // `pnpm:skipped-optional-dependency` event, so the user is
-        // not re-notified of a known skip on every reinstall.
         if skipped.contains(snapshot_key) {
             continue;
         }
@@ -393,10 +385,6 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
             cached.clone()
         } else {
             let mut manifest = manifest_from_metadata(&metadata_key, metadata);
-            // Mirrors upstream's `effectivePlatform(pkg, options.optional)` at
-            // <https://github.com/pnpm/pnpm/blob/34875b2d7c/config/package-is-installable/src/index.ts#L41>:
-            // an optional snapshot with incomplete platform fields gets
-            // the missing ones filled from the package name.
             if snapshot.optional
                 && let Some(platform) = inferred_platform(
                     &manifest.name,
@@ -422,8 +410,6 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
 
         if snapshot.optional {
             skipped.insert_installability(snapshot_key.clone());
-            // Dedup events per metadata key, matching upstream's
-            // emit-per-pkgId at `index.ts:49-58`.
             if seen_emit.insert(metadata_key.clone()) {
                 emit_skipped::<Reporter>(
                     &metadata_key.to_string(),
@@ -491,15 +477,7 @@ pub fn any_installability_constraint(
 }
 
 /// True if a single metadata row carries a constraint pacquet would
-/// actually evaluate. Distinguishes "field present" from "field present
-/// AND meaningful":
-///
-/// - `engines`: only `node` / `pnpm` keys matter. A package that
-///   declares `engines.npm = ">=8"` (and nothing else) has no
-///   constraint pacquet evaluates — pacquet isn't npm.
-/// - `cpu` / `os` / `libc`: a `["any"]` value short-circuits to
-///   "accept" inside `check_platform`'s `check_list`, and an empty
-///   list cannot exclude the host either. Treat both as no-constraint.
+/// actually evaluate.
 fn metadata_has_meaningful_constraint(metadata: &PackageMetadata) -> bool {
     let engines_meaningful = metadata
         .engines

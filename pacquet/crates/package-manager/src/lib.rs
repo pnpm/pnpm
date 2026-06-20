@@ -30,6 +30,7 @@ mod link_hoisted_modules;
 mod optimistic_repeat_install;
 mod overrides;
 mod package_extender;
+mod package_map;
 mod prefetching_resolver;
 mod prune_virtual_store;
 mod remove;
@@ -75,6 +76,9 @@ pub use link_hoisted_modules::*;
 pub use optimistic_repeat_install::*;
 pub use overrides::*;
 pub use package_extender::*;
+pub use package_map::{
+    WritePackageMapError, make_node_package_map_option, package_map_path_for_execution,
+};
 pub use prefetching_resolver::*;
 pub use remove::*;
 pub use resolution_observer::*;

@@ -168,9 +168,6 @@ fn does_not_reuse_a_package_absent_from_the_packages_map() {
 
 #[test]
 fn does_not_reuse_a_non_semver_version_slot() {
-    // A package keyed by a tarball URL has a non-semver version part; the
-    // peer-stripped metadata key still exists but `synthesize` bails
-    // before it because the version slot doesn't parse as a semver.
     let key: PkgNameVerPeer =
         "pkg@https://example.test/pkg.tgz".parse().expect("parse url-keyed entry");
     let mut lockfile = empty_lockfile();

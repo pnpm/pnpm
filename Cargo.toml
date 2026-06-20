@@ -98,7 +98,7 @@ bytes = { version = "1.11.0" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 dashmap = { version = "6.2.1" }
 derive_more = { version = "2.1.1", features = ["full"] }
-dialoguer = { version = "0.11.0", default-features = false }
+dialoguer = { version = "0.12.0", default-features = false }
 diffy = { version = "0.5.0" }
 dunce = { version = "1.0.5" }
 home = { version = "0.5.12" }
@@ -114,7 +114,7 @@ gethostname = { version = "1" }
 getrandom = { version = "0.4.2" }
 miette = { version = "7.6.0", features = ["fancy"] }
 num_cpus = { version = "1.17.0" }
-object_store = { version = "0.12", features = ["aws"] }
+object_store = { version = "0.13", features = ["aws"] }
 os_display = { version = "0.1.4" }
 owo-colors = { version = "4", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.29" }

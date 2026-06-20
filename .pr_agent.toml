@@ -1,16 +1,23 @@
 [github_app]
 # Commands run automatically when a PR is opened.
+# /improve runs the code-suggestions tool, which also evaluates auto-approval
+# (see the auto_approve_* settings under [config]).
 pr_commands = [
     "/agentic_describe",
     "/agentic_review",
+    "/improve",
 ]
 
 # Re-run commands when new commits are pushed to the PR.
 handle_push_trigger = true
 
 # Commands run automatically on push (requires handle_push_trigger = true).
+# /improve is included so auto-approval is re-evaluated on every push, not only
+# at open — without it, a PR iterated after open is never re-approved even once
+# it is clean.
 push_commands = [
     "/agentic_review",
+    "/improve",
 ]
 
 [config]
@@ -26,38 +33,27 @@ ignore_pr_authors = [
 # are already covered by ignore_pr_authors above.
 # ignore_pr_title = ["^chore", "^ci"]
 
-# Let the describe tool pick from the custom_labels set below.
-enable_custom_labels = true
+# Product labels are applied by CodeRabbit (see .coderabbit.yaml), so Qodo's
+# label tooling is intentionally left off to avoid two tools fighting over labels.
 
-[pr_description]
-# Actually attach the chosen labels to the PR (not just list them in the body).
-publish_labels = true
-
-# Custom labels assigned by /agentic_describe based on which product the diff touches.
-# More than one may apply to a single PR.
-[custom_labels."product: pnpm"]
-description = "Changes affect the TypeScript pnpm CLI (any code outside pacquet/ and pnpr/)."
-
-[custom_labels."product: pacquet"]
-description = "Changes affect pacquet, the Rust port of the pnpm CLI (the pacquet/ directory)."
-
-[custom_labels."product: pnpr"]
-description = "Changes affect pnpr, the pnpm registry server (the pnpr/ directory and pacquet/crates/pnpr-* crates)."
+# Auto-approve a PR when Qodo finds nothing to fix. enable_auto_approval is the
+# required master switch (off by default). Both conditions below are evaluated by
+# the /improve tool (see pr_commands and push_commands), so approval is re-checked
+# on open and on every push; these flags only take effect from the config file on
+# the default branch:
+#   - auto_approve_for_no_suggestions: approve when /improve yields zero suggestions.
+#   - auto_approve_for_low_review_effort: approve when the estimated review effort
+#     is at or below this score (1=trivial .. 5=very involved); 2 covers small PRs.
+enable_auto_approval = true
+auto_approve_for_no_suggestions = true
+auto_approve_for_low_review_effort = 2
 
 [review_agent]
 comments_location_policy = "both"
 inline_comments_severity_threshold = 2
 issues_user_guidelines = """
-Apply the "AI Review Guidance" section in AGENTS.md. Security vulnerabilities are the first review priority; performance regressions in pnpm, pacquet, and pnpr are the second priority. Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
+Apply the review framework in REVIEW_GUIDE.md. The repo's priority order — security first, performance second — applies to every reviewer. You are one of two bots: to avoid duplicate comments, you provide the primary depth on security and performance while CodeRabbit provides the primary depth on correctness and convention adherence; always still report any clear correctness bug or documented-convention violation you find. Lead on: (1) security vulnerabilities per REVIEW_GUIDE.md's "Security review rules"; (2) performance regressions in pnpm, pacquet, and pnpr per REVIEW_GUIDE.md's "Performance review rules". Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
 """
 compliance_user_guidelines = """
-Enforce the security-sensitive and performance-sensitive contracts described in AGENTS.md's "AI Review Guidance" section.
+Enforce the security and performance contracts in REVIEW_GUIDE.md's "Security review rules" and "Performance review rules" sections.
 """
-
-[pr_reviewer]
-# Auto-approve a PR when the review finds no issues to fix.
-# enable_auto_approval is the required master switch (off by default);
-# auto_approve_for_no_suggestions approves when the review yields zero suggestions.
-# These only take effect from the config file on the default branch.
-enable_auto_approval = true
-auto_approve_for_no_suggestions = true

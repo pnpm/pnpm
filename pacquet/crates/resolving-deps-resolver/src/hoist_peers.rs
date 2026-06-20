@@ -50,24 +50,6 @@ pub struct HoistPeersOptions<'a> {
 /// `peer_name → specifier` that the caller will add to the importer's
 /// wanted deps. Mirrors upstream's
 /// [`hoistPeers`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/hoistPeers.ts#L7-L65).
-///
-/// The decision cascade per peer:
-///
-/// 1. Workspace root dep with a matching `alias` → its
-///    `normalized_bare_specifier`.
-/// 2. Workspace root dep with a matching `pkg_name` (tie-break by
-///    lex-sort on alias) → its `normalized_bare_specifier`.
-/// 3. Entry in `all_preferred_versions`:
-///    - exact-version range + a satisfying preferred version → join
-///      `[satisfying, ...non-versions]` with `||`.
-///    - exact-version range + no satisfying preferred version +
-///      `auto_install_peers` → the range itself (resolver fetches
-///      from the registry).
-///    - non-exact range → highest preferred version overall (for
-///      dedup), joined with non-version selectors via `||`.
-/// 4. No preferred-version entry + `auto_install_peers` → the range
-///    itself.
-/// 5. Otherwise → omit (caller leaves the missing peer alone).
 #[must_use]
 pub fn hoist_peers(
     opts: &HoistPeersOptions<'_>,

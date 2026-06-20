@@ -232,11 +232,6 @@ fn get_subgraph_to_build(
         // recursion so a skipped optional doesn't drag its
         // transitive deps into the walk via an edge pnpm wouldn't
         // see.
-        //
-        // A descendant of a skipped node that's ALSO reachable from
-        // a non-skipped root still gets visited normally on that
-        // other branch, because we don't poison `walked` for the
-        // child here — we just skip this edge.
         if ctx.skipped.contains(dep_path) {
             walked.insert(dep_path.clone());
             continue;

@@ -1,9 +1,5 @@
 //! `resolutionMode: time-based` cutoff tests for
-//! [`fn@super::resolve_workspace`]: the pre-pass resolves each
-//! importer's direct deps, takes the newest publication date plus a
-//! one-hour delta (clamped by `minimumReleaseAge`), and threads that
-//! cutoff onto transitive-dep resolution while direct deps keep the
-//! `minimumReleaseAge` cutoff.
+//! [`fn@super::resolve_workspace`].
 
 use std::{collections::HashMap, str::FromStr, sync::Mutex};
 
@@ -319,10 +315,6 @@ async fn workspace_root_direct_deps_resolve_child_importer_peers() {
     );
 }
 
-/// time-based: the subdep cutoff is the newest direct-dep publication
-/// date plus one hour. Direct deps keep picking lowest under the
-/// (here-absent) `minimumReleaseAge` cutoff; the subdep is constrained
-/// to the computed cutoff.
 #[tokio::test]
 async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
     let mut table = HashMap::new();
@@ -340,7 +332,6 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
         fake_result(
             "b",
             "1.0.0",
-            // Newest direct-dep date — this drives the cutoff.
             Some("2024-05-20T08:00:00.000Z"),
             serde_json::json!({ "name": "b", "version": "1.0.0" }),
         ),
@@ -377,9 +368,6 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
     );
 }
 
-/// time-based: the computed cutoff is clamped down to the
-/// `minimumReleaseAge` cutoff (`maximum_published_by`) when the
-/// newest-direct + 1h would be later.
 #[tokio::test]
 async fn time_based_cutoff_is_clamped_by_minimum_release_age() {
     let maximum = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
@@ -389,7 +377,6 @@ async fn time_based_cutoff_is_clamped_by_minimum_release_age() {
         fake_result(
             "a",
             "1.0.0",
-            // Later than the minimumReleaseAge cutoff → clamp wins.
             Some("2024-05-20T08:00:00.000Z"),
             serde_json::json!({ "name": "a", "version": "1.0.0", "dependencies": { "sub": "^2.0.0" } }),
         ),
@@ -424,9 +411,6 @@ async fn time_based_cutoff_is_clamped_by_minimum_release_age() {
     );
 }
 
-/// lowest-direct: direct deps pick lowest, transitive deps pick
-/// highest, and no publish-date cutoff is computed (subdeps inherit the
-/// `minimumReleaseAge` cutoff, here absent) — no pre-pass runs.
 #[tokio::test]
 async fn lowest_direct_applies_no_publish_cutoff() {
     let mut table = HashMap::new();

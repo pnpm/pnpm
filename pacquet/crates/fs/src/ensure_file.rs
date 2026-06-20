@@ -42,7 +42,7 @@ const ENFILE: i32 = 23;
 /// the helper is a thin pass-through there — the trailing `op()`
 /// after the `cfg(unix)` block is the one and only attempt on that
 /// platform. Pacquet's Windows build path otherwise stays unchanged.
-fn retry_on_fd_pressure<Func, Value>(mut op: Func) -> io::Result<Value>
+pub(crate) fn retry_on_fd_pressure<Func, Value>(mut op: Func) -> io::Result<Value>
 where
     Func: FnMut() -> io::Result<Value>,
 {
@@ -210,7 +210,7 @@ pub fn ensure_file(
 ///
 /// **Coordination contract.** Callers handing in the same `&Path`
 /// always receive the same `Mutex<()>`. The hasher is initialised
-/// once per process (`OnceLock<RandomState>`) so the path-to-stripe
+/// once per process (`LazyLock<RandomState>`) so the path-to-stripe
 /// mapping stays stable for the lifetime of the process; writers
 /// (`ensure_file`) and verifiers (`check_pkg_files_integrity`) of the
 /// same path are guaranteed to meet on the same lock and serialise.
@@ -225,9 +225,8 @@ pub fn ensure_file(
 /// `write_all` is still running.
 pub fn cas_write_lock(file_path: &Path) -> &'static Mutex<()> {
     use std::collections::hash_map::RandomState;
-    static BUILDER: std::sync::OnceLock<RandomState> = std::sync::OnceLock::new();
-    let builder = BUILDER.get_or_init(RandomState::new);
-    let mut hasher = builder.build_hasher();
+    static BUILDER: std::sync::LazyLock<RandomState> = std::sync::LazyLock::new(RandomState::new);
+    let mut hasher = BUILDER.build_hasher();
     std::hash::Hash::hash(file_path, &mut hasher);
     let stripe = (hasher.finish() as usize) & (NUM_CAS_LOCK_STRIPES - 1);
     &CAS_LOCK_STRIPES[stripe]
@@ -309,11 +308,11 @@ fn verify_or_rewrite(
 /// Stream `file_path` and byte-compare against `content` without
 /// buffering the whole file in memory.
 ///
-/// `fs::read` (previous shape) allocated a `Vec<u8>` the size of the
-/// file; on a CAS entry for a large binary (10–30 MB isn't unusual in
-/// `@napi-rs/*`, `esbuild`, etc.) and many concurrent rayon workers
-/// hitting this branch, the extra allocation stacked up. Streaming in
-/// 8 KB chunks holds a fixed stack buffer regardless of file size.
+/// Reading the whole file into a `Vec<u8>` would allocate the size of
+/// the file; on a CAS entry for a large binary (10–30 MB isn't unusual
+/// in `@napi-rs/*`, `esbuild`, etc.) and many concurrent rayon workers
+/// hitting this branch, that allocation stacks up. Streaming in 8 KB
+/// chunks holds a fixed stack buffer regardless of file size.
 ///
 /// Any chunk mismatch returns `Ok(false)` immediately — we don't
 /// finish reading the file once we know it differs. An

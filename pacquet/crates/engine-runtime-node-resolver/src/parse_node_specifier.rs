@@ -38,21 +38,6 @@ pub enum ParseNodeSpecifierError {
 
 /// Split a `runtime:` bare specifier's body into its release-channel
 /// and version-selector halves.
-///
-/// Five shapes are accepted (in priority order):
-///
-/// 1. `<channel>/<spec>` — explicit channel prefix. Unknown channels
-///    raise [`ParseNodeSpecifierError::InvalidReleaseChannel`].
-/// 2. `<major.minor.patch>-<channel>...` — exact prerelease whose
-///    `-<channel>` suffix identifies the channel (`nightly`, `rc`,
-///    `test`, `v8-canary`).
-/// 3. `<major.minor.patch>` — exact stable version on `release`.
-/// 4. A standalone channel name (e.g. `nightly`) — short-hand for
-///    "latest from that channel".
-/// 5. `lts`, `latest`, an LTS codename (`argon`, `iron`, ...), or any
-///    semver range. All map to the `release` channel and pass through
-///    as the version selector verbatim; an invalid input fails at
-///    resolution time with `NODEJS_VERSION_NOT_FOUND`.
 pub fn parse_node_specifier(specifier: &str) -> Result<NodeSpecifier, ParseNodeSpecifierError> {
     if let Some((channel, rest)) = specifier.split_once('/') {
         if !RELEASE_CHANNELS.contains(&channel) {
@@ -87,8 +72,6 @@ pub fn parse_node_specifier(specifier: &str) -> Result<NodeSpecifier, ParseNodeS
         });
     }
 
-    // `lts` / `latest`, an LTS codename, or a semver range all flow
-    // through to the picker on the release channel.
     Ok(NodeSpecifier {
         release_channel: "release".to_string(),
         version_specifier: specifier.to_string(),

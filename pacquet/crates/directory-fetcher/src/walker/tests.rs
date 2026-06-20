@@ -69,8 +69,6 @@ fn walk_all_files_skips_node_modules_at_root_and_nested() {
     let out = walk_all_files(root, false).unwrap();
     let rels: BTreeMap<_, _> = collect_rels(root, out);
 
-    // node_modules at any depth must drop out — pnpm's
-    // `fetchAllFilesFromDir` filters by basename in every recursion.
     assert_eq!(rels.keys().cloned().collect::<Vec<_>>(), vec!["index.js".to_string()]);
 }
 
@@ -86,14 +84,6 @@ fn walk_all_files_on_empty_directory_returns_empty_map() {
 fn walk_all_files_terminates_on_symlink_cycle() {
     use std::os::unix::fs::symlink;
 
-    // A `loop -> .` symlink would, without the cycle guard, sink the
-    // walker into infinite recursion until either ENAMETOOLONG fires
-    // or the Rust stack runs out. The visited-set guard keys off
-    // `fs::canonicalize`, so `root/loop` canonicalises to `root` and
-    // the second recursion bails before reading any further. The
-    // direct children of `root` (incl. `real.txt`) still land in the
-    // output; nothing under `loop/` does, because the recursive call
-    // returns immediately on the cycle.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "real.txt");
@@ -148,10 +138,6 @@ fn walk_all_files_resolves_symlinks_when_requested() {
 
     let dir = tempdir().unwrap();
     let root = dir.path();
-    // Build a target file outside the package dir, then a symlink
-    // *inside* the package dir pointing at it. Under `resolve_symlinks`
-    // upstream's `realFileStat` returns the realpath as the source
-    // entry — confirm we do the same.
     let outside = tempdir().unwrap();
     let target = outside.path().join("target.txt");
     fs::write(&target, b"hello").unwrap();
@@ -160,7 +146,6 @@ fn walk_all_files_resolves_symlinks_when_requested() {
     let out = walk_all_files(root, true).unwrap();
     assert_eq!(out.len(), 1);
     let src = out.get("link.txt").expect("link.txt entry");
-    // The source path must be the realpath, not the symlink path.
     assert_eq!(
         fs::canonicalize(src).unwrap(),
         fs::canonicalize(&target).unwrap(),
@@ -182,10 +167,6 @@ fn walk_all_files_keeps_symlink_path_without_resolve_symlinks() {
 
     let out = walk_all_files(root, false).unwrap();
     let src = out.get("link.txt").expect("link.txt entry");
-    // Without resolve_symlinks the source path stays as the symlink
-    // location inside the package dir — upstream's `fileStat` uses
-    // `fs.stat`, which follows the link for type/size but returns the
-    // path the caller handed in.
     assert_eq!(src, &root.join("link.txt"));
 }
 
@@ -206,8 +187,6 @@ fn walk_package_files_applies_npm_packlist_filter() {
     let mut rels: Vec<_> = out.keys().cloned().collect();
     rels.sort();
 
-    // `package.json` is always-included; the `files` field is
-    // honoured; `src/` falls out.
     assert_eq!(
         rels,
         vec!["dist/index.js".to_string(), "dist/sub/inner.js".into(), "package.json".into(),],
@@ -216,11 +195,6 @@ fn walk_package_files_applies_npm_packlist_filter() {
 
 #[test]
 fn walk_package_files_works_without_a_manifest() {
-    // pnpm's `fetchPackageFilesFromDir` reads the manifest with
-    // `safeReadProjectManifestOnly` and tolerates `null` for the
-    // Bit-workspace case where dirs have no package.json. The
-    // packlist then runs over an empty manifest (no `files`, no
-    // `bundleDependencies`) and returns "everything except cruft".
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "index.js");

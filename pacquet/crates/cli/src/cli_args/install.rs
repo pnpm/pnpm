@@ -73,7 +73,6 @@ impl InstallDependencyOptions {
 
 #[derive(Debug, Args)]
 pub struct InstallArgs {
-    /// --prod, --dev, and --no-optional
     #[clap(flatten)]
     pub dependency_options: InstallDependencyOptions,
 

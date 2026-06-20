@@ -62,12 +62,6 @@ fn modules_yaml_serialized_store_dir_carries_store_version() {
     assert_eq!(recorded, pnpm_would_emit);
 }
 
-/// Deserialising an unsuffixed path (e.g. one persisted by an older
-/// pacquet that hadn't normalised yet) must route through
-/// [`From<PathBuf>`] and gain the [`STORE_VERSION`] suffix. The
-/// previous `#[serde(transparent)]` derive wrote straight into
-/// `root` and bypassed the auto-append, leaving the suffix invariant
-/// silently violated on the live `StoreDir`.
 #[test]
 fn deserialize_applies_store_version_to_unsuffixed_path() {
     let json = r#""/home/user/.local/share/pnpm/store""#;
@@ -82,9 +76,6 @@ fn deserialize_preserves_already_suffixed_path() {
     assert_eq!(store.root(), Path::new("/home/user/.local/share/pnpm/store/v11"));
 }
 
-/// `init` on a fresh store should materialize `v11/files/00..ff`
-/// and populate the shard cache so later `write_cas_file` calls
-/// can skip their lazy mkdir.
 #[test]
 fn init_creates_all_256_shards_and_populates_cache() {
     use tempfile::tempdir;
@@ -105,23 +96,6 @@ fn init_creates_all_256_shards_and_populates_cache() {
     }
 }
 
-/// `init` on a store where `files/` already exists must be a
-/// near-noop: don't re-create anything, don't seed the cache. A
-/// store created by an older pacquet might be missing shard dirs
-/// we never materialized, and pre-seeding the cache in that case
-/// would let `write_cas_file` skip `ensure_parent_dir` and blow up
-/// at `open`. Leaving the cache empty keeps the lazy fallback in
-/// `write_cas_file` responsible for materializing each shard the
-/// first time it's written, matching pnpm's `writeFile.ts` `dirs`
-/// Set.
-/// If `v11/files/` is present but isn't a directory (store
-/// corruption — a regular file landed there somehow), `init` must
-/// surface a clear `io::Error` rather than silently becoming a noop
-/// and letting each later `write_cas_file` fail with a less
-/// actionable per-file `open` error. `create_dir_all` on a path
-/// where a component is already a regular file returns an error
-/// from the OS; we just need the gate to be tight enough to let it
-/// run.
 #[test]
 fn init_rejects_non_directory_files_path() {
     use tempfile::tempdir;

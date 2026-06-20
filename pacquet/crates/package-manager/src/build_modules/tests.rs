@@ -127,10 +127,7 @@ fn unlisted_returns_none() {
 /// Upstream checks `expandedDisallowed` before `expandedAllowed`
 /// in [`createAllowBuildFunction`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts#L36-L43),
 /// so a bare-name disallow wins over an exact-version allow.
-/// Pacquet matches that order — pre-[#397]-item-5, the matcher
-/// checked exact-version first, which diverged from upstream.
-///
-/// [#397]: https://github.com/pnpm/pacquet/issues/397
+/// Pacquet matches that order.
 #[test]
 fn disallow_bare_name_wins_over_allow_exact_version() {
     let policy =
@@ -226,12 +223,6 @@ fn from_config_propagates_name_pattern_in_version_union() {
         "got: {err:?}",
     );
 }
-
-// The next two tests exercise `from_config` end-to-end: an empty Config
-// folds to the default policy (deny everything), and a Config populated by
-// `pnpm-workspace.yaml` round-trips through the same logic the in-memory
-// tests above cover. The `package.json` reader was removed in pacquet
-// pnpm/pacquet#397 item 5 — settings come from `pnpm-workspace.yaml` only.
 
 #[test]
 fn empty_config_denies_all() {
@@ -347,6 +338,7 @@ fn build_modules_collects_ignored_builds() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -411,6 +403,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -463,6 +456,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -535,6 +529,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 2,
         skipped: &SkippedSnapshots::default(),
@@ -600,6 +595,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -688,6 +684,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -849,6 +846,7 @@ fn using_side_effects_cache_skips_rebuild() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -973,6 +971,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -986,8 +985,6 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
     .run::<SilentReporter>()
     .expect("a corrupt cache overlay must degrade to a rebuild, not abort the install");
 
-    // The postinstall re-ran over the pristine files, regenerating its
-    // output — proving the gate fell through to the build path.
     assert!(
         pkg_dir.join("generated.txt").exists(),
         "rebuild must run when the cached overlay can't be materialized",
@@ -1090,6 +1087,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1156,6 +1154,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1221,6 +1220,7 @@ fn fail_when_failing_postinstall_is_required() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1308,6 +1308,7 @@ fn frozen_backstop_run(
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1631,6 +1632,7 @@ async fn write_path_populates_side_effects_row() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1750,6 +1752,7 @@ async fn write_path_disabled_skips_upload() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1877,6 +1880,7 @@ async fn upload_error_does_not_interrupt_install() {
         patches: None,
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -1893,9 +1897,6 @@ async fn upload_error_does_not_interrupt_install() {
     drop(writer);
     writer_task.await.expect("await writer").expect("writer succeeds");
 
-    // The postinstall-generated artifact is on disk — proves the
-    // build ran end-to-end and the swallowed upload error didn't
-    // short-circuit the loop.
     assert!(
         pkg_dir.join("generated.txt").exists(),
         "postinstall-created file must be present after a swallowed upload failure",
@@ -2115,6 +2116,7 @@ new file mode 100644
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2229,6 +2231,7 @@ new file mode 100644
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
@@ -2314,6 +2317,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         patches: Some(&patches),
 
         scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
         unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),

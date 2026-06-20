@@ -283,6 +283,10 @@ impl ThrottledClient {
         let https = proxy.https_proxy.as_deref().map(parse_proxy_url).transpose()?;
         let http = proxy.http_proxy.as_deref().map(parse_proxy_url).transpose()?;
         let no_proxy = Arc::new(NoProxyMatcher::from(proxy.no_proxy.as_ref()));
+        // Read once here, not inside `build_client`: `for_installs`
+        // builds one client per per-registry override, so loading the
+        // bundle per call would re-read and re-parse it N times.
+        let extra_ca_certs = load_node_extra_ca_certs();
 
         let build_client = |effective_tls: &TlsConfig| -> Result<Client, ForInstallsError> {
             let mut builder = default_client_builder(settings);
@@ -291,6 +295,11 @@ impl ThrottledClient {
             }
             if let Some(url) = http.clone() {
                 builder = builder.proxy(build_scheme_proxy(url, "http", Arc::clone(&no_proxy)));
+            }
+            // Lowest-priority additive roots; `apply_tls` layers the
+            // `.npmrc` ca/cafile roots on top next.
+            for cert in &extra_ca_certs {
+                builder = builder.add_root_certificate(cert.clone());
             }
             builder = apply_tls(builder, effective_tls)?;
             Ok(builder.build().expect("build reqwest client with default timeouts and proxy"))
@@ -409,6 +418,44 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .timeout(settings.fetch_timeout)
         .pool_idle_timeout(Duration::from_secs(4))
         .hickory_dns(true)
+}
+
+/// Load the PEM bundle named by `NODE_EXTRA_CA_CERTS` as extra trust
+/// roots, to be added to every client `for_installs` builds.
+///
+/// `NODE_EXTRA_CA_CERTS` is the standard Node convention for appending
+/// a CA to the default trust store. pnpm-on-Node inherits that trust
+/// implicitly because it runs inside Node; pacquet is a native binary,
+/// so to keep real-world parity for users behind a corporate MITM proxy
+/// it reads the variable explicitly. This is the one deliberate
+/// exception to the ".npmrc-only, no env vars" TLS parity policy
+/// documented in [`tls::TlsConfig`]: the variable is a process-global
+/// Node convention rather than a pnpm setting, and Node already honors
+/// it for pnpm today — so reading it *restores* parity rather than
+/// diverging from it. The certs are added in
+/// [`ThrottledClient::for_installs`] (not [`apply_tls`]) so the
+/// `.npmrc`-derived [`TlsConfig`] stays env-free.
+///
+/// Read and parsed once per [`ThrottledClient::for_installs`] call —
+/// that constructor builds one client per per-registry override, so
+/// loading here (rather than inside the per-client builder) avoids
+/// re-reading and re-parsing the bundle N times during startup.
+///
+/// The resulting certs are additive and lowest-priority: layered under
+/// the `.npmrc` `ca` / `cafile` roots that [`apply_tls`] adds afterward
+/// and under the built-in webpki roots (ordering is immaterial — the
+/// rustls root store is a union). A missing, unreadable, or malformed
+/// file yields an empty list, matching pnpm's silent treatment of a
+/// missing `cafile` rather than failing the client build.
+fn load_node_extra_ca_certs() -> Vec<Certificate> {
+    let Some(path) = std::env::var_os("NODE_EXTRA_CA_CERTS").filter(|value| !value.is_empty())
+    else {
+        return Vec::new();
+    };
+    let Ok(bytes) = std::fs::read(&path) else {
+        return Vec::new();
+    };
+    Certificate::from_pem_bundle(&bytes).unwrap_or_default()
 }
 
 /// Apply [`TlsConfig`] onto a [`reqwest::ClientBuilder`]: register each

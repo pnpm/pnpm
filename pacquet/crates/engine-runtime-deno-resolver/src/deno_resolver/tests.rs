@@ -30,7 +30,6 @@ fn resolver() -> DenoResolver {
     DenoResolver::new(Arc::new(ThrottledClient::new_for_installs()), Arc::new(StubResolver))
 }
 
-/// Non-deno alias is declined.
 #[tokio::test]
 async fn declines_non_deno_alias() {
     let wanted = WantedDependency {
@@ -41,7 +40,6 @@ async fn declines_non_deno_alias() {
     assert!(resolver().resolve(&wanted, &ResolveOptions::default()).await.unwrap().is_none());
 }
 
-/// `deno` alias without a `runtime:` prefix is declined.
 #[tokio::test]
 async fn declines_deno_without_runtime_prefix() {
     let wanted = WantedDependency {

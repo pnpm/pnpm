@@ -3,10 +3,9 @@
 ///
 /// Mirrors pnpm's `PinnedVersion` string-literal union
 /// (<https://github.com/pnpm/pnpm/blob/086c5e91e8/core/types/src/misc.ts#L71-L75>).
-/// [`PinnedVersion::None`] is part of that union and behaves like
-/// [`PinnedVersion::Major`]; the `--save-exact` / `--save-prefix` interpreter
-/// in [`PinnedVersion::from_save_options`] never produces it, matching pnpm's
-/// `getPinnedVersion`.
+/// [`PinnedVersion::None`] is part of that union; the `--save-exact` /
+/// `--save-prefix` interpreter in [`PinnedVersion::from_save_options`] never
+/// produces it, matching pnpm's `getPinnedVersion`.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum PinnedVersion {
     /// Save with a caret range (`^version`), allowing same-major updates.
@@ -25,10 +24,7 @@ impl PinnedVersion {
     /// Interpret the `--save-exact` and `--save-prefix` flags into a
     /// [`PinnedVersion`].
     ///
-    /// `--save-exact` (or an empty `--save-prefix`) pins the exact version,
-    /// `~` allows patch-level updates, and anything else (including an absent
-    /// prefix, the default) allows same-major updates. Mirrors pnpm's
-    /// `getPinnedVersion`
+    /// Mirrors pnpm's `getPinnedVersion`
     /// (<https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/commands/src/getPinnedVersion.ts>).
     #[must_use]
     pub fn from_save_options(save_exact: bool, save_prefix: Option<&str>) -> Self {

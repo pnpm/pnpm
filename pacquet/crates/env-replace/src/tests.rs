@@ -103,7 +103,6 @@ fn odd_backslash_count_escapes_placeholder() {
 
 #[test]
 fn even_backslash_count_keeps_half_and_substitutes() {
-    // Two literal backslashes => one literal `\` plus expanded value.
     struct EnvWithX;
     impl EnvVar for EnvWithX {
         fn var(name: &str) -> Option<String> {
@@ -137,9 +136,7 @@ fn handles_multiple_placeholders() {
 /// next `${...}`. Upstream's regex `(?<!\\)(\\*)\$\{...}` runs on
 /// the source, so a single literal `\` between two placeholders
 /// must escape only the second one regardless of any trailing `\`
-/// in the first's value. Without the fix, env A=`x\` + source
-/// `${A}\${B}` returned `x\` + B's value (B unescaped); upstream
-/// returns `x\${B}` (B kept literal).
+/// in the first's value.
 #[test]
 fn backslash_count_uses_source_not_output_buffer() {
     struct Env;
@@ -152,7 +149,6 @@ fn backslash_count_uses_source_not_output_buffer() {
             }
         }
     }
-    // Single literal `\` between `${A}` and `${B}`. Must escape `${B}`.
     assert_eq!(replace_clean::<Env>(r"${A}\${B}"), r"x\${B}");
 }
 
@@ -173,8 +169,6 @@ fn placeholder_inside_url() {
 
 #[test]
 fn preserves_resolved_and_default_placeholders_alongside_unresolved() {
-    // One resolvable, one unresolved bare, one with a `:-default` fallback.
-    // Only the bare unresolved one becomes ""; the other two still expand.
     struct EnvWithSet;
     impl EnvVar for EnvWithSet {
         fn var(name: &str) -> Option<String> {

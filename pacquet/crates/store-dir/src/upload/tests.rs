@@ -24,10 +24,6 @@ fn map(entries: &[(&str, CafsFileInfo)]) -> HashMap<String, CafsFileInfo> {
         .collect()
 }
 
-/// Identical maps produce an empty diff. The `added` and `deleted`
-/// fields stay `None` (not `Some(empty)`) so the msgpack payload
-/// elides them entirely — matches the `if (deleted.length > 0)` /
-/// `if (added.size > 0)` guards upstream.
 #[test]
 fn identical_maps_yield_no_diff() {
     let files = map(&[("a", info("d-a", 0o644, 1))]);
@@ -36,7 +32,6 @@ fn identical_maps_yield_no_diff() {
     assert_eq!(diff.deleted, None);
 }
 
-/// New file present only in `current` lands under `added`.
 #[test]
 fn added_only() {
     let base = HashMap::new();
@@ -47,8 +42,6 @@ fn added_only() {
     assert!(added.contains_key("new"));
 }
 
-/// File present in `base` and missing in `current` lands under
-/// `deleted` (file removed by the postinstall).
 #[test]
 fn deleted_only() {
     let base = map(&[("gone", info("d-gone", 0o644, 1))]);
@@ -59,9 +52,6 @@ fn deleted_only() {
     assert_eq!(deleted, vec!["gone".to_string()]);
 }
 
-/// Digest change at the same path appears under `added`, not `deleted`.
-/// Mirrors the `baseFiles.get(file)!.digest !== sideEffectsFiles.get(file)!.digest`
-/// branch at upstream's calculateDiff:418-421.
 #[test]
 fn digest_change_appears_in_added() {
     let base = map(&[("f.txt", info("d-old", 0o644, 1))]);
@@ -72,9 +62,6 @@ fn digest_change_appears_in_added() {
     assert_eq!(added.get("f.txt").unwrap().digest, "d-new");
 }
 
-/// Mode change at the same path (and same digest) appears under
-/// `added` — upstream catches this via the `baseFiles.get(file)!.mode
-/// !== sideEffectsFiles.get(file)!.mode` branch.
 #[test]
 fn mode_change_appears_in_added() {
     let base = map(&[("f.sh", info("d", 0o644, 1))]);
@@ -85,7 +72,6 @@ fn mode_change_appears_in_added() {
     assert_eq!(added.get("f.sh").unwrap().mode, 0o755);
 }
 
-/// Mixed: one delete, one add, one mod, one unchanged.
 #[test]
 fn mixed_changes() {
     let base = map(&[

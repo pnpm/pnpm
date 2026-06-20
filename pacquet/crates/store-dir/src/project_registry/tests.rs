@@ -45,8 +45,6 @@ fn short_hash_is_first_32_hex_chars_of_sha256() {
     assert_ne!(got, create_short_hash("pacquet "));
 }
 
-/// A fresh registry: writing the entry creates the projects dir
-/// and a symlink whose target resolves to the project dir.
 #[test]
 fn register_creates_symlink_to_project_dir() {
     let project = tempdir().unwrap();
@@ -70,8 +68,6 @@ fn register_creates_symlink_to_project_dir() {
     );
 }
 
-/// Re-registering the same project is a no-op: no duplicate slot,
-/// no error.
 #[test]
 fn register_is_idempotent_on_repeat() {
     let project = tempdir().unwrap();
@@ -86,16 +82,13 @@ fn register_is_idempotent_on_repeat() {
     assert_eq!(entries.len(), 1, "still exactly one entry after re-register");
 }
 
-/// Subdir guard: when the store lives inside the project, the
-/// function is a silent no-op — registering would otherwise create
-/// a self-referential symlink. The `STORE_VERSION` subdir
-/// (`store_dir.root()` after [`StoreDir::new`] routes the path
-/// through [`From<PathBuf>`] and applies the suffix) is
-/// materialised on disk so [`path_contains`]'s canonical-form
-/// comparison sees both sides as canonical paths even on macOS,
-/// where `/tmp` symlinks to `/private/tmp` and a missing target
-/// would silently fall back to lexical comparison and miss the
-/// containment.
+/// The `STORE_VERSION` subdir (`store_dir.root()` after
+/// [`StoreDir::new`] routes the path through [`From<PathBuf>`] and
+/// applies the suffix) must be materialised on disk so
+/// [`path_contains`]'s canonical-form comparison sees both sides as
+/// canonical paths even on macOS, where `/tmp` symlinks to
+/// `/private/tmp` and a missing target would silently fall back to
+/// lexical comparison and miss the containment.
 #[test]
 fn register_skips_when_store_is_inside_project() {
     let project = tempdir().unwrap();
@@ -104,17 +97,12 @@ fn register_skips_when_store_is_inside_project() {
     fs::create_dir_all(store_dir.root()).unwrap();
 
     register_project(&store_dir, project.path()).expect("subdir case is a no-op");
-    // No projects/ dir should have been created.
     assert!(
         !store_dir.projects().exists(),
         "subdir guard must skip the registry-dir creation entirely",
     );
 }
 
-/// `get_registered_projects` on a store with no `projects/` dir
-/// returns an empty vec — the registry doesn't exist until the
-/// first `register_project` write. Mirrors upstream's
-/// `if (err.code === 'ENOENT') return []` branch.
 #[test]
 fn get_returns_empty_when_registry_dir_absent() {
     let store = tempdir().unwrap();
@@ -123,8 +111,6 @@ fn get_returns_empty_when_registry_dir_absent() {
     assert!(projects.is_empty(), "no entries, no projects");
 }
 
-/// Surviving project: register, then list. The returned path
-/// resolves back to the original project dir.
 #[test]
 fn get_lists_a_registered_project() {
     let project = tempdir().unwrap();
@@ -140,10 +126,6 @@ fn get_lists_a_registered_project() {
     );
 }
 
-/// Stale entry self-heal: register, then remove the project
-/// directory on disk, then list — the entry must disappear from
-/// both the result and from `<store>/projects/`. Mirrors upstream's
-/// `if (err.code === 'ENOENT') { await fs.unlink(linkPath); ... }`.
 #[test]
 fn get_unlinks_stale_entry_and_skips_it() {
     let project = tempdir().unwrap();
@@ -163,8 +145,6 @@ fn get_unlinks_stale_entry_and_skips_it() {
     assert!(remaining.is_empty(), "stale entry must be unlinked from disk");
 }
 
-/// Mixed: one live project + one stale entry. Live survives,
-/// stale is unlinked. Order-independent.
 #[test]
 fn get_keeps_live_and_drops_stale_when_mixed() {
     let live = tempdir().unwrap();
@@ -189,20 +169,15 @@ fn get_keeps_live_and_drops_stale_when_mixed() {
     assert_eq!(remaining.len(), 1, "exactly one registry entry left");
 }
 
-/// Dotfile entries (e.g. `.DS_Store`) are skipped — they're never
-/// real registry entries. Matches upstream's
-/// `if (entry.name.startsWith('.')) return`.
 #[test]
 fn get_skips_dotfile_entries() {
     let project = tempdir().unwrap();
     let store = tempdir().unwrap();
     let store_dir = StoreDir::new(store.path().to_path_buf());
     register_project(&store_dir, project.path()).expect("register");
-    // Drop a `.DS_Store` style sentinel into the registry dir.
     fs::write(store_dir.projects().join(".DS_Store"), b"sentinel").unwrap();
 
     let projects = get_registered_projects(&store_dir).expect("list");
     assert_eq!(projects.len(), 1, "dotfile must not register as a project");
-    // Sentinel must still be there (we don't touch it).
     assert!(store_dir.projects().join(".DS_Store").exists());
 }

@@ -29,7 +29,6 @@ fn exceeding_length_replaces_with_hash_suffix() {
     let got = dep_path_to_filename(&very_long_input, 60);
     assert_eq!(got.len(), 60);
     assert!(got.contains('_'));
-    // The hash suffix is `_` + 32 hex chars at the end.
     let hash_part = &got[got.len() - 32..];
     assert!(hash_part.chars().all(|c| c.is_ascii_hexdigit()));
 }

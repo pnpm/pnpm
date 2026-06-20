@@ -41,11 +41,6 @@ impl PreferredPm {
 /// Defaults to [`PreferredPm::Npm`] when no lockfile is present —
 /// matches upstream's `(await preferredPM(gitRootDir))?.name ?? 'npm'`
 /// at [`exec/prepare-package/src/index.ts:47`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L47).
-///
-/// Sniff order mirrors `preferred-pm` v3.1.4: pnpm first (because it's
-/// the most specific shape and the most likely to be set by the dep's
-/// author), then yarn, npm, bun. Each check is a single `path.exists`,
-/// so even worst-case the sniff is four `stat()` calls.
 #[must_use]
 pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
     if dir.join("pnpm-lock.yaml").exists() {

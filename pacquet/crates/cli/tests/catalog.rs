@@ -194,18 +194,14 @@ fn update_latest_named_catalog_bumps_the_entry() {
     run_ok(&workspace, &["install", "--lockfile-only"]);
     run_ok(&workspace, &["update", "--latest", "--lockfile-only", FOO]);
 
-    // The manifest keeps the named-catalog reference.
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:foo"));
 
-    // The catalog entry no longer pins the original 1.0.0.
     let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
     assert!(
         !workspace_yaml.contains(&format!("'{FOO}': 1.0.0")),
         "the named catalog entry should have been bumped off 1.0.0:\n{workspace_yaml}",
     );
 
-    // The lockfile keeps the named-catalog wiring and its snapshot is bumped
-    // off the original 1.0.0 alongside the workspace manifest.
     let lockfile = read(&workspace, "pnpm-lock.yaml");
     assert!(
         lockfile.contains("catalogs:") && lockfile.contains("specifier: catalog:foo"),

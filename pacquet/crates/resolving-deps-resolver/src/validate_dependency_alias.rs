@@ -1,7 +1,6 @@
 //! Reject dependency aliases that aren't valid npm package names —
 //! anything else, joined with a `node_modules` path, can either escape
-//! the intended directory (`@x/../../../../../.git/hooks`) or collide
-//! with pnpm's own layout (`.bin`, `.pnpm`, `node_modules`). Mirrors
+//! the intended directory or collide with pnpm's own layout. Mirrors
 //! pnpm's
 //! [`isValidDependencyAlias`](https://github.com/pnpm/pnpm/blob/main/installing/deps-resolver/src/validateDependencyAlias.ts),
 //! which routes through the same `validate-npm-package-name`

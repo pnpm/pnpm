@@ -126,10 +126,6 @@ fn select_package_with_dependencies() {
 
 #[test]
 fn shared_dependency_in_diamond_is_walked_once() {
-    // Diamond: `top` depends on `left` and `right`, both of which depend
-    // on `shared`. Walking `top`'s dependencies reaches `shared` twice;
-    // the second visit hits the `walked.contains` guard in
-    // `pick_subgraph` and is skipped, so `shared` is selected only once.
     let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
     for (key, value) in [
         node("/top", "top", &["/left", "/right"]),
@@ -351,9 +347,6 @@ fn select_by_parent_dir_glob_and_exclude_by_pattern() {
 
 #[test]
 fn select_by_parent_dir_then_name_pattern() {
-    // A single selector carrying both a directory and a name pattern: the
-    // directory narrows the candidate set, then the name pattern filters
-    // within it.
     let graph = projects_graph();
     let result = selected(
         &graph,
@@ -381,10 +374,7 @@ fn selector_without_name_dir_or_diff_is_unsupported() {
 #[test]
 fn is_subdir_contract() {
     use super::is_subdir;
-    // A relative child cannot be relativized against an absolute parent
-    // (`diff_paths` returns `None`), so it is not a subdirectory.
     assert!(!is_subdir(Path::new("/abs/parent"), Path::new("relative/child")));
-    // A real descendant is a subdirectory; an equal path is not.
     assert!(is_subdir(Path::new("/abs"), Path::new("/abs/child")));
     assert!(!is_subdir(Path::new("/abs"), Path::new("/abs")));
 }
@@ -457,10 +447,6 @@ fn filter_projects_empty_filter_selects_everything() {
 
 #[test]
 fn filter_prod_follows_production_deps_only() {
-    // `a` depends on `b` only via devDependencies. `--filter-prod a...`
-    // builds the production-only graph (dev edges dropped), so it selects
-    // just `a`; the same selector without `follow_prod_deps_only` follows
-    // the dev edge to `b`.
     let make_projects = || {
         vec![
             TestPkg {
@@ -498,8 +484,6 @@ fn filter_prod_follows_production_deps_only() {
 
 #[test]
 fn filter_projects_unions_prod_selection_before_all_selection() {
-    // Mirrors upstream's `{ ...prodFiltered, ...filtered }` spread: the
-    // prod-graph selection is listed before the all-graph selection.
     let projects = vec![graph_project("/ws/a", "a", &[]), graph_project("/ws/b", "b", &[])];
     let result = filter_projects(
         projects,

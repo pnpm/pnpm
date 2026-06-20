@@ -24,16 +24,6 @@ pub use version_selector_type::get_version_selector_type;
 /// Build a [`PreferredVersions`] map from the wanted lockfile's
 /// `snapshots:` block plus every importer manifest.
 ///
-/// Mirrors upstream's
-/// [`getPreferredVersionsFromLockfileAndManifests`](https://github.com/pnpm/pnpm/blob/097983fbca/lockfile/preferred-versions/src/index.ts#L13-L33):
-///
-/// 1. For each manifest, walk dev + prod + optional dependencies and
-///    record the spec with [`DIRECT_DEP_SELECTOR_WEIGHT`].
-/// 2. For each snapshot, fold in the `(name, version)` pair with
-///    [`EXISTING_VERSION_SELECTOR_WEIGHT`]; a pre-existing direct-dep
-///    selector for the same exact version has its weight bumped by
-///    `EXISTING_VERSION_SELECTOR_WEIGHT` instead of being overwritten.
-///
 /// Pass `snapshots = None` when the wanted lockfile is absent (e.g.
 /// the `install-without-lockfile` path); only manifest-derived entries
 /// are produced.
@@ -67,12 +57,7 @@ pub fn get_preferred_versions_from_lockfile_and_manifests(
 
 /// Fold every `(name, version)` pair from the lockfile snapshots into
 /// `preferred`, bumping the weight of pre-existing direct-dep entries
-/// rather than overwriting them. The snapshot map can contain multiple
-/// entries with identical `(name, version)` (different peer suffixes);
-/// deduping by the `(name, version)` pair first prevents a popular
-/// package from getting its weight multiplied per peer-suffix copy —
-/// mirrors upstream's `uniqueNameVersions` set construction at
-/// [`index.ts:41-46`](https://github.com/pnpm/pnpm/blob/097983fbca/lockfile/preferred-versions/src/index.ts#L41-L46).
+/// rather than overwriting them.
 fn add_preferred_versions_from_lockfile(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     preferred: &mut PreferredVersions,

@@ -415,6 +415,13 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     WriteWorkspaceState(#[error(source)] UpdateWorkspaceStateError),
 
+    /// Surfaces a failure to persist `node_modules/.package-map.json`,
+    /// the package-map metadata Node consumes when the user opts into
+    /// `--experimental-package-map`.
+    #[display("Failed to write node_modules/.package-map.json: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    WritePackageMap(#[error(source)] crate::WritePackageMapError),
+
     /// A value in `pnpm.overrides` couldn't be parsed — the selector
     /// key isn't a recognizable package name, or the override value
     /// uses the `catalog:` protocol (which pacquet doesn't support
@@ -1134,6 +1141,7 @@ where
                     .as_ref()
                     .and_then(|lockfile| lockfile.packages.as_ref()),
                 dependency_groups,
+                project_manifests: &project_manifests,
                 logged_methods: &logged_methods,
                 workspace_root: &workspace_root,
                 requester: &prefix,
@@ -1450,6 +1458,14 @@ where
         )
         .map_err(InstallError::WriteModules)?;
 
+        let filtered_current_lockfile = if frozen_lockfile {
+            lockfile.map(|lockfile| {
+                crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
+            })
+        } else {
+            None
+        };
+
         // Write `<virtual_store_dir>/lock.yaml`. Mirrors upstream's
         // `writeCurrentLockfile` call at
         // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/index.ts#L1597>:
@@ -1467,7 +1483,7 @@ where
         // <https://github.com/pnpm/pacquet/issues/299>), this needs to narrow to the filtered lockfile
         // (selected importers × engine filter) so the saved current
         // lockfile reflects only what was actually materialized.
-        if frozen_lockfile && let Some(lockfile) = lockfile {
+        if frozen_lockfile && let Some(lockfile) = filtered_current_lockfile.as_ref() {
             // Filter the wanted lockfile down to the snapshots that
             // were actually materialized: dep maps the user excluded
             // (`--no-optional`, `--no-dev`) plus snapshots the
@@ -1479,7 +1495,7 @@ where
             // next install diffs against this filtered shape so
             // dropped snapshots aren't mistaken for already-done
             // work.
-            crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
+            lockfile
                 .save_current_to_virtual_store_dir(&config.virtual_store_dir)
                 .map_err(InstallError::SaveCurrentLockfile)?;
         } else if let Some(fresh_lockfile) = fresh_lockfile.as_ref() {
@@ -1531,6 +1547,7 @@ where
             run_projects_lifecycle_scripts::<Reporter>(
                 &project_manifests,
                 config,
+                node_linker,
                 &workspace_root,
             )?;
         }
@@ -2040,6 +2057,7 @@ fn load_workspace_projects(
 fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     config: &Config,
+    node_linker: NodeLinker,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
     let modules_dir_basename =
@@ -2051,7 +2069,18 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
         pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
         pacquet_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
     };
-    let extra_env = std::collections::HashMap::new();
+    let mut extra_env = std::collections::HashMap::new();
+    if let Some(node_options) = &config.node_options {
+        extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+    }
+    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+        let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            crate::make_node_package_map_option(&package_map_path, node_options),
+        );
+    }
     for (project_dir, _manifest) in project_manifests {
         let root_modules_dir = project_dir.join(modules_dir_basename);
         let dep_path = project_dir.to_string_lossy();
@@ -2219,6 +2248,10 @@ fn build_workspace_packages_map(
         );
     }
     Some(map)
+}
+
+pub(crate) fn should_write_package_map(_config: &Config, node_linker: NodeLinker) -> bool {
+    node_linker == NodeLinker::Isolated
 }
 
 /// Build the `projects` map for [`WorkspaceState`] from the

@@ -96,10 +96,6 @@ fn workspace_star_resolves_to_link_against_highest_version() {
     assert_eq!(result.alias.as_deref(), Some("foo"));
 }
 
-/// A workspace package depending on itself (`project_dir` == the resolved
-/// package's `root_dir`) renders as a bare `link:` — the relative path is
-/// empty, matching pnpm's `link:${path.relative(projectDir, projectDir)}`
-/// (`''`), not `link:.`.
 #[test]
 fn workspace_self_dependency_renders_as_bare_link() {
     let mut versions: WorkspacePackagesByVersion = BTreeMap::new();

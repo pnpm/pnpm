@@ -35,7 +35,7 @@ fn store_usable_by_pnpm_offline() {
     eprintln!("pnpm install --offline --ignore-scripts");
     pnpm.with_args(["install", "--offline", "--ignore-scripts"]).assert().success();
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn same_file_structure() {
     eprintln!("Produce the same store dir structure");
     assert_eq!(&pacquet_store_files, &pnpm_store_files);
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 // Both pnpm and pacquet now write `index.db` values as msgpackr
@@ -167,7 +167,7 @@ fn same_index_file_contents() {
     eprintln!("Produce the same store dir structure");
     assert_eq!(&pacquet_index_file_contents, &pnpm_index_file_contents);
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 // Regression: pacquet-written `index.db` rows must remain readable
@@ -184,7 +184,6 @@ fn same_index_file_contents() {
 // `pkgIndex.files` (property access) would be `undefined`, and pnpm's
 // `for (const [f, fstat] of pkgIndex.files)` would throw
 // `files is not iterable`, surfacing as `ERR_PNPM_READ_FROM_STORE`.
-// That's exactly what took CI down before this PR.
 //
 // The flow below reproduces the benchmark's path: pacquet populates
 // the store, `node_modules` is wiped, then pnpm installs against the
@@ -216,7 +215,7 @@ fn pnpm_reads_pacquet_written_rows() {
     eprintln!("pnpm install --ignore-scripts (reads pacquet's index.db rows)...");
     pnpm.with_args(["install", "--ignore-scripts"]).assert().success();
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// Filter a full store-dir listing down to the GVS slot subtree.
@@ -316,7 +315,7 @@ fn same_global_virtual_store_layout_pure_js() {
         &["--ignore-scripts"],
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// Engine-included GVS parity: `pre-and-postinstall-scripts-example`
@@ -383,7 +382,7 @@ fn same_global_virtual_store_layout_with_approved_postinstall() {
         &[], // scripts must run on both sides; see fn doc above
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// Diamond GVS parity: the root depends on both `pkg-with-1-dep` and
@@ -426,5 +425,5 @@ fn same_global_virtual_store_layout_diamond() {
         &["--ignore-scripts"],
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }

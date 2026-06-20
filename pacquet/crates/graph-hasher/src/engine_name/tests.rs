@@ -10,21 +10,12 @@ fn engine_name_matches_pnpm_format() {
     assert_eq!(engine_name(24, Some("win32"), Some("x64")), "win32;x64;node24");
 }
 
-/// Output of `node --version` is the trimmed string
-/// `v<major>.<minor>.<patch>`. Major-extract handles the leading
-/// `v` and falls through cleanly on alternative Node-compat
-/// runtimes that drop it.
 #[test]
 fn parse_node_version_handles_common_shapes() {
     assert_eq!(parse_node_version_output("v22.11.0"), Some(22));
     assert_eq!(parse_node_version_output("v20.18.1"), Some(20));
-    // Off-spec (no leading `v`).
     assert_eq!(parse_node_version_output("18.20.4"), Some(18));
-    // Pre-release tag in the patch position — still parses the
-    // major.
     assert_eq!(parse_node_version_output("v25.0.0-nightly"), Some(25));
-    // Garbage returns `None` so the caller can fall through to
-    // the no-cache path.
     assert_eq!(parse_node_version_output(""), None);
     assert_eq!(parse_node_version_output("not a version"), None);
     assert_eq!(parse_node_version_output("v.broken"), None);
@@ -43,10 +34,8 @@ fn engine_name_host_default_has_expected_shape() {
     assert!(parts[2][4..].parse::<u32>().is_ok(), "node version must be numeric: {name:?}");
 }
 
-/// `detect_node_version` returns the full version string with
-/// the leading `v` stripped. `node` is a hard prerequisite for
-/// the test suite — if it isn't on `PATH` that's a test-env
-/// bug, so we `expect` rather than skip.
+/// `node` is a hard prerequisite for the test suite — if it isn't on
+/// `PATH` that's a test-env bug, so we `expect` rather than skip.
 #[test]
 fn detect_node_version_strips_leading_v() {
     let version = detect_node_version().expect("`node` must be on PATH for the test suite");
@@ -55,9 +44,6 @@ fn detect_node_version_strips_leading_v() {
     assert!(major.parse::<u32>().is_ok(), "major must be numeric: {version:?}");
 }
 
-/// `detect_node_major` round-trips through `detect_node_version` and
-/// the parser. When both are wired correctly the integer major
-/// matches the leading component of the full version string.
 #[test]
 fn detect_node_major_matches_detect_node_version_leading_component() {
     let major = detect_node_major().expect("`node` must be on PATH for the test suite");

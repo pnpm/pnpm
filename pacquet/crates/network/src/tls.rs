@@ -16,6 +16,14 @@
 //! internally), emits no `ERR_PNPM_*` codes for malformed TLS
 //! material, silently ignores a missing `cafile`, and consults no
 //! environment variables. Pacquet mirrors each of those choices.
+//!
+//! One deliberate exception sits *outside* this struct: pacquet honors
+//! the `NODE_EXTRA_CA_CERTS` environment variable as an additional
+//! trust root (see `load_node_extra_ca_certs` in `lib.rs`). pnpm-on-
+//! Node already trusts that bundle implicitly via Node's TLS runtime,
+//! so a native port must read it explicitly to preserve real-world
+//! parity. It is applied at the client-builder layer, never folded
+//! into this `.npmrc`-only `TlsConfig`.
 
 use crate::auth::nerf_dart;
 use std::{collections::HashMap, net::IpAddr};
@@ -169,8 +177,7 @@ impl RegistryTls {
 
 impl PerRegistryTls {
     /// Build from a nerf-darted → [`RegistryTls`] map. Drops empty
-    /// entries (matches pnpm — an empty `tls` object is the same as
-    /// no entry at all).
+    /// entries.
     #[must_use]
     pub fn from_map(by_uri: HashMap<String, RegistryTls>) -> Self {
         let by_uri: HashMap<_, _> = by_uri.into_iter().filter(|(_, v)| !v.is_empty()).collect();

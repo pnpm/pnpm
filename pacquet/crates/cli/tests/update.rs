@@ -225,8 +225,7 @@ fn update_latest_save_exact_preserves_existing_caret() {
 }
 
 /// `--latest` preserves a tilde range instead of widening it to the default
-/// caret — the gap this fix closes. Ports the prefix-preservation half of
-/// pnpm's `calcRange`.
+/// caret. Ports the prefix-preservation half of pnpm's `calcRange`.
 #[test]
 fn update_latest_preserves_tilde() {
     let (root, workspace, anchor) = setup();
@@ -594,8 +593,7 @@ fn read_workspace_yaml(workspace: &Path) -> String {
 /// An unmatched `--latest` selector is a no-op and must not read or parse
 /// the workspace catalogs: a malformed catalog config (here, the default
 /// catalog defined through both `catalog:` and `catalogs.default`) does not
-/// make the no-op fail. Guards the lazy catalog read against the eager read
-/// that previously ran whenever a `catalog:` dependency was present.
+/// make the no-op fail.
 #[test]
 fn update_latest_unmatched_selector_does_not_read_catalogs() {
     let (root, workspace, anchor) = setup();
@@ -627,7 +625,6 @@ fn update_latest_unmatched_selector_does_not_read_catalogs() {
 /// `catalog:` reference in `package.json` and bumps the catalog entry to
 /// the latest version, preserving the entry's own range operator — even
 /// under the default `manual` catalogMode (which does not auto-catalog).
-/// Without this, the reference was overwritten with a direct version.
 #[test]
 fn update_latest_catalog_preserves_reference_and_operator() {
     let (root, workspace, anchor) = setup();

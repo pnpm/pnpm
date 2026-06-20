@@ -42,7 +42,7 @@ use std::{
 /// up.
 ///
 /// [#336]: https://github.com/pnpm/pacquet/issues/336
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
     pub registry: Option<String>,
     pub scoped_registries: BTreeMap<String, String>,
@@ -348,13 +348,6 @@ impl NpmrcAuth {
                     continue;
                 }
                 "strict-ssl" => {
-                    // pnpm/nopt parses `true` / `false` case-sensitively.
-                    // Anything else resets the slot to `None` so the
-                    // build-site `unwrap_or(true)` default kicks in —
-                    // matters when the same `.npmrc` has multiple
-                    // `strict-ssl=` lines and a later invalid token
-                    // would otherwise leave an earlier `false`
-                    // silently active.
                     auth.strict_ssl = parse_bool(&value);
                     continue;
                 }

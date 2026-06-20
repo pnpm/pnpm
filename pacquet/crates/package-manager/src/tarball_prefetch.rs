@@ -42,9 +42,7 @@ struct PendingPrefetch {
 }
 
 /// Drop every pending entry whose `(integrity, package_id)` row already
-/// exists in `index.db`, with one batched existence probe. Best-effort:
-/// no readable index keeps every entry pending, so the store stays the
-/// only authority over what actually downloads.
+/// exists in `index.db`, with one batched existence probe.
 async fn without_store_hits(
     index: Option<SharedReadonlyStoreIndex>,
     pending: Vec<PendingPrefetch>,

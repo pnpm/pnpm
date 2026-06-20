@@ -70,8 +70,7 @@ pub struct CacheRecord {
     pub verified_at: String,
     /// Merged policy snapshot that passed when the verification ran.
     /// Every active [`ResolutionVerifier`]'s `policy()` contribution
-    /// merges into the same map; same-key conflicts go to the last
-    /// verifier in the list (a config bug we don't try to reconcile).
+    /// merges into the same map.
     pub policy: serde_json::Map<String, JsonValue>,
 }
 
@@ -138,15 +137,6 @@ pub struct LockfileStat {
 /// `hit: false` means the caller should run the gate and persist the
 /// result with [`record_verification`].
 ///
-/// Lookup order mirrors upstream:
-///
-/// 1. **Stat shortcut** — same path + same stat → trust the cached
-///    hash; skip reading the lockfile.
-/// 2. **Content lookup** — hash the lockfile and look up by hash.
-///    Catches worktrees, CI checkouts where stat fields got reset.
-///    On hit, refresh the path/stat slot so the next install at this
-///    path takes the stat shortcut above.
-///
 /// `hash_lockfile` is a lazy closure: it's invoked only when the
 /// stat shortcut doesn't apply, so a warm-stat install never pays
 /// the hash cost. The closure is `FnMut` so callers can wrap a
@@ -170,8 +160,6 @@ pub fn try_lockfile_verification_cache(
 
     let path_key = lockfile_path.to_string_lossy().to_string();
 
-    // Stat shortcut: same path + same stat means the cached hash is
-    // still correct without reading the file.
     if let Some(record) = indexes.by_path.get(&path_key)
         && stat_matches(&stat, &record.lockfile)
     {
@@ -292,7 +280,6 @@ fn read_cache(cache_dir: &Path) -> io::Result<CacheIndexes> {
         }
         let parsed: CacheRecord = match serde_json::from_str(line) {
             Ok(value) => value,
-            // Skip malformed lines; the next clean append still works.
             Err(_) => continue,
         };
         if parsed.lockfile.hash.is_empty() || parsed.lockfile.path.is_empty() {
@@ -343,9 +330,6 @@ fn every_verifier_trusts_cached_run(
 }
 
 fn merge_policies(verifiers: &[Arc<dyn ResolutionVerifier>]) -> serde_json::Map<String, JsonValue> {
-    // Later verifiers overwrite earlier ones on conflict — a
-    // shared-field convention; mismatch is a config bug we don't
-    // try to reconcile.
     let mut merged = serde_json::Map::new();
     for verifier in verifiers {
         for (key, value) in verifier.policy() {
@@ -381,8 +365,6 @@ fn maybe_compact_cache(cache_dir: &Path) {
     }
     let Ok(contents) = fs::read_to_string(&cache_file_path) else { return };
 
-    // Walk reverse so the newest record per (path, hash) wins, drop
-    // older duplicates, then trim to MAX_CACHE_ENTRIES.
     let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut reversed: Vec<String> = Vec::new();

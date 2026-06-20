@@ -32,7 +32,6 @@ fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (Path
     // Manifest with no dependencies so the synthesized `<pm>-install`
     // step has nothing to fetch from a network registry — the test
     // stays self-contained even without verdaccio / a mock registry.
-    // The prepare script is plumbed straight in.
     let manifest = format!(
         r#"{{"name":"x","version":"1.0.0","main":"index.js","scripts":{{"prepare":{prepare_script:?}}}}}"#,
     );
@@ -237,9 +236,6 @@ async fn fetcher_rejects_commit_mismatch() {
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_blocks_build_when_not_allowed() {
     let tmp = tempdir().unwrap();
-    // A repo whose manifest declares a `prepare` script — exercises
-    // the `allow_build` gate without actually spawning the script
-    // (the policy is denying-all here).
     let work = tmp.path().join("work");
     let bare = tmp.path().join("repo.git");
     fs::create_dir_all(&work).unwrap();
@@ -353,10 +349,6 @@ fn make_bare_repo_without_manifest(tmp: &Path) -> (PathBuf, String) {
     (bare, commit)
 }
 
-/// Ports pnpm's `fetch a package from Git sub folder` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/test/index.ts#L69>.
-/// The fetcher must pack only the files under `resolution.path`, not
-/// the monorepo root or sibling packages.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_packs_subfolder_when_path_set() {
     let tmp = tempdir().unwrap();
@@ -398,12 +390,6 @@ async fn fetcher_packs_subfolder_when_path_set() {
     );
 }
 
-/// Ports pnpm's `fetch a package without a package.json` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/test/index.ts#L150>.
-/// `prepare_package` returns `should_be_built: false` when no manifest
-/// is present, and the fetcher imports whatever files the packlist
-/// finds — the install dispatcher rejects manifest-less packages
-/// downstream, but the fetcher itself must not crash.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_handles_repo_without_package_json() {
     let tmp = tempdir().unwrap();
@@ -441,12 +427,6 @@ async fn fetcher_handles_repo_without_package_json() {
     assert!(received.cas_paths.contains_key("index.js"));
 }
 
-/// Ports pnpm's `do not build the package when scripts are ignored`
-/// at <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/test/index.ts#L247>.
-/// A repo with `scripts.prepare` set must NOT run the script when
-/// `ignore_scripts: true`; the fetcher still reports
-/// `should_be_built: true` so the caller knows the package wanted a
-/// build (matches upstream's `shouldBeBuilt = true` short-circuit).
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_skips_build_when_ignore_scripts() {
     let tmp = tempdir().unwrap();
@@ -514,13 +494,6 @@ async fn fetcher_skips_build_when_ignore_scripts() {
     assert!(received.cas_paths.contains_key("index.js"));
 }
 
-/// Ports pnpm's `fetch a package from Git that has a prepare script`
-/// at <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/test/index.ts#L129>.
-/// End-to-end: a manifest with `scripts.prepare` set, `allow_build`
-/// returning true, and `ignore_scripts: false` runs the prepare
-/// lifecycle. The prepare script writes a marker file; the test
-/// confirms the marker lands in `cas_paths`, proving the script
-/// actually executed (the file didn't exist in the source tree).
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_runs_prepare_script_when_allowed() {
     let tmp = tempdir().unwrap();
@@ -571,12 +544,6 @@ async fn fetcher_runs_prepare_script_when_allowed() {
     assert!(received.cas_paths.contains_key("index.js"));
 }
 
-/// Ports pnpm's `fail when preparing a git-hosted package` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/test/index.ts#L212>.
-/// A prepare script that exits non-zero must surface as
-/// `GitFetcherError::Prepare(PreparePackageError::LifecycleFailed)`
-/// carrying the `ERR_PNPM_PREPARE_PACKAGE` diagnostic code — the
-/// fetcher refuses to add a broken-build snapshot to the CAS.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_surfaces_prepare_failure() {
     let tmp = tempdir().unwrap();
@@ -638,14 +605,10 @@ async fn fetcher_surfaces_prepare_failure() {
     );
 }
 
-/// Ports pnpm's `allow git package with prepare script` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/test/index.ts#L280>.
-/// Mirror of the existing `fetcher_blocks_build_when_not_allowed`
-/// (line 263) but with `allow_build` returning true: the gate
-/// permits the build, the script runs, and the snapshot ships. The
-/// distinction matters — without this test, a regression that
-/// inverted the gate's polarity (block-when-allowed) would still
-/// keep the block-test green.
+/// Mirror of `fetcher_blocks_build_when_not_allowed` with
+/// `allow_build` returning true. The distinction matters — without
+/// this test, a regression that inverted the gate's polarity
+/// (block-when-allowed) would still keep the block-test green.
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_runs_prepare_when_allow_build_returns_true() {
     let tmp = tempdir().unwrap();

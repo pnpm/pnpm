@@ -2651,16 +2651,13 @@ fn parents_from_chain(chain_names: &[String], _pkg_name: &str) -> Vec<ParentPack
 /// call site.
 ///
 /// **Prerelease tolerance.** `node-semver`'s [`Range::satisfies`]
-/// rejects prerelease versions against non-prerelease comparators —
-/// `18.0.0-rc.1` against `^18.0.0` returns `false`. Yarn's
-/// `satisfiesWithPrereleases` (which pnpm imports here) explicitly
-/// allows that pairing. We approximate it by retrying with the
-/// prerelease tag stripped: if `version` is a prerelease and the
+/// rejects prerelease versions against non-prerelease comparators.
+/// Yarn's `satisfiesWithPrereleases` (which pnpm imports here)
+/// explicitly allows that pairing. We approximate it by retrying with
+/// the prerelease tag stripped: if `version` is a prerelease and the
 /// straight check fails, see whether the base `MAJOR.MINOR.PATCH`
-/// satisfies the range. That covers the cases pnpm cares about for
-/// peer-range matching (a candidate with a `-rc.N` / `-alpha.N` suffix
-/// satisfying a regular `^X.Y` peer requirement) without pulling in
-/// Yarn's full per-comparator algorithm.
+/// satisfies the range — without pulling in Yarn's full per-comparator
+/// algorithm.
 fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
     if range == "*" {
         return true;

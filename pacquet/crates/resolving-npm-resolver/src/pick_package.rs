@@ -287,9 +287,14 @@ pub struct PickPackageOptions<'a> {
     /// either knob set to `true` makes the pick request full
     /// metadata.
     pub optional: bool,
-    /// `true` skips the on-disk exact-version fast path so a stale
-    /// disk packument can't satisfy the call without a conditional
-    /// registry request. Mirrors pnpm's `--update-checksums`.
+    /// `true` forces a conditional registry request so a stale disk
+    /// packument can't satisfy the call: the on-disk exact-version
+    /// fast path is skipped, and the in-memory cache is bypassed too.
+    /// The fast path now promotes disk-loaded packuments into the
+    /// in-memory cache, so an entry there can no longer be assumed to
+    /// come from this install's own fresh network fetch — on a shared
+    /// resolver it might be disk-sourced, which would short-circuit the
+    /// revalidation. Mirrors pnpm's `--update-checksums`.
     pub update_checksums: bool,
 }
 
@@ -393,13 +398,6 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         ignore_missing_time_field: ctx.ignore_missing_time_field,
     };
 
-    // Per upstream's
-    // [`pickPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L201):
-    // `opts.optional` is a per-call escape hatch (needed for
-    // `libc`/`cpu`/`os` filtering on optional deps —
-    // <https://github.com/pnpm/pnpm/issues/9950>); `ctx.full_metadata`
-    // is the install-wide bias. Either being `true` forces the full
-    // packument.
     let full_metadata = opts.optional || ctx.full_metadata;
     let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
     let meta_dir = if full_metadata {
@@ -434,8 +432,13 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         format!("{}\x00{}", opts.registry, spec.name)
     };
 
+    // updateChecksums must reach the conditional registry request below, so it
+    // can't be served from the in-memory cache — which may hold a disk-promoted
+    // entry rather than a fresh network fetch (see the `update_checksums` doc).
+    let use_mem_cache = !opts.update_checksums;
+
     // 1. In-memory cache.
-    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
+    if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
         return handle_cache_hit(
             ctx,
             spec,
@@ -450,20 +453,6 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         .await;
     }
 
-    // Per-cache-key fetch serializer. Mirrors upstream's
-    // [`runLimited(pkgMirror, ...)`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L52-L64)
-    // pLimit(1): concurrent picks for the same packument coalesce
-    // into a single network fetch. The first caller for `cache_key`
-    // acquires the permit and runs steps 2-5; the rest park here
-    // and, after acquiring, re-check the in-memory cache so the
-    // winner's [`PackageMetaCache::set`] short-circuits them
-    // without re-fetching. Without this, `try_join_all` over the
-    // resolved tree fires N concurrent HTTP GETs per shared
-    // packument (e.g. every `react-*` dep racing for `react`), each
-    // queued behind the [`ThrottledClient`] semaphore — the
-    // 3-5× resolve-walk gap the
-    // [`alotta-files` benchmark]([../../../../../pnpm.io/benchmarks/results/pnpm12])
-    // surfaced.
     let limit = {
         let entry = ctx
             .fetch_locker
@@ -478,7 +467,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // this re-check, every duplicate caller would still fall
     // through to the disk + network path even though they were
     // waiting precisely for the winner's fetch to complete.
-    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
+    if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
         return handle_cache_hit(
             ctx,
             spec,
@@ -649,14 +638,6 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         }
     };
 
-    // After a fresh fetch we may still need an upgrade: a 304 reused
-    // an abbreviated mirror body, or a 200 returned abbreviated data
-    // for a recently-modified package. Either way, if
-    // `published_by` is active and `meta.time` is missing, re-fetch
-    // full so the maturity check runs on real timestamps. Mirrors
-    // upstream's
-    // [post-304 upgrade](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L333-L347)
-    // and inline upgrade at lines 364-400.
     let upgrade =
         maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, meta)
             .await?;
@@ -714,9 +695,6 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
             .await?;
     let meta = upgrade.meta;
     if upgrade.upgraded && !opts.dry_run {
-        // Persist so a fresh process doesn't re-trigger the upgrade
-        // fetch on its next install. Matches upstream's
-        // [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
         if let Some(path) = pkg_mirror {
             persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
         }
@@ -938,12 +916,11 @@ fn get_file_mtime(path: &Path) -> Option<DateTime<Utc>> {
 /// ordered eviction via `shift_remove_index(0)`, matching upstream's
 /// JS `Set` which iterates in insertion order.
 const MAX_WARNED_MISSING_TIME: usize = 1024;
-static WARNED_MISSING_TIME: std::sync::OnceLock<Mutex<indexmap::IndexSet<String>>> =
-    std::sync::OnceLock::new();
+static WARNED_MISSING_TIME: std::sync::LazyLock<Mutex<indexmap::IndexSet<String>>> =
+    std::sync::LazyLock::new(|| Mutex::new(indexmap::IndexSet::new()));
 
 fn warn_missing_time_once(pkg_name: &str) {
-    let lock = WARNED_MISSING_TIME.get_or_init(|| Mutex::new(indexmap::IndexSet::new()));
-    let mut warned = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut warned = WARNED_MISSING_TIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if warned.contains(pkg_name) {
         return;
     }

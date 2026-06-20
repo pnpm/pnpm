@@ -21,7 +21,7 @@ use pacquet_lockfile::{
 use pacquet_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
 };
-use pacquet_modules_yaml::{Host, read_modules_manifest};
+use pacquet_modules_yaml::{Host, IncludedDependencies, read_modules_manifest};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_patching::{
@@ -102,6 +102,7 @@ where
     pub current_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub dependency_groups: DependencyGroupList,
+    pub project_manifests: &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
@@ -264,6 +265,10 @@ pub enum InstallFrozenLockfileError {
     /// bin-link errors.
     #[diagnostic(transparent)]
     LinkHoistedModules(#[error(source)] LinkHoistedModulesError),
+
+    #[display("failed to write package map: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    WritePackageMap(#[error(source)] crate::WritePackageMapError),
 }
 
 /// Error type of `run_build_phase` and `resolve_snapshot_patches`.
@@ -382,6 +387,7 @@ pub(crate) struct BuildPhaseInputs<'a> {
     pub(crate) side_effects_maps_by_snapshot: &'a crate::SideEffectsMapsBySnapshot,
     pub(crate) requires_build_by_snapshot: &'a crate::RequiresBuildBySnapshot,
     pub(crate) engine_name: Option<&'a str>,
+    pub(crate) extra_env: &'a HashMap<String, String>,
     pub(crate) store_index_writer: &'a Arc<StoreIndexWriter>,
     pub(crate) skipped: &'a SkippedSnapshots,
     pub(crate) hoisted_pkg_root_by_key: Option<&'a HashMap<PackageKey, PathBuf>>,
@@ -421,6 +427,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         side_effects_maps_by_snapshot,
         requires_build_by_snapshot,
         engine_name,
+        extra_env,
         store_index_writer,
         skipped,
         hoisted_pkg_root_by_key,
@@ -462,6 +469,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         store_index_writer: Some(store_index_writer),
         patches: patches.as_ref(),
         scripts_prepend_node_path,
+        extra_env,
         unsafe_perm: config.unsafe_perm,
         child_concurrency: config.child_concurrency,
         skipped,
@@ -559,6 +567,7 @@ where
             current_snapshots,
             current_packages,
             dependency_groups,
+            project_manifests,
             logged_methods,
             workspace_root,
             requester,
@@ -608,9 +617,7 @@ where
         // [`compute_skipped_snapshots`] entirely. Spawning
         // `node --version` here would otherwise serialize the
         // node-binary startup with `CreateVirtualStore::run` (the
-        // dominant cost of a cold install), giving up the overlap
-        // pacquet had before — see the previous benchmark regression
-        // on this PR.
+        // dominant cost of a cold install), giving up the overlap.
         //
         // When constraints DO exist, the host is needed before
         // extraction (so `CreateVirtualStore` can suppress slots for
@@ -1087,6 +1094,7 @@ where
                     layout: &layout,
                     importers,
                     dependency_groups: &dependency_groups,
+                    project_manifests,
                     walker_lockfile_dir: workspace_root,
                     symlink_workspace_root: workspace_root,
                     host_node: host_node.as_ref(),
@@ -1179,14 +1187,10 @@ where
             link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
                 .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
             // Stash the public-hoist alias list for the
-            // post-`BuildModules` top-level bin link. The
-            // previous in-place `link_direct_dep_bins(&public_dir,
-            // ...)` pass would have written shims with no
-            // knowledge of direct-dep candidates, so a
-            // hoisted bin could shadow a direct one when the
-            // hoisted package's name was lexically smaller.
-            // The post-build pass re-links with the
-            // [`BinOrigin`] tier so direct wins outright.
+            // post-`BuildModules` top-level bin link, which re-links
+            // with the [`BinOrigin`] tier so a direct dep's bin wins
+            // outright over a publicly-hoisted bin with a lexically
+            // smaller name.
             // Mirrors upstream's
             // [`linkBinsOfImporter`](https://github.com/pnpm/pnpm/blob/4750fd370c/installing/deps-installer/src/install/index.ts#L1539)
             // which runs after `buildModules`.
@@ -1195,6 +1199,27 @@ where
         } else {
             BTreeMap::new()
         };
+
+        if crate::should_write_package_map(config, node_linker) {
+            let included = IncludedDependencies {
+                dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+                dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+                optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+            };
+            let filtered_lockfile =
+                crate::filter_lockfile_for_current(lockfile, included, &skipped);
+            crate::package_map::write_package_map(
+                &filtered_lockfile,
+                &crate::package_map::PackageMapOptions {
+                    lockfile_dir: workspace_root,
+                    modules_dir: &config.modules_dir,
+                    package_map_type: config.node_package_map_type,
+                    layout: &layout,
+                    project_manifests,
+                },
+            )
+            .map_err(InstallFrozenLockfileError::WritePackageMap)?;
+        }
 
         // Mirrors upstream `link.ts:167-170`: `importing_done` fires once
         // extraction and symlink linking are complete, before any build
@@ -1218,6 +1243,20 @@ where
             None => engine_name,
         };
 
+        let mut build_extra_env = HashMap::new();
+        if let Some(node_options) = &config.node_options {
+            build_extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+        }
+        if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+            let package_map_path =
+                config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
+            let node_options = build_extra_env.get("NODE_OPTIONS").map(String::as_str);
+            build_extra_env.insert(
+                "NODE_OPTIONS".to_string(),
+                crate::make_node_package_map_option(&package_map_path, node_options),
+            );
+        }
+
         // Run lifecycle scripts, report ignored builds, and re-link
         // top-level bins. `workspace_root` is upstream's `lockfileDir`;
         // pass the real `Path` rather than reconstructing it from the
@@ -1240,6 +1279,7 @@ where
             side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
             requires_build_by_snapshot: &requires_build_by_snapshot,
             engine_name: engine_name.as_deref(),
+            extra_env: &build_extra_env,
             store_index_writer: &store_index_writer,
             skipped: &skipped,
             hoisted_pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
@@ -1349,6 +1389,7 @@ pub(crate) struct HoistedLinkerInputs<'a> {
     pub(crate) layout: &'a VirtualStoreLayout,
     pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
     pub(crate) dependency_groups: &'a [DependencyGroup],
+    pub(crate) project_manifests: &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
     /// Lockfile root the walker resolves hoisted directories against.
     pub(crate) walker_lockfile_dir: &'a Path,
     /// Anchor for [`crate::SymlinkDirectDependencies`]'s per-importer
@@ -1382,6 +1423,9 @@ pub(crate) enum HoistedLinkerError {
     LinkHoistedModules(#[error(source)] LinkHoistedModulesError),
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+    #[display("failed to write package map: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    WritePackageMap(#[error(source)] crate::WritePackageMapError),
 }
 
 impl From<HoistedLinkerError> for InstallFrozenLockfileError {
@@ -1395,6 +1439,9 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
             }
             HoistedLinkerError::SymlinkDirectDependencies(error) => {
                 InstallFrozenLockfileError::SymlinkDirectDependencies(error)
+            }
+            HoistedLinkerError::WritePackageMap(error) => {
+                InstallFrozenLockfileError::WritePackageMap(error)
             }
         }
     }
@@ -1425,6 +1472,7 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         layout,
         importers,
         dependency_groups,
+        project_manifests,
         walker_lockfile_dir,
         symlink_workspace_root,
         host_node,
@@ -1495,6 +1543,17 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         requester,
     };
     link_hoisted_modules::<Reporter>(&link_opts).map_err(HoistedLinkerError::LinkHoistedModules)?;
+    crate::package_map::write_hoisted_package_map(
+        lockfile,
+        &walker_result,
+        &crate::package_map::HoistedPackageMapOptions {
+            lockfile_dir: walker_lockfile_dir,
+            modules_dir: &config.modules_dir,
+            package_map_type: config.node_package_map_type,
+            project_manifests,
+        },
+    )
+    .map_err(HoistedLinkerError::WritePackageMap)?;
     // Workspace `link:` deps still need symlinks under each importer's
     // `node_modules/<alias>` even though the regular deps now live as
     // real directories. The hoisted dep-graph walker skips
@@ -1719,10 +1778,6 @@ pub(crate) fn find_runtime_node_major(
 pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u32> {
     let deps = snapshot.dependencies.as_ref()?;
     for (alias, dep_ref) in deps {
-        // Match upstream's per-snapshot extraction rule — only the
-        // unscoped `node` alias counts, and only when the resolved
-        // ref-value's prefix is `runtime:` (bun/deno runtimes don't
-        // contribute to the Node-shaped engine string).
         if alias.scope.is_some() || alias.bare != "node" {
             continue;
         }

@@ -12,10 +12,6 @@ use std::{path::PathBuf, sync::OnceLock};
 /// [`LazyLockfile::get`] immediately and behave as if it were loaded
 /// eagerly.
 pub struct LazyLockfile {
-    /// Directory containing `pnpm-lock.yaml`. `None` mirrors
-    /// `lockfile: false` config: [`Self::get`] yields `None` without
-    /// touching the filesystem, matching the eager loader's "don't
-    /// even read the file" behavior.
     dir: Option<PathBuf>,
     cell: OnceLock<Option<Lockfile>>,
 }

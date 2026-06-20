@@ -467,11 +467,6 @@ fn get_bin_name(cached_dir: &Path) -> Result<String, DlxError> {
         [] => Err(DlxError::NoBin { package: pkg_name }),
         [bin] => Ok(bin.name.clone()),
         bins => {
-            // The default bin is the one named after the installed
-            // package's own `name` field (scopeless), not the dependency
-            // alias it was installed under. Mirrors `scopeless(manifest.name)`
-            // at dlx.ts:286 — they differ for aliased specs such as
-            // `foo@npm:@scope/realtool`.
             let manifest_name = manifest.get("name").and_then(Value::as_str).unwrap_or(&pkg_name);
             let scopeless_name = scopeless(manifest_name);
             if let Some(bin) = bins.iter().find(|bin| bin.name == scopeless_name) {

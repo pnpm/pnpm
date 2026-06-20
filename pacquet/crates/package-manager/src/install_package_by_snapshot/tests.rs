@@ -12,9 +12,8 @@ use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
 use pretty_assertions::assert_eq;
 use std::sync::Mutex;
 
-/// `emit_progress_resolved` fires exactly one `pnpm:progress`
-/// `resolved` event with the supplied (`package_id`, `requester`).
-/// The pair pins pnpm's per-package counter to the right row.
+/// The (`package_id`, `requester`) pair pins pnpm's per-package
+/// counter to the right row.
 #[test]
 fn emits_resolved_with_supplied_identifiers() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -59,13 +58,6 @@ fn registry_resolution_uses_scoped_registry_tarball_base() {
     assert_eq!(tarball_url.as_ref(), "https://private.example/npm/@private/foo/-/foo-1.0.0.tgz");
 }
 
-/// `host_platform_selector` builds the selector that drives runtime-
-/// variant matching. The `os` / `cpu` fields are always populated
-/// (from `host_platform()` / `host_arch()`); `libc` is the
-/// interesting one — pacquet must translate the
-/// "non-Linux ⇒ no libc constraint" rule pnpm enforces:
-/// `process.platform === 'linux' ? family : null`.
-///
 /// Asserting platform-specific shape directly would mean four
 /// `cfg`-gated tests; instead, run the live `host_*` functions and
 /// pin the *relationship* — `host_libc() == "unknown"` iff the
@@ -90,11 +82,6 @@ fn host_platform_selector_omits_libc_on_non_linux_hosts() {
     }
 }
 
-/// `render_variant_targets` renders the lockfile's advertised
-/// target triples for inclusion in the
-/// `NoMatchingPlatformVariant` error message. Each target lands as
-/// `os/cpu` with an optional `+libc` suffix, joined with `, ` so
-/// the rendered list is greppable from terminal output.
 #[test]
 fn render_variant_targets_formats_each_triple_with_optional_libc() {
     let variants = vec![
@@ -130,9 +117,6 @@ fn render_variant_targets_formats_each_triple_with_optional_libc() {
     assert_eq!(rendered, "darwin/arm64, linux/x64+musl, win32/x64");
 }
 
-/// `node_extras_filter` is the hand-coded port of upstream's
-/// `NODE_EXTRAS_IGNORE_PATTERN` regex
-/// (`^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$)`).
 /// Pin each branch of the alternation, including the negative
 /// cases the regex deliberately doesn't match — a regression
 /// (e.g. matching `lib/node_modules/yarn/...` because someone
@@ -153,15 +137,11 @@ fn node_extras_filter_matches_upstream_regex_alternations() {
     ] {
         assert!(node_extras_filter(path), "expected match: {path}");
     }
-    // Same branch, negative cases: other package names under
-    // `node_modules/` must not be stripped.
     for path in [
         "lib/node_modules/yarn",
         "lib/node_modules/yarn/package.json",
         "node_modules/yarn",
         "node_modules/typescript/lib/tsc.js",
-        // `node_modules` without the `lib/` prefix at a nested
-        // depth shouldn't match the regex either (the `^` anchor).
         "src/node_modules/npm/foo",
     ] {
         assert!(!node_extras_filter(path), "expected no match: {path}");
@@ -171,9 +151,6 @@ fn node_extras_filter_matches_upstream_regex_alternations() {
     for path in ["bin/npm", "bin/npx", "bin/corepack"] {
         assert!(node_extras_filter(path), "expected match: {path}");
     }
-    // Same branch, negative cases: the `$` anchors the regex —
-    // `bin/npm/foo` doesn't match, neither does an extension on
-    // the `bin/` form.
     for path in ["bin/npm/foo", "bin/npm.cmd", "bin/yarn", "bin/", "binnpm"] {
         assert!(!node_extras_filter(path), "expected no match: {path}");
     }
@@ -192,19 +169,11 @@ fn node_extras_filter_matches_upstream_regex_alternations() {
     ] {
         assert!(node_extras_filter(path), "expected match: {path}");
     }
-    // Same branch, negative cases: unsupported extensions and
-    // unrelated names at the root.
     for path in ["npm.bat", "npm.exe", "node", "yarn", "npmrc", "npm.cmd.bak"] {
         assert!(!node_extras_filter(path), "expected no match: {path}");
     }
 }
 
-/// `archive_filter_for` is the per-package filter dispatcher —
-/// returns `Some(NODE_EXTRAS)` only for the unscoped `node`
-/// package (mirroring upstream's `archiveFilters: { node: ... }`
-/// keyed by `pkg.name`). `@foo/node` and any other package must
-/// get `None` so the full archive contents land in the CAS
-/// unfiltered.
 #[test]
 fn archive_filter_for_only_returns_filter_for_unscoped_node() {
     let key_node: PackageKey = "node@22.0.0".parse().expect("parse node key");
@@ -226,14 +195,6 @@ fn archive_filter_for_only_returns_filter_for_unscoped_node() {
     );
 }
 
-/// `synthesize_runtime_manifest_bytes` is the
-/// `appendManifest`-equivalent for the runtime fetcher: it writes a
-/// `name` / `version` / `bin` JSON object into the CAS so the
-/// existing bin-link step (which reads bins off the slot's
-/// `package.json`) has something to consume. Pin the wire shape
-/// for both `BinarySpec` variants (single string + map) so a
-/// regression in either branch can't silently strip the bin field
-/// downstream.
 #[test]
 fn synthesize_runtime_manifest_emits_name_version_and_bin_single() {
     let key: PackageKey = "node@22.0.0".parse().expect("parse node key");
@@ -253,10 +214,9 @@ fn synthesize_runtime_manifest_emits_name_version_and_bin_single() {
     dbg!(&parsed);
     assert_eq!(parsed["name"], "node");
     assert_eq!(parsed["version"], "22.0.0");
-    // `BinarySpec::Single` lands as a JSON string. pnpm's bin
-    // resolver treats `bin: "bin/node"` as "one binary, named after
-    // the package" — so the shim is `<modules_dir>/.bin/node` →
-    // `<slot>/bin/node`. Preserve that exact shape.
+    // pnpm's bin resolver treats `bin: "bin/node"` as "one binary,
+    // named after the package" — so the shim is
+    // `<modules_dir>/.bin/node` → `<slot>/bin/node`.
     assert_eq!(parsed["bin"], "bin/node");
 }
 
@@ -282,19 +242,14 @@ fn synthesize_runtime_manifest_emits_name_version_and_bin_map() {
     dbg!(&parsed);
     assert_eq!(parsed["name"], "node");
     assert_eq!(parsed["version"], "22.0.0");
-    // `BinarySpec::Map` lands as a JSON object. Each entry pins
-    // (bin_name → relative path); pnpm's bin resolver creates one
-    // shim per entry under `<modules_dir>/.bin/<bin_name>`.
+    // pnpm's bin resolver creates one shim per entry under
+    // `<modules_dir>/.bin/<bin_name>`.
     assert_eq!(parsed["bin"]["node"], "bin/node");
     assert_eq!(parsed["bin"]["node-mips"], "bin/node-mips");
 }
 
-/// Scoped packages preserve the `@scope/name` form in the
-/// synthesized manifest's `name` field — `PkgName`'s Display
-/// already handles that, and the synth function passes the result
-/// through verbatim. Future runtime entries could conceivably ship
-/// scoped (e.g. `@deno/runtime`) so pin the shape now rather than
-/// catch it later.
+/// Future runtime entries could conceivably ship scoped (e.g.
+/// `@deno/runtime`) so pin the shape now rather than catch it later.
 #[test]
 fn synthesize_runtime_manifest_preserves_scoped_name() {
     let key: PackageKey = "@foo/bar@1.2.3".parse().expect("parse scoped key");

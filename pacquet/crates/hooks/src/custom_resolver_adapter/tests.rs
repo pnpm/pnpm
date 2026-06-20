@@ -112,8 +112,6 @@ async fn caches_can_resolve_per_alias_and_specifier() {
     adapter.resolve(&wanted("foo", "custom:foo"), &opts).await.unwrap();
     assert_eq!(resolver.can_resolve_calls.load(Ordering::SeqCst), 1);
 
-    // pnpm's cache key is `alias@bareSpecifier`
-    // (`getCustomResolverCacheKey`), so a different specifier misses.
     adapter.resolve(&wanted("foo", "custom:other"), &opts).await.unwrap();
     assert_eq!(resolver.can_resolve_calls.load(Ordering::SeqCst), 2);
 }

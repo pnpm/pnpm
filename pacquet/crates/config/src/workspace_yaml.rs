@@ -1,6 +1,7 @@
 use crate::{
-    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PackageImportMethod,
-    ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
+    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, NodePackageMapType,
+    PackageImportMethod, ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
+    resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -19,19 +20,7 @@ use std::{
 };
 
 /// `serde` helper for fields that need to distinguish "missing key"
-/// from "explicit null" in YAML / JSON. Used by `hoist_pattern` and
-/// `public_hoist_pattern` so an explicit `hoistPattern: null` in
-/// `pnpm-workspace.yaml` propagates as `Some(None)` (= "disable this
-/// side"), while a missing key falls through to the field's serde
-/// default (`None`, = "leave the config default in place").
-///
-/// Field shape: `Option<Option<Vec<String>>>`.
-/// - `None` — key not present in yaml. `apply_to` skips the field.
-/// - `Some(None)` — explicit `null`. `apply_to` overwrites
-///   `Config.<field>` with `None`, mirroring upstream's
-///   `hoistPattern != null` guard treating null as "feature disabled".
-/// - `Some(Some(vec))` — explicit list. `apply_to` overwrites
-///   `Config.<field>` with `Some(vec)`.
+/// from "explicit null" in YAML / JSON.
 ///
 /// Stand-alone helper rather than reaching for `serde_with` (not in
 /// the workspace deps) — the body is one line.
@@ -77,19 +66,7 @@ where
 pub struct WorkspaceSettings {
     pub hoist: Option<bool>,
 
-    /// Tri-state `hoistPattern`. The deserializer wraps a plain
-    /// `Option<Vec<String>>` in an extra `Some` so the three yaml
-    /// states are distinguishable:
-    ///
-    /// - `None` — key absent in yaml → `apply_to` skips the field
-    ///   (defaults stay).
-    /// - `Some(None)` — explicit `hoistPattern: null` → `apply_to`
-    ///   writes `Config.hoist_pattern = None`, disabling private
-    ///   hoisting and contributing to the install-time
-    ///   `is_some() || is_some()` short-circuit guard. Mirrors
-    ///   upstream's `hoistPattern != null` semantics.
-    /// - `Some(Some(vec))` — explicit list → `apply_to` writes
-    ///   `Config.hoist_pattern = Some(vec)`.
+    /// Tri-state `hoistPattern` — see `deserialize_double_option`.
     #[serde(default, deserialize_with = "deserialize_double_option")]
     pub hoist_pattern: Option<Option<Vec<String>>>,
 
@@ -101,6 +78,8 @@ pub struct WorkspaceSettings {
     pub store_dir: Option<String>,
     pub modules_dir: Option<String>,
     pub node_linker: Option<NodeLinker>,
+    pub node_experimental_package_map: Option<bool>,
+    pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,
     pub virtual_store_dir: Option<String>,
     /// `enableGlobalVirtualStore` from `pnpm-workspace.yaml`. Default
@@ -269,14 +248,7 @@ pub struct WorkspaceSettings {
     /// so an explicit `scriptShell: null` clears a value inherited from
     /// global `config.yaml`, while an absent key inherits. The extra
     /// `Option` layer preserves that distinction (same
-    /// `deserialize_double_option` shape as `hoist_pattern`):
-    ///
-    /// - `None` — key absent → `apply_to` skips the field (inherit).
-    /// - `Some(None)` — explicit `null` → `apply_to` writes
-    ///   `Config.script_shell = None` (clear the inherited shell,
-    ///   falling back to the platform default).
-    /// - `Some(Some(s))` — explicit string → `apply_to` writes
-    ///   `Config.script_shell = Some(s)`.
+    /// `deserialize_double_option` shape as `hoist_pattern`).
     ///
     /// See [`Config::script_shell`].
     #[serde(default, deserialize_with = "deserialize_double_option")]
@@ -734,7 +706,8 @@ impl WorkspaceSettings {
 
         apply! {
             hoist, shamefully_hoist,
-            node_linker, symlink, package_import_method, modules_cache_max_age,
+            node_linker, node_experimental_package_map, node_package_map_type,
+            symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,
             lockfile, prefer_frozen_lockfile, offline, prefer_offline,
@@ -762,16 +735,6 @@ impl WorkspaceSettings {
             enable_pre_post_scripts, dlx_cache_max_age,
         }
 
-        // `hoist_pattern` and `public_hoist_pattern` carry the
-        // tri-state described on [`deserialize_double_option`]:
-        // outer `None` means "key missing — leave config defaults in
-        // place"; outer `Some(inner)` means the user wrote something,
-        // and `inner` is what they wrote (`None` for explicit null,
-        // `Some(vec)` for a list). The inner value is assigned to
-        // `Config.<field>` directly so an explicit `hoistPattern: null`
-        // disables hoisting on that side via the install-time
-        // `is_some() || is_some()` guard, matching upstream's
-        // `!= null` semantics.
         if let Some(inner) = self.hoist_pattern {
             config.hoist_pattern = inner;
         }
@@ -779,18 +742,9 @@ impl WorkspaceSettings {
             config.public_hoist_pattern = inner;
         }
 
-        // `hoist: false` nullifies `hoist_pattern` so the install-time
-        // `is_some() || is_some()` guard short-circuits private hoisting
-        // regardless of any explicit `hoist_pattern` the user (or
-        // pacquet's defaults) supplied. Mirrors upstream's
-        // [`projectConfig.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/projectConfig.ts#L72-L75)
-        // — `result.hoist === false ⇒ hoistPattern: undefined`.
-        // `publicHoistPattern` intentionally NOT nullified here:
-        // upstream doesn't either; public hoisting is governed by
-        // its own pattern + the legacy `shamefullyHoist` flag.
         // Applied AFTER `hoist_pattern` assignment so a yaml that sets
         // both `hoist: false` and `hoistPattern: ["..."]` still
-        // disables — `hoist: false` wins, matching upstream.
+        // disables — `hoist: false` wins.
         if !config.hoist {
             config.hoist_pattern = None;
         }
@@ -853,9 +807,6 @@ impl WorkspaceSettings {
         if let Some(v) = self.scripts_prepend_node_path {
             config.scripts_prepend_node_path = v;
         }
-        // Tri-state: `Some(_)` (present in yaml) overwrites — including
-        // `Some(None)` (explicit `null`), which clears the inherited
-        // value. `None` (absent) leaves the inherited config untouched.
         if let Some(v) = self.script_shell {
             config.script_shell = v;
         }
@@ -865,24 +816,12 @@ impl WorkspaceSettings {
         if let Some(v) = self.unsafe_perm {
             config.unsafe_perm = v;
         }
-        // Windows force-override (matches upstream's
-        // [`process.platform === 'win32'`](https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/index.js#L204-L220)
-        // — running lifecycle scripts under a uid/gid drop is
-        // POSIX-only).
         if cfg!(windows) {
             config.unsafe_perm = true;
         }
-        // `childConcurrency: None` keeps the smart-default
-        // `Config` constructor produced from
-        // [`default_child_concurrency`]; `Some(n)` (including
-        // negative) goes through the upstream resolver.
         if let Some(v) = self.child_concurrency {
             config.child_concurrency = resolve_child_concurrency(Some(v));
         }
-        // `workspaceConcurrency` resolves through the same upstream
-        // `getWorkspaceConcurrency` as `childConcurrency`; `None`
-        // keeps the smart-default, `Some(n)` (including negative)
-        // goes through the resolver.
         if let Some(v) = self.workspace_concurrency {
             config.workspace_concurrency = resolve_child_concurrency(Some(v));
         }
@@ -892,25 +831,12 @@ impl WorkspaceSettings {
         if let Some(v) = self.ignored_optional_dependencies {
             config.ignored_optional_dependencies = Some(v);
         }
-        // Empty overrides map collapses to `None` so the lockfile-side
-        // drift check ignores it — mirrors upstream's
-        // `delete settings.overrides` short-circuit in
-        // [`getOptionsFromPnpmSettings`](https://github.com/pnpm/pnpm/blob/6d7903a8b7/config/reader/src/getOptionsFromRootManifest.ts#L32-L34).
-        // The assignment runs whenever `self.overrides` is `Some(...)`
-        // (even when empty) so an explicit `overrides: {}` at a later
-        // layer (e.g. `PNPM_CONFIG_OVERRIDES={}` overlaid on top of a
-        // non-empty workspace yaml) clears the inherited setting
-        // instead of being a silent no-op. `$dep-name` self-reference
-        // resolution happens elsewhere (the resolver chain), since it
-        // needs the workspace's root manifest and that isn't in scope
-        // here.
+        // `$dep-name` self-reference resolution happens elsewhere (the
+        // resolver chain), since it needs the workspace's root manifest
+        // and that isn't in scope here.
         if let Some(v) = self.overrides {
             config.overrides = (!v.is_empty()).then_some(v);
         }
-        // Empty map collapses to `None` so the workspace-state drift
-        // check ignores it, mirroring the same shape `overrides` uses.
-        // An explicit later-layer `packageExtensions: {}` still clears
-        // a prior non-empty value rather than no-oping.
         if let Some(v) = self.package_extensions {
             config.package_extensions = (!v.is_empty()).then_some(v);
         }

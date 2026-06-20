@@ -10,9 +10,6 @@ fn opts<'a>(
     FetchAttestationOptions { registry, http_client, auth_headers }
 }
 
-/// A successful 200 with one bundle and one `tlogEntries` entry
-/// yields the matching ISO timestamp. Mirrors the happy-path
-/// upstream test.
 #[tokio::test]
 async fn finds_publish_time_from_single_bundle() {
     let mut server = mockito::Server::new_async().await;
@@ -51,9 +48,6 @@ async fn finds_publish_time_from_single_bundle() {
     mock.assert_async().await;
 }
 
-/// Multiple bundles → earliest wins. Mirrors upstream's
-/// `extractPublishedAt` test that asserts the floor across
-/// disagreeing entries.
 #[tokio::test]
 async fn earliest_wins_across_multiple_bundles() {
     let mut server = mockito::Server::new_async().await;
@@ -90,9 +84,6 @@ async fn earliest_wins_across_multiple_bundles() {
     mock.assert_async().await;
 }
 
-/// 404 = the version isn't signed; the verifier falls through to
-/// the next layer of the publish-time lookup chain, so we return
-/// `Ok(None)`.
 #[tokio::test]
 async fn returns_none_on_404() {
     let mut server = mockito::Server::new_async().await;
@@ -117,9 +108,6 @@ async fn returns_none_on_404() {
     mock.assert_async().await;
 }
 
-/// A 5xx response also yields `Ok(None)` — the registry can't tell
-/// us, but the verifier still has other layers to consult. Matches
-/// upstream's "anything outside 2xx = fall back" semantics.
 #[tokio::test]
 async fn returns_none_on_5xx() {
     let mut server = mockito::Server::new_async().await;
@@ -144,9 +132,6 @@ async fn returns_none_on_5xx() {
     mock.assert_async().await;
 }
 
-/// A malformed body (missing the `attestations` array entirely)
-/// returns `None` rather than erroring — verifier still falls
-/// through.
 #[tokio::test]
 async fn returns_none_on_malformed_body() {
     let mut server = mockito::Server::new_async().await;
@@ -173,9 +158,6 @@ async fn returns_none_on_malformed_body() {
     mock.assert_async().await;
 }
 
-/// `integratedTime` arrives as a JSON number (rather than the
-/// canonical npm string). The parser accepts both — matches
-/// upstream's defensive handling.
 #[tokio::test]
 async fn accepts_integrated_time_as_number() {
     let mut server = mockito::Server::new_async().await;
@@ -207,11 +189,6 @@ async fn accepts_integrated_time_as_number() {
     mock.assert_async().await;
 }
 
-/// Registry root with a trailing slash should not produce a double
-/// slash in the assembled endpoint URL. The matcher pinned on
-/// `/-/npm/v1/attestations/acme@1.0.0` would 404 if pacquet sent
-/// `//-/npm/v1/...` — the `trim_end_matches('/')` line on the
-/// registry root is what avoids that.
 #[tokio::test]
 async fn trims_trailing_slash_from_registry_root() {
     let mut server = mockito::Server::new_async().await;

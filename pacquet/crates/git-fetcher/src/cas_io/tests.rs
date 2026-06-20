@@ -30,8 +30,6 @@ fn join_checked_accepts_normal_segments() {
 
 #[test]
 fn join_checked_strips_current_dir_components() {
-    // `./a` and `a` both produce the same `<root>/a` — leading
-    // `./` is a no-op, matching upstream's `path.normalize`.
     let root = Path::new("/root");
     let joined = join_checked(root, "./a").unwrap();
     let expected: Vec<_> = Path::new("/root/a").components().collect();
@@ -168,4 +166,32 @@ fn materialize_into_rejects_traversal() {
     // target dir nor in its parent.
     assert!(!target.path().join("escape").exists());
     assert!(!target.path().parent().unwrap().join("escape").exists());
+}
+
+/// Strip the store file's exec bit first so the assertion proves restoration,
+/// not `fs::copy`'s mode carry-over; the non-exec sibling pins the no-widen path.
+#[cfg(unix)]
+#[test]
+fn materialize_into_restores_exec_bit_from_cas_suffix() {
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let target = tempdir().unwrap();
+    let cas_root = tempdir().unwrap();
+    let store_dir = StoreDir::from(cas_root.path().to_path_buf());
+
+    let (exec_cas, _) = store_dir.write_cas_file(b"#!/bin/sh\n", true).unwrap();
+    fs::set_permissions(&exec_cas, fs::Permissions::from_mode(0o644)).unwrap();
+    let (regular_cas, _) = store_dir.write_cas_file(b"data\n", false).unwrap();
+    fs::set_permissions(&regular_cas, fs::Permissions::from_mode(0o600)).unwrap();
+
+    let mut cas_paths: HashMap<String, _> = HashMap::new();
+    cas_paths.insert("bin/run".to_string(), exec_cas);
+    cas_paths.insert("README.md".to_string(), regular_cas);
+
+    materialize_into(&cas_paths, target.path()).unwrap();
+
+    let exec_mode = fs::metadata(target.path().join("bin/run")).unwrap().permissions().mode();
+    assert_eq!(exec_mode & 0o777, 0o755, "exec-suffixed CAS file must materialize as 0o755");
+    let regular_mode = fs::metadata(target.path().join("README.md")).unwrap().permissions().mode();
+    assert_eq!(regular_mode & 0o777, 0o600, "non-exec file must keep its restrictive mode");
 }

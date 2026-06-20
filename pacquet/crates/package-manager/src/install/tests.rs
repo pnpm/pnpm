@@ -5,9 +5,9 @@
 
 use super::{
     Install, InstallError, UpToDateFastPathCheck, install_already_up_to_date,
-    load_workspace_projects,
+    load_workspace_projects, should_write_package_map,
 };
-use pacquet_config::Config;
+use pacquet_config::{Config, NodePackageMapType};
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_modules_yaml::{
     DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, LayoutVersion, Modules, NodeLinker,
@@ -101,6 +101,17 @@ fn workspace_without_packages_field_enumerates_root_only() {
     assert_eq!(names, vec!["root"]);
 }
 
+#[test]
+fn package_map_writer_is_gated_to_supported_pacquet_mode() {
+    let mut config = Config::new();
+    assert!(should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
+    assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Hoisted));
+    assert!(!should_write_package_map(&config, pacquet_config::NodeLinker::Pnp));
+
+    config.node_package_map_type = NodePackageMapType::Loose;
+    assert!(should_write_package_map(&config, pacquet_config::NodeLinker::Isolated));
+}
+
 #[tokio::test]
 async fn should_install_dependencies() {
     let mock_instance = TestRegistry::start();
@@ -158,14 +169,12 @@ async fn should_install_dependencies() {
     .await
     .expect("install should succeed");
 
-    // Make sure the package is installed
     let path = project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     eprintln!("path={path:?} symlink_or_junction={:?}", is_symlink_or_junction(&path));
     assert!(is_symlink_or_junction(&path).unwrap());
     let path = project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
     eprintln!("path={path:?} exists={}", path.exists());
     assert!(path.exists());
-    // Make sure we install dev-dependencies as well
     let path = project_root.join("node_modules/@pnpm/xyz");
     eprintln!("path={path:?} symlink_or_junction={:?}", is_symlink_or_junction(&path));
     assert!(is_symlink_or_junction(&path).unwrap());
@@ -183,7 +192,7 @@ async fn should_install_dependencies() {
 
     insta::assert_debug_snapshot!(get_all_folders(&project_root));
 
-    drop((dir, mock_instance)); // cleanup
+    drop((dir, mock_instance));
 }
 
 /// A first install (no prior `.modules.yaml`, so the prune throttle
@@ -257,7 +266,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
     );
     assert!(!surplus.exists(), "the surplus virtual-store dir must be pruned on install");
 
-    drop((dir, mock_instance)); // cleanup
+    drop((dir, mock_instance));
 }
 
 /// The prune deletes directories under `virtual_store_dir`, which can be
@@ -332,7 +341,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
         "prune must be skipped when the virtual store is outside node_modules",
     );
 
-    drop((dir, mock_instance)); // cleanup
+    drop((dir, mock_instance));
 }
 
 #[tokio::test]
@@ -663,7 +672,6 @@ async fn npm_alias_dependency_installs_under_alias_key() {
     .await
     .expect("npm-alias install should succeed");
 
-    // Symlink lives under the alias key, *not* the real package name.
     let alias_link = project_root.join("node_modules/hello-world-alias");
     assert!(
         is_symlink_or_junction(&alias_link).unwrap(),
@@ -674,7 +682,6 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         "the real package name must not be exposed alongside an unrelated alias",
     );
 
-    // Virtual-store directory uses the real package name.
     let virtual_store_path =
         project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
     assert!(virtual_store_path.is_dir(), "expected real-name virtual store dir");
@@ -755,7 +762,6 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     .await
     .expect("unversioned npm-alias install should succeed (defaults to latest)");
 
-    // Symlink lives under the alias key, not the real package name.
     let alias_link = project_root.join("node_modules/hello-world-alias");
     assert!(
         is_symlink_or_junction(&alias_link).unwrap(),
@@ -3120,8 +3126,8 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
 /// `write_modules_manifest`'s sort-on-write.
 ///
 /// An empty set produces an empty list — covers the fresh-install
-/// case while pinning that the field is no longer
-/// `..Default::default()`'d away from the manifest.
+/// case while pinning that the field is always present on the
+/// manifest.
 ///
 /// [`SkippedSnapshots`]: super::super::SkippedSnapshots
 /// [`PackageKey`]: pacquet_lockfile::PackageKey
@@ -3648,7 +3654,6 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
     .await
     .expect("install must succeed with --no-optional despite missing optional metadata");
 
-    // The optional-only snapshot must not have been extracted.
     let expected_slot = virtual_store_dir.join("drop-me@1.0.0").join("node_modules");
     assert!(
         !expected_slot.exists(),
@@ -4351,8 +4356,6 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
 
     let err = result.expect_err("invalid exclude pattern must surface");
     assert!(matches!(err, InstallError::BuildVerifiers(_)), "expected BuildVerifiers, got {err:?}");
-    // The build error must short-circuit the install before any
-    // virtual-store materialization runs.
     assert!(
         !project_root.join("node_modules/.pacquet").exists(),
         "BuildVerifiers must abort before virtual-store materialization",
@@ -5212,8 +5215,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
 /// not frozen) installs successfully and records the hoisted linker
 /// in `.modules.yaml`. With an empty manifest there is nothing to
 /// materialize, so the assertion focuses on the dispatch reaching
-/// the hoisted-linker pipeline rather than bailing — the previous
-/// hard-refusal at this site ([#11871](https://github.com/pnpm/pnpm/issues/11871)) is gone.
+/// the hoisted-linker pipeline rather than bailing.
 #[tokio::test]
 async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
     let dir = tempdir().unwrap();

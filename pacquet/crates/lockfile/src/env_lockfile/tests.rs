@@ -36,8 +36,6 @@ fn sample_env_lockfile() -> EnvLockfile {
     env
 }
 
-/// A written env document round-trips back to an equal value, and the
-/// combined file carries the `---\n…\n---\n` multi-document framing.
 #[test]
 fn write_then_read_round_trips() {
     let dir = TempDir::new().unwrap();
@@ -55,10 +53,6 @@ fn write_then_read_round_trips() {
     assert_eq!(read_back, env);
 }
 
-/// `lockfileVersion` is a free-form string (matching upstream's
-/// `EnvLockfile.lockfileVersion: string`), so an env document carrying a
-/// non-numeric marker like `env-1.0` reads successfully rather than
-/// hard-failing — pnpm's reader only requires it to be a string.
 #[test]
 fn reads_non_numeric_lockfile_version() {
     let dir = TempDir::new().unwrap();
@@ -73,8 +67,6 @@ fn reads_non_numeric_lockfile_version() {
     );
 }
 
-/// Writing the env document preserves whatever main lockfile document
-/// already exists, and the main loader still reads it back.
 #[test]
 fn write_preserves_existing_main_document() {
     let dir = TempDir::new().unwrap();
@@ -87,14 +79,11 @@ fn write_preserves_existing_main_document() {
     assert!(extract_env_document(&raw).is_some());
     assert!(raw.contains("is-odd:"), "main document content must survive the env write");
 
-    // The main loader strips the env document and reads the project lockfile.
     let loaded =
         Lockfile::load_wanted_from_dir(dir.path()).unwrap().expect("main lockfile present");
     assert!(loaded.root_project().is_some());
 }
 
-/// Re-saving the main lockfile (the path the install flow takes) keeps
-/// the env document intact at the top of the file.
 #[test]
 fn saving_main_lockfile_preserves_env_document() {
     let dir = TempDir::new().unwrap();

@@ -30,12 +30,6 @@ pub fn create_hash(input: &str) -> String {
 
 /// Read `path` as UTF-8, normalize CRLF line endings to LF, and hash the
 /// result with [`create_hash`].
-///
-/// Matches upstream
-/// [`createHashFromFile`](https://github.com/pnpm/pnpm/blob/1819226b51/crypto/hash/src/index.ts#L27-L38):
-/// the `\r\n` → `\n` normalization keeps the checksum stable across
-/// platforms, so a pnpmfile checked out with CRLF on Windows hashes the
-/// same as the LF copy a Linux CI runner sees.
 pub fn create_hash_from_file(path: &Path) -> io::Result<String> {
     let content = std::fs::read_to_string(path)?;
     Ok(create_hash(&content.replace("\r\n", "\n")))
@@ -75,8 +69,6 @@ pub fn create_short_hash(input: &str) -> String {
 ///
 /// `max_length` is `Modules.virtual_store_dir_max_length` (default
 /// 120; see `pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
-/// The `file+` early exit keeps file-protocol deps from hashing just
-/// because their on-disk path component carries capitals.
 ///
 /// The caller is responsible for pre-escaping the source string (parens
 /// → underscores, scoped-name slashes → `+`, etc) — this helper only

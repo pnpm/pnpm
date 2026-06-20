@@ -23,7 +23,6 @@ use pacquet_resolving_npm_resolver::{
 use pacquet_tarball::MemCache;
 use pacquet_workspace_manifest_writer::{UpdateWorkspaceManifestError, update_workspace_manifest};
 
-/// This subroutine does everything `pacquet add` is supposed to do.
 #[must_use]
 pub struct Add<'a, ListDependencyGroups, DependencyGroupList>
 where

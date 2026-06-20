@@ -13,13 +13,7 @@
 //! is not a dependency of this crate.)
 //!
 //! The validation rules mirror upstream's
-//! [`validateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/workspace-manifest-reader/src/index.ts):
-//!
-//! - File missing → `None`.
-//! - Empty / `{}` document → `Some(default)`.
-//! - Root is not an object (e.g. a YAML sequence) → error.
-//! - `packages` present but not a string array → error.
-//! - Empty-string entries in `packages` → error.
+//! [`validateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/workspace-manifest-reader/src/index.ts).
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -111,9 +105,7 @@ pub enum ReadWorkspaceManifestError {
 /// package pattern default.
 ///
 /// Mirrors config-reader's `workspacePackagePatterns` fallback:
-/// `workspaceManifest?.packages ?? ['.']`. A settings-only workspace
-/// manifest therefore enumerates the root project only; it does not use
-/// the lower-level `findPackages` recursive default.
+/// `workspaceManifest?.packages ?? ['.']`.
 #[must_use]
 pub fn workspace_package_patterns(manifest: &WorkspaceManifest) -> Vec<String> {
     manifest.packages.clone().unwrap_or_else(|| vec![".".to_string()])

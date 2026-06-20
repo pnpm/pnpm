@@ -21,11 +21,7 @@ use crate::hoist_peers::satisfies_including_prerelease;
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior
 /// lockfile entry in the shape pnpm's `getInfoFromLockfile` +
 /// [`pkgSnapshotToResolution`](https://github.com/pnpm/pnpm/blob/1627943d2a/lockfile/utils/src/pkgSnapshotToResolution.ts)
-/// hand the resolver — a `Registry` entry regains its derived tarball
-/// URL, every other shape passes through as recorded. `None` when the
-/// lockfile has no `packages:` entry for the key (matching upstream,
-/// where a missing `resolution` leaves `currentPkg.resolution`
-/// undefined so the entry can be autofixed by a fresh resolve).
+/// hand the resolver.
 pub(crate) fn current_pkg_from_lockfile(
     lockfile: &Lockfile,
     key: &PkgNameVerPeer,
@@ -69,9 +65,7 @@ pub(crate) fn current_pkg_from_lockfile(
 
 /// The prior snapshot key recorded for child edge `alias` under
 /// `snapshot`'s dependency maps, when the recorded version still
-/// satisfies `bare_specifier`. The satisfies gate mirrors pnpm's
-/// `referenceSatisfiesWantedSpec` guard on `resolvedDependencies`
-/// references.
+/// satisfies `bare_specifier`.
 pub(crate) fn prior_child_key(
     snapshot: &SnapshotEntry,
     alias: &str,
@@ -94,11 +88,9 @@ pub(crate) fn prior_child_key(
 /// recorded version still satisfies the manifest's `bare_specifier`
 /// (semver-satisfies, matching pnpm's `satisfiesWanted`).
 ///
-/// Returns `None` — so the caller resolves fresh — for a new dependency,
-/// an edited range the locked version no longer satisfies, a non-semver
-/// `bare_specifier`, or a `link:` recorded shape. The first cut reuses
-/// only semver (registry/tarball) deps; richer shapes (`link:`/`file:`/
-/// `workspace:`/`catalog:`) fall through to a normal resolve.
+/// Reuse is limited to semver (registry/tarball) deps; richer shapes
+/// (`link:`/`file:`/`workspace:`/`catalog:`) fall through to a normal
+/// resolve.
 pub(crate) fn reusable_importer_dep(
     importers: &HashMap<String, ProjectSnapshot>,
     importer_id: &str,
@@ -171,7 +163,6 @@ pub(crate) fn synthesize_reused_result(
     let metadata_key = key.without_peer();
     let version = metadata_key.suffix.version_semver()?.clone();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
-    // Reuse only registry-resolved packages for now (see the doc above).
     match &metadata.resolution {
         LockfileResolution::Registry(_) => {}
         LockfileResolution::Tarball(tarball)

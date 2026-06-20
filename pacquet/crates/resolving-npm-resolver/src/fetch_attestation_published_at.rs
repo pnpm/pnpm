@@ -13,10 +13,7 @@
 //! the trust model is identical to reading the registry's `time`
 //! field on the full metadata document.
 //!
-//! Returns `Ok(None)` (not `Err`) on every "no answer" condition:
-//! 4xx/5xx responses, malformed JSON, missing timestamps. The
-//! verifier falls back to the next layer of the publish-time lookup
-//! chain. Real network errors propagate as
+//! Real network errors propagate as
 //! [`crate::FetchMetadataError::Network`] so the verifier can fold
 //! them into a violation reason instead of swallowing.
 //!
@@ -37,21 +34,12 @@ pub struct FetchAttestationOptions<'a> {
 }
 
 /// Fetch the earliest Rekor `integratedTime` across the attestation
-/// bundles for `<name>@<version>`. Returns `Ok(Some(rfc3339))` on a
-/// 2xx response with a parseable timestamp; `Ok(None)` for any
-/// "no answer" condition (4xx/5xx, malformed body, no timestamps);
-/// `Err(_)` only when the underlying request fails before reaching
-/// the server.
+/// bundles for `<name>@<version>`.
 pub async fn fetch_attestation_published_at(
     pkg_name: &str,
     version: &str,
     opts: &FetchAttestationOptions<'_>,
 ) -> Result<Option<String>, FetchMetadataError> {
-    // Strip a trailing `/` from the registry root before assembling
-    // the endpoint URL — `<registry>/-/npm/v1/attestations/...`
-    // produces `//` otherwise, which some self-hosted registries
-    // reject as a malformed path. Matches upstream's
-    // `opts.registry.replace(/\/$/, '')`.
     let registry = opts.registry.trim_end_matches('/');
     let url = format!("{registry}/-/npm/v1/attestations/{pkg_name}@{version}");
     let mut request = opts.http_client.acquire_for_url(&url).await.get(&url);
@@ -69,9 +57,6 @@ pub async fn fetch_attestation_published_at(
             return Ok(None);
         }
     };
-    // Anything outside the 2xx range = no answer. 404 means the
-    // version isn't signed; 5xx means the registry can't say; we
-    // fall through either way.
     if !response.status().is_success() {
         return Ok(None);
     }
@@ -112,9 +97,6 @@ fn read_earliest_integrated_time(attestation: &serde_json::Value) -> Option<i64>
     let tlog_entries = verification_material.get("tlogEntries")?.as_array()?;
     let mut earliest: Option<i64> = None;
     for entry in tlog_entries {
-        // npm serializes integratedTime as a string ("1778583836")
-        // to avoid JSON precision loss; accept either string or
-        // number defensively.
         let seconds = parse_integrated_time_seconds(entry.get("integratedTime")?)?;
         earliest = Some(earliest.map_or(seconds, |current| current.min(seconds)));
     }

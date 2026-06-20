@@ -126,30 +126,9 @@ Do not dismiss a failing test as a "pre-existing" failure that is unrelated to y
 
 ## AI Review Guidance
 
-When reviewing pull requests, use a security-first lens. Security vulnerabilities are the first priority. Actively look for vulnerabilities introduced or exposed by the diff, especially:
+The repository's review framework lives in **[REVIEW_GUIDE.md](./REVIEW_GUIDE.md)** — how changes are accepted or rejected, the security-first / performance-second priorities, the security checklist and advisory regression themes, and the test/changeset/parity expectations. Apply it when reviewing pull requests. (Code style, comments, and engineering conventions for the TypeScript CLI are documented in the "Code Style" section of this file; pacquet and pnpr follow their own `AGENTS.md` and style guides.)
 
-- unsafe handling of package manifests, lockfiles, tarballs, registry responses, lifecycle scripts, configDependencies, patches, and workspace links;
-- path traversal, symlink/hardlink, archive extraction, arbitrary file read/write/delete, TOCTOU, and permissions mistakes;
-- command injection, shell argument construction, environment-variable trust, executable resolution, script execution policy, and privilege boundary mistakes;
-- registry, network, and auth mistakes including token leakage, proxy handling, redirect behavior, TLS assumptions, cache poisoning, integrity/hash verification, and downgrade or confusion attacks;
-- Rust memory, concurrency, and unsafe FFI issues in pacquet, including panic-on-untrusted-input denial of service.
-
-Treat attacker-controlled inputs broadly: package metadata, tarball contents, lockfiles, workspace manifests, `.npmrc`/environment config, registry responses, git URLs, filesystem paths, and script names. Surface plausible security issues even when they are edge cases, but explain the exploit path and impact clearly. Do not report generic security advice unless it is tied to changed code.
-
-Use pnpm's published security advisories as regression themes. Pay extra attention to recurring issue classes from past pnpm advisories:
-
-- repo-controlled `.npmrc` and `pnpm-workspace.yaml` must not expand victim environment secrets into registry URLs, auth headers, proxy settings, token helpers, or other outbound requests;
-- user-level npm auth credentials must not be bound to a repository-selected registry unless the registry scope and trust boundary are explicit;
-- lifecycle/build-script approval gates must cover all dependency sources and phases, including git dependencies, fetch/prepare/prepack/prepublish paths, `allowBuilds`, ignored-build reporting, explicit denials, and pacquet parity;
-- opaque dependency identities such as git, URL, tarball, file, directory, patch, and alias locators must remain byte-for-byte exact where used for trust decisions; do not normalize away attacker-controlled suffixes or confuse them with registry peer suffixes;
-- lockfile entries for remote dynamic dependencies, GitHub/git dependencies, tarballs, commits, and integrity fields must preserve enough immutable integrity data to reject changed content and avoid unsafe defaults or missing-field bypasses;
-- treat lockfile fields and git metadata as untrusted input, especially `resolution.commit`, refs, and URLs; prevent command/argument injection and avoid passing attacker-controlled values as executable flags;
-- path handling must reject traversal and root escape in bin names, `directories.bin`, transitive aliases, patch files, tar/zip entries, symlink/hardlink targets, file/git dependencies, Windows path separators, executable shims, permission changes, and delete/write destinations;
-- cache/store/global-metadata keys must include all trust-relevant inputs so overrides, scripts policy, registry metadata, and lockfile state cannot poison later installs or other workspaces;
-- archive extraction and package identity code must match npm/registry semantics for duplicate tar entries, stripped path components, symlinks, permissions, and manifest selection;
-- path-shortening, hashing, cache naming, and content-addressing code must use collision-resistant identifiers and verify collisions cannot redirect dependencies or overwrite package contents.
-
-After security, treat performance as the second review priority. pnpm, pacquet, and pnpr must stay fast. Look for non-optimal code that could add latency, CPU work, memory pressure, lock contention, unnecessary I/O, excessive logging, redundant parsing/serialization, repeated filesystem scans, avoidable network round trips, poor cache behavior, missed streaming/batching opportunities, or slower hot paths in install/add/update/remove, resolution, fetching, linking, lockfile handling, store access, tarball extraction, and pnpr server paths. Flag performance risks when the changed code is likely to run on common workflows, large workspaces, many dependencies, or repeated requests. Prefer concrete evidence from the diff and explain the likely scale or hot path affected.
+Security is the first review priority and performance the second. Surface only issues tied to the changed code, and explain the exploit path, impact, or hot path affected. See the guide's Security and Performance review sections for the full checklist.
 
 ## Code Reuse and Avoiding Duplication
 
@@ -211,7 +190,7 @@ GitHub turns any `@name` into a mention of that user/org/team, which is wrong ei
 
 ## Changesets (TypeScript only)
 
-If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory. The changeset file should describe the change and specify the packages that are affected with the pending version bump types: patch, minor, or major.
+If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory. The changeset file should describe the change and specify the packages that are affected with the pending version bump types: patch, minor, or major. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset.
 
 **IMPORTANT: Always explicitly include `"pnpm"` in the changeset** with the appropriate version bump (patch, minor, or major). The pnpm CLI will only receive automatic patch bumps from its dependencies, so if your change warrants a minor or major version bump for the CLI, you must specify it explicitly. The changeset description will appear on the release notes page.
 
@@ -257,6 +236,7 @@ Defaults:
 
 -   **Do not write a comment** that restates what the code already says. If renaming a variable, splitting a helper, or moving a check to a more obvious place would carry the information, do that instead.
 -   **Do not repeat documentation** at call sites that already lives on the callee. If the function has a JSDoc, the call site shouldn't re-explain what calling it does. Update the JSDoc once; let every call site benefit.
+-   **Put a shared *why* in one place.** When the same rationale underlies several related functions — peers that delegate to a common helper, or a type and its methods — document it once at that common home and reference it from the rest, instead of re-deriving it in each. This is the call-site rule applied sideways across peers, not just upward to a callee.
 -   **JSDoc is for the function's contract** — preconditions, postconditions, edge cases, why the function exists. Not for re-narrating the body.
 -   **Do not record past implementation shape, refactor history, or "the previous code did X" framing.** That's what `git log` and `git blame` are for. Describe the current contract — what the code is and what it guarantees — not what it replaced. Phrasings like "used to", "previously", "the original X", or a parenthetical naming a removed type belong in the commit message, not in the source.
 
@@ -266,6 +246,18 @@ Write a comment only when:
 -   The right name doesn't fit — e.g., a temporary technical constraint that's worth flagging but doesn't justify a new symbol.
 
 Before adding a comment, ask: "Could I rename, restructure, or extract instead?" If yes, do that. The bar for prose-in-code is high; the bar for prose-that-restates-code is "don't."
+
+### Conventions
+
+Recurring engineering conventions in this codebase — the rules reviewers most often enforce:
+
+-   **Errors.** Throw `PnpmError` (from `@pnpm/error`) for user-reachable errors — they are part of the UX and carry a stable code. Programmer-error, type-guard, and unreachable-branch errors stay plain `Error`. Never swallow errors; catch only the specific expected code (not "any error" when you meant `ENOENT`). Throw on impossible states rather than continuing. Error messages must carry context, e.g. the offending path.
+-   **Naming.** Functions are verbs; types and fields are specific, not generic. Reuse existing terminology rather than inventing synonyms. File names follow the existing convention; rename a concept everywhere it appears.
+-   **Reuse repo libraries.** Don't add a dependency, or hand-roll logic, for a job an existing repo utility or an already-present library does — search for it first. Deduplicate copy-pasted logic into a shared function or package.
+-   **String parsing.** Prefer plain string operations over a custom regular expression. When the input needs structured parsing with backtracking, use the existing parser-combinator pattern (`object/property-path`).
+-   **Dependency placement.** Shared infrastructure (the logger, etc.) is a peer dependency. (The narrowest-package rule is covered under "Code Reuse and Avoiding Duplication" above.)
+-   **Config and layering.** Configurable values flow through `@pnpm/config` and reach commands via options — don't hardcode them (CLI options are camelCased automatically). Command handlers return data and let the CLI print it, which keeps them unit-testable. Don't add a wrapper function that adds nothing.
+-   **Async and loops.** Prefer async fs and `async/await`; run independent work with `Promise.all`/`Promise.any` and `await` what must complete; hoist invariant work out of loops.
 
 ## Common Gotchas
 
@@ -296,6 +288,7 @@ try {
 
 ## Working with GitHub PRs, Issues, and Comments
 
+-   **Open every PR with the repository template.** `gh pr create` does not apply `.github/pull_request_template.md` automatically, so read that file and pass its filled-in contents as the PR body (`--body`/`--body-file`). Keep every section (Summary, Squash Commit Body, Checklist), fill them in for this change, mark the checklist items, and remove only the lines the template says are inapplicable.
 -   **Keep PR titles and descriptions current.** When pushing new changes to a PR, review the title and description and update them if they no longer accurately reflect what the PR does.
 -   **Reply to and resolve review conversations.** Once a review comment has been addressed, reply to the thread with a description of the resolution including the commit hash that fixed it, then mark the conversation as resolved.
 -   **Sign all agent-authored content.** When posting a comment, creating an issue, or opening a PR, append a footer to the message indicating that it was written by an agent. The footer must include the name of the agent and the name of the model used. Example:

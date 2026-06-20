@@ -47,20 +47,13 @@ pub fn parse_bare_specifier(
         bare = rest.to_string();
 
         let alias_str = alias;
-        // `npm:<version_selector>` paired with a non-empty alias keeps
-        // the alias as the package name, mirroring the named-registry
-        // shape (`gh:^1.0.0`). Restricted to semver ranges/versions so
-        // unscoped names like `npm:is-positive` keep their npm package-
-        // aliasing meaning instead of being read as a tag.
         if let Some(a) = alias_str
             && !a.is_empty()
             && Range::parse(&bare).is_ok()
         {
             name = Some(a.to_string());
         } else {
-            // Last `@` discriminates `name@version`. `index < 1` covers
-            // both no-`@` (`npm:foo`) and leading-`@` (`npm:@scope/foo`,
-            // no version) cases — both fall back to the default tag.
+            // Last `@` discriminates `name@version`.
             let last_at =
                 bare.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
             match last_at {
@@ -175,10 +168,9 @@ pub struct NamedRegistryPackageSpec {
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParseNamedRegistrySpecifierError {
-    /// Scope without a `/<name>` segment (e.g. `gh:@acme` or
-    /// `gh:@acme@1.0.0`). Always a configuration bug, refused so the
-    /// user gets an immediate, actionable error instead of a confusing
-    /// downstream 404.
+    /// Scope without a `/<name>` segment. Always a configuration bug,
+    /// refused so the user gets an immediate, actionable error instead
+    /// of a confusing downstream 404.
     #[display("The package name '{pkg_name}' in named registry '{registry_name}:' is invalid")]
     #[diagnostic(code(ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME))]
     InvalidPackageName {
@@ -225,9 +217,6 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
     let version_selector: Option<String>;
 
     if Range::parse(body).is_ok() {
-        // `<alias>:<version_selector>` — body is a semver range or
-        // version; the package name has to come from the dependency
-        // alias. Without one we cannot resolve.
         let Some(alias) = package_alias.filter(|alias| !alias.is_empty()) else {
             return Ok(None);
         };

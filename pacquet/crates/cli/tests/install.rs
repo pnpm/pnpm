@@ -49,7 +49,7 @@ fn should_install_dependencies() {
     let store_files = get_all_files(&store_dir);
     insta::assert_debug_snapshot!((workspace_folders, store_files));
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn should_install_exec_files() {
     eprintln!("Snapshot");
     insta::assert_debug_snapshot!(store_files);
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -134,7 +134,7 @@ fn should_install_index_files() {
     let index_file_contents = index_file_contents(&store_dir);
     insta::assert_yaml_snapshot!(index_file_contents);
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 // Ignored on CI: the test drives the registry fixture with hundreds of
@@ -169,7 +169,7 @@ fn frozen_lockfile_should_be_able_to_handle_big_lockfile() {
     eprintln!("Executing command...");
     pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// Regression test for the NDJSON `prefix` field. `--reporter=ndjson`
@@ -225,7 +225,7 @@ fn install_emits_canonical_prefix_in_ndjson_events() {
         );
     }
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -250,7 +250,7 @@ fn should_install_circular_dependencies() {
     assert!(workspace.join("./node_modules/.pnpm/@pnpm.e2e+circular-deps-1-of-2@1.0.2").exists());
     assert!(workspace.join("./node_modules/.pnpm/@pnpm.e2e+circular-deps-2-of-2@1.0.2").exists());
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -293,7 +293,7 @@ fn install_resolves_env_var_in_user_npmrc_registry() {
     eprintln!("symlink_path={symlink_path:?} installed={installed}");
     assert!(installed, "expected installed symlink/junction at {symlink_path:?}");
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -336,7 +336,7 @@ fn install_ignores_env_var_in_project_npmrc_registry() {
     let installed = is_symlink_or_junction(&symlink_path).unwrap();
     assert!(installed, "expected installed symlink/junction at {symlink_path:?}");
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// `@pnpm.e2e/abc-parent-with-missing-peers@1.0.0` depends on
@@ -390,7 +390,7 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
         );
     }
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// `peer-diamond-plugin` peer-depends both `peer-diamond-parser` and
@@ -437,7 +437,7 @@ fn peer_shared_through_a_diamond_is_resolved_consistently() {
         "the plugin must not be paired with a ts@2.0.0 parser; lockfile:\n{lockfile}",
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -485,7 +485,7 @@ fn install_preserves_deprecated_lockfile_metadata_when_reusing_resolution() {
         "lockfile reuse should preserve deprecation metadata:\n{second}",
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[test]
@@ -648,7 +648,7 @@ fn install_resolves_catalog_protocol() {
         workspace.join("node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0");
     assert!(virtual_path.exists(), "expected virtual store entry at {virtual_path:?}");
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// A misconfigured catalog (specifier points at a missing entry) must
@@ -688,7 +688,7 @@ fn install_surfaces_catalog_misconfiguration() {
         "stderr did not mention the missing-catalog-entry error: {stderr}",
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// Fresh-install GVS regression: `pacquet install` (no flag, no
@@ -747,7 +747,7 @@ fn fresh_install_honors_enable_global_virtual_store() {
         "expected at least one project-registry entry under {projects_dir:?}; got {project_count}",
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// End-to-end coverage for the `cache+node_modules` shortcut. After a
@@ -827,7 +827,7 @@ fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
         "regenerated pnpm-lock.yaml must list the installed packages:\n{regenerated}",
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// End-to-end coverage for the no-op short-circuit. After a successful
@@ -884,7 +884,7 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
         "expected `name: \"pnpm\" / level: \"info\"` up-to-date log in NDJSON stderr; got:\n{stderr}",
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// The reason `--frozen-store` exists: install against a package store that
@@ -980,7 +980,7 @@ fn frozen_store_installs_against_a_read_only_store() {
     // file needs write permission on its *parent* directory.
     set_dir_modes(&store_dir, 0o755);
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// `--frozen-store` with a configured `pnprServer` is a hard config conflict:
@@ -1021,7 +1021,7 @@ fn frozen_store_with_a_pnpr_server_is_a_config_conflict() {
         "stderr did not carry the frozen-store/pnpr conflict code: {stderr}",
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// `resolutionMode: highest` (the default) resolves a direct dependency
@@ -1049,7 +1049,7 @@ fn resolution_mode_highest_picks_highest_direct_version() {
     );
     assert!(!pnpm_dir.join("@pnpm.e2e+foo@100.0.0").exists());
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// `resolutionMode: lowest-direct` resolves a direct dependency to the
@@ -1088,7 +1088,7 @@ fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
     );
     assert!(!pnpm_dir.join("@pnpm.e2e+foo@100.1.0").exists());
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 /// `@pnpm.e2e/abc-parent-with-ab@1.0.0` transitively peer-depends on
@@ -1170,7 +1170,7 @@ fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
         "reuse must preserve the root peer-c@2.0.0 context; lockfile:\n{second}",
     );
 
-    drop((root, mock_instance)); // cleanup
+    drop((root, mock_instance));
 }
 
 #[expect(

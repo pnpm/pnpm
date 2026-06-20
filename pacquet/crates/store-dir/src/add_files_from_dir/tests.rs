@@ -20,9 +20,6 @@ fn write(path: &Path, contents: &str) {
     fs::write(path, contents).expect("write file");
 }
 
-/// A directory with two regular files at the top level lands both
-/// in the returned map under their basenames. The CAFS-side blob
-/// hash matches `Sha512(contents)`.
 #[test]
 fn captures_top_level_files() {
     let (_tmp, store_dir) = make_store();
@@ -40,9 +37,8 @@ fn captures_top_level_files() {
     assert_eq!(pkg.size, b"{\"name\":\"x\"}\n".len() as u64);
 }
 
-/// Nested files use forward-slash relative paths regardless of
-/// host separator — required so the resulting `FilesIndex`
-/// round-trips through pnpm without renormalisation.
+/// Forward-slash relative paths are required so the resulting
+/// `FilesIndex` round-trips through pnpm without renormalisation.
 #[test]
 fn nested_paths_use_forward_slashes() {
     let (_tmp, store_dir) = make_store();
@@ -53,9 +49,6 @@ fn nested_paths_use_forward_slashes() {
     assert!(added.files.contains_key("lib/inner/deep.js"), "got keys: {:?}", added.files.keys());
 }
 
-/// An executable script (`0o755`) lands in the CAFS as `-exec`.
-/// Reading the same digest back via `cas_file_path_by_mode` with
-/// the recorded mode must resolve to that exact path.
 #[cfg(unix)]
 #[test]
 fn executable_files_get_exec_suffix() {
@@ -75,8 +68,6 @@ fn executable_files_get_exec_suffix() {
     assert!(path_str.ends_with("-exec"), "expected -exec suffix, got `{path_str}`");
 }
 
-/// A top-level `node_modules` directory is silently skipped —
-/// matches upstream's `includeNodeModules` default of `false`.
 #[test]
 fn top_level_node_modules_is_skipped() {
     let (_tmp, store_dir) = make_store();
@@ -89,9 +80,6 @@ fn top_level_node_modules_is_skipped() {
     assert_eq!(keys, vec!["index.js".to_string()]);
 }
 
-/// A nested `node_modules` (not at depth 0) is treated like any
-/// other directory and walked. Mirrors upstream's
-/// `relativeDir !== '' || file.name !== 'node_modules'` guard.
 #[test]
 fn nested_node_modules_is_walked() {
     let (_tmp, store_dir) = make_store();
@@ -106,8 +94,6 @@ fn nested_node_modules_is_walked() {
     );
 }
 
-/// A symlink whose target resolves outside the package root is
-/// dropped. Mirrors upstream's `isSubdir(rootDir, realPath)` check.
 #[cfg(unix)]
 #[test]
 fn symlinks_pointing_outside_root_are_skipped() {
@@ -126,8 +112,6 @@ fn symlinks_pointing_outside_root_are_skipped() {
     assert_eq!(keys, vec!["index.js".to_string()]);
 }
 
-/// A symlink pointing at a sibling file within the same root is
-/// followed and captured under the link's name.
 #[cfg(unix)]
 #[test]
 fn symlinks_within_root_are_followed() {

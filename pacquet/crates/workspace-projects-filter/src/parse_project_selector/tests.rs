@@ -208,8 +208,6 @@ fn diff_with_dependencies_and_dependents() {
 
 #[test]
 fn exclude_with_leading_brace_name_keeps_exclude() {
-    // `!{foo`: the unclosed brace is absorbed into the name, so this is
-    // an exclude name selector, not an include one.
     assert_eq!(
         parse("!{foo"),
         ProjectSelector { exclude: true, name_pattern: name("{foo"), ..Default::default() },
@@ -250,21 +248,15 @@ fn unparsable_braces_fall_back_to_name() {
 
 #[test]
 fn triple_dots_reduces_to_dependencies_only() {
-    // After stripping the trailing `...`, the remainder is empty, so the
-    // selector carries only `include_dependencies`.
     assert_eq!(parse("..."), ProjectSelector { include_dependencies: true, ..Default::default() });
 }
 
 #[test]
 fn empty_braces_fall_back_to_name() {
-    // `{}` has an empty brace group, which the regex's `[^}]+` rejects, so
-    // it parses as a literal name.
     assert_eq!(parse("{}"), ProjectSelector { name_pattern: name("{}"), ..Default::default() });
 }
 
 #[test]
 fn dot_prefixed_name_is_not_a_location() {
-    // `.foo` starts with `.` but is neither `.`/`./`/`.\` nor `..`, so it
-    // is a name pattern, not a location selector.
     assert_eq!(parse(".foo"), ProjectSelector { name_pattern: name(".foo"), ..Default::default() });
 }

@@ -1,6 +1,7 @@
-use super::{CreateVirtualDirBySnapshot, optimistic_wire_method};
+use super::{CreateVirtualDirBySnapshot, optimistic_wire_method, remove_obsolete_child};
 use pacquet_config::PackageImportMethod;
-use pacquet_lockfile::{PackageKey, SnapshotEntry};
+use pacquet_fs::force_symlink_dir;
+use pacquet_lockfile::{PackageKey, PkgName, SnapshotEntry};
 use pacquet_reporter::{
     LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter,
 };
@@ -87,8 +88,7 @@ impl Drop for LinkConcurrencyGuard<'_> {
 
 /// `optimistic_wire_method` is the source of truth for the
 /// configured-method → wire-method mapping the `imported` event
-/// reports. `Auto` and `CloneOrCopy` collapse to `Clone` (the
-/// optimistic first attempt); the explicit settings pass through.
+/// reports.
 /// A future change to pacquet's `PackageImportMethod` set must
 /// either extend this match or fail this test.
 #[test]
@@ -100,13 +100,9 @@ fn optimistic_wire_method_collapses_auto_and_clone_or_copy_to_clone() {
     assert_eq!(optimistic_wire_method(PackageImportMethod::Copy), WireImportMethod::Copy);
 }
 
-/// `CreateVirtualDirBySnapshot::run` emits `pnpm:progress imported`
-/// after `import_indexed_dir` succeeds. Driving with an empty
-/// `cas_paths` map exercises the success path without hitting the
-/// network: `import_indexed_dir` mkdirs the empty directory and
-/// returns Ok, then the imported emit fires. Asserts the wire
-/// fields (`method`, `requester`, `to`) match what the install
-/// layer threaded down.
+/// Driving with an empty `cas_paths` map exercises the success path
+/// without hitting the network: `import_indexed_dir` mkdirs the empty
+/// directory and returns Ok, then the imported emit fires.
 #[tokio::test]
 async fn run_emits_imported_event_after_import_indexed_dir() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -149,6 +145,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
         package_key: &package_key,
         snapshot: &snapshot,
         skipped: &skipped,
+        removed_aliases: &[],
         link_concurrency_probe: None,
     }
     .run::<RecordingReporter>()
@@ -178,4 +175,75 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
         Path::new(&to).ends_with("react@18.0.0/node_modules/react"),
         "imported.to suffix must mirror the virtual-store layout; got {to}",
     );
+}
+
+/// A warm reinstall that drops a child dependency unlinks the stale
+/// symlink (and its now-empty `@scope` directory) while leaving the
+/// children it still depends on in place. Ports the "removes obsolete
+/// child links" case from upstream's `relinkingScope.test.ts` at
+/// <https://github.com/pnpm/pnpm/blob/5e47dd5e59/installing/deps-installer/test/install/relinkingScope.test.ts#L73>.
+#[tokio::test]
+async fn run_removes_obsolete_child_links() {
+    use pacquet_reporter::SilentReporter;
+
+    let dir = tempdir().expect("tempdir");
+    let layout = crate::VirtualStoreLayout::legacy(
+        dir.path().to_path_buf(),
+        pacquet_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let package_key: PackageKey = "react@18.0.0".parse().expect("valid snapshot key");
+    let node_modules = layout.slot_dir(&package_key).join("node_modules");
+    std::fs::create_dir_all(&node_modules).expect("create slot node_modules");
+
+    let target = dir.path().join("target");
+    std::fs::create_dir_all(&target).expect("create symlink target");
+    for alias in ["is-positive", "@scope/old", "keep-me"] {
+        force_symlink_dir(&target, &node_modules.join(alias)).expect("create stale child symlink");
+    }
+
+    let cas_paths: HashMap<String, std::path::PathBuf> = HashMap::new();
+    let logged_methods = AtomicU8::new(0);
+    let snapshot = SnapshotEntry::default();
+    let skipped = crate::SkippedSnapshots::default();
+    let removed_aliases =
+        [PkgName::parse("is-positive").unwrap(), PkgName::parse("@scope/old").unwrap()];
+    CreateVirtualDirBySnapshot {
+        layout: &layout,
+        cas_paths: &cas_paths,
+        import_method: PackageImportMethod::Hardlink,
+        logged_methods: &logged_methods,
+        requester: "/proj",
+        package_id: "react@18.0.0",
+        package_key: &package_key,
+        snapshot: &snapshot,
+        skipped: &skipped,
+        removed_aliases: &removed_aliases,
+        link_concurrency_probe: None,
+    }
+    .run::<SilentReporter>()
+    .expect("run should succeed");
+
+    assert!(!node_modules.join("is-positive").exists(), "obsolete child must be unlinked");
+    assert!(!node_modules.join("@scope").exists(), "now-empty scope directory must be removed");
+    assert!(
+        node_modules.join("keep-me").symlink_metadata().is_ok(),
+        "children not in removed_aliases must be left untouched",
+    );
+}
+
+/// The traversal guard refuses to unlink an alias that resolves
+/// outside the slot's `node_modules`. `PkgName` parsing accepts `..`,
+/// so without the guard the join would escape the directory.
+#[test]
+fn remove_obsolete_child_skips_path_traversal() {
+    let dir = tempdir().expect("tempdir");
+    let node_modules = dir.path().join("slot").join("node_modules");
+    std::fs::create_dir_all(&node_modules).expect("create node_modules");
+    let sibling = dir.path().join("slot").join("sibling");
+    std::fs::create_dir_all(&sibling).expect("create sibling dir");
+
+    remove_obsolete_child(&node_modules, &PkgName::parse("..").unwrap())
+        .expect("traversal alias is skipped, not an error");
+
+    assert!(sibling.exists(), "a `..` alias must not delete a sibling of node_modules");
 }

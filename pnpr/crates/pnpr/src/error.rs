@@ -19,6 +19,18 @@ pub enum RegistryError {
         body: String,
     },
 
+    /// The uplink's circuit breaker is open: it reached `max_fails`
+    /// consecutive failures and is still inside its `fail_timeout`
+    /// cooldown, so pnpr short-circuits the request instead of hammering
+    /// a known-down upstream. The packument path turns this into a
+    /// stale-cache fallback; with nothing cached it surfaces as 503.
+    #[display("Upstream {uplink} is temporarily unavailable (circuit open)")]
+    #[from(skip)]
+    UpstreamUnavailable {
+        #[error(not(source))]
+        uplink: String,
+    },
+
     #[display("Package name {name:?} is not a valid npm package name")]
     InvalidPackageName {
         #[error(not(source))]
@@ -170,6 +182,7 @@ impl RegistryError {
                 }
             }
             RegistryError::UpstreamStatus { .. } => StatusCode::BAD_GATEWAY,
+            RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
             | RegistryError::InvalidPolicyPattern { .. }

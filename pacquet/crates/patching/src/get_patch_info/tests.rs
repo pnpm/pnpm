@@ -16,15 +16,11 @@ fn record_with_foo(group: PatchGroup) -> PatchGroupRecord {
     record
 }
 
-/// Mirrors upstream's
-/// [`'getPatchInfo(undefined, ...) returns undefined'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/test/getPatchInfo.test.ts#L6-L8).
 #[test]
 fn missing_record_returns_none() {
     assert_eq!(get_patch_info(None, "foo", "1.0.0").unwrap(), None);
 }
 
-/// Mirrors upstream's
-/// [`'getPatchInfo() returns an exact version patch if the name and version match'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/test/getPatchInfo.test.ts#L10-L24).
 #[test]
 fn exact_version_match() {
     let mut exact = std::collections::BTreeMap::new();
@@ -38,8 +34,6 @@ fn exact_version_match() {
     assert_eq!(get_patch_info(Some(&record), "bar", "1.0.0").unwrap(), None);
 }
 
-/// Mirrors upstream's
-/// [`'getPatchInfo() returns a range version patch if the name matches and the version satisfied'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/test/getPatchInfo.test.ts#L26-L43).
 #[test]
 fn range_version_match() {
     let patch = info("foo@1");
@@ -54,8 +48,6 @@ fn range_version_match() {
     assert_eq!(get_patch_info(Some(&record), "bar", "1.0.0").unwrap(), None);
 }
 
-/// Mirrors upstream's
-/// [`'getPatchInfo() returns name-only patch if the name matches'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/test/getPatchInfo.test.ts#L45-L58).
 #[test]
 fn name_only_match() {
     let patch = info("foo");
@@ -67,8 +59,6 @@ fn name_only_match() {
     assert_eq!(get_patch_info(Some(&record), "bar", "1.0.0").unwrap(), None);
 }
 
-/// Mirrors upstream's
-/// [`'exact version patches override version range patches, version range patches override name-only patches'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/test/getPatchInfo.test.ts#L60-L106).
 #[test]
 fn precedence_exact_over_range_over_all() {
     let mut exact = std::collections::BTreeMap::new();
@@ -99,8 +89,6 @@ fn precedence_exact_over_range_over_all() {
     assert_eq!(get_patch_info(Some(&record), "bar", "1.0.0").unwrap(), None);
 }
 
-/// Mirrors upstream's
-/// [`'getPatchInfo(_, name, version) throws an error when name@version matches more than one version range patches'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/test/getPatchInfo.test.ts#L108-L136).
 #[test]
 fn ambiguous_ranges_error() {
     let record = record_with_foo(PatchGroup {
@@ -121,8 +109,6 @@ fn ambiguous_ranges_error() {
     assert_eq!(satisfied_versions, vec![">=1.0.0 <3.0.0".to_string(), ">=2.0.0".to_string()]);
 }
 
-/// Mirrors upstream's
-/// [`'getPatchInfo(_, name, version) does not throw an error when name@version matches an exact version patch and more than one version range patches'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/test/getPatchInfo.test.ts#L138-L167).
 #[test]
 fn exact_match_short_circuits_ambiguity() {
     let mut exact = std::collections::BTreeMap::new();

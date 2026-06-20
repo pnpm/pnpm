@@ -61,7 +61,7 @@ pub async fn sync_package_manager_dependencies(
     pnpm_version: &str,
     frozen_lockfile: bool,
 ) -> Result<()> {
-    let context = EnvInstallerContext::new(config)?;
+    let context = EnvInstallerContext::for_package_manager(config)?;
     let options = context.options(root_dir, frozen_lockfile);
     resolve_package_manager_integrities(wanted_specifier, pnpm_version, &context.resolver, &options)
         .await
@@ -122,12 +122,48 @@ struct EnvInstallerContext {
 }
 
 impl EnvInstallerContext {
+    /// Context for resolving the project's `configDependencies`, using the
+    /// project's configured registries and network settings.
     fn new(config: &Config) -> Result<Self> {
+        Self::build(
+            config,
+            &config.proxy,
+            &config.tls,
+            &config.tls_by_uri,
+            config.resolved_registries(),
+            Arc::clone(&config.auth_headers),
+        )
+    }
+
+    /// Context for resolving the package manager pnpm auto-switches to
+    /// (`pnpm` / `@pnpm/exe`), routed through the trusted
+    /// [`PackageManagerBootstrap`](pacquet_config::PackageManagerBootstrap)
+    /// config instead of the repository-controlled project registries.
+    fn for_package_manager(config: &Config) -> Result<Self> {
+        let bootstrap = &config.package_manager_bootstrap;
+        Self::build(
+            config,
+            &bootstrap.proxy,
+            &bootstrap.tls,
+            &bootstrap.tls_by_uri,
+            bootstrap.resolved_registries(),
+            Arc::clone(&bootstrap.auth_headers),
+        )
+    }
+
+    fn build(
+        config: &Config,
+        proxy: &pacquet_network::ProxyConfig,
+        tls: &pacquet_network::TlsConfig,
+        tls_by_uri: &pacquet_network::PerRegistryTls,
+        registries: std::collections::BTreeMap<String, String>,
+        auth_headers: Arc<pacquet_network::AuthHeaders>,
+    ) -> Result<Self> {
         let http_client = Arc::new(
             ThrottledClient::for_installs(
-                &config.proxy,
-                &config.tls,
-                &config.tls_by_uri,
+                proxy,
+                tls,
+                tls_by_uri,
                 &NetworkSettings {
                     network_concurrency: config.network_concurrency,
                     fetch_timeout: Duration::from_millis(config.fetch_timeout),
@@ -135,18 +171,16 @@ impl EnvInstallerContext {
                 },
             )
             .into_diagnostic()
-            .wrap_err("create the network client for configurational dependencies")?,
+            .wrap_err("create the network client for env-installer dependencies")?,
         );
 
-        let registries: HashMap<String, String> =
-            config.resolved_registries().into_iter().collect();
+        let registries: HashMap<String, String> = registries.into_iter().collect();
         let retry_opts = RetryOpts {
             retries: config.fetch_retries,
             factor: config.fetch_retry_factor,
             min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
             max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
         };
-        let auth_headers = Arc::clone(&config.auth_headers);
         let resolver = NpmResolver {
             registries: registries.clone(),
             named_registries: HashMap::new(),

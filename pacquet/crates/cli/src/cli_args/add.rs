@@ -26,16 +26,12 @@ pub struct AddDependencyOptions {
 
 impl AddDependencyOptions {
     /// Whether to add entry to `"dependencies"`.
-    ///
-    /// **NOTE:** no `--save-*` flags implies save as prod.
     fn save_prod(&self) -> bool {
         let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
         save_prod || (!save_dev && !save_optional && !save_peer)
     }
 
     /// Whether to add entry to `"devDependencies"`.
-    ///
-    /// **NOTE:** `--save-peer` without any other `--save-*` flags implies save as dev.
     fn save_dev(&self) -> bool {
         let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
         save_dev || (!save_prod && !save_optional && save_peer)

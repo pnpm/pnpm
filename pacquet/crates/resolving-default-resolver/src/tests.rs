@@ -81,8 +81,6 @@ async fn empty_chain_returns_spec_not_supported_error() {
     assert_eq!(downcast.to_string(), r#""foo@1.2.3" isn't supported by any available resolver."#);
 }
 
-/// The dispatcher must walk the chain in order and stop at the first
-/// `Ok(Some)` — mirrors upstream's `??` chain in `createResolver`.
 #[tokio::test(flavor = "current_thread")]
 async fn first_claiming_resolver_wins() {
     let resolver = DefaultResolver::new(vec![
@@ -114,10 +112,6 @@ async fn first_claiming_resolver_wins() {
     assert_eq!(outcome.resolved_via, "fallback");
 }
 
-/// Specifier formatting must match upstream's
-/// [`createResolver` error path](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/default-resolver/src/index.ts#L148-L156)
-/// for every populated-field combination, including the empty case
-/// where both halves are absent.
 #[test]
 fn spec_not_supported_renders_alias_and_bare_specifier() {
     let with_both = SpecNotSupportedByAnyResolverError::new(&WantedDependency {
@@ -147,17 +141,11 @@ fn spec_not_supported_renders_alias_and_bare_specifier() {
     assert_eq!(alias_only.specifier, "foo");
     assert_eq!(alias_only.to_string(), r#""foo" isn't supported by any available resolver."#);
 
-    // Both absent — upstream's empty-string branch: the leading
-    // specifier slot collapses to no quotes at all, so the message
-    // reads as `<space> isn't supported by ...`. Pacquet pins the
-    // same behavior so error parsers stay aligned.
     let neither = SpecNotSupportedByAnyResolverError::new(&WantedDependency::default());
     assert_eq!(neither.specifier, "");
     assert_eq!(neither.to_string(), " isn't supported by any available resolver.");
 }
 
-/// `resolve_latest` walks the same chain shape but returns `Ok(None)`
-/// when nothing claims, mirroring upstream's `undefined` fall-through.
 #[tokio::test(flavor = "current_thread")]
 async fn resolve_latest_returns_none_when_chain_empty() {
     let resolver = DefaultResolver::new(vec![]);

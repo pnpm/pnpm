@@ -57,8 +57,6 @@ fn strict_errors_on_a_concrete_version_mismatch() {
     );
 }
 
-/// The ported fix: a catalog entry that is a *range* must not crash the
-/// comparison. It falls through to the strict mismatch error.
 #[test]
 fn strict_errors_when_the_catalog_entry_is_a_range() {
     let catalogs = catalogs(&[("default", &[("is-positive", "^2.0.0")])]);
@@ -73,7 +71,6 @@ fn strict_errors_when_the_catalog_entry_is_a_range() {
     );
 }
 
-/// The symmetric case: the wanted specifier is the range.
 #[test]
 fn strict_errors_when_the_wanted_specifier_is_a_range() {
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);

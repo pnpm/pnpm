@@ -148,11 +148,6 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             return Ok(None);
         };
 
-        // Mirror upstream: the dependency is recorded under the
-        // scoped package name the named registry serves (e.g.
-        // `@acme/private`), not the local alias. Callers that omit
-        // an explicit alias (`pnpm add gh:@acme/foo`) still get the
-        // right entry in `node_modules` and the lockfile.
         let result = build_resolve_result(BuildResolveResult {
             meta: &picked.meta,
             picked: &picked.version,

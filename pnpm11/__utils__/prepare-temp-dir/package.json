@@ -1,0 +1,22 @@
+{
+  "name": "@pnpm/prepare-temp-dir",
+  "version": "1100.0.0",
+  "main": "lib/index.js",
+  "type": "module",
+  "types": "lib/index.d.ts",
+  "devDependencies": {
+    "@pnpm/prepare-temp-dir": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "scripts": {
+    "lint": "eslint src/**/*.ts",
+    "prepublishOnly": "pn compile",
+    "test": "pn compile",
+    "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build"
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/__utils__/prepare-temp-dir"
+}

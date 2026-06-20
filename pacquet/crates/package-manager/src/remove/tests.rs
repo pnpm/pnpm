@@ -98,9 +98,6 @@ fn remove_should_fail_if_the_project_does_not_have_one_of_the_removed_dependenci
         ),
     );
 
-    // A single truly-missing name with no `--save-*` flag: singular noun,
-    // no `in '<field>'` suffix, and the hint lists every field in
-    // dev → prod → optional order.
     assert_eq!(
         expect_missing(&manifest, &["express", "prod-dep-1", "dev-dep-1", "optional-dep-1"], None),
         (

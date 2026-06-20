@@ -147,10 +147,6 @@ fn pick_resolution(spec: &HostedPackageSpec, commit: &str) -> LockfileResolution
     if let Some(hosted) = spec.hosted.as_ref()
         && !is_ssh(&spec.fetch_spec)
     {
-        // For hosted, non-ssh repos: produce a tarball URL the
-        // git-hosted tarball fetcher can pick up. Build it from a
-        // clone of the hosted struct with the resolved committish
-        // pinned in.
         let mut hosted = hosted.clone();
         hosted.committish = Some(commit.to_string());
         if let Some(tarball) = hosted.tarball(HostedOpts::default()) {

@@ -71,7 +71,6 @@ fn https_gitlab_url() {
 
 #[test]
 fn rejects_non_hosted() {
-    // Gitea / generic .git URLs are not recognised by hosted-git-info.
     assert!(HostedGit::from_url("https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git").is_none());
 }
 

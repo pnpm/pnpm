@@ -8,7 +8,7 @@ use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker, PackageImportMethod};
 use pacquet_deps_path::get_pkg_id_with_patch_hash;
 use pacquet_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgNameVerPeer,
+    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgNameVerPeer,
     SnapshotEntry, select_platform_variant,
 };
 use pacquet_network::ThrottledClient;
@@ -301,17 +301,14 @@ impl CreateVirtualStore<'_> {
             };
         let store_index_ref = store_index.as_ref();
 
-        // The batched store-index writer is now owned by the caller
+        // The batched store-index writer is owned by the caller
         // (`InstallFrozenLockfile::run`) so it survives past
         // `CreateVirtualStore::run` and gets reused by the build
-        // phase's side-effects-cache WRITE path. Pacquet's original
-        // pattern was to spawn it here and drain it before returning,
-        // but the build phase needs to queue rows after the install
-        // path finishes — see pnpm/pnpm@7e3145f9fc:building/during-install/src/index.ts:198-216.
+        // phase's side-effects-cache WRITE path, which queues rows
+        // after the install path finishes — see pnpm/pnpm@7e3145f9fc:building/during-install/src/index.ts:198-216.
         //
         // The cold-batch download path uses the same writer through
-        // `InstallPackageBySnapshot.store_index_writer`, so the design
-        // is unchanged from the writer's perspective.
+        // `InstallPackageBySnapshot.store_index_writer`.
         let store_index_writer_ref = Some(store_index_writer);
 
         // Install-scoped `verifiedFilesCache`. One `Arc<DashSet>` lives
@@ -388,11 +385,10 @@ impl CreateVirtualStore<'_> {
         // `snapshot_cache_key`'s `UnsupportedResolution`.
         //
         // Route the slot-existence probe through `layout.slot_dir` so
-        // GVS-on installs check the correct path. The probe used to
-        // hard-code `<config.virtual_store_dir>/<flat-name>`, which is
-        // the legacy layout — under GVS, slots live at
-        // `<global_virtual_store_dir>/<scope>/<name>/<ver>/<hash>` and
-        // the legacy path is empty, so the skip gate would
+        // GVS-on installs check the correct path. Under GVS, slots live
+        // at `<global_virtual_store_dir>/<scope>/<name>/<ver>/<hash>`,
+        // not `<config.virtual_store_dir>/<flat-name>`; probing the
+        // latter would find an empty path, so the skip gate would
         // incorrectly mark every warm slot as "broken" and emit
         // `BrokenModules` for the wrong path.
         let survivors = snapshots
@@ -451,10 +447,9 @@ impl CreateVirtualStore<'_> {
         // Validate every surviving snapshot upfront so a malformed
         // lockfile (missing metadata, missing tarball integrity,
         // currently-unsupported directory / git resolution) errors
-        // out *before* we start the warm batch. Previously we
-        // collapsed those cases into `None` and let them fall through
-        // to the cold batch, which meant the warm rayon batch ran to
-        // completion (~6 s on `alot7`) before the actual error fired.
+        // out *before* we start the warm batch — otherwise the warm
+        // rayon batch runs to completion (~6 s on `alot7`) before the
+        // actual error fires.
         //
         // Cache-key derivation runs in two passes:
         //
@@ -704,6 +699,27 @@ impl CreateVirtualStore<'_> {
             map
         });
 
+        // Per-slot obsolete child aliases for the link pass. Only
+        // survivors that already existed in `current_snapshots` and
+        // dropped a child contribute an entry; fresh packages and
+        // addition-only changes map to the empty slice. Computed once
+        // here so both the warm and cold `SlotLink` batches can borrow
+        // it. Mirrors the `removedAliases` upstream derives in
+        // `getChangedChildren` at
+        // <https://github.com/pnpm/pnpm/blob/5e47dd5e59/installing/deps-installer/src/install/link.ts#L611-L615>.
+        let removed_aliases_by_key: HashMap<PackageKey, Vec<PkgName>> = match current_snapshots {
+            Some(current_snapshots) => snapshot_entries
+                .iter()
+                .filter_map(|(snapshot_key, snapshot, _)| {
+                    let current_snapshot = current_snapshots.get(*snapshot_key)?;
+                    let removed =
+                        removed_child_aliases(current_snapshot, snapshot, &snapshot_key.name);
+                    (!removed.is_empty()).then(|| ((*snapshot_key).clone(), removed))
+                })
+                .collect(),
+            None => HashMap::new(),
+        };
+
         let import_method = config.package_import_method;
         if is_hoisted {
             // Hoisted still wants the progress reporter to fire so
@@ -733,6 +749,7 @@ impl CreateVirtualStore<'_> {
                     snapshot,
                     cas_paths: cas_paths.as_ref(),
                     warm_cache_key: Some(cache_key),
+                    removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
                 })
                 .collect();
             link_slots_parallel::<Reporter>(LinkSlotsParallel {
@@ -883,6 +900,7 @@ impl CreateVirtualStore<'_> {
                     snapshot,
                     cas_paths,
                     warm_cache_key: None,
+                    removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
                 })
                 .collect();
             link_slots_parallel::<Reporter>(LinkSlotsParallel {
@@ -958,6 +976,46 @@ impl CreateVirtualStore<'_> {
     }
 }
 
+/// Look up the obsolete child aliases for a slot, defaulting to an
+/// empty slice. The extra indirection lets the `SlotLink` builders
+/// pass their multiply-borrowed `snapshot_key` straight through —
+/// deref coercion narrows it to `&PackageKey` at the call site.
+fn removed_aliases_for<'a>(
+    removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
+    snapshot_key: &PackageKey,
+) -> &'a [PkgName] {
+    removed_aliases_by_key.get(snapshot_key).map_or(&[], Vec::as_slice)
+}
+
+/// Child aliases linked by the previous install (`current`) that are
+/// absent from the wanted snapshot's `dependencies ∪
+/// optional_dependencies`. The slot's own name is excluded so a
+/// self-referential dependency never targets `node_modules/<self>`,
+/// the directory the CAS import owns.
+fn removed_child_aliases(
+    current: &SnapshotEntry,
+    wanted: &SnapshotEntry,
+    self_name: &PkgName,
+) -> Vec<PkgName> {
+    fn child_aliases(snapshot: &SnapshotEntry) -> impl Iterator<Item = &PkgName> {
+        let deps = snapshot.dependencies.iter().flatten();
+        let opt_deps = snapshot.optional_dependencies.iter().flatten();
+        deps.chain(opt_deps).map(|(alias, _)| alias)
+    }
+    let wanted_aliases: HashSet<&PkgName> = child_aliases(wanted).collect();
+    let mut seen: HashSet<&PkgName> = HashSet::new();
+    let mut removed = Vec::new();
+    for alias in child_aliases(current) {
+        if alias == self_name || wanted_aliases.contains(alias) {
+            continue;
+        }
+        if seen.insert(alias) {
+            removed.push(alias.clone());
+        }
+    }
+    removed
+}
+
 fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
     if files_include_install_scripts(cas_paths.keys()) {
         return true;
@@ -975,6 +1033,10 @@ struct SlotLink<'a> {
     snapshot: &'a SnapshotEntry,
     cas_paths: &'a HashMap<String, PathBuf>,
     warm_cache_key: Option<&'a str>,
+    /// Child aliases dropped since the previous install, threaded into
+    /// [`crate::CreateVirtualDirBySnapshot::removed_aliases`] so their
+    /// stale symlinks are unlinked during the link pass.
+    removed_aliases: &'a [PkgName],
 }
 
 #[derive(Clone, Copy)]
@@ -1032,6 +1094,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
                 package_key: slot.snapshot_key,
                 snapshot: slot.snapshot,
                 skipped,
+                removed_aliases: slot.removed_aliases,
                 #[cfg(test)]
                 link_concurrency_probe,
             }
@@ -1070,30 +1133,17 @@ fn link_slots_parallel<Reporter: self::Reporter>(
 
 /// Build the store-index cache key for a snapshot.
 ///
-/// Returns:
-/// - `Ok(Some(key))` for tarball / registry resolutions with a valid
-///   integrity, the only shape that participates in the CAFS prefetch
-///   today.
-/// - `Err(...)` for any condition the install was previously going to
-///   fail on anyway — missing metadata, missing tarball integrity, or
-///   a directory / git resolution this build doesn't support yet —
-///   so the orchestrator can short-circuit *before* the warm rayon
-///   batch runs (Copilot review on [#292]). The previous shape collapsed
-///   these into `None` and shoved them into the cold batch, which
-///   meant a malformed lockfile would do up to ~6 s of warm-batch
-///   linking before the actual error fired.
-/// - `Ok(None)` is currently unused but reserved for any future
-///   resolution variant that legitimately doesn't go through CAFS
-///   (e.g. workspace `link:`-style deps when those land); without
-///   it, adding such a variant later would force a wider refactor.
+/// Returns `Err` for any condition the install would fail on anyway
+/// (missing metadata, missing tarball integrity) so the orchestrator
+/// can short-circuit *before* the warm rayon batch runs; otherwise a
+/// malformed lockfile does up to ~6 s of warm-batch linking before the
+/// actual error fires.
 ///
 /// Shared by the upfront prefetch-keys loop and the warm/cold
 /// partition in [`CreateVirtualStore::run`], so a future change to
 /// the resolution-type handling or key shape stays in one place.
 /// A drift between the two loops would silently misclassify warm
 /// entries as cold and quietly halve install speed.
-///
-/// [#292]: https://github.com/pnpm/pacquet/pull/292
 fn snapshot_cache_key(
     snapshot_key: &PackageKey,
     packages: &HashMap<PackageKey, PackageMetadata>,
@@ -1202,13 +1252,7 @@ fn snapshot_cache_key(
 
 /// Two snapshots agree on dependency wiring when both their
 /// `dependencies` and `optionalDependencies` maps are equal in
-/// upstream's sense — an absent map and an empty map are equivalent
-/// (`equals({}, undefined)` and `isEmpty({}) === isEmpty(undefined)`
-/// both hold in Ramda). Mirrors the AND-pair in
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L246-L260>:
-/// the deps check is the `depIsPresent && equals(...)` arm and the
-/// optional-deps check is the `isEmpty(...) && isEmpty(...) ||
-/// equals(...)` arm folded together.
+/// upstream's sense.
 fn snapshot_deps_equal(current: &SnapshotEntry, wanted: &SnapshotEntry) -> bool {
     fn maps_equal<Key, Value>(
         lhs: Option<&HashMap<Key, Value>>,
@@ -1228,30 +1272,13 @@ fn snapshot_deps_equal(current: &SnapshotEntry, wanted: &SnapshotEntry) -> bool 
         && maps_equal(current.optional_dependencies.as_ref(), wanted.optional_dependencies.as_ref())
 }
 
-/// Compare the `integrity` field on two `packages:` entries. Mirrors
-/// upstream's `isIntegrityEqual` helper at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L366>:
-/// only the tarball/registry-style integrity participates in the
-/// check; directory and git resolutions yield `None` on both sides,
-/// which we treat as "unchanged" so the existing slot is reused.
+/// Compare the `integrity` field on two `packages:` entries.
 fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMetadata>) -> bool {
     let current_integrity = current.and_then(|meta| meta.resolution.integrity());
     let wanted_integrity = wanted.and_then(|meta| meta.resolution.integrity());
     current_integrity == wanted_integrity
 }
 
-/// `pnpm:progress resolved` for a warm-batch snapshot, plus
-/// `found_in_store` when no earlier fetch path already emitted the
-/// package status. Resolve-time prefetches report `fetched` or
-/// `found_in_store` as soon as their fetch/cache-hit outcome is known;
-/// the warm batch then supplies the later `resolved` event without
-/// double-counting the package status.
-///
-/// Pulled out of the warm-batch closure in
-/// [`CreateVirtualStore::run`] so the event-construction code is
-/// unit-testable; the call site stays in the warm-batch hot path
-/// where setting up a non-empty prefetched-cas test would require a
-/// full lockfile + populated CAFS.
 /// True for the [`InstallPackageBySnapshotError`] variants pacquet
 /// classifies as **fetch-side** — the surface inside upstream's
 /// catch at

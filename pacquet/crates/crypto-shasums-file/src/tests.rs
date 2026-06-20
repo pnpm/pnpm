@@ -6,11 +6,6 @@ use super::{
     pick_file_checksum_from_shasums_file,
 };
 
-/// Two valid rows are parsed into SRI-encoded integrities.
-///
-/// Mirrors upstream's first
-/// [`pickFileChecksumFromShasumsFile` test](https://github.com/pnpm/pnpm/blob/1627943d2a/crypto/shasums-file/test/index.ts#L5-L8)
-/// — same input body, same expected integrity for the first row.
 #[test]
 fn parses_rows_into_sri_encoded_integrities() {
     let body = "\
@@ -33,7 +28,6 @@ be127be1d98cad94c56f46245d0f2de89934d300028694456861a6d5ac558bf3  foo.msi
     );
 }
 
-/// Empty lines anywhere in the body are dropped.
 #[test]
 fn skips_empty_lines() {
     let body = "\n\nabc def\n";
@@ -45,11 +39,6 @@ fn skips_empty_lines() {
     assert_eq!(items[0].file_name, "def");
 }
 
-/// Picking the integrity for an existing filename succeeds.
-///
-/// Mirrors the
-/// [`picks the right checksum for a file`](https://github.com/pnpm/pnpm/blob/1627943d2a/crypto/shasums-file/test/index.ts#L5-L8)
-/// upstream test verbatim.
 #[test]
 fn picks_the_right_checksum_for_a_file() {
     let body = "\
@@ -59,11 +48,6 @@ be127be1d98cad94c56f46245d0f2de89934d300028694456861a6d5ac558bf3  foo.msi";
     assert_eq!(integrity, "sha256-7VIjkpStUX++kaJoFG1dKqihfS1i1khz5DIZB4unHE4=");
 }
 
-/// Picking a filename that isn't in the body raises `NODE_INTEGRITY_HASH_NOT_FOUND`.
-///
-/// Mirrors the
-/// [`throws an error if no integrity found`](https://github.com/pnpm/pnpm/blob/1627943d2a/crypto/shasums-file/test/index.ts#L9-L12)
-/// upstream test.
 #[test]
 fn missing_file_name_raises_not_found() {
     let body = "\
@@ -76,13 +60,6 @@ be127be1d98cad94c56f46245d0f2de89934d300028694456861a6d5ac558bf3  foo.msi";
     ));
 }
 
-/// A malformed (too-short) hash in an otherwise well-formed row raises
-/// `NODE_MALFORMED_INTEGRITY_HASH` instead of silently truncating the
-/// integrity.
-///
-/// Mirrors the
-/// [`throws an error if a malformed integrity is found`](https://github.com/pnpm/pnpm/blob/1627943d2a/crypto/shasums-file/test/index.ts#L13-L16)
-/// upstream test.
 #[test]
 fn malformed_hash_raises_malformed() {
     let body = "\

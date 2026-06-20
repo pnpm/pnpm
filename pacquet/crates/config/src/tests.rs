@@ -1,6 +1,6 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, NodeLinker,
-    PackageImportMethod, fs,
+    NodePackageMapType, PackageImportMethod, fs,
 };
 use crate::defaults::default_store_dir;
 use pacquet_store_dir::StoreDir;
@@ -96,6 +96,8 @@ inert_link_probe!(HostNoHome);
 pub fn have_default_values() {
     let value = Config::new();
     assert_eq!(value.node_linker, NodeLinker::default());
+    assert!(!value.node_experimental_package_map);
+    assert_eq!(value.node_package_map_type, NodePackageMapType::Standard);
     assert_eq!(value.package_import_method, PackageImportMethod::default());
     assert!(value.prefer_frozen_lockfile);
     assert!(value.symlink);
@@ -113,10 +115,6 @@ pub fn have_default_values() {
     assert_eq!(value.registry, "https://registry.npmjs.org/");
 }
 
-/// `fetch-retries*` defaults must match pnpm's
-/// `config/config/src/index.ts` (`2`, `10`, `10000`, `60000`) — these
-/// are the values pnpm bakes into npm-style fetches and we want
-/// pacquet to behave identically out of the box.
 #[test]
 pub fn fetch_retries_defaults_match_pnpm() {
     let value = Config::new();
@@ -126,9 +124,6 @@ pub fn fetch_retries_defaults_match_pnpm() {
     assert_eq!(value.fetch_retry_maxtimeout, 60_000);
 }
 
-/// Network knobs default to pnpm's values: `networkConcurrency`
-/// from the shared formula, `fetchTimeout` at 60 000 ms, a
-/// `pnpm/…`-shaped `userAgent`, and no `npmrcAuthFile` override.
 #[test]
 pub fn network_settings_defaults_match_pnpm() {
     let value = Config::new();
@@ -138,10 +133,6 @@ pub fn network_settings_defaults_match_pnpm() {
     assert_eq!(value.npmrc_auth_file, None);
 }
 
-/// `npmrcAuthFile` redirects the user-level `.npmrc` read: auth
-/// from the pointed-at file reaches `auth_headers` even though the
-/// file is neither at `~/.npmrc` (home resolves to `None` here) nor
-/// in `start_dir`.
 #[test]
 pub fn npmrc_auth_file_override_supplies_auth() {
     let project = tempdir().expect("project tempdir");
@@ -221,8 +212,6 @@ fn load_with_fake_env(start_dir: &Path) -> Config {
     Config::default().current::<FakeEnv>(start_dir).expect("load config")
 }
 
-/// `PNPM_CONFIG_NPMRC_AUTH_FILE` (uppercase) resolves the user-level
-/// `.npmrc`. Mirrors pnpm's `readEnvVar(env, 'npmrc_auth_file')`.
 #[test]
 pub fn npmrc_auth_file_from_pnpm_config_env() {
     let project = tempdir().expect("project tempdir");
@@ -240,8 +229,6 @@ pub fn npmrc_auth_file_from_pnpm_config_env() {
     );
 }
 
-/// The lowercase `pnpm_config_npmrc_auth_file` is honoured too —
-/// pnpm's `readEnvVar` accepts both cases.
 #[test]
 pub fn npmrc_auth_file_from_lowercase_pnpm_config_env() {
     let project = tempdir().expect("project tempdir");
@@ -258,10 +245,6 @@ pub fn npmrc_auth_file_from_lowercase_pnpm_config_env() {
     );
 }
 
-/// An exported-but-empty `PNPM_CONFIG_NPMRC_AUTH_FILE` must fall
-/// through to `PNPM_CONFIG_USERCONFIG` rather than short-circuiting
-/// the resolution, matching pnpm's per-variable `value !== ''`
-/// filter.
 #[test]
 pub fn npmrc_auth_file_empty_env_falls_through_to_userconfig() {
     let project = tempdir().expect("project tempdir");
@@ -281,8 +264,6 @@ pub fn npmrc_auth_file_empty_env_falls_through_to_userconfig() {
     );
 }
 
-/// `npmrc_auth_file` outranks `userconfig` (pnpm resolves
-/// `readEnvVar('npmrc_auth_file')` before `readEnvVar('userconfig')`).
 #[test]
 pub fn npmrc_auth_file_outranks_userconfig() {
     let project = tempdir().expect("project tempdir");
@@ -305,9 +286,6 @@ pub fn npmrc_auth_file_outranks_userconfig() {
     );
 }
 
-/// `npm_config_userconfig` is honoured as a low-priority npm
-/// compatibility fallback (e.g. `actions/setup-node`), and a
-/// `PNPM_CONFIG_*` value outranks it.
 #[test]
 pub fn npmrc_auth_file_npm_config_userconfig_is_compat_fallback() {
     let project = tempdir().expect("project tempdir");
@@ -315,7 +293,6 @@ pub fn npmrc_auth_file_npm_config_userconfig_is_compat_fallback() {
     let npm_file = auth.path().join("npm-userconfig");
     write_registry_auth_file(&npm_file, "https://npm.example.com/", "npm-token");
 
-    // Compat fallback alone resolves.
     set_fake_env(&[("npm_config_userconfig", npm_file.to_str().unwrap())]);
     let config = load_with_fake_env(project.path());
     assert_eq!(
@@ -323,7 +300,6 @@ pub fn npmrc_auth_file_npm_config_userconfig_is_compat_fallback() {
         Some("Bearer npm-token"),
     );
 
-    // A pnpm-native value wins over the npm compat fallback.
     let pnpm_file = auth.path().join("pnpm-userconfig");
     write_registry_auth_file(&pnpm_file, "https://pnpm.example.com/", "pnpm-token");
     set_fake_env(&[
@@ -443,9 +419,6 @@ pub fn user_auth_token_pins_to_its_own_file_registry() {
     assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
 }
 
-/// End-to-end: a `npm_config_//…` env var is picked up by a full config
-/// load and outranks a literal token for the same host in the project
-/// `.npmrc` — the trusted, host-scoped env layer wins.
 #[test]
 pub fn url_scoped_env_auth_is_used_and_outranks_project_npmrc() {
     let project = tempdir().expect("project tempdir");
@@ -460,8 +433,6 @@ pub fn url_scoped_env_auth_is_used_and_outranks_project_npmrc() {
     );
 }
 
-/// End-to-end: the `npm_config_//…` / `pnpm_config_//…` prefix is matched
-/// case-insensitively through the full load path.
 #[test]
 pub fn url_scoped_env_auth_prefix_is_case_insensitive_end_to_end() {
     let project = tempdir().expect("project tempdir");
@@ -475,7 +446,6 @@ pub fn url_scoped_env_auth_prefix_is_case_insensitive_end_to_end() {
     );
 }
 
-/// `_auth` (basic) is pinned the same way.
 #[test]
 pub fn user_basic_auth_pins_to_its_own_file_registry() {
     let auth = tempdir().expect("auth tempdir");
@@ -492,7 +462,6 @@ pub fn user_basic_auth_pins_to_its_own_file_registry() {
     assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
 }
 
-/// `username` + `_password` are pinned the same way.
 #[test]
 pub fn user_username_password_pins_to_its_own_file_registry() {
     let auth = tempdir().expect("auth tempdir");
@@ -601,12 +570,10 @@ pub fn auth_ini_without_registry_falls_back_to_npmjs_default() {
 
 /// `default_store_dir`'s `PNPM_HOME` branch, exercised through the
 /// generic capability seam — no process-environment mutation, no
-/// `EnvGuard` lock, no `unsafe` block. The earlier shape of this
-/// test set `PNPM_HOME` via `std::env::set_var` and called
-/// `Config::new()`; with the DI seam from pnpm/pacquet#339 +
-/// pnpm/pnpm#11708 the same precedence is checked by passing a
-/// per-test unit struct that satisfies [`EnvVar`], [`GetHomeDir`],
-/// and [`GetCurrentDir`].
+/// `EnvGuard` lock, no `unsafe` block. With the DI seam from
+/// pnpm/pacquet#339 + pnpm/pnpm#11708 the precedence is checked by
+/// passing a per-test unit struct that satisfies [`EnvVar`],
+/// [`GetHomeDir`], and [`GetCurrentDir`].
 ///
 /// The `home_dir` and `current_dir` capability impls both call
 /// `unreachable!` because `default_store_dir` short-circuits on
@@ -717,7 +684,6 @@ pub fn fetch_retry_keys_in_npmrc_are_ignored() {
 #[test]
 pub fn test_current_folder_for_invalid_npmrc() {
     let tmp = tempdir().unwrap();
-    // write invalid utf-8 value to npmrc
     fs::write(tmp.path().join(".npmrc"), b"Hello \xff World").expect("write to .npmrc");
     let config =
         Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
@@ -780,8 +746,6 @@ pub fn pnpm_workspace_yaml_found_by_walking_up() {
     fs::create_dir_all(&nested).unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "symlink: false\n")
         .expect("write to pnpm-workspace.yaml");
-    // No `.npmrc` anywhere, but a parent dir has `pnpm-workspace.yaml` —
-    // the yaml should still be applied.
     let config = Config::new().current::<HostNoHome>(&nested).expect("yaml is valid");
     assert!(!config.symlink);
 }
@@ -833,19 +797,6 @@ pub fn test_current_folder_fallback_to_default() {
     assert!(!config.symlink);
 }
 
-/// `enableGlobalVirtualStore` defaults to `false` — matches pnpm
-/// v11's effective default for regular installs (the `true`
-/// assignment lives only inside the `--global` install branch;
-/// see [`Config::enable_global_virtual_store`]). The derivation
-/// still fires automatically from [`Config::current`] after yaml
-/// has been applied, writing `<store_dir>/links` into
-/// `global_virtual_store_dir` while leaving `virtual_store_dir`
-/// at its project-local default — both fields stay valid so the
-/// downstream code can read either one without first checking
-/// the toggle. Pacquet's split-field variant of upstream's
-/// [`extendInstallOptions.ts:343-355`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/extendInstallOptions.ts#L343-L355);
-/// see [`Config::apply_global_virtual_store_derivation`] for why
-/// pacquet keeps them separate.
 #[test]
 pub fn gvs_default_is_off_and_paths_derive_cleanly() {
     let tmp = tempdir().unwrap();
@@ -855,19 +806,10 @@ pub fn gvs_default_is_off_and_paths_derive_cleanly() {
         !config.enable_global_virtual_store,
         "GVS defaults to false (matches pnpm v11 for non-global installs)",
     );
-    // `virtual_store_dir` stays project-local. The
-    // `<cwd>/node_modules/.pnpm` default has been re-anchored to
-    // `tmp` by `Config::current` (see the cwd fixup block).
     assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
 }
 
-/// When `enableGlobalVirtualStore: false`, the derivation still
-/// populates `global_virtual_store_dir` at `<storeDir>/links` —
-/// matching upstream's unconditional `globalVirtualStoreDir =
-/// storeDir/links` assignment for the GVS-off branch. The frozen-
-/// lockfile install path consults `enable_global_virtual_store`
-/// to decide whether to consume the field.
 #[test]
 pub fn gvs_disabled_keeps_project_local_virtual_store() {
     let tmp = tempdir().unwrap();
@@ -879,11 +821,6 @@ pub fn gvs_disabled_keeps_project_local_virtual_store() {
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
 }
 
-/// When the user pins `virtualStoreDir` *and* opts into GVS,
-/// `globalVirtualStoreDir` mirrors that path — the user gets to
-/// pick where the shared store lives. `virtual_store_dir` itself
-/// still holds the pinned value (it's the same field the user
-/// configured).
 #[test]
 pub fn gvs_user_pinned_virtual_store_routes_into_global_virtual_store_dir() {
     let tmp = tempdir().unwrap();
@@ -899,16 +836,6 @@ pub fn gvs_user_pinned_virtual_store_routes_into_global_virtual_store_dir() {
     assert_eq!(config.global_virtual_store_dir, user_path);
 }
 
-/// An explicit `globalVirtualStoreDir` in yaml wins over the
-/// derivation: the resolved field equals the user-supplied path,
-/// not `<store_dir>/links` and not the user's `virtualStoreDir`.
-/// Mirrors upstream's
-/// [`getOptionsFromRootManifest.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/getOptionsFromRootManifest.ts)
-/// — `globalVirtualStoreDir` is read into the config there with
-/// the same resolve-relative-to-workspace semantics. Without this
-/// preservation the value parses from yaml and then gets
-/// silently overwritten by the derivation.
-///
 /// The fixture also enables GVS explicitly. Pacquet's default
 /// is `enableGlobalVirtualStore: false` (matches pnpm v11 for
 /// non-`--global` installs), so without the explicit opt-in the
@@ -925,12 +852,7 @@ pub fn yaml_global_virtual_store_dir_wins_over_derivation() {
     .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(config.enable_global_virtual_store);
-    // `virtual_store_dir` stays at the project-local default,
-    // because the user didn't pin `virtualStoreDir`.
     assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
-    // The explicit yaml value wins — neither the derivation's
-    // `<store_dir>/links` fallback nor any mirroring of
-    // `virtual_store_dir` clobbers it.
     assert_eq!(config.global_virtual_store_dir, yaml_gvs);
 }
 
@@ -1039,9 +961,7 @@ pub fn workspace_subdir_anchors_modules_at_workspace_root() {
 ///
 /// [`HostNoHome`] already pins the `NPM_CONFIG_WORKSPACE_DIR`
 /// lookup to `None`, so the test never reads the host's real
-/// environment. Replaces the earlier shape that snapshotted both
-/// spellings of the env variable through `EnvGuard` and called
-/// `unsafe { env::remove_var(...) }`.
+/// environment.
 #[test]
 pub fn single_project_anchors_modules_at_cwd() {
     let tmp = tempdir().unwrap();
@@ -1056,8 +976,7 @@ pub fn single_project_anchors_modules_at_cwd() {
 /// virtual store would land in the cwd while the per-importer
 /// `SymlinkDirectDependencies` writes land under the env-var
 /// path, producing two `node_modules` layouts for the same
-/// install. Matches the consistency guarantee Copilot flagged
-/// during PR [#443](https://github.com/pnpm/pacquet/pull/443) review.
+/// install. See PR [#443](https://github.com/pnpm/pacquet/pull/443).
 ///
 /// Exercises the [`EnvVarOs`] DI seam: a per-test fake returns the
 /// `env_workspace` path for the `NPM_CONFIG_WORKSPACE_DIR` lookup.
@@ -1138,13 +1057,6 @@ pub fn empty_npm_config_workspace_dir_falls_through() {
     assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
 }
 
-/// `enableGlobalVirtualStore: true` set in the global
-/// `<configDir>/config.yaml` is honored by `Config::current` —
-/// the exact scenario from pnpm/pnpm#11738 where a user has
-/// the setting in `~/.config/pnpm/config.yaml` and runs an
-/// install in a project whose `pnpm-workspace.yaml` doesn't
-/// repeat it.
-///
 /// Drives the [`EnvVar`] + [`GetHomeDir`] DI seams: the fake
 /// returns the test's tempdir for `XDG_CONFIG_HOME`, so
 /// [`crate::defaults::default_config_dir`] resolves to
@@ -1196,11 +1108,6 @@ pub fn global_config_yaml_enables_gvs() {
     );
 }
 
-/// `pnpm-workspace.yaml` overrides the global `config.yaml` —
-/// global enables GVS, workspace disables it, the install
-/// resolves to GVS-off. Matches pnpm's
-/// [`index.ts:421-444`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L421-L444),
-/// which applies workspace yaml after the global yaml.
 #[test]
 pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
     let xdg = tempdir().unwrap();
@@ -1357,14 +1264,6 @@ pub fn global_config_yaml_workspace_only_keys_are_ignored() {
     assert_eq!(config.lockfile, defaults.lockfile);
 }
 
-/// `PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE=true` is read into
-/// the config — drives the env-overlay introduced alongside
-/// global `config.yaml` support. Mirrors pnpm's `parseEnvVars`
-/// loop at
-/// [`index.ts:471-488`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L471-L488)
-/// for the `PNPM_CONFIG_*` family (pnpm doesn't read general
-/// `NPM_CONFIG_*` env vars; see
-/// [`feedback_pnpm_settings_not_in_npmrc`](https://github.com/pnpm/pnpm/blob/main/config/reader/src/localConfig.ts)).
 #[test]
 pub fn pnpm_config_env_var_enables_gvs() {
     struct HostWithPnpmConfigEnv;
@@ -1393,10 +1292,6 @@ pub fn pnpm_config_env_var_enables_gvs() {
     assert!(config.enable_global_virtual_store);
 }
 
-/// Lowercase `pnpm_config_*` spelling also works, matching
-/// upstream's
-/// [`getEnvKeySuffix`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/env.ts#L185-L195)
-/// which accepts both case forms.
 #[test]
 pub fn pnpm_config_env_var_lowercase_works() {
     struct HostWithLowercaseEnv;
@@ -1504,8 +1399,6 @@ pub fn pnpm_config_hoist_false_clears_hoist_pattern() {
     );
 }
 
-/// `virtualStoreDirMaxLength` defaults to the same platform-aware value
-/// pnpm uses when nothing is configured.
 #[test]
 pub fn virtual_store_dir_max_length_matches_pnpm_default() {
     let tmp = tempdir().unwrap();
@@ -1514,10 +1407,6 @@ pub fn virtual_store_dir_max_length_matches_pnpm_default() {
     assert_eq!(config.virtual_store_dir_max_length, expected);
 }
 
-/// `virtualStoreDirMaxLength` in `pnpm-workspace.yaml` overrides
-/// the default. Mirrors pnpm's
-/// [`virtualStoreDirMaxLength`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/Config.ts)
-/// config-reader entry.
 #[test]
 pub fn virtual_store_dir_max_length_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
@@ -1527,9 +1416,6 @@ pub fn virtual_store_dir_max_length_from_workspace_yaml() {
     assert_eq!(config.virtual_store_dir_max_length, 90);
 }
 
-/// `PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH` overrides the yaml
-/// value, matching the reader cascade priority (env > yaml >
-/// default).
 #[test]
 pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
     let tmp = tempdir().unwrap();
@@ -1564,9 +1450,49 @@ pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
     );
 }
 
-/// `peersSuffixMaxLength` defaults to 1000 — same value pnpm
-/// uses for `createPeerDepGraphHash`'s `maxLength` parameter when
-/// nothing is configured.
+#[test]
+pub fn package_map_settings_load_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "nodeExperimentalPackageMap: true\nnodePackageMapType: loose\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.node_experimental_package_map);
+    assert_eq!(config.node_package_map_type, NodePackageMapType::Loose);
+}
+
+#[test]
+pub fn package_map_settings_load_from_env() {
+    struct HostWithPackageMapEnv;
+    impl EnvVar for HostWithPackageMapEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_NODE_EXPERIMENTAL_PACKAGE_MAP" => Some("true".to_owned()),
+                "PNPM_CONFIG_NODE_PACKAGE_MAP_TYPE" => Some("loose".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithPackageMapEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithPackageMapEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithPackageMapEnv);
+
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostWithPackageMapEnv>(tmp.path()).expect("loads");
+    assert!(config.node_experimental_package_map);
+    assert_eq!(config.node_package_map_type, NodePackageMapType::Loose);
+}
+
 #[test]
 pub fn peers_suffix_max_length_defaults_to_1000() {
     let tmp = tempdir().unwrap();
@@ -1574,10 +1500,6 @@ pub fn peers_suffix_max_length_defaults_to_1000() {
     assert_eq!(config.peers_suffix_max_length, 1000);
 }
 
-/// `peersSuffixMaxLength` in `pnpm-workspace.yaml` overrides the
-/// default. Mirrors pnpm's
-/// [`peersSuffixMaxLength`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L256)
-/// config-reader entry.
 #[test]
 pub fn peers_suffix_max_length_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
@@ -1587,8 +1509,6 @@ pub fn peers_suffix_max_length_from_workspace_yaml() {
     assert_eq!(config.peers_suffix_max_length, 10);
 }
 
-/// `PNPM_CONFIG_PEERS_SUFFIX_MAX_LENGTH` overrides the yaml value,
-/// matching the reader cascade priority (env > yaml > default).
 #[test]
 pub fn peers_suffix_max_length_env_var_overrides_yaml() {
     let tmp = tempdir().unwrap();
@@ -1620,10 +1540,6 @@ pub fn peers_suffix_max_length_env_var_overrides_yaml() {
     assert_eq!(config.peers_suffix_max_length, 25, "env var must win over pnpm-workspace.yaml");
 }
 
-/// `Config::patched_dependency_hashes` resolves each relative patch
-/// path against `workspace_dir`, hashes the file, and returns the
-/// verbatim key → hash map the lockfile records. Mirrors pnpm's
-/// `calcPatchHashes(opts.patchedDependencies)`.
 #[test]
 fn patched_dependency_hashes_resolves_and_hashes_each_patch() {
     let workspace = tempdir().expect("workspace tempdir");
@@ -1645,9 +1561,6 @@ fn patched_dependency_hashes_resolves_and_hashes_each_patch() {
     assert_eq!(hashes.get("graceful-fs@4.2.11"), Some(&expected));
 }
 
-/// `minimumReleaseAge: 0` disables the maturity cutoff (returns
-/// `None`), matching pnpm's falsy check; any positive value passes
-/// through, and the built-in default (1440) is non-zero.
 #[test]
 fn resolved_minimum_release_age_treats_zero_as_disabled() {
     let mut config = Config::new();
@@ -1658,4 +1571,109 @@ fn resolved_minimum_release_age_treats_zero_as_disabled() {
     assert_eq!(config.resolved_minimum_release_age(), Some(60));
     config.minimum_release_age = None;
     assert_eq!(config.resolved_minimum_release_age(), None);
+}
+
+const NPM_DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
+
+/// A project `.npmrc` redirecting the default registry still drives normal
+/// installs, but must NOT steer package-manager bootstrap: that resolves
+/// through the trusted user-level registry instead. Regression test for
+/// GHSA-j2hc-m6cf-6jm8 (`packageManager` auto-switch registry confusion).
+#[test]
+pub fn package_manager_bootstrap_ignores_project_npmrc_registry() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "registry=https://trusted.example.com/\n");
+
+    let config = load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
+
+    assert_eq!(
+        config.registry, "https://attacker.example.com/",
+        "project registry drives normal installs",
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.registry, "https://trusted.example.com/",
+        "package-manager bootstrap ignores the repository-controlled project .npmrc registry",
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.resolved_registries().get("default").map(String::as_str),
+        Some("https://trusted.example.com/"),
+    );
+}
+
+/// A `pnpm-workspace.yaml` `registries:` block is repository-controlled, so
+/// it must not steer package-manager bootstrap either — neither the default
+/// nor a scoped route. Regression test for GHSA-j2hc-m6cf-6jm8.
+#[test]
+pub fn package_manager_bootstrap_ignores_workspace_yaml_registries() {
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(&user_file, "registry=https://trusted.example.com/\n");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "registries:\n  default: https://attacker.example.com/\n  '@evil': https://attacker-scoped.example.com/\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let config = Config { npmrc_auth_file: Some(user_file), ..Config::default() }
+        .current::<HostNoHome>(project.path())
+        .expect("load config");
+
+    assert_eq!(
+        config.registry, "https://attacker.example.com/",
+        "workspace yaml drives normal installs",
+    );
+    assert_eq!(
+        config.registries.get("@evil").map(String::as_str),
+        Some("https://attacker-scoped.example.com/"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.registry, "https://trusted.example.com/",
+        "package-manager bootstrap ignores the workspace yaml default registry",
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("@evil"),
+        None,
+        "package-manager bootstrap ignores workspace yaml scoped registries",
+    );
+}
+
+/// With no trusted user-level registry configured, package-manager
+/// bootstrap falls back to the public npm registry — never the project's
+/// attacker-controlled registry.
+#[test]
+pub fn package_manager_bootstrap_defaults_to_npm_registry() {
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "registry=https://attacker.example.com/\n");
+    let config = Config::default().current::<HostNoHome>(project.path()).expect("load config");
+
+    assert_eq!(config.registry, "https://attacker.example.com/");
+    assert_eq!(config.package_manager_bootstrap.registry, NPM_DEFAULT_REGISTRY);
+}
+
+/// A directly-constructed `PackageManagerBootstrap` (one not finalized
+/// through `Config::current`) still defaults to the public npm registry,
+/// never an empty registry the resolver would choke on.
+#[test]
+pub fn package_manager_bootstrap_default_registry_is_npm() {
+    assert_eq!(crate::PackageManagerBootstrap::default().registry, NPM_DEFAULT_REGISTRY);
+}
+
+/// `PNPM_CONFIG_REGISTRY` is user-controlled (not repository-controlled), so
+/// it overrides the package-manager bootstrap default registry too,
+/// mirroring pnpm's env/CLI `registry` handling.
+#[test]
+pub fn package_manager_bootstrap_honors_env_registry() {
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "registry=https://attacker.example.com/\n");
+    set_fake_env(&[("PNPM_CONFIG_REGISTRY", "https://env.example.com/")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://env.example.com/", "env registry drives normal installs");
+    assert_eq!(
+        config.package_manager_bootstrap.registry, "https://env.example.com/",
+        "env registry overrides the package-manager bootstrap default",
+    );
 }

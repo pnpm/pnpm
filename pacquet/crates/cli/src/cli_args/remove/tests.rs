@@ -7,7 +7,6 @@ fn dependency_options_to_save_type() {
     use DependencyGroup::{Dev, Optional, Prod};
     let save_type = |opts: RemoveDependencyOptions| opts.save_type();
 
-    // no flags -> any field
     assert_eq!(
         save_type(RemoveDependencyOptions {
             save_prod: false,
@@ -17,7 +16,6 @@ fn dependency_options_to_save_type() {
         None,
     );
 
-    // --save-prod -> dependencies
     assert_eq!(
         save_type(RemoveDependencyOptions {
             save_prod: true,
@@ -27,7 +25,6 @@ fn dependency_options_to_save_type() {
         Some(Prod),
     );
 
-    // --save-dev -> devDependencies
     assert_eq!(
         save_type(RemoveDependencyOptions {
             save_prod: false,
@@ -37,7 +34,6 @@ fn dependency_options_to_save_type() {
         Some(Dev),
     );
 
-    // --save-optional -> optionalDependencies
     assert_eq!(
         save_type(RemoveDependencyOptions {
             save_prod: false,
@@ -47,7 +43,6 @@ fn dependency_options_to_save_type() {
         Some(Optional),
     );
 
-    // --save-dev wins over --save-optional and --save-prod
     assert_eq!(
         save_type(RemoveDependencyOptions { save_prod: true, save_dev: true, save_optional: true }),
         Some(Dev),

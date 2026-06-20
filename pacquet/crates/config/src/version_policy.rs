@@ -67,22 +67,12 @@ pub enum VersionPolicyError {
 }
 
 /// Expand each spec into one or more `name` / `name@version` literal
-/// strings.
-///
-/// Output shape:
-///
-/// - Bare `foo` → `{"foo"}`.
-/// - `foo@1.0.0` → `{"foo@1.0.0"}`.
-/// - `foo@1.0.0 || 2.0.0` → `{"foo@1.0.0", "foo@2.0.0"}`.
-/// - `@scope/foo@1.0.0` → `{"@scope/foo@1.0.0"}`.
-///
-/// Ports upstream's
+/// strings. Ports upstream's
 /// [`expandPackageVersionSpecs`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/version-policy/src/index.ts#L59-L72).
+///
 /// Callers feed the result into a `HashSet::contains` check, so a
-/// pattern like `is-*` lands in the set as the literal string
-/// `"is-*"` and never matches a real package name (matches upstream
-/// behavior exactly — see `should not allow patterns in allowBuilds`
-/// in `building/policy/test/index.ts`).
+/// pattern like `is-*` lands in the set as a literal string and never
+/// matches a real package name.
 pub fn expand_package_version_specs<Iter, Spec>(
     specs: Iter,
 ) -> Result<HashSet<String>, VersionPolicyError>
@@ -121,9 +111,10 @@ pub enum PolicyMatch {
 }
 
 /// Matcher-based version policy built from a list of
-/// `<name-pattern>[@<version>||<version>...]` rules. Rules are walked
-/// in order; the first whose name matcher accepts the input package
-/// name wins. Mirrors upstream's [`createPackageVersionPolicy`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/version-policy/src/index.ts#L6-L13).
+/// `<name-pattern>[@<version>||<version>...]` rules. See
+/// [`PackageVersionPolicy::matches`] for the evaluation semantics.
+/// Mirrors upstream's
+/// [`createPackageVersionPolicy`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/version-policy/src/index.ts#L6-L13).
 ///
 /// Used by `minimumReleaseAgeExclude` and `trustPolicyExclude`, both
 /// of which need wildcard name patterns (`is-*`, `@scope/*`) AND
@@ -153,36 +144,43 @@ struct VersionPolicyRule {
 }
 
 impl PackageVersionPolicy {
-    /// Evaluate the policy against a package name. Returns the
-    /// matching rule's payload (`AnyVersion` for a bare-name rule,
-    /// `ExactVersions` for `name@versions...`), or `PolicyMatch::No`
-    /// when no rule matched.
+    /// Evaluate the policy against a package name, merging the exact
+    /// versions of all matching `name@version[...]` rules.
+    ///
+    /// A bare-name or wildcard rule matches every version, but never
+    /// widens exact versions already accumulated from earlier rules: a
+    /// wildcard listed after an exact-version rule does not silently
+    /// turn the exclusion into every version of the package.
     #[must_use]
     pub fn matches(&self, pkg_name: &str) -> PolicyMatch {
+        let mut merged: Option<(Vec<String>, HashSet<String>)> = None;
         for rule in &self.rules {
             if !rule.name_matcher.matches(pkg_name) {
                 continue;
             }
-            return if rule.exact_versions.is_empty() {
-                PolicyMatch::AnyVersion
-            } else {
-                PolicyMatch::ExactVersions(rule.exact_versions.clone())
-            };
+            if rule.exact_versions.is_empty() {
+                return match merged {
+                    Some((versions, _)) => PolicyMatch::ExactVersions(versions),
+                    None => PolicyMatch::AnyVersion,
+                };
+            }
+            let (acc, seen) = merged.get_or_insert_with(|| (Vec::new(), HashSet::new()));
+            for version in &rule.exact_versions {
+                if seen.insert(version.clone()) {
+                    acc.push(version.clone());
+                }
+            }
         }
-        PolicyMatch::No
+        match merged {
+            Some((versions, _)) => PolicyMatch::ExactVersions(versions),
+            None => PolicyMatch::No,
+        }
     }
 }
 
 /// Compile a list of `<name-pattern>[@<version>||<version>...]` rules
 /// into a [`PackageVersionPolicy`]. Port of upstream's
 /// [`createPackageVersionPolicy`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/version-policy/src/index.ts#L6-L13).
-///
-/// Errors mirror upstream:
-///
-/// - A `||` union that contains a non-semver value →
-///   [`VersionPolicyError::InvalidVersionUnion`].
-/// - A `*` wildcard in the name combined with a version part →
-///   [`VersionPolicyError::NamePatternInVersionUnion`].
 pub fn create_package_version_policy<Iter, Spec>(
     patterns: Iter,
 ) -> Result<PackageVersionPolicy, VersionPolicyError>

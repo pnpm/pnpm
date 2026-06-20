@@ -1,0 +1,132 @@
+name: PR review automation (privileged)
+
+# Privileged follow-up to "PR review automation". A workflow_run trigger always
+# executes from the base repository's default branch with a write-scoped token
+# and access to secrets, even when the originating PR came from a fork (where the
+# pull_request_review run is denied both). This job performs only fixed,
+# repo-controlled actions — adding a known label and posting to Discord — on data
+# read from the artifact as inert files. It never checks out or executes PR content.
+on:
+  # zizmor: ignore[dangerous-triggers]
+  # The capture workflow runs with no token permissions and produces only inert
+  # data files. This workflow runs from the default branch via workflow_run,
+  # validates that data, then performs fixed repo-controlled actions (label +
+  # Discord) without ever checking out or executing PR content.
+  workflow_run:
+    workflows: ["PR review automation"]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  act:
+    if: >-
+      github.event.workflow_run.event == 'pull_request_review' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      # Downloading an artifact from the triggering run requires actions: read.
+      actions: read
+      # The POST /issues/{n}/labels endpoint is shared between issues and PRs,
+      # but the governing permission depends on the target: labeling a pull
+      # request needs pull-requests: write (issues: write only covers issues).
+      # The reviews this acts on are always on PRs, so pull-requests: write is
+      # the one that matters; issues: write is kept for completeness.
+      issues: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The webhook is optional; the Discord step is skipped when it is unset. Only
+      # a non-secret boolean is exposed job-wide — the secret itself is scoped to
+      # the Discord step. (Step-level env is not visible to that step's own `if`.)
+      HAS_DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK != '' }}
+    steps:
+      - name: Download the event artifact
+        id: download
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        # The capture job is skipped for non-approval reviews, leaving no artifact;
+        # tolerate its absence instead of failing the run.
+        continue-on-error: true
+        with:
+          name: pr-review-event
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: pr-review-event
+
+      - name: Distinguish a missing artifact from a failed download
+        if: steps.download.outcome != 'success'
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          # No artifact is the expected, benign case: the capture job is skipped for
+          # non-approval reviews. But if the artifact does exist and we still failed
+          # to download it, the run would otherwise pass as a silent no-op — surface
+          # that as an error so a missed label/announcement is observable in CI.
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts" --paginate --jq '.artifacts[].name')"
+          if printf '%s\n' "$artifacts" | grep -qx 'pr-review-event'; then
+            echo "::error::pr-review-event artifact exists but could not be downloaded"
+            exit 1
+          fi
+          echo "::notice::No pr-review-event artifact (non-approval review); nothing to do"
+
+      - name: Parse the event
+        id: event
+        if: steps.download.outcome == 'success'
+        run: |
+          # The artifact is influenced by the fork PR; treat it as untrusted.
+          reviewer="$(cat pr-review-event/reviewer)"
+          pr_number="$(cat pr-review-event/pr_number)"
+          # Reject anything that is not a plain integer to keep it out of the API path.
+          if ! printf '%s' "$pr_number" | grep -qE '^[0-9]+$'; then
+            echo "Invalid PR number: $pr_number" >&2
+            exit 1
+          fi
+          case "$reviewer" in
+            'coderabbitai[bot]') label='reviewed: coderabbit'; announce=true ;;
+            'qodo-free-for-open-source-projects[bot]') label='reviewed: qodo'; announce=false ;;
+            'zkochan') label='state: automerge'; announce=false ;;
+            *) echo "Unexpected reviewer: $reviewer" >&2; exit 1 ;;
+          esac
+          {
+            echo "pr_number=$pr_number"
+            echo "label=$label"
+            echo "announce=$announce"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Add the reviewed label
+        if: steps.event.outcome == 'success'
+        env:
+          PR_NUMBER: ${{ steps.event.outputs.pr_number }}
+          LABEL: ${{ steps.event.outputs.label }}
+        run: |
+          # gh pr edit --add-label is broken (it errors on the deprecated Projects-v1
+          # GraphQL field), so add the label through the issues REST API instead.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f "labels[]=$LABEL"
+
+      - name: Announce on Discord
+        if: >-
+          steps.event.outcome == 'success' &&
+          steps.event.outputs.announce == 'true' &&
+          env.HAS_DISCORD_WEBHOOK == 'true'
+        env:
+          PR_NUMBER: ${{ steps.event.outputs.pr_number }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          # PR title and URL are read as data and passed via jq --arg, never as code.
+          # allowed_mentions parse:[] stops a PR title like "@everyone" from pinging the Discord server.
+          title="$(cat pr-review-event/title)"
+          url="$(cat pr-review-event/url)"
+          payload="$(jq -n \
+            --arg n "$PR_NUMBER" \
+            --arg t "$title" \
+            --arg u "$url" \
+            '{content: ("✅ CodeRabbit approved PR #" + $n + ": " + $t + "\n" + $u), allowed_mentions: {parse: []}}')"
+          curl -fsS \
+            --connect-timeout 5 \
+            --max-time 20 \
+            --retry 3 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$DISCORD_WEBHOOK"

@@ -312,21 +312,67 @@ impl LogLevel {
     }
 }
 
-/// Runtime uplink declaration: the upstream `url` plus the request
-/// headers pnpr attaches to every fetch it makes to that uplink.
+/// Runtime uplink declaration: the upstream `url`, the request headers
+/// pnpr attaches to every fetch it makes to that uplink, and the
+/// verdaccio per-uplink tuning knobs (`maxage`, `timeout`, `max_fails`,
+/// `fail_timeout`, `cache`).
 ///
 /// [`Self::headers`] is resolved once, at config load, from the YAML
 /// `auth:` block (an `Authorization` header derived from
 /// `type`/`token`/`token_env`) merged with the `headers:` map. The
 /// parse-time shape lives in `UplinkFile`; `resolve_uplink` turns
 /// one into the other. Verdaccio fields pnpr doesn't model yet
-/// (timeouts, agent options, `maxage`) are accepted and dropped.
+/// (agent options, `strict_ssl`, ...) are accepted and dropped.
 #[derive(Clone)]
 pub struct UplinkConfig {
     pub url: String,
     /// Auth + custom headers, fully resolved and ready to attach to
     /// every request pnpr makes to this uplink.
     pub headers: HeaderMap,
+    /// Per-uplink packument freshness window (verdaccio's `maxage`).
+    /// `None` when the YAML omits it — the proxy then falls back to the
+    /// global [`Config::packument_ttl`], so the existing
+    /// `--packument-ttl-secs` flag still governs uplinks that don't set
+    /// their own.
+    pub maxage: Option<Duration>,
+    /// Per-request deadline for every fetch to this uplink (verdaccio's
+    /// `timeout`). Defaults to [`Self::DEFAULT_TIMEOUT`].
+    pub timeout: Duration,
+    /// Consecutive failures before the uplink is treated as down
+    /// (verdaccio's `max_fails`). Defaults to [`Self::DEFAULT_MAX_FAILS`].
+    pub max_fails: u32,
+    /// How long a down uplink stays down before pnpr retries it
+    /// (verdaccio's `fail_timeout`). Defaults to
+    /// [`Self::DEFAULT_FAIL_TIMEOUT`].
+    pub fail_timeout: Duration,
+    /// Whether tarballs fetched from this uplink are written to the local
+    /// mirror (verdaccio's `cache`). `false` streams them through
+    /// uncached. Defaults to `true`.
+    pub cache: bool,
+}
+
+impl UplinkConfig {
+    /// Verdaccio's `timeout` default (`30s`).
+    pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+    /// Verdaccio's `max_fails` default (`2`).
+    pub const DEFAULT_MAX_FAILS: u32 = 2;
+    /// Verdaccio's `fail_timeout` default (`5m`).
+    pub const DEFAULT_FAIL_TIMEOUT: Duration = Duration::from_mins(5);
+
+    /// Build a bare uplink with just a URL and headers, all tuning knobs
+    /// at their verdaccio defaults. Used by the programmatic
+    /// [`Config::proxy`] constructor and tests.
+    pub(crate) fn with_defaults(url: String, headers: HeaderMap) -> Self {
+        Self {
+            url,
+            headers,
+            maxage: None,
+            timeout: Self::DEFAULT_TIMEOUT,
+            max_fails: Self::DEFAULT_MAX_FAILS,
+            fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
+            cache: true,
+        }
+    }
 }
 
 impl fmt::Debug for UplinkConfig {
@@ -334,6 +380,11 @@ impl fmt::Debug for UplinkConfig {
         f.debug_struct("UplinkConfig")
             .field("url", &self.url)
             .field("headers", &RedactedHeaders(&self.headers))
+            .field("maxage", &self.maxage)
+            .field("timeout", &self.timeout)
+            .field("max_fails", &self.max_fails)
+            .field("fail_timeout", &self.fail_timeout)
+            .field("cache", &self.cache)
             .finish()
     }
 }
@@ -361,6 +412,56 @@ struct UplinkFile {
     auth: Option<UplinkAuthFile>,
     #[serde(default)]
     headers: IndexMap<String, String>,
+    /// Verdaccio interval strings (`"2m"`, `"30s"`, `"1h30m"`) or a bare
+    /// number of seconds; parsed by [`parse_interval`] in
+    /// [`resolve_uplink`]. Kept as raw strings here so an unparsable
+    /// value surfaces as a config error rather than a serde failure.
+    #[serde(default)]
+    maxage: Option<Interval>,
+    #[serde(default)]
+    timeout: Option<Interval>,
+    #[serde(default)]
+    max_fails: Option<u32>,
+    #[serde(default)]
+    fail_timeout: Option<Interval>,
+    #[serde(default)]
+    cache: Option<bool>,
+}
+
+/// A verdaccio interval scalar as written in YAML: either a string
+/// (`"2m"`, `"30s"`) or a bare number (a count of seconds). Both YAML
+/// shapes are accepted — verdaccio configs use either — and kept as the
+/// raw string so [`parse_interval`] handles them uniformly and an
+/// unparsable value surfaces as a precise config error.
+#[derive(Debug, Clone)]
+struct Interval(String);
+
+impl<'de> Deserialize<'de> for Interval {
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
+    where
+        De: serde::Deserializer<'de>,
+    {
+        struct IntervalVisitor;
+        impl serde::de::Visitor<'_> for IntervalVisitor {
+            type Value = Interval;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(r#"an interval string like "2m" or a number of seconds"#)
+            }
+            fn visit_str<DeError>(self, value: &str) -> Result<Interval, DeError> {
+                Ok(Interval(value.to_string()))
+            }
+            fn visit_i64<DeError>(self, value: i64) -> Result<Interval, DeError> {
+                Ok(Interval(value.to_string()))
+            }
+            fn visit_u64<DeError>(self, value: u64) -> Result<Interval, DeError> {
+                Ok(Interval(value.to_string()))
+            }
+            fn visit_f64<DeError>(self, value: f64) -> Result<Interval, DeError> {
+                Ok(Interval(value.to_string()))
+            }
+        }
+        deserializer.deserialize_any(IntervalVisitor)
+    }
 }
 
 /// The YAML `auth:` block on an uplink. `token` takes priority over
@@ -455,7 +556,91 @@ fn resolve_uplink<Sys: EnvVar>(
             })?;
         headers.insert(header_name, header_value);
     }
-    Ok(UplinkConfig { url: file.url, headers })
+
+    // Parse the verdaccio interval knobs, turning a typo'd value into a
+    // config error (named for the offending field) rather than silently
+    // falling back to the default.
+    let parse_field = |field: &str,
+                       raw: &Option<Interval>|
+     -> Result<Option<Duration>, RegistryError> {
+        raw.as_ref()
+            .map(|Interval(value)| {
+                parse_interval(value).ok_or_else(|| RegistryError::InvalidConfig {
+                    reason: format!("uplink {name:?} has an invalid {field} interval {value:?}"),
+                })
+            })
+            .transpose()
+    };
+    let maxage = parse_field("maxage", &file.maxage)?;
+    let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UplinkConfig::DEFAULT_TIMEOUT);
+    let fail_timeout = parse_field("fail_timeout", &file.fail_timeout)?
+        .unwrap_or(UplinkConfig::DEFAULT_FAIL_TIMEOUT);
+
+    Ok(UplinkConfig {
+        url: file.url,
+        headers,
+        maxage,
+        timeout,
+        max_fails: file.max_fails.unwrap_or(UplinkConfig::DEFAULT_MAX_FAILS),
+        fail_timeout,
+        cache: file.cache.unwrap_or(true),
+    })
+}
+
+/// Parse a verdaccio-style interval string into a [`Duration`].
+///
+/// Accepts the suffixes verdaccio's `parseInterval` understands —
+/// `ms`, `s`, `m`, `h`, `d`, `w` — optionally chained without or with
+/// whitespace (`"1h30m"`, `"2m 30s"`), and a bare number, which (like
+/// verdaccio) is read as **seconds**. A trailing number with no suffix
+/// is also seconds. Returns `None` for anything unparsable so the
+/// caller can surface a precise config error.
+fn parse_interval(raw: &str) -> Option<Duration> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    // A bare number is seconds, matching verdaccio (`interval * 1000` ms).
+    if let Ok(seconds) = raw.parse::<f64>() {
+        // `try_from_secs_f64` rejects negative, non-finite, and
+        // out-of-range values, so an absurd config (`"1e30"`) surfaces as
+        // a config error rather than panicking pnpr at startup.
+        return Duration::try_from_secs_f64(seconds).ok();
+    }
+    let mut total_seconds = 0f64;
+    let bytes = raw.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index].is_ascii_whitespace() {
+            index += 1;
+            continue;
+        }
+        let number_start = index;
+        while index < bytes.len() && (bytes[index].is_ascii_digit() || bytes[index] == b'.') {
+            index += 1;
+        }
+        if index == number_start {
+            return None;
+        }
+        let number: f64 = raw[number_start..index].parse().ok()?;
+        let unit_start = index;
+        while index < bytes.len() && bytes[index].is_ascii_alphabetic() {
+            index += 1;
+        }
+        let seconds = match &raw[unit_start..index] {
+            "ms" => number / 1000.0,
+            "s" | "" => number,
+            "m" => number * 60.0,
+            "h" => number * 3600.0,
+            "d" => number * 86_400.0,
+            "w" => number * 604_800.0,
+            _ => return None,
+        };
+        total_seconds += seconds;
+    }
+    // Fallible conversion so an overflowing compound (`"999999999999w"`)
+    // is rejected as unparsable rather than panicking.
+    Duration::try_from_secs_f64(total_seconds).ok()
 }
 
 /// Pick the credential for an uplink's `auth:` block: an explicit
@@ -607,10 +792,7 @@ impl Config {
         let mut uplinks = IndexMap::new();
         uplinks.insert(
             "npmjs".to_string(),
-            UplinkConfig {
-                url: "https://registry.npmjs.org".to_string(),
-                headers: HeaderMap::new(),
-            },
+            UplinkConfig::with_defaults("https://registry.npmjs.org".to_string(), HeaderMap::new()),
         );
         let mut packages = IndexMap::new();
         packages.insert(

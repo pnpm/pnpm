@@ -55,14 +55,14 @@ jobs:
     # verifies package-manager binaries (pacquet, the version-switch pnpm) against
     # these keys, so a stale set could break verification after a key rotation.
     - name: Check embedded npm signing keys are up to date
-      run: node deps/security/signatures/scripts/update-npm-signing-keys.mjs
+      run: node pnpm11/deps/security/signatures/scripts/update-npm-signing-keys.mjs
 
     # Fail the release if the embedded Node.js release keys (used to verify the
     # signature of a downloaded runtime's SHASUMS256.txt) have drifted from the
     # canonical nodejs/release-keys list, so a new release signer cannot silently
     # break Node.js runtime verification.
     - name: Check embedded Node.js release keys are up to date
-      run: node crypto/shasums-file/scripts/update-node-release-keys.mjs
+      run: node pnpm11/crypto/shasums-file/scripts/update-node-release-keys.mjs
 
     # Consumes the pending changesets: bumps versions, writes changelogs, updates
     # the ledger, and syncs manifests. A no-op (no pending changesets) leaves the
@@ -82,7 +82,7 @@ jobs:
     - name: Read new pnpm version
       id: version
       if: steps.changes.outputs.changed == 'true'
-      run: echo "version=$(node -p "require('./pnpm/package.json').version")" >> "$GITHUB_OUTPUT"
+      run: echo "version=$(node -p "require('./pnpm11/pnpm/package.json').version")" >> "$GITHUB_OUTPUT"
 
     - name: Commit and push
       if: steps.changes.outputs.changed == 'true'

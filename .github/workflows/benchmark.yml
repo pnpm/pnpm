@@ -20,10 +20,16 @@ on:
         type: string
   push:
     # Build Bencher's continuous baseline for the `pnpm` testbed.
-    # Every merge to main re-runs the bench so PR comparisons have
-    # an up-to-date reference; cancel-in-progress stays off below
-    # so we never throw away a partial run.
+    # Every merge to main that touches the TypeScript stack re-runs the
+    # bench so PR comparisons have an up-to-date reference; cancel-in-progress
+    # stays off below so we never throw away a partial run.
     branches: [main]
+    paths:
+      - 'pnpm11/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/benchmark.yml'
 
 permissions:
   contents: read
@@ -63,7 +69,7 @@ jobs:
     - name: Install pnpm and Node
       uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
       with:
-        runtime: node@26.3.0
+        runtime: node@26.3.1
 
     - name: Install Rust Toolchain
       uses: ./.github/actions/rustup
@@ -80,7 +86,7 @@ jobs:
       continue-on-error: true
       run: |
         set -o pipefail
-        ./benchmarks/bench.sh 2>&1 | tee bench-output.txt
+        ./pnpm11/benchmarks/bench.sh 2>&1 | tee bench-output.txt
         BENCH_DIR=$(grep "Temp directory kept at:" bench-output.txt | sed 's/Temp directory kept at: //')
         echo "bench_dir=$BENCH_DIR" >> "$GITHUB_OUTPUT"
       env:

@@ -28,8 +28,6 @@ fn no_retry_opts() -> RetryOpts {
     RetryOpts { retries: 0, ..Default::default() }
 }
 
-/// Cold cache (no mirror file) → registry returns 200 → mirror is
-/// populated with the response body + etag.
 #[tokio::test]
 async fn cold_cache_writes_mirror_on_200() {
     let mut server = mockito::Server::new_async().await;
@@ -115,12 +113,9 @@ async fn filtered_full_cache_writes_filtered_mirror_on_200() {
     assert!(!manifest.other.contains_key("scripts"));
 }
 
-/// Warm cache + matching `If-None-Match` → 304 → response served
-/// from disk; no parse against the empty body.
 #[tokio::test]
 async fn warm_cache_serves_from_mirror_on_304() {
     let mut server = mockito::Server::new_async().await;
-    // First call: 200, mirror written.
     let first = server
         .mock("GET", "/acme")
         .match_header("accept", "application/json; q=1.0, */*")
@@ -130,7 +125,6 @@ async fn warm_cache_serves_from_mirror_on_304() {
         .expect(1)
         .create_async()
         .await;
-    // Second call: must carry If-None-Match: W/"v1" — registry replies 304.
     let second = server
         .mock("GET", "/acme")
         .match_header("if-none-match", r#"W/"v1""#)
@@ -163,10 +157,6 @@ async fn warm_cache_serves_from_mirror_on_304() {
     assert_eq!(second_pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
 }
 
-/// A 304 renews the mirror's mtime so the publishedBy freshness
-/// shortcut in `pick_package` can fire again on the next install —
-/// without the touch, a mirror older than `minimumReleaseAge`
-/// re-validates on every subsequent install forever.
 #[tokio::test]
 async fn a_304_renews_the_mirror_mtime() {
     let mut server = mockito::Server::new_async().await;
@@ -223,8 +213,6 @@ async fn a_304_renews_the_mirror_mtime() {
     );
 }
 
-/// Warm cache + stale `If-None-Match` → 200 → mirror is overwritten
-/// with the new body + new etag.
 #[tokio::test]
 async fn stale_cache_refreshes_mirror_on_200() {
     let mut server = mockito::Server::new_async().await;
@@ -272,9 +260,6 @@ async fn stale_cache_refreshes_mirror_on_200() {
     assert_eq!(reloaded.etag.as_deref(), Some(r#"W/"v2""#));
 }
 
-/// `cache_dir = None` → straight unconditional GET, no mirror IO. A
-/// 200 response yields the parsed package as before; nothing is
-/// written to disk.
 #[tokio::test]
 async fn no_cache_dir_skips_mirror_io() {
     let mut server = mockito::Server::new_async().await;
@@ -305,10 +290,6 @@ async fn no_cache_dir_skips_mirror_io() {
     mock.assert_async().await;
 }
 
-/// `cache_dir` points at a read-only directory. The fetch still
-/// succeeds with the parsed body — cache writes are fire-and-forget,
-/// failures only suppress the next-install speedup. Mirrors
-/// upstream's `saveMeta(...).catch(() => {})`.
 #[cfg(unix)]
 #[tokio::test]
 async fn read_only_cache_dir_does_not_fail_the_call() {

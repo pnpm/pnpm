@@ -61,6 +61,14 @@ pub enum NodeLinker {
     Pnp,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NodePackageMapType {
+    #[default]
+    Standard,
+    Loose,
+}
+
 /// Controls how far dependencies are hoisted under
 /// `nodeLinker: hoisted`, mirroring yarn's `nmHoistingLimits`.
 ///
@@ -424,6 +432,16 @@ pub struct Config {
 
     /// Defines what linker should be used for installing Node packages.
     pub node_linker: NodeLinker,
+
+    /// When true, pacquet writes `node_modules/.package-map.json` for
+    /// Node's `--experimental-package-map` loader flag. Default
+    /// `false`, matching pnpm's opt-in setting.
+    pub node_experimental_package_map: bool,
+
+    /// Selects the package-map dependency surface. Pacquet currently
+    /// materializes only the standard map for isolated installs; loose
+    /// and hoisted maps require layout-aware writers.
+    pub node_package_map_type: NodePackageMapType,
 
     /// When symlink is set to false, pnpm creates a virtual store directory without any symlinks.
     /// It is a useful setting together with node-linker=pnp.
@@ -1433,6 +1451,40 @@ pub struct Config {
     /// fetchers via [`pacquet_network::AuthHeaders::for_url`]. Empty
     /// when no `.npmrc` was found or no auth keys were set.
     pub auth_headers: std::sync::Arc<pacquet_network::AuthHeaders>,
+
+    pub package_manager_bootstrap: PackageManagerBootstrap,
+}
+
+/// Registry + network configuration for resolving the package manager pnpm
+/// auto-switches to. Built only from sources outside the repository's
+/// control (builtin default, user `.npmrc`, `auth.ini`, URL-scoped env), so
+/// a malicious `pnpm-workspace.yaml` or project `.npmrc` cannot redirect the
+/// package-manager bytes to an attacker registry or proxy. Mirrors pnpm's
+/// `packageManagerRegistries` / `packageManagerNetworkConfig`. See
+/// GHSA-j2hc-m6cf-6jm8.
+#[derive(Debug, Clone, SmartDefault)]
+pub struct PackageManagerBootstrap {
+    /// Defaults to the public npm registry so a [`Config`] built without
+    /// [`Config::current`] never resolves against an empty registry.
+    #[default(_code = "default_registry()")]
+    pub registry: String,
+    /// Scoped registry routes (keyed by `@scope`), excluding `default`.
+    pub registries: BTreeMap<String, String>,
+    pub proxy: pacquet_network::ProxyConfig,
+    pub tls: pacquet_network::TlsConfig,
+    pub tls_by_uri: pacquet_network::PerRegistryTls,
+    pub auth_headers: std::sync::Arc<pacquet_network::AuthHeaders>,
+}
+
+impl PackageManagerBootstrap {
+    /// Registry map in pnpm's `Registries` shape: `default` plus the
+    /// configured scoped routes. Mirrors [`Config::resolved_registries`].
+    #[must_use]
+    pub fn resolved_registries(&self) -> BTreeMap<String, String> {
+        let mut registries = self.registries.clone();
+        registries.insert("default".to_string(), self.registry.clone());
+        registries
+    }
 }
 
 impl Config {
@@ -1820,6 +1872,11 @@ impl Config {
             (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
         };
 
+        // Capture the trusted sources (everything but `project_source`) for
+        // [`PackageManagerBootstrap`] before the fold below consumes them.
+        let trusted_sources =
+            [env_scoped_source.clone(), auth_ini_source.clone(), user_source.clone()];
+
         // Fold high-priority-first: the first present source is the
         // base, each lower source fills the gaps it left
         // ([`NpmrcAuth::merge_under`]).
@@ -1829,6 +1886,13 @@ impl Config {
         for lower in sources {
             npmrc_auth.merge_under(lower);
         }
+
+        let mut trusted_sources = trusted_sources.into_iter().flatten();
+        let mut trusted_auth = trusted_sources.next().unwrap_or_default();
+        for lower in trusted_sources {
+            trusted_auth.merge_under(lower);
+        }
+        self.package_manager_bootstrap = build_package_manager_bootstrap::<Sys>(trusted_auth);
 
         npmrc_auth.apply_registry_and_warn(&mut self);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
@@ -1959,9 +2023,16 @@ impl Config {
         global_virtual_store_dir_explicit |= env_settings.global_virtual_store_dir.is_some();
         store_dir_explicit |= env_settings.store_dir.is_some();
         env_settings.substitute_env_trusted::<Sys>();
+        // `PNPM_CONFIG_REGISTRY` comes from the environment, not the
+        // repository, so it overrides the bootstrap default registry too.
+        let env_registry_override = env_settings.registry.clone();
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
+        if let Some(registry) = env_registry_override {
+            self.package_manager_bootstrap.registry =
+                if registry.ends_with('/') { registry } else { format!("{registry}/") };
+        }
 
         // Build the per-URI auth-header lookup. Credentials were already
         // pinned to their source file's registry by `rescope_unscoped`,
@@ -2018,6 +2089,31 @@ impl Config {
     /// Persist the config data until the program terminates.
     pub fn leak(self) -> &'static mut Self {
         self.pipe(Box::new).pipe(Box::leak)
+    }
+}
+
+/// Build the [`PackageManagerBootstrap`] from the already-folded trusted
+/// sources, running them through the same registry/proxy/TLS/auth steps the
+/// full config uses so the bootstrap cascade matches the project cascade
+/// minus the repository-controlled sources.
+fn build_package_manager_bootstrap<Sys: EnvVar>(
+    mut trusted_auth: crate::npmrc_auth::NpmrcAuth,
+) -> PackageManagerBootstrap {
+    // The full-config fold already surfaced these sources' `${VAR}` warnings;
+    // drop the duplicates this second pass would log.
+    trusted_auth.warnings.clear();
+    let mut config = Config::default();
+    trusted_auth.apply_registry_and_warn(&mut config);
+    trusted_auth.apply_proxy_cascade::<Sys>(&mut config);
+    trusted_auth.apply_tls_and_local_address(&mut config);
+    trusted_auth.build_auth_headers(&mut config);
+    PackageManagerBootstrap {
+        registry: config.registry,
+        registries: config.registries,
+        proxy: config.proxy,
+        tls: config.tls,
+        tls_by_uri: config.tls_by_uri,
+        auth_headers: config.auth_headers,
     }
 }
 

@@ -60,9 +60,6 @@ fn expired_cache_prunes() {
     assert!(should_prune_virtual_store(false, Some(&eight_days_ago), SEVEN_DAYS_MINUTES, now()));
 }
 
-/// Matches upstream: `new Date("not a date").valueOf()` is `NaN` and
-/// `NaN > maxAge` is `false`, so pnpm does not prune on a corrupt,
-/// non-empty timestamp.
 #[test]
 fn unparsable_pruned_at_is_kept() {
     assert!(!should_prune_virtual_store(false, Some("not a date"), SEVEN_DAYS_MINUTES, now()));
@@ -102,8 +99,6 @@ fn sweep_keeps_needed_removes_surplus_and_skipped() {
 
     let removed = prune_virtual_store(vsdir, keys.iter(), &skipped, max);
 
-    // The surplus dir and the skipped snapshot's dir are removed; the two
-    // live snapshots, `node_modules`, and `lock.yaml` survive.
     assert_eq!(removed, Some(2));
     assert!(vsdir.join(keep.to_virtual_store_name(max)).exists());
     assert!(vsdir.join(keep_peer.to_virtual_store_name(max)).exists());
@@ -119,7 +114,6 @@ fn sweep_on_missing_dir_is_a_noop() {
     let vsdir = store.path().join("does-not-exist");
     let keep: PkgNameVerPeer = "foo@1.0.0".parse().unwrap();
     let removed = prune_virtual_store(&vsdir, [keep].iter(), &SkippedSnapshots::new(), 120);
-    // A missing store enumerates as empty: the sweep ran, removing nothing.
     assert_eq!(removed, Some(0));
 }
 
@@ -142,9 +136,6 @@ fn prune_target_must_be_inside_node_modules() {
     let modules = root.path().join("node_modules");
     fs::create_dir_all(&modules).unwrap();
 
-    // A strict descendant (the default `.pnpm`/`.pacquet` layout) is allowed,
-    // and the canonical target is returned so the caller deletes from the
-    // validated path.
     let inside = modules.join(".pacquet");
     fs::create_dir_all(&inside).unwrap();
     assert_eq!(
@@ -152,17 +143,12 @@ fn prune_target_must_be_inside_node_modules() {
         Some(fs::canonicalize(&inside).unwrap()),
     );
 
-    // node_modules itself is refused (would sweep the whole tree).
     assert_eq!(prune_target_within_modules(&modules, &modules), None);
 
-    // A sibling that escapes node_modules is refused.
     let outside = root.path().join("elsewhere");
     fs::create_dir_all(&outside).unwrap();
     assert_eq!(prune_target_within_modules(&outside, &modules), None);
 
-    // A not-yet-created store under node_modules is allowed; it is resolved
-    // through its nearest existing ancestor (node_modules) so the caller
-    // deletes from a containment-checked path.
     let not_created = modules.join("not-created-yet");
     assert_eq!(
         prune_target_within_modules(&not_created, &modules),
@@ -180,7 +166,6 @@ fn same_dir_matches_equivalent_paths() {
     let dir = tempfile::tempdir().unwrap();
     let store = dir.path().join("store");
     fs::create_dir_all(&store).unwrap();
-    // `store` and `store/.` canonicalize to the same real path.
     assert!(same_dir(&store, &store.join(".")));
     assert!(!same_dir(&store, dir.path()));
 }

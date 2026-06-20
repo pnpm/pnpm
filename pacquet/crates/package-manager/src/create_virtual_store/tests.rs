@@ -1,6 +1,7 @@
 use super::{
     CreateVirtualStore, CreateVirtualStoreError, InstallPackageBySnapshotError,
-    emit_warm_snapshot_progress, integrity_equal, snapshot_cache_key, snapshot_deps_equal,
+    emit_warm_snapshot_progress, integrity_equal, removed_child_aliases, snapshot_cache_key,
+    snapshot_deps_equal,
 };
 use pacquet_lockfile::{
     GitResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer,
@@ -42,6 +43,50 @@ fn snapshot_with_dep(child: &str, ref_str: &str) -> SnapshotEntry {
         dependencies: Some(HashMap::from([(name(child), dep_ref)])),
         ..Default::default()
     }
+}
+
+fn dep_map(children: &[&str]) -> Option<HashMap<PkgName, SnapshotDepRef>> {
+    if children.is_empty() {
+        return None;
+    }
+    // The ref value is irrelevant to `removed_child_aliases`; only the
+    // alias keys matter. A bare version is the simplest valid ref.
+    Some(children.iter().map(|child| (name(child), "1.0.0".parse().expect("ref"))).collect())
+}
+
+fn snapshot(deps: &[&str], optional: &[&str]) -> SnapshotEntry {
+    SnapshotEntry {
+        dependencies: dep_map(deps),
+        optional_dependencies: dep_map(optional),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn removed_child_aliases_reports_dropped_children_only() {
+    let self_name = name("host");
+    let current = snapshot(&["kept", "dropped"], &["opt-dropped"]);
+    let wanted = snapshot(&["kept", "added"], &[]);
+
+    let mut removed: Vec<String> = removed_child_aliases(&current, &wanted, &self_name)
+        .iter()
+        .map(PkgName::to_string)
+        .collect();
+    removed.sort();
+
+    assert_eq!(removed, vec!["dropped".to_string(), "opt-dropped".to_string()]);
+}
+
+#[test]
+fn removed_child_aliases_excludes_self_and_unchanged_sets() {
+    let self_name = name("host");
+    // The slot lists itself as a dependency and is otherwise unchanged.
+    let current = snapshot(&["host", "kept"], &[]);
+    let wanted = snapshot(&["kept"], &[]);
+
+    let removed = removed_child_aliases(&current, &wanted, &self_name);
+
+    assert!(removed.is_empty(), "self and still-present children must not be removed: {removed:?}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -265,9 +310,6 @@ fn snapshot_deps_equal_distinguishes_different_dependency_values() {
     assert!(!snapshot_deps_equal(&entry_a, &entry_b));
 }
 
-/// `optionalDependencies` participate in the comparison the same way
-/// `dependencies` do — both upstream `equals` calls have to agree
-/// before the skip fires.
 #[test]
 fn snapshot_deps_equal_distinguishes_different_optional_dependency_values() {
     let dep_ref: SnapshotDepRef = "1.0.0".parse().expect("parse dep ref");
@@ -282,10 +324,6 @@ fn snapshot_deps_equal_distinguishes_different_optional_dependency_values() {
     assert!(!snapshot_deps_equal(&entry_a, &entry_b));
 }
 
-/// `integrity_equal` mirrors upstream's `isIntegrityEqual` —
-/// identical `integrity` strings on both sides means the cached
-/// tarball is still valid, mismatched (or one-sided) integrities
-/// force a re-fetch.
 #[test]
 fn integrity_equal_matches_when_integrities_agree() {
     let entry_a = metadata_with_integrity(
@@ -398,9 +436,6 @@ fn snapshot_cache_key_for_git_resolution_uses_git_hosted_key() {
     );
 }
 
-/// `Tarball { gitHosted: true }` mirrors the bare-`Git` arm — same
-/// key shape, so the warm prefetch picks up both fetchers' rows
-/// the same way.
 #[test]
 fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
     let pkg = key("foo", "1.0.0");

@@ -353,8 +353,6 @@ impl NpmResolutionVerifier {
         let Some(tarball_url) = npm_registry_tarball(resolution) else {
             return ResolutionVerification::Ok;
         };
-        // Non-semver versions identify URL tarballs, file: refs, git refs,
-        // etc. Neither policy applies, and a registry lookup would 404.
         if node_semver::Version::parse(ctx.version).is_err() {
             return ResolutionVerification::Ok;
         }
@@ -529,12 +527,6 @@ impl NpmResolutionVerifier {
     /// Run the resolver-time `failIfTrustDowngraded` check against the
     /// pinned lockfile version. Mirrors upstream's
     /// [`runTrustCheck`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L325-L359).
-    ///
-    /// No attestation fast-path: presence of provenance on the current
-    /// version is not sufficient to clear a downgrade. The package may
-    /// have shipped earlier versions under a `trustedPublisher` with
-    /// provenance (the higher-rank evidence) and then dropped to plain
-    /// provenance — `fail_if_trust_downgraded` correctly flags that.
     async fn run_trust_check(
         &self,
         registry: &str,
@@ -567,10 +559,6 @@ impl NpmResolutionVerifier {
     /// Per-`(registry, name, version)` lookup with a layered fallback.
     /// Ports upstream's
     /// [`fetchPublishedAt`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L456-L491).
-    ///
-    /// Phase 4 stubs the abbreviated-shortcut and on-disk-mirror layers
-    /// (return `None`); Phase 5 swaps the full-meta call behind the
-    /// cached fetcher and ports the abbreviated/mirror layers.
     async fn fetch_published_at(
         &self,
         registry: &str,

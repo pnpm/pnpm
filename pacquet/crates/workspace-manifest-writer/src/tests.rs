@@ -66,8 +66,6 @@ fn default_merges_into_existing_catalogs_default() {
 fn named_catalogs_create_a_catalogs_block() {
     let out = run(None, &catalogs(&[("bar", &[("def", "3.2.1")]), ("foo", &[("abc", "0.1.2")])]))
         .expect("written");
-    // `catalogs` is the new top-level block; its named children sort
-    // alphabetically (bar before foo) on creation.
     assert_eq!(out, "catalogs:\n  bar:\n    def: 3.2.1\n  foo:\n    abc: 0.1.2\n");
 }
 
@@ -79,7 +77,6 @@ fn named_catalog_added_to_existing_catalogs() {
         &catalogs(&[("bar", &[("def", "3.2.1")]), ("foo", &[("abc", "0.1.2")])]),
     )
     .expect("written");
-    // `bar` sorts before the existing `foo`; `abc` sorts before `ghi`.
     assert_eq!(out, "catalogs:\n  bar:\n    def: 3.2.1\n  foo:\n    abc: 0.1.2\n    ghi: 7.8.9\n");
 }
 
@@ -128,7 +125,6 @@ fn no_blank_lines_when_original_has_none() {
 #[test]
 fn catalog_sorts_to_front_with_blank_line_style() {
     let original = "overrides:\n  foo: '2.0.0'\n\npackages:\n  - '*'\n";
-    // alphabetical layout (overrides < packages); `catalog` sorts to front.
     let out = run(Some(original), &catalogs(&[("default", &[("bar", "1.0.0")])])).expect("written");
     assert_eq!(out, "catalog:\n  bar: 1.0.0\n\noverrides:\n  foo: '2.0.0'\n\npackages:\n  - '*'\n");
 }
@@ -170,8 +166,6 @@ fn updates_named_catalog_value_preserving_comment() {
 
 #[test]
 fn inserts_entry_into_a_four_space_indented_block() {
-    // The block uses a four-space indent; a new entry must match it rather
-    // than assume two spaces.
     let original = "catalogs:\n    react:\n        react: 18.0.0\n";
     let out =
         run(Some(original), &catalogs(&[("react", &[("react-dom", "18.0.0")])])).expect("written");
@@ -248,15 +242,12 @@ fn config_dependency_noop_when_unchanged_returns_false() {
 
     let original = "configDependencies:\n  '@pnpm.e2e/foo': 1.0.0\n";
 
-    // Re-adding the identical specifier is a no-op: the writer reports
-    // "unchanged" so the caller can skip rewriting the file.
     let mut manifest = Manifest::parse(Some(original)).unwrap();
     assert!(
         !edit::add_config_dependency(&mut manifest, "@pnpm.e2e/foo", "1.0.0").unwrap(),
         "re-adding the same specifier should report no change",
     );
 
-    // Changing the specifier is a real change.
     let mut manifest = Manifest::parse(Some(original)).unwrap();
     assert!(
         edit::add_config_dependency(&mut manifest, "@pnpm.e2e/foo", "2.0.0").unwrap(),

@@ -10,6 +10,7 @@ pub mod store;
 pub mod supported_architectures;
 pub mod update;
 pub mod update_interactive;
+pub mod why;
 
 use crate::{State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
@@ -36,6 +37,7 @@ use std::{
 };
 use store::StoreCommand;
 use update::UpdateArgs;
+use why::WhyArgs;
 
 /// Experimental package manager for node.js written in rust.
 #[derive(Debug, Parser)]
@@ -79,11 +81,8 @@ pub struct CliArgs {
     /// consumed by `install`.
     ///
     /// As a global multi-value flag, occurrences collect only within one
-    /// side of the subcommand boundary: `pacquet -F a -F b install` and
-    /// `pacquet install -F a -F b` both yield `[a, b]`, but mixing sides
-    /// (`pacquet -F a install -F b`) keeps only the subcommand-side
-    /// occurrence. This is a clap limitation; pass all selectors on the
-    /// same side.
+    /// side of the subcommand boundary; mixing sides is a clap limitation,
+    /// so pass all selectors on the same side.
     #[clap(short = 'F', long, global = true)]
     pub filter: Vec<String>,
 
@@ -127,6 +126,8 @@ pub enum CliCommand {
     Update(UpdateArgs),
     /// Check for outdated packages
     Outdated(OutdatedArgs),
+    /// Shows the packages that depend on `pkg`
+    Why(WhyArgs),
     /// Removes packages from `node_modules` and from the project's `package.json`.
     // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
     // confusion with "run" and "recursive". Mirrors pnpm's `commandNames`.
@@ -300,6 +301,9 @@ impl CliArgs {
                     std::process::exit(1);
                 }
             }
+            CliCommand::Why(args) => {
+                args.run(state(true)?).await?;
+            }
             CliCommand::Remove(args) => match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
                     Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
@@ -415,10 +419,6 @@ impl CliArgs {
                 }
             },
             CliCommand::Start => {
-                // Runs an arbitrary command specified in the package's start property of its scripts
-                // object. If no start property is specified on the scripts object, it will attempt to
-                // run node server.js as a default, failing if neither are present.
-                // The intended usage of the property is to specify a command that starts your program.
                 let manifest = PackageManifest::from_path(manifest_path())
                     .wrap_err("getting the package.json in current directory")?;
                 let command = manifest.script("start", true)?.unwrap_or("node server.js");

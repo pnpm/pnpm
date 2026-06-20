@@ -99,8 +99,6 @@ pub fn decide_catalog<Reporter: self::Reporter>(
         return Ok(CatalogDecision::KeepDirect);
     }
 
-    // Cataloging engages under strict/prefer, or whenever `--save-catalog`
-    // names a target catalog (which works even in manual mode).
     if catalog_mode == CatalogMode::Manual && save_catalog_name.is_none() {
         return Ok(CatalogDecision::KeepDirect);
     }
@@ -112,8 +110,6 @@ pub fn decide_catalog<Reporter: self::Reporter>(
         format!("catalog:{catalog_name}")
     };
 
-    // The manifest already references this catalog and is staying that way
-    // (a re-install of a `catalog:` dependency) — keep it, touch nothing.
     if dep.bare_specifier == catalog_specifier {
         return Ok(CatalogDecision::Catalog {
             manifest_specifier: catalog_specifier,
@@ -126,7 +122,6 @@ pub fn decide_catalog<Reporter: self::Reporter>(
         bare_specifier: catalog_specifier.clone(),
     };
     let entry = match resolve_from_catalog(catalogs, &wanted) {
-        // No catalog entry yet — create one from the wanted specifier.
         CatalogResolutionResult::Found(found) => found.resolution.specifier,
         _ => {
             return Ok(CatalogDecision::Catalog {
@@ -139,7 +134,6 @@ pub fn decide_catalog<Reporter: self::Reporter>(
         }
     };
 
-    // An entry exists and agrees with the wanted version — reuse it.
     if versions_equal(dep.bare_specifier, &entry) {
         return Ok(CatalogDecision::Catalog {
             manifest_specifier: catalog_specifier,

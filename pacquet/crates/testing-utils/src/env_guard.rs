@@ -23,15 +23,15 @@
 use std::{
     env,
     ffi::{OsStr, OsString},
-    sync::{Mutex, MutexGuard, OnceLock},
+    sync::{LazyLock, Mutex, MutexGuard},
 };
 
 /// Serialization mutex for env-mutating tests. A single `Mutex<()>` —
 /// uncontended outside the handful of tests that need it, cheap when
 /// held.
 fn env_mutex() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
+    static LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+    &LOCK
 }
 
 /// Restore a named set of env vars on drop and hold the env-mutation

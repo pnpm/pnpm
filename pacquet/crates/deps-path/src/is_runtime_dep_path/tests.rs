@@ -1,8 +1,5 @@
 use super::is_runtime_dep_path;
 
-/// Mirrors pnpm's `isRuntimeDepPath` test in
-/// [`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L146-L149):
-/// `node@runtime:20.1.0` is a runtime entry, plain `node@20.1.0` is not.
 #[test]
 fn matches_pnpm_test_cases() {
     assert!(is_runtime_dep_path("node@runtime:20.1.0"));

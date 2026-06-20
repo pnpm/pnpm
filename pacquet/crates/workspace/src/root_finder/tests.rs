@@ -8,7 +8,6 @@ use pretty_assertions::assert_eq;
 use std::{ffi::OsString, fs};
 use tempfile::TempDir;
 
-/// `pnpm-workspace.yaml` exists at the start dir → returns that dir.
 #[test]
 fn finds_workspace_dir_at_start() {
     let tmp = TempDir::new().unwrap();
@@ -17,7 +16,6 @@ fn finds_workspace_dir_at_start() {
     assert_eq!(found.as_deref(), Some(tmp.path()));
 }
 
-/// Walk up: start dir is a child, manifest lives in an ancestor.
 #[test]
 fn finds_workspace_dir_in_ancestor() {
     let tmp = TempDir::new().unwrap();
@@ -28,7 +26,6 @@ fn finds_workspace_dir_in_ancestor() {
     assert_eq!(found.as_deref(), Some(tmp.path()));
 }
 
-/// No `pnpm-workspace.yaml` anywhere → `Ok(None)` (not an error).
 #[test]
 fn returns_none_when_no_manifest() {
     let tmp = TempDir::new().unwrap();
@@ -36,8 +33,6 @@ fn returns_none_when_no_manifest() {
     assert_eq!(found, None);
 }
 
-/// `pnpm-workspace.yml` (or any other misnamed variant) → error.
-/// One sub-test per variant so a failure points at the exact filename.
 #[test]
 fn rejects_invalid_filenames() {
     for bad in INVALID_WORKSPACE_MANIFEST_FILENAMES {
@@ -94,9 +89,6 @@ fn empty_env_var_is_treated_as_unset() {
     );
 }
 
-/// A non-empty value resolves to the workspace dir verbatim, via the
-/// same code path the production accessor uses. Pinning this here
-/// guards the truthy-value side of the fall-through above.
 #[test]
 fn non_empty_env_var_resolves_verbatim() {
     struct EnvWithUppercaseWorkspaceDir;
@@ -111,8 +103,6 @@ fn non_empty_env_var_resolves_verbatim() {
     );
 }
 
-/// The lowercase spelling is also honored, matching upstream's
-/// `process.env[VAR] ?? process.env[VAR.toLowerCase()]` lookup.
 #[test]
 fn lowercase_env_var_is_honored_as_fallback() {
     struct EnvWithLowercaseWorkspaceDir;

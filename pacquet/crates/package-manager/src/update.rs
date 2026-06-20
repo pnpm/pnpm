@@ -164,10 +164,7 @@ pub enum UpdateError {
 
 /// A CLI selector split into its name pattern and optional version part.
 /// Ports pnpm's
-/// [`parseUpdateParam`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/recursive.ts#L582-L595):
-/// the version separator is the **first** `@` at or after index `1`
-/// (`2` for a `!`-negated pattern), so neither a leading scope `@` nor
-/// the `!@scope/...` negation form is mistaken for a version.
+/// [`parseUpdateParam`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/recursive.ts#L582-L595).
 struct ParsedSelector {
     pattern: String,
     version: Option<String>,

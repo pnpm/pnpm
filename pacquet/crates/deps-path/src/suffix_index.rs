@@ -13,11 +13,6 @@ pub struct DepPathSuffixIndex {
 /// the boundary of the peer-suffix and (optional) `(patch_hash=…)`
 /// segments. Mirrors pnpm's
 /// [`indexOfDepPathSuffix`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L9-L31).
-///
-/// Returns `(None, None)` when the path has no trailing `)` to anchor
-/// the scan from — the depPath has neither a peer suffix nor a patch
-/// hash, and the whole string is the `pkgIdWithPatchHash` (without a
-/// patch hash, that's just the bare `name@version` id).
 #[must_use]
 pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
     let bytes = dep_path.as_bytes();
@@ -37,11 +32,6 @@ pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
             b'(' => open -= 1,
             b')' => open += 1,
             _ if open == 0 => {
-                // Position `idx + 1` is the start of a balanced
-                // top-level segment. Upstream checks if that segment
-                // starts with `(patch_hash=` — if so, the patch-hash
-                // segment lives here and the peers segment (if any)
-                // starts at the next `(` after `idx + 2`.
                 let start = idx + 1;
                 if dep_path[start..].starts_with("(patch_hash=") {
                     let peers_index = dep_path[start + 2..].find('(').map(|off| start + 2 + off);
