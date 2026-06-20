@@ -9,8 +9,8 @@ import { sync as execa } from 'execa'
 import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
 
-const repoRoot = path.resolve(import.meta.dirname, '../../../')
-const typeCheckDir = path.resolve(repoRoot, '__typecheck__')
+const repoRoot = path.resolve(import.meta.dirname, '../../../../')
+const typeCheckDir = path.resolve(repoRoot, 'pnpm11/__typecheck__')
 const typingsDir = path.resolve(import.meta.dirname, '__typings__')
 
 async function main (): Promise<void> {
