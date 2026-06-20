@@ -146,3 +146,35 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
     assert_eq!(frame["unpackedSize"], serde_json::json!(123_456));
     assert_eq!(frame["fileCount"], serde_json::json!(42));
 }
+
+#[test]
+fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() {
+    use pacquet_lockfile::{LockfileResolution, TarballResolution};
+
+    let tarball = |url: &str, git_hosted: Option<bool>| {
+        LockfileResolution::Tarball(TarballResolution {
+            tarball: url.to_string(),
+            integrity: None,
+            git_hosted,
+            path: None,
+        })
+    };
+
+    // `gitHosted: true` must not let a normal https registry tarball opt out.
+    assert!(super::is_osv_checkable_resolution(&tarball(
+        "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
+        Some(true),
+    )));
+    // A URL that strict parsing would reject is still scanned when it is http(s).
+    assert!(super::is_osv_checkable_resolution(&tarball(
+        "https://registry.npmjs.org/foo/-/foo 1.0.0.tgz",
+        None,
+    )));
+    // Genuinely git-hosted-by-URL tarballs are skipped regardless of the flag.
+    assert!(!super::is_osv_checkable_resolution(&tarball(
+        "https://codeload.github.com/foo/bar/tar.gz/abc123",
+        Some(false),
+    )));
+    // Non-http schemes are skipped.
+    assert!(!super::is_osv_checkable_resolution(&tarball("file:../foo.tgz", None)));
+}

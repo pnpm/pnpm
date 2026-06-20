@@ -60,7 +60,7 @@ use axum::{
 };
 use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
-use pacquet_lockfile::{Lockfile, LockfileResolution};
+use pacquet_lockfile::{Lockfile, LockfileResolution, is_git_hosted_tarball_url};
 use pacquet_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manager::{
@@ -633,20 +633,27 @@ fn osv_violations_for_lockfile(index: &OsvIndex, lockfile: &Lockfile) -> Vec<ser
 fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bool {
     match resolution {
         LockfileResolution::Registry(_) => true,
+        // A frozen lockfile is attacker-controlled, so gate on the tarball
+        // URL rather than the tamper-prone `git_hosted` flag or strict URL
+        // parsing — otherwise `gitHosted: true` or a barely-malformed URL
+        // would let a vulnerable package opt out of the OSV scan. Mirrors
+        // the npm verifier's URL-based gate.
         LockfileResolution::Tarball(tarball) => {
-            if tarball.git_hosted == Some(true) {
-                return false;
-            }
-            reqwest::Url::parse(&tarball.tarball).is_ok_and(|url| {
-                let scheme = url.scheme();
-                scheme == "http" || scheme == "https"
-            })
+            is_http_tarball_url(&tarball.tarball) && !is_git_hosted_tarball_url(&tarball.tarball)
         }
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)
         | LockfileResolution::Binary(_)
         | LockfileResolution::Variations(_) => false,
     }
+}
+
+/// Whether a tarball URL uses an http(s) scheme — the only schemes a
+/// registry artifact is served over. Case-insensitive so a tampered
+/// uppercase scheme can't slip past.
+fn is_http_tarball_url(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    lower.starts_with("https://") || lower.starts_with("http://")
 }
 
 /// Serialize one frame to a newline-terminated NDJSON line.
