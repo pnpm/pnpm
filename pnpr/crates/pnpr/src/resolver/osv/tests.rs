@@ -96,6 +96,29 @@ fn duplicate_affected_blocks_yield_one_id() {
 }
 
 #[test]
+fn withdrawn_handling_respects_null_vs_timestamp() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    // `withdrawn: null` is not a withdrawal — the advisory stays active.
+    fs::write(
+        dir.path().join("GHSA-active.json"),
+        r#"{ "id": "GHSA-active", "withdrawn": null,
+            "affected": [{ "package": { "ecosystem": "npm", "name": "pkg" }, "versions": ["1.0.0"] }] }"#,
+    )
+    .expect("write active record");
+    // A real withdrawal timestamp drops the advisory.
+    fs::write(
+        dir.path().join("GHSA-gone.json"),
+        r#"{ "id": "GHSA-gone", "withdrawn": "2024-01-01T00:00:00Z",
+            "affected": [{ "package": { "ecosystem": "npm", "name": "pkg" }, "versions": ["1.0.0"] }] }"#,
+    )
+    .expect("write withdrawn record");
+
+    let index = OsvIndex::load_from_path(dir.path()).expect("load index");
+
+    assert_eq!(index.vulnerability_ids("pkg", "1.0.0"), vec!["GHSA-active"]);
+}
+
+#[test]
 fn loads_zip_archive_and_fingerprints_it() {
     use std::io::Write;
 

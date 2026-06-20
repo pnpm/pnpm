@@ -347,7 +347,10 @@ fn ingest_record_bytes(
 ) -> Result<(), RegistryError> {
     let record: OsvRecord = serde_json::from_slice(bytes)
         .map_err(|err| invalid_config(format!("failed to parse OSV record: {err}")))?;
-    if record.withdrawn.is_some() {
+    // OSV sets `withdrawn` to a timestamp string only for withdrawn
+    // records; a literal `null` is not a withdrawal, so don't drop the
+    // advisory on it.
+    if record.withdrawn.as_ref().is_some_and(|withdrawn| !withdrawn.is_null()) {
         return Ok(());
     }
     for affected in record.affected {
@@ -411,7 +414,17 @@ fn parse_osv_version(raw: &str) -> Option<Version> {
     if raw == "0" {
         return Version::parse("0.0.0").ok();
     }
-    Version::parse(raw).ok()
+    let parsed = Version::parse(raw).ok();
+    if parsed.is_none() {
+        // Surface rather than silently drop: an unparseable bound means
+        // this range won't be enforced, so a corrupt dump can't degrade
+        // coverage without leaving a trace in the logs.
+        tracing::warn!(
+            version = raw,
+            "ignoring OSV range event with an unparseable version; that range will not be enforced",
+        );
+    }
+    parsed
 }
 
 fn invalid_config(reason: String) -> RegistryError {
