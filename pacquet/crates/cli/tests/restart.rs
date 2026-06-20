@@ -5,31 +5,29 @@ use serde_json::json;
 use std::fs;
 
 /// `pacquet restart` runs "stop", "restart", and "start" scripts
-/// sequentially. Each script creates a marker file; their creation
-/// timestamps prove execution order.
+/// sequentially. Each script appends to a log file; their order
+/// in the file proves execution order.
 #[cfg(unix)]
 #[test]
 fn restart_runs_stop_restart_start_scripts() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let stop = workspace.join("stop.txt");
-    let restart = workspace.join("restart.txt");
-    let start = workspace.join("start.txt");
+    let log_file = workspace.join("log.txt");
     let manifest = json!({
         "name": "test",
         "version": "0.0.0",
         "scripts": {
-            "stop": format!(r#"touch "{}""#, stop.display()),
-            "restart": format!(r#"touch "{}""#, restart.display()),
-            "start": format!(r#"touch "{}""#, start.display()),
+            "stop": format!(r#"echo stop >> "{}""#, log_file.display()),
+            "restart": format!(r#"echo restart >> "{}""#, log_file.display()),
+            "start": format!(r#"echo start >> "{}""#, log_file.display()),
         },
     })
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
     pacquet.with_arg("restart").assert().success();
-    assert!(stop.exists(), "stop script should have run");
-    assert!(restart.exists(), "restart script should have run");
-    assert!(start.exists(), "start script should have run");
+    let content = fs::read_to_string(&log_file).expect("read log file");
+    let lines: Vec<&str> = content.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    assert_eq!(lines, vec!["stop", "restart", "start"]);
 
     drop(root);
 }
@@ -114,25 +112,30 @@ fn restart_with_if_present_skips_missing_scripts() {
 #[test]
 fn restart_passes_args_to_scripts() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let marker = workspace.join("args.txt");
+    let log_file = workspace.join("log.txt");
+    let append_arg_node = |name: &str| {
+        format!(
+            "node -e \"require('fs').appendFileSync('{}', '{} ' + process.argv[1] + '\\n')\"",
+            log_file.display(),
+            name
+        )
+    };
     let manifest = json!({
         "name": "test",
         "version": "0.0.0",
         "scripts": {
-            "stop": format!(
-                "node -e \"require('fs').writeFileSync('{}', process.argv[1])\"",
-                marker.display(),
-            ),
-            "restart": "true",
-            "start": "true",
+            "stop": append_arg_node("stop"),
+            "restart": append_arg_node("restart"),
+            "start": append_arg_node("start"),
         },
     })
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
     pacquet.with_arg("restart").with_arg("hello-world").assert().success();
-    let written = fs::read_to_string(&marker).expect("read marker");
-    assert_eq!(written, "hello-world");
+    let content = fs::read_to_string(&log_file).expect("read log file");
+    let lines: Vec<&str> = content.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    assert_eq!(lines, vec!["stop hello-world", "restart hello-world", "start hello-world"]);
 
     drop(root);
 }
@@ -159,11 +162,9 @@ fn stop_runs_declared_script() {
     drop(root);
 }
 
-/// `pacquet stop` with no "stop" script exits 0 silently (no error),
-/// matching how `pacquet test` and `pacquet start` behave when the
-/// script is absent.
+/// `pacquet stop` with no "stop" script fails (exit code 1) when --if-present is absent.
 #[test]
-fn stop_without_script_exits_zero() {
+fn stop_without_script_fails() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest = json!({
         "name": "test",
@@ -173,7 +174,24 @@ fn stop_without_script_exits_zero() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("stop").assert().success();
+    pacquet.with_arg("stop").assert().failure();
+
+    drop(root);
+}
+
+/// `pacquet stop` with no "stop" script succeeds with --if-present.
+#[test]
+fn stop_without_script_succeeds_with_if_present() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "echo built" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    pacquet.with_arg("stop").with_arg("--if-present").assert().success();
 
     drop(root);
 }

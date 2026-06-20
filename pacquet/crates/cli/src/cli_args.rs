@@ -7,6 +7,7 @@ pub mod recursive;
 pub mod remove;
 pub mod restart;
 pub mod run;
+pub mod stop;
 pub mod store;
 pub mod supported_architectures;
 pub mod update;
@@ -37,6 +38,7 @@ use std::{
     io::ErrorKind,
     path::{Path, PathBuf},
 };
+use stop::StopArgs;
 use store::StoreCommand;
 use update::UpdateArgs;
 use why::WhyArgs;
@@ -146,7 +148,7 @@ pub enum CliCommand {
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
     Start,
     /// Runs a package's "stop" script, if one was provided.
-    Stop,
+    Stop(StopArgs),
     /// Restarts a package. Runs "stop", "restart", and "start" scripts,
     /// and associated pre- and post- scripts.
     Restart(RestartArgs),
@@ -431,12 +433,8 @@ impl CliArgs {
                 let command = manifest.script("start", true)?.unwrap_or("node server.js");
                 execute_shell(command).wrap_err(format!("executing command: \"{command}\""))?;
             }
-            CliCommand::Stop => {
-                let manifest = PackageManifest::from_path(manifest_path())
-                    .wrap_err("getting the package.json in current directory")?;
-                if let Some(script) = manifest.script("stop", true)? {
-                    execute_shell(script).wrap_err(format!("executing command: \"{script}\""))?;
-                }
+            CliCommand::Stop(args) => {
+                args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
             }
             CliCommand::Restart(args) => {
                 args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
