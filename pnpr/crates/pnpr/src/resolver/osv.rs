@@ -448,7 +448,11 @@ fn semver_event_from_osv(event: OsvEvent) -> Option<SemverEvent> {
 
 fn parse_osv_version(raw: &str) -> Option<Version> {
     if raw == "0" {
-        return Version::parse("0.0.0").ok();
+        // OSV's `introduced: "0"` means "from the beginning". Map it to the
+        // lowest possible semver (`0.0.0-0`) rather than `0.0.0`, so the
+        // `version >= introduced` check still covers prereleases that sort
+        // below `0.0.0` (e.g. `0.0.0-alpha.1`).
+        return Version::parse("0.0.0-0").ok();
     }
     let parsed = Version::parse(raw).ok();
     if parsed.is_none() {

@@ -96,6 +96,30 @@ fn duplicate_affected_blocks_yield_one_id() {
 }
 
 #[test]
+fn introduced_zero_covers_prerelease_versions() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    // `introduced: "0"` means "all versions"; a prerelease below 0.0.0 must
+    // still be covered.
+    fs::write(
+        dir.path().join("GHSA-zero.json"),
+        r#"{
+          "id": "GHSA-zero",
+          "affected": [{
+            "package": { "ecosystem": "npm", "name": "zero" },
+            "ranges": [{ "type": "SEMVER", "events": [{ "introduced": "0" }, { "fixed": "2.0.0" }] }]
+          }]
+        }"#,
+    )
+    .expect("write record");
+
+    let index = OsvIndex::load_from_path(dir.path()).expect("load index");
+
+    assert_eq!(index.vulnerability_ids("zero", "0.0.0-alpha.1"), vec!["GHSA-zero"]);
+    assert_eq!(index.vulnerability_ids("zero", "1.0.0"), vec!["GHSA-zero"]);
+    assert_eq!(index.vulnerability_ids("zero", "2.0.0"), Vec::<String>::new());
+}
+
+#[test]
 fn out_of_order_range_events_are_normalized() {
     let dir = tempfile::tempdir().expect("tempdir");
     // Events are deliberately reversed (fixed before introduced). Without
