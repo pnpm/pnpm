@@ -20,11 +20,11 @@ function createCtx (importerResolutionOrder: Record<string, number> = {}): Ctx {
 // When several occurrences of one shared package each resolve its children, the
 // shallowest occurrence becomes the "owner" and the others may reuse the owner's
 // `missingPeersOfChildren` promise. Reuse must be a function of the dependency
-// graph (the owner's depth), never of whether the owner's promise happens to
-// have settled by the time a given occurrence is claimed: that settling time
-// varies run to run under concurrent resolution, so keying reuse on it flipped a
-// transitive optional peer (e.g. styled-jsx's `@babel/core`) in and out of a
-// deeper consumer's resolved suffix and churned the lockfile.
+// graph (the owner's depth) alone. The owner's promise can settle at different
+// times run to run under concurrent resolution, so reuse that depended on the
+// settled state would drift a transitive optional peer (e.g. styled-jsx's
+// `@babel/core`) in and out of a deeper consumer's resolved suffix and churn
+// the lockfile.
 test('a deeper consumer never inherits a shallower owner\'s missing peers, even after the owner has resolved', () => {
   const ctx = createCtx()
   const pkgId = 'shared@1.0.0' as PkgResolutionId
@@ -37,9 +37,8 @@ test('a deeper consumer never inherits a shallower owner\'s missing peers, even 
   expect(owner.isOwner).toBe(true)
   expect(owner.missingPeersOfChildren).toBeDefined()
 
-  // Simulate the owner's subtree finishing before the deeper consumer is
-  // claimed. This settled state is the only run-to-run-variable input the buggy
-  // reuse condition keyed on.
+  // Mark the owner's subtree as already settled before the deeper consumer is
+  // claimed. Reuse must ignore the settled state and depend only on depth.
   ctx.childrenResolutionByPkgId[pkgId].missingPeersOfChildren!.resolved = true
 
   const deeperConsumer = claimChildrenResolution(ctx, {
@@ -66,8 +65,8 @@ test('a same-depth occurrence still reuses the owner\'s missing peers', () => {
   expect(owner.isOwner).toBe(true)
   expect(owner.missingPeersOfChildren).toBeDefined()
 
-  // A second occurrence at the same depth shares the owner's promise. This reuse
-  // is structural — both occurrences are equidistant — and is intentionally kept.
+  // A second occurrence at the same depth shares the owner's promise: reuse is
+  // gated on depth, and equidistant occurrences are eligible.
   const sibling = claimChildrenResolution(ctx, {
     currentDepth: 1,
     parentIds: ['importer-2', 'mid-b@1.0.0'] as PkgResolutionId[],

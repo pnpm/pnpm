@@ -1141,17 +1141,12 @@ export function claimChildrenResolution (
     existing.missingPeersOfChildren &&
     existing.owner.depth >= opts.currentDepth
   ) {
-    // Sharing the owner's missing-peers promise when the owner is shallower than
-    // this consumer previously also happened whenever that promise had already
-    // settled (`existing.missingPeersOfChildren.resolved`). That made reuse depend
-    // on whether the owner had finished by the time this node was claimed — a race
-    // under real concurrent resolution that let a transitive optional peer (e.g.
-    // styled-jsx's `@babel/core`) propagate into a deeper consumer's suffix on some
-    // runs but not others, churning the lockfile non-deterministically. Reusing
-    // only when the owner is at the same or a deeper depth keeps the decision a
-    // function of graph structure rather than completion order; awaiting a strictly
-    // shallower, possibly-unsettled owner is what the deadlock guard in
-    // https://github.com/pnpm/pnpm/issues/11999 avoided anyway.
+    // Gating reuse on the owner's depth keeps a transitive optional peer's
+    // presence in the resolved suffix a function of graph structure, not of
+    // which occurrence happened to finish resolving first. A strictly shallower
+    // owner is excluded because its promise may still be unsettled here, and
+    // awaiting it can deadlock under auto-install-peers
+    // (https://github.com/pnpm/pnpm/issues/5454).
     missingPeersOfChildren = existing.missingPeersOfChildren
   }
   return {

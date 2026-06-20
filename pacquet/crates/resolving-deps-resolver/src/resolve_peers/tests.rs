@@ -1101,13 +1101,10 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
 // is reached through two occurrences at different depths: a shallow one whose
 // parent provides `@babel/core`, and a deeper one whose ancestors do not. The
 // shallow occurrence resolves the optional peer into its suffix; the deeper one
-// must not inherit it. In pnpm this could flip run to run when a shallow
-// "owner" occurrence's children finished resolving before a deeper consumer was
-// claimed — completion order leaking into the resolved suffix. pacquet resolves
-// the tree in a single deterministic walk, so the deeper occurrence's suffix is
-// a function of graph structure alone. Building a fresh tree (fresh `HashMap`s,
-// whose iteration order varies per process) on each iteration guards against any
-// hashing order leaking into the result the way completion order did upstream.
+// must not inherit it. The deeper occurrence's suffix must be a function of
+// graph structure alone, so each iteration resolves a freshly built tree
+// (fresh `HashMap`s, whose iteration order varies per process) to catch any
+// hashing order leaking into the result.
 #[test]
 fn shared_package_optional_transitive_peer_resolves_deterministically() {
     fn build_tree() -> ResolvedTree {
