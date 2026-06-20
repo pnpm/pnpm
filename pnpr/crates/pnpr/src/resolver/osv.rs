@@ -84,9 +84,13 @@ impl OsvIndex {
         // Parse the candidate once and share it across every advisory's
         // range check; exact-version advisories never need the parse.
         let parsed = Version::parse(version).ok();
+        let mut seen = HashSet::new();
         advisories
             .iter()
             .filter(|advisory| advisory.affects(version, parsed.as_ref()))
+            // A single OSV record can list the same package in several
+            // `affected` blocks; dedup so one advisory id isn't repeated.
+            .filter(|advisory| seen.insert(advisory.id.as_str()))
             .map(|advisory| advisory.id.clone())
             .collect()
     }
@@ -281,17 +285,23 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
         {
             continue;
         }
-        let len = entry.metadata().map(|metadata| metadata.len()).unwrap_or_default();
-        if len > MAX_OSV_RECORD_BYTES {
+        hasher.update(entry_path.file_name().and_then(|name| name.to_str()).unwrap_or_default());
+        // Bound the read itself with `take` rather than trusting a
+        // pre-read `metadata().len()`, which a concurrent swap could
+        // invalidate (TOCTOU) — matching the zip loader's guarantee.
+        let file = File::open(&entry_path).map_err(|err| {
+            invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
+        })?;
+        let mut bytes = Vec::new();
+        file.take(MAX_OSV_RECORD_BYTES + 1).read_to_end(&mut bytes).map_err(|err| {
+            invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
+        })?;
+        if bytes.len() as u64 > MAX_OSV_RECORD_BYTES {
             return Err(invalid_config(format!(
-                "OSV record {} is {len} bytes, over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
+                "OSV record {} is over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",
                 entry_path.display(),
             )));
         }
-        hasher.update(entry_path.file_name().and_then(|name| name.to_str()).unwrap_or_default());
-        let bytes = std::fs::read(&entry_path).map_err(|err| {
-            invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
-        })?;
         hasher.update(&bytes);
         ingest_record_bytes(&mut packages, &bytes)?;
     }

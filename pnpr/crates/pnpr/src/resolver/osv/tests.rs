@@ -73,6 +73,28 @@ fn package_name_lookup_is_case_insensitive() {
     assert_eq!(index.vulnerability_ids("JSONStream", "1.0.0"), vec!["GHSA-case"]);
 }
 
+#[test]
+fn duplicate_affected_blocks_yield_one_id() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    // One record listing the same package twice — the id must appear once.
+    fs::write(
+        dir.path().join("GHSA-dup.json"),
+        r#"{
+          "id": "GHSA-dup",
+          "affected": [
+            { "package": { "ecosystem": "npm", "name": "dup" }, "versions": ["1.0.0"] },
+            { "package": { "ecosystem": "npm", "name": "dup" },
+              "ranges": [{ "type": "SEMVER", "events": [{ "introduced": "1.0.0" }] }] }
+          ]
+        }"#,
+    )
+    .expect("write record");
+
+    let index = OsvIndex::load_from_path(dir.path()).expect("load index");
+
+    assert_eq!(index.vulnerability_ids("dup", "1.0.0"), vec!["GHSA-dup"]);
+}
+
 #[tokio::test]
 async fn package_version_guard_rejects_vulnerable_versions() {
     let dir = tempfile::tempdir().expect("tempdir");
