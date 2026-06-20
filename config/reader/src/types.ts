@@ -9,6 +9,7 @@ export const pnpmTypes = {
   bail: Boolean,
   ci: Boolean,
   'cache-dir': String,
+  'canonical-binary-source': ['pnpmfile'],
   'catalog-mode': ['strict', 'prefer', 'manual'],
   'child-concurrency': Number,
   'merge-git-branch-lockfiles': Boolean,

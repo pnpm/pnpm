@@ -24,6 +24,7 @@ import loudRejection from 'loud-rejection'
 import { isEmpty } from 'ramda'
 import semver from 'semver'
 
+import { applyCanonicalBinarySource } from './canonicalBinarySource.js'
 import { checkForUpdates } from './checkForUpdates.js'
 import { NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
@@ -113,6 +114,13 @@ export async function main (inputArgv: string[]): Promise<void> {
       onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
     }) as { config: typeof config, context: ConfigContext })
     if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams)) {
+      // When the project delegates pnpm-binary selection to a pnpmfile hook,
+      // consult it before the packageManager-field handling below. The hook may
+      // re-exec into a different binary (which never returns), so it must run
+      // first. Skipped for --global, which opts out of project-level pinning.
+      if (!cliOptions.global) {
+        await applyCanonicalBinarySource(config, context)
+      }
       if (context.wantedPackageManager != null) {
         const pm = context.wantedPackageManager
         if (pm.onFail !== 'ignore') {
@@ -148,6 +156,12 @@ export async function main (inputArgv: string[]): Promise<void> {
     ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
       tolerateConfigDependenciesErrors: isConfigCommand,
     }) as { config: typeof config, context: ConfigContext })
+    // A getCanonicalBinaryPath hook does nothing unless the project opted in via
+    // `canonicalBinarySource: pnpmfile`. Warn about the orphan hook so a typo in
+    // the setting doesn't silently leave the project running an unpinned binary.
+    if (config.canonicalBinarySource == null && context.hooks?.getCanonicalBinaryPath != null) {
+      globalWarn('The pnpmfile defines a "getCanonicalBinaryPath" hook, but it is ignored because "canonicalBinarySource" is not set to "pnpmfile".')
+    }
     if (cmd != null && COMMANDS_WITH_STDERR_REPORTER.has(cmd)) {
       config.useStderr = true
     }
