@@ -332,6 +332,16 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
         let file = File::open(&entry_path).map_err(|err| {
             invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
         })?;
+        // Re-check the *opened handle* before reading: the earlier
+        // `is_file` check is on the path, so a concurrent swap to a
+        // FIFO/socket could otherwise make `read_to_end` block startup.
+        let is_regular_file = file.metadata().is_ok_and(|metadata| metadata.is_file());
+        if !is_regular_file {
+            return Err(invalid_config(format!(
+                "OSV record {} is not a regular file",
+                entry_path.display(),
+            )));
+        }
         let mut bytes = Vec::new();
         file.take(MAX_OSV_RECORD_BYTES + 1).read_to_end(&mut bytes).map_err(|err| {
             invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
