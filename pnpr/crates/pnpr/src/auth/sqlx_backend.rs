@@ -1,0 +1,587 @@
+//! Shared SQL auth backend for relational databases supported through
+//! feature-gated `sqlx` drivers.
+
+use super::{
+    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
+    hash_bcrypt, mint_token, sha256_hex, unix_seconds, verify_bcrypt, verify_returning_user,
+};
+use crate::{
+    config::MaxUsers,
+    error::{RegistryError, Result},
+};
+use async_trait::async_trait;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+#[derive(Debug)]
+pub(in crate::auth) struct SqlAuth<Db> {
+    db: Db,
+    secret: [u8; 32],
+    counter: AtomicU64,
+    max_users: MaxUsers,
+}
+
+impl<Db> SqlAuth<Db> {
+    fn new(db: Db, max_users: MaxUsers) -> Self {
+        Self { db, secret: fresh_secret(), counter: AtomicU64::new(0), max_users }
+    }
+}
+
+#[async_trait]
+trait AuthSqlBackend: Send + Sync {
+    async fn stored_hash(&self, username: &str) -> Result<Option<String>>;
+    async fn user_count(&self) -> Result<u64>;
+    async fn insert_user(
+        &self,
+        username: &str,
+        bcrypt_hash: &str,
+        max_users: MaxUsers,
+    ) -> Result<InsertUser>;
+    async fn insert_token(&self, token_hash: &str, record: &TokenRecord) -> Result<()>;
+    async fn lookup_token(&self, token_hash: &str) -> Result<Option<String>>;
+    async fn find_token(&self, token_hash: &str) -> Result<Option<TokenRecord>>;
+    async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>>;
+    async fn delete_token(&self, token_hash: &str) -> Result<()>;
+}
+
+enum InsertUser {
+    Created,
+    Existing(String),
+    CapReached,
+}
+
+#[async_trait]
+impl<Db> UserBackend for SqlAuth<Db>
+where
+    Db: AuthSqlBackend,
+{
+    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+        if let Some(stored) = self.db.stored_hash(username).await? {
+            return verify_returning_user(username, password, stored).await;
+        }
+
+        match self.max_users {
+            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
+            MaxUsers::Limited(max) if self.db.user_count().await? >= max => {
+                return Err(RegistryError::TooManyUsers { max });
+            }
+            MaxUsers::Limited(_) | MaxUsers::Unlimited => {}
+        }
+
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        match self.db.insert_user(username, &hash, self.max_users).await? {
+            InsertUser::Created => Ok(UpsertOutcome::Created),
+            InsertUser::Existing(stored) => verify_returning_user(username, password, stored).await,
+            InsertUser::CapReached => match self.max_users {
+                MaxUsers::Limited(max) => Err(RegistryError::TooManyUsers { max }),
+                MaxUsers::Disabled | MaxUsers::Unlimited => {
+                    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
+                }
+            },
+        }
+    }
+
+    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
+        let Some(stored) = self.db.stored_hash(username).await? else {
+            return Ok(None);
+        };
+        Ok(verify_bcrypt(password.to_string(), stored)
+            .await
+            .unwrap_or(false)
+            .then(|| username.to_string()))
+    }
+}
+
+#[async_trait]
+impl<Db> TokenBackend for SqlAuth<Db>
+where
+    Db: AuthSqlBackend,
+{
+    async fn issue(&self, username: &str) -> Result<String> {
+        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
+        let raw = mint_token(&self.secret, nonce, username);
+        let token_hash = sha256_hex(raw.as_bytes());
+        let now = unix_seconds();
+        let record = TokenRecord {
+            username: username.to_string(),
+            created_at: now,
+            last_used_at: now,
+            readonly: false,
+            cidr_whitelist: Vec::new(),
+        };
+        self.db.insert_token(&token_hash, &record).await?;
+        Ok(raw)
+    }
+
+    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
+        self.db.lookup_token(&sha256_hex(raw.as_bytes())).await
+    }
+
+    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        self.db.find_token(key).await
+    }
+
+    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
+        self.db.list_tokens(username).await
+    }
+
+    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        let Some(record) = self.db.find_token(key).await? else {
+            return Ok(None);
+        };
+        self.db.delete_token(key).await?;
+        Ok(Some(record))
+    }
+}
+
+#[cfg(feature = "backend-postgres")]
+pub(super) mod postgres {
+    use super::super::TokenRecord;
+    use super::{AuthSqlBackend, InsertUser, SqlAuth, invalid_pool_size};
+    use crate::{
+        config::{MaxUsers, SqlBackendSettings},
+        error::{RegistryError, Result},
+    };
+    use async_trait::async_trait;
+    use sqlx::{PgPool, Row, postgres::PgPoolOptions};
+
+    #[derive(Debug)]
+    pub(in crate::auth) struct PostgresDatabase {
+        pool: PgPool,
+    }
+
+    pub(in crate::auth) type PostgresAuth = SqlAuth<PostgresDatabase>;
+
+    impl SqlAuth<PostgresDatabase> {
+        pub(in crate::auth) async fn connect(
+            settings: &SqlBackendSettings,
+            max_users: MaxUsers,
+        ) -> Result<Self> {
+            let mut options = PgPoolOptions::new();
+            if let Some(max_connections) = settings.max_connections {
+                if max_connections == 0 {
+                    return Err(invalid_pool_size("postgres"));
+                }
+                options = options.max_connections(max_connections);
+            }
+            let db = PostgresDatabase { pool: options.connect(&settings.url).await? };
+            db.init_schema().await?;
+            Ok(SqlAuth::new(db, max_users))
+        }
+    }
+
+    #[async_trait]
+    impl AuthSqlBackend for PostgresDatabase {
+        async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
+            let row = sqlx::query("SELECT bcrypt_hash FROM users WHERE username = $1")
+                .bind(username)
+                .fetch_optional(&self.pool)
+                .await?;
+            row.map(|row| row.try_get(0)).transpose().map_err(RegistryError::from)
+        }
+
+        async fn user_count(&self) -> Result<u64> {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+            Ok(count.max(0) as u64)
+        }
+
+        async fn insert_user(
+            &self,
+            username: &str,
+            bcrypt_hash: &str,
+            max_users: MaxUsers,
+        ) -> Result<InsertUser> {
+            let mut tx = self.pool.begin().await?;
+            if let MaxUsers::Limited(max) = max_users {
+                let updated = sqlx::query(
+                    "UPDATE auth_counters SET value = value + 1
+                     WHERE name = $1 AND value < $2",
+                )
+                .bind("users")
+                .bind(max as i64)
+                .execute(&mut *tx)
+                .await?;
+                if updated.rows_affected() == 0 {
+                    tx.rollback().await?;
+                    return self.existing_or_cap_reached(username).await;
+                }
+            }
+            let inserted = sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES ($1, $2)")
+                .bind(username)
+                .bind(bcrypt_hash)
+                .execute(&mut *tx)
+                .await;
+            match inserted {
+                Ok(_) => {
+                    tx.commit().await?;
+                    Ok(InsertUser::Created)
+                }
+                Err(err) if is_unique_violation(&err) => {
+                    tx.rollback().await?;
+                    self.existing_or_cap_reached(username).await
+                }
+                Err(err) => Err(err.into()),
+            }
+        }
+
+        async fn insert_token(&self, token_hash: &str, record: &TokenRecord) -> Result<()> {
+            let cidr_json = serde_json::to_string(&record.cidr_whitelist)
+                .expect("Vec<String> always serializes to JSON");
+            let mut tx = self.pool.begin().await?;
+            sqlx::query("DELETE FROM tokens WHERE token_hash = $1")
+                .bind(token_hash)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query(
+                "INSERT INTO tokens
+                    (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
+                 VALUES ($1, $2, $3, $4, $5, $6)",
+            )
+            .bind(token_hash)
+            .bind(&record.username)
+            .bind(record.created_at as i64)
+            .bind(record.last_used_at as i64)
+            .bind(i16::from(record.readonly))
+            .bind(cidr_json)
+            .execute(&mut *tx)
+            .await?;
+            tx.commit().await?;
+            Ok(())
+        }
+
+        async fn lookup_token(&self, token_hash: &str) -> Result<Option<String>> {
+            let row = sqlx::query("SELECT username FROM tokens WHERE token_hash = $1")
+                .bind(token_hash)
+                .fetch_optional(&self.pool)
+                .await?;
+            row.map(|row| row.try_get(0)).transpose().map_err(RegistryError::from)
+        }
+
+        async fn find_token(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
+            let row = sqlx::query(
+                "SELECT username, created_at, last_used_at, readonly, cidr_whitelist
+                 FROM tokens WHERE token_hash = $1",
+            )
+            .bind(token_hash)
+            .fetch_optional(&self.pool)
+            .await?;
+            row.map(|row| token_record_from_row(&row)).transpose()
+        }
+
+        async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
+            let rows = sqlx::query(
+                "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist
+                 FROM tokens WHERE username = $1",
+            )
+            .bind(username)
+            .fetch_all(&self.pool)
+            .await?;
+            rows.into_iter().map(|row| keyed_token_record_from_row(&row)).collect()
+        }
+
+        async fn delete_token(&self, token_hash: &str) -> Result<()> {
+            sqlx::query("DELETE FROM tokens WHERE token_hash = $1")
+                .bind(token_hash)
+                .execute(&self.pool)
+                .await?;
+            Ok(())
+        }
+    }
+
+    impl PostgresDatabase {
+        async fn init_schema(&self) -> Result<()> {
+            sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
+            sqlx::query(super::super::TOKENS_TABLE_SQL).execute(&self.pool).await?;
+            sqlx::query(super::super::TOKENS_INDEX_SQL).execute(&self.pool).await?;
+            sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool).await?;
+            self.ensure_user_counter().await
+        }
+
+        async fn ensure_user_counter(&self) -> Result<()> {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+            let inserted = sqlx::query("INSERT INTO auth_counters (name, value) VALUES ($1, $2)")
+                .bind("users")
+                .bind(count)
+                .execute(&self.pool)
+                .await;
+            match inserted {
+                Ok(_) => Ok(()),
+                Err(err) if is_unique_violation(&err) => Ok(()),
+                Err(err) => Err(err.into()),
+            }
+        }
+
+        async fn existing_or_cap_reached(&self, username: &str) -> Result<InsertUser> {
+            match self.stored_hash(username).await? {
+                Some(stored) => Ok(InsertUser::Existing(stored)),
+                None => Ok(InsertUser::CapReached),
+            }
+        }
+    }
+
+    fn keyed_token_record_from_row(row: &sqlx::postgres::PgRow) -> Result<(String, TokenRecord)> {
+        Ok((row.try_get(0)?, token_record_from_offset(row, 1)?))
+    }
+
+    fn token_record_from_row(row: &sqlx::postgres::PgRow) -> Result<TokenRecord> {
+        token_record_from_offset(row, 0)
+    }
+
+    fn token_record_from_offset(row: &sqlx::postgres::PgRow, offset: usize) -> Result<TokenRecord> {
+        let cidr_json: String = row.try_get(offset + 4)?;
+        let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json).unwrap_or_default();
+        let readonly: i16 = row.try_get(offset + 3)?;
+        Ok(TokenRecord {
+            username: row.try_get(offset)?,
+            created_at: row.try_get::<i64, _>(offset + 1)? as u64,
+            last_used_at: row.try_get::<i64, _>(offset + 2)? as u64,
+            readonly: readonly != 0,
+            cidr_whitelist,
+        })
+    }
+
+    fn is_unique_violation(err: &sqlx::Error) -> bool {
+        err.as_database_error()
+            .and_then(sqlx::error::DatabaseError::code)
+            .is_some_and(|code| code.as_ref() == "23505")
+    }
+}
+
+#[cfg(feature = "backend-mysql")]
+pub(super) mod mysql {
+    use super::super::TokenRecord;
+    use super::{AuthSqlBackend, InsertUser, SqlAuth, invalid_pool_size};
+    use crate::{
+        config::{MaxUsers, SqlBackendSettings},
+        error::{RegistryError, Result},
+    };
+    use async_trait::async_trait;
+    use sqlx::{MySqlPool, Row, mysql::MySqlPoolOptions};
+
+    #[derive(Debug)]
+    pub(in crate::auth) struct MysqlDatabase {
+        pool: MySqlPool,
+    }
+
+    pub(in crate::auth) type MysqlAuth = SqlAuth<MysqlDatabase>;
+
+    impl SqlAuth<MysqlDatabase> {
+        pub(in crate::auth) async fn connect(
+            settings: &SqlBackendSettings,
+            max_users: MaxUsers,
+        ) -> Result<Self> {
+            let mut options = MySqlPoolOptions::new();
+            if let Some(max_connections) = settings.max_connections {
+                if max_connections == 0 {
+                    return Err(invalid_pool_size("mysql"));
+                }
+                options = options.max_connections(max_connections);
+            }
+            let db = MysqlDatabase { pool: options.connect(&settings.url).await? };
+            db.init_schema().await?;
+            Ok(SqlAuth::new(db, max_users))
+        }
+    }
+
+    #[async_trait]
+    impl AuthSqlBackend for MysqlDatabase {
+        async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
+            let row = sqlx::query("SELECT bcrypt_hash FROM users WHERE username = ?")
+                .bind(username)
+                .fetch_optional(&self.pool)
+                .await?;
+            row.map(|row| row.try_get(0)).transpose().map_err(RegistryError::from)
+        }
+
+        async fn user_count(&self) -> Result<u64> {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+            Ok(count.max(0) as u64)
+        }
+
+        async fn insert_user(
+            &self,
+            username: &str,
+            bcrypt_hash: &str,
+            max_users: MaxUsers,
+        ) -> Result<InsertUser> {
+            let mut tx = self.pool.begin().await?;
+            if let MaxUsers::Limited(max) = max_users {
+                let updated = sqlx::query(
+                    "UPDATE auth_counters SET value = value + 1
+                     WHERE name = ? AND value < ?",
+                )
+                .bind("users")
+                .bind(max as i64)
+                .execute(&mut *tx)
+                .await?;
+                if updated.rows_affected() == 0 {
+                    tx.rollback().await?;
+                    return self.existing_or_cap_reached(username).await;
+                }
+            }
+            let inserted = sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES (?, ?)")
+                .bind(username)
+                .bind(bcrypt_hash)
+                .execute(&mut *tx)
+                .await;
+            match inserted {
+                Ok(_) => {
+                    tx.commit().await?;
+                    Ok(InsertUser::Created)
+                }
+                Err(err) if is_unique_violation(&err) => {
+                    tx.rollback().await?;
+                    self.existing_or_cap_reached(username).await
+                }
+                Err(err) => Err(err.into()),
+            }
+        }
+
+        async fn insert_token(&self, token_hash: &str, record: &TokenRecord) -> Result<()> {
+            let cidr_json = serde_json::to_string(&record.cidr_whitelist)
+                .expect("Vec<String> always serializes to JSON");
+            let mut tx = self.pool.begin().await?;
+            sqlx::query("DELETE FROM tokens WHERE token_hash = ?")
+                .bind(token_hash)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query(
+                "INSERT INTO tokens
+                    (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
+                 VALUES (?, ?, ?, ?, ?, ?)",
+            )
+            .bind(token_hash)
+            .bind(&record.username)
+            .bind(record.created_at as i64)
+            .bind(record.last_used_at as i64)
+            .bind(i16::from(record.readonly))
+            .bind(cidr_json)
+            .execute(&mut *tx)
+            .await?;
+            tx.commit().await?;
+            Ok(())
+        }
+
+        async fn lookup_token(&self, token_hash: &str) -> Result<Option<String>> {
+            let row = sqlx::query("SELECT username FROM tokens WHERE token_hash = ?")
+                .bind(token_hash)
+                .fetch_optional(&self.pool)
+                .await?;
+            row.map(|row| row.try_get(0)).transpose().map_err(RegistryError::from)
+        }
+
+        async fn find_token(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
+            let row = sqlx::query(
+                "SELECT username, created_at, last_used_at, readonly, cidr_whitelist
+                 FROM tokens WHERE token_hash = ?",
+            )
+            .bind(token_hash)
+            .fetch_optional(&self.pool)
+            .await?;
+            row.map(|row| token_record_from_row(&row)).transpose()
+        }
+
+        async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
+            let rows = sqlx::query(
+                "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist
+                 FROM tokens WHERE username = ?",
+            )
+            .bind(username)
+            .fetch_all(&self.pool)
+            .await?;
+            rows.into_iter().map(|row| keyed_token_record_from_row(&row)).collect()
+        }
+
+        async fn delete_token(&self, token_hash: &str) -> Result<()> {
+            sqlx::query("DELETE FROM tokens WHERE token_hash = ?")
+                .bind(token_hash)
+                .execute(&self.pool)
+                .await?;
+            Ok(())
+        }
+    }
+
+    impl MysqlDatabase {
+        async fn init_schema(&self) -> Result<()> {
+            sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
+            sqlx::query(super::super::TOKENS_TABLE_SQL).execute(&self.pool).await?;
+            create_token_index(&self.pool).await?;
+            sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool).await?;
+            self.ensure_user_counter().await
+        }
+
+        async fn ensure_user_counter(&self) -> Result<()> {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+            let inserted = sqlx::query("INSERT INTO auth_counters (name, value) VALUES (?, ?)")
+                .bind("users")
+                .bind(count)
+                .execute(&self.pool)
+                .await;
+            match inserted {
+                Ok(_) => Ok(()),
+                Err(err) if is_unique_violation(&err) => Ok(()),
+                Err(err) => Err(err.into()),
+            }
+        }
+
+        async fn existing_or_cap_reached(&self, username: &str) -> Result<InsertUser> {
+            match self.stored_hash(username).await? {
+                Some(stored) => Ok(InsertUser::Existing(stored)),
+                None => Ok(InsertUser::CapReached),
+            }
+        }
+    }
+
+    async fn create_token_index(pool: &MySqlPool) -> Result<()> {
+        let result =
+            sqlx::query("CREATE INDEX tokens_username ON tokens(username)").execute(pool).await;
+        match result {
+            Ok(_) => Ok(()),
+            Err(err) if is_duplicate_index(&err) => Ok(()),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    fn keyed_token_record_from_row(row: &sqlx::mysql::MySqlRow) -> Result<(String, TokenRecord)> {
+        Ok((row.try_get(0)?, token_record_from_offset(row, 1)?))
+    }
+
+    fn token_record_from_row(row: &sqlx::mysql::MySqlRow) -> Result<TokenRecord> {
+        token_record_from_offset(row, 0)
+    }
+
+    fn token_record_from_offset(row: &sqlx::mysql::MySqlRow, offset: usize) -> Result<TokenRecord> {
+        let cidr_json: String = row.try_get(offset + 4)?;
+        let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json).unwrap_or_default();
+        let readonly: i16 = row.try_get(offset + 3)?;
+        Ok(TokenRecord {
+            username: row.try_get(offset)?,
+            created_at: row.try_get::<i64, _>(offset + 1)? as u64,
+            last_used_at: row.try_get::<i64, _>(offset + 2)? as u64,
+            readonly: readonly != 0,
+            cidr_whitelist,
+        })
+    }
+
+    fn is_unique_violation(err: &sqlx::Error) -> bool {
+        err.as_database_error().is_some_and(|err| {
+            err.code().is_some_and(|code| code.as_ref() == "23000" || code.as_ref() == "1062")
+        })
+    }
+
+    fn is_duplicate_index(err: &sqlx::Error) -> bool {
+        err.as_database_error().is_some_and(|err| {
+            err.code().is_some_and(|code| code.as_ref() == "42000" || code.as_ref() == "1061")
+                && err.message().contains("Duplicate")
+        })
+    }
+}
+
+fn invalid_pool_size(backend: &str) -> RegistryError {
+    RegistryError::InvalidConfig {
+        reason: format!("backend.{backend}.maxConnections must be greater than 0"),
+    }
+}

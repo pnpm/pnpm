@@ -27,7 +27,7 @@ use crate::{
     error::{RegistryError, Result},
 };
 use async_trait::async_trait;
-use libsql::{Builder, Connection, Database, Row, params};
+use libsql::{Builder, Connection, Database, Error as LibsqlError, Row, params};
 use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
@@ -139,48 +139,41 @@ impl UserBackend for LibsqlAuth {
         }
 
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        // Count-and-insert in one statement so the cap is strict, not
-        // best-effort: the `WHERE (SELECT COUNT(*) ...) < max` guard is
-        // evaluated atomically with the insert, so concurrent registrants
-        // (even on other replicas, since writes serialize on the primary)
-        // can't race past it. `DO NOTHING` absorbs a same-username race.
-        // A zero row-count means either the cap won or another writer
-        // inserted this username first; we disambiguate below.
-        let inserted = match self.max_users {
-            MaxUsers::Limited(max) => {
-                self.conn
-                    .execute(
-                        "INSERT INTO users (username, bcrypt_hash)
-                         SELECT ?1, ?2 WHERE (SELECT COUNT(*) FROM users) < ?3
-                         ON CONFLICT(username) DO NOTHING",
-                        params![username, hash, max as i64],
-                    )
-                    .await?
-            }
-            _ => {
-                self.conn
-                    .execute(
-                        "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)
-                         ON CONFLICT(username) DO NOTHING",
-                        params![username, hash],
-                    )
-                    .await?
-            }
-        };
-        if inserted == 0 {
-            if let Some(stored) = self.stored_hash(username).await? {
-                // A concurrent writer registered this username first.
-                return verify_returning_user(username, password, stored).await;
-            }
-            // Nothing inserted and the user still doesn't exist, so the
-            // only thing that blocked the insert is the cap guard.
-            if let MaxUsers::Limited(max) = self.max_users {
+        let tx = self.conn.transaction().await?;
+        if let MaxUsers::Limited(max) = self.max_users {
+            let updated = tx
+                .execute(
+                    "UPDATE auth_counters SET value = value + 1
+                     WHERE name = ?1 AND value < ?2",
+                    params!["users", max as i64],
+                )
+                .await?;
+            if updated == 0 {
+                tx.rollback().await?;
+                if let Some(stored) = self.stored_hash(username).await? {
+                    return verify_returning_user(username, password, stored).await;
+                }
                 return Err(RegistryError::TooManyUsers { max });
             }
-            // Unbounded yet neither inserted nor present: a concurrent
-            // delete raced the insert. Surface a transient failure rather
-            // than silently report success.
-            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
+        }
+        let inserted = tx
+            .execute(
+                "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+                params![username, hash],
+            )
+            .await;
+        match inserted {
+            Ok(_) => tx.commit().await?,
+            Err(err) if is_unique_violation(&err) => {
+                tx.rollback().await?;
+                if let Some(stored) = self.stored_hash(username).await? {
+                    return verify_returning_user(username, password, stored).await;
+                }
+                return Err(RegistryError::Unauthenticated {
+                    resource: format!("user {username:?}"),
+                });
+            }
+            Err(err) => return Err(err.into()),
         }
         Ok(UpsertOutcome::Created)
     }
@@ -205,15 +198,16 @@ impl TokenBackend for LibsqlAuth {
         let raw = mint_token(&self.secret, nonce, username);
         let token_hash = sha256_hex(raw.as_bytes());
         let now = unix_seconds() as i64;
-        self.conn
-            .execute(
-                "INSERT INTO tokens
-                     (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-                 VALUES (?1, ?2, ?3, ?3, 0, '[]')
-                 ON CONFLICT(token_hash) DO UPDATE SET last_used_at = excluded.last_used_at",
-                params![token_hash, username, now],
-            )
-            .await?;
+        let tx = self.conn.transaction().await?;
+        tx.execute("DELETE FROM tokens WHERE token_hash = ?1", params![token_hash.clone()]).await?;
+        tx.execute(
+            "INSERT INTO tokens
+                 (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
+             VALUES (?1, ?2, ?3, ?3, 0, '[]')",
+            params![token_hash, username, now],
+        )
+        .await?;
+        tx.commit().await?;
         Ok(raw)
     }
 
@@ -261,7 +255,34 @@ async fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute(super::USERS_TABLE_SQL, ()).await?;
     conn.execute(super::TOKENS_TABLE_SQL, ()).await?;
     conn.execute(super::TOKENS_INDEX_SQL, ()).await?;
-    Ok(())
+    conn.execute(super::AUTH_COUNTERS_TABLE_SQL, ()).await?;
+    ensure_user_counter(conn).await
+}
+
+async fn ensure_user_counter(conn: &Connection) -> Result<()> {
+    let mut rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
+    let row = rows.next().await?.expect("COUNT(*) returns exactly one row");
+    let count: i64 = row.get(0)?;
+    let inserted = conn
+        .execute("INSERT INTO auth_counters (name, value) VALUES (?1, ?2)", params!["users", count])
+        .await;
+    match inserted {
+        Ok(_) => Ok(()),
+        Err(err) if is_unique_violation(&err) => Ok(()),
+        Err(err) => Err(err.into()),
+    }
+}
+
+fn is_unique_violation(err: &LibsqlError) -> bool {
+    match err {
+        LibsqlError::SqliteFailure(code, message) => {
+            *code == 19 || *code == 2067 || message.contains("UNIQUE constraint failed")
+        }
+        LibsqlError::RemoteSqliteFailure(_, code, message) => {
+            *code == 19 || *code == 2067 || message.contains("UNIQUE constraint failed")
+        }
+        _ => false,
+    }
 }
 
 /// Decode a row selecting [`TOKEN_COLUMNS`] into its `(token_hash,

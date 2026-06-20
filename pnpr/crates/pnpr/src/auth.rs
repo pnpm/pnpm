@@ -6,7 +6,7 @@
 //! * [`UserBackend`] — username → bcrypt-hashed password.
 //! * [`TokenBackend`] — SHA-256 token hash → token record.
 //!
-//! Three implementations exist, picked at startup by
+//! Implementations are picked at startup by
 //! [`AuthState::load`]:
 //!
 //! * [`UserStore`] / [`TokenStore`] — the local default. Users are an
@@ -15,11 +15,12 @@
 //!   every write, so reads (the hot path for `enforce_access`) never
 //!   touch disk. With no file configured both fall back to a pure
 //!   in-memory map (the `@pnpm/registry-mock` shape).
-//! * [`LibsqlAuth`] — a networked-SQLite (libsql / Turso) backend that
-//!   stores both records in a shared database, so several stateless
-//!   pnpr replicas observe a consistent set of users and tokens. The
-//!   on-disk htpasswd format doesn't network, so users live in a
-//!   `users` table here; the `tokens` table matches the local schema.
+//! * `backend.libsql`, `backend.postgres`, and `backend.mysql` —
+//!   shared SQL databases that store both records in one place, so
+//!   several stateless pnpr replicas observe a consistent set of users
+//!   and tokens. The on-disk htpasswd format doesn't network, so users
+//!   live in a `users` table here; the `tokens` table matches the local
+//!   schema.
 //!
 //! The raw token is only ever returned to the caller once on `issue`;
 //! only its SHA-256 hash hits storage, so a leak of the database
@@ -31,9 +32,14 @@ use crate::{
 };
 use async_trait::async_trait;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+#[cfg(feature = "backend-libsql")]
 use libsql_backend::LibsqlAuth;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
+#[cfg(feature = "backend-mysql")]
+use sqlx_backend::mysql::MysqlAuth;
+#[cfg(feature = "backend-postgres")]
+use sqlx_backend::postgres::PostgresAuth;
 use std::{
     collections::HashMap,
     fmt::Write as _,
@@ -45,7 +51,10 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(feature = "backend-libsql")]
 mod libsql_backend;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+mod sqlx_backend;
 
 /// Bundle of the user store and the token store, each a trait object
 /// so the rest of the server doesn't have to know whether auth is
@@ -73,20 +82,61 @@ impl AuthState {
         Self { users: Arc::new(UserStore::in_memory()), tokens: Arc::new(TokenStore::in_memory()) }
     }
 
-    /// Build the auth state from the resolved config. The networked
-    /// [`BackendConfig::Libsql`] backs both stores with one shared
-    /// database; otherwise each local store is in-memory when its file
-    /// path is unset and file-backed otherwise. The fallible step (open
-    /// the htpasswd / `SQLite` file, or connect to the networked DB and
-    /// ensure its schema) runs here so a malformed file or an
-    /// unreachable database surfaces as a startup error before the
-    /// socket is bound.
+    /// Build the auth state from the resolved config. A configured SQL
+    /// backend backs both stores with one shared database; otherwise
+    /// each local store is in-memory when its file path is unset and
+    /// file-backed otherwise. The fallible step (open the htpasswd /
+    /// `SQLite` file, or connect to the configured DB and ensure its
+    /// schema) runs here so a malformed file or an unreachable database
+    /// surfaces as a startup error before the socket is bound.
     pub async fn load(auth: &AuthConfig, backend: &BackendConfig) -> Result<Self> {
-        if let BackendConfig::Libsql(settings) = backend {
-            let shared = Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
-            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
-            let tokens: Arc<dyn TokenBackend> = shared;
-            return Ok(Self { users, tokens });
+        match backend {
+            BackendConfig::Local => {}
+            BackendConfig::Libsql(settings) => {
+                #[cfg(feature = "backend-libsql")]
+                {
+                    let shared =
+                        Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
+                    let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
+                    let tokens: Arc<dyn TokenBackend> = shared;
+                    return Ok(Self { users, tokens });
+                }
+                #[cfg(not(feature = "backend-libsql"))]
+                {
+                    let _ = settings;
+                    return Err(backend_not_enabled("libsql", "backend-libsql"));
+                }
+            }
+            BackendConfig::Postgres(settings) => {
+                #[cfg(feature = "backend-postgres")]
+                {
+                    let shared =
+                        Arc::new(PostgresAuth::connect(settings, auth.htpasswd.max_users).await?);
+                    let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
+                    let tokens: Arc<dyn TokenBackend> = shared;
+                    return Ok(Self { users, tokens });
+                }
+                #[cfg(not(feature = "backend-postgres"))]
+                {
+                    let _ = settings;
+                    return Err(backend_not_enabled("postgres", "backend-postgres"));
+                }
+            }
+            BackendConfig::Mysql(settings) => {
+                #[cfg(feature = "backend-mysql")]
+                {
+                    let shared =
+                        Arc::new(MysqlAuth::connect(settings, auth.htpasswd.max_users).await?);
+                    let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
+                    let tokens: Arc<dyn TokenBackend> = shared;
+                    return Ok(Self { users, tokens });
+                }
+                #[cfg(not(feature = "backend-mysql"))]
+                {
+                    let _ = settings;
+                    return Err(backend_not_enabled("mysql", "backend-mysql"));
+                }
+            }
         }
         let users: Arc<dyn UserBackend> = match auth.htpasswd.file.clone() {
             Some(path) => Arc::new(UserStore::open(path, auth.htpasswd.max_users)?),
@@ -97,6 +147,17 @@ impl AuthState {
             None => Arc::new(TokenStore::in_memory()),
         };
         Ok(Self { users, tokens })
+    }
+}
+
+#[cfg(any(
+    not(feature = "backend-libsql"),
+    not(feature = "backend-postgres"),
+    not(feature = "backend-mysql")
+))]
+fn backend_not_enabled(name: &str, feature: &str) -> RegistryError {
+    RegistryError::InvalidConfig {
+        reason: format!("backend.{name} is configured but pnpr was built without `{feature}`"),
     }
 }
 
@@ -644,26 +705,32 @@ async fn verify_returning_user(
 // SQLite-backed token store
 // ---------------------------------------------------------------
 
-/// `tokens` table DDL — shared verbatim by the local [`TokenStore`]
-/// and the networked [`LibsqlAuth`] so the two backends store the
-/// same shape and a database can be moved between them.
+/// `tokens` table DDL — shared by every SQL-backed auth store so the
+/// backends store the same shape and records can be moved between them.
 const TOKENS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS tokens (
-    token_hash      TEXT PRIMARY KEY,
-    username        TEXT NOT NULL,
-    created_at      INTEGER NOT NULL,
-    last_used_at    INTEGER NOT NULL,
-    readonly        INTEGER NOT NULL DEFAULT 0,
-    cidr_whitelist  TEXT NOT NULL DEFAULT '[]'
+    token_hash      CHAR(64) PRIMARY KEY,
+    username        VARCHAR(255) NOT NULL,
+    created_at      BIGINT NOT NULL,
+    last_used_at    BIGINT NOT NULL,
+    readonly        SMALLINT NOT NULL DEFAULT 0,
+    cidr_whitelist  VARCHAR(4096) NOT NULL DEFAULT '[]'
 )";
 
 const TOKENS_INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS tokens_username ON tokens(username)";
 
-/// `users` table DDL — only the networked backend needs it, since the
-/// local backend keeps users in an htpasswd file. One bcrypt hash per
-/// username, the same `$2y$...` string the htpasswd file would hold.
+/// `users` table DDL — only shared-database backends need it, since
+/// the local backend keeps users in an htpasswd file. One bcrypt hash
+/// per username, the same `$2y$...` string the htpasswd file would hold.
+#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
 const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
-    username     TEXT PRIMARY KEY,
+    username     VARCHAR(255) PRIMARY KEY,
     bcrypt_hash  TEXT NOT NULL
+)";
+
+#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
+const AUTH_COUNTERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS auth_counters (
+    name   VARCHAR(64) PRIMARY KEY,
+    value  BIGINT NOT NULL
 )";
 
 fn init_tokens_schema(conn: &Connection) -> Result<()> {
@@ -709,14 +776,11 @@ fn delete_token(conn: &Connection, token_hash: &str) -> Result<()> {
 fn upsert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Result<()> {
     let cidr_json = serde_json::to_string(&record.cidr_whitelist)
         .expect("Vec<String> always serializes to JSON");
-    conn.execute(
+    let tx = conn.unchecked_transaction()?;
+    tx.execute("DELETE FROM tokens WHERE token_hash = ?1", rusqlite::params![token_hash])?;
+    tx.execute(
         "INSERT INTO tokens (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-         ON CONFLICT(token_hash) DO UPDATE SET
-            username = excluded.username,
-            last_used_at = excluded.last_used_at,
-            readonly = excluded.readonly,
-            cidr_whitelist = excluded.cidr_whitelist",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![
             token_hash,
             record.username,
@@ -726,6 +790,7 @@ fn upsert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Re
             cidr_json,
         ],
     )?;
+    tx.commit()?;
     Ok(())
 }
 

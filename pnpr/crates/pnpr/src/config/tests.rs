@@ -457,7 +457,7 @@ packages: {}
             assert_eq!(settings.url, "libsql://db.turso.io");
             assert_eq!(settings.auth_token.as_deref(), Some("tok-secret"));
         }
-        BackendConfig::Local => panic!("expected a libsql backend, got Local"),
+        other => panic!("expected a libsql backend, got {other:?}"),
     }
 }
 
@@ -477,7 +477,7 @@ packages: {}
             assert!(settings.auth_token.is_none());
             assert!(settings.replica_path.is_none(), "no replica by default");
         }
-        BackendConfig::Local => panic!("expected a libsql backend, got Local"),
+        other => panic!("expected a libsql backend, got {other:?}"),
     }
 }
 
@@ -503,7 +503,7 @@ packages: {}
             );
             assert_eq!(settings.sync_interval_secs, Some(15));
         }
-        BackendConfig::Local => panic!("expected a libsql backend, got Local"),
+        other => panic!("expected a libsql backend, got {other:?}"),
     }
 }
 
@@ -524,8 +524,86 @@ packages: {}
             settings.replica_path.as_deref(),
             Some(Path::new("/var/lib/pnpr/auth-replica.db")),
         ),
-        BackendConfig::Local => panic!("expected a libsql backend, got Local"),
+        other => panic!("expected a libsql backend, got {other:?}"),
     }
+}
+
+#[test]
+fn postgres_backend_block_selects_postgres_record_store() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  postgres:
+    url: postgres://pnpr:secret@db.example/pnpr
+    maxConnections: 12
+uplinks: {}
+packages: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    match config.backend {
+        BackendConfig::Postgres(settings) => {
+            assert_eq!(settings.url, "postgres://pnpr:secret@db.example/pnpr");
+            assert_eq!(settings.max_connections, Some(12));
+        }
+        other => panic!("expected a postgres backend, got {other:?}"),
+    }
+}
+
+#[test]
+fn postgresql_backend_alias_selects_postgres_record_store() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  postgresql:
+    url: postgresql://pnpr:secret@db.example/pnpr
+uplinks: {}
+packages: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    match config.backend {
+        BackendConfig::Postgres(settings) => {
+            assert_eq!(settings.url, "postgresql://pnpr:secret@db.example/pnpr");
+            assert_eq!(settings.max_connections, None);
+        }
+        other => panic!("expected a postgres backend, got {other:?}"),
+    }
+}
+
+#[test]
+fn mysql_backend_block_selects_mysql_record_store() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  mysql:
+    url: mysql://pnpr:secret@db.example/pnpr
+uplinks: {}
+packages: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    match config.backend {
+        BackendConfig::Mysql(settings) => {
+            assert_eq!(settings.url, "mysql://pnpr:secret@db.example/pnpr");
+            assert_eq!(settings.max_connections, None);
+        }
+        other => panic!("expected a mysql backend, got {other:?}"),
+    }
+}
+
+#[test]
+fn backend_block_rejects_multiple_database_backends() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  libsql:
+    url: libsql://db.turso.io
+  postgres:
+    url: postgres://pnpr:secret@db.example/pnpr
+uplinks: {}
+packages: {}
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
+        .expect_err("a backend block must not select two databases");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
 #[test]

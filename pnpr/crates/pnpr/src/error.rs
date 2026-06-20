@@ -134,8 +134,14 @@ pub enum RegistryError {
     Sqlite(rusqlite::Error),
 
     /// Networked-SQLite (libsql / Turso) auth backend failure.
+    #[cfg(feature = "backend-libsql")]
     #[display("Auth database error: {_0}")]
     Libsql(libsql::Error),
+
+    /// SQL auth backend failure.
+    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    #[display("Auth database error: {_0}")]
+    Sqlx(sqlx::Error),
 
     /// A blocking task spawned for bcrypt or `SQLite` work panicked
     /// or was cancelled. Treat as an internal server error.
@@ -197,8 +203,11 @@ impl RegistryError {
             RegistryError::InvalidHtpasswdFile { .. }
             | RegistryError::Bcrypt(_)
             | RegistryError::Sqlite(_)
-            | RegistryError::Libsql(_)
             | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(feature = "backend-libsql")]
+            RegistryError::Libsql(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            RegistryError::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
             RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
                 StatusCode::BAD_GATEWAY
             }
