@@ -188,6 +188,26 @@ enum SemverEvent {
     Limit(Version),
 }
 
+impl SemverEvent {
+    fn bound(&self) -> &Version {
+        match self {
+            SemverEvent::Introduced(version)
+            | SemverEvent::Fixed(version)
+            | SemverEvent::LastAffected(version)
+            | SemverEvent::Limit(version) => version,
+        }
+    }
+
+    /// At an equal version bound an `introduced` opens the range before a
+    /// closing event shuts it, so it must sort first.
+    fn sort_rank(&self) -> u8 {
+        match self {
+            SemverEvent::Introduced(_) => 0,
+            SemverEvent::Fixed(_) | SemverEvent::LastAffected(_) | SemverEvent::Limit(_) => 1,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct OsvRecord {
     id: String,
@@ -398,7 +418,16 @@ fn semver_range_from_osv(range: OsvRange) -> Option<SemverRange> {
     if range.kind != "SEMVER" && range.kind != "ECOSYSTEM" {
         return None;
     }
-    let events = range.events.into_iter().filter_map(semver_event_from_osv).collect::<Vec<_>>();
+    let mut events = range.events.into_iter().filter_map(semver_event_from_osv).collect::<Vec<_>>();
+    // `SemverRange::affects` toggles state as it walks events, so it is
+    // order-sensitive. OSV expects events sorted by version bound; sort
+    // here so a malformed or reordered events array can't flip a verdict.
+    events.sort_by(|a, b| {
+        a.bound()
+            .partial_cmp(b.bound())
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.sort_rank().cmp(&b.sort_rank()))
+    });
     (!events.is_empty()).then_some(SemverRange { events })
 }
 

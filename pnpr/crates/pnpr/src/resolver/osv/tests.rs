@@ -96,6 +96,34 @@ fn duplicate_affected_blocks_yield_one_id() {
 }
 
 #[test]
+fn out_of_order_range_events_are_normalized() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    // Events are deliberately reversed (fixed before introduced). Without
+    // sorting, a version above the fix would be walked as still-affected.
+    fs::write(
+        dir.path().join("GHSA-order.json"),
+        r#"{
+          "id": "GHSA-order",
+          "affected": [{
+            "package": { "ecosystem": "npm", "name": "ord" },
+            "ranges": [{
+              "type": "SEMVER",
+              "events": [ { "fixed": "1.2.0" }, { "introduced": "1.0.0" } ]
+            }]
+          }]
+        }"#,
+    )
+    .expect("write record");
+
+    let index = OsvIndex::load_from_path(dir.path()).expect("load index");
+
+    assert_eq!(index.vulnerability_ids("ord", "0.9.0"), Vec::<String>::new());
+    assert_eq!(index.vulnerability_ids("ord", "1.1.0"), vec!["GHSA-order"]);
+    // Above the fix: must be safe — this is the case that fails without sorting.
+    assert_eq!(index.vulnerability_ids("ord", "1.3.0"), Vec::<String>::new());
+}
+
+#[test]
 fn withdrawn_handling_respects_null_vs_timestamp() {
     let dir = tempfile::tempdir().expect("tempdir");
     // `withdrawn: null` is not a withdrawal — the advisory stays active.
