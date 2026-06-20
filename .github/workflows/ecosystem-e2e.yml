@@ -25,6 +25,7 @@ jobs:
   # with every stack job — building them per stack would repeat the same
   # multi-minute Rust and bundle builds across the whole matrix.
   build:
+    if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     name: Ecosystem E2E / Build
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -60,6 +61,7 @@ jobs:
           if-no-files-found: error
 
   ecosystem-e2e:
+    if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     name: Ecosystem E2E / ${{ matrix.stack }}
     needs: build
     runs-on: ubuntu-latest
