@@ -305,7 +305,6 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
         {
             continue;
         }
-        hasher.update(entry_path.file_name().and_then(|name| name.to_str()).unwrap_or_default());
         // Bound the read itself with `take` rather than trusting a
         // pre-read `metadata().len()`, which a concurrent swap could
         // invalidate (TOCTOU) — matching the zip loader's guarantee.
@@ -322,6 +321,15 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
                 entry_path.display(),
             )));
         }
+        // Length-prefix each component so the hash input is unambiguous:
+        // plain concatenation of (name, bytes) lets two different
+        // directory states hash to the same stream, which would let an
+        // attacker with write access edit advisories while keeping the
+        // fingerprint (and thus a trusted verdict-cache pass) unchanged.
+        let name = entry_path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+        hasher.update((name.len() as u64).to_le_bytes());
+        hasher.update(name.as_bytes());
+        hasher.update((bytes.len() as u64).to_le_bytes());
         hasher.update(&bytes);
         ingest_record_bytes(&mut packages, &bytes)?;
     }
@@ -416,12 +424,12 @@ fn parse_osv_version(raw: &str) -> Option<Version> {
     }
     let parsed = Version::parse(raw).ok();
     if parsed.is_none() {
-        // Surface rather than silently drop: an unparseable bound means
+        // Surface rather than silently drop: an unparsable bound means
         // this range won't be enforced, so a corrupt dump can't degrade
         // coverage without leaving a trace in the logs.
         tracing::warn!(
             version = raw,
-            "ignoring OSV range event with an unparseable version; that range will not be enforced",
+            "ignoring OSV range event with an unparsable version; that range will not be enforced",
         );
     }
     parsed
