@@ -8,6 +8,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>
+  ignoreWorkspace?: boolean
   rootProjectManifestDir?: string
   workspaceDir?: string
   strictDepBuilds?: boolean
@@ -18,7 +19,9 @@ export async function handleIgnoredBuilds (
   ignoredBuilds: IgnoredBuilds | undefined
 ): Promise<void> {
   if (!ignoredBuilds?.size) return
-  await writeIgnoredBuildsToAllowBuilds(opts, ignoredBuilds)
+  if (!opts.ignoreWorkspace) {
+    await writeIgnoredBuildsToAllowBuilds(opts, ignoredBuilds)
+  }
   if (opts.strictDepBuilds) {
     throw new IgnoredBuildsError(ignoredBuilds)
   }

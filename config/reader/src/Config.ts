@@ -232,6 +232,7 @@ export interface Config extends OptionsFromRootManifest {
   dedupePeerDependents?: boolean
   dedupePeers?: boolean
   patchesDir?: string
+  ignoreWorkspace?: boolean
   ignoreWorkspaceCycles?: boolean
   disallowWorkspaceCycles?: boolean
   packGzipLevel?: number
