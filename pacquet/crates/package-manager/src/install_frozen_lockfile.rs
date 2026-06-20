@@ -175,7 +175,7 @@ where
     /// re-fetching every tarball; `None` for installs without a shared
     /// prefetch in flight.
     pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
-    pub old_modules: Option<pacquet_modules_yaml::Modules>,
+    pub old_modules: Option<&'a pacquet_modules_yaml::Modules>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].

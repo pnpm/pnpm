@@ -1037,14 +1037,20 @@ where
         // Parse `.modules.yaml` once and share it across the consistency,
         // newly-allowed, and unapproved-ignored checks below.
         let modules_manifest_res = read_modules_manifest::<Host>(&config.modules_dir);
-        let modules_manifest = modules_manifest_res.as_ref().ok().and_then(|opt| opt.as_ref());
+        if let Err(err) = &modules_manifest_res {
+            tracing::warn!(
+                target: "pacquet::install",
+                ?err,
+                "failed to read .modules.yaml; treating as an inconsistent node_modules directory",
+            );
+        }
+        let old_modules = modules_manifest_res.ok().flatten();
+        let modules_manifest = old_modules.as_ref();
 
-        let is_inconsistent = match &modules_manifest_res {
-            Ok(Some(modules)) => !modules_consistent_with(modules, config, node_linker, included),
-            Ok(None) => config.modules_dir.join(pacquet_modules_yaml::MODULES_FILENAME).exists(),
-            Err(_) => true,
+        let is_inconsistent = match &modules_manifest {
+            Some(modules) => !modules_consistent_with(modules, config, node_linker, included),
+            None => config.modules_dir.join(pacquet_modules_yaml::MODULES_FILENAME).exists(),
         };
-        let old_modules = modules_manifest.cloned();
 
         if !resolve_only && is_inconsistent {
             // Settings mismatch forces a rewrite of node_modules, matching
@@ -1233,7 +1239,7 @@ where
                 skip_runtimes,
                 node_linker,
                 tarball_mem_cache: Some(&tarball_mem_cache),
-                old_modules: old_modules.clone(),
+                old_modules: modules_manifest,
             }
             .run::<Reporter>()
             .await
@@ -1445,7 +1451,7 @@ where
         // A genuine read/parse failure (not `NotFound`) is treated as
         // "no prior manifest" — the safe direction (prune + fresh
         // `prunedAt`) — but logged rather than silently swallowed.
-        let prior_modules = old_modules.clone();
+        let prior_modules = modules_manifest;
         let now = SystemTime::now();
         let effective_virtual_store_dir = config.effective_virtual_store_dir();
         // Decide "this is the global store" from the resolved paths, not
