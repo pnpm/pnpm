@@ -1036,18 +1036,24 @@ where
         // <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L913-L985>.
         // Parse `.modules.yaml` once and share it across the consistency,
         // newly-allowed, and unapproved-ignored checks below.
-        let modules_manifest = read_modules_manifest::<Host>(&config.modules_dir).ok().flatten();
+        let modules_manifest_res = read_modules_manifest::<Host>(&config.modules_dir);
+        let modules_manifest = modules_manifest_res.as_ref().ok().and_then(|opt| opt.as_ref());
 
-        if let Some(modules) = modules_manifest.as_ref()
-            && !modules_consistent_with(modules, config, node_linker, included)
-        {
+        let is_inconsistent = match &modules_manifest_res {
+            Ok(Some(modules)) => !modules_consistent_with(modules, config, node_linker, included),
+            Ok(None) => false,
+            Err(_) => true,
+        };
+
+        if !resolve_only && is_inconsistent {
             // Settings mismatch forces a rewrite of node_modules, matching
             // upstream pnpm's `validateModules` prune side effects.
             let is_safe = config.modules_dir.file_name().is_some_and(|n| n == "node_modules");
             if is_safe {
                 match std::fs::read_dir(&config.modules_dir) {
                     Ok(entries) => {
-                        for entry in entries.flatten() {
+                        for entry_res in entries {
+                            let entry = entry_res.map_err(InstallError::RemoveModulesDir)?;
                             let file_name = entry.file_name();
                             let file_name_str = file_name.to_string_lossy();
 
