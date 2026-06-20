@@ -90,7 +90,7 @@ fn create_allow_build_before_name_is_parsed() {
     let content = std::fs::read_to_string(&touch_txt).unwrap();
     assert_eq!(
         content, "[]",
-        "--allow-build should be parsed/consumed by the CLI and not forwarded"
+        "--allow-build should be parsed/consumed by the CLI and not forwarded",
     );
 
     drop(root);
@@ -117,7 +117,7 @@ fn create_options_after_name_are_forwarded() {
     let content = std::fs::read_to_string(&touch_txt).unwrap();
     assert_eq!(
         content, "[\"--allow-build=touch-file-one-bin\"]",
-        "options after name should be forwarded to the package"
+        "options after name should be forwarded to the package",
     );
 
     drop(root);
@@ -137,7 +137,7 @@ fn create_accepts_shell_mode_flag() {
     let content = std::fs::read_to_string(&touch_txt).unwrap();
     assert_eq!(
         content, "[]",
-        "shell mode flag should be parsed/consumed by the CLI and not forwarded"
+        "shell mode flag should be parsed/consumed by the CLI and not forwarded",
     );
 
     drop(root);
