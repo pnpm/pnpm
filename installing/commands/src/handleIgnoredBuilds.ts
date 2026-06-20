@@ -19,7 +19,6 @@ export async function handleIgnoredBuilds (
   ignoredBuilds: IgnoredBuilds | undefined
 ): Promise<void> {
   if (!ignoredBuilds?.size) return
-  // allowBuilds is persisted in pnpm-workspace.yaml, which --ignore-workspace must not touch.
   if (!opts.ignoreWorkspace) {
     await writeIgnoredBuildsToAllowBuilds(opts, ignoredBuilds)
   }

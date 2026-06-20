@@ -346,8 +346,13 @@ test('install --ignore-workspace does not overwrite allowBuilds in pnpm-workspac
   })
   const manifestBefore = fs.readFileSync('pnpm-workspace.yaml', 'utf8')
 
-  execPnpmSync(['install', '--ignore-workspace'])
+  const { status, stdout, stderr } = execPnpmSync(['install', '--ignore-workspace'])
 
+  // The build is ignored (--ignore-workspace skips the allowBuilds entry), so the
+  // install ends in ERR_PNPM_IGNORED_BUILDS — the same code path that would have
+  // written the placeholder. The manifest must stay untouched regardless.
+  expect(status).toBe(1)
+  expect(`${stdout}${stderr}`).toContain('ERR_PNPM_IGNORED_BUILDS')
   expect(fs.readFileSync('pnpm-workspace.yaml', 'utf8')).toBe(manifestBefore)
 })
 
