@@ -237,8 +237,6 @@ function walkForPaths (ctx: WalkForPathsCtx): void {
   }
 }
 
-const EMPTY_REACHABLE: ReadonlySet<string> = new Set()
-
 // For each node, the set of vulnerabilities reachable from it (itself included),
 // used by the walker to prune subtrees that reach no unsaturated finding.
 // Tarjan's SCC algorithm scans every node once and shares one set across a
@@ -324,7 +322,15 @@ function createReachableVulnerabilitiesGetter (
 
   return (edge) => {
     if (!index.has(edge.depPath)) strongconnect(edge)
-    return memo.get(edge.depPath) ?? EMPTY_REACHABLE
+    // strongconnect always finalizes the queried node's SCC, so its reachable
+    // set is present afterwards. A missing entry would be a bug that silently
+    // under-reports and hides a real finding, so fail loudly instead of
+    // returning an empty set.
+    const reachable = memo.get(edge.depPath)
+    if (reachable == null) {
+      throw new Error(`Reachable vulnerabilities were not computed for ${edge.depPath}`)
+    }
+    return reachable
   }
 }
 
