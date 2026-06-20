@@ -110,6 +110,7 @@ impl CreateArgs {
             os,
             libc,
         };
+        config.strict_dep_builds = false;
         dlx_args.run::<Reporter>(dir, config).await
     }
 }

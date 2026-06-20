@@ -292,8 +292,6 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     for name in allow_build {
         config.allow_builds.insert(name.clone(), true);
     }
-    config.strict_dep_builds = false;
-
     let config: &Config = config;
 
     for pkg in pkgs {
