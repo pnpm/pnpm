@@ -1111,7 +1111,7 @@ where
                                 if entry.file_type().is_ok_and(|t| t.is_dir()) {
                                     #[cfg(windows)]
                                     let is_removed =
-                                        pacquet_fs::remove_symlink_dir(entry.path()).is_ok();
+                                        pacquet_fs::remove_symlink_dir(&entry.path()).is_ok();
                                     #[cfg(not(windows))]
                                     let is_removed = false;
 
