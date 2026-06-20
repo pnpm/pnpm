@@ -40,6 +40,7 @@ use pacquet_resolving_resolver_base::{
 };
 
 use crate::{
+    errors::AllVersionsBlockedError,
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
@@ -528,6 +529,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
     opts: PickFromRegistryOptions<'_>,
 ) -> Result<Option<PickedFromRegistry>, ResolveError> {
     let mut blocked_versions = std::collections::HashSet::new();
+    let mut last_rejection: Option<String> = None;
     loop {
         let pick_opts = PickPackageOptions {
             registry: opts.registry,
@@ -546,7 +548,15 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             .map_err(|err| Box::new(err) as ResolveError)?;
 
         let Some(version) = pick_result.picked_package else {
-            return Ok(None);
+            // No candidate left. With no prior guard rejection this is the
+            // ordinary "no matching version" outcome the resolver folds into
+            // Ok(None); once the guard has rejected every match, surface that
+            // as a distinct error instead of letting it read as an
+            // unsupported spec downstream.
+            return match last_rejection {
+                Some(reason) => Err(all_versions_blocked(opts.spec, reason)),
+                None => Ok(None),
+            };
         };
         let Some(guard) = opts.package_version_guard else {
             return Ok(Some(PickedFromRegistry { meta: pick_result.meta, version }));
@@ -562,20 +572,24 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
                     target: "pacquet_resolving_npm_resolver",
                     name = %opts.spec.name,
                     version = %version_str,
-                    reason,
+                    reason = %reason,
                     "package version rejected by resolver guard",
                 );
                 // A `false` return means the picker re-selected a version we
                 // already blocked, so filtering can't exclude it (e.g. the
                 // parsed version string doesn't match the packument key).
-                // Stop rather than loop forever, treating the package as
-                // having no acceptable version.
+                // Stop rather than loop forever — every match is blocked.
                 if !blocked_versions.insert(version_str) {
-                    return Ok(None);
+                    return Err(all_versions_blocked(opts.spec, reason));
                 }
+                last_rejection = Some(reason);
             }
         }
     }
+}
+
+fn all_versions_blocked(spec: &RegistryPackageSpec, reason: String) -> ResolveError {
+    Box::new(AllVersionsBlockedError { name: spec.name.clone(), reason })
 }
 
 /// Input bundle for [`build_resolve_result`]. Grouped so the

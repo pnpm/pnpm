@@ -63,3 +63,19 @@ pub enum FetchMetadataError {
         error: tokio::task::JoinError,
     },
 }
+
+/// Raised when an external [`crate::PackageVersionGuard`] rejects every
+/// version of a package that matched the request, leaving the picker no
+/// acceptable candidate. Distinct from "spec not supported": the spec is
+/// fine, but a policy (e.g. a vulnerability guard) blocked all matches.
+/// `reason` carries the guard's message for the last rejection.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Every version of {name} matching the request was rejected by the resolver guard ({reason})."
+)]
+#[diagnostic(code(pacquet_resolving_npm_resolver::all_versions_blocked))]
+pub struct AllVersionsBlockedError {
+    #[error(not(source))]
+    pub name: String,
+    pub reason: String,
+}

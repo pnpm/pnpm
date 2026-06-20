@@ -252,6 +252,33 @@ async fn package_version_guard_repopulates_latest_tag() {
 }
 
 #[tokio::test]
+async fn package_version_guard_blocking_every_version_errors() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let opts = ResolveOptions {
+        package_version_guard: Some(reject_versions(&["1.0.0", "1.1.0"])),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    // Every matching version is rejected, so the resolver must surface a
+    // clear guard error rather than Ok(None) (which would read as an
+    // unsupported spec downstream).
+    let err = resolver.resolve(&wanted, &opts).await.expect_err("expected a guard error");
+    let message = err.to_string();
+    assert!(message.contains("acme"), "{message}");
+    assert!(message.contains("rejected by the resolver guard"), "{message}");
+}
+
+#[tokio::test]
 async fn workspace_path_form_falls_through_to_local_resolver() {
     let server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
