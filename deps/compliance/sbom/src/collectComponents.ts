@@ -44,6 +44,9 @@ export interface CollectSbomComponentsOptions {
   virtualStoreDirMaxLength?: number
   workspacePackages?: Record<ProjectId, WorkspacePackageInfo>
   resolvedWorkspaceDeps?: ReturnType<typeof resolveWorkspaceDeps>
+  // With auto-install-peers, peers resolve into the importer's `dependencies`
+  // and are indistinguishable from real deps in the lockfile.
+  excludePeerNamesByImporter?: Map<string, Set<string>>
 }
 
 const IMPORTER_WALK_CONCURRENCY = 8
@@ -62,11 +65,12 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
       : resolveWorkspaceDeps(opts.lockfile, importerIds, opts.include))
   const allImporterIds = [...importerIds, ...workspaceDeps.additionalImporterIds]
 
-  const importerWalkers = lockfileWalkerGroupImporterSteps(
-    opts.lockfile,
-    allImporterIds,
-    { include: opts.include }
-  )
+  // When excluding peers, walk each importer with its own `walked` set so one
+  // importer's peer can't suppress another's real dependency.
+  const importerWalkers = opts.excludePeerNamesByImporter
+    ? allImporterIds.flatMap((importerId) =>
+      lockfileWalkerGroupImporterSteps(opts.lockfile, [importerId], { include: opts.include }))
+    : lockfileWalkerGroupImporterSteps(opts.lockfile, allImporterIds, { include: opts.include })
 
   const importerIdSet = new Set<string>(importerIds)
 
@@ -142,8 +146,21 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
         if (!info) return
         parentPurl = buildPurl({ name: info.name, version: info.version })
       }
+      // Drop this importer's peer entries before walking. With the per-importer
+      // walk above, this prunes a peer's exclusive subtree without hiding a
+      // package that is also a real dependency here or in another importer.
+      const peerNames = opts.excludePeerNamesByImporter?.get(importerId)
+      const filteredStep = (peerNames?.size)
+        ? {
+          ...step,
+          dependencies: step.dependencies.filter((dep) => {
+            const { name } = nameVerFromPkgSnapshot(dep.depPath, dep.pkgSnapshot)
+            return !name || !peerNames.has(name)
+          }),
+        }
+        : step
       await walkStep(
-        step,
+        filteredStep,
         parentPurl,
         depTypes,
         componentsMap,

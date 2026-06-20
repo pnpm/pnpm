@@ -188,6 +188,181 @@ test('pnpm sbom --prod excludes devDependencies', async () => {
   expect(componentNames).not.toContain('typescript')
 })
 
+test('pnpm sbom includes peer dependencies by default', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-dependency', workspaceDir)
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive')
+  expect(componentNames).toContain('is-odd')
+  expect(componentNames).toContain('is-number')
+})
+
+test('pnpm sbom --exclude-peers drops peers and their exclusive subtrees', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-dependency', workspaceDir)
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+    excludePeers: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive')
+  // is-odd is the peer; is-number is only reachable through is-odd
+  expect(componentNames).not.toContain('is-odd')
+  expect(componentNames).not.toContain('is-number')
+
+  // The dropped peer must not linger in the root's dependency graph either
+  const rootRef = parsed.metadata.component['bom-ref']
+  const rootDeps = parsed.dependencies.find((d: { ref: string }) => d.ref === rootRef)
+  expect(rootDeps.dependsOn).not.toContain('pkg:npm/is-odd@3.0.1')
+})
+
+test('pnpm sbom --exclude-peers drops peers declared in workspace sub-packages', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-workspace', workspaceDir)
+
+  // No --filter, so no selectedProjectsGraph: every importer is walked. The
+  // peer (is-odd) is declared in packages/pkg-a, not the directory pnpm runs in.
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+    excludePeers: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive')
+  expect(componentNames).not.toContain('is-odd')
+  expect(componentNames).not.toContain('is-number')
+})
+
+test('pnpm sbom --exclude-peers tolerates a malformed importer manifest', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-workspace', workspaceDir)
+  // Simulate an untrusted/broken importer: a sub-package with unparsable JSON.
+  // The peer scan reads every importer manifest, and one bad file must not
+  // abort the whole SBOM.
+  fs.writeFileSync(path.join(workspaceDir, 'packages/pkg-a/package.json'), '{ not valid json')
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+    excludePeers: true,
+  })
+
+  expect(exitCode).toBe(0)
+  const parsed = JSON.parse(output)
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive')
+})
+
+test('pnpm sbom --exclude-peers keeps a package that is a peer in one importer and a real dep in another', async () => {
+  const workspaceDir = tempDir()
+  // pkg-a declares is-odd as a peer (excluded); pkg-b declares it as a real
+  // dependency (kept). The importers must be walked independently, or excluding
+  // pkg-a's peer would also drop pkg-b's real dependency.
+  f.copy('with-peer-and-real-dep', workspaceDir)
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+    excludePeers: true,
+  })
+
+  expect(exitCode).toBe(0)
+  const parsed = JSON.parse(output)
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  // Present because pkg-b depends on it directly; only pkg-a's peer edge is cut.
+  expect(componentNames).toContain('is-odd')
+  expect(componentNames).toContain('is-number')
+})
+
+test('pnpm sbom --exclude-peers drops peers reached through a workspace link in a filtered run', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-peer-workspace-link', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const appADir = path.join(workspaceDir, 'packages/app-a')
+  const filteredGraph = Object.fromEntries(
+    Object.entries(selectedProjectsGraph).filter(([p]) => p === appADir)
+  )
+
+  // Filtered to app-a, which links peer-lib. peer-lib's auto-installed peer
+  // (is-odd) is walked through that link, so its peer names must be filtered
+  // too — not only the selected app-a's. The graph the peers are read from must
+  // therefore cover the whole workspace, not just the selected subset.
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: appADir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    selectedProjectsGraph: filteredGraph,
+    allProjectsGraph,
+    excludePeers: true,
+  })
+
+  expect(exitCode).toBe(0)
+  const parsed = JSON.parse(output)
+  const componentNames = parsed.components.map((c: { name: string }) => c.name)
+  expect(componentNames).toContain('is-positive') // app-a's own dependency
+  expect(componentNames).toContain('peer-lib') // the linked workspace package
+  expect(componentNames).not.toContain('is-odd') // peer-lib's peer
+  expect(componentNames).not.toContain('is-number') // only reachable through is-odd
+})
+
 test('pnpm sbom marks dev-only components with scope "excluded" (cyclonedx)', async () => {
   const workspaceDir = tempDir()
   f.copy('with-dev-dependency', workspaceDir)

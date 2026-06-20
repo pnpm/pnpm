@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
@@ -20,7 +21,8 @@ import {
 import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { getStorePath } from '@pnpm/store.path'
-import type { ProjectId } from '@pnpm/types'
+import type { ProjectId, ProjectManifest } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -34,6 +36,7 @@ export type SbomCommandOptions = {
   sbomSupplier?: string
   out?: string
   split?: boolean
+  excludePeers?: boolean
 } & Pick<
   Config,
   | 'dev'
@@ -73,6 +76,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   'lockfile-only': Boolean,
   out: String,
   split: Boolean,
+  'exclude-peers': Boolean,
 })
 
 export const shorthands: Record<string, string> = {
@@ -136,6 +140,10 @@ export function help (): string {
           {
             description: 'Generate a separate SBOM for each matched workspace package. Outputs NDJSON to stdout, or files when combined with --out.',
             name: '--split',
+          },
+          {
+            description: 'Exclude peer dependencies (and their exclusive transitive subtrees)',
+            name: '--exclude-peers',
           },
         ],
       },
@@ -299,6 +307,7 @@ interface SharedContext {
   /** Workspace package manifests keyed by lockfile importer id, read once from the
    * project graph so split mode does not re-read them for every emitted SBOM. */
   workspaceManifestsByImporterId: Map<string, ManifestLike>
+  excludePeerNamesByImporter?: Map<string, Set<string>>
 }
 
 async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedContext> {
@@ -316,6 +325,74 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
   const rootManifestDir = opts.rootProjectManifestDir ?? opts.dir
   const rootManifest = opts.rootProjectManifest ?? await readProjectManifestOnly(rootManifestDir)
 
+  const lockfileDir = opts.lockfileDir ?? opts.dir
+
+  // peerDependencies are identified from the manifest, not the lockfile: with
+  // auto-install-peers they resolve into the importer's `dependencies` with no
+  // distinguishing marker. Map every walked importer to its peer names so the
+  // collector can drop them.
+  // Keyed by a Map, not a plain object: importer ids come from the lockfile
+  // (attacker-controlled in an untrusted clone), and a key like `__proto__`
+  // would corrupt a plain object's prototype.
+  let excludePeerNamesByImporter: Map<string, Set<string>> | undefined
+  if (opts.excludePeers) {
+    const byImporter = new Map<string, Set<string>>()
+    // Prefer the in-memory project graph(s): no extra filesystem reads, and
+    // reading from both graphs (not only the selected subset) covers the extra
+    // workspace packages collectSbomComponents reaches through `link:` deps, so
+    // their peers are filtered too in a filtered run.
+    const graphs = [opts.allProjectsGraph, opts.selectedProjectsGraph].filter(Boolean)
+    if (graphs.length > 0) {
+      for (const graph of graphs) {
+        for (const [projectDir, { package: project }] of Object.entries(graph!)) {
+          byImporter.set(getLockfileImporterId(lockfileDir, projectDir), peerNamesFromManifest(project.manifest))
+        }
+      }
+    } else {
+      // No project graph (e.g. a single-package repo or `--lockfile-only`
+      // outside a workspace), so collectSbomComponents walks every importer in
+      // the lockfile. Resolve each importer's own manifest from disk so peers in
+      // workspace packages are dropped too, not only those in the directory pnpm
+      // ran in. safeReadProjectManifestOnly returns null (rather than throwing)
+      // for an importer whose manifest is gone (e.g. a stale lockfile), and skips
+      // the installability check that would otherwise abort the SBOM.
+      const lockfileRoot = await realpath(lockfileDir)
+      // Bound the fan-out: a large workspace can have many importers, and
+      // reading every manifest at once would spike open file descriptors.
+      const limitManifestReads = pLimit(16)
+      await Promise.all(
+        Object.keys(lockfile.importers).map((importerId) => limitManifestReads(async () => {
+          // A crafted lockfile could carry an importer key that escapes the
+          // project, via `..` segments or a symlinked directory. Canonicalize
+          // with realpath and skip anything resolving outside the project root,
+          // so a manifest is never read from outside the tree.
+          let importerDir: string
+          try {
+            importerDir = await realpath(path.resolve(lockfileDir, importerId))
+          } catch {
+            return
+          }
+          const rel = path.relative(lockfileRoot, importerDir)
+          if (rel !== '' && (rel.startsWith('..') || path.isAbsolute(rel))) return
+          // safeReadProjectManifestOnly tolerates a missing manifest but still
+          // throws on a malformed one (parse error). In an untrusted clone a
+          // single junk package.json must not abort the whole SBOM, so skip it
+          // (fail-open: an unparseable importer's peers just aren't filtered).
+          let importerManifest: ProjectManifest | null
+          try {
+            importerManifest = await safeReadProjectManifestOnly(importerDir)
+          } catch {
+            return
+          }
+          if (importerManifest) {
+            byImporter.set(importerId, peerNamesFromManifest(importerManifest))
+          }
+        }))
+      )
+    }
+    excludePeerNamesByImporter = byImporter
+  }
+
   let storeDir: string | undefined
   if (!opts.lockfileOnly) {
     storeDir = await getStorePath({
@@ -325,7 +402,6 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
     })
   }
 
-  const lockfileDir = opts.lockfileDir ?? opts.dir
   const workspaceManifestsByImporterId = new Map<string, ManifestLike>()
   for (const graph of [opts.allProjectsGraph, opts.selectedProjectsGraph]) {
     if (!graph) continue
@@ -336,7 +412,7 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
 
   const rootLicense = await resolveRootLicense(rootManifest, rootManifestDir)
 
-  return { lockfile, rootManifest, rootManifestDir, rootLicense, storeDir, workspaceManifestsByImporterId }
+  return { lockfile, rootManifest, rootManifestDir, rootLicense, storeDir, workspaceManifestsByImporterId, excludePeerNamesByImporter }
 }
 
 async function generateSbomForProject (
@@ -421,6 +497,7 @@ async function generateSbomForProject (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     workspacePackages,
     resolvedWorkspaceDeps,
+    excludePeerNamesByImporter: ctx.excludePeerNamesByImporter,
   })
 
   const output = serialOpts.format === 'cyclonedx'
@@ -435,6 +512,19 @@ async function generateSbomForProject (
     : serializeSpdx(result, { compact })
 
   return { output, exitCode: 0, rootName, rootVersion }
+}
+
+function peerNamesFromManifest (manifest: ProjectManifest): Set<string> {
+  // A name declared as both a peer and a regular dependency is a real dependency
+  // the package pulls in itself, so keep it.
+  const regular = new Set([
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...Object.keys(manifest.devDependencies ?? {}),
+    ...Object.keys(manifest.optionalDependencies ?? {}),
+  ])
+  return new Set(
+    Object.keys(manifest.peerDependencies ?? {}).filter((name) => !regular.has(name))
+  )
 }
 
 function validateSbomType (value: string | undefined): SbomComponentType {

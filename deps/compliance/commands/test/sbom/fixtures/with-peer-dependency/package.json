@@ -1,0 +1,12 @@
+{
+  "name": "sbom-with-peer-dep",
+  "version": "1.0.0",
+  "description": "Test fixture with a peer dependency",
+  "license": "MIT",
+  "dependencies": {
+    "is-positive": "3.1.0"
+  },
+  "peerDependencies": {
+    "is-odd": "3.0.1"
+  }
+}
