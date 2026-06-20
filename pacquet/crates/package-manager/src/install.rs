@@ -1048,40 +1048,66 @@ where
         if !resolve_only && is_inconsistent {
             // Settings mismatch forces a rewrite of node_modules, matching
             // upstream pnpm's `validateModules` prune side effects.
-            let is_safe = config.modules_dir.file_name().is_some_and(|n| n == "node_modules");
+            let (is_safe, target_dir) = if config.modules_dir.exists() {
+                match (
+                    std::fs::canonicalize(&config.modules_dir),
+                    std::fs::canonicalize(&workspace_root),
+                ) {
+                    (Ok(modules_canon), Ok(root_canon)) => {
+                        (modules_canon.starts_with(&root_canon), Some(modules_canon))
+                    }
+                    _ => (false, None),
+                }
+            } else {
+                (true, None)
+            };
             if is_safe {
-                match std::fs::read_dir(&config.modules_dir) {
-                    Ok(entries) => {
-                        for entry_res in entries {
-                            let entry = entry_res.map_err(InstallError::RemoveModulesDir)?;
-                            let file_name = entry.file_name();
-                            let file_name_str = file_name.to_string_lossy();
+                if let Some(target) = target_dir {
+                    match std::fs::read_dir(&target) {
+                        Ok(entries) => {
+                            for entry_res in entries {
+                                let entry = entry_res.map_err(InstallError::RemoveModulesDir)?;
+                                let file_name = entry.file_name();
+                                let file_name_str = file_name.to_string_lossy();
 
-                            let is_hidden = file_name_str.starts_with('.');
-                            let is_pnpm_hidden = file_name_str == ".bin"
-                                || file_name_str == ".modules.yaml"
-                                || entry.path() == config.virtual_store_dir;
+                                let is_hidden = file_name_str.starts_with('.');
+                                let is_pnpm_hidden = file_name_str == ".bin"
+                                    || file_name_str == ".modules.yaml"
+                                    || config
+                                        .virtual_store_dir
+                                        .file_name()
+                                        .is_some_and(|n| n == file_name_str.as_ref())
+                                    || modules_manifest.as_ref().is_some_and(|manifest| {
+                                        let old_vs =
+                                            config.modules_dir.join(&manifest.virtual_store_dir);
+                                        // Ensure we only delete it if it's a descendant of modules_dir
+                                        old_vs.starts_with(&config.modules_dir)
+                                            && old_vs
+                                                .file_name()
+                                                .is_some_and(|n| n == file_name_str.as_ref())
+                                    });
 
-                            if is_hidden && !is_pnpm_hidden {
-                                continue;
-                            }
+                                if is_hidden && !is_pnpm_hidden {
+                                    continue;
+                                }
 
-                            if entry.file_type().is_ok_and(|t| t.is_dir()) {
-                                std::fs::remove_dir_all(entry.path())
-                                    .map_err(InstallError::RemoveModulesDir)?;
-                            } else {
-                                std::fs::remove_file(entry.path())
-                                    .map_err(InstallError::RemoveModulesDir)?;
+                                if entry.file_type().is_ok_and(|t| t.is_dir()) {
+                                    std::fs::remove_dir_all(entry.path())
+                                        .map_err(InstallError::RemoveModulesDir)?;
+                                } else {
+                                    std::fs::remove_file(entry.path())
+                                        .map_err(InstallError::RemoveModulesDir)?;
+                                }
                             }
                         }
+                        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(err) => return Err(InstallError::RemoveModulesDir(err)),
                     }
-                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-                    Err(err) => return Err(InstallError::RemoveModulesDir(err)),
                 }
             } else {
                 tracing::warn!(
                     ?config.modules_dir,
-                    "refusing to remove inconsistent modules directory outside the project root"
+                    "refusing to remove inconsistent modules directory outside the project root",
                 );
             }
         }
