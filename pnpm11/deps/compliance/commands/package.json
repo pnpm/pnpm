@@ -42,6 +42,7 @@
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
+    "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.audit": "workspace:*",

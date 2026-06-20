@@ -184,6 +184,15 @@ describe('createMinimumReleaseAgeExcludes', () => {
     const excludes = createMinimumReleaseAgeExcludes(advisories)
     expect(excludes).toEqual([])
   })
+
+  test('deduplicates the same minimum patched version for a module', () => {
+    const advisories = [
+      advisory('axios', '<=0.18.0', '>=0.18.1'),
+      advisory('axios', '<=0.17.0', '>=0.18.1'),
+    ]
+    const excludes = createMinimumReleaseAgeExcludes(advisories)
+    expect(excludes).toEqual(['axios@0.18.1'])
+  })
 })
 
 describe('caretRangeForPatched', () => {

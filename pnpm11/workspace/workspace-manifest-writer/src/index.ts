@@ -4,6 +4,7 @@ import util from 'node:util'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
+import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import type {
@@ -92,11 +93,9 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     }
   }
   if (opts.addedMinimumReleaseAgeExcludes?.length) {
-    const merged = mergeAgeExcludes(
-      manifest.minimumReleaseAgeExclude ?? [],
-      opts.addedMinimumReleaseAgeExcludes
-    )
-    if (merged) {
+    const existing = manifest.minimumReleaseAgeExclude ?? []
+    const merged = mergePackageVersionSpecs([...existing, ...opts.addedMinimumReleaseAgeExcludes])
+    if (!equals(existing, merged)) {
       shouldBeUpdated = true
       manifest.minimumReleaseAgeExclude = merged
     }
@@ -254,30 +253,6 @@ function addPackageReference (packageReferences: Record<string, Set<string>>, pk
     packageReferences[pkgName] = new Set()
   }
   packageReferences[pkgName].add(version)
-}
-
-function parseAgeExclude (entry: string): [string, string[]] {
-  const [module, versions] = entry.split(/.(@)/);
-  return [
-    module,
-    versions.split(' || ').map((v) => v.trim()).filter(Boolean),
-  ]
-}
-
-function mergeAgeExcludes (existing: string[], added: string[]): string[] | null {
-  const byModule = new Map<string, Set<string>>()
-  for (const entry of [...existing, ...added]) {
-    const [module, versions] = parseAgeExclude(entry)
-    const rec = byModule.get(module)
-    if (rec) {
-      for (const v of versions) rec.add(v)
-    } else {
-      byModule.set(module, new Set(versions))
-    }
-  }
-  const merged = Array.from(byModule.entries())
-    .map(([module, versions]) => `${module}@${Array.from(versions).sort().join(' || ')}`)
-  return merged
 }
 
 interface KeyOrderNode {
