@@ -82,7 +82,7 @@ jobs:
     - name: Read new pnpm version
       id: version
       if: steps.changes.outputs.changed == 'true'
-      run: echo "version=$(node -p "require('./pnpm/package.json').version")" >> "$GITHUB_OUTPUT"
+      run: echo "version=$(node -p "require('./pnpm11/pnpm/package.json').version")" >> "$GITHUB_OUTPUT"
 
     - name: Commit and push
       if: steps.changes.outputs.changed == 'true'

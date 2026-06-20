@@ -6,11 +6,45 @@ permissions:
   contents: read # to fetch code (actions/checkout)
 
 jobs:
+  changes:
+    name: TS CI / Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ts: ${{ steps.filter.outputs.ts }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          # The TypeScript pnpm stack lives under pnpm11/, plus the
+          # workspace-root tooling that drives its build/lint/test.
+          filters: |
+            ts:
+              - 'pnpm11/**'
+              - '.meta-updater/**'
+              - '__patches__/**'
+              - 'package.json'
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - '.pnpmfile.cjs'
+              - 'eslint.config.mjs'
+              - 'tsconfig.lint.json'
+              - 'cspell.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/test.yml'
+
   compile-and-lint:
-    # Skip pull_request events from PRs in the same repo. This prevents
-    # duplicate build jobs from running when creating a PR in the original repo.
+    needs: changes
+    # Run only when TypeScript-relevant files changed. Also skip
+    # pull_request events from PRs in the same repo to prevent duplicate
+    # build jobs (the push event already covers them).
     # Exception: chore/update-lockfile PRs (created by automation with GITHUB_TOKEN, which doesn't trigger push events)
-    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile' }}
+    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile') }}
 
     name: TS CI / Compile & Lint
     runs-on: ubuntu-latest
@@ -31,7 +65,7 @@ jobs:
       run: |
         mapfile -d '' -t lib_dirs < <(find . -type d -name lib -not -path '*/node_modules/*' -print0)
         mapfile -d '' -t tsbuildinfo_files < <(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*' -print0)
-        tar -czf compiled.tar.gz --exclude='node_modules' "${lib_dirs[@]}" "${tsbuildinfo_files[@]}" pnpm/dist
+        tar -czf compiled.tar.gz --exclude='node_modules' "${lib_dirs[@]}" "${tsbuildinfo_files[@]}" pnpm11/pnpm/dist
     - name: Upload compiled artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
@@ -84,3 +118,25 @@ jobs:
       node: ${{ matrix.node }}
       node_major: ${{ matrix.node_major }}
       platform: ${{ matrix.platform }}
+
+  # Single aggregate gate — the only TS CI context branch protection needs
+  # to require. Listing the individual jobs as required checks does not
+  # work: they skip on non-TypeScript PRs, and a matrix job skipped at the
+  # job level never expands its `${{ matrix.* }}` name, so the per-platform
+  # contexts it would report never appear and the PR blocks forever waiting
+  # for them. This job always runs (it reports under a static name in every
+  # state) and fails only if a dependency actually failed or was cancelled —
+  # skipped dependencies count as a pass.
+  success:
+    name: TS CI / Success
+    if: ${{ always() }}
+    needs:
+      - changes
+      - compile-and-lint
+      - test-smoke
+      - test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

@@ -1,58 +1,58 @@
 packages:
   - .meta-updater
-  - __typecheck__
-  - __typings__
-  - __utils__/*
-  - '!__utils__/build-artifacts'
-  - auth/*
-  - building/*
-  - cache/*
-  - catalogs/*
-  - cli/*
-  - config/*
-  - crypto/*
-  - installing/dedupe/*
-  - deps/*
-  - deps/compliance/*
-  - deps/inspection/*
-  - deps/security/*
-  - engine/*
-  - engine/pm/*
-  - engine/runtime/*
-  - exec/*
-  - fetching/*
-  - fs/*
-  - global/*
-  - hooks/*
-  - lockfile/*
-  - network/*
-  - modules-mounter/*
-  - object/*
-  - core/*
-  - bins/*
-  - installing/*
-  - installing/linking/*
-  - pkg-manifest/*
-  - patching/*
-  - pnpm
-  - pnpm/dev
-  - testing/*
-  - worker
-  - pnpm/artifacts/*
+  - pnpm11/__typecheck__
+  - pnpm11/__typings__
+  - pnpm11/__utils__/*
+  - '!pnpm11/__utils__/build-artifacts'
+  - pnpm11/auth/*
+  - pnpm11/building/*
+  - pnpm11/cache/*
+  - pnpm11/catalogs/*
+  - pnpm11/cli/*
+  - pnpm11/config/*
+  - pnpm11/crypto/*
+  - pnpm11/installing/dedupe/*
+  - pnpm11/deps/*
+  - pnpm11/deps/compliance/*
+  - pnpm11/deps/inspection/*
+  - pnpm11/deps/security/*
+  - pnpm11/engine/*
+  - pnpm11/engine/pm/*
+  - pnpm11/engine/runtime/*
+  - pnpm11/exec/*
+  - pnpm11/fetching/*
+  - pnpm11/fs/*
+  - pnpm11/global/*
+  - pnpm11/hooks/*
+  - pnpm11/lockfile/*
+  - pnpm11/network/*
+  - pnpm11/modules-mounter/*
+  - pnpm11/object/*
+  - pnpm11/core/*
+  - pnpm11/bins/*
+  - pnpm11/installing/*
+  - pnpm11/installing/linking/*
+  - pnpm11/pkg-manifest/*
+  - pnpm11/patching/*
+  - pnpm11/pnpm
+  - pnpm11/pnpm/dev
+  - pnpm11/testing/*
+  - pnpm11/worker
+  - pnpm11/pnpm/artifacts/*
   - pnpr/client
-  - registry-access/*
-  - releasing/*
-  - resolving/*
-  - resolving/registry/*
-  - shell/*
-  - store/*
-  - text/*
-  - workspace/*
-  - yaml/*
+  - pnpm11/registry-access/*
+  - pnpm11/releasing/*
+  - pnpm11/resolving/*
+  - pnpm11/resolving/registry/*
+  - pnpm11/shell/*
+  - pnpm11/store/*
+  - pnpm11/text/*
+  - pnpm11/workspace/*
+  - pnpm11/yaml/*
   - pacquet/tasks/registry-mock
   - '!**/example/**'
   - '!**/test/**'
-  - '!resolving/local-resolver/example-package/**'
+  - '!pnpm11/resolving/local-resolver/example-package/**'
 
 allowBuilds:
   core-js: false

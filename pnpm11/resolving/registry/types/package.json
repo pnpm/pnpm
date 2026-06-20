@@ -1,0 +1,45 @@
+{
+  "name": "@pnpm/resolving.registry.types",
+  "version": "1100.1.3",
+  "description": "Types related to the npm registry",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "npm"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/resolving/registry/types",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/resolving/registry/types#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pn compile",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@pnpm/resolving.registry.types": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}
