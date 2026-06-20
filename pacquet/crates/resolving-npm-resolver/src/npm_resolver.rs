@@ -40,7 +40,7 @@ use pacquet_resolving_resolver_base::{
 };
 
 use crate::{
-    errors::AllVersionsBlockedError,
+    errors::{AllVersionsBlockedError, GuardRepickLimitError},
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
@@ -596,10 +596,15 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
                 // Each rejection re-runs the picker over the packument, so an
                 // unbounded run is O(versions²). Cap it well above any real
                 // run of consecutive rejected versions to bound the work a
-                // hostile packument can force, treating the cap as "no
-                // acceptable version".
+                // hostile packument can force. This is a safety cutoff, not
+                // proof every version is blocked, so report it as its own
+                // error rather than "all versions blocked".
                 if blocked_versions.len() >= GUARD_REPICK_LIMIT {
-                    return Err(all_versions_blocked(opts.spec, reason));
+                    return Err(Box::new(GuardRepickLimitError {
+                        name: opts.spec.name.clone(),
+                        limit: GUARD_REPICK_LIMIT,
+                        reason,
+                    }));
                 }
                 last_rejection = Some(reason);
             }

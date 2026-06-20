@@ -33,6 +33,15 @@ const MAX_OSV_NAME_BYTES: usize = 4096;
 /// in-memory state or the reason strings it feeds.
 const MAX_ADVISORY_ID_BYTES: usize = 256;
 
+/// Upper bounds on the item counts inside one `affected` entry. The
+/// per-record byte cap bounds parse-time memory, but a crafted record
+/// could still persist a huge `versions`/`ranges` set into the index;
+/// these caps are far above any real advisory so they only reject
+/// deliberately bloated records.
+const MAX_VERSIONS_PER_AFFECTED: usize = 100_000;
+const MAX_RANGES_PER_AFFECTED: usize = 10_000;
+const MAX_EVENTS_PER_RANGE: usize = 10_000;
+
 #[derive(Debug)]
 pub(crate) struct OsvIndex {
     packages: HashMap<String, Vec<Advisory>>,
@@ -432,6 +441,17 @@ fn ingest_record_bytes(
         let Some(package) = affected.package.as_ref() else { continue };
         if package.ecosystem != "npm" {
             continue;
+        }
+        // Reject deliberately bloated entries so a crafted record can't
+        // expand into a huge persistent set in the index.
+        if affected.versions.len() > MAX_VERSIONS_PER_AFFECTED
+            || affected.ranges.len() > MAX_RANGES_PER_AFFECTED
+            || affected.ranges.iter().any(|range| range.events.len() > MAX_EVENTS_PER_RANGE)
+        {
+            return Err(invalid_config(format!(
+                "OSV record {} has an affected entry exceeding the version/range/event limits",
+                truncate_advisory_id(&record.id),
+            )));
         }
         let name = normalized_name(&package.name).into_owned();
         let advisory = advisory_from_affected(&record.id, affected);

@@ -79,3 +79,19 @@ pub struct AllVersionsBlockedError {
     pub name: String,
     pub reason: String,
 }
+
+/// Raised when the resolver-time guard rejected so many candidates for a
+/// package that the re-pick safety limit was hit. Distinct from
+/// [`AllVersionsBlockedError`]: the picker stopped at the cap rather than
+/// proving every matching version is blocked.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Resolving {name} hit the resolver guard's {limit}-version re-pick limit; too many candidates were rejected ({reason})."
+)]
+#[diagnostic(code(pacquet_resolving_npm_resolver::guard_repick_limit))]
+pub struct GuardRepickLimitError {
+    #[error(not(source))]
+    pub name: String,
+    pub limit: usize,
+    pub reason: String,
+}
