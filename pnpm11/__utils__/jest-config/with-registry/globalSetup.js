@@ -10,7 +10,7 @@ import treeKill from 'tree-kill'
 
 const kill = promisify(treeKill)
 
-const REPO_ROOT = path.join(import.meta.dirname, '..', '..', '..')
+const REPO_ROOT = path.join(import.meta.dirname, '..', '..', '..', '..')
 const FIXTURE_PACKAGES = path.join(REPO_ROOT, 'pnpr', '.fixtures', 'packages')
 
 export default async () => {
