@@ -1031,12 +1031,17 @@ where
         // `allProjectsAreUpToDate` fast path at
         // <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L913-L985>.
         // Parse `.modules.yaml` once and share it across the consistency,
-        // newly-allowed, and unapproved-ignored checks below. Only the
-        // frozen path reads it, so the fresh-lockfile/`add` path skips the
-        // file read + YAML parse entirely.
-        let modules_manifest = take_frozen_path
-            .then(|| read_modules_manifest::<Host>(&config.modules_dir).ok().flatten())
-            .flatten();
+        // newly-allowed, and unapproved-ignored checks below.
+        let modules_manifest = read_modules_manifest::<Host>(&config.modules_dir).ok().flatten();
+
+        if let Some(modules) = modules_manifest.as_ref()
+            && !modules_consistent_with(modules, config, node_linker, included)
+        {
+            // Settings mismatch forces a rewrite of node_modules, matching
+            // upstream pnpm's `validateModules` prune side effects.
+            let _ = std::fs::remove_dir_all(&config.modules_dir);
+        }
+
         if take_frozen_path
             && let Some(wanted_lockfile) = lockfile
             && let Some(current) = current_lockfile.as_ref()
@@ -1838,10 +1843,7 @@ fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
 /// unapproved-ignored checks.
 ///
 /// Mirrors the settings checks in upstream's
-/// [`validateModules`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts)
-/// minus the prune side effects: a settings mismatch in pnpm forces a
-/// rewrite of `node_modules`, but pacquet's caller falls through to the
-/// regular install path, which rebuilds the layout from scratch anyway.
+/// [`validateModules`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts).
 fn modules_consistent_with(
     modules: &Modules,
     config: &Config,
