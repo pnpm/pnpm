@@ -298,18 +298,26 @@ function createReachableVulnerabilitiesGetter (
     }
 
     if (lowlink.get(edge.depPath) === idx) {
-      const shared = new Set<string>()
       const members: DepPath[] = []
+      // Reuse the first member's own set as the shared accumulator instead of
+      // allocating a fresh one, so the common singleton-SCC case finalizes
+      // without any extra Set allocation or copy.
+      let shared: Set<string> | undefined
       let member: DepPath
       do {
         member = sccStack.pop()!
         onStack.delete(member)
         members.push(member)
-        addAll(shared, partial.get(member)!)
+        const own = partial.get(member)!
         partial.delete(member)
+        if (shared === undefined) {
+          shared = own
+        } else {
+          addAll(shared, own)
+        }
       } while (member !== edge.depPath)
       for (const m of members) {
-        memo.set(m, shared)
+        memo.set(m, shared!)
       }
     }
   }
