@@ -1252,7 +1252,7 @@ where
                 skip_runtimes,
                 node_linker,
                 tarball_mem_cache: Some(&tarball_mem_cache),
-                seed_skipped: modules_manifest.map(|m| m.skipped.clone()),
+                seed_skipped: modules_manifest.map(|manifest| manifest.skipped.clone()),
             }
             .run::<Reporter>()
             .await
