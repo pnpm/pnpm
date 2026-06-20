@@ -95,6 +95,27 @@ fn duplicate_affected_blocks_yield_one_id() {
     assert_eq!(index.vulnerability_ids("dup", "1.0.0"), vec!["GHSA-dup"]);
 }
 
+#[test]
+fn loads_zip_archive_and_fingerprints_it() {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let zip_path = dir.path().join("all.zip");
+    let mut writer = zip::ZipWriter::new(fs::File::create(&zip_path).expect("create zip"));
+    let options =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    writer.start_file("GHSA-zip.json", options).expect("start file");
+    writer
+        .write_all(
+            br#"{"id":"GHSA-zip","affected":[{"package":{"ecosystem":"npm","name":"zipped"},"versions":["1.0.0"]}]}"#,
+        )
+        .expect("write entry");
+    writer.finish().expect("finish zip");
+
+    let index = OsvIndex::load_from_path(&zip_path).expect("load zip index");
+    assert_eq!(index.vulnerability_ids("zipped", "1.0.0"), vec!["GHSA-zip"]);
+}
+
 #[cfg(unix)]
 #[test]
 fn non_regular_file_path_is_rejected() {

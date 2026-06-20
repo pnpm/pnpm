@@ -242,9 +242,19 @@ fn default_osv_path(config: &Config) -> PathBuf {
 }
 
 fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
-    let fingerprint = file_fingerprint(path)?;
-    let file = File::open(path).map_err(|err| {
+    // Fingerprint and parse the *same* open handle. Hashing one open and
+    // parsing a second would let an atomic replace of the path slip in
+    // between, so the recorded fingerprint could describe different bytes
+    // than the advisories actually loaded — and the verdict cache trusts
+    // that fingerprint to decide whether a cached pass still holds.
+    let mut file = File::open(path).map_err(|err| {
         invalid_config(format!("failed to open OSV database {}: {err}", path.display()))
+    })?;
+    let fingerprint = fingerprint_reader(&mut file).map_err(|err| {
+        invalid_config(format!("failed to hash OSV database {}: {err}", path.display()))
+    })?;
+    file.rewind().map_err(|err| {
+        invalid_config(format!("failed to rewind OSV database {}: {err}", path.display()))
     })?;
     let mut archive = zip::ZipArchive::new(file).map_err(|err| {
         invalid_config(format!("failed to read OSV zip {}: {err}", path.display()))
@@ -318,24 +328,16 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
     Ok(OsvIndex { packages, fingerprint: format!("sha256:{:x}", hasher.finalize()) })
 }
 
-fn file_fingerprint(path: &Path) -> Result<String, RegistryError> {
-    let mut file = File::open(path).map_err(|err| {
-        invalid_config(format!("failed to open OSV database {}: {err}", path.display()))
-    })?;
+fn fingerprint_reader(reader: &mut impl Read) -> std::io::Result<String> {
     let mut hasher = Sha256::new();
     let mut buf = vec![0_u8; 1024 * 64];
     loop {
-        let read = file.read(&mut buf).map_err(|err| {
-            invalid_config(format!("failed to hash OSV database {}: {err}", path.display()))
-        })?;
+        let read = reader.read(&mut buf)?;
         if read == 0 {
             break;
         }
         hasher.update(&buf[..read]);
     }
-    file.rewind().map_err(|err| {
-        invalid_config(format!("failed to rewind OSV database {}: {err}", path.display()))
-    })?;
     Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 
