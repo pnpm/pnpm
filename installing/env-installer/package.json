@@ -51,11 +51,11 @@
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
+    "@pnpm/resolving.tarball-url": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "get-npm-tarball-url": "catalog:",
     "semver": "catalog:",
     "symlink-dir": "catalog:"
   },

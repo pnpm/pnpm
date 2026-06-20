@@ -67,6 +67,9 @@
       "path": "../../resolving/parse-wanted-dependency"
     },
     {
+      "path": "../../resolving/tarball-url"
+    },
+    {
       "path": "../../store/controller"
     },
     {
