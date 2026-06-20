@@ -185,7 +185,7 @@ jobs:
         node .github/scripts/bencher-result-from-pnpm-summary.mjs \
           --name tests.cli \
           --output .bench/tests.cli.json \
-          --package-dir pnpm
+          --package-dir pnpm11/pnpm
     - name: Stage Bencher test durations
       if: steps.test-scope.outputs.full_tests == 'true'
       env:
