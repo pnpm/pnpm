@@ -73,7 +73,7 @@ use pacquet_resolving_resolver_base::{PackageVersionGuard, ResolutionVerifier};
 use pacquet_store_dir::StoreDir;
 use sha2::{Digest, Sha256};
 
-pub(crate) use self::osv::{OsvIndex, load_osv_index};
+pub(crate) use self::osv::{OsvIndex, format_advisory_ids, load_osv_index};
 
 use self::{protocol::ResolveRequest, verdict_cache::VerdictCache};
 
@@ -611,7 +611,22 @@ fn osv_violations_for_lockfile(index: &OsvIndex, lockfile: &Lockfile) -> Vec<ser
         }
         let name = package_key.name.to_string();
         let version = package_key.suffix.version().to_string();
-        let ids = index.vulnerability_ids(&name, &version);
+        let mut ids = index.vulnerability_ids(&name, &version);
+        // For a tarball resolution the fetched artifact's identity is its
+        // URL, not the lockfile key. Under `trustLockfile` a tampered
+        // lockfile could key a safe `name@version` while pointing the
+        // tarball at a vulnerable artifact, so also screen the version in
+        // the tarball filename. This is additive — a mismatch alone is
+        // never a violation (custom registries may name tarballs
+        // differently), only an actually-vulnerable version is.
+        if let LockfileResolution::Tarball(tarball) = &snapshot.resolution
+            && let Some(url_version) = tarball_url_version(&tarball.tarball, &name)
+            && url_version != version
+        {
+            ids.extend(index.vulnerability_ids(&name, url_version));
+            ids.sort_unstable();
+            ids.dedup();
+        }
         if ids.is_empty() {
             continue;
         }
@@ -627,11 +642,24 @@ fn osv_violations_for_lockfile(index: &OsvIndex, lockfile: &Lockfile) -> Vec<ser
             "code": OSV_VULNERABILITY_CODE,
             "reason": format!(
                 "is listed in the local OSV database as vulnerable ({})",
-                ids.join(", "),
+                format_advisory_ids(&ids),
             ),
         }));
     }
     violations
+}
+
+/// Best-effort extraction of the version from a registry tarball URL of
+/// the conventional `<unscoped-name>-<version>.tgz` shape. Returns `None`
+/// for non-standard naming so a legitimate custom registry isn't
+/// misjudged. Never parses the URL strictly — the lockfile is untrusted.
+fn tarball_url_version<'a>(url: &'a str, name: &str) -> Option<&'a str> {
+    let last = url.rsplit('/').next()?;
+    let last = last.split(['?', '#']).next().unwrap_or(last);
+    let stem = last.strip_suffix(".tgz")?;
+    let unscoped = name.rsplit('/').next().unwrap_or(name);
+    let version = stem.strip_prefix(unscoped)?.strip_prefix('-')?;
+    (!version.is_empty()).then_some(version)
 }
 
 fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bool {

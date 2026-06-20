@@ -178,3 +178,21 @@ fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() 
     // Non-http schemes are skipped.
     assert!(!super::is_osv_checkable_resolution(&tarball("file:../foo.tgz", None)));
 }
+
+#[test]
+fn tarball_url_version_extracts_conventional_names_only() {
+    use super::tarball_url_version;
+
+    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tgz", "foo"), Some("1.2.3"));
+    // Scoped packages name the tarball file with the unscoped name.
+    assert_eq!(tarball_url_version("https://r/@s/foo/-/foo-1.2.3.tgz", "@s/foo"), Some("1.2.3"));
+    // Query/fragment are stripped; prerelease/build keep working.
+    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tgz?x=1", "foo"), Some("1.2.3"));
+    assert_eq!(
+        tarball_url_version("https://r/foo/-/foo-1.2.3-beta.1.tgz", "foo"),
+        Some("1.2.3-beta.1"),
+    );
+    // Non-conventional naming yields None (fall back, don't misjudge).
+    assert_eq!(tarball_url_version("https://r/weird.tgz", "foo"), None);
+    assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
+}
