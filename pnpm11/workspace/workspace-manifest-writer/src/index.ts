@@ -92,12 +92,13 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     }
   }
   if (opts.addedMinimumReleaseAgeExcludes?.length) {
-    const existing: string[] = manifest.minimumReleaseAgeExclude ?? []
-    const existingSet = new Set(existing)
-    const newEntries = [...new Set(opts.addedMinimumReleaseAgeExcludes)].filter((entry) => !existingSet.has(entry))
-    if (newEntries.length > 0) {
+    const merged = mergeAgeExcludes(
+      manifest.minimumReleaseAgeExclude ?? [],
+      opts.addedMinimumReleaseAgeExcludes
+    )
+    if (merged) {
       shouldBeUpdated = true
-      manifest.minimumReleaseAgeExclude = [...existing, ...newEntries]
+      manifest.minimumReleaseAgeExclude = merged
     }
   }
   if (!shouldBeUpdated) {
@@ -253,6 +254,30 @@ function addPackageReference (packageReferences: Record<string, Set<string>>, pk
     packageReferences[pkgName] = new Set()
   }
   packageReferences[pkgName].add(version)
+}
+
+function parseAgeExclude (entry: string): [string, string[]] {
+  const [module, versions] = entry.split(/.(@)/);
+  return [
+    module,
+    versions.split(' || ').map((v) => v.trim()).filter(Boolean),
+  ]
+}
+
+function mergeAgeExcludes (existing: string[], added: string[]): string[] | null {
+  const byModule = new Map<string, Set<string>>()
+  for (const entry of [...existing, ...added]) {
+    const [module, versions] = parseAgeExclude(entry)
+    const rec = byModule.get(module)
+    if (rec) {
+      for (const v of versions) rec.add(v)
+    } else {
+      byModule.set(module, new Set(versions))
+    }
+  }
+  const merged = Array.from(byModule.entries())
+    .map(([module, versions]) => `${module}@${Array.from(versions).sort().join(' || ')}`)
+  return merged
 }
 
 interface KeyOrderNode {

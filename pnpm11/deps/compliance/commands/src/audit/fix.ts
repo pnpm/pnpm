@@ -56,14 +56,18 @@ export function caretRangeForPatched (patchedRange: string): string {
 }
 
 export function createMinimumReleaseAgeExcludes (advisories: AuditAdvisory[]): string[] {
-  const excludes = new Set<string>()
+  const excludes = new Map<string, Set<string>>()
   for (const advisory of advisories) {
     const patchedVersions = advisory.patched_versions
     if (!patchedVersions) continue
     const minVersion = semver.minVersion(patchedVersions)
-    if (minVersion) {
-      excludes.add(`${advisory.module_name}@${minVersion.version}`)
+    if (!minVersion) continue
+    const existing = excludes.get(advisory.module_name)
+    if (existing) {
+      existing.add(minVersion.version)
+    } else {
+      excludes.set(advisory.module_name, new Set([minVersion.version]))
     }
   }
-  return Array.from(excludes)
+  return Array.from(excludes.entries()).map(([module, versions]) => `${module}@${Array.from(versions).sort(semver.compare).join(' || ')}`)
 }
