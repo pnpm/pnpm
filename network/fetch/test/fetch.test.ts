@@ -3,11 +3,6 @@ import { expect, test } from '@jest/globals'
 import { fetch } from '@pnpm/network.fetch'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
-// Regression test: a non-retryable error code (e.g. a self-signed certificate)
-// must reject the returned promise, not leave it permanently unsettled. The
-// previous implementation threw inside the detached retry callback, so the
-// promise never settled (the caller hung) and an unhandled rejection crashed
-// the process.
 test('fetch rejects, and does not hang, on a non-retryable error code', async () => {
   const originalDispatcher: Dispatcher = getGlobalDispatcher()
   const mockAgent = new MockAgent()
@@ -34,7 +29,7 @@ test('fetch rejects, and does not hang, on a non-retryable error code', async ()
     ])
     if (timer) clearTimeout(timer)
 
-    expect(outcome).not.toBe(TIMEOUT) // would hang (TIMEOUT) before the fix
+    expect(outcome).not.toBe(TIMEOUT)
     expect(outcome).not.toBe('resolved')
     const err = outcome as Error & { code?: string, cause?: { code?: string } }
     expect(err.code ?? err.cause?.code).toBe('SELF_SIGNED_CERT_IN_CHAIN')

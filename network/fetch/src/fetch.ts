@@ -64,10 +64,6 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
             typeof errorCode === 'string' &&
             NO_RETRY_ERROR_CODES.has(errorCode)
           ) {
-            // Reject the governing promise instead of throwing. `op.attempt`'s
-            // callback runs detached, so a throw here never reaches the outer
-            // promise: it leaves it forever unsettled and surfaces as an
-            // unhandled rejection. This mirrors the retries-exhausted path below.
             reject(error)
             return
           }
