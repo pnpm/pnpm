@@ -186,6 +186,7 @@ export interface Config extends OptionsFromRootManifest {
   ignorePnpmfile?: boolean
   pnpmfile: string[] | string
   tryLoadDefaultPnpmfile?: boolean
+  canonicalBinarySource?: 'pnpmfile'
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
   publicHoistPattern?: string[] | string

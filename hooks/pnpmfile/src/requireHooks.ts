@@ -40,6 +40,7 @@ export interface CookedHooks {
   filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
   updateConfig?: Array<Cook<Required<Hooks>['updateConfig']>>
   importPackage?: ImportIndexedPackageAsync
+  getCanonicalBinaryPath?: Required<Hooks>['getCanonicalBinaryPath']
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   calculatePnpmfileChecksum?: () => Promise<string>
@@ -143,6 +144,7 @@ export async function requireHooks (
   }
 
   let importProvider: string | undefined
+  let canonicalBinaryPathProvider: string | undefined
   const finderProviders: Record<string, string> = {}
 
   // process hooks in order
@@ -216,6 +218,19 @@ export async function requireHooks (
       }
       importProvider = file
       cookedHooks.importPackage = fileHooks.importPackage
+    }
+
+    // getCanonicalBinaryPath: only one allowed. Re-executing into a binary is a
+    // whole-process decision, so multiple providers would be ambiguous.
+    if (fileHooks.getCanonicalBinaryPath) {
+      if (canonicalBinaryPathProvider) {
+        throw new PnpmError(
+          'MULTIPLE_GET_CANONICAL_BINARY_PATH',
+          `getCanonicalBinaryPath hook defined in both ${canonicalBinaryPathProvider} and ${file}`
+        )
+      }
+      canonicalBinaryPathProvider = file
+      cookedHooks.getCanonicalBinaryPath = fileHooks.getCanonicalBinaryPath
     }
   }
 

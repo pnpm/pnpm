@@ -179,6 +179,13 @@ export interface AuditConfig {
 
 export interface PnpmSettings {
   npmrcAuthFile?: string
+  /**
+   * When set to `"pnpmfile"`, pnpm delegates selection of the canonical pnpm
+   * binary to the `getCanonicalBinaryPath` pnpmfile hook before running a
+   * command, re-executing into the returned binary. Lets an external tool pin the
+   * exact pnpm version without the `packageManager` field of `package.json`.
+   */
+  canonicalBinarySource?: 'pnpmfile'
   registries?: Registries
   namedRegistries?: Record<string, string>
   configDependencies?: ConfigDependencies

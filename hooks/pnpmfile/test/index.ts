@@ -146,3 +146,17 @@ test('requireHooks merges all the finders', async () => {
   expect(finders.foo).toBeDefined()
   expect(finders.bar).toBeDefined()
 })
+
+test('requireHooks exposes the getCanonicalBinaryPath hook', async () => {
+  const pnpmfile = path.join(import.meta.dirname, '__fixtures__/getCanonicalBinaryPath1.js')
+  const { hooks } = await requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile] })
+  expect(typeof hooks.getCanonicalBinaryPath).toBe('function')
+  expect(await hooks.getCanonicalBinaryPath!({ currentPnpmVersion: '1.0.0', rootDir: '/' })).toBe('/some/dir/pnpm')
+})
+
+test('requireHooks throws if getCanonicalBinaryPath is defined in more than one pnpmfile', async () => {
+  const pnpmfile1 = path.join(import.meta.dirname, '__fixtures__/getCanonicalBinaryPath1.js')
+  const pnpmfile2 = path.join(import.meta.dirname, '__fixtures__/getCanonicalBinaryPath2.js')
+  await expect(requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile1, pnpmfile2] }))
+    .rejects.toThrow('getCanonicalBinaryPath hook defined in both')
+})

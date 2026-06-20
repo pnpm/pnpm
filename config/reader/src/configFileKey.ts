@@ -84,6 +84,7 @@ export type PnpmConfigFileKey = typeof pnpmConfigFileKeys[number]
  */
 export const excludedPnpmKeys = [
   'auto-install-peers',
+  'canonical-binary-source',
   'catalog-mode',
   'config-dir',
   'merge-git-branch-lockfiles',
