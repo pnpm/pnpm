@@ -46,6 +46,10 @@ async fn user_store_rejects_invalid_username_before_persisting() {
     let store = test_user_store();
     let err = store.add_or_login("alice:bob", "secret").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    assert!(
+        store.users.lock().expect("UserStore mutex poisoned").is_empty(),
+        "invalid username should be rejected before any persistence",
+    );
 }
 
 #[tokio::test]
