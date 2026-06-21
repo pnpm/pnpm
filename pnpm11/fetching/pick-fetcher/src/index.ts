@@ -26,11 +26,16 @@ export async function pickFetcher (
           // fetchers for delegation. Its optional resolution contract is forwarded so the
           // requester treats it like any standard fetcher (defaults apply when it opts out).
           // The hook is bound to the custom fetcher so an implementation that uses `this`
-          // still works once it's copied onto the wrapper.
+          // still works once it's copied onto the wrapper. A misconfigured custom fetcher
+          // could set `resolutionNeedsFetch` to a non-function truthy value; treat anything
+          // that isn't callable as "hook not provided" rather than crashing on `.bind`.
+          const resolutionNeedsFetch = typeof customFetcher.resolutionNeedsFetch === 'function'
+            ? customFetcher.resolutionNeedsFetch.bind(customFetcher)
+            : undefined
           return Object.assign(
             async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions): Promise<FetchResult> =>
               customFetcher.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType),
-            { resolutionNeedsFetch: customFetcher.resolutionNeedsFetch?.bind(customFetcher) }
+            { resolutionNeedsFetch }
           ) as FetchFunction
         }
       }
