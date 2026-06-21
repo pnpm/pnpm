@@ -300,6 +300,68 @@ test('createNpmResolutionVerifier() skips file: tarball resolutions', async () =
   expect(result).toEqual({ ok: true })
 })
 
+const REGISTRY_TARBALL = 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz'
+
+test('createNpmResolutionVerifier() rejects a registry tarball with no integrity', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { tarball: REGISTRY_TARBALL } as unknown as Resolution,
+    { name: 'foo', version: '1.0.0' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() rejects a canonical registry entry stripped down to {}', async () => {
+  // A tampered lockfile can delete both the tarball URL and integrity from a canonical
+  // registry entry; the URL is reconstructed from name+version, so it must still be rejected.
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify({} as unknown as Resolution, { name: 'foo', version: '1.0.0' })
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() treats an empty-string integrity as missing', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { integrity: '', tarball: REGISTRY_TARBALL } as unknown as Resolution,
+    { name: 'foo', version: '1.0.0' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() treats a non-string integrity as missing', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  for (const integrity of [true, [], {}] as unknown[]) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await verifier.verify(
+      { integrity, tarball: REGISTRY_TARBALL } as unknown as Resolution,
+      { name: 'foo', version: '1.0.0' }
+    )
+    expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+  }
+})
+
+test('createNpmResolutionVerifier() enforces missing integrity even with a non-semver version', async () => {
+  // The integrity check must run before the semver guard so a tampered non-semver version
+  // can't be used to skip it.
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { tarball: REGISTRY_TARBALL } as unknown as Resolution,
+    { name: 'foo', version: 'not-a-semver' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() rejects a non-string tarball instead of crashing', async () => {
+  // A YAML array `tarball` would otherwise be string-coerced into an attacker URL later;
+  // the verifier fails closed rather than silently skipping the URL-binding check.
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { integrity: FAKE_INTEGRITY, tarball: ['https://attacker.example/foo-1.0.0.tgz'] } as unknown as Resolution,
+    { name: 'foo', version: '1.0.0' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
+})
+
 const FAKE_INTEGRITY = 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
 
 test('createNpmResolutionVerifier() flags a lockfile tarball URL that does not match the registry metadata', async () => {

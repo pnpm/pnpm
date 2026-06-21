@@ -8881,6 +8881,9 @@ importers:
         specifier: workspace:*
         version: link:../../core/types
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: 'link:'

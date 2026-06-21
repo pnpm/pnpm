@@ -1,6 +1,19 @@
 import { expect, test } from '@jest/globals'
 import { pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
+test('pkgSnapshotToResolution() fails closed on a non-string tarball', () => {
+  // A tampered lockfile (YAML) could carry a non-string `tarball` that `new URL()` would
+  // string-coerce into an attacker-controlled URL.
+  expect(() => pkgSnapshotToResolution('foo@1.0.0', {
+    resolution: {
+      integrity: 'sha512-AAAA',
+      tarball: ['https://attacker.example/foo.tgz'],
+    },
+  } as never, { default: 'https://registry.npmjs.org/' })).toThrow(
+    expect.objectContaining({ code: 'ERR_PNPM_INVALID_TARBALL_RESOLUTION' })
+  )
+})
+
 test('pkgSnapshotToResolution()', () => {
   expect(pkgSnapshotToResolution('foo@1.0.0', {
     resolution: {

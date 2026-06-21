@@ -1,0 +1,50 @@
+import { expect, test } from '@jest/globals'
+import { classifyResolution, isGitHostedTarballUrl, type Resolution } from '@pnpm/resolving.resolver-base'
+
+test('classifyResolution() classifies tarball-shaped resolutions', () => {
+  expect(classifyResolution({ tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz' } as Resolution)).toBe('remoteTarball')
+  expect(classifyResolution({ tarball: 'file:foo-1.0.0.tgz' } as Resolution)).toBe('localTarball')
+  expect(classifyResolution({ tarball: 'https://codeload.github.com/foo/bar/tar.gz/abc' } as Resolution)).toBe('gitHostedTarball')
+  // The `gitHosted` flag wins even when the URL isn't a recognized git host.
+  expect(classifyResolution({ tarball: 'https://example.com/foo.tgz', gitHosted: true } as Resolution)).toBe('gitHostedTarball')
+})
+
+test('classifyResolution() treats a canonical entry with no tarball URL as a remote tarball', () => {
+  // A canonical registry entry omits the URL (reconstructed from name+version), so an empty
+  // resolution must still classify as a remote tarball rather than something exempt.
+  expect(classifyResolution({} as Resolution)).toBe('remoteTarball')
+  expect(classifyResolution({ integrity: 'sha512-x' } as Resolution)).toBe('remoteTarball')
+})
+
+test('classifyResolution() classifies typed resolutions', () => {
+  expect(classifyResolution({ type: 'directory', directory: '/foo' } as Resolution)).toBe('directory')
+  expect(classifyResolution({ type: 'git', repo: 'r', commit: 'c' } as Resolution)).toBe('git')
+  expect(classifyResolution({ type: 'binary', url: 'u', integrity: 'i', archive: 'tarball', bin: 'b' } as Resolution)).toBe('binary')
+  expect(classifyResolution({ type: 'variations', variants: [] } as Resolution)).toBe('custom')
+  expect(classifyResolution({ type: 'custom:cdn' } as Resolution)).toBe('custom')
+})
+
+test('classifyResolution() treats a YAML `type: null` as a tarball, not custom', () => {
+  expect(classifyResolution({ type: null, tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz' } as unknown as Resolution)).toBe('remoteTarball')
+})
+
+test('classifyResolution() does not crash on a non-string tarball from a tampered lockfile', () => {
+  expect(classifyResolution({ tarball: ['https://attacker.example/foo.tgz'] } as unknown as Resolution)).toBe('remoteTarball')
+  expect(classifyResolution({ tarball: 42 } as unknown as Resolution)).toBe('remoteTarball')
+})
+
+test('isGitHostedTarballUrl() recognizes git provider archive URLs (case-insensitive)', () => {
+  expect(isGitHostedTarballUrl('https://codeload.github.com/foo/bar/tar.gz/abc')).toBe(true)
+  expect(isGitHostedTarballUrl('https://gitlab.com/foo/bar/-/archive/abc/bar.tar.gz')).toBe(true)
+  expect(isGitHostedTarballUrl('https://bitbucket.org/foo/bar/get/abc.tar.gz')).toBe(true)
+  // A tampered upper-cased host must not slip past as a registry-trusted tarball.
+  expect(isGitHostedTarballUrl('https://CODELOAD.GITHUB.COM/foo/bar/tar.gz/abc')).toBe(true)
+})
+
+test('isGitHostedTarballUrl() rejects non-git-host and non-string inputs', () => {
+  expect(isGitHostedTarballUrl('https://registry.npmjs.org/foo/-/foo-1.0.0.tgz')).toBe(false)
+  // Git host but not a tarball archive.
+  expect(isGitHostedTarballUrl('https://github.com/foo/bar')).toBe(false)
+  expect(isGitHostedTarballUrl(undefined as unknown as string)).toBe(false)
+  expect(isGitHostedTarballUrl(['https://codeload.github.com/x/tar.gz'] as unknown as string)).toBe(false)
+})

@@ -18,6 +18,13 @@ export function pkgSnapshotToResolution (
   registries: Registries
 ): Resolution {
   const resolution = pkgSnapshot.resolution as TarballResolution
+  if (resolution.tarball != null && typeof resolution.tarball !== 'string') {
+    // Lockfiles are untrusted; a non-string `tarball` (e.g. a YAML array) would otherwise be
+    // string-coerced into an attacker-controlled URL by `new url.URL(...)`, and crash the
+    // string checks below. Fail closed.
+    throw new PnpmError('INVALID_TARBALL_RESOLUTION',
+      `Cannot install package "${depPath}": its lockfile entry has a non-string "tarball" field.`)
+  }
   if (
     Boolean(resolution.type) ||
     resolution.tarball?.startsWith('file:') ||
@@ -46,17 +53,10 @@ export function pkgSnapshotToResolution (
     registry = registries.default
   }
   let tarball!: string
-  const rawTarball = (pkgSnapshot.resolution as { tarball?: unknown }).tarball
-  if (rawTarball != null && typeof rawTarball !== 'string') {
-    // Lockfiles are untrusted; a non-string `tarball` (e.g. a YAML array) would otherwise be
-    // string-coerced into an attacker-controlled URL by `new url.URL(...)`. Fail closed.
-    throw new PnpmError('INVALID_TARBALL_RESOLUTION',
-      `Cannot install package "${depPath}": its lockfile entry has a non-string "tarball" field.`)
-  }
-  if (!rawTarball) {
+  if (!resolution.tarball) {
     tarball = getTarball(registry)
   } else {
-    tarball = new url.URL(rawTarball as string,
+    tarball = new url.URL(resolution.tarball,
       registry.endsWith('/') ? registry : `${registry}/`
     ).toString()
   }
