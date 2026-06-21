@@ -19,6 +19,8 @@ pub struct FindHashArgs {
     pub hash: String,
 }
 
+const EXPECTED_HEX_LENGTH: usize = 128;
+
 impl FindHashArgs {
     pub fn run<'a>(
         self,
@@ -44,6 +46,16 @@ impl FindHashArgs {
                 write!(&mut hex, "{b:02x}").into_diagnostic()?;
             }
             hash = hex;
+        } else if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(miette::miette!(
+                "Invalid hash format: \"{hash}\" contains non-hexadecimal characters. \
+                 Expected a 128-character hex string or a shaN-base64 format."
+            ));
+        } else if hash.len() != EXPECTED_HEX_LENGTH {
+            return Err(miette::miette!(
+                "Invalid hash format: \"{hash}\" has {} character(s), expected {EXPECTED_HEX_LENGTH}.",
+                hash.len(),
+            ));
         }
         hash = hash.to_lowercase();
 
