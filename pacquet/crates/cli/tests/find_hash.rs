@@ -53,7 +53,7 @@ fn find_hash_works() {
     assert!(stdout.contains(&expected_name), "Expected stdout to contain name {expected_name}");
     assert!(
         stdout.contains(&expected_version),
-        "Expected stdout to contain version {expected_version}"
+        "Expected stdout to contain version {expected_version}",
     );
 }
 
@@ -125,6 +125,6 @@ fn find_hash_works_with_base64() {
     assert!(stdout.contains(&expected_name), "Expected stdout to contain name {expected_name}");
     assert!(
         stdout.contains(&expected_version),
-        "Expected stdout to contain version {expected_version}"
+        "Expected stdout to contain version {expected_version}",
     );
 }
