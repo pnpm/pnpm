@@ -8,7 +8,7 @@ use pacquet_catalogs_resolver::{
     resolve_from_catalog,
 };
 use pacquet_catalogs_types::Catalogs;
-use pacquet_hooks::PnpmfileHooks;
+use pacquet_hooks::{PnpmfileHooks, PnpmfileHooksKind};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_patching::{PatchGroupRecord, PatchKeyConflictError, get_patch_info};
 use pacquet_resolving_resolver_base::{
@@ -135,7 +135,7 @@ pub struct ResolveDependencyTreeOptions {
     pub base_opts: ResolveOptions,
     pub patched_dependencies: Option<Arc<PatchGroupRecord>>,
     pub manifest_hook: Option<ManifestHook>,
-    pub pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
+    pub pnpmfile_hook: Option<Arc<PnpmfileHooksKind>>,
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls. `None` leaves hook logging a no-op. See
     /// [`WorkspaceTreeCtx::with_read_package_log`].
@@ -566,7 +566,7 @@ pub struct WorkspaceTreeCtx {
     /// whole walk. `true` means the package and its entire transitive
     /// subtree can be synthesized from the prior lockfile.
     subtree_reusable: Mutex<HashMap<PkgNameVerPeer, bool>>,
-    pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>,
+    pnpmfile_hook: Option<Arc<PnpmfileHooksKind>>,
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls, pre-bound to the install's reporter, project prefix, and
     /// pnpmfile path. `None` leaves hook logging a no-op. See
@@ -765,7 +765,7 @@ impl WorkspaceTreeCtx {
     }
 
     #[must_use]
-    pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
+    pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<PnpmfileHooksKind>>) -> Self {
         self.pnpmfile_hook = pnpmfile_hook;
         self
     }
@@ -987,7 +987,7 @@ impl TreeCtx {
     }
 
     #[must_use]
-    pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
+    pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<PnpmfileHooksKind>>) -> Self {
         Arc::get_mut(&mut self.workspace)
             .expect("with_pnpmfile_hook called after the workspace ctx was shared via Arc::clone")
             .pnpmfile_hook = pnpmfile_hook;

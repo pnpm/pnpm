@@ -16,7 +16,7 @@ use pacquet_env_installer::{
     ConfigDepsInstallOptions, resolve_and_install_config_deps, resolve_package_manager_integrities,
 };
 use pacquet_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
-use pacquet_hooks::{HookContext, LogFn, finder};
+use pacquet_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
 use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
 use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use pacquet_resolving_npm_resolver::{

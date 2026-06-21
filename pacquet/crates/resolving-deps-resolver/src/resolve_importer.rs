@@ -159,7 +159,7 @@ pub struct ResolveImporterOptions {
 
     /// `pnpmfileHook` applied to every resolved manifest. Wraps
     /// `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
-    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub pnpmfile_hook: Option<Arc<pacquet_hooks::PnpmfileHooksKind>>,
 }
 
 impl std::fmt::Debug for ResolveImporterOptions {

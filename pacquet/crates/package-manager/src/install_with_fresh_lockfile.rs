@@ -16,7 +16,7 @@ use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
-use pacquet_hooks::finder;
+use pacquet_hooks::{PnpmfileHooks, finder};
 use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -2028,7 +2028,7 @@ fn hook_log_fn<Reporter: self::Reporter>(
 async fn save_wanted_lockfile(
     built_lockfile: &Lockfile,
     target: &Path,
-    hook: Option<&Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    hook: Option<&Arc<pacquet_hooks::PnpmfileHooksKind>>,
     log: Option<pacquet_hooks::LogFn>,
 ) -> Result<bool, InstallWithFreshLockfileError> {
     let Some(hook) = hook else {

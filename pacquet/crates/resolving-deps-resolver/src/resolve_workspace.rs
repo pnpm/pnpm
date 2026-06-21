@@ -100,7 +100,7 @@ pub struct WorkspaceResolveOptions {
     /// `pnpmfileHook` applied to every resolved manifest before it
     /// enters the wanted-dep cache. Workspace-wide (one hook per
     /// install); wraps `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
-    pub pnpmfile_hook: Option<Arc<dyn pacquet_hooks::PnpmfileHooks>>,
+    pub pnpmfile_hook: Option<Arc<pacquet_hooks::PnpmfileHooksKind>>,
 
     /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
     /// calls, pre-bound to the install's reporter. `None` leaves hook

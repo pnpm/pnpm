@@ -7,7 +7,7 @@ use std::{path::Path, sync::Arc};
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use serde_json::Value;
 
-use pacquet_hooks::{CustomResolver, HookError, finder};
+use pacquet_hooks::{CustomResolver, HookError, PnpmfileHooks, finder};
 use pacquet_lockfile::{Lockfile, PackageKey, SnapshotEntry};
 
 /// Load the pnpmfile at `lockfile_dir` (if any) and report whether its

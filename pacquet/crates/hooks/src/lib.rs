@@ -13,13 +13,14 @@ pub use worker::LogFn;
 /// Represents the results of a `readPackage` hook.
 pub type ReadPackageResult = Arc<Value>;
 
-/// Boxed-future return type for the async methods of [`PnpmfileHooks`]
-/// and [`CustomResolver`]. Same `dyn Trait` ergonomics rationale as
+/// Boxed-future return type for the async methods of [`CustomResolver`].
+/// Same `dyn Trait` ergonomics rationale as
 /// [`pacquet_resolving_resolver_base::VerifyFuture`]: async-fn-in-trait
 /// is stable, but a `dyn` trait whose methods return `impl Future` is
-/// not, and both traits are only ever used behind `Arc<dyn _>`. Generic
-/// over the output because these traits expose many methods with
-/// distinct return types.
+/// not, and [`CustomResolver`] is held behind `Arc<dyn _>` because a
+/// pnpmfile can export an open-ended set of resolvers. Generic over the
+/// output because the trait exposes several methods with distinct
+/// return types.
 pub type HookFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// An error raised while running a pnpmfile hook in Node.js.
@@ -59,6 +60,14 @@ pub struct PreResolutionHookContext {
 }
 
 /// The surface of hooks provided by `.pnpmfile.cjs` / `pnpmfile.cjs`.
+///
+/// The concrete hook set is selected at runtime (a real pnpmfile or the
+/// no-op) from a closed set, so callers hold the [`PnpmfileHooksKind`]
+/// enum rather than a `dyn` trait object: every call dispatches
+/// statically and the returned futures stay unboxed. Methods return
+/// `impl Future + Send` (RPITIT with an explicit `Send` bound) so the
+/// futures are usable across `tokio` tasks without the bound being
+/// re-stated at each call site.
 pub trait PnpmfileHooks: Send + Sync {
     /// `readPackage` hook: modifies a package manifest before it is used for resolution.
     ///
@@ -70,7 +79,7 @@ pub trait PnpmfileHooks: Send + Sync {
         &self,
         pkg: Value,
         ctx: HookContext,
-    ) -> HookFuture<'_, Result<ReadPackageResult, HookError>>;
+    ) -> impl Future<Output = Result<ReadPackageResult, HookError>> + Send;
 
     /// `afterAllResolved` hook: modifies the final resolved lockfile.
     ///
@@ -81,7 +90,7 @@ pub trait PnpmfileHooks: Send + Sync {
         &self,
         lockfile: Value,
         ctx: HookContext,
-    ) -> HookFuture<'_, Result<Value, HookError>>;
+    ) -> impl Future<Output = Result<Value, HookError>> + Send;
 
     /// `updateConfig` hook: transforms the resolved configuration before
     /// install. Config-dependency plugins use it to inject settings such
@@ -95,12 +104,12 @@ pub trait PnpmfileHooks: Send + Sync {
         &self,
         config: Value,
         ctx: HookContext,
-    ) -> HookFuture<'_, Result<Value, HookError>> {
+    ) -> impl Future<Output = Result<Value, HookError>> + Send {
         let _ = ctx;
         // The default no-op returns the config unchanged. Returning it
         // (rather than `Null`) keeps the chaining caller simple: every
         // hook takes and returns a config object.
-        Box::pin(async move { Ok(config) })
+        async move { Ok(config) }
     }
 
     /// `preResolution` hook: side-effect hook called before resolution (e.g., logging, validation).
@@ -108,10 +117,10 @@ pub trait PnpmfileHooks: Send + Sync {
         &self,
         ctx: PreResolutionHookContext,
         logger: PreResolutionHookLogger,
-    ) -> HookFuture<'_, ()>;
+    ) -> impl Future<Output = ()> + Send;
 
     /// `filterLog` hook: determines if a log message should be emitted.
-    fn filter_log(&self, log: Value, ctx: HookContext) -> HookFuture<'_, bool>;
+    fn filter_log(&self, log: Value, ctx: HookContext) -> impl Future<Output = bool> + Send;
 
     /// Compute the `pnpmfileChecksum` recorded in `pnpm-lock.yaml`, or
     /// `None` when this hook set defines no `hooks` object.
@@ -124,8 +133,8 @@ pub trait PnpmfileHooks: Send + Sync {
     /// the normalized-content hash of the included pnpmfiles. A pnpmfile
     /// that exists but exports no hooks contributes no checksum, matching
     /// pnpm.
-    fn calculate_pnpmfile_checksum(&self) -> HookFuture<'_, Option<String>> {
-        Box::pin(async move { None })
+    fn calculate_pnpmfile_checksum(&self) -> impl Future<Output = Option<String>> + Send {
+        async move { None }
     }
 
     /// Path of the pnpmfile that defines these hooks, used as the `from`
@@ -139,10 +148,14 @@ pub trait PnpmfileHooks: Send + Sync {
     /// `resolvers` array. Mirrors pnpm's
     /// [`requireHooks`](https://github.com/pnpm/pnpm/blob/1627943d2a/hooks/pnpmfile/src/requireHooks.ts#L222-L228)
     /// merge of `resolvers` exports into `cookedHooks.customResolvers`.
+    ///
+    /// The resolvers themselves stay `dyn`: a pnpmfile can export an
+    /// arbitrary, open-ended set of them, so [`CustomResolver`] is the
+    /// one hook trait that remains a boxed trait object.
     fn get_custom_resolvers(
         &self,
-    ) -> HookFuture<'_, Result<Vec<Arc<dyn CustomResolver>>, HookError>> {
-        Box::pin(async move { Ok(vec![]) })
+    ) -> impl Future<Output = Result<Vec<Arc<dyn CustomResolver>>, HookError>> + Send {
+        async move { Ok(vec![]) }
     }
 }
 
@@ -192,28 +205,94 @@ pub trait CustomResolver: Send + Sync {
 pub struct NoopHooks;
 
 impl PnpmfileHooks for NoopHooks {
-    fn read_package(
+    async fn read_package(
         &self,
         pkg: Value,
         _: HookContext,
-    ) -> HookFuture<'_, Result<ReadPackageResult, HookError>> {
-        Box::pin(async move { Ok(Arc::new(pkg)) })
+    ) -> Result<ReadPackageResult, HookError> {
+        Ok(Arc::new(pkg))
     }
-    fn after_all_resolved(
+    async fn after_all_resolved(&self, _: Value, _: HookContext) -> Result<Value, HookError> {
+        Ok(Value::Null)
+    }
+    async fn pre_resolution(&self, _: PreResolutionHookContext, _: PreResolutionHookLogger) {}
+    async fn filter_log(&self, _: Value, _: HookContext) -> bool {
+        true
+    }
+}
+
+/// The selected pnpmfile hook set. A closed set chosen at runtime —
+/// either a real pnpmfile run through Node.js or the [`NoopHooks`]
+/// fallback — held as a concrete `enum` so [`PnpmfileHooks`] calls
+/// dispatch statically and the returned futures stay unboxed. See
+/// [`finder::load_pnpmfile`] for the selection.
+pub enum PnpmfileHooksKind {
+    NodeJs(node_runtime::NodeJsHooks),
+    Noop(NoopHooks),
+}
+
+impl PnpmfileHooks for PnpmfileHooksKind {
+    async fn read_package(
         &self,
-        _: Value,
-        _: HookContext,
-    ) -> HookFuture<'_, Result<Value, HookError>> {
-        Box::pin(async move { Ok(Value::Null) })
+        pkg: Value,
+        ctx: HookContext,
+    ) -> Result<ReadPackageResult, HookError> {
+        match self {
+            PnpmfileHooksKind::NodeJs(hooks) => hooks.read_package(pkg, ctx).await,
+            PnpmfileHooksKind::Noop(hooks) => hooks.read_package(pkg, ctx).await,
+        }
     }
-    fn pre_resolution(
+
+    async fn after_all_resolved(
         &self,
-        _: PreResolutionHookContext,
-        _: PreResolutionHookLogger,
-    ) -> HookFuture<'_, ()> {
-        Box::pin(async move {})
+        lockfile: Value,
+        ctx: HookContext,
+    ) -> Result<Value, HookError> {
+        match self {
+            PnpmfileHooksKind::NodeJs(hooks) => hooks.after_all_resolved(lockfile, ctx).await,
+            PnpmfileHooksKind::Noop(hooks) => hooks.after_all_resolved(lockfile, ctx).await,
+        }
     }
-    fn filter_log(&self, _: Value, _: HookContext) -> HookFuture<'_, bool> {
-        Box::pin(async move { true })
+
+    async fn update_config(&self, config: Value, ctx: HookContext) -> Result<Value, HookError> {
+        match self {
+            PnpmfileHooksKind::NodeJs(hooks) => hooks.update_config(config, ctx).await,
+            PnpmfileHooksKind::Noop(hooks) => hooks.update_config(config, ctx).await,
+        }
+    }
+
+    async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) {
+        match self {
+            PnpmfileHooksKind::NodeJs(hooks) => hooks.pre_resolution(ctx, logger).await,
+            PnpmfileHooksKind::Noop(hooks) => hooks.pre_resolution(ctx, logger).await,
+        }
+    }
+
+    async fn filter_log(&self, log: Value, ctx: HookContext) -> bool {
+        match self {
+            PnpmfileHooksKind::NodeJs(hooks) => hooks.filter_log(log, ctx).await,
+            PnpmfileHooksKind::Noop(hooks) => hooks.filter_log(log, ctx).await,
+        }
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        match self {
+            PnpmfileHooksKind::NodeJs(hooks) => hooks.calculate_pnpmfile_checksum().await,
+            PnpmfileHooksKind::Noop(hooks) => hooks.calculate_pnpmfile_checksum().await,
+        }
+    }
+
+    fn source_path(&self) -> Option<&std::path::Path> {
+        match self {
+            PnpmfileHooksKind::NodeJs(hooks) => hooks.source_path(),
+            PnpmfileHooksKind::Noop(hooks) => hooks.source_path(),
+        }
+    }
+
+    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {
+        match self {
+            PnpmfileHooksKind::NodeJs(hooks) => hooks.get_custom_resolvers().await,
+            PnpmfileHooksKind::Noop(hooks) => hooks.get_custom_resolvers().await,
+        }
     }
 }

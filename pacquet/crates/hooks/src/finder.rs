@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use super::PnpmfileHooks;
+use super::{PnpmfileHooksKind, node_runtime::NodeJsHooks};
 
 #[must_use]
 pub fn find_pnpmfile(root: &Path) -> Option<std::path::PathBuf> {
@@ -19,17 +19,17 @@ pub fn find_pnpmfile(root: &Path) -> Option<std::path::PathBuf> {
 }
 
 #[must_use]
-pub fn load_pnpmfile(root: &Path) -> Option<Arc<dyn PnpmfileHooks>> {
+pub fn load_pnpmfile(root: &Path) -> Option<Arc<PnpmfileHooksKind>> {
     let file = find_pnpmfile(root)?;
-    Some(Arc::new(super::node_runtime::NodeJsHooks::new(file)))
+    Some(Arc::new(PnpmfileHooksKind::NodeJs(NodeJsHooks::new(file))))
 }
 
 /// Load a pnpmfile from an explicit path (used for config-dependency
 /// plugin pnpmfiles, which live at
 /// `node_modules/.pnpm-config/<plugin>/pnpmfile.{mjs,cjs}`).
 #[must_use]
-pub fn load_pnpmfile_at(file: PathBuf) -> Arc<dyn PnpmfileHooks> {
-    Arc::new(super::node_runtime::NodeJsHooks::new(file))
+pub fn load_pnpmfile_at(file: PathBuf) -> Arc<PnpmfileHooksKind> {
+    Arc::new(PnpmfileHooksKind::NodeJs(NodeJsHooks::new(file)))
 }
 
 /// Whether `name` is a pnpm plugin package — one whose pnpmfile is
