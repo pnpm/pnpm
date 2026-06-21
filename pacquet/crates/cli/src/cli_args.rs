@@ -1,4 +1,5 @@
 pub mod add;
+pub mod cat_file;
 pub mod create;
 pub mod dlx;
 pub mod exec;
@@ -17,6 +18,7 @@ pub mod why;
 
 use crate::{State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
+use cat_file::CatFileArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use create::CreateArgs;
 use dlx::DlxArgs;
@@ -159,6 +161,8 @@ pub enum CliCommand {
     /// Managing the package store.
     #[clap(subcommand)]
     Store(StoreCommand),
+    /// Prints the contents of a file based on the hash value stored in the index file.
+    CatFile(CatFileArgs),
 }
 
 impl CliArgs {
@@ -456,6 +460,9 @@ impl CliArgs {
                 args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
             }
             CliCommand::Store(command) => command.run(|| config().map(|m| &*m))?,
+            CliCommand::CatFile(args) => {
+                args.run(|| config().map(|m| &*m))?;
+            }
         }
 
         // The `Done in ...` footer covers the whole command, mirroring pnpm's

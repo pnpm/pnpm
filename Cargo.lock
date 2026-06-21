@@ -3470,6 +3470,7 @@ name = "pacquet-cli"
 version = "0.0.1"
 dependencies = [
  "assert_cmd",
+ "base64 0.22.1",
  "clap",
  "command-extra",
  "derive_more",

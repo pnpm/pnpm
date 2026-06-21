@@ -60,6 +60,7 @@ serde_json   = { workspace = true }
 tabled       = { workspace = true }
 tokio        = { workspace = true }
 which        = { workspace = true }
+base64       = { workspace = true }
 
 # Windows has no process groups, so a Job Object ties the lifetime of spawned
 # children (lifecycle scripts and their descendants) to pacquet's. See
