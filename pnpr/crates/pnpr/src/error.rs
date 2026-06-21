@@ -161,6 +161,15 @@ pub enum RegistryError {
 }
 
 impl RegistryError {
+    #[must_use]
+    pub fn public_message(&self) -> String {
+        let status = self.status_code();
+        if status.is_server_error() {
+            return status.canonical_reason().unwrap_or("Internal Server Error").to_string();
+        }
+        self.to_string()
+    }
+
     /// Map the error to the HTTP status the proxy should return to the
     /// client. Follows the standard gateway semantics:
     ///

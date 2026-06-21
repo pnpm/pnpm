@@ -56,6 +56,17 @@ mod libsql_backend;
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 mod sqlx_backend;
 
+pub(crate) const MAX_USERNAME_CHARS: usize = 255;
+
+pub(crate) fn validate_username(username: &str) -> Result<()> {
+    if username.chars().count() > MAX_USERNAME_CHARS {
+        return Err(RegistryError::BadRequest {
+            reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
+        });
+    }
+    Ok(())
+}
+
 /// Bundle of the user store and the token store, each a trait object
 /// so the rest of the server doesn't have to know whether auth is
 /// file-backed, in-memory, or networked. Built once at startup by

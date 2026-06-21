@@ -40,3 +40,14 @@ fn object_store_error_maps_to_bad_gateway() {
     });
     assert_eq!(err.status_code(), StatusCode::BAD_GATEWAY);
 }
+
+#[test]
+fn public_message_hides_server_error_details() {
+    let err = RegistryError::ObjectStore(object_store::Error::Generic {
+        store: "test",
+        source: "internal-hostname".into(),
+    });
+    assert_eq!(err.status_code(), StatusCode::BAD_GATEWAY);
+    assert_eq!(err.public_message(), "Bad Gateway");
+    assert!(err.to_string().contains("internal-hostname"));
+}

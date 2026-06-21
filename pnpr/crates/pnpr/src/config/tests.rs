@@ -441,6 +441,35 @@ fn backend_defaults_to_local_without_a_block() {
 }
 
 #[test]
+fn backend_block_rejects_empty_selection() {
+    let yaml = "storage: /var/lib/pnpr\nbackend: {}\nuplinks: {}\npackages: {}\n";
+    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
+        .expect_err("an empty backend block must not fall back to local");
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("exactly one database backend")),
+        "expected an InvalidConfig naming the backend selection, got {err:?}",
+    );
+}
+
+#[test]
+fn backend_block_rejects_unknown_only_selection() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  sqlite:
+    url: sqlite:///var/lib/pnpr/auth.db
+uplinks: {}
+packages: {}
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
+        .expect_err("an unknown backend key must not fall back to local");
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("exactly one database backend")),
+        "expected an InvalidConfig naming the backend selection, got {err:?}",
+    );
+}
+
+#[test]
 fn libsql_backend_block_selects_the_networked_record_store() {
     let yaml = "\
 storage: /var/lib/pnpr

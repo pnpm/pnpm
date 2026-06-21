@@ -3,7 +3,8 @@
 
 use super::{
     DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, mint_token, sha256_hex, unix_seconds, verify_bcrypt, verify_returning_user,
+    hash_bcrypt, mint_token, sha256_hex, unix_seconds, validate_username, verify_bcrypt,
+    verify_returning_user,
 };
 use crate::{
     config::MaxUsers,
@@ -55,6 +56,7 @@ where
     Db: AuthSqlBackend,
 {
     async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+        validate_username(username)?;
         if let Some(stored) = self.db.stored_hash(username).await? {
             return verify_returning_user(username, password, stored).await;
         }
@@ -180,8 +182,10 @@ pub(super) mod postgres {
         }
 
         async fn user_count(&self) -> Result<u64> {
-            let count: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+            let Some(count) = self.user_counter().await? else {
+                self.ensure_user_counter().await?;
+                return Ok(self.user_counter().await?.unwrap_or(0).max(0) as u64);
+            };
             Ok(count.max(0) as u64)
         }
 
@@ -192,19 +196,28 @@ pub(super) mod postgres {
             max_users: MaxUsers,
         ) -> Result<InsertUser> {
             let mut tx = self.pool.begin().await?;
-            if let MaxUsers::Limited(max) = max_users {
-                let updated = sqlx::query(
-                    "UPDATE auth_counters SET value = value + 1
-                     WHERE name = $1 AND value < $2",
-                )
-                .bind("users")
-                .bind(max as i64)
-                .execute(&mut *tx)
-                .await?;
-                if updated.rows_affected() == 0 {
-                    tx.rollback().await?;
-                    return self.existing_or_cap_reached(username).await;
+            match max_users {
+                MaxUsers::Limited(max) => {
+                    let updated = sqlx::query(
+                        "UPDATE auth_counters SET value = value + 1
+                         WHERE name = $1 AND value < $2",
+                    )
+                    .bind("users")
+                    .bind(max as i64)
+                    .execute(&mut *tx)
+                    .await?;
+                    if updated.rows_affected() == 0 {
+                        tx.rollback().await?;
+                        return self.existing_or_cap_reached(username).await;
+                    }
                 }
+                MaxUsers::Unlimited => {
+                    sqlx::query("UPDATE auth_counters SET value = value + 1 WHERE name = $1")
+                        .bind("users")
+                        .execute(&mut *tx)
+                        .await?;
+                }
+                MaxUsers::Disabled => {}
             }
             let inserted = sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES ($1, $2)")
                 .bind(username)
@@ -298,8 +311,10 @@ pub(super) mod postgres {
         }
 
         async fn ensure_user_counter(&self) -> Result<()> {
-            let count: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+            let count = self.actual_user_count().await?;
+            if self.set_user_counter_floor(count).await? > 0 {
+                return Ok(());
+            }
             let inserted = sqlx::query("INSERT INTO auth_counters (name, value) VALUES ($1, $2)")
                 .bind("users")
                 .bind(count)
@@ -307,9 +322,40 @@ pub(super) mod postgres {
                 .await;
             match inserted {
                 Ok(_) => Ok(()),
-                Err(err) if is_unique_violation(&err) => Ok(()),
+                Err(err) if is_unique_violation(&err) => {
+                    self.set_user_counter_floor(count).await?;
+                    Ok(())
+                }
                 Err(err) => Err(err.into()),
             }
+        }
+
+        async fn actual_user_count(&self) -> Result<i64> {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+            Ok(count.max(0))
+        }
+
+        async fn user_counter(&self) -> Result<Option<i64>> {
+            let count: Option<i64> =
+                sqlx::query_scalar("SELECT value FROM auth_counters WHERE name = $1")
+                    .bind("users")
+                    .fetch_optional(&self.pool)
+                    .await?;
+            Ok(count)
+        }
+
+        async fn set_user_counter_floor(&self, count: i64) -> Result<u64> {
+            let updated = sqlx::query(
+                "UPDATE auth_counters
+                 SET value = CASE WHEN value < $2 THEN $2 ELSE value END
+                 WHERE name = $1",
+            )
+            .bind("users")
+            .bind(count)
+            .execute(&self.pool)
+            .await?;
+            Ok(updated.rows_affected())
         }
 
         async fn existing_or_cap_reached(&self, username: &str) -> Result<InsertUser> {
@@ -395,8 +441,10 @@ pub(super) mod mysql {
         }
 
         async fn user_count(&self) -> Result<u64> {
-            let count: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+            let Some(count) = self.user_counter().await? else {
+                self.ensure_user_counter().await?;
+                return Ok(self.user_counter().await?.unwrap_or(0).max(0) as u64);
+            };
             Ok(count.max(0) as u64)
         }
 
@@ -407,19 +455,28 @@ pub(super) mod mysql {
             max_users: MaxUsers,
         ) -> Result<InsertUser> {
             let mut tx = self.pool.begin().await?;
-            if let MaxUsers::Limited(max) = max_users {
-                let updated = sqlx::query(
-                    "UPDATE auth_counters SET value = value + 1
-                     WHERE name = ? AND value < ?",
-                )
-                .bind("users")
-                .bind(max as i64)
-                .execute(&mut *tx)
-                .await?;
-                if updated.rows_affected() == 0 {
-                    tx.rollback().await?;
-                    return self.existing_or_cap_reached(username).await;
+            match max_users {
+                MaxUsers::Limited(max) => {
+                    let updated = sqlx::query(
+                        "UPDATE auth_counters SET value = value + 1
+                         WHERE name = ? AND value < ?",
+                    )
+                    .bind("users")
+                    .bind(max as i64)
+                    .execute(&mut *tx)
+                    .await?;
+                    if updated.rows_affected() == 0 {
+                        tx.rollback().await?;
+                        return self.existing_or_cap_reached(username).await;
+                    }
                 }
+                MaxUsers::Unlimited => {
+                    sqlx::query("UPDATE auth_counters SET value = value + 1 WHERE name = ?")
+                        .bind("users")
+                        .execute(&mut *tx)
+                        .await?;
+                }
+                MaxUsers::Disabled => {}
             }
             let inserted = sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES (?, ?)")
                 .bind(username)
@@ -513,8 +570,10 @@ pub(super) mod mysql {
         }
 
         async fn ensure_user_counter(&self) -> Result<()> {
-            let count: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+            let count = self.actual_user_count().await?;
+            if self.set_user_counter_floor(count).await? > 0 {
+                return Ok(());
+            }
             let inserted = sqlx::query("INSERT INTO auth_counters (name, value) VALUES (?, ?)")
                 .bind("users")
                 .bind(count)
@@ -522,9 +581,41 @@ pub(super) mod mysql {
                 .await;
             match inserted {
                 Ok(_) => Ok(()),
-                Err(err) if is_unique_violation(&err) => Ok(()),
+                Err(err) if is_unique_violation(&err) => {
+                    self.set_user_counter_floor(count).await?;
+                    Ok(())
+                }
                 Err(err) => Err(err.into()),
             }
+        }
+
+        async fn actual_user_count(&self) -> Result<i64> {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+            Ok(count.max(0))
+        }
+
+        async fn user_counter(&self) -> Result<Option<i64>> {
+            let count: Option<i64> =
+                sqlx::query_scalar("SELECT value FROM auth_counters WHERE name = ?")
+                    .bind("users")
+                    .fetch_optional(&self.pool)
+                    .await?;
+            Ok(count)
+        }
+
+        async fn set_user_counter_floor(&self, count: i64) -> Result<u64> {
+            let updated = sqlx::query(
+                "UPDATE auth_counters
+                 SET value = CASE WHEN value < ? THEN ? ELSE value END
+                 WHERE name = ?",
+            )
+            .bind(count)
+            .bind(count)
+            .bind("users")
+            .execute(&self.pool)
+            .await?;
+            Ok(updated.rows_affected())
         }
 
         async fn existing_or_cap_reached(&self, username: &str) -> Result<InsertUser> {
@@ -573,10 +664,9 @@ pub(super) mod mysql {
     }
 
     fn is_duplicate_index(err: &sqlx::Error) -> bool {
-        err.as_database_error().is_some_and(|err| {
-            err.code().is_some_and(|code| code.as_ref() == "42000" || code.as_ref() == "1061")
-                && err.message().contains("Duplicate")
-        })
+        err.as_database_error()
+            .and_then(|err| err.try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>())
+            .is_some_and(|err| err.number() == 1061)
     }
 }
 

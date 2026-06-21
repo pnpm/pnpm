@@ -101,15 +101,14 @@ impl VerdictCache {
         let policy_json = Value::Object(policy.clone()).to_string();
         let now_ms = now_ms();
         let conn = self.conn.lock().expect("verdict cache poisoned");
-        let _ = conn.unchecked_transaction().and_then(|tx| {
-            tx.execute("DELETE FROM lockfile_verdicts WHERE hash = ?1", rusqlite::params![hash])?;
-            tx.execute(
-                "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms)
-                 VALUES (?1, ?2, ?3)",
-                rusqlite::params![hash, policy_json, now_ms],
-            )?;
-            tx.commit()
-        });
+        let _ = conn.execute(
+            "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(hash) DO UPDATE SET
+                policy = excluded.policy,
+                verified_at_ms = excluded.verified_at_ms",
+            rusqlite::params![hash, policy_json, now_ms],
+        );
         evict_overflow(&conn);
     }
 }

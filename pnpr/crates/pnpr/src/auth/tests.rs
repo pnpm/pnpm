@@ -1,5 +1,6 @@
 use super::{
-    TokenBackend, TokenStore, UpsertOutcome, UserBackend, UserStore, identify, parse_htpasswd,
+    MAX_USERNAME_CHARS, TokenBackend, TokenStore, UpsertOutcome, UserBackend, UserStore, identify,
+    parse_htpasswd, validate_username,
 };
 use crate::config::MaxUsers;
 use std::sync::Arc;
@@ -17,6 +18,15 @@ fn test_user_store() -> UserStore {
         max_users: MaxUsers::Unlimited,
         bcrypt_cost: TEST_COST,
     }
+}
+
+#[test]
+fn username_length_limit_matches_sql_schema() {
+    let max = "a".repeat(MAX_USERNAME_CHARS);
+    let too_long = "a".repeat(MAX_USERNAME_CHARS + 1);
+    validate_username(&max).unwrap();
+    let err = validate_username(&too_long).unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]

@@ -1097,7 +1097,9 @@ fn build_backend_config(
         selected.push(("mysql", BackendConfig::Mysql(settings)));
     }
     match selected.len() {
-        0 => Ok(BackendConfig::Local),
+        0 => Err(RegistryError::InvalidConfig {
+            reason: "backend must select exactly one database backend".to_string(),
+        }),
         1 => Ok(selected.remove(0).1),
         _ => {
             let names = selected.into_iter().map(|(name, _)| name).collect::<Vec<_>>().join(", ");

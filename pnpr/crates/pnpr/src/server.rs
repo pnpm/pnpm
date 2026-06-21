@@ -1,5 +1,5 @@
 use crate::{
-    auth::{AuthState, UpsertOutcome, identify},
+    auth::{AuthState, UpsertOutcome, identify, validate_username},
     config::Config,
     error::RegistryError,
     journal::JournaledPublish,
@@ -734,6 +734,9 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
         return error_response(&RegistryError::BadRequest {
             reason: format!("username in URL ({name:?}) does not match body ({body_name:?})"),
         });
+    }
+    if let Err(err) = validate_username(name) {
+        return error_response(&err);
     }
     let Some(password) = body.get("password").and_then(Value::as_str) else {
         return error_response(&RegistryError::BadRequest {
@@ -2009,7 +2012,7 @@ fn not_found() -> Response {
 fn error_response(err: &RegistryError) -> Response {
     let status = err.status_code();
     tracing::error!(%err, %status, "request failed");
-    (status, err.to_string()).into_response()
+    (status, err.public_message()).into_response()
 }
 
 async fn serve_ping(State(_state): State<AppState>) -> Response {
