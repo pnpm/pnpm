@@ -106,8 +106,8 @@ pub struct Config {
     pub hosted_store: HostedStoreConfig,
     /// Which record store backs the auth state (users + tokens).
     /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
-    /// plus `SQLite` token database. The YAML `backend.libsql:` block
-    /// switches both to a shared networked-SQLite database so several
+    /// plus `SQLite` token database. The YAML `backend:` block can
+    /// switch both stores to one shared SQL database so several
     /// stateless pnpr replicas see a consistent set of accounts.
     pub backend: BackendConfig,
     /// Optional local OSV database used by the resolver to reject known
@@ -135,8 +135,8 @@ pub enum HostedStoreConfig {
 
 /// The resolved record-store backend for auth (users + tokens). Unlike
 /// [`HostedStoreConfig`], this only carries the parsed settings — the
-/// fallible step (connecting to the networked database and ensuring its
-/// schema) is async, so it runs in `AuthState::load` rather than at
+/// fallible step (connecting to the database and ensuring its schema)
+/// is async, so it runs in `AuthState::load` rather than at
 /// config-parse time.
 #[derive(Debug, Default, Clone)]
 pub enum BackendConfig {
@@ -147,6 +147,10 @@ pub enum BackendConfig {
     /// Networked `SQLite` (libsql / Turso): both records live in one
     /// shared database reachable over the network.
     Libsql(LibsqlSettings),
+    /// `PostgreSQL`: both records live in one shared database.
+    Postgres(SqlBackendSettings),
+    /// `MySQL`-compatible database: both records live in one shared database.
+    Mysql(SqlBackendSettings),
 }
 
 /// The YAML `backend.libsql:` block. Whole-file `${ENV}` substitution
@@ -181,6 +185,31 @@ pub struct LibsqlSettings {
 impl LibsqlSettings {
     /// Default embedded-replica background sync cadence.
     pub const DEFAULT_SYNC_INTERVAL_SECS: u64 = 60;
+}
+
+/// The YAML `backend.postgres:` and `backend.mysql:` blocks. Whole-file
+/// `${ENV}` substitution runs before parsing, so `url` can hold
+/// `${...}` refs and keep credentials out of the committed config.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SqlBackendSettings {
+    /// Driver connection URL, e.g. `postgres://user:pass@host/db` or
+    /// `mysql://user:pass@host/db`.
+    pub url: String,
+    /// Maximum connections in the backend pool. Defaults to the
+    /// driver's pool default when omitted.
+    pub max_connections: Option<u32>,
+    /// Deadline for request-path auth database operations.
+    pub timeout: Duration,
+    /// Deadline for initial auth database connect and schema setup.
+    pub startup_timeout: Duration,
+}
+
+impl SqlBackendSettings {
+    /// Default request-path auth database deadline.
+    pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+    /// Default startup auth database deadline.
+    pub const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
 }
 
 /// Auth-related runtime configuration. Built from the YAML
@@ -724,8 +753,8 @@ struct ConfigFile {
     #[serde(default)]
     s3: Option<S3Settings>,
     /// pnpr-only block: back the auth record stores (users + tokens)
-    /// with a networked `SQLite` database. Absent on a stock verdaccio
-    /// config (silently ignored there).
+    /// with a shared SQL database. Absent on a stock verdaccio config
+    /// (silently ignored there).
     #[serde(default)]
     backend: Option<BackendFile>,
     /// pnpr-only local OSV database settings.
@@ -771,6 +800,24 @@ struct AuthFile {
 struct BackendFile {
     #[serde(default)]
     libsql: Option<LibsqlSettings>,
+    #[serde(default)]
+    postgres: Option<SqlBackendFile>,
+    #[serde(default)]
+    postgresql: Option<SqlBackendFile>,
+    #[serde(default)]
+    mysql: Option<SqlBackendFile>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SqlBackendFile {
+    url: String,
+    #[serde(default)]
+    max_connections: Option<u32>,
+    #[serde(default)]
+    timeout: Option<Interval>,
+    #[serde(default)]
+    startup_timeout: Option<Interval>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -971,20 +1018,7 @@ impl Config {
             }
             None => HostedStoreConfig::Fs,
         };
-        let backend = match file.backend.and_then(|block| block.libsql) {
-            Some(mut settings) => {
-                // Resolve a relative `replicaPath` against the config
-                // file's directory, the same convention `storage` and
-                // the auth files follow, so `./auth-replica.db` lands
-                // next to the config rather than in the process CWD.
-                if let Some(path) = settings.replica_path.take() {
-                    settings.replica_path =
-                        Some(if path.is_absolute() { path } else { base_dir.join(path) });
-                }
-                BackendConfig::Libsql(settings)
-            }
-            None => BackendConfig::Local,
-        };
+        let backend = build_backend_config(file.backend, base_dir)?;
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
@@ -1060,6 +1094,98 @@ fn build_osv_config(file: &OsvFile, base_dir: &Path) -> OsvConfig {
     OsvConfig {
         enabled: file.enabled,
         path: file.path.as_deref().map(|path| resolve_relative(path, base_dir)),
+    }
+}
+
+fn build_backend_config(
+    file: Option<BackendFile>,
+    base_dir: &Path,
+) -> Result<BackendConfig, RegistryError> {
+    let Some(file) = file else {
+        return Ok(BackendConfig::Local);
+    };
+    let mut selected = Vec::new();
+    if let Some(mut settings) = file.libsql {
+        resolve_libsql_paths(&mut settings, base_dir);
+        selected.push(("libsql", BackendConfig::Libsql(settings)));
+    }
+    if let Some(settings) = file.postgres {
+        selected.push((
+            "postgres",
+            BackendConfig::Postgres(build_sql_backend_settings("postgres", settings)?),
+        ));
+    }
+    if let Some(settings) = file.postgresql {
+        selected.push((
+            "postgresql",
+            BackendConfig::Postgres(build_sql_backend_settings("postgresql", settings)?),
+        ));
+    }
+    if let Some(settings) = file.mysql {
+        selected
+            .push(("mysql", BackendConfig::Mysql(build_sql_backend_settings("mysql", settings)?)));
+    }
+    match selected.len() {
+        0 => Err(RegistryError::InvalidConfig {
+            reason: "backend must select exactly one database backend".to_string(),
+        }),
+        1 => Ok(selected.remove(0).1),
+        _ => {
+            let names = selected.into_iter().map(|(name, _)| name).collect::<Vec<_>>().join(", ");
+            Err(RegistryError::InvalidConfig {
+                reason: format!("backend must select exactly one database backend, got {names}"),
+            })
+        }
+    }
+}
+
+fn build_sql_backend_settings(
+    backend: &str,
+    file: SqlBackendFile,
+) -> Result<SqlBackendSettings, RegistryError> {
+    let timeout = parse_backend_interval(backend, "timeout", file.timeout.as_ref())?
+        .unwrap_or(SqlBackendSettings::DEFAULT_TIMEOUT);
+    if timeout.is_zero() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!("backend.{backend}.timeout must be greater than 0"),
+        });
+    }
+    let startup_timeout =
+        parse_backend_interval(backend, "startupTimeout", file.startup_timeout.as_ref())?
+            .unwrap_or(SqlBackendSettings::DEFAULT_STARTUP_TIMEOUT);
+    if startup_timeout.is_zero() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!("backend.{backend}.startupTimeout must be greater than 0"),
+        });
+    }
+    Ok(SqlBackendSettings {
+        url: file.url,
+        max_connections: file.max_connections,
+        timeout,
+        startup_timeout,
+    })
+}
+
+fn parse_backend_interval(
+    backend: &str,
+    field: &str,
+    raw: Option<&Interval>,
+) -> Result<Option<Duration>, RegistryError> {
+    raw.map(|Interval(value)| {
+        parse_interval(value).ok_or_else(|| RegistryError::InvalidConfig {
+            reason: format!("backend.{backend}.{field} has an invalid interval {value:?}"),
+        })
+    })
+    .transpose()
+}
+
+fn resolve_libsql_paths(settings: &mut LibsqlSettings, base_dir: &Path) {
+    // Resolve a relative `replicaPath` against the config file's
+    // directory, the same convention `storage` and the auth files
+    // follow, so `./auth-replica.db` lands next to the config rather
+    // than in the process CWD.
+    if let Some(path) = settings.replica_path.take() {
+        settings.replica_path = Some(if path.is_absolute() { path } else { base_dir.join(path) });
     }
 }
 

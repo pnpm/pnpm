@@ -741,19 +741,20 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
         });
     };
 
-    let outcome = match state.inner.auth.users.add_or_login(name, password).await {
+    let (outcome, username) = match state.inner.auth.users.add_or_login(name, password).await {
         Ok(o) => o,
         Err(err) => return error_response(&err),
     };
-    let token = match state.inner.auth.tokens.issue(name).await {
+    let token = match state.inner.auth.tokens.issue(&username).await {
         Ok(t) => t,
         Err(err) => return error_response(&err),
     };
     let ok_msg = match outcome {
-        UpsertOutcome::Created => format!("user '{name}' created"),
-        UpsertOutcome::LoggedIn => format!("you are authenticated as '{name}'"),
+        UpsertOutcome::Created => format!("user '{username}' created"),
+        UpsertOutcome::LoggedIn => format!("you are authenticated as '{username}'"),
     };
-    let body = json!({ "ok": ok_msg, "token": token, "id": format!("org.couchdb.user:{name}") });
+    let body =
+        json!({ "ok": ok_msg, "token": token, "id": format!("org.couchdb.user:{username}") });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
     Response::builder()
         .status(StatusCode::CREATED)
@@ -878,8 +879,8 @@ async fn logout(state: &AppState, headers: &HeaderMap, raw_token: &str) -> Respo
 
 fn token_response_object(key: &str, record: &crate::auth::TokenRecord) -> Value {
     let preview: String = key.chars().take(6).collect();
-    let created = iso_from_unix_millis((record.created_at as i64) * 1000);
-    let updated = iso_from_unix_millis((record.last_used_at as i64) * 1000);
+    let created = token_timestamp_iso(record.created_at);
+    let updated = token_timestamp_iso(record.last_used_at);
     json!({
         "key": key,
         "token": preview,
@@ -890,6 +891,19 @@ fn token_response_object(key: &str, record: &crate::auth::TokenRecord) -> Value 
         "updated": updated,
     })
 }
+
+fn token_timestamp_iso(seconds: u64) -> String {
+    iso_from_unix_millis(token_timestamp_millis(seconds))
+}
+
+fn token_timestamp_millis(seconds: u64) -> i64 {
+    const MILLIS_PER_SECOND: u64 = 1000;
+    let max_seconds = i64::MAX as u64 / MILLIS_PER_SECOND;
+    (seconds.min(max_seconds) * MILLIS_PER_SECOND) as i64
+}
+
+#[cfg(test)]
+mod tests;
 
 async fn caller_username(
     state: &AppState,
@@ -2008,8 +2022,16 @@ fn not_found() -> Response {
 
 fn error_response(err: &RegistryError) -> Response {
     let status = err.status_code();
-    tracing::error!(%err, %status, "request failed");
-    (status, err.to_string()).into_response()
+    let error_kind = err.log_kind();
+    if status.is_server_error() {
+        let err = err.log_message();
+        tracing::error!(%err, %error_kind, %status, "request failed");
+    } else if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+        tracing::debug!(%err, %error_kind, %status, "request failed");
+    } else {
+        tracing::warn!(%err, %error_kind, %status, "request failed");
+    }
+    (status, err.public_message()).into_response()
 }
 
 async fn serve_ping(State(_state): State<AppState>) -> Response {

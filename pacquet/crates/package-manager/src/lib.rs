@@ -44,6 +44,8 @@ mod symlink_direct_dependencies;
 mod symlink_package;
 mod tarball_prefetch;
 mod update;
+mod update_project_manifest;
+mod update_project_manifest_object;
 mod version_policy;
 mod virtual_store_layout;
 
@@ -86,5 +88,7 @@ pub use symlink_direct_dependencies::*;
 pub use symlink_package::*;
 pub use tarball_prefetch::*;
 pub use update::*;
+pub use update_project_manifest::*;
+pub use update_project_manifest_object::*;
 pub use version_policy::*;
 pub use virtual_store_layout::*;

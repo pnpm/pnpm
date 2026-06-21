@@ -10,50 +10,49 @@ use pacquet_resolving_resolver_base::{
 };
 
 use super::CustomResolverAdapter;
-use crate::{CustomResolver, HookError, HookFuture};
+use crate::{CustomResolver, HookError};
 
+/// Observable state shared between a [`ScriptedResolver`] and the test
+/// that built it. The resolver is moved into the adapter, so the test
+/// keeps an `Arc` handle to assert on the calls it recorded.
+#[derive(Clone, Default)]
+struct Recorder {
+    can_resolve_calls: Arc<AtomicUsize>,
+    seen_wanted: Arc<Mutex<Vec<Value>>>,
+    seen_opts: Arc<Mutex<Vec<Value>>>,
+}
+
+#[derive(Clone)]
 struct ScriptedResolver {
     can_resolve: bool,
     response: Value,
-    can_resolve_calls: AtomicUsize,
-    seen_wanted: Mutex<Vec<Value>>,
-    seen_opts: Mutex<Vec<Value>>,
+    recorder: Recorder,
 }
 
 impl ScriptedResolver {
     fn answering(response: Value) -> Self {
-        ScriptedResolver {
-            can_resolve: true,
-            response,
-            can_resolve_calls: AtomicUsize::new(0),
-            seen_wanted: Mutex::new(Vec::new()),
-            seen_opts: Mutex::new(Vec::new()),
-        }
+        ScriptedResolver { can_resolve: true, response, recorder: Recorder::default() }
     }
 }
 
 impl CustomResolver for ScriptedResolver {
-    fn can_resolve(&self, wanted_dependency: Value) -> HookFuture<'_, Result<bool, HookError>> {
-        Box::pin(async move {
-            self.can_resolve_calls.fetch_add(1, Ordering::SeqCst);
-            self.seen_wanted.lock().unwrap().push(wanted_dependency);
-            Ok(self.can_resolve)
-        })
+    async fn can_resolve(&self, wanted_dependency: Value) -> Result<bool, HookError> {
+        self.recorder.can_resolve_calls.fetch_add(1, Ordering::SeqCst);
+        self.recorder.seen_wanted.lock().unwrap().push(wanted_dependency);
+        Ok(self.can_resolve)
     }
 
-    fn resolve(&self, _: Value, opts: Value) -> HookFuture<'_, Result<Value, HookError>> {
-        Box::pin(async move {
-            self.seen_opts.lock().unwrap().push(opts);
-            Ok(self.response.clone())
-        })
+    async fn resolve(&self, _: Value, opts: Value) -> Result<Value, HookError> {
+        self.recorder.seen_opts.lock().unwrap().push(opts);
+        Ok(self.response.clone())
     }
 
-    fn should_refresh_resolution<'a>(
-        &'a self,
-        _: &'a pacquet_lockfile::PackageKey,
+    async fn should_refresh_resolution(
+        &self,
+        _: &pacquet_lockfile::PackageKey,
         _: Value,
-    ) -> HookFuture<'a, Result<bool, HookError>> {
-        Box::pin(async move { Ok(false) })
+    ) -> Result<bool, HookError> {
+        Ok(false)
     }
 }
 
@@ -74,8 +73,7 @@ fn valid_response() -> Value {
 
 #[tokio::test]
 async fn returns_typed_result_for_valid_response() {
-    let adapter =
-        CustomResolverAdapter::new(Arc::new(ScriptedResolver::answering(valid_response())));
+    let adapter = CustomResolverAdapter::new(ScriptedResolver::answering(valid_response()));
 
     let result = adapter
         .resolve(&wanted("foo", "custom:foo"), &ResolveOptions::default())
@@ -91,38 +89,38 @@ async fn returns_typed_result_for_valid_response() {
 
 #[tokio::test]
 async fn returns_none_when_can_resolve_is_false() {
-    let resolver = Arc::new(ScriptedResolver {
-        can_resolve: false,
-        ..ScriptedResolver::answering(valid_response())
-    });
-    let adapter = CustomResolverAdapter::new(Arc::clone(&resolver) as Arc<dyn CustomResolver>);
+    let resolver =
+        ScriptedResolver { can_resolve: false, ..ScriptedResolver::answering(valid_response()) };
+    let recorder = resolver.recorder.clone();
+    let adapter = CustomResolverAdapter::new(resolver);
 
     let result =
         adapter.resolve(&wanted("foo", "custom:foo"), &ResolveOptions::default()).await.unwrap();
 
     assert!(result.is_none());
-    assert!(resolver.seen_opts.lock().unwrap().is_empty(), "resolve must not be called");
+    assert!(recorder.seen_opts.lock().unwrap().is_empty(), "resolve must not be called");
 }
 
 #[tokio::test]
 async fn caches_can_resolve_per_alias_and_specifier() {
-    let resolver = Arc::new(ScriptedResolver::answering(valid_response()));
-    let adapter = CustomResolverAdapter::new(Arc::clone(&resolver) as Arc<dyn CustomResolver>);
+    let resolver = ScriptedResolver::answering(valid_response());
+    let recorder = resolver.recorder.clone();
+    let adapter = CustomResolverAdapter::new(resolver);
     let opts = ResolveOptions::default();
 
     adapter.resolve(&wanted("foo", "custom:foo"), &opts).await.unwrap();
     adapter.resolve(&wanted("foo", "custom:foo"), &opts).await.unwrap();
-    assert_eq!(resolver.can_resolve_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(recorder.can_resolve_calls.load(Ordering::SeqCst), 1);
 
     adapter.resolve(&wanted("foo", "custom:other"), &opts).await.unwrap();
-    assert_eq!(resolver.can_resolve_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(recorder.can_resolve_calls.load(Ordering::SeqCst), 2);
 }
 
 #[tokio::test]
 async fn errors_when_id_is_missing() {
-    let adapter = CustomResolverAdapter::new(Arc::new(ScriptedResolver::answering(json!({
+    let adapter = CustomResolverAdapter::new(ScriptedResolver::answering(json!({
         "resolution": { "tarball": "https://example.com/foo-1.0.0.tgz" },
-    }))));
+    })));
 
     let err = adapter
         .resolve(&wanted("foo", "custom:foo"), &ResolveOptions::default())
@@ -133,9 +131,8 @@ async fn errors_when_id_is_missing() {
 
 #[tokio::test]
 async fn errors_when_resolution_is_missing() {
-    let adapter = CustomResolverAdapter::new(Arc::new(ScriptedResolver::answering(
-        json!({ "id": "foo@1.0.0" }),
-    )));
+    let adapter =
+        CustomResolverAdapter::new(ScriptedResolver::answering(json!({ "id": "foo@1.0.0" })));
 
     let err = adapter
         .resolve(&wanted("foo", "custom:foo"), &ResolveOptions::default())
@@ -146,10 +143,10 @@ async fn errors_when_resolution_is_missing() {
 
 #[tokio::test]
 async fn errors_when_resolution_has_invalid_shape() {
-    let adapter = CustomResolverAdapter::new(Arc::new(ScriptedResolver::answering(json!({
+    let adapter = CustomResolverAdapter::new(ScriptedResolver::answering(json!({
         "id": "foo@1.0.0",
         "resolution": "not-an-object",
-    }))));
+    })));
 
     let err = adapter
         .resolve(&wanted("foo", "custom:foo"), &ResolveOptions::default())
@@ -160,11 +157,11 @@ async fn errors_when_resolution_has_invalid_shape() {
 
 #[tokio::test]
 async fn manifest_passes_through() {
-    let adapter = CustomResolverAdapter::new(Arc::new(ScriptedResolver::answering(json!({
+    let adapter = CustomResolverAdapter::new(ScriptedResolver::answering(json!({
         "id": "foo@1.0.0",
         "resolution": { "tarball": "https://example.com/foo-1.0.0.tgz" },
         "manifest": { "name": "foo", "version": "1.0.0" },
-    }))));
+    })));
 
     let result = adapter
         .resolve(&wanted("foo", "custom:foo"), &ResolveOptions::default())
@@ -178,8 +175,9 @@ async fn manifest_passes_through() {
 
 #[tokio::test]
 async fn sends_upstream_payload_shapes() {
-    let resolver = Arc::new(ScriptedResolver::answering(valid_response()));
-    let adapter = CustomResolverAdapter::new(Arc::clone(&resolver) as Arc<dyn CustomResolver>);
+    let resolver = ScriptedResolver::answering(valid_response());
+    let recorder = resolver.recorder.clone();
+    let adapter = CustomResolverAdapter::new(resolver);
     let wanted_dependency = WantedDependency {
         alias: Some("foo".to_string()),
         bare_specifier: Some("custom:foo".to_string()),
@@ -205,7 +203,7 @@ async fn sends_upstream_payload_shapes() {
 
     adapter.resolve(&wanted_dependency, &opts).await.unwrap();
 
-    let seen_wanted = resolver.seen_wanted.lock().unwrap();
+    let seen_wanted = recorder.seen_wanted.lock().unwrap();
     assert_eq!(
         seen_wanted.first().unwrap(),
         &json!({
@@ -216,7 +214,7 @@ async fn sends_upstream_payload_shapes() {
             "prevSpecifier": "^1.0.0",
         }),
     );
-    let seen_opts = resolver.seen_opts.lock().unwrap();
+    let seen_opts = recorder.seen_opts.lock().unwrap();
     assert_eq!(
         seen_opts.first().unwrap(),
         &json!({

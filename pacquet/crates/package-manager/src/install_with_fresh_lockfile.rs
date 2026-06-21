@@ -16,7 +16,7 @@ use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
 use pacquet_engine_runtime_bun_resolver::BunResolver;
 use pacquet_engine_runtime_deno_resolver::DenoResolver;
 use pacquet_engine_runtime_node_resolver::NodeResolver;
-use pacquet_hooks::{PnpmfileHooks, finder};
+use pacquet_hooks::{CustomResolver, PnpmfileHooks, finder};
 use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -723,7 +723,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             retry_opts: crate::retry_config::retry_opts_from_config(config),
         };
         let pnpmfile_hook = finder::load_pnpmfile(lockfile_dir);
-        let custom_resolvers_raw: Vec<Arc<dyn pacquet_hooks::CustomResolver>> =
+        let custom_resolvers_raw: Vec<pacquet_hooks::NodeJsCustomResolver> =
             if let Some(ref hook) = pnpmfile_hook {
                 hook.get_custom_resolvers().await.map_err(|err| {
                     tracing::error!(
@@ -755,7 +755,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 .filter(|custom| custom.has_can_resolve() && custom.has_resolve())
                 .map(|custom| {
                     Box::new(pacquet_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
-                        Arc::clone(custom),
+                        custom.clone(),
                     )) as Box<dyn Resolver>
                 }),
         );

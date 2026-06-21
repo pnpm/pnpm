@@ -18,6 +18,12 @@ path = "src/lib.rs"
 name = "pnpr"
 path = "src/main.rs"
 
+[features]
+default          = ["backend-libsql"]
+backend-libsql   = ["dep:libsql"]
+backend-mysql    = ["dep:sqlx", "sqlx/mysql"]
+backend-postgres = ["dep:sqlx", "sqlx/postgres"]
+
 [dependencies]
 pacquet-config                  = { workspace = true }
 pacquet-config-dir              = { workspace = true }
@@ -45,7 +51,7 @@ getrandom                       = { workspace = true }
 home                            = { workspace = true }
 indexmap                        = { workspace = true }
 libc                            = { workspace = true }
-libsql                          = { workspace = true }
+libsql                          = { workspace = true, optional = true }
 miette                          = { workspace = true }
 node-semver                     = { workspace = true }
 object_store                    = { workspace = true }
@@ -55,12 +61,14 @@ serde                           = { workspace = true }
 serde-saphyr                    = { workspace = true }
 serde_json                      = { workspace = true }
 sha2                            = { workspace = true }
+sqlx                            = { workspace = true, optional = true }
 ssri                            = { workspace = true }
 tempfile                        = { workspace = true }
 tokio                           = { workspace = true }
 tower-http                      = { workspace = true }
 tracing                         = { workspace = true }
 tracing-subscriber              = { workspace = true, features = ["json"] }
+url                             = { workspace = true }
 wax                             = { workspace = true }
 zip                             = { workspace = true }
 

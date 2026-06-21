@@ -2,7 +2,7 @@
 //! be re-resolved. Port of pnpm's
 //! [`checkCustomResolverForceResolve`](https://github.com/pnpm/pnpm/blob/1627943d2a/installing/deps-installer/src/install/checkCustomResolverForceResolve.ts).
 
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use serde_json::Value;
@@ -29,14 +29,14 @@ pub(crate) async fn force_resolve_from_pnpmfile(
 /// Whether any custom resolver's `shouldRefreshResolution` returns true
 /// for any package in `lockfile`. The hook is called independently of
 /// `canResolve` — each resolver does its own filtering.
-pub(crate) async fn check_custom_resolver_force_resolve(
-    custom_resolvers: &[Arc<dyn CustomResolver>],
+pub(crate) async fn check_custom_resolver_force_resolve<R: CustomResolver>(
+    custom_resolvers: &[R],
     lockfile: &Lockfile,
 ) -> Result<bool, HookError> {
     let Some(snapshots) = lockfile.snapshots.as_ref() else {
         return Ok(false);
     };
-    let hooks: Vec<&Arc<dyn CustomResolver>> = custom_resolvers
+    let hooks: Vec<&R> = custom_resolvers
         .iter()
         .filter(|resolver| resolver.has_should_refresh_resolution())
         .collect();

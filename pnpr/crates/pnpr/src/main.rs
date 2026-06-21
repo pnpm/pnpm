@@ -1,5 +1,5 @@
 use clap::Parser;
-use pnpr::{Config, ConfigSource, LogConfig, LogFormat, default_cache_dir, serve};
+use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 
@@ -97,7 +97,12 @@ async fn main() -> miette::Result<()> {
     }
     init_logging(&config.logs);
     log_config_source(&source);
-    serve(config).await.map_err(|err| miette::miette!("{err}"))
+    serve(config).await.map_err(|err| redacted_report(&err))
+}
+
+fn redacted_report(err: &RegistryError) -> miette::Report {
+    let message = err.log_message();
+    miette::miette!("{message}")
 }
 
 /// Install the `tracing-subscriber` for this process based on the
@@ -136,3 +141,6 @@ fn log_config_source(source: &ConfigSource) {
         ConfigSource::Bundled => tracing::info!("loaded bundled default config"),
     }
 }
+
+#[cfg(test)]
+mod tests;

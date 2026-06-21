@@ -17,13 +17,17 @@ use crate::CustomResolver;
 /// [`Resolver`] trait (typed structs) so it can be inserted into the resolver
 /// chain. Mirrors `resolveFromCustomResolvers` in
 /// <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L66-L98>.
-pub struct CustomResolverAdapter {
-    resolver: Arc<dyn CustomResolver>,
+///
+/// Generic over the concrete resolver so the [`CustomResolver`] calls
+/// dispatch statically; the adapter only crosses into a trait object at
+/// the resolver-chain boundary ([`Resolver`]), which is `dyn` by design.
+pub struct CustomResolverAdapter<R> {
+    resolver: R,
     can_resolve_cache: Mutex<HashMap<String, bool>>,
 }
 
-impl CustomResolverAdapter {
-    pub fn new(resolver: Arc<dyn CustomResolver>) -> Self {
+impl<R: CustomResolver> CustomResolverAdapter<R> {
+    pub fn new(resolver: R) -> Self {
         Self { resolver, can_resolve_cache: Mutex::new(HashMap::new()) }
     }
 
@@ -76,7 +80,7 @@ impl CustomResolverAdapter {
     }
 }
 
-impl Resolver for CustomResolverAdapter {
+impl<R: CustomResolver> Resolver for CustomResolverAdapter<R> {
     fn resolve<'a>(
         &'a self,
         wanted_dependency: &'a WantedDependency,

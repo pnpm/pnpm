@@ -10,7 +10,7 @@
 //! * [`UserBackend`] — username → bcrypt-hashed password.
 //! * [`TokenBackend`] — SHA-256 token hash → token record.
 //!
-//! Three implementations exist, picked at startup by
+//! Implementations are picked at startup by
 //! [`AuthState::load`]:
 //!
 //! * [`UserStore`] / [`TokenStore`] — the local default. Users are an
@@ -19,11 +19,12 @@
 //!   every write, so reads (the hot path for `enforce_access`) never
 //!   touch disk. With no file configured both fall back to a pure
 //!   in-memory map (the `@pnpm/registry-mock` shape).
-//! * [`LibsqlAuth`] — a networked-SQLite (libsql / Turso) backend that
-//!   stores both records in a shared database, so several stateless
-//!   pnpr replicas observe a consistent set of users and tokens. The
-//!   on-disk htpasswd format doesn't network, so users live in a
-//!   `users` table here; the `tokens` table matches the local schema.
+//! * `backend.libsql`, `backend.postgres`, and `backend.mysql` —
+//!   shared SQL databases that store both records in one place, so
+//!   several stateless pnpr replicas observe a consistent set of users
+//!   and tokens. The on-disk htpasswd format doesn't network, so users
+//!   live in a `users` table here; the `tokens` table matches the local
+//!   schema.
 //!
 //! The raw token is only ever returned to the caller once on `issue`;
 //! only its SHA-256 hash hits storage, so a leak of the database
@@ -34,9 +35,14 @@ use crate::{
     error::{RegistryError, Result},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+#[cfg(feature = "backend-libsql")]
 use libsql_backend::LibsqlAuth;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
+#[cfg(feature = "backend-mysql")]
+use sqlx_backend::mysql::MysqlAuth;
+#[cfg(feature = "backend-postgres")]
+use sqlx_backend::postgres::PostgresAuth;
 use std::{
     collections::HashMap,
     fmt::Write as _,
@@ -49,7 +55,63 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(feature = "backend-libsql")]
 mod libsql_backend;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+mod sqlx_backend;
+
+pub(crate) const MAX_USERNAME_CHARS: usize = 255;
+
+pub(crate) fn validate_username(username: &str) -> Result<()> {
+    if username.is_empty() {
+        return Err(RegistryError::BadRequest { reason: "username must not be empty".to_string() });
+    }
+
+    let mut chars = 0;
+    let mut starts_with_whitespace = false;
+    let mut ends_with_whitespace = false;
+    let mut contains_colon = false;
+    let mut contains_control = false;
+    for ch in username.chars() {
+        chars += 1;
+        if chars > MAX_USERNAME_CHARS {
+            return Err(RegistryError::BadRequest {
+                reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
+            });
+        }
+        if chars == 1 {
+            starts_with_whitespace = ch.is_whitespace();
+        }
+        ends_with_whitespace = ch.is_whitespace();
+        contains_colon |= ch == ':';
+        contains_control |= ch.is_control();
+    }
+
+    if starts_with_whitespace || ends_with_whitespace {
+        return Err(RegistryError::BadRequest {
+            reason: "username must not start or end with whitespace".to_string(),
+        });
+    }
+    if contains_colon {
+        return Err(RegistryError::BadRequest {
+            reason: "username must not contain ':'".to_string(),
+        });
+    }
+    if contains_control {
+        return Err(RegistryError::BadRequest {
+            reason: "username must not contain control characters".to_string(),
+        });
+    }
+    Ok(())
+}
+
+pub(crate) fn token_timestamp_from_sql(timestamp: i64) -> u64 {
+    timestamp.max(0) as u64
+}
+
+pub(crate) fn token_timestamp_to_sql(timestamp: u64) -> i64 {
+    i64::try_from(timestamp).unwrap_or(i64::MAX)
+}
 
 /// Bundle of the user store and the token store, each a concrete
 /// backend `enum` so the rest of the server doesn't have to know
@@ -58,41 +120,79 @@ mod libsql_backend;
 /// [`Self::load`].
 #[derive(Clone)]
 pub struct AuthState {
-    pub users: Arc<UserBackendKind>,
-    pub tokens: Arc<TokenBackendKind>,
+    pub(crate) users: Arc<UserBackendKind>,
+    pub(crate) tokens: Arc<TokenBackendKind>,
 }
 
 /// The selected user-record backend. A closed set chosen once at
 /// startup by [`AuthState::load`], so dispatch is a concrete `enum`
 /// (static dispatch) rather than a `dyn` trait object: every
 /// [`UserBackend`] call monomorphizes and the returned futures stay
-/// unboxed.
-pub enum UserBackendKind {
+/// unboxed. The SQL variants are feature-gated so a build without a
+/// given backend never compiles its driver in.
+pub(crate) enum UserBackendKind {
     Store(UserStore),
+    #[cfg(feature = "backend-libsql")]
     Libsql(Arc<LibsqlAuth>),
+    #[cfg(feature = "backend-postgres")]
+    Postgres(Arc<PostgresAuth>),
+    #[cfg(feature = "backend-mysql")]
+    Mysql(Arc<MysqlAuth>),
+    /// Test-only fixture whose `add_or_login` reports a fixed canonical
+    /// username, used to exercise the server binding token issuance and
+    /// `whoami` to the stored identity when it differs from the request.
+    #[cfg(test)]
+    Fixed {
+        canonical: String,
+    },
 }
 
 /// The selected token-record backend. See [`UserBackendKind`] for why
-/// this is an `enum` rather than a trait object. `Libsql` shares its
-/// [`LibsqlAuth`] with [`UserBackendKind::Libsql`] via the `Arc`, since
-/// one networked database backs both record stores.
-pub enum TokenBackendKind {
+/// this is an `enum` rather than a trait object. Each SQL variant
+/// shares its backend with the matching [`UserBackendKind`] variant via
+/// the `Arc`, since one networked database backs both record stores.
+pub(crate) enum TokenBackendKind {
     Store(TokenStore),
+    #[cfg(feature = "backend-libsql")]
     Libsql(Arc<LibsqlAuth>),
+    #[cfg(feature = "backend-postgres")]
+    Postgres(Arc<PostgresAuth>),
+    #[cfg(feature = "backend-mysql")]
+    Mysql(Arc<MysqlAuth>),
 }
 
 impl UserBackend for UserBackendKind {
-    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+    async fn add_or_login(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<(UpsertOutcome, String)> {
         match self {
             UserBackendKind::Store(store) => store.add_or_login(username, password).await,
+            #[cfg(feature = "backend-libsql")]
             UserBackendKind::Libsql(auth) => auth.add_or_login(username, password).await,
+            #[cfg(feature = "backend-postgres")]
+            UserBackendKind::Postgres(auth) => auth.add_or_login(username, password).await,
+            #[cfg(feature = "backend-mysql")]
+            UserBackendKind::Mysql(auth) => auth.add_or_login(username, password).await,
+            #[cfg(test)]
+            UserBackendKind::Fixed { canonical } => {
+                Ok((UpsertOutcome::LoggedIn, canonical.clone()))
+            }
         }
     }
 
     async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
         match self {
             UserBackendKind::Store(store) => store.verify(username, password).await,
+            #[cfg(feature = "backend-libsql")]
             UserBackendKind::Libsql(auth) => auth.verify(username, password).await,
+            #[cfg(feature = "backend-postgres")]
+            UserBackendKind::Postgres(auth) => auth.verify(username, password).await,
+            #[cfg(feature = "backend-mysql")]
+            UserBackendKind::Mysql(auth) => auth.verify(username, password).await,
+            #[cfg(test)]
+            UserBackendKind::Fixed { .. } => Ok(None),
         }
     }
 }
@@ -101,35 +201,60 @@ impl TokenBackend for TokenBackendKind {
     async fn issue(&self, username: &str) -> Result<String> {
         match self {
             TokenBackendKind::Store(store) => store.issue(username).await,
+            #[cfg(feature = "backend-libsql")]
             TokenBackendKind::Libsql(auth) => auth.issue(username).await,
+            #[cfg(feature = "backend-postgres")]
+            TokenBackendKind::Postgres(auth) => auth.issue(username).await,
+            #[cfg(feature = "backend-mysql")]
+            TokenBackendKind::Mysql(auth) => auth.issue(username).await,
         }
     }
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         match self {
             TokenBackendKind::Store(store) => store.lookup(raw).await,
+            #[cfg(feature = "backend-libsql")]
             TokenBackendKind::Libsql(auth) => auth.lookup(raw).await,
+            #[cfg(feature = "backend-postgres")]
+            TokenBackendKind::Postgres(auth) => auth.lookup(raw).await,
+            #[cfg(feature = "backend-mysql")]
+            TokenBackendKind::Mysql(auth) => auth.lookup(raw).await,
         }
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         match self {
             TokenBackendKind::Store(store) => store.find_by_key(key).await,
+            #[cfg(feature = "backend-libsql")]
             TokenBackendKind::Libsql(auth) => auth.find_by_key(key).await,
+            #[cfg(feature = "backend-postgres")]
+            TokenBackendKind::Postgres(auth) => auth.find_by_key(key).await,
+            #[cfg(feature = "backend-mysql")]
+            TokenBackendKind::Mysql(auth) => auth.find_by_key(key).await,
         }
     }
 
     async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
         match self {
             TokenBackendKind::Store(store) => store.list_for_user(username).await,
+            #[cfg(feature = "backend-libsql")]
             TokenBackendKind::Libsql(auth) => auth.list_for_user(username).await,
+            #[cfg(feature = "backend-postgres")]
+            TokenBackendKind::Postgres(auth) => auth.list_for_user(username).await,
+            #[cfg(feature = "backend-mysql")]
+            TokenBackendKind::Mysql(auth) => auth.list_for_user(username).await,
         }
     }
 
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         match self {
             TokenBackendKind::Store(store) => store.revoke_by_key(key).await,
+            #[cfg(feature = "backend-libsql")]
             TokenBackendKind::Libsql(auth) => auth.revoke_by_key(key).await,
+            #[cfg(feature = "backend-postgres")]
+            TokenBackendKind::Postgres(auth) => auth.revoke_by_key(key).await,
+            #[cfg(feature = "backend-mysql")]
+            TokenBackendKind::Mysql(auth) => auth.revoke_by_key(key).await,
         }
     }
 }
@@ -153,20 +278,65 @@ impl AuthState {
         }
     }
 
-    /// Build the auth state from the resolved config. The networked
-    /// [`BackendConfig::Libsql`] backs both stores with one shared
-    /// database; otherwise each local store is in-memory when its file
-    /// path is unset and file-backed otherwise. The fallible step (open
-    /// the htpasswd / `SQLite` file, or connect to the networked DB and
-    /// ensure its schema) runs here so a malformed file or an
-    /// unreachable database surfaces as a startup error before the
-    /// socket is bound.
+    /// Build the auth state from the resolved config. A configured SQL
+    /// backend backs both stores with one shared database; otherwise
+    /// each local store is in-memory when its file path is unset and
+    /// file-backed otherwise. The fallible step (open the htpasswd /
+    /// `SQLite` file, or connect to the configured DB and ensure its
+    /// schema) runs here so a malformed file or an unreachable database
+    /// surfaces as a startup error before the socket is bound.
     pub async fn load(auth: &AuthConfig, backend: &BackendConfig) -> Result<Self> {
-        if let BackendConfig::Libsql(settings) = backend {
-            let shared = Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
-            let users = Arc::new(UserBackendKind::Libsql(Arc::clone(&shared)));
-            let tokens = Arc::new(TokenBackendKind::Libsql(shared));
-            return Ok(Self { users, tokens });
+        // A configured SQL backend shares one connection between the
+        // user and token stores, so both enum variants hold the same
+        // `Arc`. The variants are feature-gated; a backend selected in
+        // config but not compiled in is a startup error.
+        match backend {
+            BackendConfig::Local => {}
+            BackendConfig::Libsql(settings) => {
+                #[cfg(feature = "backend-libsql")]
+                {
+                    let shared =
+                        Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
+                    let users = Arc::new(UserBackendKind::Libsql(Arc::clone(&shared)));
+                    let tokens = Arc::new(TokenBackendKind::Libsql(shared));
+                    return Ok(Self { users, tokens });
+                }
+                #[cfg(not(feature = "backend-libsql"))]
+                {
+                    let _ = settings;
+                    return Err(backend_not_enabled("libsql", "backend-libsql"));
+                }
+            }
+            BackendConfig::Postgres(settings) => {
+                #[cfg(feature = "backend-postgres")]
+                {
+                    let shared =
+                        Arc::new(PostgresAuth::connect(settings, auth.htpasswd.max_users).await?);
+                    let users = Arc::new(UserBackendKind::Postgres(Arc::clone(&shared)));
+                    let tokens = Arc::new(TokenBackendKind::Postgres(shared));
+                    return Ok(Self { users, tokens });
+                }
+                #[cfg(not(feature = "backend-postgres"))]
+                {
+                    let _ = settings;
+                    return Err(backend_not_enabled("postgres", "backend-postgres"));
+                }
+            }
+            BackendConfig::Mysql(settings) => {
+                #[cfg(feature = "backend-mysql")]
+                {
+                    let shared =
+                        Arc::new(MysqlAuth::connect(settings, auth.htpasswd.max_users).await?);
+                    let users = Arc::new(UserBackendKind::Mysql(Arc::clone(&shared)));
+                    let tokens = Arc::new(TokenBackendKind::Mysql(shared));
+                    return Ok(Self { users, tokens });
+                }
+                #[cfg(not(feature = "backend-mysql"))]
+                {
+                    let _ = settings;
+                    return Err(backend_not_enabled("mysql", "backend-mysql"));
+                }
+            }
         }
         let users = match auth.htpasswd.file.clone() {
             Some(path) => UserBackendKind::Store(UserStore::open(path, auth.htpasswd.max_users)?),
@@ -180,20 +350,33 @@ impl AuthState {
     }
 }
 
+#[cfg(any(
+    not(feature = "backend-libsql"),
+    not(feature = "backend-postgres"),
+    not(feature = "backend-mysql")
+))]
+fn backend_not_enabled(name: &str, feature: &str) -> RegistryError {
+    RegistryError::InvalidConfig {
+        reason: format!("backend.{name} is configured but pnpr was built without `{feature}`"),
+    }
+}
+
 /// Username + password record store. The hot read is
-/// [`Self::verify`] (the Basic-auth path of [`identify`]); the write
+/// [`Self::verify`] (the Basic-auth path of `identify`); the write
 /// is [`Self::add_or_login`] (npm `adduser` / `login`).
 pub trait UserBackend: Send + Sync {
-    /// Add a new user or verify a returning one. See
-    /// [`UpsertOutcome`] for the success cases; a wrong password for
-    /// an existing user is [`RegistryError::Unauthenticated`], and a
-    /// new user past the registration cap is
-    /// [`RegistryError::RegistrationDisabled`] / `TooManyUsers`.
+    /// Add a new user or verify a returning one. On success, returns
+    /// the outcome plus the canonical stored username to bind follow-up
+    /// token issuance to the same identity that Basic auth would
+    /// resolve. A wrong password for an existing user is
+    /// [`RegistryError::Unauthenticated`], and a new user past the
+    /// registration cap is [`RegistryError::RegistrationDisabled`] /
+    /// `TooManyUsers`.
     fn add_or_login(
         &self,
         username: &str,
         password: &str,
-    ) -> impl Future<Output = Result<UpsertOutcome>> + Send;
+    ) -> impl Future<Output = Result<(UpsertOutcome, String)>> + Send;
 
     /// Verify a username+password pair. `Ok(Some(username))` on a match,
     /// `Ok(None)` when the user is unknown or the password is wrong, and
@@ -317,7 +500,11 @@ impl UserBackend for UserStore {
     /// * Known username, password wrong → `Unauthenticated`.
     /// * Unknown username, registration disabled or capped →
     ///   `RegistrationDisabled` / `TooManyUsers`.
-    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+    async fn add_or_login(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<(UpsertOutcome, String)> {
         let existing_hash = {
             let users = self.users.lock().expect("UserStore mutex poisoned");
             users.get(username).cloned()
@@ -325,6 +512,8 @@ impl UserBackend for UserStore {
         if let Some(stored) = existing_hash {
             return verify_returning_user(username, password, stored).await;
         }
+
+        validate_username(username)?;
 
         // Brand-new user — check the registration cap before doing
         // the (expensive) bcrypt hash.
@@ -365,7 +554,7 @@ impl UserBackend for UserStore {
         match next_step {
             NextStep::Persist(snapshot) => {
                 self.persist(snapshot).await?;
-                Ok(UpsertOutcome::Created)
+                Ok((UpsertOutcome::Created, username.to_string()))
             }
             NextStep::VerifyExisting(stored) => {
                 verify_returning_user(username, password, stored).await
@@ -479,12 +668,25 @@ impl TokenBackend for TokenStore {
         }
         if let Some(path) = self.persist.clone() {
             let hash_for_db = token_hash.clone();
-            tokio::task::spawn_blocking(move || -> Result<()> {
+            let result = tokio::task::spawn_blocking(move || -> Result<()> {
                 let conn = Connection::open(&path)?;
-                upsert_token(&conn, &hash_for_db, &record)?;
+                insert_token(&conn, &hash_for_db, &record)?;
                 Ok(())
             })
-            .await??;
+            .await;
+            match result {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => {
+                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+                    inner.tokens.remove(&token_hash);
+                    return Err(err);
+                }
+                Err(err) => {
+                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+                    inner.tokens.remove(&token_hash);
+                    return Err(err.into());
+                }
+            }
         }
         Ok(raw)
     }
@@ -567,7 +769,7 @@ impl Default for UserStore {
 /// don't match. `Err` is reserved for a failure of the backing store
 /// (e.g. the networked auth DB is unreachable) so the caller can return
 /// a 5xx instead of a misleading 401.
-pub async fn identify(
+pub(crate) async fn identify(
     header_value: Option<&str>,
     users: &UserBackendKind,
     tokens: &TokenBackendKind,
@@ -719,9 +921,9 @@ async fn verify_returning_user(
     username: &str,
     password: &str,
     stored: String,
-) -> Result<UpsertOutcome> {
+) -> Result<(UpsertOutcome, String)> {
     if verify_bcrypt(password.to_string(), stored).await? {
-        Ok(UpsertOutcome::LoggedIn)
+        Ok((UpsertOutcome::LoggedIn, username.to_string()))
     } else {
         Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
     }
@@ -731,26 +933,32 @@ async fn verify_returning_user(
 // SQLite-backed token store
 // ---------------------------------------------------------------
 
-/// `tokens` table DDL — shared verbatim by the local [`TokenStore`]
-/// and the networked [`LibsqlAuth`] so the two backends store the
-/// same shape and a database can be moved between them.
+/// `tokens` table DDL — shared by every SQL-backed auth store so the
+/// backends store the same shape and records can be moved between them.
 const TOKENS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS tokens (
-    token_hash      TEXT PRIMARY KEY,
-    username        TEXT NOT NULL,
-    created_at      INTEGER NOT NULL,
-    last_used_at    INTEGER NOT NULL,
-    readonly        INTEGER NOT NULL DEFAULT 0,
-    cidr_whitelist  TEXT NOT NULL DEFAULT '[]'
+    token_hash      CHAR(64) PRIMARY KEY,
+    username        VARCHAR(255) NOT NULL,
+    created_at      BIGINT NOT NULL,
+    last_used_at    BIGINT NOT NULL,
+    readonly        SMALLINT NOT NULL DEFAULT 0,
+    cidr_whitelist  VARCHAR(4096) NOT NULL DEFAULT '[]'
 )";
 
 const TOKENS_INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS tokens_username ON tokens(username)";
 
-/// `users` table DDL — only the networked backend needs it, since the
-/// local backend keeps users in an htpasswd file. One bcrypt hash per
-/// username, the same `$2y$...` string the htpasswd file would hold.
+/// `users` table DDL — only shared-database backends need it, since
+/// the local backend keeps users in an htpasswd file. One bcrypt hash
+/// per username, the same `$2y$...` string the htpasswd file would hold.
+#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
 const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
-    username     TEXT PRIMARY KEY,
+    username     VARCHAR(255) PRIMARY KEY,
     bcrypt_hash  TEXT NOT NULL
+)";
+
+#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
+const AUTH_COUNTERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS auth_counters (
+    name   VARCHAR(64) PRIMARY KEY,
+    value  BIGINT NOT NULL
 )";
 
 fn init_tokens_schema(conn: &Connection) -> Result<()> {
@@ -778,8 +986,8 @@ fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
             hash,
             TokenRecord {
                 username,
-                created_at: created_at as u64,
-                last_used_at: last_used_at as u64,
+                created_at: token_timestamp_from_sql(created_at),
+                last_used_at: token_timestamp_from_sql(last_used_at),
                 readonly: readonly != 0,
                 cidr_whitelist,
             },
@@ -793,22 +1001,17 @@ fn delete_token(conn: &Connection, token_hash: &str) -> Result<()> {
     Ok(())
 }
 
-fn upsert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Result<()> {
+fn insert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Result<()> {
     let cidr_json = serde_json::to_string(&record.cidr_whitelist)
         .expect("Vec<String> always serializes to JSON");
     conn.execute(
         "INSERT INTO tokens (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-         ON CONFLICT(token_hash) DO UPDATE SET
-            username = excluded.username,
-            last_used_at = excluded.last_used_at,
-            readonly = excluded.readonly,
-            cidr_whitelist = excluded.cidr_whitelist",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![
             token_hash,
             record.username,
-            record.created_at as i64,
-            record.last_used_at as i64,
+            token_timestamp_to_sql(record.created_at),
+            token_timestamp_to_sql(record.last_used_at),
             i64::from(record.readonly),
             cidr_json,
         ],

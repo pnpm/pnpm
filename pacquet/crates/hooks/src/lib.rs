@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, sync::Arc};
 
 use derive_more::Display;
 use serde_json::Value;
@@ -8,20 +8,11 @@ pub mod finder;
 pub mod node_runtime;
 pub mod worker;
 
+pub use node_runtime::NodeJsCustomResolver;
 pub use worker::LogFn;
 
 /// Represents the results of a `readPackage` hook.
 pub type ReadPackageResult = Arc<Value>;
-
-/// Boxed-future return type for the async methods of [`CustomResolver`].
-/// Same `dyn Trait` ergonomics rationale as
-/// [`pacquet_resolving_resolver_base::VerifyFuture`]: async-fn-in-trait
-/// is stable, but a `dyn` trait whose methods return `impl Future` is
-/// not, and [`CustomResolver`] is held behind `Arc<dyn _>` because a
-/// pnpmfile can export an open-ended set of resolvers. Generic over the
-/// output because the trait exposes several methods with distinct
-/// return types.
-pub type HookFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// An error raised while running a pnpmfile hook in Node.js.
 ///
@@ -149,12 +140,12 @@ pub trait PnpmfileHooks: Send + Sync {
     /// [`requireHooks`](https://github.com/pnpm/pnpm/blob/1627943d2a/hooks/pnpmfile/src/requireHooks.ts#L222-L228)
     /// merge of `resolvers` exports into `cookedHooks.customResolvers`.
     ///
-    /// The resolvers themselves stay `dyn`: a pnpmfile can export an
-    /// arbitrary, open-ended set of them, so [`CustomResolver`] is the
-    /// one hook trait that remains a boxed trait object.
+    /// Every custom resolver is backed by the pnpmfile's Node worker, so
+    /// the concrete [`NodeJsCustomResolver`] is returned directly — no
+    /// trait object. Hook sets without a pnpmfile contribute none.
     fn get_custom_resolvers(
         &self,
-    ) -> impl Future<Output = Result<Vec<Arc<dyn CustomResolver>>, HookError>> + Send {
+    ) -> impl Future<Output = Result<Vec<NodeJsCustomResolver>, HookError>> + Send {
         async move { Ok(vec![]) }
     }
 }
@@ -182,23 +173,26 @@ pub trait CustomResolver: Send + Sync {
     }
 
     /// Called during resolution to determine if this resolver should handle a dependency.
-    fn can_resolve(&self, wanted_dependency: Value) -> HookFuture<'_, Result<bool, HookError>>;
+    fn can_resolve(
+        &self,
+        wanted_dependency: Value,
+    ) -> impl Future<Output = Result<bool, HookError>> + Send;
 
     /// Called to resolve a dependency that `canResolve` returned true for.
     fn resolve(
         &self,
         wanted_dependency: Value,
         opts: Value,
-    ) -> HookFuture<'_, Result<Value, HookError>>;
+    ) -> impl Future<Output = Result<Value, HookError>> + Send;
 
     /// Called on subsequent installs to determine if this dependency needs
     /// re-resolution. Invoked for every package in the lockfile regardless
     /// of `canResolve`; a `true` for any package forces full re-resolution.
-    fn should_refresh_resolution<'a>(
-        &'a self,
-        dep_path: &'a pacquet_lockfile::PackageKey,
+    fn should_refresh_resolution(
+        &self,
+        dep_path: &pacquet_lockfile::PackageKey,
         pkg_snapshot: Value,
-    ) -> HookFuture<'a, Result<bool, HookError>>;
+    ) -> impl Future<Output = Result<bool, HookError>> + Send;
 }
 
 /// A no-op implementation of `PnpmfileHooks`.
@@ -289,7 +283,7 @@ impl PnpmfileHooks for PnpmfileHooksKind {
         }
     }
 
-    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {
+    async fn get_custom_resolvers(&self) -> Result<Vec<NodeJsCustomResolver>, HookError> {
         match self {
             PnpmfileHooksKind::NodeJs(hooks) => hooks.get_custom_resolvers().await,
             PnpmfileHooksKind::Noop(hooks) => hooks.get_custom_resolvers().await,
