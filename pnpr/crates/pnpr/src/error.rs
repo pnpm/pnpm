@@ -143,6 +143,11 @@ pub enum RegistryError {
     #[display("Auth database error: {_0}")]
     Sqlx(sqlx::Error),
 
+    /// SQL auth backend operation timed out.
+    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    #[display("Auth database timeout")]
+    AuthDatabaseTimeout,
+
     /// A blocking task spawned for bcrypt or `SQLite` work panicked
     /// or was cancelled. Treat as an internal server error.
     #[display("Background task failed: {_0}")]
@@ -217,6 +222,8 @@ impl RegistryError {
             RegistryError::Libsql(_) => StatusCode::INTERNAL_SERVER_ERROR,
             #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
             RegistryError::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            RegistryError::AuthDatabaseTimeout => StatusCode::GATEWAY_TIMEOUT,
             RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
                 StatusCode::BAD_GATEWAY
             }

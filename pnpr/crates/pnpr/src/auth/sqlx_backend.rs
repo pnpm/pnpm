@@ -11,7 +11,11 @@ use crate::{
     error::{RegistryError, Result},
 };
 use async_trait::async_trait;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    future::Future,
+    sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
+};
 
 #[derive(Debug)]
 pub(in crate::auth) struct SqlAuth<Db> {
@@ -19,11 +23,25 @@ pub(in crate::auth) struct SqlAuth<Db> {
     secret: [u8; 32],
     counter: AtomicU64,
     max_users: MaxUsers,
+    timeout: Duration,
 }
 
 impl<Db> SqlAuth<Db> {
-    fn new(db: Db, max_users: MaxUsers) -> Self {
-        Self { db, secret: fresh_secret(), counter: AtomicU64::new(0), max_users }
+    fn new(db: Db, max_users: MaxUsers, timeout: Duration) -> Self {
+        Self { db, secret: fresh_secret(), counter: AtomicU64::new(0), max_users, timeout }
+    }
+}
+
+async fn with_auth_timeout<T, E>(
+    timeout: Duration,
+    future: impl Future<Output = std::result::Result<T, E>>,
+) -> Result<T>
+where
+    RegistryError: From<E>,
+{
+    match tokio::time::timeout(timeout, future).await {
+        Ok(result) => result.map_err(RegistryError::from),
+        Err(_) => Err(RegistryError::AuthDatabaseTimeout),
     }
 }
 
@@ -63,20 +81,25 @@ where
 {
     async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
         validate_username(username)?;
-        if let Some(stored) = self.db.stored_user(username).await? {
+        if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
+        {
             return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
         }
 
         match self.max_users {
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
-            MaxUsers::Limited(max) if self.db.user_count().await? >= max => {
-                return Err(RegistryError::TooManyUsers { max });
+            MaxUsers::Limited(max) => {
+                if with_auth_timeout(self.timeout, self.db.user_count()).await? >= max {
+                    return Err(RegistryError::TooManyUsers { max });
+                }
             }
-            MaxUsers::Limited(_) | MaxUsers::Unlimited => {}
+            MaxUsers::Unlimited => {}
         }
 
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        match self.db.insert_user(username, &hash, self.max_users).await? {
+        match with_auth_timeout(self.timeout, self.db.insert_user(username, &hash, self.max_users))
+            .await?
+        {
             InsertUser::Created => Ok(UpsertOutcome::Created),
             InsertUser::Existing(stored) => {
                 verify_returning_user(&stored.username, password, stored.bcrypt_hash).await
@@ -91,7 +114,8 @@ where
     }
 
     async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
-        let Some(stored) = self.db.stored_user(username).await? else {
+        let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
+        else {
             return Ok(None);
         };
         Ok(verify_bcrypt(password.to_string(), stored.bcrypt_hash)
@@ -118,27 +142,28 @@ where
             readonly: false,
             cidr_whitelist: Vec::new(),
         };
-        self.db.insert_token(&token_hash, &record).await?;
+        with_auth_timeout(self.timeout, self.db.insert_token(&token_hash, &record)).await?;
         Ok(raw)
     }
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
-        self.db.lookup_token(&sha256_hex(raw.as_bytes())).await
+        let token_hash = sha256_hex(raw.as_bytes());
+        with_auth_timeout(self.timeout, self.db.lookup_token(&token_hash)).await
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        self.db.find_token(key).await
+        with_auth_timeout(self.timeout, self.db.find_token(key)).await
     }
 
     async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        self.db.list_tokens(username).await
+        with_auth_timeout(self.timeout, self.db.list_tokens(username)).await
     }
 
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let Some(record) = self.db.find_token(key).await? else {
+        let Some(record) = with_auth_timeout(self.timeout, self.db.find_token(key)).await? else {
             return Ok(None);
         };
-        self.db.delete_token(key).await?;
+        with_auth_timeout(self.timeout, self.db.delete_token(key)).await?;
         Ok(Some(record))
     }
 }
@@ -148,6 +173,7 @@ pub(super) mod postgres {
     use super::super::TokenRecord;
     use super::{
         AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
+        with_auth_timeout,
     };
     use crate::{
         config::{MaxUsers, SqlBackendSettings},
@@ -175,9 +201,11 @@ pub(super) mod postgres {
                 }
                 options = options.max_connections(max_connections);
             }
-            let db = PostgresDatabase { pool: options.connect(&settings.url).await? };
-            db.init_schema().await?;
-            Ok(SqlAuth::new(db, max_users))
+            options = options.acquire_timeout(settings.timeout);
+            let pool = with_auth_timeout(settings.timeout, options.connect(&settings.url)).await?;
+            let db = PostgresDatabase { pool };
+            with_auth_timeout(settings.timeout, db.init_schema()).await?;
+            Ok(SqlAuth::new(db, max_users, settings.timeout))
         }
     }
 
@@ -408,6 +436,7 @@ pub(super) mod mysql {
     use super::super::TokenRecord;
     use super::{
         AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
+        with_auth_timeout,
     };
     use crate::{
         config::{MaxUsers, SqlBackendSettings},
@@ -435,9 +464,11 @@ pub(super) mod mysql {
                 }
                 options = options.max_connections(max_connections);
             }
-            let db = MysqlDatabase { pool: options.connect(&settings.url).await? };
-            db.init_schema().await?;
-            Ok(SqlAuth::new(db, max_users))
+            options = options.acquire_timeout(settings.timeout);
+            let pool = with_auth_timeout(settings.timeout, options.connect(&settings.url)).await?;
+            let db = MysqlDatabase { pool };
+            with_auth_timeout(settings.timeout, db.init_schema()).await?;
+            Ok(SqlAuth::new(db, max_users, settings.timeout))
         }
     }
 
@@ -700,6 +731,8 @@ mod tests {
         user: StoredUser,
     }
 
+    struct SlowLookupBackend;
+
     #[async_trait]
     impl AuthSqlBackend for CanonicalBackend {
         async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
@@ -740,14 +773,65 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl AuthSqlBackend for SlowLookupBackend {
+        async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
+            Ok(None)
+        }
+
+        async fn user_count(&self) -> Result<u64> {
+            Ok(0)
+        }
+
+        async fn insert_user(
+            &self,
+            _username: &str,
+            _bcrypt_hash: &str,
+            _max_users: MaxUsers,
+        ) -> Result<InsertUser> {
+            Ok(InsertUser::CapReached)
+        }
+
+        async fn insert_token(&self, _token_hash: &str, _record: &TokenRecord) -> Result<()> {
+            Ok(())
+        }
+
+        async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
+            tokio::time::sleep(Duration::from_mins(1)).await;
+            Ok(None)
+        }
+
+        async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
+            Ok(None)
+        }
+
+        async fn list_tokens(&self, _username: &str) -> Result<Vec<(String, TokenRecord)>> {
+            Ok(Vec::new())
+        }
+
+        async fn delete_token(&self, _token_hash: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
     #[tokio::test]
     async fn verify_returns_the_stored_username() {
         let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
         let auth = SqlAuth::new(
             CanonicalBackend { user: StoredUser { username: "Alice".to_string(), bcrypt_hash } },
             MaxUsers::Unlimited,
+            Duration::from_secs(30),
         );
 
         assert_eq!(auth.verify("alice", "secret").await.unwrap().as_deref(), Some("Alice"));
+    }
+
+    #[tokio::test]
+    async fn token_lookup_times_out_when_the_backend_stalls() {
+        let auth = SqlAuth::new(SlowLookupBackend, MaxUsers::Unlimited, Duration::from_millis(1));
+
+        let err = auth.lookup("token").await.unwrap_err();
+
+        assert!(matches!(err, RegistryError::AuthDatabaseTimeout));
     }
 }

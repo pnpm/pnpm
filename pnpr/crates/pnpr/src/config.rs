@@ -198,8 +198,15 @@ pub struct SqlBackendSettings {
     pub url: String,
     /// Maximum connections in the backend pool. Defaults to the
     /// driver's pool default when omitted.
-    #[serde(default)]
     pub max_connections: Option<u32>,
+    /// Deadline for connecting to the auth database and for each
+    /// request-path auth database operation.
+    pub timeout: Duration,
+}
+
+impl SqlBackendSettings {
+    /// Default auth database deadline.
+    pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 }
 
 /// Auth-related runtime configuration. Built from the YAML
@@ -791,11 +798,21 @@ struct BackendFile {
     #[serde(default)]
     libsql: Option<LibsqlSettings>,
     #[serde(default)]
-    postgres: Option<SqlBackendSettings>,
+    postgres: Option<SqlBackendFile>,
     #[serde(default)]
-    postgresql: Option<SqlBackendSettings>,
+    postgresql: Option<SqlBackendFile>,
     #[serde(default)]
-    mysql: Option<SqlBackendSettings>,
+    mysql: Option<SqlBackendFile>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SqlBackendFile {
+    url: String,
+    #[serde(default)]
+    max_connections: Option<u32>,
+    #[serde(default)]
+    timeout: Option<Interval>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1088,13 +1105,20 @@ fn build_backend_config(
         selected.push(("libsql", BackendConfig::Libsql(settings)));
     }
     if let Some(settings) = file.postgres {
-        selected.push(("postgres", BackendConfig::Postgres(settings)));
+        selected.push((
+            "postgres",
+            BackendConfig::Postgres(build_sql_backend_settings("postgres", settings)?),
+        ));
     }
     if let Some(settings) = file.postgresql {
-        selected.push(("postgresql", BackendConfig::Postgres(settings)));
+        selected.push((
+            "postgresql",
+            BackendConfig::Postgres(build_sql_backend_settings("postgresql", settings)?),
+        ));
     }
     if let Some(settings) = file.mysql {
-        selected.push(("mysql", BackendConfig::Mysql(settings)));
+        selected
+            .push(("mysql", BackendConfig::Mysql(build_sql_backend_settings("mysql", settings)?)));
     }
     match selected.len() {
         0 => Err(RegistryError::InvalidConfig {
@@ -1108,6 +1132,33 @@ fn build_backend_config(
             })
         }
     }
+}
+
+fn build_sql_backend_settings(
+    backend: &str,
+    file: SqlBackendFile,
+) -> Result<SqlBackendSettings, RegistryError> {
+    let timeout = parse_backend_interval(backend, "timeout", file.timeout.as_ref())?
+        .unwrap_or(SqlBackendSettings::DEFAULT_TIMEOUT);
+    if timeout.is_zero() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!("backend.{backend}.timeout must be greater than 0"),
+        });
+    }
+    Ok(SqlBackendSettings { url: file.url, max_connections: file.max_connections, timeout })
+}
+
+fn parse_backend_interval(
+    backend: &str,
+    field: &str,
+    raw: Option<&Interval>,
+) -> Result<Option<Duration>, RegistryError> {
+    raw.map(|Interval(value)| {
+        parse_interval(value).ok_or_else(|| RegistryError::InvalidConfig {
+            reason: format!("backend.{backend}.{field} has an invalid interval {value:?}"),
+        })
+    })
+    .transpose()
 }
 
 fn resolve_libsql_paths(settings: &mut LibsqlSettings, base_dir: &Path) {

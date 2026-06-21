@@ -10,6 +10,7 @@ use reqwest::header::AUTHORIZATION;
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 /// Test [`EnvVar`] provider with a fixed set of variables, so
@@ -565,6 +566,7 @@ backend:
   postgres:
     url: postgres://pnpr:secret@db.example/pnpr
     maxConnections: 12
+    timeout: 5s
 uplinks: {}
 packages: {}
 ";
@@ -573,6 +575,7 @@ packages: {}
         BackendConfig::Postgres(settings) => {
             assert_eq!(settings.url, "postgres://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, Some(12));
+            assert_eq!(settings.timeout, Duration::from_secs(5));
         }
         other => panic!("expected a postgres backend, got {other:?}"),
     }
@@ -593,6 +596,7 @@ packages: {}
         BackendConfig::Postgres(settings) => {
             assert_eq!(settings.url, "postgresql://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, None);
+            assert_eq!(settings.timeout, super::SqlBackendSettings::DEFAULT_TIMEOUT);
         }
         other => panic!("expected a postgres backend, got {other:?}"),
     }
@@ -613,9 +617,29 @@ packages: {}
         BackendConfig::Mysql(settings) => {
             assert_eq!(settings.url, "mysql://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, None);
+            assert_eq!(settings.timeout, super::SqlBackendSettings::DEFAULT_TIMEOUT);
         }
         other => panic!("expected a mysql backend, got {other:?}"),
     }
+}
+
+#[test]
+fn sql_backend_rejects_zero_timeout() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  postgres:
+    url: postgres://pnpr:secret@db.example/pnpr
+    timeout: 0
+uplinks: {}
+packages: {}
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
+        .expect_err("zero timeout must not be accepted");
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("backend.postgres.timeout")),
+        "expected an InvalidConfig naming backend.postgres.timeout, got {err:?}",
+    );
 }
 
 #[test]
