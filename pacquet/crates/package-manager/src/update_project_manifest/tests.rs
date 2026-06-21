@@ -15,6 +15,10 @@ fn manifest_from_json(value: &Value) -> (TempDir, PackageManifest) {
     (dir, manifest)
 }
 
+fn apply(manifest: &mut PackageManifest, opts: &UpdateProjectManifestOptions<'_>) {
+    update_project_manifest(manifest, opts).expect("update manifest");
+}
+
 fn wanted(alias: Option<&str>, bare_specifier: &str, update_spec: bool) -> WantedDependencyUpdate {
     WantedDependencyUpdate {
         alias: alias.map(ToString::to_string),
@@ -44,7 +48,7 @@ fn preserves_workspace_protocol_when_requested() {
     let (_dir, mut manifest) =
         manifest_from_json(&json!({ "dependencies": { "foo": "workspace:../packages/foo/dist" } }));
     let foo = wanted(Some("foo"), "workspace:../packages/foo/dist", true);
-    update_project_manifest(
+    apply(
         &mut manifest,
         &UpdateProjectManifestOptions {
             wanted_dependencies: std::slice::from_ref(&foo),
@@ -68,7 +72,7 @@ fn saves_normalized_local_spec_when_workspace_protocol_not_preserved() {
     let (_dir, mut manifest) =
         manifest_from_json(&json!({ "dependencies": { "foo": "workspace:../packages/foo/dist" } }));
     let foo = wanted(Some("foo"), "workspace:../packages/foo/dist", true);
-    update_project_manifest(
+    apply(
         &mut manifest,
         &UpdateProjectManifestOptions {
             wanted_dependencies: std::slice::from_ref(&foo),
@@ -92,7 +96,7 @@ fn saves_normalized_workspace_range_spec() {
     let (_dir, mut manifest) =
         manifest_from_json(&json!({ "dependencies": { "foo": "workspace:*" } }));
     let foo = wanted(Some("foo"), "workspace:*", true);
-    update_project_manifest(
+    apply(
         &mut manifest,
         &UpdateProjectManifestOptions {
             wanted_dependencies: std::slice::from_ref(&foo),
@@ -127,7 +131,7 @@ fn preserves_catalog_specifier_precedence() {
         }),
         wanted_dependency: Some(foo.clone()),
     };
-    update_project_manifest(
+    apply(
         &mut manifest,
         &UpdateProjectManifestOptions {
             wanted_dependencies: &[foo],
@@ -151,7 +155,7 @@ fn does_not_update_unrelated_dependency_when_optional_update_fails_to_resolve() 
     // and is absent from `direct_dependencies`. `react` is present but is not
     // flagged `update_spec`, so it must stay untouched.
     let react = wanted(Some("react"), "19.0.0", false);
-    update_project_manifest(
+    apply(
         &mut manifest,
         &UpdateProjectManifestOptions {
             wanted_dependencies: &[wanted(Some("react-dom"), "foo", true), react.clone()],
@@ -176,7 +180,7 @@ fn updates_manifest_for_github_shorthand_without_alias() {
     let (_dir, mut manifest) = manifest_from_json(&json!({}));
     let selector =
         wanted(None, "pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf", true);
-    update_project_manifest(
+    apply(
         &mut manifest,
         &UpdateProjectManifestOptions {
             wanted_dependencies: std::slice::from_ref(&selector),
@@ -206,7 +210,7 @@ fn updates_manifest_for_github_shorthand_without_alias() {
 fn updates_manifest_for_aliasless_dep_whose_specifier_does_not_resemble_resolution() {
     let (_dir, mut manifest) = manifest_from_json(&json!({}));
     let selector = wanted(None, "jsr:@foo/bar", true);
-    update_project_manifest(
+    apply(
         &mut manifest,
         &UpdateProjectManifestOptions {
             wanted_dependencies: std::slice::from_ref(&selector),
@@ -243,7 +247,7 @@ fn updates_aliasless_selector_that_resolves_to_an_existing_alias() {
         "github:pnpm/test-git-fetch#0000000000000000000000000000000000000000",
         false,
     );
-    update_project_manifest(
+    apply(
         &mut manifest,
         &UpdateProjectManifestOptions {
             wanted_dependencies: &[existing_entry, new_selector.clone()],
@@ -279,7 +283,7 @@ fn does_not_misattribute_a_spec_when_an_aliasless_optional_dep_fails_to_resolve(
     let failed_optional =
         wanted(None, "github:owner/missing#1111111111111111111111111111111111111111", true);
     let survivor = wanted(None, "github:owner/good#2222222222222222222222222222222222222222", true);
-    update_project_manifest(
+    apply(
         &mut manifest,
         &UpdateProjectManifestOptions {
             wanted_dependencies: &[failed_optional, survivor.clone()],

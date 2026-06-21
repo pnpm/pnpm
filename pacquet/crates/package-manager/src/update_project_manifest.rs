@@ -1,5 +1,5 @@
 use crate::{PackageSpecObject, is_workspace_local_path_specifier, update_project_manifest_object};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::PinnedVersion;
 
 /// Catalog metadata for a direct dependency requested through the `catalog:`
@@ -49,8 +49,9 @@ pub struct WantedDependencyUpdate {
 pub struct UpdateProjectManifestOptions<'a> {
     pub wanted_dependencies: &'a [WantedDependencyUpdate],
     pub direct_dependencies: &'a [ResolvedDirectDependency],
-    /// Also record the saved deps in `peerDependencies` (pnpm's
-    /// `importer.peer`).
+    /// Also record a saved dep in `peerDependencies` (pnpm's `importer.peer`).
+    /// Only takes effect alongside a `target_dependencies_field` write, mirroring
+    /// pnpm, where the peer entry is added inside the `saveType` branch.
     pub peer: bool,
     pub pinned_version: Option<PinnedVersion>,
     /// The dependency field the saved deps belong in (pnpm's
@@ -79,7 +80,7 @@ pub struct UpdateProjectManifestOptions<'a> {
 pub fn update_project_manifest(
     manifest: &mut PackageManifest,
     opts: &UpdateProjectManifestOptions<'_>,
-) {
+) -> Result<(), PackageManifestError> {
     let mut specs: Vec<PackageSpecObject> = Vec::new();
     for resolved in opts.direct_dependencies {
         let Some(wanted) = resolved.wanted_dependency.as_ref() else { continue };
@@ -116,7 +117,7 @@ pub fn update_project_manifest(
         }
     }
 
-    update_project_manifest_object(manifest, &specs);
+    update_project_manifest_object(manifest, &specs)
 }
 
 /// The specifier string to write for a matched dependency: a `catalog:`

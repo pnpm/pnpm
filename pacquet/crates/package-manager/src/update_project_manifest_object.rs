@@ -1,5 +1,5 @@
 use node_semver::{Range, Version};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
+use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::PinnedVersion;
 use serde_json::{Map, Value};
 
@@ -41,21 +41,30 @@ pub struct PackageSpecObject {
 /// recording a peer range), or — with no `save_type` — rewrites the spec in
 /// whichever field already declares the alias. Empty specifiers are treated as
 /// absent, matching pnpm's truthiness guard.
-pub fn update_project_manifest_object(manifest: &mut PackageManifest, specs: &[PackageSpecObject]) {
-    let root = manifest.value_mut();
+///
+/// Errors when a dependency field that must be written is present but is not a
+/// JSON object (e.g. `"dependencies": "oops"`), mirroring pnpm throwing on the
+/// same input and [`PackageManifest::add_dependency`]. The mutation is applied
+/// atomically — a copy is mutated and committed only on success — so an error
+/// mid-way leaves the manifest untouched rather than partially updated.
+pub fn update_project_manifest_object(
+    manifest: &mut PackageManifest,
+    specs: &[PackageSpecObject],
+) -> Result<(), PackageManifestError> {
+    let mut root = manifest.value().clone();
     for spec in specs {
         if let Some(save_type) = spec.save_type {
             let field: &str = save_type.into();
             let resolved_spec = spec
                 .bare_specifier
                 .clone()
-                .or_else(|| find_spec(&spec.alias, root))
+                .or_else(|| find_spec(&spec.alias, &root))
                 .filter(|spec| !spec.is_empty());
             let Some(spec_str) = resolved_spec else { continue };
-            define_dep_entry(root, field, &spec.alias, &spec_str);
+            define_dep_entry(&mut root, field, &spec.alias, &spec_str)?;
             for dep_field in DEPENDENCIES_FIELDS {
                 if dep_field != field {
-                    delete_dep_entry(root, dep_field, &spec.alias);
+                    delete_dep_entry(&mut root, dep_field, &spec.alias);
                 }
             }
             if spec.peer {
@@ -64,17 +73,19 @@ pub fn update_project_manifest_object(manifest: &mut PackageManifest, specs: &[P
                     spec.resolved_version.as_deref(),
                     spec.pinned_version,
                 );
-                define_dep_entry(root, "peerDependencies", &spec.alias, &peer_spec);
+                define_dep_entry(&mut root, "peerDependencies", &spec.alias, &peer_spec)?;
             }
         } else if let Some(bare_specifier) = spec.bare_specifier.as_deref()
             && !bare_specifier.is_empty()
         {
-            let used = guess_dependency_type(&spec.alias, root).unwrap_or("dependencies");
+            let used = guess_dependency_type(&spec.alias, &root).unwrap_or("dependencies");
             if used != "peerDependencies" {
-                define_dep_entry(root, used, &spec.alias, bare_specifier);
+                define_dep_entry(&mut root, used, &spec.alias, bare_specifier)?;
             }
         }
     }
+    *manifest.value_mut() = root;
+    Ok(())
 }
 
 /// The peer range to record alongside a saved dependency: keep the saved spec
@@ -136,12 +147,31 @@ fn guess_dependency_type(alias: &str, root: &Value) -> Option<&'static str> {
     })
 }
 
-fn define_dep_entry(root: &mut Value, field: &str, alias: &str, value: &str) {
-    let Some(obj) = root.as_object_mut() else { return };
+fn define_dep_entry(
+    root: &mut Value,
+    field: &str,
+    alias: &str,
+    value: &str,
+) -> Result<(), PackageManifestError> {
+    let Some(obj) = root.as_object_mut() else {
+        return Err(PackageManifestError::InvalidAttribute(
+            "the manifest root must be an object".to_string(),
+        ));
+    };
+    // Mirror pnpm's `manifest[field] = manifest[field] ?? {}`: a missing or
+    // `null` field becomes a fresh object before the entry is written. A field
+    // present as a non-object is invalid (pnpm throws on it).
     let deps = obj.entry(field).or_insert_with(|| Value::Object(Map::new()));
-    if let Some(deps) = deps.as_object_mut() {
-        deps.insert(alias.to_string(), Value::String(value.to_string()));
+    if deps.is_null() {
+        *deps = Value::Object(Map::new());
     }
+    let Some(deps) = deps.as_object_mut() else {
+        return Err(PackageManifestError::InvalidAttribute(format!(
+            "the {field} field must be an object",
+        )));
+    };
+    deps.insert(alias.to_string(), Value::String(value.to_string()));
+    Ok(())
 }
 
 fn delete_dep_entry(root: &mut Value, field: &str, alias: &str) {
