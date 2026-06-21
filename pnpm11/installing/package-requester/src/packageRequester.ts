@@ -10,6 +10,7 @@ import type {
   Fetchers,
   FetchOptions,
   FetchResult,
+  PickedFetcher,
 } from '@pnpm/fetching.fetcher-base'
 import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
@@ -307,6 +308,10 @@ async function resolveAndFetch (
     fetchRawManifest: true,
     force: integrityChanged,
     mustComputeIntegrity: resolutionNeedsFetch,
+    // Reuse the fetcher already picked above so the fetch path doesn't run `pickFetcher`
+    // (and a custom fetcher's async `canFetch`) a second time. `undefined` for `variations`,
+    // whose per-platform variant is selected at fetch time.
+    pickedFetcher: fetcherForResolution,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
@@ -448,7 +453,8 @@ function fetchToStore (
     fetch: (
       packageId: string,
       resolution: AtomicResolution,
-      opts: FetchOptions
+      opts: FetchOptions,
+      pickedFetcher?: PickedFetcher
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
     requestsQueue: {
@@ -648,7 +654,8 @@ function fetchToStore (
             name: opts.pkg.name,
             version: opts.pkg.version,
           },
-        }
+        },
+        opts.pickedFetcher
       ), { priority })
 
       const integrity = (opts.pkg.resolution as TarballResolution).integrity ?? fetchedPackage.integrity
@@ -709,11 +716,14 @@ async function fetcher (
   customFetchers: CustomFetcher[] | undefined,
   packageId: string,
   resolution: AtomicResolution,
-  opts: FetchOptions
+  opts: FetchOptions,
+  pickedFetcher?: PickedFetcher
 ): Promise<FetchResult> {
   try {
-    // pickFetcher now handles custom fetcher hooks internally
-    const fetch = await pickFetcher(fetcherByHostingType, resolution, {
+    // Reuse the fetcher the caller already selected for this resolution; only run
+    // `pickFetcher` here when it wasn't pre-picked (e.g. a `variations` variant, whose
+    // fetcher is chosen at fetch time, or a direct `fetchPackage` caller).
+    const fetch = pickedFetcher ?? await pickFetcher(fetcherByHostingType, resolution, {
       customFetchers,
       packageId,
     })

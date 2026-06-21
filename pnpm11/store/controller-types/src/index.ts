@@ -1,3 +1,4 @@
+import type { PickedFetcher } from '@pnpm/fetching.fetcher-base'
 import type {
   DirectoryResolution,
   PkgResolutionId,
@@ -83,6 +84,15 @@ export interface FetchPackageToStoreOptions {
    * reused. Determined by the fetcher's `resolutionNeedsFetch`.
    */
   mustComputeIntegrity?: boolean
+  /**
+   * The fetcher already selected for this resolution by the caller, so the fetch path can
+   * reuse it instead of running `pickFetcher` (and a custom fetcher's async `canFetch`) a
+   * second time. Local-only optimization: set by `package-requester` for non-`variations`
+   * resolutions; absent for `variations` (the variant is picked at fetch time) and for
+   * callers reached over the store server (functions don't cross the IPC boundary), where
+   * the fetch path falls back to selecting the fetcher itself.
+   */
+  pickedFetcher?: PickedFetcher
   ignoreScripts?: boolean
   lockfileDir: string
   pkg: PkgNameVersion & {

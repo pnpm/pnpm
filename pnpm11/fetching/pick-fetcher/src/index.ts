@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import type { BinaryFetcher, DirectoryFetcher, Fetchers, FetchFunction, FetchOptions, FetchResult, GitFetcher } from '@pnpm/fetching.fetcher-base'
+import type { Fetchers, FetchFunction, FetchOptions, FetchResult, PickedFetcher } from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { type AtomicResolution, classifyResolution } from '@pnpm/resolving.resolver-base'
 import type { Cafs } from '@pnpm/store.cafs-types'
@@ -11,7 +11,7 @@ export async function pickFetcher (
     customFetchers?: CustomFetcher[]
     packageId: string
   }
-): Promise<FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher> {
+): Promise<PickedFetcher> {
   // Try custom fetcher hooks first if available
   // Custom fetchers act as complete fetcher replacements
   if (opts?.customFetchers && opts.customFetchers.length > 0) {

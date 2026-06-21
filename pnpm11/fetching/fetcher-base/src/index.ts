@@ -96,3 +96,6 @@ export interface Fetchers {
   git: GitFetcher
   binary: BinaryFetcher
 }
+
+/** The fetcher `pickFetcher` selects for a single resolution: any one of the concrete fetchers. */
+export type PickedFetcher = FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher

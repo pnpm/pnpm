@@ -98,6 +98,46 @@ test('request package', async () => {
   expect(files.resolvedFrom).toBe('remote')
 })
 
+test('a custom fetcher is selected once per request, not re-picked on the fetch path', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  let canFetchCalls = 0
+  const customFetchers = [{
+    // Claim every registry tarball; `canFetch` is async (the cost this dedup avoids
+    // running twice), so count its calls.
+    canFetch: async (_id: string, resolution: { type?: string, tarball?: string }) => {
+      canFetchCalls++
+      return resolution.type == null && typeof resolution.tarball === 'string'
+    },
+    // Delegate the actual fetch to the standard remote-tarball fetcher.
+    fetch: async (cafs: any, resolution: any, opts: any, fetchers: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
+      fetchers.remoteTarball(cafs, resolution, opts),
+  }]
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    customFetchers: customFetchers as never,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  })
+  await pkgResponse.fetching!()
+
+  // Without the picked-fetcher reuse, `pickFetcher` (and this `canFetch`) would run twice:
+  // once to read `resolutionNeedsFetch`, once on the fetch path.
+  expect(canFetchCalls).toBe(1)
+})
+
 test('request package but skip fetching', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
