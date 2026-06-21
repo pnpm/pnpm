@@ -32,6 +32,17 @@ async fn add_or_login_rejects_existing_user_with_wrong_password() {
 }
 
 #[tokio::test]
+async fn add_or_login_rejects_invalid_username_before_insert() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    let err = backend.add_or_login("alice ", "secret").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+
+    let mut rows = backend.conn.query("SELECT COUNT(*) FROM users", ()).await.unwrap();
+    let total: i64 = rows.next().await.unwrap().unwrap().get(0).unwrap();
+    assert_eq!(total, 0, "invalid username must not be inserted");
+}
+
+#[tokio::test]
 async fn max_users_caps_registration() {
     let backend = local_backend(MaxUsers::Limited(1)).await;
     backend.add_or_login("alice", "x").await.unwrap();

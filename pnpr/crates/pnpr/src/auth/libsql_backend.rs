@@ -20,7 +20,8 @@
 
 use super::{
     DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, mint_token, sha256_hex, unix_seconds, verify_bcrypt, verify_returning_user,
+    hash_bcrypt, mint_token, sha256_hex, unix_seconds, validate_username, verify_bcrypt,
+    verify_returning_user,
 };
 use crate::{
     config::{LibsqlSettings, MaxUsers},
@@ -123,6 +124,7 @@ impl LibsqlAuth {
 #[async_trait]
 impl UserBackend for LibsqlAuth {
     async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+        validate_username(username)?;
         if let Some(stored) = self.stored_hash(username).await? {
             return verify_returning_user(username, password, stored).await;
         }
@@ -141,11 +143,14 @@ impl UserBackend for LibsqlAuth {
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         let tx = self.conn.transaction().await?;
         if let MaxUsers::Limited(max) = self.max_users {
+            let sql_max = i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
+                reason: "backend.libsql auth max_users must fit a signed BIGINT".to_string(),
+            })?;
             let updated = tx
                 .execute(
                     "UPDATE auth_counters SET value = value + 1
                      WHERE name = ?1 AND value < ?2",
-                    params!["users", max as i64],
+                    params!["users", sql_max],
                 )
                 .await?;
             if updated == 0 {

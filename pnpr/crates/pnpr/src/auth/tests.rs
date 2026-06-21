@@ -41,6 +41,18 @@ fn username_validation_rejects_htpasswd_structural_characters() {
     }
 }
 
+#[test]
+fn username_validation_rejects_names_that_trim_differently() {
+    for username in [" alice", "alice ", " alice "] {
+        let err = validate_username(username).unwrap_err();
+        assert_eq!(
+            err.status_code(),
+            axum::http::StatusCode::BAD_REQUEST,
+            "expected {username:?} to be rejected",
+        );
+    }
+}
+
 #[tokio::test]
 async fn user_store_rejects_invalid_username_before_persisting() {
     let store = test_user_store();

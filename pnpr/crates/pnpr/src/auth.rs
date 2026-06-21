@@ -67,6 +67,11 @@ pub(crate) fn validate_username(username: &str) -> Result<()> {
             reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
         });
     }
+    if username.trim() != username {
+        return Err(RegistryError::BadRequest {
+            reason: "username must not start or end with whitespace".to_string(),
+        });
+    }
     if username.contains(':') {
         return Err(RegistryError::BadRequest {
             reason: "username must not contain ':'".to_string(),
