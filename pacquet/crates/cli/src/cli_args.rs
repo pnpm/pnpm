@@ -1,4 +1,5 @@
 pub mod add;
+pub mod create;
 pub mod dlx;
 pub mod exec;
 pub mod install;
@@ -15,6 +16,7 @@ pub mod why;
 use crate::{State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use clap::{Parser, Subcommand, ValueEnum};
+use create::CreateArgs;
 use dlx::DlxArgs;
 use exec::ExecArgs;
 use install::InstallArgs;
@@ -141,6 +143,8 @@ pub enum CliCommand {
     Exec(ExecArgs),
     /// Run a package in a temporary environment.
     Dlx(DlxArgs),
+    /// Creates a project from a `create-*` starter kit.
+    Create(CreateArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
     Start,
     /// Managing the package store.
@@ -225,7 +229,8 @@ impl CliArgs {
                 | CliCommand::Update(_)
                 | CliCommand::Remove(_)
                 | CliCommand::Install(_)
-                | CliCommand::Dlx(_),
+                | CliCommand::Dlx(_)
+                | CliCommand::Create(_),
         );
         let manifest_path = || dir.join("package.json");
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
@@ -408,6 +413,17 @@ impl CliArgs {
                 }
             }
             CliCommand::Dlx(args) => match reporter {
+                ReporterType::Default | ReporterType::AppendOnly => {
+                    Box::pin(args.run::<DefaultReporter>(&dir, config()?)).await?;
+                }
+                ReporterType::Ndjson => {
+                    Box::pin(args.run::<NdjsonReporter>(&dir, config()?)).await?;
+                }
+                ReporterType::Silent => {
+                    Box::pin(args.run::<SilentReporter>(&dir, config()?)).await?;
+                }
+            },
+            CliCommand::Create(args) => match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
                     Box::pin(args.run::<DefaultReporter>(&dir, config()?)).await?;
                 }
