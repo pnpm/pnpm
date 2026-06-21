@@ -199,14 +199,14 @@ pub struct SqlBackendSettings {
     /// Maximum connections in the backend pool. Defaults to the
     /// driver's pool default when omitted.
     pub max_connections: Option<u32>,
-    /// Deadline for read-only request-path auth database operations.
+    /// Deadline for request-path auth database operations.
     pub timeout: Duration,
     /// Deadline for initial auth database connect and schema setup.
     pub startup_timeout: Duration,
 }
 
 impl SqlBackendSettings {
-    /// Default read-only request-path auth database deadline.
+    /// Default request-path auth database deadline.
     pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
     /// Default startup auth database deadline.
     pub const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);

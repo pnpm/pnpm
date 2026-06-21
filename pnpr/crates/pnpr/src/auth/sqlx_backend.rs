@@ -33,8 +33,8 @@ impl<Db> SqlAuth<Db> {
 }
 
 /// Only use this around read-only request-path work or startup setup. Request-path
-/// writes must await the database result so callers do not observe a timeout with
-/// an unknown commit state.
+/// writes rely on the backend's statement timeout and must await the database
+/// result so callers do not observe a timeout with an unknown commit state.
 async fn with_auth_timeout<T, E>(
     timeout: Duration,
     future: impl Future<Output = std::result::Result<T, E>>,
@@ -209,7 +209,7 @@ pub(super) mod postgres {
     use super::super::TokenRecord;
     use super::{
         AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
-        with_auth_timeout,
+        timeout_millis, with_auth_timeout,
     };
     use crate::{
         config::{MaxUsers, SqlBackendSettings},
@@ -237,6 +237,15 @@ pub(super) mod postgres {
                 }
                 options = options.max_connections(max_connections);
             }
+            let statement_timeout_sql =
+                format!("SET statement_timeout = {}", timeout_millis(settings.timeout));
+            options = options.after_connect(move |conn, _meta| {
+                let statement_timeout_sql = statement_timeout_sql.clone();
+                Box::pin(async move {
+                    sqlx::query(&statement_timeout_sql).execute(conn).await?;
+                    Ok(())
+                })
+            });
             options = options.acquire_timeout(settings.startup_timeout);
             let pool =
                 with_auth_timeout(settings.startup_timeout, options.connect(&settings.url)).await?;
@@ -513,7 +522,7 @@ pub(super) mod mysql {
     use super::super::TokenRecord;
     use super::{
         AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
-        with_auth_timeout,
+        timeout_millis, timeout_seconds, with_auth_timeout,
     };
     use crate::{
         config::{MaxUsers, SqlBackendSettings},
@@ -541,6 +550,25 @@ pub(super) mod mysql {
                 }
                 options = options.max_connections(max_connections);
             }
+            let statement_timeout_sql =
+                format!("SET SESSION max_execution_time = {}", timeout_millis(settings.timeout));
+            let row_lock_timeout_sql = format!(
+                "SET SESSION innodb_lock_wait_timeout = {}",
+                timeout_seconds(settings.timeout),
+            );
+            let metadata_lock_timeout_sql =
+                format!("SET SESSION lock_wait_timeout = {}", timeout_seconds(settings.timeout));
+            options = options.after_connect(move |conn, _meta| {
+                let statement_timeout_sql = statement_timeout_sql.clone();
+                let row_lock_timeout_sql = row_lock_timeout_sql.clone();
+                let metadata_lock_timeout_sql = metadata_lock_timeout_sql.clone();
+                Box::pin(async move {
+                    sqlx::query(&statement_timeout_sql).execute(&mut *conn).await?;
+                    sqlx::query(&row_lock_timeout_sql).execute(&mut *conn).await?;
+                    sqlx::query(&metadata_lock_timeout_sql).execute(conn).await?;
+                    Ok(())
+                })
+            });
             options = options.acquire_timeout(settings.startup_timeout);
             let pool =
                 with_auth_timeout(settings.startup_timeout, options.connect(&settings.url)).await?;
@@ -839,6 +867,16 @@ fn sql_max_users(max: u64, backend: &str) -> Result<i64> {
     i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
         reason: format!("backend.{backend} auth max_users must fit a signed BIGINT"),
     })
+}
+
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+fn timeout_millis(timeout: Duration) -> u128 {
+    timeout.as_millis().max(1)
+}
+
+#[cfg(feature = "backend-mysql")]
+fn timeout_seconds(timeout: Duration) -> u64 {
+    timeout.as_secs().max(1)
 }
 
 #[cfg(test)]

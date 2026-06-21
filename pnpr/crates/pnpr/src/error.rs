@@ -353,6 +353,11 @@ fn split_trailing_punctuation(candidate: &str) -> (&str, &str) {
 }
 
 fn redact_url_candidate(candidate: &str) -> Option<String> {
+    redact_parseable_url_candidate(candidate)
+        .or_else(|| redact_unparseable_url_candidate(candidate))
+}
+
+fn redact_parseable_url_candidate(candidate: &str) -> Option<String> {
     let mut url = url::Url::parse(candidate).ok()?;
     let mut changed = false;
     if !url.username().is_empty() || url.password().is_some() {
@@ -384,6 +389,62 @@ fn redact_url_candidate(candidate: &str) -> Option<String> {
     }
 
     changed.then(|| url.to_string())
+}
+
+fn redact_unparseable_url_candidate(candidate: &str) -> Option<String> {
+    let mut redacted = candidate.to_string();
+    let mut changed = false;
+    if let Some(safe_url) = redact_unparseable_url_userinfo(&redacted) {
+        redacted = safe_url;
+        changed = true;
+    }
+    if let Some(safe_url) = redact_sensitive_query_values(&redacted) {
+        redacted = safe_url;
+        changed = true;
+    }
+    changed.then_some(redacted)
+}
+
+fn redact_unparseable_url_userinfo(candidate: &str) -> Option<String> {
+    let authority_start = candidate.find("://")? + 3;
+    let authority_end = candidate[authority_start..]
+        .find('/')
+        .map_or(candidate.len(), |offset| authority_start + offset);
+    let authority = &candidate[authority_start..authority_end];
+    let userinfo_end = authority.rfind('@')?;
+    let mut redacted = String::with_capacity(candidate.len());
+    redacted.push_str(&candidate[..authority_start]);
+    redacted.push_str("redacted@");
+    redacted.push_str(&authority[userinfo_end + 1..]);
+    redacted.push_str(&candidate[authority_end..]);
+    Some(redacted)
+}
+
+fn redact_sensitive_query_values(candidate: &str) -> Option<String> {
+    let query_start = candidate.find('?')?;
+    let fragment_start = candidate[query_start + 1..]
+        .find('#')
+        .map_or(candidate.len(), |offset| query_start + 1 + offset);
+    let query = &candidate[query_start + 1..fragment_start];
+    let mut redacted = String::with_capacity(candidate.len());
+    redacted.push_str(&candidate[..=query_start]);
+    let mut changed = false;
+    for segment in query.split_inclusive('&') {
+        let (pair, separator) = segment.strip_suffix('&').map_or((segment, ""), |pair| (pair, "&"));
+        if let Some(value_start) = pair.find('=') {
+            let key = &pair[..value_start];
+            if is_sensitive_query_key(key) {
+                redacted.push_str(key);
+                redacted.push_str("=redacted");
+                redacted.push_str(separator);
+                changed = true;
+                continue;
+            }
+        }
+        redacted.push_str(segment);
+    }
+    redacted.push_str(&candidate[fragment_start..]);
+    changed.then_some(redacted)
 }
 
 fn is_sensitive_query_key(key: &str) -> bool {
