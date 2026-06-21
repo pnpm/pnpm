@@ -273,7 +273,12 @@ async function resolveAndFetch (
       customFetchers: ctx.customFetchers,
       packageId: id,
     })
-  const resolutionNeedsFetch = fetcherForResolution?.resolutionNeedsFetch?.(resolution) ?? false
+  // A custom fetcher's `resolutionNeedsFetch` is untrusted hook input: only call it when
+  // it's actually a function, otherwise default to "no extra fetch needed" (false).
+  const resolutionNeedsFetchHook = fetcherForResolution?.resolutionNeedsFetch
+  const resolutionNeedsFetch = typeof resolutionNeedsFetchHook === 'function'
+    ? resolutionNeedsFetchHook(resolution)
+    : false
   // A resolution that needs a fetch to be completed is downloaded even when fetching is
   // skipped (`--lockfile-only`) or the package isn't installable here: its lockfile entry
   // must carry an integrity for every platform, and the tarball bytes are platform-independent.
@@ -328,9 +333,12 @@ async function resolveAndFetch (
         manifest = loadedManifest as unknown as DependencyManifest
       }
     }
-    // This fetch already happened to read the manifest (git and other resolutions carry
-    // none), so fill in the integrity it computed for a tarball entry that lacks one.
-    if (fetchedResult.integrity != null && !(resolution as TarballResolution).integrity) {
+    // This fetch already happened to read the manifest (a remote tarball carries none),
+    // so fill in the integrity it computed. Gate on `resolutionNeedsFetch` so this only
+    // applies to resolutions whose fetcher declares they must carry a computed integrity:
+    // a `variations` runtime resolution (e.g. `node@runtime`) spans multiple platform
+    // variants, so a single machine's integrity must not be written into it.
+    if (resolutionNeedsFetch && fetchedResult.integrity != null && !(resolution as TarballResolution).integrity) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
   }
@@ -568,8 +576,12 @@ function fetchToStore (
       // the warning below doesn't fire on a genuine first-time download.
       let refetchingStoredPackage = false
 
+      // When integrity must be computed, the store copy can never be served (the check
+      // below blocks it), so skip the `readPkgFromCafs` probe entirely and go straight to
+      // the network fetch — the read would be pure disk/SQLite overhead on this path.
       if (
         !opts.force &&
+        !mustComputeIntegrity &&
         (
           !isLocalTarballDep ||
           await tarballIsUpToDate(opts.pkg.resolution as any, target, opts.lockfileDir) // eslint-disable-line
@@ -580,16 +592,16 @@ function fetchToStore (
           readManifest: opts.fetchRawManifest,
           expectedPkg: opts.pkg,
         })
-        if (verified && !mustComputeIntegrity) {
+        if (verified) {
           fetching.resolve({
             files,
             bundledManifest,
           })
           return
         }
-        // The store held the package but it can't be served from there: either it
-        // failed verification (modified content) or the lockfile entry has no
-        // integrity, so it must be refetched to recompute the checksum.
+        // The store held the package but it failed verification (modified content), so it
+        // must be refetched. (The missing-integrity case never reaches here — it skips the
+        // store read above.)
         refetchingStoredPackage = (files?.filesMap) != null
       }
 
