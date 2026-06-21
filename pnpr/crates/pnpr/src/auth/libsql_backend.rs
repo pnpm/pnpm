@@ -146,7 +146,27 @@ impl UserBackend for LibsqlAuth {
         }
 
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        let mut can_retry_after_reconcile = matches!(self.max_users, MaxUsers::Limited(_));
+        if matches!(self.max_users, MaxUsers::Unlimited) {
+            let inserted = self
+                .conn
+                .execute(
+                    "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+                    params![username, hash],
+                )
+                .await;
+            return match inserted {
+                Ok(_) => Ok((UpsertOutcome::Created, username.to_string())),
+                Err(err) if is_unique_violation(&err) => {
+                    if let Some(stored) = self.stored_hash(username).await? {
+                        return verify_returning_user(username, password, stored).await;
+                    }
+                    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
+                }
+                Err(err) => Err(err.into()),
+            };
+        }
+
+        let mut can_retry_after_reconcile = true;
         loop {
             let tx = self.conn.transaction().await?;
             if let MaxUsers::Limited(max) = self.max_users {

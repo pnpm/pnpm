@@ -243,7 +243,7 @@ pub(super) mod postgres {
         }
 
         async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
-            self.reconcile_user_counter_overcount().await
+            self.reconcile_user_counter_overcount_impl().await
         }
 
         async fn insert_user(
@@ -270,7 +270,7 @@ pub(super) mod postgres {
                             tx.rollback().await?;
                             if can_retry_after_reconcile {
                                 can_retry_after_reconcile = false;
-                                if self.reconcile_user_counter_overcount().await? {
+                                if self.reconcile_user_counter_overcount_impl().await? {
                                     continue;
                                 }
                             }
@@ -420,7 +420,7 @@ pub(super) mod postgres {
             Ok(updated.rows_affected())
         }
 
-        async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
+        async fn reconcile_user_counter_overcount_impl(&self) -> Result<bool> {
             let mut tx = self.pool.begin().await?;
             let Some(counter): Option<i64> =
                 sqlx::query_scalar("SELECT value FROM auth_counters WHERE name = $1 FOR UPDATE")
@@ -547,7 +547,7 @@ pub(super) mod mysql {
         }
 
         async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
-            self.reconcile_user_counter_overcount().await
+            self.reconcile_user_counter_overcount_impl().await
         }
 
         async fn insert_user(
@@ -574,7 +574,7 @@ pub(super) mod mysql {
                             tx.rollback().await?;
                             if can_retry_after_reconcile {
                                 can_retry_after_reconcile = false;
-                                if self.reconcile_user_counter_overcount().await? {
+                                if self.reconcile_user_counter_overcount_impl().await? {
                                     continue;
                                 }
                             }
@@ -725,7 +725,7 @@ pub(super) mod mysql {
             Ok(updated.rows_affected())
         }
 
-        async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
+        async fn reconcile_user_counter_overcount_impl(&self) -> Result<bool> {
             let mut tx = self.pool.begin().await?;
             let Some(counter): Option<i64> =
                 sqlx::query_scalar("SELECT value FROM auth_counters WHERE name = ? FOR UPDATE")
