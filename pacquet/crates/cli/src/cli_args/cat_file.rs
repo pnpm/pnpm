@@ -34,6 +34,8 @@ impl CatFileArgs {
         use std::fmt::Write;
         let mut hex = String::with_capacity(decoded.len() * 2);
         for b in decoded {
+            // The hex conversion produces only characters 0-9a-f, which mathematically cannot
+            // form path-traversal sequences (like '.', '/', or '\'), ensuring path safety by design.
             write!(&mut hex, "{b:02x}").into_diagnostic()?;
         }
 

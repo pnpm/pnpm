@@ -63,7 +63,7 @@ fn should_fail_on_invalid_hash_format() {
         CommandTempCwd::init().add_mocked_registry();
     let output = pacquet.arg("cat-file").arg("invalidhashformatwithoutdash").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    println!("STDERR format: {stderr}");
+
     assert!(stderr.contains("Invalid hash format"));
 }
 
