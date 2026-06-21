@@ -29,7 +29,8 @@ pub use auth::{
 pub use config::{
     AuthConfig, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig,
     HtpasswdConfig, LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, OsvConfig,
-    PackageAccess, SqlBackendSettings, TokensConfig, UplinkConfig, default_cache_dir,
+    PackageAccess, RegistryFeature, ResolverFeature, SqlBackendSettings, TokensConfig,
+    UplinkConfig, default_cache_dir,
 };
 pub use error::{RegistryError, Result};
 pub use journal::recover_publish_journal;
