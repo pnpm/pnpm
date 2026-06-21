@@ -276,14 +276,13 @@ async function resolveAndFetch (
       packageId: id,
     })
   const resolutionNeedsFetch = fetcherForResolution?.resolutionNeedsFetch?.(resolution) ?? false
-  // `--lockfile-only` (skipFetch) normally returns right after resolution without
-  // downloading. But a resolution that can't be completed without a fetch (e.g. a registry
-  // tarball whose integrity must be computed from the bytes) can't honor it — download
-  // anyway so it can be completed, otherwise the lockfile entry would be incomplete.
-  const mustFetchToCompleteResolution = options.skipFetch === true && resolutionNeedsFetch
-  // We can skip fetching the package only if the manifest
-  // is present after resolution AND the content of the package has not changed
-  if ((options.skipFetch === true || isInstallable === false) && !mustFetchToCompleteResolution && !integrityChanged && (manifest != null)) {
+  // We normally return right after resolution without downloading when fetching is skipped
+  // (`--lockfile-only`) or the package isn't installable on this platform. But a resolution
+  // that can't be completed without a fetch (e.g. a registry tarball whose integrity must be
+  // computed from the bytes) must still be downloaded so its lockfile entry is complete —
+  // recorded for every platform — regardless of either of those. The tarball bytes are
+  // platform-independent, so this download succeeds even when the package isn't installable.
+  if ((options.skipFetch === true || isInstallable === false) && !resolutionNeedsFetch && !integrityChanged && (manifest != null)) {
     return {
       body: {
         id,
@@ -339,7 +338,7 @@ async function resolveAndFetch (
     // integrity the worker computed is already in hand. Fill it in for a tarball entry
     // that lacks one. Only tarball fetch results carry an integrity, so this enriches
     // git-hosted and file: tarballs too without per-fetcher dispatch.
-    if (fetchedResult.integrity != null && (resolution as TarballResolution).integrity == null) {
+    if (fetchedResult.integrity != null && !(resolution as TarballResolution).integrity) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
   }
@@ -355,7 +354,7 @@ async function resolveAndFetch (
     let populating: Promise<PkgRequestFetchResult> | undefined
     fetching = () => {
       populating ??= fetchResult.fetching().then((fetchedResult) => {
-        if (fetchedResult.integrity != null && (resolution as TarballResolution).integrity == null) {
+        if (fetchedResult.integrity != null && !(resolution as TarballResolution).integrity) {
           (resolution as TarballResolution).integrity = fetchedResult.integrity
         }
         return fetchedResult

@@ -65,8 +65,9 @@ export function createTarballFetcher (
   // tells the package requester to fetch even under `--lockfile-only` and never to serve
   // such an entry from the store. Git-hosted and local (`file:`) tarballs are anchored
   // otherwise and keep the default (no forced fetch).
+  // Falsy rather than `== null` so a tampered `integrity: ""` is treated as missing too.
   remoteTarballFetcher.resolutionNeedsFetch = (resolution) =>
-    (resolution as { integrity?: string }).integrity == null
+    !(resolution as { integrity?: string }).integrity
 
   return {
     localTarball: createLocalTarballFetcher(opts.storeIndex),

@@ -25,10 +25,12 @@ export async function pickFetcher (
           // The custom fetcher's fetch receives cafs, resolution, opts, and the standard
           // fetchers for delegation. Its optional resolution contract is forwarded so the
           // requester treats it like any standard fetcher (defaults apply when it opts out).
+          // The hook is bound to the custom fetcher so an implementation that uses `this`
+          // still works once it's copied onto the wrapper.
           return Object.assign(
             async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions): Promise<FetchResult> =>
               customFetcher.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType),
-            { resolutionNeedsFetch: customFetcher.resolutionNeedsFetch }
+            { resolutionNeedsFetch: customFetcher.resolutionNeedsFetch?.bind(customFetcher) }
           ) as FetchFunction
         }
       }

@@ -179,14 +179,11 @@ export function createNpmResolutionVerifier (
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion }) => {
-    // URL/git-keyed entries are deliberate non-registry deps. They can still
-    // carry a semver `version` copied from the resolved manifest, so the
-    // semver guard isn't enough on its own — the registry policies and the
-    // tarball-URL binding don't apply to them, and a registry lookup would 404.
+    // URL/git-keyed entries are deliberate non-registry deps. They anchor their bytes
+    // another way and a registry lookup would 404, so they're exempt.
     if (nonSemverVersion != null) return { ok: true }
-    if (!semver.valid(version)) return { ok: true }
-    // Git / directory / binary / custom / file: / git-hosted resolutions anchor
-    // their bytes another way and are exempt from the registry-tarball checks.
+    // Git / directory / binary / custom / file: / git-hosted resolutions anchor their
+    // bytes another way and are exempt from the registry-tarball checks too.
     if (!isRegistryTarballResolution(resolution)) return { ok: true }
 
     // A registry tarball can only be verified against an integrity checksum, so an
@@ -195,10 +192,13 @@ export function createNpmResolutionVerifier (
     // and omit the integrity in their metadata; pnpm computes it from the downloaded
     // tarball at fetch time, so a complete lockfile entry always carries one. A missing
     // integrity here means a legacy or tampered lockfile (including a canonical entry
-    // stripped down to `{}`, which reconstructs its URL from name+version). Synchronous —
-    // no metadata fetch needed. Pacquet enforces the same invariant via
-    // `pacquet_package_manager::missing_tarball_integrity`.
-    if ((resolution as { integrity?: string }).integrity == null) {
+    // stripped down to `{}`, which reconstructs its URL from name+version). Checked before
+    // the semver guard below so a tampered entry can't dodge it with a non-semver
+    // `version`. Synchronous — no metadata fetch needed. Pacquet enforces the same
+    // invariant via `pacquet_package_manager::missing_tarball_integrity`.
+    // Falsy rather than `== null` so a tampered `integrity: ""` can't slip past (the
+    // worker only validates a truthy integrity, so an empty string is no integrity at all).
+    if (!(resolution as { integrity?: string }).integrity) {
       return {
         ok: false,
         code: MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
@@ -206,7 +206,17 @@ export function createNpmResolutionVerifier (
       }
     }
 
-    const tarballUrl = (resolution as { tarball?: string }).tarball
+    // The registry policy checks below (tarball-URL binding, age, trust) query the
+    // registry by version, so they need a valid semver. A registry entry with a
+    // non-semver version still carries a verified integrity, so it isn't rejected here —
+    // just not policed further.
+    if (!semver.valid(version)) return { ok: true }
+
+    // A tampered lockfile could carry a non-string `tarball`; treat anything that isn't a
+    // string as absent so the registry routing falls back to the scope-derived default
+    // instead of throwing deep inside URL parsing.
+    const rawTarball = (resolution as { tarball?: unknown }).tarball
+    const tarballUrl = typeof rawTarball === 'string' ? rawTarball : undefined
     const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
 
     // A registry entry that pins an explicit tarball URL must point at the

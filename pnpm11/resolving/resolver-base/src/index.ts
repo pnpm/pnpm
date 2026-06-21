@@ -122,13 +122,16 @@ export type ResolutionKind =
  * (reconstructed later from name/version/registry) still classifies as `remoteTarball`.
  */
 export function classifyResolution (resolution: Resolution): ResolutionKind {
+  // `== null` so a tarball entry deserialized from YAML with `type: null` is treated the
+  // same as an absent `type`, instead of falling through to `custom`.
+  if (resolution.type == null) {
+    if (resolution.tarball?.startsWith('file:')) return 'localTarball'
+    if (resolution.gitHosted === true || (resolution.tarball != null && isGitHostedTarballUrl(resolution.tarball))) {
+      return 'gitHostedTarball'
+    }
+    return 'remoteTarball'
+  }
   switch (resolution.type) {
-    case undefined:
-      if (resolution.tarball?.startsWith('file:')) return 'localTarball'
-      if (resolution.gitHosted === true || (resolution.tarball != null && isGitHostedTarballUrl(resolution.tarball))) {
-        return 'gitHostedTarball'
-      }
-      return 'remoteTarball'
     case 'directory':
     case 'git':
     case 'binary':
