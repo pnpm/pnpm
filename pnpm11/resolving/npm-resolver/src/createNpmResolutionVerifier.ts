@@ -4,9 +4,10 @@ import { FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
-import type {
-  Resolution,
-  ResolutionVerifier,
+import {
+  isGitHostedTarballUrl,
+  type Resolution,
+  type ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
 import type { PackageVersionPolicy, Registries, TrustPolicy } from '@pnpm/types'
 import semver from 'semver'
@@ -966,6 +967,10 @@ function isRegistryTarballResolution (resolution: Resolution | unknown): boolean
   if ('gitHosted' in resolution && (resolution as { gitHosted?: boolean }).gitHosted) return false
   const tarball = (resolution as { tarball?: unknown }).tarball
   if (typeof tarball === 'string') {
+    // A git-hosted archive URL (codeload/gitlab/bitbucket) is commit-anchored and carries no
+    // integrity. The `gitHosted` flag is the primary signal, but legacy lockfiles record
+    // these without it, so detect them by URL too — matching `classifyResolution`.
+    if (isGitHostedTarballUrl(tarball)) return false
     const protocol = tryParseUrl(tarball)?.protocol
     if (protocol != null && protocol !== 'http:' && protocol !== 'https:') return false
   }

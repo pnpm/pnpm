@@ -351,6 +351,18 @@ test('createNpmResolutionVerifier() enforces missing integrity even with a non-s
   expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
 })
 
+test('createNpmResolutionVerifier() exempts a git-hosted tarball URL recorded without the gitHosted flag', async () => {
+  // Legacy lockfiles record codeload/gitlab/bitbucket archive URLs without `gitHosted: true`.
+  // They are commit-anchored and carry no integrity, so the verifier must not reject them as
+  // integrity-less registry tarballs. No mock agent: an exempt entry does no registry lookup.
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/abc1234' } as unknown as Resolution,
+    { name: 'is-negative', version: '1.0.0', nonSemverVersion: 'https+++github.com+kevva+is-negative' }
+  )
+  expect(result).toStrictEqual({ ok: true })
+})
+
 test('createNpmResolutionVerifier() enforces missing integrity on a URL-keyed (nonSemverVersion) tarball', async () => {
   // A URL-keyed http(s) tarball entry sets `nonSemverVersion`. Integrity binds its bytes
   // and needs no registry lookup, so the URL-keyed short-circuit must not let a tampered
