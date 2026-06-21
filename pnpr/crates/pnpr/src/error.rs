@@ -406,16 +406,14 @@ fn redact_unparsable_url_candidate(candidate: &str) -> Option<String> {
 
 fn redact_unparsable_url_userinfo(candidate: &str) -> Option<String> {
     let authority_start = candidate.find("://")? + 3;
-    let authority_end = candidate[authority_start..]
-        .find('/')
+    let scan_end = candidate[authority_start..]
+        .find('?')
         .map_or(candidate.len(), |offset| authority_start + offset);
-    let authority = &candidate[authority_start..authority_end];
-    let userinfo_end = authority.rfind('@')?;
+    let userinfo_end = candidate[authority_start..scan_end].rfind('@')? + authority_start;
     let mut redacted = String::with_capacity(candidate.len());
     redacted.push_str(&candidate[..authority_start]);
     redacted.push_str("redacted@");
-    redacted.push_str(&authority[userinfo_end + 1..]);
-    redacted.push_str(&candidate[authority_end..]);
+    redacted.push_str(&candidate[userinfo_end + 1..]);
     Some(redacted)
 }
 

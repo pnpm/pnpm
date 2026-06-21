@@ -108,3 +108,16 @@ fn log_message_redacts_malformed_database_url_credentials() {
     assert!(!message.contains("sec#ret"));
     assert!(!message.contains("query-secret"));
 }
+
+#[test]
+fn log_message_redacts_malformed_database_url_credentials_with_slash() {
+    let err = RegistryError::Internal {
+        reason: "connection failed for postgres://admin:pa/ss@db.example/pnpr".to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("postgres://redacted@db.example/pnpr"));
+    assert!(!message.contains("admin"));
+    assert!(!message.contains("pa/ss"));
+}

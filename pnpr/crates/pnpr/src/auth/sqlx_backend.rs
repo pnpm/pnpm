@@ -762,7 +762,8 @@ pub(super) mod mysql {
 
         async fn ensure_user_counter(&self) -> Result<()> {
             let count = self.actual_user_count().await?;
-            if self.set_user_counter_floor(count).await? > 0 {
+            if self.user_counter().await?.is_some() {
+                self.set_user_counter_floor(count).await?;
                 return Ok(());
             }
             let inserted = sqlx::query("INSERT INTO auth_counters (name, value) VALUES (?, ?)")
