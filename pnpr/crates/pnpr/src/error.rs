@@ -113,6 +113,13 @@ pub enum RegistryError {
     #[from(skip)]
     TooManyUsers { max: u64 },
 
+    #[display("Internal error: {reason}")]
+    #[from(skip)]
+    Internal {
+        #[error(not(source))]
+        reason: String,
+    },
+
     /// The htpasswd file on disk couldn't be parsed at startup.
     /// Surfaced as a startup-time error rather than a silent empty
     /// store so a corrupted file can't quietly lock every existing
@@ -214,7 +221,8 @@ impl RegistryError {
             RegistryError::RegistrationDisabled | RegistryError::TooManyUsers { .. } => {
                 StatusCode::FORBIDDEN
             }
-            RegistryError::InvalidHtpasswdFile { .. }
+            RegistryError::Internal { .. }
+            | RegistryError::InvalidHtpasswdFile { .. }
             | RegistryError::Bcrypt(_)
             | RegistryError::Sqlite(_)
             | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,

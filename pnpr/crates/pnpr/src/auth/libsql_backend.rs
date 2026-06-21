@@ -115,7 +115,9 @@ impl LibsqlAuth {
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
         let mut rows = self.conn.query("SELECT COUNT(*) FROM users", ()).await?;
-        let row = rows.next().await?.expect("COUNT(*) returns exactly one row");
+        let Some(row) = rows.next().await? else {
+            return Err(missing_count_row());
+        };
         let count: i64 = row.get(0)?;
         Ok(count.max(0) as u64)
     }
@@ -300,7 +302,9 @@ async fn init_schema(conn: &Connection) -> Result<()> {
 
 async fn ensure_user_counter(conn: &Connection) -> Result<()> {
     let mut rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
-    let row = rows.next().await?.expect("COUNT(*) returns exactly one row");
+    let Some(row) = rows.next().await? else {
+        return Err(missing_count_row());
+    };
     let count: i64 = row.get(0)?;
     let tx = conn.transaction().await?;
     let inserted = tx
@@ -337,7 +341,9 @@ async fn reconcile_user_counter_overcount(conn: &Connection) -> Result<bool> {
     let counter: i64 = counter_row.get(0)?;
     drop(counter_rows);
     let mut count_rows = tx.query("SELECT COUNT(*) FROM users", ()).await?;
-    let count_row = count_rows.next().await?.expect("COUNT(*) returns exactly one row");
+    let Some(count_row) = count_rows.next().await? else {
+        return Err(missing_count_row());
+    };
     let count: i64 = count_row.get(0)?;
     drop(count_rows);
     if counter <= count {
@@ -363,6 +369,10 @@ fn is_unique_violation(err: &LibsqlError) -> bool {
         }
         _ => false,
     }
+}
+
+fn missing_count_row() -> RegistryError {
+    RegistryError::Internal { reason: "auth database COUNT(*) returned no rows".to_string() }
 }
 
 /// Decode a row selecting [`TOKEN_COLUMNS`] into its `(token_hash,
