@@ -83,6 +83,75 @@ export interface VariationsResolution {
 
 export type Resolution = AtomicResolution | VariationsResolution
 
+const GIT_HOSTED_TARBALL_HOSTS = [
+  'https://codeload.github.com/',
+  'https://bitbucket.org/',
+  'https://gitlab.com/',
+]
+
+/**
+ * A tarball URL is git-hosted when it points at a known git provider's archive
+ * endpoint (GitHub/GitLab/Bitbucket). Schemes and hostnames are case-insensitive,
+ * so the match runs against a lowercased copy: a tampered
+ * `https://CODELOAD.GITHUB.COM/...` must not slip past as a registry-trusted
+ * tarball. Only the lowercased copy is inspected; the original URL is never rewritten.
+ */
+export function isGitHostedTarballUrl (url: string): boolean {
+  const lowerUrl = url.toLowerCase()
+  return GIT_HOSTED_TARBALL_HOSTS.some((host) => lowerUrl.startsWith(host)) && lowerUrl.includes('tar.gz')
+}
+
+/**
+ * The kind of source a resolution points at — the single source of truth shared by
+ * fetcher selection (`pickFetcher`) and the lockfile integrity policy
+ * (`resolutionNeedsIntegrity`). `'custom'` covers `custom:*` resolution types (served
+ * by custom fetchers) and any other non-built-in shape.
+ */
+export type ResolutionKind =
+  | 'localTarball'
+  | 'gitHostedTarball'
+  | 'remoteTarball'
+  | 'directory'
+  | 'git'
+  | 'binary'
+  | 'custom'
+
+/**
+ * Classifies a resolution by the kind of source it points at. A tarball-shaped
+ * resolution (no `type`) is a `remoteTarball` unless its URL marks it as local
+ * (`file:`) or git-hosted. A canonical registry entry whose tarball URL was omitted
+ * (reconstructed later from name/version/registry) still classifies as `remoteTarball`.
+ */
+export function classifyResolution (resolution: Resolution): ResolutionKind {
+  switch (resolution.type) {
+    case undefined:
+      if (resolution.tarball?.startsWith('file:')) return 'localTarball'
+      if (resolution.gitHosted === true || (resolution.tarball != null && isGitHostedTarballUrl(resolution.tarball))) {
+        return 'gitHostedTarball'
+      }
+      return 'remoteTarball'
+    case 'directory':
+    case 'git':
+    case 'binary':
+      return resolution.type
+    default:
+      return 'custom'
+  }
+}
+
+/**
+ * A plain registry/HTTP tarball (`remoteTarball`) can only be verified against an
+ * integrity checksum, so such a lockfile entry must carry one. Every other kind anchors
+ * its bytes differently — `file:` tarballs are local, git and git-hosted tarballs are
+ * bound by the commit SHA, directories are live files, binary resolutions already carry
+ * a mandatory integrity, and custom fetchers verify their own content — so none of them
+ * require an `integrity` field.
+ */
+export function resolutionNeedsIntegrity (resolution: Resolution): boolean {
+  if ('integrity' in resolution && resolution.integrity != null) return false
+  return classifyResolution(resolution) === 'remoteTarball'
+}
+
 /**
  * Outcome of asking a `ResolutionVerifier` whether a (name, version,
  * resolution) entry from a lockfile is acceptable under whatever policies

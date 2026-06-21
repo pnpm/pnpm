@@ -42,7 +42,6 @@
     "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
-    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",

@@ -14,7 +14,6 @@ import type {
 import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
-import { resolutionNeedsIntegrity } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import {
   type AtomicResolution,
@@ -22,6 +21,7 @@ import {
   type PlatformAssetResolution,
   type PreferredVersions,
   type Resolution,
+  resolutionNeedsIntegrity,
   type ResolveFunction,
   resolvePlatformSelector,
   type ResolveResult,

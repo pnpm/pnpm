@@ -6570,9 +6570,6 @@ importers:
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
-      '@pnpm/lockfile.utils':
-        specifier: workspace:*
-        version: link:../../lockfile/utils
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -7455,9 +7452,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
-      '@pnpm/fetching.pick-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/pick-fetcher
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist

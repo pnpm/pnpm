@@ -1,6 +1,8 @@
 ---
+"@pnpm/resolving.resolver-base": minor
 "@pnpm/installing.package-requester": minor
-"@pnpm/lockfile.utils": minor
+"@pnpm/fetching.pick-fetcher": patch
+"@pnpm/patching.commands": patch
 "pnpm": minor
 ---
 

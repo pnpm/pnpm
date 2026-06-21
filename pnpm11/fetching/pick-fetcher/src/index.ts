@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import type { BinaryFetcher, DirectoryFetcher, Fetchers, FetchFunction, FetchOptions, GitFetcher } from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
-import type { AtomicResolution } from '@pnpm/resolving.resolver-base'
+import { type AtomicResolution, classifyResolution } from '@pnpm/resolving.resolver-base'
 import type { Cafs } from '@pnpm/store.cafs-types'
 
 export async function pickFetcher (
@@ -31,31 +31,10 @@ export async function pickFetcher (
     }
   }
 
-  // No custom fetcher handled the fetch, use standard fetcher selection
-  let fetcherType: keyof Fetchers | undefined
-
-  // Determine the fetcher type based on resolution
-  if (resolution.type == null) {
-    // Tarball resolution without explicit type
-    if ('tarball' in resolution && resolution.tarball) {
-      if (resolution.tarball.startsWith('file:')) {
-        fetcherType = 'localTarball'
-      } else if (
-        ('gitHosted' in resolution && resolution.gitHosted === true) ||
-        // URL fallback for resolutions that didn't go through the resolver or
-        // the lockfile loader (e.g., constructed ad-hoc).
-        isGitHostedPkgUrl(resolution.tarball)
-      ) {
-        fetcherType = 'gitHostedTarball'
-      } else {
-        fetcherType = 'remoteTarball'
-      }
-    }
-  } else if (resolution.type === 'directory' || resolution.type === 'git' || resolution.type === 'binary') {
-    // Standard resolution types that map directly to fetchers
-    fetcherType = resolution.type
-  } else {
-    // Custom resolution type that wasn't handled by any custom fetcher
+  // No custom fetcher handled the fetch, use standard fetcher selection.
+  const fetcherType = classifyResolution(resolution)
+  if (fetcherType === 'custom') {
+    // Custom resolution type that wasn't handled by any custom fetcher above.
     throw new PnpmError(
       'UNSUPPORTED_RESOLUTION_TYPE',
       `Cannot fetch dependency with custom resolution type "${resolution.type}". ` +
@@ -63,19 +42,11 @@ export async function pickFetcher (
     )
   }
 
-  const fetch = fetcherType != null ? fetcherByHostingType[fetcherType] : undefined
+  const fetch = fetcherByHostingType[fetcherType]
 
   if (!fetch) {
     throw new Error(`Fetching for dependency type "${resolution.type ?? 'tarball'}" is not supported`)
   }
 
   return fetch
-}
-
-export function isGitHostedPkgUrl (url: string): boolean {
-  return (
-    url.startsWith('https://codeload.github.com/') ||
-    url.startsWith('https://bitbucket.org/') ||
-    url.startsWith('https://gitlab.com/')
-  ) && url.includes('tar.gz')
 }

@@ -3,12 +3,11 @@ import url from 'node:url'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
-import type { Resolution } from '@pnpm/resolving.resolver-base'
+import { type Resolution, resolutionNeedsIntegrity } from '@pnpm/resolving.resolver-base'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
 import type { Registries } from '@pnpm/types'
 
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
-import { resolutionNeedsIntegrity } from './toLockfileResolution.js'
 
 export function pkgSnapshotToResolution (
   depPath: string,
