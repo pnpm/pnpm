@@ -22,10 +22,10 @@ pub mod why;
 
 use crate::{State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
+use cache::CacheCommand;
 use cat_file::CatFileArgs;
 use cat_index::CatIndexArgs;
 use clap::{Parser, Subcommand, ValueEnum};
-use cache::CacheCommand;
 use create::CreateArgs;
 use dlx::DlxArgs;
 use exec::ExecArgs;

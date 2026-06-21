@@ -11,7 +11,8 @@ fn should_list_registries() {
     fs::create_dir_all(cache_dir.join("registry.npmjs.org")).unwrap();
     fs::create_dir_all(cache_dir.join("registry.yarnpkg.com")).unwrap();
 
-    let output = cwd.pacquet
+    let output = cwd
+        .pacquet
         .with_arg("cache")
         .with_arg("list-registries")
         .assert()
@@ -34,7 +35,8 @@ fn should_list_packages() {
     fs::write(cache_dir.join("registry.npmjs.org").join("is-positive.jsonl"), "{}").unwrap();
     fs::write(cache_dir.join("registry.npmjs.org").join("is-negative.jsonl"), "{}").unwrap();
 
-    let _output = cwd.pacquet
+    let _output = cwd
+        .pacquet
         .with_arg("cache")
         .with_arg("list")
         .assert()
@@ -53,7 +55,8 @@ fn should_delete_packages() {
     fs::write(cache_dir.join("registry.npmjs.org").join("is-positive.jsonl"), "{}").unwrap();
     fs::write(cache_dir.join("registry.npmjs.org").join("is-negative.jsonl"), "{}").unwrap();
 
-    let _output = cwd.pacquet
+    let _output = cwd
+        .pacquet
         .with_arg("cache")
         .with_arg("delete")
         .with_arg("is-positive")
