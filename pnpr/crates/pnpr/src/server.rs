@@ -2009,12 +2009,13 @@ fn not_found() -> Response {
 
 fn error_response(err: &RegistryError) -> Response {
     let status = err.status_code();
+    let error_kind = err.log_kind();
     if status.is_server_error() {
-        tracing::error!(%err, %status, "request failed");
+        tracing::error!(%error_kind, %status, "request failed");
     } else if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-        tracing::info!(%err, %status, "request failed");
+        tracing::info!(%err, %error_kind, %status, "request failed");
     } else {
-        tracing::warn!(%err, %status, "request failed");
+        tracing::warn!(%err, %error_kind, %status, "request failed");
     }
     (status, err.public_message()).into_response()
 }

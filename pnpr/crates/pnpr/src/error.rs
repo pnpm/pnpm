@@ -174,6 +174,39 @@ pub enum RegistryError {
 
 impl RegistryError {
     #[must_use]
+    pub fn log_kind(&self) -> &'static str {
+        match self {
+            RegistryError::Upstream { .. } => "upstream",
+            RegistryError::UpstreamStatus { .. } => "upstream_status",
+            RegistryError::UpstreamUnavailable { .. } => "upstream_unavailable",
+            RegistryError::InvalidPackageName { .. } => "invalid_package_name",
+            RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
+            RegistryError::InvalidPolicyPattern { .. } => "invalid_policy_pattern",
+            RegistryError::InvalidConfig { .. } => "invalid_config",
+            RegistryError::Unauthenticated { .. } => "unauthenticated",
+            RegistryError::Forbidden { .. } => "forbidden",
+            RegistryError::InvalidAttachment { .. } => "invalid_attachment",
+            RegistryError::BadRequest { .. } => "bad_request",
+            RegistryError::RegistrationDisabled => "registration_disabled",
+            RegistryError::TooManyUsers { .. } => "too_many_users",
+            RegistryError::Internal { .. } => "internal",
+            RegistryError::InvalidHtpasswdFile { .. } => "invalid_htpasswd_file",
+            RegistryError::Bcrypt(_) => "bcrypt",
+            RegistryError::Sqlite(_) => "sqlite",
+            #[cfg(feature = "backend-libsql")]
+            RegistryError::Libsql(_) => "libsql",
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            RegistryError::Sqlx(_) => "sqlx",
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            RegistryError::AuthDatabaseTimeout => "auth_database_timeout",
+            RegistryError::JoinError(_) => "join_error",
+            RegistryError::Io(_) => "io",
+            RegistryError::ObjectStore(_) => "object_store",
+            RegistryError::Json(_) => "json",
+        }
+    }
+
+    #[must_use]
     pub fn public_message(&self) -> String {
         let status = self.status_code();
         if status.is_server_error() {
