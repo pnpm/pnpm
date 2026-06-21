@@ -45,8 +45,8 @@ fn find_hash_works() {
     println!("STDOUT: {stdout}");
 
     // Output should contain the package name and version we extracted the hash from
-    assert!(stdout.contains(&expected_name), "Expected stdout to contain name {}", expected_name);
-    assert!(stdout.contains(&expected_version), "Expected stdout to contain version {}", expected_version);
+    assert!(stdout.contains(&expected_name), "Expected stdout to contain name {expected_name}");
+    assert!(stdout.contains(&expected_version), "Expected stdout to contain version {expected_version}");
 }
 
 #[test]
@@ -109,6 +109,6 @@ fn find_hash_works_with_base64() {
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
 
     println!("STDOUT: {stdout}");
-    assert!(stdout.contains(&expected_name), "Expected stdout to contain name {}", expected_name);
-    assert!(stdout.contains(&expected_version), "Expected stdout to contain version {}", expected_version);
+    assert!(stdout.contains(&expected_name), "Expected stdout to contain name {expected_name}");
+    assert!(stdout.contains(&expected_version), "Expected stdout to contain version {expected_version}");
 }
