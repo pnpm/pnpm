@@ -3,7 +3,8 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_store_dir::StoreDir;
-use std::fs;
+use std::fs::File;
+use std::io::Write;
 
 #[derive(Debug, Args)]
 pub struct CatFileArgs {
@@ -42,11 +43,15 @@ impl CatFileArgs {
         // Path should be <store>/files/<first 2 chars>/<rest of hex chars>
         let file_path = store_dir.root().join("files").join(&hex[..2]).join(&hex[2..]);
 
-        let content = fs::read_to_string(&file_path).into_diagnostic().wrap_err_with(|| {
-            format!("Corresponding hash file not found: {}", file_path.display())
-        })?;
+        let mut file = File::open(&file_path)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("File not found in store: {}", file_path.display()))?;
 
-        print!("{content}");
+        let mut stdout = std::io::stdout();
+        std::io::copy(&mut file, &mut stdout)
+            .into_diagnostic()
+            .wrap_err("Failed to write to stdout")?;
+        stdout.flush().into_diagnostic()?;
 
         Ok(())
     }
