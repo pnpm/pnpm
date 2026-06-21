@@ -18,8 +18,11 @@ use tempfile::{TempDir, tempdir};
 /// happy-path tests don't shell out to `node`.
 fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
     let dir = tempdir().unwrap();
-    std::fs::write(dir.path().join("package.json"), serde_json::to_string_pretty(manifest).unwrap())
-        .unwrap();
+    std::fs::write(
+        dir.path().join("package.json"),
+        serde_json::to_string_pretty(manifest).unwrap(),
+    )
+    .unwrap();
     let opts = PackOptions {
         dir: dir.path().to_path_buf(),
         catalogs: BTreeMap::new(),
