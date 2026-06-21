@@ -29,16 +29,20 @@ use crate::{
 };
 use dashmap::DashSet;
 use pacquet_config::Config;
+use pacquet_lockfile::LockfileResolution;
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{Reporter, SilentReporter};
 use pacquet_resolving_resolver_base::{
-    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
-    WantedDependency,
+    LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
+    Resolver, WantedDependency,
 };
 use pacquet_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
 };
-use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts, SharedReportedProgressKeys};
+use pacquet_tarball::{
+    DownloadTarballToStore, FetchTarballForResolution, MemCache, RetryOpts,
+    SharedReportedProgressKeys,
+};
 use std::{marker::PhantomData, sync::Arc};
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything
@@ -148,6 +152,49 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             spawned_urls: Arc::new(DashSet::new()),
         };
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
+    }
+
+    /// When the inner resolver produced a remote tarball resolution with no
+    /// integrity — a registry that generates tarballs on demand and omits the
+    /// checksum from its metadata — download the tarball to compute its sha512
+    /// integrity and write it into the resolution, so the lockfile entry is
+    /// verifiable on later installs.
+    ///
+    /// This is pacquet's analogue of pnpm computing the integrity in the fetcher
+    /// and writing it back into the resolution before the lockfile is built
+    /// ([pnpm/pnpm#12145](https://github.com/pnpm/pnpm/issues/12145)). `file:`
+    /// and git-hosted tarballs are anchored another way (local bytes / commit
+    /// SHA) and keep their integrity-less form. The download warms the same
+    /// `MemCache` the install pass reads, so it isn't fetched twice.
+    async fn fill_missing_integrity(&self, result: &mut ResolveResult) -> Result<(), ResolveError> {
+        let LockfileResolution::Tarball(tarball) = &result.resolution else {
+            return Ok(());
+        };
+        if tarball.integrity.is_some()
+            || tarball.git_hosted == Some(true)
+            || tarball.tarball.starts_with("file:")
+        {
+            return Ok(());
+        }
+        let package_url = tarball.tarball.clone();
+        // Claim the URL so `maybe_kickoff_download` doesn't spawn a second fetch:
+        // this one already warms the mem cache.
+        self.ctx.spawned_urls.insert(package_url.clone());
+        let resolved = FetchTarballForResolution {
+            http_client: &self.ctx.http_client,
+            store_dir: self.ctx.store_dir,
+            store_index_writer: self.ctx.store_index_writer.clone(),
+            package_url: &package_url,
+            auth_headers: &self.ctx.auth_headers,
+            retry_opts: self.ctx.retry_opts,
+        }
+        .run::<SilentReporter>(Some(&self.ctx.mem_cache))
+        .await
+        .map_err(|err| Box::new(err) as ResolveError)?;
+        if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
+            tarball.integrity = Some(resolved.integrity);
+        }
+        Ok(())
     }
 
     /// Inspect a fresh `ResolveResult` and, if it carries a tarball
@@ -263,9 +310,10 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
         opts: &'a ResolveOptions,
     ) -> ResolveFuture<'a> {
         Box::pin(async move {
-            let result = self.inner.resolve(wanted_dependency, opts).await?;
-            if let Some(result_ref) = result.as_ref() {
-                self.maybe_kickoff_download(result_ref);
+            let mut result = self.inner.resolve(wanted_dependency, opts).await?;
+            if let Some(result_mut) = result.as_mut() {
+                self.fill_missing_integrity(result_mut).await?;
+                self.maybe_kickoff_download(result_mut);
             }
             Ok(result)
         })

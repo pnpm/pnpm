@@ -1,8 +1,9 @@
 use super::{
-    DownloadTarballToStore, HttpStatusError, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
-    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_tarball_buffer,
-    download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
-    is_transient_error, normalize_bundled_manifest, prefetch_cas_paths,
+    DownloadTarballToStore, FetchTarballForResolution, HttpStatusError, MemCache, NetworkError,
+    PrefetchedCasPaths, RetryOpts, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
+    allocate_tarball_buffer, download_priority, extract_tarball_entries, extract_zip_entries,
+    fetch_and_extract_with_retry, is_transient_error, normalize_bundled_manifest,
+    prefetch_cas_paths,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
@@ -1246,6 +1247,45 @@ async fn retries_integrity_mismatch_until_exhausted() {
     .await
     .expect_err("integrity mismatch should exhaust the retry budget");
     assert!(matches!(err, TarballError::Checksum(_)), "expected Checksum error, got {err:?}");
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// Registries that build tarballs on demand omit `dist.integrity` from
+/// their packument, so the npm resolver hands the prefetch path a
+/// tarball resolution with no integrity. `FetchTarballForResolution::run`
+/// must then download the bytes and compute the sha512 itself, so the
+/// lockfile entry it writes is verifiable on later installs
+/// ([pnpm/pnpm#12145](https://github.com/pnpm/pnpm/issues/12145)).
+#[tokio::test]
+async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+
+    let resolved = FetchTarballForResolution {
+        http_client: &client,
+        store_dir: store_path,
+        store_index_writer: None,
+        package_url: &url,
+        auth_headers: &AuthHeaders::default(),
+        retry_opts: fast_retry_opts(),
+    }
+    .run::<SilentReporter>(None)
+    .await
+    .expect("a registry that omits integrity should get it computed from the bytes");
+
+    // The computed integrity must equal the tarball's actual sha512.
+    assert_eq!(resolved.integrity, integrity(FASTIFY_ERROR_INTEGRITY));
     mock.assert_async().await;
     drop(store_dir_keep);
 }
