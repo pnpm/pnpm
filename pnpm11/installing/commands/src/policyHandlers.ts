@@ -1,4 +1,5 @@
 import { confirm } from '@inquirer/prompts'
+import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
@@ -206,7 +207,12 @@ function pickImmatureEntries (
 ): string[] | undefined {
   const immature = filterImmatureViolations(violations)
   if (immature.length === 0) return undefined
-  const sorted = [...new Set(immature.map((v) => `${v.name}@${v.version}`))].sort()
+  // Combine into the canonical per-package form the workspace writer
+  // persists (`name@v1 || v2`), so the logged count and list match the
+  // entries that actually land in pnpm-workspace.yaml even when multiple
+  // immature versions belong to the same package. The pre-sort keeps the
+  // cross-package order stable regardless of resolution order.
+  const entries = mergePackageVersionSpecs(immature.map((v) => `${v.name}@${v.version}`).sort())
   // Strict-mode picks already passed through the approval prompt, so
   // the log here only confirms what was persisted. Loose-mode picks
   // haven't been announced anywhere else, so the same log doubles as
@@ -215,10 +221,10 @@ function pickImmatureEntries (
     ? '(approved at the prompt)'
     : '(set minimumReleaseAgeStrict to true to gate these updates with a prompt)'
   globalInfo(
-    `Added ${sorted.length} ${sorted.length === 1 ? 'entry' : 'entries'} to minimumReleaseAgeExclude in pnpm-workspace.yaml ` +
-    `${reason}:\n  ${sorted.join('\n  ')}`
+    `Added ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} to minimumReleaseAgeExclude in pnpm-workspace.yaml ` +
+    `${reason}:\n  ${entries.join('\n  ')}`
   )
-  return sorted
+  return entries
 }
 
 function failOnImmature (immature: readonly PolicyViolation[]): PnpmError {

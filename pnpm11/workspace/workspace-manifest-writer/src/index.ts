@@ -4,6 +4,7 @@ import util from 'node:util'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
+import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import type {
@@ -92,12 +93,11 @@ export async function updateWorkspaceManifest (dir: string, opts: {
     }
   }
   if (opts.addedMinimumReleaseAgeExcludes?.length) {
-    const existing: string[] = manifest.minimumReleaseAgeExclude ?? []
-    const existingSet = new Set(existing)
-    const newEntries = [...new Set(opts.addedMinimumReleaseAgeExcludes)].filter((entry) => !existingSet.has(entry))
-    if (newEntries.length > 0) {
+    const existing = manifest.minimumReleaseAgeExclude ?? []
+    const merged = mergePackageVersionSpecs([...existing, ...opts.addedMinimumReleaseAgeExcludes])
+    if (!equals(existing, merged)) {
       shouldBeUpdated = true
-      manifest.minimumReleaseAgeExclude = [...existing, ...newEntries]
+      manifest.minimumReleaseAgeExclude = merged
     }
   }
   if (!shouldBeUpdated) {

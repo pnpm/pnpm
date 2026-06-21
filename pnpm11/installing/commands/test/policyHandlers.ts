@@ -141,6 +141,27 @@ test('loose-mode plan emits a workspace patch with sorted unique entries and log
   }
 })
 
+test('loose-mode plan combines multiple immature versions of one package into a single entry', () => {
+  const plan = setupPolicyHandlers({ minimumReleaseAge: 60 })!
+  const violations = [
+    violation('foo', '2.0.0'),
+    violation('foo', '1.0.0'),
+    violation('bar', '3.1.0'),
+  ]
+
+  // Avoid leaking console output in test runs.
+  const infoSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
+  try {
+    const updates = plan.pickManifestUpdates(violations)
+    // The versions of `foo` collapse into one canonical, semver-sorted
+    // entry — matching the form the workspace writer persists, so the
+    // logged "Added N entries" count is not inflated by per-version picks.
+    expect(updates).toEqual({ addedMinimumReleaseAgeExcludes: ['bar@3.1.0', 'foo@1.0.0 || 2.0.0'] })
+  } finally {
+    infoSpy.mockRestore()
+  }
+})
+
 test('pickManifestUpdates returns undefined when no handler contributes anything', () => {
   const plan = setupPolicyHandlers({ minimumReleaseAge: 60 })!
   expect(plan.pickManifestUpdates([])).toBeUndefined()
