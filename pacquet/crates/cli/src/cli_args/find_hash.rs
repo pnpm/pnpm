@@ -1,0 +1,125 @@
+use clap::Args;
+use miette::{Context, IntoDiagnostic};
+use owo_colors::{OwoColorize, Rgb};
+use pacquet_config::Config;
+use pacquet_store_dir::store_index::StoreIndex;
+
+#[derive(Debug, Args)]
+pub struct FindHashArgs {
+    /// The hash of the file to search for. Can be a hex string or shaN-base64 format.
+    pub hash: String,
+}
+
+impl FindHashArgs {
+    pub fn run<'a>(
+        self,
+        config: impl FnOnce() -> miette::Result<&'a Config>,
+    ) -> miette::Result<()> {
+        let mut hash = self.hash;
+
+        if hash.contains('-') {
+            let Some((_, base64_part)) = hash.split_once('-') else {
+                return Err(miette::miette!(
+                    "Invalid hash format. Expected something like sha512-..., got {}",
+                    hash
+                ));
+            };
+            use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+            let decoded = BASE64
+                .decode(base64_part)
+                .into_diagnostic()
+                .wrap_err("Failed to decode base64 hash")?;
+            use std::fmt::Write;
+            let mut hex = String::with_capacity(decoded.len() * 2);
+            for b in decoded {
+                write!(&mut hex, "{b:02x}").into_diagnostic()?;
+            }
+            hash = hex;
+        }
+        hash = hash.to_lowercase();
+
+        let config = config()?;
+        let store_dir = &config.store_dir;
+
+        let Ok(store_index) = StoreIndex::open_readonly_in(store_dir) else {
+            return Err(miette::miette!(
+                "INVALID_FILE_HASH\nNo package or index file matching this hash was found."
+            ));
+        };
+
+        let keys =
+            store_index.keys().into_diagnostic().wrap_err("Failed to get store index keys")?;
+        let mut results = Vec::new();
+
+        for chunk in keys.chunks(999) {
+            let entries = store_index.get_many(chunk).into_diagnostic()?;
+            for (index_key, data) in entries {
+                let mut found = false;
+
+                for file in data.files.values() {
+                    if file.digest == hash {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if !found && let Some(side_effects) = &data.side_effects {
+                    for side_effect in side_effects.values() {
+                        if let Some(added) = &side_effect.added {
+                            for file in added.values() {
+                                if file.digest == hash {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if found {
+                            break;
+                        }
+                    }
+                }
+
+                if found {
+                    let name = data
+                        .manifest
+                        .as_ref()
+                        .and_then(|m| {
+                            m.get("name")
+                                .and_then(|n| n.as_str())
+                                .map(std::string::ToString::to_string)
+                        })
+                        .unwrap_or_else(|| "unknown".to_string());
+                    let version = data
+                        .manifest
+                        .as_ref()
+                        .and_then(|m| {
+                            m.get("version")
+                                .and_then(|n| n.as_str())
+                                .map(std::string::ToString::to_string)
+                        })
+                        .unwrap_or_else(|| "unknown".to_string());
+                    results.push((name, version, index_key.clone()));
+                }
+            }
+        }
+
+        if results.is_empty() {
+            return Err(miette::miette!(
+                "INVALID_FILE_HASH\nNo package or index file matching this hash was found."
+            ));
+        }
+
+        // pnpm uses PACKAGE_INFO_CLR = chalk.greenBright and INDEX_PATH_CLR = chalk.hex('#078487')
+        // We will use OwoColorize to match. #078487 is rgb(7, 132, 135)
+        for (name, version, index_key) in results {
+            println!(
+                "{}@{}  {}",
+                name.bright_green(),
+                version.bright_green(),
+                index_key.color(Rgb(7, 132, 135))
+            );
+        }
+
+        Ok(())
+    }
+}

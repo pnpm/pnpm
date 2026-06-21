@@ -3,6 +3,7 @@ pub mod cat_file;
 pub mod create;
 pub mod dlx;
 pub mod exec;
+pub mod find_hash;
 pub mod install;
 pub mod outdated;
 pub mod recursive;
@@ -23,6 +24,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use create::CreateArgs;
 use dlx::DlxArgs;
 use exec::ExecArgs;
+use find_hash::FindHashArgs;
 use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
 use outdated::{OutdatedArgs, OutdatedOutcome};
@@ -158,6 +160,8 @@ pub enum CliCommand {
     /// Restarts a package. Runs "stop", "restart", and "start" scripts,
     /// and associated pre- and post- scripts.
     Restart(RestartArgs),
+    /// Lists the packages that include the file with the specified hash.
+    FindHash(FindHashArgs),
     /// Managing the package store.
     #[clap(subcommand)]
     Store(StoreCommand),
@@ -458,6 +462,9 @@ impl CliArgs {
             }
             CliCommand::Restart(args) => {
                 args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
+            }
+            CliCommand::FindHash(args) => {
+                args.run(|| config().map(|m| &*m))?;
             }
             CliCommand::Store(command) => command.run(|| config().map(|m| &*m))?,
             CliCommand::CatFile(args) => {
