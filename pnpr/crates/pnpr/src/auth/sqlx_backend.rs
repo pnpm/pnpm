@@ -206,7 +206,7 @@ where
 
 #[cfg(feature = "backend-postgres")]
 pub(super) mod postgres {
-    use super::super::TokenRecord;
+    use super::super::{TokenRecord, token_timestamp_from_sql, token_timestamp_to_sql};
     use super::{
         AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
         timeout_millis, with_auth_timeout,
@@ -350,8 +350,8 @@ pub(super) mod postgres {
             )
             .bind(token_hash)
             .bind(&record.username)
-            .bind(record.created_at as i64)
-            .bind(record.last_used_at as i64)
+            .bind(token_timestamp_to_sql(record.created_at))
+            .bind(token_timestamp_to_sql(record.last_used_at))
             .bind(i16::from(record.readonly))
             .bind(cidr_json)
             .execute(&self.pool)
@@ -503,8 +503,8 @@ pub(super) mod postgres {
         let readonly: i16 = row.try_get(offset + 3)?;
         Ok(TokenRecord {
             username: row.try_get(offset)?,
-            created_at: row.try_get::<i64, _>(offset + 1)? as u64,
-            last_used_at: row.try_get::<i64, _>(offset + 2)? as u64,
+            created_at: token_timestamp_from_sql(row.try_get(offset + 1)?),
+            last_used_at: token_timestamp_from_sql(row.try_get(offset + 2)?),
             readonly: readonly != 0,
             cidr_whitelist,
         })
@@ -519,7 +519,7 @@ pub(super) mod postgres {
 
 #[cfg(feature = "backend-mysql")]
 pub(super) mod mysql {
-    use super::super::TokenRecord;
+    use super::super::{TokenRecord, token_timestamp_from_sql, token_timestamp_to_sql};
     use super::{
         AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
         timeout_millis, timeout_seconds, with_auth_timeout,
@@ -673,8 +673,8 @@ pub(super) mod mysql {
             )
             .bind(token_hash)
             .bind(&record.username)
-            .bind(record.created_at as i64)
-            .bind(record.last_used_at as i64)
+            .bind(token_timestamp_to_sql(record.created_at))
+            .bind(token_timestamp_to_sql(record.last_used_at))
             .bind(i16::from(record.readonly))
             .bind(cidr_json)
             .execute(&self.pool)
@@ -837,8 +837,8 @@ pub(super) mod mysql {
         let readonly: i16 = row.try_get(offset + 3)?;
         Ok(TokenRecord {
             username: row.try_get(offset)?,
-            created_at: row.try_get::<i64, _>(offset + 1)? as u64,
-            last_used_at: row.try_get::<i64, _>(offset + 2)? as u64,
+            created_at: token_timestamp_from_sql(row.try_get(offset + 1)?),
+            last_used_at: token_timestamp_from_sql(row.try_get(offset + 2)?),
             readonly: readonly != 0,
             cidr_whitelist,
         })

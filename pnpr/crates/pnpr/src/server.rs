@@ -879,8 +879,8 @@ async fn logout(state: &AppState, headers: &HeaderMap, raw_token: &str) -> Respo
 
 fn token_response_object(key: &str, record: &crate::auth::TokenRecord) -> Value {
     let preview: String = key.chars().take(6).collect();
-    let created = iso_from_unix_millis((record.created_at as i64) * 1000);
-    let updated = iso_from_unix_millis((record.last_used_at as i64) * 1000);
+    let created = token_timestamp_iso(record.created_at);
+    let updated = token_timestamp_iso(record.last_used_at);
     json!({
         "key": key,
         "token": preview,
@@ -891,6 +891,19 @@ fn token_response_object(key: &str, record: &crate::auth::TokenRecord) -> Value 
         "updated": updated,
     })
 }
+
+fn token_timestamp_iso(seconds: u64) -> String {
+    iso_from_unix_millis(token_timestamp_millis(seconds))
+}
+
+fn token_timestamp_millis(seconds: u64) -> i64 {
+    const MILLIS_PER_SECOND: u64 = 1000;
+    let max_seconds = i64::MAX as u64 / MILLIS_PER_SECOND;
+    (seconds.min(max_seconds) * MILLIS_PER_SECOND) as i64
+}
+
+#[cfg(test)]
+mod tests;
 
 async fn caller_username(
     state: &AppState,

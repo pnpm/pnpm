@@ -20,8 +20,8 @@
 
 use super::{
     DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, mint_token, sha256_hex, unix_seconds, validate_username, verify_bcrypt,
-    verify_returning_user,
+    hash_bcrypt, mint_token, sha256_hex, token_timestamp_from_sql, unix_seconds, validate_username,
+    verify_bcrypt, verify_returning_user,
 };
 use crate::{
     config::{LibsqlSettings, MaxUsers},
@@ -389,8 +389,8 @@ fn row_to_keyed_record(row: &Row) -> Result<(String, TokenRecord)> {
         token_hash,
         TokenRecord {
             username,
-            created_at: created_at as u64,
-            last_used_at: last_used_at as u64,
+            created_at: token_timestamp_from_sql(created_at),
+            last_used_at: token_timestamp_from_sql(last_used_at),
             readonly: readonly != 0,
             cidr_whitelist,
         },

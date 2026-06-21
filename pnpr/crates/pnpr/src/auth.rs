@@ -101,6 +101,14 @@ pub(crate) fn validate_username(username: &str) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn token_timestamp_from_sql(timestamp: i64) -> u64 {
+    timestamp.max(0) as u64
+}
+
+pub(crate) fn token_timestamp_to_sql(timestamp: u64) -> i64 {
+    i64::try_from(timestamp).unwrap_or(i64::MAX)
+}
+
 /// Bundle of the user store and the token store, each a trait object
 /// so the rest of the server doesn't have to know whether auth is
 /// file-backed, in-memory, or networked. Built once at startup by
@@ -825,8 +833,8 @@ fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
             hash,
             TokenRecord {
                 username,
-                created_at: created_at as u64,
-                last_used_at: last_used_at as u64,
+                created_at: token_timestamp_from_sql(created_at),
+                last_used_at: token_timestamp_from_sql(last_used_at),
                 readonly: readonly != 0,
                 cidr_whitelist,
             },
@@ -849,8 +857,8 @@ fn insert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Re
         rusqlite::params![
             token_hash,
             record.username,
-            record.created_at as i64,
-            record.last_used_at as i64,
+            token_timestamp_to_sql(record.created_at),
+            token_timestamp_to_sql(record.last_used_at),
             i64::from(record.readonly),
             cidr_json,
         ],

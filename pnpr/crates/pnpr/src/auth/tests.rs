@@ -1,6 +1,6 @@
 use super::{
     MAX_USERNAME_CHARS, TokenBackend, TokenStore, UpsertOutcome, UserBackend, UserStore, identify,
-    parse_htpasswd, validate_username,
+    parse_htpasswd, token_timestamp_from_sql, token_timestamp_to_sql, validate_username,
 };
 use crate::config::MaxUsers;
 use std::sync::Arc;
@@ -27,6 +27,19 @@ fn username_length_limit_matches_sql_schema() {
     validate_username(&max).unwrap();
     let err = validate_username(&too_long).unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+}
+
+#[test]
+fn token_timestamp_from_sql_clamps_negative_values() {
+    assert_eq!(token_timestamp_from_sql(-1), 0);
+    assert_eq!(token_timestamp_from_sql(0), 0);
+    assert_eq!(token_timestamp_from_sql(42), 42);
+}
+
+#[test]
+fn token_timestamp_to_sql_saturates_overflow() {
+    assert_eq!(token_timestamp_to_sql(42), 42);
+    assert_eq!(token_timestamp_to_sql(u64::MAX), i64::MAX);
 }
 
 #[test]
@@ -256,6 +269,29 @@ async fn tokens_persist_across_reopen() {
         Some("alice"),
         "token issued before restart must still resolve after reload",
     );
+}
+
+#[tokio::test]
+async fn tokens_clamp_negative_persisted_timestamps() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    super::init_tokens_schema(&conn).unwrap();
+    conn.execute(
+        "INSERT INTO tokens
+         (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params!["token-hash", "alice", -1_i64, -42_i64, 0_i64, "[]"],
+    )
+    .unwrap();
+    drop(conn);
+
+    let store = TokenStore::open(path).unwrap();
+    let records = store.list_for_user("alice").await.unwrap();
+
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].1.created_at, 0);
+    assert_eq!(records[0].1.last_used_at, 0);
 }
 
 #[tokio::test]
