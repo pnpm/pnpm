@@ -1,39 +1,22 @@
 import url from 'node:url'
 
 import * as dp from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
-import { type Resolution, resolutionNeedsIntegrity } from '@pnpm/resolving.resolver-base'
+import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
 import type { Registries } from '@pnpm/types'
 
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 
+// A registry tarball entry that lacks an `integrity` is rejected by the npm
+// resolver's lockfile verifier (`MISSING_TARBALL_INTEGRITY`), so the read-side
+// enforcement lives there rather than in this pure snapshot→resolution conversion.
 export function pkgSnapshotToResolution (
   depPath: string,
   pkgSnapshot: PackageSnapshot,
   registries: Registries
 ): Resolution {
   const resolution = pkgSnapshot.resolution as TarballResolution
-  // Tarball-shaped resolutions (no `type` field) must carry `integrity`,
-  // except where the URL itself anchors the bytes:
-  //   - `file:` tarballs (local file on the user's machine; integrity
-  //     adds nothing the user doesn't already control).
-  //   - Git-hosted tarballs (URL contains the commit SHA; git's content-
-  //     addressed model binds the bytes to the commit). The `gitHosted`
-  //     flag may be absent on legacy lockfiles, so fall back to a URL
-  //     match — same logic as `toLockfileResolution`.
-  // For any other tarball entry a missing integrity is what a tampered
-  // lockfile looks like: the worker would mint a fresh integrity from
-  // whatever bytes the URL returned, so we fail closed here. Pacquet
-  // enforces the same invariant via
-  // `pacquet_package_manager::missing_tarball_integrity`.
-  if (resolutionNeedsIntegrity(resolution)) {
-    throw new PnpmError('MISSING_TARBALL_INTEGRITY',
-      `Cannot install package "${depPath}": its lockfile entry has no "integrity" field, so pnpm cannot verify the downloaded tarball.`,
-      { hint: 'The lockfile may be corrupted or have been tampered with. Restore it from a trusted source, or delete it and re-run installation without --frozen-lockfile to regenerate.' }
-    )
-  }
   if (
     Boolean(resolution.type) ||
     resolution.tarball?.startsWith('file:') ||

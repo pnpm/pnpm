@@ -431,6 +431,7 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
   // Same policy → trust.
   expect(verifier.canTrustPastCheck({
     tarballUrlBinding: true,
+    integrityRequired: true,
     minimumReleaseAge: 0,
     minimumReleaseAgeExclude: [],
     trustPolicy: 'no-downgrade',
@@ -440,6 +441,7 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
   // Cached run had a wider exclude list (today's is stricter) → invalidate.
   expect(verifier.canTrustPastCheck({
     tarballUrlBinding: true,
+    integrityRequired: true,
     minimumReleaseAge: 0,
     minimumReleaseAgeExclude: [],
     trustPolicy: 'no-downgrade',
