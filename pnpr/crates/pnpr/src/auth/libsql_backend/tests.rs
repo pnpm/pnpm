@@ -80,6 +80,34 @@ async fn registration_cap_is_strict_under_concurrency() {
 }
 
 #[tokio::test]
+async fn ensure_user_counter_reconciles_a_stale_counter() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    backend
+        .conn
+        .execute(
+            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+            params!["alice", "not-used-by-this-test"],
+        )
+        .await
+        .unwrap();
+    backend
+        .conn
+        .execute("UPDATE auth_counters SET value = 0 WHERE name = ?1", params!["users"])
+        .await
+        .unwrap();
+
+    ensure_user_counter(&backend.conn).await.unwrap();
+
+    let mut rows = backend
+        .conn
+        .query("SELECT value FROM auth_counters WHERE name = ?1", params!["users"])
+        .await
+        .unwrap();
+    let value: i64 = rows.next().await.unwrap().unwrap().get(0).unwrap();
+    assert_eq!(value, 1, "startup reconciliation must lift stale counters to the user count");
+}
+
+#[tokio::test]
 async fn tokens_round_trip_and_revoke() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     let token = backend.issue("alice").await.unwrap();

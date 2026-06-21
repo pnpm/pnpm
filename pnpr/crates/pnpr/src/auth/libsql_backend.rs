@@ -268,14 +268,27 @@ async fn ensure_user_counter(conn: &Connection) -> Result<()> {
     let mut rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
     let row = rows.next().await?.expect("COUNT(*) returns exactly one row");
     let count: i64 = row.get(0)?;
-    let inserted = conn
+    let tx = conn.transaction().await?;
+    let inserted = tx
         .execute("INSERT INTO auth_counters (name, value) VALUES (?1, ?2)", params!["users", count])
         .await;
     match inserted {
-        Ok(_) => Ok(()),
-        Err(err) if is_unique_violation(&err) => Ok(()),
-        Err(err) => Err(err.into()),
+        Ok(_) => {}
+        Err(err) if is_unique_violation(&err) => {}
+        Err(err) => {
+            tx.rollback().await?;
+            return Err(err.into());
+        }
     }
+    tx.execute(
+        "UPDATE auth_counters
+         SET value = CASE WHEN value < ?2 THEN ?2 ELSE value END
+         WHERE name = ?1",
+        params!["users", count],
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(())
 }
 
 fn is_unique_violation(err: &LibsqlError) -> bool {
