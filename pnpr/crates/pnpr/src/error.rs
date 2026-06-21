@@ -387,6 +387,11 @@ fn redact_parseable_url_candidate(candidate: &str) -> Option<String> {
         }
     }
 
+    if url.fragment().is_some() {
+        url.set_fragment(None);
+        changed = true;
+    }
+
     changed.then(|| url.to_string())
 }
 
@@ -398,6 +403,10 @@ fn redact_unparsable_url_candidate(candidate: &str) -> Option<String> {
         changed = true;
     }
     if let Some(safe_url) = redact_sensitive_query_values(&redacted) {
+        redacted = safe_url;
+        changed = true;
+    }
+    if let Some(safe_url) = redact_fragment(&redacted) {
         redacted = safe_url;
         changed = true;
     }
@@ -442,6 +451,11 @@ fn redact_sensitive_query_values(candidate: &str) -> Option<String> {
     }
     redacted.push_str(&candidate[fragment_start..]);
     changed.then_some(redacted)
+}
+
+fn redact_fragment(candidate: &str) -> Option<String> {
+    let fragment_start = candidate.find('#')?;
+    Some(candidate[..fragment_start].to_string())
 }
 
 fn is_sensitive_query_key(key: &str) -> bool {

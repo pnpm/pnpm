@@ -121,3 +121,34 @@ fn log_message_redacts_malformed_database_url_credentials_with_slash() {
     assert!(!message.contains("admin"));
     assert!(!message.contains("pa/ss"));
 }
+
+#[test]
+fn log_message_redacts_database_url_fragment_secrets() {
+    let err = RegistryError::Internal {
+        reason: "connection failed for postgres://db.example/pnpr#password=fragment-secret"
+            .to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("postgres://db.example/pnpr"));
+    assert!(!message.contains("fragment-secret"));
+    assert!(!message.contains("#password"));
+}
+
+#[test]
+fn log_message_redacts_malformed_database_url_fragment_secrets() {
+    let err = RegistryError::Internal {
+        reason:
+            "connection failed for postgres://admin:pa/ss@db.example/pnpr#password=fragment-secret"
+                .to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("postgres://redacted@db.example/pnpr"));
+    assert!(!message.contains("admin"));
+    assert!(!message.contains("pa/ss"));
+    assert!(!message.contains("fragment-secret"));
+    assert!(!message.contains("#password"));
+}
