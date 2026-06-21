@@ -51,3 +51,44 @@ fn public_message_hides_server_error_details() {
     assert_eq!(err.public_message(), "Bad Gateway");
     assert!(err.to_string().contains("internal-hostname"));
 }
+
+#[test]
+fn log_message_keeps_non_secret_server_error_details() {
+    let err =
+        RegistryError::Internal { reason: "auth database COUNT(*) returned no rows".to_string() };
+    assert_eq!(err.public_message(), "Internal Server Error");
+    assert_eq!(err.log_message(), "Internal error: auth database COUNT(*) returned no rows");
+}
+
+#[test]
+fn log_message_redacts_embedded_database_url_credentials() {
+    let err = RegistryError::Internal {
+        reason: "connection failed for postgres://admin:secret@db.example/pnpr?sslmode=require and libsql://edge.example/pnpr?authToken=token-value".to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("connection failed"));
+    assert!(message.contains("db.example"));
+    assert!(message.contains("edge.example"));
+    assert!(message.contains("sslmode=require"));
+    assert!(message.contains("postgres://redacted@db.example/pnpr?sslmode=require"));
+    assert!(message.contains("authToken=redacted"));
+    assert!(!message.contains("admin"));
+    assert!(!message.contains("secret"));
+    assert!(!message.contains("token-value"));
+}
+
+#[test]
+fn log_message_redacts_ipv6_database_url_credentials() {
+    let err = RegistryError::Internal {
+        reason: "connection failed for postgres://admin:secret@[::1]/pnpr?sslmode=require"
+            .to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("postgres://redacted@[::1]/pnpr?sslmode=require"));
+    assert!(!message.contains("admin"));
+    assert!(!message.contains("secret"));
+}

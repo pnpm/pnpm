@@ -207,6 +207,11 @@ impl RegistryError {
     }
 
     #[must_use]
+    pub fn log_message(&self) -> String {
+        redact_url_credentials(&self.to_string())
+    }
+
+    #[must_use]
     pub fn public_message(&self) -> String {
         let status = self.status_code();
         if status.is_server_error() {
@@ -270,6 +275,135 @@ impl RegistryError {
             }
         }
     }
+}
+
+fn redact_url_credentials(message: &str) -> String {
+    let mut redacted = String::with_capacity(message.len());
+    let mut cursor = 0;
+    while let Some(relative_scheme_end) = message[cursor..].find("://") {
+        let scheme_end = cursor + relative_scheme_end;
+        let scheme_start = find_scheme_start(message, scheme_end);
+        if scheme_start == scheme_end || !is_valid_scheme(&message[scheme_start..scheme_end]) {
+            redacted.push_str(&message[cursor..scheme_end + 3]);
+            cursor = scheme_end + 3;
+            continue;
+        }
+
+        let url_end = find_url_end(message, scheme_end + 3);
+        let (candidate, suffix) = split_trailing_punctuation(&message[scheme_start..url_end]);
+        let Some(safe_url) = redact_url_candidate(candidate) else {
+            redacted.push_str(&message[cursor..url_end]);
+            cursor = url_end;
+            continue;
+        };
+
+        redacted.push_str(&message[cursor..scheme_start]);
+        redacted.push_str(&safe_url);
+        redacted.push_str(suffix);
+        cursor = url_end;
+    }
+    redacted.push_str(&message[cursor..]);
+    redacted
+}
+
+fn find_scheme_start(message: &str, scheme_end: usize) -> usize {
+    let bytes = message.as_bytes();
+    let mut start = scheme_end;
+    while start > 0 {
+        let byte = bytes[start - 1];
+        if !byte.is_ascii_alphanumeric() && byte != b'+' && byte != b'.' && byte != b'-' {
+            break;
+        }
+        start -= 1;
+    }
+    start
+}
+
+fn is_valid_scheme(scheme: &str) -> bool {
+    let mut chars = scheme.bytes();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    first.is_ascii_alphabetic()
+        && chars.all(|byte| {
+            byte.is_ascii_alphanumeric() || byte == b'+' || byte == b'.' || byte == b'-'
+        })
+}
+
+fn find_url_end(message: &str, url_start: usize) -> usize {
+    message[url_start..]
+        .char_indices()
+        .find_map(|(offset, ch)| is_url_delimiter(ch).then_some(url_start + offset))
+        .unwrap_or(message.len())
+}
+
+fn is_url_delimiter(ch: char) -> bool {
+    ch.is_whitespace() || matches!(ch, '"' | '\'' | '`' | '<' | '>' | '(' | ')' | '{' | '}')
+}
+
+fn split_trailing_punctuation(candidate: &str) -> (&str, &str) {
+    let mut end = candidate.len();
+    while let Some(ch) = candidate[..end].chars().next_back() {
+        if !matches!(ch, '.' | ',' | ';' | '!') {
+            break;
+        }
+        end -= ch.len_utf8();
+    }
+    (&candidate[..end], &candidate[end..])
+}
+
+fn redact_url_candidate(candidate: &str) -> Option<String> {
+    let mut url = url::Url::parse(candidate).ok()?;
+    let mut changed = false;
+    if !url.username().is_empty() || url.password().is_some() {
+        if url.set_username("redacted").is_ok() {
+            changed = true;
+        }
+        if url.set_password(None).is_ok() {
+            changed = true;
+        }
+    }
+
+    if url.query().is_some() {
+        let pairs = url
+            .query_pairs()
+            .map(|(key, value)| {
+                if is_sensitive_query_key(&key) {
+                    changed = true;
+                    (key.into_owned(), "redacted".to_string())
+                } else {
+                    (key.into_owned(), value.into_owned())
+                }
+            })
+            .collect::<Vec<_>>();
+        if changed {
+            url.query_pairs_mut()
+                .clear()
+                .extend_pairs(pairs.iter().map(|(key, value)| (&**key, &**value)));
+        }
+    }
+
+    changed.then(|| url.to_string())
+}
+
+fn is_sensitive_query_key(key: &str) -> bool {
+    let normalized = key
+        .chars()
+        .filter(|ch| *ch != '-' && *ch != '_')
+        .map(|ch| ch.to_ascii_lowercase())
+        .collect::<String>();
+    matches!(
+        normalized.as_str(),
+        "auth"
+            | "authtoken"
+            | "password"
+            | "passwd"
+            | "pwd"
+            | "secret"
+            | "token"
+            | "accesstoken"
+            | "apikey",
+    )
 }
 
 pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error>;

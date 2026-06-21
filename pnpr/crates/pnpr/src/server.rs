@@ -2011,7 +2011,8 @@ fn error_response(err: &RegistryError) -> Response {
     let status = err.status_code();
     let error_kind = err.log_kind();
     if status.is_server_error() {
-        tracing::error!(%error_kind, %status, "request failed");
+        let err = err.log_message();
+        tracing::error!(%err, %error_kind, %status, "request failed");
     } else if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
         tracing::info!(%err, %error_kind, %status, "request failed");
     } else {

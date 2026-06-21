@@ -4937,6 +4937,7 @@ dependencies = [
  "tower-http 0.6.11",
  "tracing",
  "tracing-subscriber",
+ "url",
  "wax",
  "zip",
 ]
