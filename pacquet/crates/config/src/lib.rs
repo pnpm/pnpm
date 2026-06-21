@@ -1533,6 +1533,16 @@ pub struct Config {
     /// when no `.npmrc` was found or no auth keys were set.
     pub auth_headers: std::sync::Arc<pacquet_network::AuthHeaders>,
 
+    /// Raw `_authToken` values keyed by the nerf-darted registry URI
+    /// (`//host[:port]/path/`), for the default (registry-wide) scope.
+    /// Unlike [`Self::auth_headers`], which bakes credentials into
+    /// ready-to-send `Authorization` header values and discards the
+    /// raw token, this preserves the unmodified token so commands like
+    /// `pnpm logout` can read it back to revoke it on the registry.
+    /// Mirrors the subset of pnpm's `rawConfig` (`config.authConfig`)
+    /// that the auth commands consult.
+    pub auth_tokens_by_uri: std::collections::HashMap<String, String>,
+
     pub package_manager_bootstrap: PackageManagerBootstrap,
 
     /// Camel-cased record of the settings the user *explicitly* set through

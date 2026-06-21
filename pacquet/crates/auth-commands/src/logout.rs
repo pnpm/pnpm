@@ -1,0 +1,267 @@
+//! Port of pnpm's `pnpm logout`
+//! ([`@pnpm/auth.commands`](https://github.com/pnpm/pnpm/blob/main/pnpm11/auth/commands/src/logout.ts)).
+//!
+//! `pnpm logout` revokes the registry auth token on the server and
+//! removes it from `auth.ini`. The token still lives in `.npmrc` or an
+//! env var is left in place, with a warning, because pnpm only owns
+//! `auth.ini`.
+//!
+//! Upstream wires the side effects (`fetch`, `readIniFile`,
+//! `writeIniFile`, `globalInfo`, `globalWarn`) through a `LogoutContext`
+//! object of injected functions. Pacquet uses the project's
+//! capability-trait seam instead: filesystem reads/writes and the
+//! token-revocation request are `Sys`-bound capabilities with no `&self`
+//! receiver (production provider [`Host`], test fakes are unit structs),
+//! and the two `global*` log channels are emitted through the
+//! `R: Reporter` seam. See the dependency-injection convention in
+//! `pacquet/CODE_STYLE_GUIDE.md`.
+
+use std::{collections::HashMap, future::Future, io, path::PathBuf};
+
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+use pacquet_network::{RetryOpts, ThrottledClient, nerf_dart, send_with_retry};
+use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+
+use crate::ini::IniSettings;
+
+/// The registry `pnpm logout` targets when neither `--registry` nor a
+/// configured registry is given. Mirrors upstream's literal default.
+pub const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
+
+/// Read a file into a `String`, mirroring [`std::fs::read_to_string`].
+pub trait FsReadToString {
+    fn read_to_string(path: &std::path::Path) -> io::Result<String>;
+}
+
+/// Write `bytes` to a file, replacing its contents, mirroring
+/// [`std::fs::write`].
+pub trait FsWrite {
+    fn write(path: &std::path::Path, bytes: &[u8]) -> io::Result<()>;
+}
+
+/// Send the `DELETE -/user/token/<token>` request that revokes a token
+/// on the registry. The outcome the caller acts on — accepted, rejected
+/// with a status, or unreachable — is the whole contract; how the
+/// request is retried and parsed is the provider's concern.
+pub trait RevokeToken {
+    fn revoke(
+        http_client: &ThrottledClient,
+        revoke_url: &str,
+        token: &str,
+        retry: RetryOpts,
+    ) -> impl Future<Output = RevokeOutcome>;
+}
+
+/// The result of a token-revocation request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevokeOutcome {
+    /// The registry accepted the revocation (2xx).
+    Revoked,
+    /// The registry responded but rejected the revocation (non-2xx).
+    Rejected { status: u16 },
+    /// The registry could not be reached (transport error).
+    Unreachable,
+}
+
+/// Production provider: real filesystem and a real `DELETE` over the
+/// shared throttled HTTP client.
+pub struct Host;
+
+impl FsReadToString for Host {
+    fn read_to_string(path: &std::path::Path) -> io::Result<String> {
+        std::fs::read_to_string(path)
+    }
+}
+
+impl FsWrite for Host {
+    fn write(path: &std::path::Path, bytes: &[u8]) -> io::Result<()> {
+        std::fs::write(path, bytes)
+    }
+}
+
+impl RevokeToken for Host {
+    async fn revoke(
+        http_client: &ThrottledClient,
+        revoke_url: &str,
+        token: &str,
+        retry: RetryOpts,
+    ) -> RevokeOutcome {
+        let authorization = format!("Bearer {token}");
+        match send_with_retry(http_client, revoke_url, retry, |client| {
+            client.delete(revoke_url).header(reqwest::header::AUTHORIZATION, authorization.as_str())
+        })
+        .await
+        {
+            Ok((_guard, response)) if response.status().is_success() => RevokeOutcome::Revoked,
+            Ok((_guard, response)) => {
+                RevokeOutcome::Rejected { status: response.status().as_u16() }
+            }
+            Err(_) => RevokeOutcome::Unreachable,
+        }
+    }
+}
+
+/// Inputs to [`logout`]. `auth_config` mirrors the subset of pnpm's
+/// `config.authConfig` the command consults: rc keys of the form
+/// `//host[:port]/path/:_authToken` mapped to their raw token.
+pub struct LogoutOptions<'a> {
+    /// The `--registry` value; `None` falls back to [`DEFAULT_REGISTRY`].
+    pub registry: Option<&'a str>,
+    pub auth_config: &'a HashMap<String, String>,
+    /// pnpm's `configDir`; `auth.ini` lives at `<config_dir>/auth.ini`.
+    pub config_dir: &'a std::path::Path,
+    pub retry: RetryOpts,
+    /// Reporter prefix for the `global*` log lines (the working directory).
+    pub prefix: &'a str,
+}
+
+/// Log out of `registry`: revoke the token on the server, then remove it
+/// from `auth.ini`. Returns the `Logged out of <registry>` success line.
+///
+/// Errors with [`LogoutError::NotLoggedIn`] when no token is configured
+/// for the registry, and [`LogoutError::LogoutFailed`] when the registry
+/// rejected the revocation *and* the token was not in `auth.ini` to
+/// remove locally.
+pub async fn logout<Sys, R>(
+    http_client: &ThrottledClient,
+    opts: LogoutOptions<'_>,
+) -> Result<String, LogoutError>
+where
+    Sys: FsReadToString + FsWrite + RevokeToken,
+    R: Reporter,
+{
+    let registry = normalize_registry_url(opts.registry.unwrap_or(DEFAULT_REGISTRY));
+    let registry_config_key = nerf_dart(&registry);
+    let token_key = format!("{registry_config_key}:_authToken");
+
+    let Some(token) = opts.auth_config.get(&token_key) else {
+        return Err(LogoutError::NotLoggedIn { registry });
+    };
+
+    let revoke_url = format!("{registry}-/user/token/{}", encode_uri_component(token));
+    let revoked = match Sys::revoke(http_client, &revoke_url, token, opts.retry).await {
+        RevokeOutcome::Revoked => true,
+        RevokeOutcome::Rejected { status } => {
+            global::<R>(
+                opts.prefix,
+                LogLevel::Info,
+                format!("Registry returned HTTP {status} when revoking token"),
+            );
+            false
+        }
+        RevokeOutcome::Unreachable => {
+            global::<R>(
+                opts.prefix,
+                LogLevel::Info,
+                "Could not reach the registry to revoke the token".to_string(),
+            );
+            false
+        }
+    };
+
+    let config_path = opts.config_dir.join("auth.ini");
+    let mut settings = safe_read_ini::<Sys>(&config_path)?;
+
+    if settings.remove(&token_key) {
+        Sys::write(&config_path, settings.serialize().as_bytes())
+            .map_err(|error| LogoutError::WriteAuthIni { path: config_path.clone(), error })?;
+    } else if revoked {
+        global::<R>(
+            opts.prefix,
+            LogLevel::Warn,
+            format!(
+                "The auth token for {registry} was not found in {}. \
+                 It may be configured in .npmrc or another config file. \
+                 The token was revoked on the registry but must be removed manually from that config file.",
+                config_path.display()
+            ),
+        );
+    } else {
+        return Err(LogoutError::LogoutFailed { registry, config_path });
+    }
+
+    Ok(format!("Logged out of {registry}"))
+}
+
+/// Read `auth.ini`, treating a missing file as empty. Any other read
+/// error propagates (mirrors upstream's `safeReadIniFile`).
+fn safe_read_ini<Sys: FsReadToString>(path: &std::path::Path) -> Result<IniSettings, LogoutError> {
+    match Sys::read_to_string(path) {
+        Ok(text) => Ok(IniSettings::parse(&text)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(IniSettings::default()),
+        Err(error) => Err(LogoutError::ReadAuthIni { path: path.to_path_buf(), error }),
+    }
+}
+
+fn global<R: Reporter>(prefix: &str, level: LogLevel, message: String) {
+    R::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix: prefix.to_string() }));
+}
+
+/// Append a trailing slash if the registry URL lacks one. Mirrors npm's
+/// `normalize-registry-url`.
+fn normalize_registry_url(registry: &str) -> String {
+    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
+/// Percent-encode `value` the way JavaScript's `encodeURIComponent`
+/// does: every byte outside the unreserved set `A-Za-z0-9-_.!~*'()` is
+/// escaped as `%XX` with uppercase hex digits.
+fn encode_uri_component(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for &byte in value.as_bytes() {
+        if byte.is_ascii_alphanumeric()
+            || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
+        {
+            out.push(byte as char);
+        } else {
+            out.push('%');
+            out.push(hex_upper(byte >> 4));
+            out.push(hex_upper(byte & 0x0f));
+        }
+    }
+    out
+}
+
+fn hex_upper(nibble: u8) -> char {
+    char::from_digit(u32::from(nibble), 16).expect("nibble is < 16").to_ascii_uppercase()
+}
+
+/// Errors surfaced by [`logout`]. The two user-facing variants carry
+/// pnpm's stable error codes (`ERR_PNPM_NOT_LOGGED_IN`,
+/// `ERR_PNPM_LOGOUT_FAILED`) and messages verbatim.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum LogoutError {
+    #[display("Not logged in to {registry}, so can't log out")]
+    #[diagnostic(code(ERR_PNPM_NOT_LOGGED_IN))]
+    NotLoggedIn { registry: String },
+
+    #[display(
+        "Failed to log out of {registry}. The registry rejected the token revocation request, \
+         and the token was not found in {}. \
+         The token may be configured in .npmrc or another config file \
+         and must be removed manually, and may still need to be revoked on the registry.",
+        config_path.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_LOGOUT_FAILED))]
+    LogoutFailed { registry: String, config_path: PathBuf },
+
+    #[display("Failed to read auth.ini at {}: {error}", path.display())]
+    #[diagnostic(code(pacquet_auth_commands::read_auth_ini))]
+    ReadAuthIni {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to write auth.ini at {}: {error}", path.display())]
+    #[diagnostic(code(pacquet_auth_commands::write_auth_ini))]
+    WriteAuthIni {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+}
+
+#[cfg(test)]
+mod tests;

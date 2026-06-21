@@ -21,6 +21,7 @@ use super::{
     install::InstallArgs,
     link::LinkArgs,
     list::ListArgs,
+    logout::LogoutArgs,
     outdated::OutdatedArgs,
     pack::PackArgs,
     pack_app::PackAppArgs,
@@ -227,4 +228,6 @@ pub enum CliCommand {
     SelfUpdate(SelfUpdateArgs),
     /// Sets up pnpm
     Setup(SetupArgs),
+    /// Log out of an npm registry.
+    Logout(LogoutArgs),
 }

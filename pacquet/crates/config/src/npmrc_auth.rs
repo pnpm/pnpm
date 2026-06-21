@@ -602,8 +602,17 @@ impl NpmrcAuth {
         let mut auth_header_by_uri: HashMap<String, String> = HashMap::new();
         let mut auth_header_by_scope_by_uri: HashMap<String, HashMap<String, String>> =
             HashMap::new();
+        // Raw `_authToken` per nerf-darted registry URI, default scope
+        // only, preserved alongside the baked header for `pnpm logout`.
+        // See [`Config::auth_tokens_by_uri`].
+        let mut auth_tokens_by_uri: HashMap<String, String> = HashMap::new();
         for (uri, raw_by_scope) in self.creds_by_scope_by_uri {
             for (scope, raw) in raw_by_scope {
+                if scope == DEFAULT_REGISTRY_SCOPE
+                    && let Some(token) = &raw.auth_token
+                {
+                    auth_tokens_by_uri.insert(uri.clone(), token.clone());
+                }
                 if let Some(header) = creds_to_header(&raw) {
                     if scope == DEFAULT_REGISTRY_SCOPE {
                         auth_header_by_uri.insert(uri.clone(), header);
@@ -616,12 +625,17 @@ impl NpmrcAuth {
                 }
             }
         }
-        if !self.default_creds.is_empty()
-            && let Some(header) = creds_to_header(&self.default_creds)
-        {
-            auth_header_by_uri.insert(pacquet_network::nerf_dart(&config.registry), header);
+        if !self.default_creds.is_empty() {
+            let default_uri = pacquet_network::nerf_dart(&config.registry);
+            if let Some(token) = &self.default_creds.auth_token {
+                auth_tokens_by_uri.insert(default_uri.clone(), token.clone());
+            }
+            if let Some(header) = creds_to_header(&self.default_creds) {
+                auth_header_by_uri.insert(default_uri, header);
+            }
         }
 
+        config.auth_tokens_by_uri = auth_tokens_by_uri;
         config.auth_headers =
             Arc::new(AuthHeaders::from_parts(auth_header_by_uri, auth_header_by_scope_by_uri));
     }
