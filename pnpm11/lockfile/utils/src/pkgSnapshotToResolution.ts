@@ -1,6 +1,7 @@
 import url from 'node:url'
 
 import * as dp from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
@@ -45,10 +46,17 @@ export function pkgSnapshotToResolution (
     registry = registries.default
   }
   let tarball!: string
-  if (!(pkgSnapshot.resolution as TarballResolution).tarball) {
+  const rawTarball = (pkgSnapshot.resolution as { tarball?: unknown }).tarball
+  if (rawTarball != null && typeof rawTarball !== 'string') {
+    // Lockfiles are untrusted; a non-string `tarball` (e.g. a YAML array) would otherwise be
+    // string-coerced into an attacker-controlled URL by `new url.URL(...)`. Fail closed.
+    throw new PnpmError('INVALID_TARBALL_RESOLUTION',
+      `Cannot install package "${depPath}": its lockfile entry has a non-string "tarball" field.`)
+  }
+  if (!rawTarball) {
     tarball = getTarball(registry)
   } else {
-    tarball = new url.URL((pkgSnapshot.resolution as TarballResolution).tarball,
+    tarball = new url.URL(rawTarball as string,
       registry.endsWith('/') ? registry : `${registry}/`
     ).toString()
   }

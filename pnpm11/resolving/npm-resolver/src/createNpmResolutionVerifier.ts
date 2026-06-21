@@ -196,9 +196,12 @@ export function createNpmResolutionVerifier (
     // the semver guard below so a tampered entry can't dodge it with a non-semver
     // `version`. Synchronous — no metadata fetch needed. Pacquet enforces the same
     // invariant via `pacquet_package_manager::missing_tarball_integrity`.
-    // Falsy rather than `== null` so a tampered `integrity: ""` can't slip past (the
-    // worker only validates a truthy integrity, so an empty string is no integrity at all).
-    if (!(resolution as { integrity?: string }).integrity) {
+    // A valid integrity is a non-empty string. Rejecting anything else (missing, `""`, or a
+    // non-string truthy value like `true`/`[]` from a tampered YAML lockfile) closes two
+    // holes: an empty string slipping past a truthiness check, and a non-string value
+    // dodging the check here only to crash later in the worker's `parseIntegrity`.
+    const integrity = (resolution as { integrity?: unknown }).integrity
+    if (typeof integrity !== 'string' || integrity.length === 0) {
       return {
         ok: false,
         code: MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
@@ -212,10 +215,17 @@ export function createNpmResolutionVerifier (
     // just not policed further.
     if (!semver.valid(version)) return { ok: true }
 
-    // A tampered lockfile could carry a non-string `tarball`; treat anything that isn't a
-    // string as absent so the registry routing falls back to the scope-derived default
-    // instead of throwing deep inside URL parsing.
+    // A tampered lockfile could carry a non-string `tarball` (e.g. a YAML array that
+    // stringifies to an attacker URL once `pkgSnapshotToResolution` coerces it). Fail
+    // closed rather than silently skipping the URL-binding check below.
     const rawTarball = (resolution as { tarball?: unknown }).tarball
+    if (rawTarball != null && typeof rawTarball !== 'string') {
+      return {
+        ok: false,
+        code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        reason: 'has a non-string "tarball" field, so its URL cannot be verified',
+      }
+    }
     const tarballUrl = typeof rawTarball === 'string' ? rawTarball : undefined
     const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
 

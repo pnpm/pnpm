@@ -97,6 +97,9 @@ const GIT_HOSTED_TARBALL_HOSTS = [
  * tarball. Only the lowercased copy is inspected; the original URL is never rewritten.
  */
 export function isGitHostedTarballUrl (url: string): boolean {
+  // Lockfiles are untrusted input and YAML can produce a non-string `tarball`, so guard
+  // before calling string methods rather than throwing a TypeError during fetcher selection.
+  if (typeof url !== 'string') return false
   const lowerUrl = url.toLowerCase()
   return GIT_HOSTED_TARBALL_HOSTS.some((host) => lowerUrl.startsWith(host)) && lowerUrl.includes('tar.gz')
 }
@@ -125,8 +128,14 @@ export function classifyResolution (resolution: Resolution): ResolutionKind {
   // `== null` so a tarball entry deserialized from YAML with `type: null` is treated the
   // same as an absent `type`, instead of falling through to `custom`.
   if (resolution.type == null) {
-    if (resolution.tarball?.startsWith('file:')) return 'localTarball'
-    if (resolution.gitHosted === true || (resolution.tarball != null && isGitHostedTarballUrl(resolution.tarball))) {
+    // A tampered lockfile (YAML) could carry a non-string `tarball`; normalize to a string
+    // so the string methods below can't throw during fetcher selection. A non-string value
+    // classifies as `remoteTarball`, where the verifier rejects it.
+    const tarball = typeof (resolution as { tarball?: unknown }).tarball === 'string'
+      ? (resolution as { tarball: string }).tarball
+      : undefined
+    if (tarball?.startsWith('file:')) return 'localTarball'
+    if (resolution.gitHosted === true || (tarball != null && isGitHostedTarballUrl(tarball))) {
       return 'gitHostedTarball'
     }
     return 'remoteTarball'
