@@ -139,6 +139,20 @@ fn normalizes_hosted_git_specifiers_to_shortcut_form() {
         normalized_save_specifier("github:pnpm/test-git-fetch#abc"),
         "github:pnpm/test-git-fetch#abc",
     );
+    // GitLab and Bitbucket shorthands and URLs collapse to their own prefixes.
+    assert_eq!(normalized_save_specifier("gitlab:owner/repo#abc"), "gitlab:owner/repo#abc");
+    assert_eq!(normalized_save_specifier("https://gitlab.com/owner/repo"), "gitlab:owner/repo");
+    assert_eq!(normalized_save_specifier("bitbucket:owner/repo#abc"), "bitbucket:owner/repo#abc");
+    assert_eq!(
+        normalized_save_specifier("https://bitbucket.org/owner/repo"),
+        "bitbucket:owner/repo",
+    );
+    // An auth-bearing HTTPS URL is kept verbatim — the shortcut form cannot
+    // carry the embedded credentials, so shortcutting would drop them.
+    assert_eq!(
+        normalized_save_specifier("git+https://x-access-token:tkn@github.com/foo/bar.git#abc"),
+        "git+https://x-access-token:tkn@github.com/foo/bar.git#abc",
+    );
     // Non-git specifiers are kept verbatim.
     assert_eq!(normalized_save_specifier("^1.2.3"), "^1.2.3");
     assert_eq!(normalized_save_specifier("npm:bar@^1"), "npm:bar@^1");

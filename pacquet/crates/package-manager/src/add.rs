@@ -471,9 +471,18 @@ fn split_name_spec(input: &str) -> (&str, Option<&str>) {
 /// `github:` / `gitlab:` / `bitbucket:` shortcut form, the same
 /// `normalizedBareSpecifier` pnpm saves. Everything else (`file:`, `link:`,
 /// `workspace:`, `npm:` aliases, tarball URLs) is kept verbatim.
+///
+/// An auth-bearing HTTPS URL (`git+https://<token>@github.com/...`) is also
+/// kept verbatim: the shortcut form cannot carry userinfo, so shortcutting
+/// would silently drop the credentials the follow-up install needs to reach a
+/// private repo. This mirrors the git resolver, which keeps such URLs in a
+/// `git+https` form rather than shortcutting them
+/// (see `parse_bare_specifier`'s `hosted.auth.is_some()` branch).
 fn normalized_save_specifier(spec: &str) -> String {
-    HostedGit::from_url(spec)
-        .map_or_else(|| spec.to_string(), |hosted| hosted.shortcut(HostedOpts::default()))
+    match HostedGit::from_url(spec) {
+        Some(hosted) if hosted.auth.is_none() => hosted.shortcut(HostedOpts::default()),
+        _ => spec.to_string(),
+    }
 }
 
 #[cfg(test)]
