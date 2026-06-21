@@ -3,8 +3,7 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_store_dir::StoreDir;
-use std::fs::File;
-use std::io::Write as _;
+use std::{fs::File, io::Write as _};
 
 #[derive(Debug, Args)]
 pub struct CatFileArgs {
