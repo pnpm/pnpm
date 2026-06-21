@@ -1,8 +1,17 @@
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
+use derive_more::{Display, Error};
+use miette::{Context, Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Rgb};
 use pacquet_config::Config;
 use pacquet_store_dir::store_index::StoreIndex;
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum FindHashError {
+    #[display("No package or index file matching this hash was found.")]
+    #[diagnostic(code(ERR_PNPM_INVALID_FILE_HASH))]
+    InvalidFileHash,
+}
 
 #[derive(Debug, Args)]
 pub struct FindHashArgs {
@@ -42,9 +51,7 @@ impl FindHashArgs {
         let store_dir = &config.store_dir;
 
         let Ok(store_index) = StoreIndex::open_readonly_in(store_dir) else {
-            return Err(miette::miette!(
-                "INVALID_FILE_HASH\nNo package or index file matching this hash was found."
-            ));
+            return Err(FindHashError::InvalidFileHash.into());
         };
 
         let keys =
@@ -106,9 +113,7 @@ impl FindHashArgs {
         }
 
         if results.is_empty() {
-            return Err(miette::miette!(
-                "INVALID_FILE_HASH\nNo package or index file matching this hash was found."
-            ));
+            return Err(FindHashError::InvalidFileHash.into());
         }
 
         // pnpm uses PACKAGE_INFO_CLR = chalk.greenBright and INDEX_PATH_CLR = chalk.hex(`#078487`)

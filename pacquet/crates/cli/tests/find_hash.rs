@@ -63,7 +63,7 @@ fn should_fail_on_missing_hash() {
         CommandTempCwd::init().add_mocked_registry();
     let output = pacquet.arg("find-hash").arg("sha512-MJ7MSJwS1utMxA9QyQLytNDtd+5RGnx6m808qG1M2G+YndNbxf9JlnDaNCVbRbDP2DDoH2Bdz33FVC6TrpzXbw==").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(stderr.contains("INVALID_FILE_HASH"));
+    assert!(stderr.contains("ERR_PNPM_INVALID_FILE_HASH"));
 }
 
 #[test]
