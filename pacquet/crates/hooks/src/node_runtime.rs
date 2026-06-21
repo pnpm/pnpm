@@ -1,5 +1,4 @@
-use crate::{HookError, worker::NodeWorker};
-use async_trait::async_trait;
+use crate::{HookError, HookFuture, worker::NodeWorker};
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
@@ -115,89 +114,107 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
     }
 }
 
-#[async_trait]
 impl crate::PnpmfileHooks for NodeJsHooks {
-    async fn read_package(
+    fn read_package(
         &self,
         pkg: Value,
         ctx: crate::HookContext,
-    ) -> Result<crate::ReadPackageResult, HookError> {
-        self.worker().await?.call("readPackage", pkg, ctx.log).await.map(Arc::new)
+    ) -> HookFuture<'_, Result<crate::ReadPackageResult, HookError>> {
+        Box::pin(async move {
+            self.worker().await?.call("readPackage", pkg, ctx.log).await.map(Arc::new)
+        })
     }
 
-    async fn after_all_resolved(
+    fn after_all_resolved(
         &self,
         lockfile: Value,
         ctx: crate::HookContext,
-    ) -> Result<Value, HookError> {
-        self.worker().await?.call("afterAllResolved", lockfile, ctx.log).await
+    ) -> HookFuture<'_, Result<Value, HookError>> {
+        Box::pin(
+            async move { self.worker().await?.call("afterAllResolved", lockfile, ctx.log).await },
+        )
     }
 
-    async fn update_config(
+    fn update_config(
         &self,
         config: Value,
         ctx: crate::HookContext,
-    ) -> Result<Value, HookError> {
-        // The worker returns `null` when the pnpmfile exports no
-        // `updateConfig` hook (the generic `typeof fn === 'function'`
-        // branch); in that case the config is left unchanged.
-        let result = self.worker().await?.call("updateConfig", config.clone(), ctx.log).await?;
-        Ok(if result.is_null() { config } else { result })
+    ) -> HookFuture<'_, Result<Value, HookError>> {
+        Box::pin(async move {
+            // The worker returns `null` when the pnpmfile exports no
+            // `updateConfig` hook (the generic `typeof fn === 'function'`
+            // branch); in that case the config is left unchanged.
+            let result = self.worker().await?.call("updateConfig", config.clone(), ctx.log).await?;
+            Ok(if result.is_null() { config } else { result })
+        })
     }
 
-    async fn pre_resolution(
+    fn pre_resolution(
         &self,
         ctx: crate::PreResolutionHookContext,
         logger: crate::PreResolutionHookLogger,
-    ) {
-        let ctx_json = serde_json::json!({
-            "wantedLockfile": ctx.wanted_lockfile,
-            "currentLockfile": ctx.current_lockfile,
-            "existsCurrentLockfile": ctx.exists_current_lockfile,
-            "existsNonEmptyWantedLockfile": ctx.exists_non_empty_wanted_lockfile,
-            "lockfileDir": ctx.lockfile_dir,
-            "storeDir": ctx.store_dir,
-            "registries": ctx.registries,
-        });
+    ) -> HookFuture<'_, ()> {
+        Box::pin(async move {
+            let ctx_json = serde_json::json!({
+                "wantedLockfile": ctx.wanted_lockfile,
+                "currentLockfile": ctx.current_lockfile,
+                "existsCurrentLockfile": ctx.exists_current_lockfile,
+                "existsNonEmptyWantedLockfile": ctx.exists_non_empty_wanted_lockfile,
+                "lockfileDir": ctx.lockfile_dir,
+                "storeDir": ctx.store_dir,
+                "registries": ctx.registries,
+            });
 
-        self.call_node_void("preResolution", ctx_json, &logger).await;
+            self.call_node_void("preResolution", ctx_json, &logger).await;
+        })
     }
 
-    async fn filter_log(&self, log: Value, ctx: crate::HookContext) -> bool {
-        let Ok(worker) = self.worker().await else { return true };
-        match worker.call("filterLog", log, ctx.log).await {
-            Ok(value) => value.as_bool().unwrap_or(true),
-            Err(_) => true,
-        }
+    fn filter_log(&self, log: Value, ctx: crate::HookContext) -> HookFuture<'_, bool> {
+        Box::pin(async move {
+            let Ok(worker) = self.worker().await else { return true };
+            match worker.call("filterLog", log, ctx.log).await {
+                Ok(value) => value.as_bool().unwrap_or(true),
+                Err(_) => true,
+            }
+        })
     }
 
-    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
-        // Gate on the loaded module exporting `hooks`, mirroring pnpm's
-        // `entries.some(entry => entry.hooks != null)`. The checksum
-        // value itself is a pure hash of the pnpmfile's normalized
-        // bytes — only this gate needs to consult the evaluated module.
-        let worker = self.worker().await.ok()?;
-        if !worker.has_hooks().await {
-            return None;
-        }
-        pacquet_crypto_hash::create_hash_from_file(&self.file).ok()
+    fn calculate_pnpmfile_checksum(&self) -> HookFuture<'_, Option<String>> {
+        Box::pin(async move {
+            // Gate on the loaded module exporting `hooks`, mirroring pnpm's
+            // `entries.some(entry => entry.hooks != null)`. The checksum
+            // value itself is a pure hash of the pnpmfile's normalized
+            // bytes — only this gate needs to consult the evaluated module.
+            let worker = self.worker().await.ok()?;
+            if !worker.has_hooks().await {
+                return None;
+            }
+            pacquet_crypto_hash::create_hash_from_file(&self.file).ok()
+        })
     }
 
     fn source_path(&self) -> Option<&std::path::Path> {
         Some(&self.file)
     }
 
-    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn crate::CustomResolver>>, HookError> {
-        let worker = self.worker().await?;
-        let capabilities = worker.get_resolver_capabilities().await?;
-        Ok(capabilities
-            .into_iter()
-            .enumerate()
-            .map(|(index, capabilities)| {
-                Arc::new(NodeJsCustomResolver { worker: Arc::clone(&worker), index, capabilities })
-                    as Arc<dyn crate::CustomResolver>
-            })
-            .collect())
+    fn get_custom_resolvers(
+        &self,
+    ) -> HookFuture<'_, Result<Vec<Arc<dyn crate::CustomResolver>>, HookError>> {
+        Box::pin(async move {
+            let worker = self.worker().await?;
+            let capabilities = worker.get_resolver_capabilities().await?;
+            Ok(capabilities
+                .into_iter()
+                .enumerate()
+                .map(|(index, capabilities)| {
+                    Arc::new(NodeJsCustomResolver {
+                        worker: Arc::clone(&worker),
+                        index,
+                        capabilities,
+                    }) as Arc<dyn crate::CustomResolver>
+                })
+                .collect())
+        })
     }
 }
 
@@ -207,7 +224,6 @@ pub struct NodeJsCustomResolver {
     capabilities: crate::worker::ResolverCapabilities,
 }
 
-#[async_trait]
 impl crate::CustomResolver for NodeJsCustomResolver {
     fn has_can_resolve(&self) -> bool {
         self.capabilities.can_resolve
@@ -221,44 +237,54 @@ impl crate::CustomResolver for NodeJsCustomResolver {
         self.capabilities.should_refresh_resolution
     }
 
-    async fn can_resolve(&self, wanted_dependency: Value) -> Result<bool, HookError> {
-        let res = self
-            .worker
-            .call_resolver(
-                self.index,
-                "canResolve",
-                serde_json::json!([wanted_dependency]),
-                Arc::new(|_| {}),
-            )
-            .await?;
-        Ok(res.as_bool().unwrap_or(false))
+    fn can_resolve(&self, wanted_dependency: Value) -> HookFuture<'_, Result<bool, HookError>> {
+        Box::pin(async move {
+            let res = self
+                .worker
+                .call_resolver(
+                    self.index,
+                    "canResolve",
+                    serde_json::json!([wanted_dependency]),
+                    Arc::new(|_| {}),
+                )
+                .await?;
+            Ok(res.as_bool().unwrap_or(false))
+        })
     }
 
-    async fn resolve(&self, wanted_dependency: Value, opts: Value) -> Result<Value, HookError> {
-        self.worker
-            .call_resolver(
-                self.index,
-                "resolve",
-                serde_json::json!([wanted_dependency, opts]),
-                Arc::new(|_| {}),
-            )
-            .await
-    }
-
-    async fn should_refresh_resolution(
+    fn resolve(
         &self,
-        dep_path: &pacquet_lockfile::PackageKey,
+        wanted_dependency: Value,
+        opts: Value,
+    ) -> HookFuture<'_, Result<Value, HookError>> {
+        Box::pin(async move {
+            self.worker
+                .call_resolver(
+                    self.index,
+                    "resolve",
+                    serde_json::json!([wanted_dependency, opts]),
+                    Arc::new(|_| {}),
+                )
+                .await
+        })
+    }
+
+    fn should_refresh_resolution<'a>(
+        &'a self,
+        dep_path: &'a pacquet_lockfile::PackageKey,
         pkg_snapshot: Value,
-    ) -> Result<bool, HookError> {
-        let res = self
-            .worker
-            .call_resolver(
-                self.index,
-                "shouldRefreshResolution",
-                serde_json::json!([dep_path.to_string(), pkg_snapshot]),
-                Arc::new(|_| {}),
-            )
-            .await?;
-        Ok(res.as_bool().unwrap_or(false))
+    ) -> HookFuture<'a, Result<bool, HookError>> {
+        Box::pin(async move {
+            let res = self
+                .worker
+                .call_resolver(
+                    self.index,
+                    "shouldRefreshResolution",
+                    serde_json::json!([dep_path.to_string(), pkg_snapshot]),
+                    Arc::new(|_| {}),
+                )
+                .await?;
+            Ok(res.as_bool().unwrap_or(false))
+        })
     }
 }

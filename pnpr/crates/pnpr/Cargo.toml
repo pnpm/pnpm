@@ -32,7 +32,6 @@ pacquet-resolving-npm-resolver  = { workspace = true }
 pacquet-resolving-resolver-base = { workspace = true }
 pacquet-store-dir               = { workspace = true }
 pacquet-tarball                 = { workspace = true }
-async-trait                     = { workspace = true }
 axum                            = { workspace = true }
 base64                          = { workspace = true }
 bcrypt                          = { workspace = true }

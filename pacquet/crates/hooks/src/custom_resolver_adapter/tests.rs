@@ -5,13 +5,12 @@ use std::sync::{
 
 use serde_json::{Value, json};
 
-use async_trait::async_trait;
 use pacquet_resolving_resolver_base::{
     CurrentPkg, PkgResolutionId, ResolveOptions, Resolver, WantedDependency,
 };
 
 use super::CustomResolverAdapter;
-use crate::{CustomResolver, HookError};
+use crate::{CustomResolver, HookError, HookFuture};
 
 struct ScriptedResolver {
     can_resolve: bool,
@@ -33,25 +32,28 @@ impl ScriptedResolver {
     }
 }
 
-#[async_trait]
 impl CustomResolver for ScriptedResolver {
-    async fn can_resolve(&self, wanted_dependency: Value) -> Result<bool, HookError> {
-        self.can_resolve_calls.fetch_add(1, Ordering::SeqCst);
-        self.seen_wanted.lock().unwrap().push(wanted_dependency);
-        Ok(self.can_resolve)
+    fn can_resolve(&self, wanted_dependency: Value) -> HookFuture<'_, Result<bool, HookError>> {
+        Box::pin(async move {
+            self.can_resolve_calls.fetch_add(1, Ordering::SeqCst);
+            self.seen_wanted.lock().unwrap().push(wanted_dependency);
+            Ok(self.can_resolve)
+        })
     }
 
-    async fn resolve(&self, _: Value, opts: Value) -> Result<Value, HookError> {
-        self.seen_opts.lock().unwrap().push(opts);
-        Ok(self.response.clone())
+    fn resolve(&self, _: Value, opts: Value) -> HookFuture<'_, Result<Value, HookError>> {
+        Box::pin(async move {
+            self.seen_opts.lock().unwrap().push(opts);
+            Ok(self.response.clone())
+        })
     }
 
-    async fn should_refresh_resolution(
-        &self,
-        _: &pacquet_lockfile::PackageKey,
+    fn should_refresh_resolution<'a>(
+        &'a self,
+        _: &'a pacquet_lockfile::PackageKey,
         _: Value,
-    ) -> Result<bool, HookError> {
-        Ok(false)
+    ) -> HookFuture<'a, Result<bool, HookError>> {
+        Box::pin(async move { Ok(false) })
     }
 }
 

@@ -3,10 +3,9 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use async_trait::async_trait;
 use serde_json::{Value, json};
 
-use pacquet_hooks::{CustomResolver, HookError};
+use pacquet_hooks::{CustomResolver, HookError, HookFuture};
 use pacquet_lockfile::{Lockfile, PackageKey};
 
 use super::check_custom_resolver_force_resolve;
@@ -43,28 +42,29 @@ impl MockResolver {
     }
 }
 
-#[async_trait]
 impl CustomResolver for MockResolver {
     fn has_should_refresh_resolution(&self) -> bool {
         self.has_should_refresh_resolution
     }
 
-    async fn can_resolve(&self, _: Value) -> Result<bool, HookError> {
-        Ok(false)
+    fn can_resolve(&self, _: Value) -> HookFuture<'_, Result<bool, HookError>> {
+        Box::pin(async move { Ok(false) })
     }
 
-    async fn resolve(&self, _: Value, _: Value) -> Result<Value, HookError> {
-        Ok(Value::Null)
+    fn resolve(&self, _: Value, _: Value) -> HookFuture<'_, Result<Value, HookError>> {
+        Box::pin(async move { Ok(Value::Null) })
     }
 
-    async fn should_refresh_resolution(
-        &self,
-        dep_path: &PackageKey,
+    fn should_refresh_resolution<'a>(
+        &'a self,
+        dep_path: &'a PackageKey,
         pkg_snapshot: Value,
-    ) -> Result<bool, HookError> {
-        self.call_count.fetch_add(1, Ordering::SeqCst);
-        self.calls.lock().unwrap().push((dep_path.to_string(), pkg_snapshot));
-        self.refresh_outcome.clone()
+    ) -> HookFuture<'a, Result<bool, HookError>> {
+        Box::pin(async move {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            self.calls.lock().unwrap().push((dep_path.to_string(), pkg_snapshot));
+            self.refresh_outcome.clone()
+        })
     }
 }
 

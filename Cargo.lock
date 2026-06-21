@@ -3847,7 +3847,6 @@ dependencies = [
 name = "pacquet-hooks"
 version = "0.0.1"
 dependencies = [
- "async-trait",
  "derive_more",
  "pacquet-crypto-hash",
  "pacquet-lockfile",
@@ -4008,7 +4007,6 @@ name = "pacquet-package-manager"
 version = "0.0.1"
 dependencies = [
  "async-recursion",
- "async-trait",
  "chrono",
  "dashmap",
  "derive_more",
@@ -4786,7 +4784,6 @@ dependencies = [
 name = "pnpr"
 version = "0.0.1"
 dependencies = [
- "async-trait",
  "axum 0.8.9",
  "base64 0.22.1",
  "bcrypt",
