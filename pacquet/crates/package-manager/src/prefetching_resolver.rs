@@ -29,7 +29,7 @@ use crate::{
 };
 use dashmap::{DashMap, DashSet};
 use pacquet_config::Config;
-use pacquet_lockfile::LockfileResolution;
+use pacquet_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_reporter::{Reporter, SilentReporter};
 use pacquet_resolving_resolver_base::{
@@ -182,7 +182,12 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             return Ok(());
         };
         if tarball.integrity.is_some()
+            // git-hosted tarballs are anchored by their commit SHA, not an integrity. The
+            // `git_hosted` flag is the primary signal, but the tarball resolver emits
+            // codeload/gitlab/bitbucket archive URLs with `git_hosted: None`, so also detect
+            // them by URL — matching the lockfile's own git-hosted gating.
             || tarball.git_hosted == Some(true)
+            || is_git_hosted_tarball_url(&tarball.tarball)
             || tarball.tarball.starts_with("file:")
         {
             return Ok(());
