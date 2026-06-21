@@ -31,11 +31,14 @@ fn should_list_packages() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
     let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
-    fs::create_dir_all(cache_dir.join("registry.npmjs.org")).unwrap();
-    fs::write(cache_dir.join("registry.npmjs.org").join("is-positive.jsonl"), "{}").unwrap();
-    fs::write(cache_dir.join("registry.npmjs.org").join("is-negative.jsonl"), "{}").unwrap();
+    let url_str = cwd.npmrc_info.mock_instance.url();
+    let registry_name =
+        url_str.strip_prefix("http://").unwrap().strip_suffix("/").unwrap().replace(':', "+");
+    fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
+    fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
+    fs::write(cache_dir.join(&registry_name).join("is-negative.jsonl"), "{}").unwrap();
 
-    let _output = cwd
+    let output = cwd
         .pacquet
         .with_arg("cache")
         .with_arg("list")
@@ -44,6 +47,10 @@ fn should_list_packages() {
         .get_output()
         .stdout
         .clone();
+
+    let stdout = String::from_utf8_lossy(&output);
+    assert!(stdout.contains(&format!("{registry_name}/is-positive.jsonl")));
+    assert!(stdout.contains(&format!("{registry_name}/is-negative.jsonl")));
 }
 
 #[test]
@@ -51,11 +58,14 @@ fn should_delete_packages() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
     let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
-    fs::create_dir_all(cache_dir.join("registry.npmjs.org")).unwrap();
-    fs::write(cache_dir.join("registry.npmjs.org").join("is-positive.jsonl"), "{}").unwrap();
-    fs::write(cache_dir.join("registry.npmjs.org").join("is-negative.jsonl"), "{}").unwrap();
+    let url_str = cwd.npmrc_info.mock_instance.url();
+    let registry_name =
+        url_str.strip_prefix("http://").unwrap().strip_suffix("/").unwrap().replace(':', "+");
+    fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
+    fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
+    fs::write(cache_dir.join(&registry_name).join("is-negative.jsonl"), "{}").unwrap();
 
-    let _output = cwd
+    let output = cwd
         .pacquet
         .with_arg("cache")
         .with_arg("delete")
@@ -65,4 +75,9 @@ fn should_delete_packages() {
         .get_output()
         .stdout
         .clone();
+
+    let stdout = String::from_utf8_lossy(&output);
+    assert!(stdout.contains(&format!("{registry_name}/is-positive.jsonl")));
+    assert!(!cache_dir.join(&registry_name).join("is-positive.jsonl").exists());
+    assert!(cache_dir.join(&registry_name).join("is-negative.jsonl").exists());
 }
