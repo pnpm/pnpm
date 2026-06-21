@@ -171,6 +171,9 @@ impl TarballResolver {
             store_dir: ctx.store_dir,
             store_index_writer: ctx.store_index_writer.clone(),
             package_url: &resolved_url,
+            // A direct https tarball has no resolver-known name@version, so the URL is the
+            // only identifier; such tarballs carry no scoped-registry auth.
+            package_id: &resolved_url,
             auth_headers: &ctx.auth_headers,
             retry_opts: ctx.retry_opts,
         }

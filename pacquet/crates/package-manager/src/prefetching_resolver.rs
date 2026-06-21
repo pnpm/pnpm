@@ -193,6 +193,13 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             return Ok(());
         }
         let package_url = tarball.tarball.clone();
+        // Identify the package by `name@version` for auth/scope selection so a private
+        // scoped registry tarball picks up its credentials (the npm resolver fills
+        // `name_ver`); fall back to the URL when the name is unknown.
+        let package_id = result
+            .name_ver
+            .as_ref()
+            .map_or_else(|| package_url.clone(), |nv| format!("{}@{}", nv.name, nv.suffix));
 
         // Singleflight per URL: the same integrity-less tarball can arrive on many edges,
         // so compute its integrity once and share it. Clone the cell's `Arc` out of the map
@@ -208,6 +215,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                     store_dir: self.ctx.store_dir,
                     store_index_writer: self.ctx.store_index_writer.clone(),
                     package_url: &package_url,
+                    package_id: &package_id,
                     auth_headers: &self.ctx.auth_headers,
                     retry_opts: self.ctx.retry_opts,
                 }

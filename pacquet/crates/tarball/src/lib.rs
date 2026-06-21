@@ -2291,6 +2291,12 @@ pub struct FetchTarballForResolution<'a> {
     pub store_dir: &'static StoreDir,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub package_url: &'a str,
+    /// Identifies the package for auth/scope credential selection (and the
+    /// intermediate store-index cache key). Pass `name@version` when the
+    /// resolver knows it, so a private scoped package (`@org/pkg`) resolves its
+    /// scope-specific token; fall back to the tarball URL when only the URL is
+    /// known (a direct https tarball, which has no scoped auth).
+    pub package_id: &'a str,
     pub auth_headers: &'a AuthHeaders,
     pub retry_opts: RetryOpts,
 }
@@ -2305,25 +2311,25 @@ impl FetchTarballForResolution<'_> {
             store_dir,
             store_index_writer,
             package_url,
+            package_id,
             auth_headers,
             retry_opts,
         } = self;
 
-        // `None` expected-integrity → compute it from the bytes. The
-        // package_id / requester are the post-redirect URL: the real
-        // `name@version` is only known once the manifest is read below,
-        // and the resolve-time fetch is silent (the install pass owns
-        // the reporter ordering), so the placeholder never surfaces.
-        // `UNPRIORITIZED`: this fetch gates the resolver's walk (a
-        // tarball dep's manifest comes from its archive), so like a
-        // packument fetch it must not queue behind sized downloads.
+        // `None` expected-integrity → compute it from the bytes. `package_id` drives
+        // auth/scope selection (so a private scoped package picks up its token) and the
+        // intermediate cache key; the resolve-time fetch is silent (the install pass owns
+        // the reporter ordering), so the URL used as the `requester` placeholder never
+        // surfaces. `UNPRIORITIZED`: this fetch gates the resolver's walk (a tarball dep's
+        // manifest comes from its archive), so like a packument fetch it must not queue
+        // behind sized downloads.
         let (integrity, cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
             http_client,
             package_url,
             None,
             None,
             UNPRIORITIZED,
-            package_url,
+            package_id,
             package_url,
             store_dir,
             retry_opts,
