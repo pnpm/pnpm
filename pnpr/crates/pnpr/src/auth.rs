@@ -62,22 +62,38 @@ pub(crate) fn validate_username(username: &str) -> Result<()> {
     if username.is_empty() {
         return Err(RegistryError::BadRequest { reason: "username must not be empty".to_string() });
     }
-    if username.chars().count() > MAX_USERNAME_CHARS {
-        return Err(RegistryError::BadRequest {
-            reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
-        });
+
+    let mut chars = 0;
+    let mut starts_with_whitespace = false;
+    let mut ends_with_whitespace = false;
+    let mut contains_colon = false;
+    let mut contains_control = false;
+    for ch in username.chars() {
+        chars += 1;
+        if chars > MAX_USERNAME_CHARS {
+            return Err(RegistryError::BadRequest {
+                reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
+            });
+        }
+        if chars == 1 {
+            starts_with_whitespace = ch.is_whitespace();
+        }
+        ends_with_whitespace = ch.is_whitespace();
+        contains_colon |= ch == ':';
+        contains_control |= ch.is_control();
     }
-    if username.trim() != username {
+
+    if starts_with_whitespace || ends_with_whitespace {
         return Err(RegistryError::BadRequest {
             reason: "username must not start or end with whitespace".to_string(),
         });
     }
-    if username.contains(':') {
+    if contains_colon {
         return Err(RegistryError::BadRequest {
             reason: "username must not contain ':'".to_string(),
         });
     }
-    if username.chars().any(char::is_control) {
+    if contains_control {
         return Err(RegistryError::BadRequest {
             reason: "username must not contain control characters".to_string(),
         });

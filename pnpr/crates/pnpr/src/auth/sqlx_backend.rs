@@ -29,7 +29,7 @@ impl<Db> SqlAuth<Db> {
 
 #[async_trait]
 trait AuthSqlBackend: Send + Sync {
-    async fn stored_hash(&self, username: &str) -> Result<Option<String>>;
+    async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>>;
     async fn user_count(&self) -> Result<u64>;
     async fn insert_user(
         &self,
@@ -44,9 +44,15 @@ trait AuthSqlBackend: Send + Sync {
     async fn delete_token(&self, token_hash: &str) -> Result<()>;
 }
 
+#[derive(Clone)]
+struct StoredUser {
+    username: String,
+    bcrypt_hash: String,
+}
+
 enum InsertUser {
     Created,
-    Existing(String),
+    Existing(StoredUser),
     CapReached,
 }
 
@@ -57,8 +63,8 @@ where
 {
     async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
         validate_username(username)?;
-        if let Some(stored) = self.db.stored_hash(username).await? {
-            return verify_returning_user(username, password, stored).await;
+        if let Some(stored) = self.db.stored_user(username).await? {
+            return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
         }
 
         match self.max_users {
@@ -72,7 +78,9 @@ where
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         match self.db.insert_user(username, &hash, self.max_users).await? {
             InsertUser::Created => Ok(UpsertOutcome::Created),
-            InsertUser::Existing(stored) => verify_returning_user(username, password, stored).await,
+            InsertUser::Existing(stored) => {
+                verify_returning_user(&stored.username, password, stored.bcrypt_hash).await
+            }
             InsertUser::CapReached => match self.max_users {
                 MaxUsers::Limited(max) => Err(RegistryError::TooManyUsers { max }),
                 MaxUsers::Disabled | MaxUsers::Unlimited => {
@@ -83,13 +91,13 @@ where
     }
 
     async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
-        let Some(stored) = self.db.stored_hash(username).await? else {
+        let Some(stored) = self.db.stored_user(username).await? else {
             return Ok(None);
         };
-        Ok(verify_bcrypt(password.to_string(), stored)
+        Ok(verify_bcrypt(password.to_string(), stored.bcrypt_hash)
             .await
             .unwrap_or(false)
-            .then(|| username.to_string()))
+            .then_some(stored.username))
     }
 }
 
@@ -138,7 +146,9 @@ where
 #[cfg(feature = "backend-postgres")]
 pub(super) mod postgres {
     use super::super::TokenRecord;
-    use super::{AuthSqlBackend, InsertUser, SqlAuth, invalid_pool_size, sql_max_users};
+    use super::{
+        AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
+    };
     use crate::{
         config::{MaxUsers, SqlBackendSettings},
         error::{RegistryError, Result},
@@ -173,12 +183,16 @@ pub(super) mod postgres {
 
     #[async_trait]
     impl AuthSqlBackend for PostgresDatabase {
-        async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
-            let row = sqlx::query("SELECT bcrypt_hash FROM users WHERE username = $1")
+        async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>> {
+            let row = sqlx::query("SELECT username, bcrypt_hash FROM users WHERE username = $1")
                 .bind(username)
                 .fetch_optional(&self.pool)
                 .await?;
-            row.map(|row| row.try_get(0)).transpose().map_err(RegistryError::from)
+            row.map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
+                Ok(StoredUser { username: row.try_get(0)?, bcrypt_hash: row.try_get(1)? })
+            })
+            .transpose()
+            .map_err(RegistryError::from)
         }
 
         async fn user_count(&self) -> Result<u64> {
@@ -360,7 +374,7 @@ pub(super) mod postgres {
         }
 
         async fn existing_or_cap_reached(&self, username: &str) -> Result<InsertUser> {
-            match self.stored_hash(username).await? {
+            match self.stored_user(username).await? {
                 Some(stored) => Ok(InsertUser::Existing(stored)),
                 None => Ok(InsertUser::CapReached),
             }
@@ -398,7 +412,9 @@ pub(super) mod postgres {
 #[cfg(feature = "backend-mysql")]
 pub(super) mod mysql {
     use super::super::TokenRecord;
-    use super::{AuthSqlBackend, InsertUser, SqlAuth, invalid_pool_size, sql_max_users};
+    use super::{
+        AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
+    };
     use crate::{
         config::{MaxUsers, SqlBackendSettings},
         error::{RegistryError, Result},
@@ -433,12 +449,16 @@ pub(super) mod mysql {
 
     #[async_trait]
     impl AuthSqlBackend for MysqlDatabase {
-        async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
-            let row = sqlx::query("SELECT bcrypt_hash FROM users WHERE username = ?")
+        async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>> {
+            let row = sqlx::query("SELECT username, bcrypt_hash FROM users WHERE username = ?")
                 .bind(username)
                 .fetch_optional(&self.pool)
                 .await?;
-            row.map(|row| row.try_get(0)).transpose().map_err(RegistryError::from)
+            row.map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
+                Ok(StoredUser { username: row.try_get(0)?, bcrypt_hash: row.try_get(1)? })
+            })
+            .transpose()
+            .map_err(RegistryError::from)
         }
 
         async fn user_count(&self) -> Result<u64> {
@@ -621,7 +641,7 @@ pub(super) mod mysql {
         }
 
         async fn existing_or_cap_reached(&self, username: &str) -> Result<InsertUser> {
-            match self.stored_hash(username).await? {
+            match self.stored_user(username).await? {
                 Some(stored) => Ok(InsertUser::Existing(stored)),
                 None => Ok(InsertUser::CapReached),
             }
@@ -682,4 +702,64 @@ fn sql_max_users(max: u64, backend: &str) -> Result<i64> {
     i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
         reason: format!("backend.{backend} auth max_users must fit a signed BIGINT"),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct CanonicalBackend {
+        user: StoredUser,
+    }
+
+    #[async_trait]
+    impl AuthSqlBackend for CanonicalBackend {
+        async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
+            Ok(Some(self.user.clone()))
+        }
+
+        async fn user_count(&self) -> Result<u64> {
+            Ok(1)
+        }
+
+        async fn insert_user(
+            &self,
+            _username: &str,
+            _bcrypt_hash: &str,
+            _max_users: MaxUsers,
+        ) -> Result<InsertUser> {
+            Ok(InsertUser::Existing(self.user.clone()))
+        }
+
+        async fn insert_token(&self, _token_hash: &str, _record: &TokenRecord) -> Result<()> {
+            Ok(())
+        }
+
+        async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
+            Ok(None)
+        }
+
+        async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
+            Ok(None)
+        }
+
+        async fn list_tokens(&self, _username: &str) -> Result<Vec<(String, TokenRecord)>> {
+            Ok(Vec::new())
+        }
+
+        async fn delete_token(&self, _token_hash: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn verify_returns_the_stored_username() {
+        let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
+        let auth = SqlAuth::new(
+            CanonicalBackend { user: StoredUser { username: "Alice".to_string(), bcrypt_hash } },
+            MaxUsers::Unlimited,
+        );
+
+        assert_eq!(auth.verify("alice", "secret").await.unwrap().as_deref(), Some("Alice"));
+    }
 }
