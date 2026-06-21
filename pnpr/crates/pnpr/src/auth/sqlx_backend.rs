@@ -22,13 +22,43 @@ pub(in crate::auth) struct SqlAuth<Db> {
     db: Db,
     secret: [u8; 32],
     counter: AtomicU64,
+    next_cap_reconcile_at: AtomicU64,
     max_users: MaxUsers,
     timeout: Duration,
 }
 
+const CAP_RECONCILE_INTERVAL_SECS: u64 = 60;
+
 impl<Db> SqlAuth<Db> {
     fn new(db: Db, max_users: MaxUsers, timeout: Duration) -> Self {
-        Self { db, secret: fresh_secret(), counter: AtomicU64::new(0), max_users, timeout }
+        Self {
+            db,
+            secret: fresh_secret(),
+            counter: AtomicU64::new(0),
+            next_cap_reconcile_at: AtomicU64::new(0),
+            max_users,
+            timeout,
+        }
+    }
+
+    async fn reconcile_capped_counter_once_per_interval(&self) -> Result<bool>
+    where
+        Db: AuthSqlBackend,
+    {
+        let now = unix_seconds();
+        let next = self.next_cap_reconcile_at.load(Ordering::Relaxed);
+        if now < next {
+            return Ok(false);
+        }
+        let updated_next = now.saturating_add(CAP_RECONCILE_INTERVAL_SECS);
+        if self
+            .next_cap_reconcile_at
+            .compare_exchange(next, updated_next, Ordering::Relaxed, Ordering::Relaxed)
+            .is_err()
+        {
+            return Ok(false);
+        }
+        self.db.reconcile_user_counter_overcount().await
     }
 }
 
@@ -101,8 +131,10 @@ where
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
             MaxUsers::Limited(max) => {
                 if with_auth_timeout(self.timeout, self.db.user_count()).await? >= max {
-                    self.db.reconcile_user_counter_overcount().await?;
-                    if with_auth_timeout(self.timeout, self.db.user_count()).await? >= max {
+                    let reconciled_below_cap =
+                        self.reconcile_capped_counter_once_per_interval().await?
+                            && with_auth_timeout(self.timeout, self.db.user_count()).await? < max;
+                    if !reconciled_below_cap {
                         return Err(RegistryError::TooManyUsers { max });
                     }
                 }
@@ -894,6 +926,10 @@ mod tests {
         stored_user_calls: Arc<AtomicU64>,
     }
 
+    struct CappedBackend {
+        reconcile_calls: Arc<AtomicU64>,
+    }
+
     #[async_trait]
     impl AuthSqlBackend for CanonicalBackend {
         async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
@@ -1074,6 +1110,51 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl AuthSqlBackend for CappedBackend {
+        async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
+            Ok(None)
+        }
+
+        async fn user_count(&self) -> Result<u64> {
+            Ok(1)
+        }
+
+        async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
+            self.reconcile_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(false)
+        }
+
+        async fn insert_user(
+            &self,
+            _username: &str,
+            _bcrypt_hash: &str,
+            _max_users: MaxUsers,
+        ) -> Result<InsertUser> {
+            panic!("capped precheck should reject before insert_user")
+        }
+
+        async fn insert_token(&self, _token_hash: &str, _record: &TokenRecord) -> Result<()> {
+            Ok(())
+        }
+
+        async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
+            Ok(None)
+        }
+
+        async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
+            Ok(None)
+        }
+
+        async fn list_tokens(&self, _username: &str) -> Result<Vec<(String, TokenRecord)>> {
+            Ok(Vec::new())
+        }
+
+        async fn delete_token(&self, _token_hash: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
     #[tokio::test]
     async fn verify_returns_the_stored_username() {
         let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
@@ -1153,6 +1234,23 @@ mod tests {
             matches!(overlong_err, RegistryError::BadRequest { reason } if reason == format!("username must be at most {MAX_USERNAME_CHARS} characters"))
         );
         assert_eq!(stored_user_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn add_or_login_rate_limits_capped_reconciliation() {
+        let reconcile_calls = Arc::new(AtomicU64::new(0));
+        let auth = SqlAuth::new(
+            CappedBackend { reconcile_calls: Arc::clone(&reconcile_calls) },
+            MaxUsers::Limited(1),
+            Duration::from_secs(30),
+        );
+
+        for username in ["alice", "bob", "carol"] {
+            let err = auth.add_or_login(username, "secret").await.unwrap_err();
+            assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }));
+        }
+
+        assert_eq!(reconcile_calls.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
