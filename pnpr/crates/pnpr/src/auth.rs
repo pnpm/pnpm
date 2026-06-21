@@ -211,12 +211,15 @@ fn backend_not_enabled(name: &str, feature: &str) -> RegistryError {
 /// is [`Self::add_or_login`] (npm `adduser` / `login`).
 #[async_trait]
 pub trait UserBackend: Send + Sync {
-    /// Add a new user or verify a returning one. See
-    /// [`UpsertOutcome`] for the success cases; a wrong password for
-    /// an existing user is [`RegistryError::Unauthenticated`], and a
-    /// new user past the registration cap is
-    /// [`RegistryError::RegistrationDisabled`] / `TooManyUsers`.
-    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome>;
+    /// Add a new user or verify a returning one. On success, returns
+    /// the outcome plus the canonical stored username to bind follow-up
+    /// token issuance to the same identity that Basic auth would
+    /// resolve. A wrong password for an existing user is
+    /// [`RegistryError::Unauthenticated`], and a new user past the
+    /// registration cap is [`RegistryError::RegistrationDisabled`] /
+    /// `TooManyUsers`.
+    async fn add_or_login(&self, username: &str, password: &str)
+    -> Result<(UpsertOutcome, String)>;
 
     /// Verify a username+password pair. `Ok(Some(username))` on a match,
     /// `Ok(None)` when the user is unknown or the password is wrong, and
@@ -335,8 +338,11 @@ impl UserBackend for UserStore {
     /// * Known username, password wrong → `Unauthenticated`.
     /// * Unknown username, registration disabled or capped →
     ///   `RegistrationDisabled` / `TooManyUsers`.
-    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
-        validate_username(username)?;
+    async fn add_or_login(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<(UpsertOutcome, String)> {
         let existing_hash = {
             let users = self.users.lock().expect("UserStore mutex poisoned");
             users.get(username).cloned()
@@ -344,6 +350,8 @@ impl UserBackend for UserStore {
         if let Some(stored) = existing_hash {
             return verify_returning_user(username, password, stored).await;
         }
+
+        validate_username(username)?;
 
         // Brand-new user — check the registration cap before doing
         // the (expensive) bcrypt hash.
@@ -384,7 +392,7 @@ impl UserBackend for UserStore {
         match next_step {
             NextStep::Persist(snapshot) => {
                 self.persist(snapshot).await?;
-                Ok(UpsertOutcome::Created)
+                Ok((UpsertOutcome::Created, username.to_string()))
             }
             NextStep::VerifyExisting(stored) => {
                 verify_returning_user(username, password, stored).await
@@ -499,12 +507,25 @@ impl TokenBackend for TokenStore {
         }
         if let Some(path) = self.persist.clone() {
             let hash_for_db = token_hash.clone();
-            tokio::task::spawn_blocking(move || -> Result<()> {
+            let result = tokio::task::spawn_blocking(move || -> Result<()> {
                 let conn = Connection::open(&path)?;
                 insert_token(&conn, &hash_for_db, &record)?;
                 Ok(())
             })
-            .await??;
+            .await;
+            match result {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => {
+                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+                    inner.tokens.remove(&token_hash);
+                    return Err(err);
+                }
+                Err(err) => {
+                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+                    inner.tokens.remove(&token_hash);
+                    return Err(err.into());
+                }
+            }
         }
         Ok(raw)
     }
@@ -739,9 +760,9 @@ async fn verify_returning_user(
     username: &str,
     password: &str,
     stored: String,
-) -> Result<UpsertOutcome> {
+) -> Result<(UpsertOutcome, String)> {
     if verify_bcrypt(password.to_string(), stored).await? {
-        Ok(UpsertOutcome::LoggedIn)
+        Ok((UpsertOutcome::LoggedIn, username.to_string()))
     } else {
         Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
     }

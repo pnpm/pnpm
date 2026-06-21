@@ -65,13 +65,28 @@ async fn user_store_rejects_invalid_username_before_persisting() {
 }
 
 #[tokio::test]
+async fn user_store_allows_existing_legacy_username_to_login() {
+    let store = test_user_store();
+    let legacy = format!("{}:", "a".repeat(MAX_USERNAME_CHARS));
+    let hash = bcrypt::hash("secret", TEST_COST).unwrap();
+    store.users.lock().expect("UserStore mutex poisoned").insert(legacy.clone(), hash);
+
+    let outcome = store.add_or_login(&legacy, "secret").await.unwrap();
+
+    assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
+    assert_eq!(outcome.1, legacy);
+}
+
+#[tokio::test]
 async fn adduser_creates_then_validates() {
     let store = test_user_store();
     let outcome = store.add_or_login("alice", "secret").await.unwrap();
-    assert!(matches!(outcome, UpsertOutcome::Created));
+    assert!(matches!(outcome, (UpsertOutcome::Created, _)));
+    assert_eq!(outcome.1, "alice");
 
     let outcome = store.add_or_login("alice", "secret").await.unwrap();
-    assert!(matches!(outcome, UpsertOutcome::LoggedIn));
+    assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
+    assert_eq!(outcome.1, "alice");
 
     assert!(store.verify("alice", "secret").await.unwrap().is_some());
     assert!(store.verify("alice", "wrong").await.unwrap().is_none());
@@ -116,7 +131,7 @@ async fn adduser_rejects_same_username_concurrent_registration_with_different_pa
     let result_b = add_b.await.unwrap();
     let created = [result_a.as_ref(), result_b.as_ref()]
         .into_iter()
-        .filter(|result| matches!(result, Ok(UpsertOutcome::Created)))
+        .filter(|result| matches!(result, Ok((UpsertOutcome::Created, _))))
         .count();
     let unauthorized = [&result_a, &result_b]
         .into_iter()
@@ -148,7 +163,7 @@ async fn adduser_persists_across_reopen() {
     // Cold-load from disk; the hashed entry should still verify.
     let reopened = UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
     let outcome = reopened.add_or_login("alice", "secret").await.unwrap();
-    assert!(matches!(outcome, UpsertOutcome::LoggedIn));
+    assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
     assert!(reopened.verify("alice", "secret").await.unwrap().is_some());
 }
 
@@ -259,6 +274,22 @@ async fn tokens_db_stores_hash_not_raw() {
     let stored: String = row.get(0).unwrap();
     assert_ne!(stored, raw, "raw token must not be persisted");
     assert_eq!(stored.len(), 64, "SHA-256 hex is 64 chars");
+}
+
+#[tokio::test]
+async fn token_issue_rolls_back_memory_when_sqlite_persistence_fails() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("tokens.db");
+    let store = TokenStore::open(path.clone()).unwrap();
+    rusqlite::Connection::open(&path).unwrap().execute("DROP TABLE tokens", []).unwrap();
+
+    let err = store.issue("alice").await.unwrap_err();
+
+    assert_eq!(err.status_code(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(
+        store.inner.lock().expect("TokenStore mutex poisoned").tokens.is_empty(),
+        "failed persistence must not leave an in-memory bearer token active",
+    );
 }
 
 #[tokio::test]

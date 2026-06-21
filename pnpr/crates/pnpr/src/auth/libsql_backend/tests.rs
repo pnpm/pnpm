@@ -12,11 +12,11 @@ async fn add_or_login_creates_then_logs_in() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     assert!(matches!(
         backend.add_or_login("alice", "secret").await.unwrap(),
-        UpsertOutcome::Created,
+        (UpsertOutcome::Created, _),
     ));
     assert!(matches!(
         backend.add_or_login("alice", "secret").await.unwrap(),
-        UpsertOutcome::LoggedIn,
+        (UpsertOutcome::LoggedIn, _),
     ));
     assert_eq!(backend.verify("alice", "secret").await.unwrap().as_deref(), Some("alice"));
     assert!(backend.verify("alice", "wrong").await.unwrap().is_none());
@@ -40,6 +40,25 @@ async fn add_or_login_rejects_invalid_username_before_insert() {
     let mut rows = backend.conn.query("SELECT COUNT(*) FROM users", ()).await.unwrap();
     let total: i64 = rows.next().await.unwrap().unwrap().get(0).unwrap();
     assert_eq!(total, 0, "invalid username must not be inserted");
+}
+
+#[tokio::test]
+async fn add_or_login_allows_existing_legacy_username() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    let hash = bcrypt::hash("secret", 4).unwrap();
+    backend
+        .conn
+        .execute(
+            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+            params!["alice ", hash],
+        )
+        .await
+        .unwrap();
+
+    let outcome = backend.add_or_login("alice ", "secret").await.unwrap();
+
+    assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
+    assert_eq!(outcome.1, "alice ");
 }
 
 #[tokio::test]
@@ -68,7 +87,7 @@ async fn registration_cap_is_strict_under_concurrency() {
     }
     let mut created = 0;
     for handle in handles {
-        if matches!(handle.await.unwrap(), Ok(UpsertOutcome::Created)) {
+        if matches!(handle.await.unwrap(), Ok((UpsertOutcome::Created, _))) {
             created += 1;
         }
     }
@@ -113,7 +132,9 @@ async fn registration_cap_self_heals_an_overcounted_counter() {
     backend.add_or_login("alice", "x").await.unwrap();
     backend.conn.execute("DELETE FROM users WHERE username = ?1", params!["alice"]).await.unwrap();
 
-    assert!(matches!(backend.add_or_login("bob", "x").await.unwrap(), UpsertOutcome::Created,));
+    assert!(
+        matches!(backend.add_or_login("bob", "x").await.unwrap(), (UpsertOutcome::Created, _),),
+    );
 
     let mut rows = backend
         .conn

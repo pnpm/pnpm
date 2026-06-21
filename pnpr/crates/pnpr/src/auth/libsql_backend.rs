@@ -123,11 +123,16 @@ impl LibsqlAuth {
 
 #[async_trait]
 impl UserBackend for LibsqlAuth {
-    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
-        validate_username(username)?;
+    async fn add_or_login(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<(UpsertOutcome, String)> {
         if let Some(stored) = self.stored_hash(username).await? {
             return verify_returning_user(username, password, stored).await;
         }
+
+        validate_username(username)?;
 
         // Brand-new user. The cheap pre-check avoids the (expensive) hash
         // when the cap is already full; the insert below re-checks the
@@ -178,7 +183,7 @@ impl UserBackend for LibsqlAuth {
             match inserted {
                 Ok(_) => {
                     tx.commit().await?;
-                    return Ok(UpsertOutcome::Created);
+                    return Ok((UpsertOutcome::Created, username.to_string()));
                 }
                 Err(err) if is_unique_violation(&err) => {
                     tx.rollback().await?;

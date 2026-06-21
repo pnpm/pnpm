@@ -1,5 +1,5 @@
 use crate::{
-    auth::{AuthState, UpsertOutcome, identify, validate_username},
+    auth::{AuthState, UpsertOutcome, identify},
     config::Config,
     error::RegistryError,
     journal::JournaledPublish,
@@ -735,28 +735,26 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
             reason: format!("username in URL ({name:?}) does not match body ({body_name:?})"),
         });
     }
-    if let Err(err) = validate_username(name) {
-        return error_response(&err);
-    }
     let Some(password) = body.get("password").and_then(Value::as_str) else {
         return error_response(&RegistryError::BadRequest {
             reason: "missing password".to_string(),
         });
     };
 
-    let outcome = match state.inner.auth.users.add_or_login(name, password).await {
+    let (outcome, username) = match state.inner.auth.users.add_or_login(name, password).await {
         Ok(o) => o,
         Err(err) => return error_response(&err),
     };
-    let token = match state.inner.auth.tokens.issue(name).await {
+    let token = match state.inner.auth.tokens.issue(&username).await {
         Ok(t) => t,
         Err(err) => return error_response(&err),
     };
     let ok_msg = match outcome {
-        UpsertOutcome::Created => format!("user '{name}' created"),
-        UpsertOutcome::LoggedIn => format!("you are authenticated as '{name}'"),
+        UpsertOutcome::Created => format!("user '{username}' created"),
+        UpsertOutcome::LoggedIn => format!("you are authenticated as '{username}'"),
     };
-    let body = json!({ "ok": ok_msg, "token": token, "id": format!("org.couchdb.user:{name}") });
+    let body =
+        json!({ "ok": ok_msg, "token": token, "id": format!("org.couchdb.user:{username}") });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
     Response::builder()
         .status(StatusCode::CREATED)
@@ -2011,7 +2009,13 @@ fn not_found() -> Response {
 
 fn error_response(err: &RegistryError) -> Response {
     let status = err.status_code();
-    tracing::error!(%err, %status, "request failed");
+    if status.is_server_error() {
+        tracing::error!(%err, %status, "request failed");
+    } else if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+        tracing::info!(%err, %status, "request failed");
+    } else {
+        tracing::warn!(%err, %status, "request failed");
+    }
     (status, err.public_message()).into_response()
 }
 

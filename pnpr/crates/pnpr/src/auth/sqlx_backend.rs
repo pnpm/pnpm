@@ -80,12 +80,17 @@ impl<Db> UserBackend for SqlAuth<Db>
 where
     Db: AuthSqlBackend,
 {
-    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
-        validate_username(username)?;
+    async fn add_or_login(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<(UpsertOutcome, String)> {
         if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
         {
             return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
         }
+
+        validate_username(username)?;
 
         match self.max_users {
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
@@ -105,7 +110,7 @@ where
         match with_auth_timeout(self.timeout, self.db.insert_user(username, &hash, self.max_users))
             .await?
         {
-            InsertUser::Created => Ok(UpsertOutcome::Created),
+            InsertUser::Created => Ok((UpsertOutcome::Created, username.to_string())),
             InsertUser::Existing(stored) => {
                 verify_returning_user(&stored.username, password, stored.bcrypt_hash).await
             }
@@ -919,6 +924,21 @@ mod tests {
         );
 
         assert_eq!(auth.verify("alice", "secret").await.unwrap().as_deref(), Some("Alice"));
+    }
+
+    #[tokio::test]
+    async fn add_or_login_returns_the_stored_username_for_existing_users() {
+        let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
+        let auth = SqlAuth::new(
+            CanonicalBackend { user: StoredUser { username: "Alice".to_string(), bcrypt_hash } },
+            MaxUsers::Unlimited,
+            Duration::from_secs(30),
+        );
+
+        let outcome = auth.add_or_login(" alice", "secret").await.unwrap();
+
+        assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
+        assert_eq!(outcome.1, "Alice");
     }
 
     #[tokio::test]
