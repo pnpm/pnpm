@@ -34,6 +34,8 @@ fn find_hash_works() {
     let output = pacquet2.arg("find-hash").arg(&valid_hash).assert().success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
 
+    println!("STDOUT: {stdout}");
+
     // Output should contain is-odd
     assert!(stdout.contains("is-odd"));
     assert!(stdout.contains("3.0.1"));
@@ -55,4 +57,42 @@ fn should_fail_on_invalid_base64() {
     let output = pacquet.arg("find-hash").arg("sha512-InvalidBase64!!!").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains("Failed to decode base64 hash"));
+}
+
+#[test]
+fn find_hash_works_with_base64() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
+
+    let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let store_index = StoreIndex::open_readonly_in(&store_dir).unwrap();
+    let keys = store_index.keys().unwrap();
+
+    let mut hex_hash = String::new();
+    let entries = store_index.get_many(&keys).unwrap();
+    for (_key, data) in entries {
+        if let Some(file) = data.files.values().next() {
+            hex_hash = file.digest.clone();
+            break;
+        }
+    }
+
+    // Convert hex to base64
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    let bytes = (0..hex_hash.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex_hash[i..i + 2], 16).unwrap())
+        .collect::<Vec<u8>>();
+    let base64_hash = format!("sha512-{}", BASE64.encode(&bytes));
+
+    let mut pacquet2 = std::process::Command::cargo_bin("pacquet").unwrap();
+    pacquet2.current_dir(&workspace);
+    let output = pacquet2.arg("find-hash").arg(&base64_hash).assert().success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+
+    println!("STDOUT: {stdout}");
+    assert!(stdout.contains("is-odd"));
+    assert!(stdout.contains("3.0.1"));
 }
