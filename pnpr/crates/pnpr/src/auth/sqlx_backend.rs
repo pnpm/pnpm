@@ -2,9 +2,9 @@
 //! feature-gated `sqlx` drivers.
 
 use super::{
-    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, mint_token, sha256_hex, unix_seconds, validate_username, verify_bcrypt,
-    verify_returning_user,
+    DEFAULT_BCRYPT_COST, MAX_USERNAME_CHARS, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
+    fresh_secret, hash_bcrypt, mint_token, sha256_hex, unix_seconds, validate_username,
+    verify_bcrypt, verify_returning_user,
 };
 use crate::{
     config::MaxUsers,
@@ -85,6 +85,8 @@ where
         username: &str,
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
+        validate_username_bounds(username)?;
+
         if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
         {
             return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
@@ -124,6 +126,10 @@ where
     }
 
     async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
+        if username_has_invalid_bounds(username) {
+            return Ok(None);
+        }
+
         let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
         else {
             return Ok(None);
@@ -133,6 +139,26 @@ where
             .unwrap_or(false)
             .then_some(stored.username))
     }
+}
+
+fn validate_username_bounds(username: &str) -> Result<()> {
+    if username.is_empty() {
+        return Err(RegistryError::BadRequest { reason: "username must not be empty".to_string() });
+    }
+    if username_too_long(username) {
+        return Err(RegistryError::BadRequest {
+            reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
+        });
+    }
+    Ok(())
+}
+
+fn username_has_invalid_bounds(username: &str) -> bool {
+    username.is_empty() || username_too_long(username)
+}
+
+fn username_too_long(username: &str) -> bool {
+    username.chars().nth(MAX_USERNAME_CHARS).is_some()
 }
 
 #[async_trait]
@@ -818,12 +844,17 @@ fn sql_max_users(max: u64, backend: &str) -> Result<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     struct CanonicalBackend {
         user: StoredUser,
     }
 
     struct SlowLookupBackend;
+
+    struct CountingLookupBackend {
+        stored_user_calls: Arc<AtomicU64>,
+    }
 
     #[async_trait]
     impl AuthSqlBackend for CanonicalBackend {
@@ -914,6 +945,51 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl AuthSqlBackend for CountingLookupBackend {
+        async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
+            self.stored_user_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        }
+
+        async fn user_count(&self) -> Result<u64> {
+            Ok(0)
+        }
+
+        async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
+            Ok(false)
+        }
+
+        async fn insert_user(
+            &self,
+            _username: &str,
+            _bcrypt_hash: &str,
+            _max_users: MaxUsers,
+        ) -> Result<InsertUser> {
+            Ok(InsertUser::Created)
+        }
+
+        async fn insert_token(&self, _token_hash: &str, _record: &TokenRecord) -> Result<()> {
+            Ok(())
+        }
+
+        async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
+            Ok(None)
+        }
+
+        async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
+            Ok(None)
+        }
+
+        async fn list_tokens(&self, _username: &str) -> Result<Vec<(String, TokenRecord)>> {
+            Ok(Vec::new())
+        }
+
+        async fn delete_token(&self, _token_hash: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
     #[tokio::test]
     async fn verify_returns_the_stored_username() {
         let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
@@ -924,6 +1000,21 @@ mod tests {
         );
 
         assert_eq!(auth.verify("alice", "secret").await.unwrap().as_deref(), Some("Alice"));
+    }
+
+    #[tokio::test]
+    async fn verify_skips_unbounded_usernames_without_db_lookup() {
+        let stored_user_calls = Arc::new(AtomicU64::new(0));
+        let auth = SqlAuth::new(
+            CountingLookupBackend { stored_user_calls: Arc::clone(&stored_user_calls) },
+            MaxUsers::Unlimited,
+            Duration::from_secs(30),
+        );
+        let overlong = "a".repeat(MAX_USERNAME_CHARS + 1);
+
+        assert_eq!(auth.verify("", "secret").await.unwrap(), None);
+        assert_eq!(auth.verify(&overlong, "secret").await.unwrap(), None);
+        assert_eq!(stored_user_calls.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
@@ -939,6 +1030,27 @@ mod tests {
 
         assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
         assert_eq!(outcome.1, "Alice");
+    }
+
+    #[tokio::test]
+    async fn add_or_login_rejects_unbounded_usernames_without_db_lookup() {
+        let stored_user_calls = Arc::new(AtomicU64::new(0));
+        let auth = SqlAuth::new(
+            CountingLookupBackend { stored_user_calls: Arc::clone(&stored_user_calls) },
+            MaxUsers::Unlimited,
+            Duration::from_secs(30),
+        );
+        let overlong = "a".repeat(MAX_USERNAME_CHARS + 1);
+
+        let empty_err = auth.add_or_login("", "secret").await.unwrap_err();
+        assert!(
+            matches!(empty_err, RegistryError::BadRequest { reason } if reason == "username must not be empty")
+        );
+        let overlong_err = auth.add_or_login(&overlong, "secret").await.unwrap_err();
+        assert!(
+            matches!(overlong_err, RegistryError::BadRequest { reason } if reason == format!("username must be at most {MAX_USERNAME_CHARS} characters"))
+        );
+        assert_eq!(stored_user_calls.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
