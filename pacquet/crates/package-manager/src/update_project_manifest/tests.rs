@@ -188,3 +188,54 @@ fn updates_manifest_for_github_shorthand_without_alias() {
         }),
     );
 }
+
+#[test]
+fn updates_manifest_for_aliasless_dep_whose_specifier_does_not_resemble_resolution() {
+    let (_dir, mut manifest) = manifest_from_json(&json!({}));
+    update_project_manifest(
+        &mut manifest,
+        &UpdateProjectManifestOptions {
+            wanted_dependencies: &[wanted(None, "jsr:@foo/bar", true)],
+            direct_dependencies: &[resolved("@foo/bar", Some("0.1.0"), Some("jsr:^0.1.0"))],
+            peer: false,
+            pinned_version: None,
+            target_dependencies_field: None,
+            preserve_workspace_protocol: false,
+        },
+    );
+    assert_eq!(*manifest.value(), json!({ "dependencies": { "@foo/bar": "jsr:^0.1.0" } }));
+}
+
+#[test]
+fn pairs_multiple_aliasless_deps_with_resolutions_in_order() {
+    let (_dir, mut manifest) = manifest_from_json(&json!({}));
+    update_project_manifest(
+        &mut manifest,
+        &UpdateProjectManifestOptions {
+            wanted_dependencies: &[
+                wanted(Some("foo"), "^1.0.0", true),
+                wanted(None, "jsr:@rus/greet@0.0.3", true),
+                wanted(None, "github:kevva/is-positive#97edff6", true),
+            ],
+            direct_dependencies: &[
+                resolved("foo", Some("1.0.0"), Some("^1.0.0")),
+                resolved("@rus/greet", Some("0.0.3"), Some("jsr:^0.0.3")),
+                resolved("is-positive", None, Some("github:kevva/is-positive#97edff6")),
+            ],
+            peer: false,
+            pinned_version: None,
+            target_dependencies_field: Some(DependencyGroup::Prod),
+            preserve_workspace_protocol: false,
+        },
+    );
+    assert_eq!(
+        *manifest.value(),
+        json!({
+            "dependencies": {
+                "foo": "^1.0.0",
+                "@rus/greet": "jsr:^0.0.3",
+                "is-positive": "github:kevva/is-positive#97edff6",
+            },
+        }),
+    );
+}

@@ -1,6 +1,7 @@
 use crate::{PackageSpecObject, is_workspace_local_path_specifier, update_project_manifest_object};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_registry::PinnedVersion;
+use std::collections::HashMap;
 
 /// Catalog metadata for a direct dependency requested through the `catalog:`
 /// protocol. Port of pnpm's `CatalogLookupMetadata`.
@@ -56,41 +57,62 @@ pub struct UpdateProjectManifestOptions<'a> {
 /// Rewrite `manifest`'s dependency specs from a completed resolution, mirroring
 /// pnpm's `updateProjectManifest`
 /// (`installing/deps-resolver/src/updateProjectManifest.ts`), including the
-/// alias-matching fix from [pnpm#11373](https://github.com/pnpm/pnpm/pull/11373).
+/// matching fixes from [pnpm#11373](https://github.com/pnpm/pnpm/pull/11373).
 ///
-/// Each resolved direct dependency is matched to a wanted dependency **by
-/// alias** (not by position), so a dependency that failed to resolve — an
-/// optional dep dropped from `direct_dependencies` — cannot shift the match and
-/// rewrite an unrelated dependency ([#11267](https://github.com/pnpm/pnpm/issues/11267)).
-/// A wanted dep flagged `update_spec` that matched nothing is still upserted
-/// with no specifier, which preserves its existing range rather than dropping
-/// it.
+/// Each resolved direct dependency is paired with the wanted dependency it came
+/// from. A wanted dependency that carries an alias is matched **by alias** (not
+/// by position), so a dependency that failed to resolve — an optional dep
+/// dropped from `direct_dependencies` — cannot shift the pairing onto an
+/// unrelated dependency ([#11267](https://github.com/pnpm/pnpm/issues/11267)).
+/// Aliasless wanted dependencies (`pacquet add ./local`, `jsr:@x/y`, a bare
+/// `owner/repo#sha`, a GitHub URL) resolve to an alias no wanted dependency
+/// declared, so they are paired with the remaining resolved dependencies in
+/// order. A wanted dep flagged `update_spec` that matched nothing is still
+/// upserted with no specifier, which preserves its existing range rather than
+/// dropping it.
 pub fn update_project_manifest(
     manifest: &mut PackageManifest,
     opts: &UpdateProjectManifestOptions<'_>,
 ) {
-    let mut specs: Vec<PackageSpecObject> = opts
-        .direct_dependencies
-        .iter()
-        .filter_map(|resolved| {
-            let wanted = opts
-                .wanted_dependencies
-                .iter()
-                .find(|wanted| wanted_dep_matches_resolved_dep(wanted, resolved))?;
-            Some(PackageSpecObject {
-                alias: resolved.alias.clone(),
-                peer: opts.peer,
-                bare_specifier: Some(get_bare_specifier_to_save(
-                    wanted,
-                    resolved,
-                    opts.preserve_workspace_protocol,
-                )),
-                resolved_version: resolved.version.clone(),
-                pinned_version: opts.pinned_version,
-                save_type: opts.target_dependencies_field,
-            })
-        })
-        .collect();
+    let mut wanted_by_alias: HashMap<&str, &WantedDependencyUpdate> = HashMap::new();
+    let mut aliasless_wanted: Vec<&WantedDependencyUpdate> = Vec::new();
+    for wanted in opts.wanted_dependencies {
+        match wanted.alias.as_deref().filter(|alias| !alias.is_empty()) {
+            Some(alias) => {
+                wanted_by_alias.insert(alias, wanted);
+            }
+            None if wanted.update_spec => aliasless_wanted.push(wanted),
+            None => {}
+        }
+    }
+
+    let mut next_aliasless = 0;
+    let mut specs: Vec<PackageSpecObject> = Vec::new();
+    for resolved in opts.direct_dependencies {
+        let wanted = if let Some(wanted) = wanted_by_alias.get(resolved.alias.as_str()) {
+            Some(*wanted)
+        } else {
+            let wanted = aliasless_wanted.get(next_aliasless).copied();
+            next_aliasless += 1;
+            wanted
+        };
+        let Some(wanted) = wanted else { continue };
+        if !wanted.update_spec {
+            continue;
+        }
+        specs.push(PackageSpecObject {
+            alias: resolved.alias.clone(),
+            peer: opts.peer,
+            bare_specifier: Some(get_bare_specifier_to_save(
+                wanted,
+                resolved,
+                opts.preserve_workspace_protocol,
+            )),
+            resolved_version: resolved.version.clone(),
+            pinned_version: opts.pinned_version,
+            save_type: opts.target_dependencies_field,
+        });
+    }
 
     for wanted in opts.wanted_dependencies {
         let Some(alias) = wanted.alias.as_deref().filter(|alias| !alias.is_empty()) else {
@@ -109,26 +131,6 @@ pub fn update_project_manifest(
     }
 
     update_project_manifest_object(manifest, &specs);
-}
-
-/// Whether `resolved` is the resolution of `wanted`. Matches by alias when the
-/// request carried one; otherwise by the resolved normalized specifier, with a
-/// `github:` shorthand fallback so a no-alias `owner/repo#sha` request matches
-/// its `github:owner/repo#sha` resolution.
-fn wanted_dep_matches_resolved_dep(
-    wanted: &WantedDependencyUpdate,
-    resolved: &ResolvedDirectDependency,
-) -> bool {
-    if !wanted.update_spec {
-        return false;
-    }
-    if let Some(alias) = wanted.alias.as_deref().filter(|alias| !alias.is_empty()) {
-        return alias == resolved.alias;
-    }
-    let Some(normalized) = resolved.normalized_bare_specifier.as_deref() else {
-        return false;
-    };
-    wanted.bare_specifier == normalized || format!("github:{}", wanted.bare_specifier) == normalized
 }
 
 /// The specifier string to write for a matched dependency: a `catalog:`
