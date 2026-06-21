@@ -121,6 +121,11 @@ export interface PkgAddressOrLinkBase {
   optional: boolean
   pkg: PackageManifest
   pkgId: PkgResolutionId
+  /**
+   * The wanted dependency this direct dependency was resolved from, carried so
+   * consumers can recover the request directly. See `updateProjectManifest`.
+   */
+  wantedDependency?: WantedDependency
 }
 
 export interface LinkedDependency extends PkgAddressOrLinkBase {
@@ -1889,6 +1894,7 @@ async function resolveDependency (
         version: pkgResponse.body.manifest.version,
         normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
         pkg: pkgResponse.body.manifest,
+        wantedDependency,
       }
     }
 
@@ -2094,6 +2100,7 @@ async function resolveDependency (
       resolvedVia: pkgResponse.body.resolvedVia,
       isNew,
       nodeId,
+      wantedDependency,
       normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
       missingPeersOfChildren,
       childrenResolutionId: childrenResolution.id,

@@ -10,6 +10,8 @@ export interface WantedDependency {
   optional: boolean
   injected?: boolean
   saveCatalogName?: string
+  /** Whether this dependency's spec should be (re)written to the manifest. */
+  updateSpec?: boolean
 }
 
 type GetNonDevWantedDependenciesManifest = Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'> & {
