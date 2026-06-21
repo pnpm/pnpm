@@ -92,8 +92,8 @@ pnpr -c ./pnpr.yaml
 By default both are local directories. Adding an `s3:` block moves the
 **hosted** store into an S3-compatible object store, so the durable data
 is replicated by the provider and can be shared by several stateless
-`pnpr` replicas. The cache and the resolver databases always
-stay on local disk — only the hosted store is pluggable.
+`pnpr` replicas. The cache stays on local disk — only the hosted
+package store is pluggable here.
 
 Because any S3-compatible endpoint works, this also covers **Cloudflare
 R2**, **MinIO**, **Backblaze B2**, **Wasabi**, etc. — point `endpoint`
@@ -182,21 +182,30 @@ s3:
   secretAccessKey: minioadmin
 ```
 
-### Storing users and tokens in a networked SQLite database
+### Storing users and tokens in a shared SQL database
 
 Auth state — the registered users and their bearer tokens — is the other
 piece of per-instance disk state. By default users live in an
 htpasswd file and tokens in a local SQLite database (see `auth:` above),
 so two `pnpr` replicas don't see each other's accounts. Adding a
-`backend:` block moves both into one **networked SQLite** database
-(libsql / [Turso](https://turso.tech)), so several stateless replicas
-share a consistent set of logins and tokens — the auth half of running
-`pnpr` horizontally scaled.
+`backend:` block moves both into one shared SQL database, so several
+stateless replicas share a consistent set of logins and tokens — the
+auth half of running `pnpr` horizontally scaled.
 
-The schema is the same SQLite the local backend uses (the `tokens` table
-is identical; users move from the htpasswd file into a `users` table), so
-a database can be migrated between the two. Token lookups happen on the
-request hot path, so the database should be low-latency from the server.
+The same auth traits drive every backend, and the SQL schema sticks to
+common column types so records can be moved between supported drivers.
+Only one backend may be selected in a config file.
+
+Database drivers are Cargo-feature gated:
+
+| Backend | Config key | Cargo feature |
+| --- | --- | --- |
+| libsql / Turso | `backend.libsql` | `backend-libsql` (enabled by default) |
+| PostgreSQL | `backend.postgres` or `backend.postgresql` | `backend-postgres` |
+| MySQL-compatible | `backend.mysql` | `backend-mysql` |
+
+Token lookups happen on the request hot path, so the database should be
+low-latency from the server.
 
 ```yaml
 storage: ./storage
@@ -234,6 +243,27 @@ The trade-off is read freshness: an embedded replica reflects another
 replica's writes (a token issued or revoked elsewhere) only after the
 next background sync, so lower `syncIntervalSecs` means less
 revocation lag. Omit `replicaPath` to always read the primary directly.
+
+PostgreSQL:
+
+```yaml
+backend:
+  postgres:
+    url: ${PNPR_POSTGRES_URL}
+    maxConnections: 16
+```
+
+MySQL:
+
+```yaml
+backend:
+  mysql:
+    url: ${PNPR_MYSQL_URL}
+    maxConnections: 16
+```
+
+For PostgreSQL or MySQL support, build pnpr with the matching Cargo
+feature, for example `cargo build -p pnpr --features backend-postgres`.
 
 When the `backend:` block is absent, auth stays on local disk and the
 `auth.htpasswd` / `auth.tokens` settings apply as before. The
