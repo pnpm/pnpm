@@ -360,6 +360,12 @@ async function resolveAndFetch (
           (resolution as TarballResolution).integrity = fetchedResult.integrity
         }
         return fetchedResult
+      }).catch((err: unknown) => {
+        // Only memoize a fulfilled result. Clearing the memo on rejection lets a transient
+        // fetch failure be retried instead of permanently re-rejecting, matching
+        // `fetchToStore`'s `removeKeyOnFail`.
+        populating = undefined
+        throw err
       })
       return populating
     }
