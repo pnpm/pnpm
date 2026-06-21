@@ -27,7 +27,7 @@ use crate::{
     install_package_from_registry::{extract_tarball, manifest_file_count, manifest_unpacked_size},
     retry_config::retry_opts_from_config,
 };
-use dashmap::DashSet;
+use dashmap::{DashMap, DashSet};
 use pacquet_config::Config;
 use pacquet_lockfile::LockfileResolution;
 use pacquet_network::{AuthHeaders, ThrottledClient};
@@ -43,7 +43,9 @@ use pacquet_tarball::{
     DownloadTarballToStore, FetchTarballForResolution, MemCache, RetryOpts,
     SharedReportedProgressKeys,
 };
+use ssri::Integrity;
 use std::{marker::PhantomData, sync::Arc};
+use tokio::sync::OnceCell;
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything
 /// the wrapper needs to drive a background tarball download:
@@ -96,6 +98,14 @@ struct OwnedFetchCtx {
     /// without this gate the bench saw ~3-5k redundant spawns per
     /// install on the alotta-files fixture (one per dependent edge).
     spawned_urls: Arc<DashSet<String>>,
+    /// Per-URL singleflight cache of integrities computed for
+    /// integrity-less tarballs (see [`PrefetchingResolver::fill_missing_integrity`]).
+    /// `resolve()` runs once per (parent, child) edge, so the same
+    /// integrity-less URL can arrive on many edges; the cell is shared so
+    /// the first edge downloads + computes while later edges await it and
+    /// read the cached integrity with no network work. Empty in the common
+    /// case (registries that publish integrity never reach the fetch).
+    integrity_cache: Arc<DashMap<String, Arc<OnceCell<Integrity>>>>,
 }
 
 /// Wraps an inner [`Resolver`] and, after each successful resolve that
@@ -150,6 +160,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             verify_store_integrity: config.verify_store_integrity,
             progress_reported: SharedReportedProgressKeys::clone(progress_reported),
             spawned_urls: Arc::new(DashSet::new()),
+            integrity_cache: Arc::new(DashMap::new()),
         };
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
     }
@@ -177,22 +188,33 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             return Ok(());
         }
         let package_url = tarball.tarball.clone();
-        // Claim the URL so `maybe_kickoff_download` doesn't spawn a second fetch:
-        // this one already warms the mem cache.
-        self.ctx.spawned_urls.insert(package_url.clone());
-        let resolved = FetchTarballForResolution {
-            http_client: &self.ctx.http_client,
-            store_dir: self.ctx.store_dir,
-            store_index_writer: self.ctx.store_index_writer.clone(),
-            package_url: &package_url,
-            auth_headers: &self.ctx.auth_headers,
-            retry_opts: self.ctx.retry_opts,
-        }
-        .run::<SilentReporter>(Some(&self.ctx.mem_cache))
-        .await
-        .map_err(|err| Box::new(err) as ResolveError)?;
+
+        // Singleflight per URL: the same integrity-less tarball can arrive on many edges,
+        // so compute its integrity once and share it. Clone the cell's `Arc` out of the map
+        // before awaiting so the shard lock isn't held across the download.
+        let cell = Arc::clone(&self.ctx.integrity_cache.entry(package_url.clone()).or_default());
+        let integrity = cell
+            .get_or_try_init(|| async {
+                // Claim the URL so `maybe_kickoff_download` doesn't spawn a second fetch:
+                // this one already warms the mem cache.
+                self.ctx.spawned_urls.insert(package_url.clone());
+                let resolved = FetchTarballForResolution {
+                    http_client: &self.ctx.http_client,
+                    store_dir: self.ctx.store_dir,
+                    store_index_writer: self.ctx.store_index_writer.clone(),
+                    package_url: &package_url,
+                    auth_headers: &self.ctx.auth_headers,
+                    retry_opts: self.ctx.retry_opts,
+                }
+                .run::<SilentReporter>(Some(&self.ctx.mem_cache))
+                .await
+                .map_err(|err| Box::new(err) as ResolveError)?;
+                Ok::<_, ResolveError>(resolved.integrity)
+            })
+            .await?
+            .clone();
         if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
-            tarball.integrity = Some(resolved.integrity);
+            tarball.integrity = Some(integrity);
         }
         Ok(())
     }
