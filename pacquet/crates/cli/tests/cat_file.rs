@@ -75,3 +75,15 @@ fn should_fail_on_invalid_base64() {
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains("Failed to decode base64 hash"));
 }
+
+#[test]
+fn should_prevent_path_traversal() {
+    let CommandTempCwd { mut pacquet, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    // A crafted base64 payload that decodes to bytes resembling a path traversal like "../../etc/passwd".
+    // "Li4vLi4vZXRjL3Bhc3N3ZA==" is base64 for "../../etc/passwd"
+    let output = pacquet.arg("cat-file").arg("sha512-Li4vLi4vZXRjL3Bhc3N3ZA==").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    // It should fail to find the file (or decode as invalid depending on length), but it must NOT escape the store.
+    assert!(stderr.contains("File not found in store"));
+}
