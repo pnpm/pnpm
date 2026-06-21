@@ -51,6 +51,10 @@ pub fn update_project_manifest_object(
     manifest: &mut PackageManifest,
     specs: &[PackageSpecObject],
 ) -> Result<(), PackageManifestError> {
+    // Nothing to write: skip the clone + write-back the atomic path would do.
+    if specs.is_empty() {
+        return Ok(());
+    }
     let mut root = manifest.value().clone();
     for spec in specs {
         if let Some(save_type) = spec.save_type {

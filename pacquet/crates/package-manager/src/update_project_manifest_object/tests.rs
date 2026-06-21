@@ -208,3 +208,11 @@ fn leaves_the_manifest_untouched_when_a_later_spec_errors() {
     assert!(result.is_err());
     assert_eq!(*manifest.value(), before);
 }
+
+#[test]
+fn empty_specs_leave_the_manifest_unchanged() {
+    let (_dir, mut manifest) = manifest_from_json(&json!({ "dependencies": { "foo": "1.0.0" } }));
+    let before = manifest.value().clone();
+    apply(&mut manifest, &[]);
+    assert_eq!(*manifest.value(), before);
+}
