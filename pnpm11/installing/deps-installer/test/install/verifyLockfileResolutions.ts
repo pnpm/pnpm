@@ -83,7 +83,7 @@ test('throws a generic code with per-entry codes in the breakdown when violation
 
   await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
     // Mixed-code batch escalates to the generic LOCKFILE_RESOLUTION_VERIFICATION
-    // code so downstream handlers don't mis-route on whichever entry happened
+    // code so downstream handlers don't branch on whichever entry happened
     // to land first.
     code: 'ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION',
     // Per-entry code is included in the breakdown so the user can see
