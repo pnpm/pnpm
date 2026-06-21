@@ -146,16 +146,6 @@ export function createPackageRequester (
   })
 }
 
-// Fallback for a fetcher that doesn't provide its own `completeResolution`: fill in the
-// integrity the fetch computed when the resolution lacks one. Only tarball fetch results
-// carry an integrity, so this is a no-op for git/directory/binary resolutions.
-function defaultCompleteResolution (resolution: Resolution, fetchResult: { integrity?: string }): Resolution {
-  if (fetchResult.integrity != null && (resolution as TarballResolution).integrity == null) {
-    return { ...resolution, integrity: fetchResult.integrity } as Resolution
-  }
-  return resolution
-}
-
 async function resolveAndFetch (
   ctx: {
     engineStrict?: boolean
@@ -346,13 +336,16 @@ async function resolveAndFetch (
     }
   }
 
-  // Let the fetcher complete the resolution from what the fetch produced — for tarball
-  // fetchers this fills in the integrity computed from the bytes. The default enriches
-  // every tarball entry that lacks one (including file: and git-hosted tarballs, which
-  // don't *require* integrity but still record it when it's available).
-  if (resolutionNeedsFetch || (!resolution.type && !(resolution as TarballResolution).integrity)) {
+  // A tarball-shaped resolution missing its integrity gets the integrity the worker
+  // computed from the downloaded bytes. This enriches every tarball entry that lacks one
+  // (including file: and git-hosted tarballs, which don't *require* integrity but still
+  // record it when it's available). Only tarball fetch results carry an integrity, so
+  // this needs no per-fetcher dispatch.
+  if (!resolution.type && !(resolution as TarballResolution).integrity) {
     const fetchedResult = await fetchResult.fetching()
-    resolution = (fetcherForResolution?.completeResolution ?? defaultCompleteResolution)(resolution, fetchedResult)
+    if (fetchedResult.integrity != null) {
+      (resolution as TarballResolution).integrity = fetchedResult.integrity
+    }
   }
   // If the fetcher still reports the resolution as incomplete, the fetch couldn't supply
   // what it needs (e.g. no integrity was computed), so we fail closed.

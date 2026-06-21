@@ -29,9 +29,9 @@ export interface FetchOptions {
 }
 
 /**
- * Optional, backward-compatible capabilities a fetcher may attach to describe how a
- * resolution relates to what the fetch produces. Both are absent on plain fetchers (and
- * on custom fetchers that don't opt in), in which case callers apply sensible defaults.
+ * Optional, backward-compatible capability a fetcher may attach to describe a resolution
+ * it handles. Absent on plain fetchers (and on custom fetchers that don't opt in), in
+ * which case callers apply sensible defaults.
  */
 export interface ResolutionFetchContract {
   /**
@@ -40,12 +40,6 @@ export interface ResolutionFetchContract {
    * (`--lockfile-only`) or reuse the store copy must fetch instead. Absent ⇒ `false`.
    */
   resolutionNeedsFetch?: (resolution: Resolution) => boolean
-  /**
-   * Returns the resolution enriched with data the fetch produced (e.g. the integrity the
-   * fetcher computed from the downloaded bytes). Absent ⇒ the caller fills `integrity`
-   * from the fetch result when the resolution lacks one.
-   */
-  completeResolution?: (resolution: Resolution, fetchResult: Pick<FetchResult, 'integrity'>) => Resolution
 }
 
 export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = ((

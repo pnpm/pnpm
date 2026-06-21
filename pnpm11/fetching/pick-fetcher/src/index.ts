@@ -28,10 +28,7 @@ export async function pickFetcher (
           return Object.assign(
             async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions): Promise<FetchResult> =>
               customFetcher.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType),
-            {
-              resolutionNeedsFetch: customFetcher.resolutionNeedsFetch,
-              completeResolution: customFetcher.completeResolution,
-            }
+            { resolutionNeedsFetch: customFetcher.resolutionNeedsFetch }
           ) as FetchFunction
         }
       }
