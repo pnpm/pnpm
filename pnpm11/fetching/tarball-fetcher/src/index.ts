@@ -60,6 +60,13 @@ export function createTarballFetcher (
     offline: opts.offline,
     storeIndex: opts.storeIndex,
   }) as FetchFunction
+  // A registry tarball is only verifiable against an integrity checksum, so one without
+  // an `integrity` can't be completed without downloading the bytes to compute it. This
+  // tells the package requester to fetch even under `--lockfile-only` and never to serve
+  // such an entry from the store. Git-hosted and local (`file:`) tarballs are anchored
+  // otherwise and keep the default (no forced fetch).
+  remoteTarballFetcher.resolutionNeedsFetch = (resolution) =>
+    (resolution as { integrity?: string }).integrity == null
 
   return {
     localTarball: createLocalTarballFetcher(opts.storeIndex),

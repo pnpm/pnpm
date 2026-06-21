@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import type { BinaryFetcher, DirectoryFetcher, Fetchers, FetchFunction, FetchOptions, GitFetcher } from '@pnpm/fetching.fetcher-base'
+import type { BinaryFetcher, DirectoryFetcher, Fetchers, FetchFunction, FetchOptions, FetchResult, GitFetcher } from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { type AtomicResolution, classifyResolution } from '@pnpm/resolving.resolver-base'
 import type { Cafs } from '@pnpm/store.cafs-types'
@@ -21,11 +21,18 @@ export async function pickFetcher (
         const canFetch = await customFetcher.canFetch(opts.packageId, resolution)
 
         if (canFetch) {
-          // Return a wrapper FetchFunction that calls the custom fetcher's fetch method
-          // The custom fetcher's fetch receives cafs, resolution, opts, and the standard fetchers for delegation
-          return async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions) => {
-            return customFetcher.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType)
-          }
+          // Return a wrapper FetchFunction that calls the custom fetcher's fetch method.
+          // The custom fetcher's fetch receives cafs, resolution, opts, and the standard
+          // fetchers for delegation. Its optional resolution contract is forwarded so the
+          // requester treats it like any standard fetcher (defaults apply when it opts out).
+          return Object.assign(
+            async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions): Promise<FetchResult> =>
+              customFetcher.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType),
+            {
+              resolutionNeedsFetch: customFetcher.resolutionNeedsFetch,
+              completeResolution: customFetcher.completeResolution,
+            }
+          ) as FetchFunction
         }
       }
     }

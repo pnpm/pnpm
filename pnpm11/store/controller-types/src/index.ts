@@ -77,6 +77,12 @@ export interface FetchPackageToStoreOptions {
   allowBuild?: AllowBuild
   fetchRawManifest?: boolean
   force: boolean
+  /**
+   * The resolution can't be completed without a fresh download (e.g. a registry tarball
+   * whose integrity must be computed from the bytes), so the store copy must not be
+   * reused. Determined by the fetcher's `resolutionNeedsFetch`.
+   */
+  mustComputeIntegrity?: boolean
   ignoreScripts?: boolean
   lockfileDir: string
   pkg: PkgNameVersion & {

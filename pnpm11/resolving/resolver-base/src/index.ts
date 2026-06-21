@@ -102,10 +102,9 @@ export function isGitHostedTarballUrl (url: string): boolean {
 }
 
 /**
- * The kind of source a resolution points at — the single source of truth shared by
- * fetcher selection (`pickFetcher`) and the lockfile integrity policy
- * (`resolutionNeedsIntegrity`). `'custom'` covers `custom:*` resolution types (served
- * by custom fetchers) and any other non-built-in shape.
+ * The kind of source a resolution points at — used by fetcher selection (`pickFetcher`).
+ * `'custom'` covers `custom:*` resolution types (served by custom fetchers) and any other
+ * non-built-in shape.
  */
 export type ResolutionKind =
   | 'localTarball'
@@ -137,19 +136,6 @@ export function classifyResolution (resolution: Resolution): ResolutionKind {
     default:
       return 'custom'
   }
-}
-
-/**
- * A plain registry/HTTP tarball (`remoteTarball`) can only be verified against an
- * integrity checksum, so such a lockfile entry must carry one. Every other kind anchors
- * its bytes differently — `file:` tarballs are local, git and git-hosted tarballs are
- * bound by the commit SHA, directories are live files, binary resolutions already carry
- * a mandatory integrity, and custom fetchers verify their own content — so none of them
- * require an `integrity` field.
- */
-export function resolutionNeedsIntegrity (resolution: Resolution): boolean {
-  if ('integrity' in resolution && resolution.integrity != null) return false
-  return classifyResolution(resolution) === 'remoteTarball'
 }
 
 /**

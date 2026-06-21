@@ -21,7 +21,6 @@ import {
   type PlatformAssetResolution,
   type PreferredVersions,
   type Resolution,
-  resolutionNeedsIntegrity,
   type ResolveFunction,
   resolvePlatformSelector,
   type ResolveResult,
@@ -133,6 +132,8 @@ export function createPackageRequester (
     requestsQueue,
     resolve: opts.resolve,
     storeDir: opts.storeDir,
+    fetchers: opts.fetchers,
+    customFetchers: opts.customFetchers,
   })
 
   return Object.assign(requestPackage, {
@@ -145,6 +146,16 @@ export function createPackageRequester (
   })
 }
 
+// Fallback for a fetcher that doesn't provide its own `completeResolution`: fill in the
+// integrity the fetch computed when the resolution lacks one. Only tarball fetch results
+// carry an integrity, so this is a no-op for git/directory/binary resolutions.
+function defaultCompleteResolution (resolution: Resolution, fetchResult: { integrity?: string }): Resolution {
+  if (fetchResult.integrity != null && (resolution as TarballResolution).integrity == null) {
+    return { ...resolution, integrity: fetchResult.integrity } as Resolution
+  }
+  return resolution
+}
+
 async function resolveAndFetch (
   ctx: {
     engineStrict?: boolean
@@ -155,6 +166,8 @@ async function resolveAndFetch (
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
     storeDir: string
+    fetchers: Fetchers
+    customFetchers?: CustomFetcher[]
   },
   wantedDependency: WantedDependency & { optional?: boolean },
   options: RequestPackageOptions
@@ -262,11 +275,22 @@ async function resolveAndFetch (
         })
     )
   )
+  // Ask the fetcher that will handle this resolution whether it can be completed without
+  // downloading. A registry tarball with no integrity can't (the integrity must be
+  // computed from the bytes); git-hosted, file: and typed resolutions can. A `variations`
+  // resolution picks its variant inside the fetch path, so it has no single fetcher here.
+  const fetcherForResolution = resolution.type === 'variations'
+    ? undefined
+    : await pickFetcher(ctx.fetchers, resolution as AtomicResolution, {
+      customFetchers: ctx.customFetchers,
+      packageId: id,
+    })
+  const resolutionNeedsFetch = fetcherForResolution?.resolutionNeedsFetch?.(resolution) ?? false
   // `--lockfile-only` (skipFetch) normally returns right after resolution without
-  // downloading. But when the registry's metadata didn't include an integrity, we still
-  // download the tarball so the integrity can be computed from its bytes — otherwise the
-  // lockfile entry would be unverifiable and fail on the next install.
-  const mustDownloadForIntegrity = options.skipFetch === true && resolutionNeedsIntegrity(resolution)
+  // downloading. But when the resolution can't be completed without a fetch (e.g. the
+  // registry's metadata didn't include an integrity), we still download so it can be
+  // computed — otherwise the lockfile entry would be unverifiable and fail the next install.
+  const mustDownloadForIntegrity = options.skipFetch === true && resolutionNeedsFetch
   // We can skip fetching the package only if the manifest
   // is present after resolution AND the content of the package has not changed
   if ((options.skipFetch === true || isInstallable === false) && !mustDownloadForIntegrity && !integrityChanged && (manifest != null)) {
@@ -293,6 +317,7 @@ async function resolveAndFetch (
     allowBuild: options.allowBuild,
     fetchRawManifest: true,
     force: integrityChanged,
+    mustComputeIntegrity: resolutionNeedsFetch,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
@@ -321,19 +346,17 @@ async function resolveAndFetch (
     }
   }
 
-  // A tarball-shaped resolution missing its integrity gets the integrity the worker
-  // computed from the tarball bytes. This enriches every tarball entry that lacks one
-  // (including file: and git-hosted tarballs, which don't *require* integrity but still
-  // record it in the lockfile when it's available).
-  if (!resolution.type && !(resolution as TarballResolution).integrity) {
+  // Let the fetcher complete the resolution from what the fetch produced — for tarball
+  // fetchers this fills in the integrity computed from the bytes. The default enriches
+  // every tarball entry that lacks one (including file: and git-hosted tarballs, which
+  // don't *require* integrity but still record it when it's available).
+  if (resolutionNeedsFetch || (!resolution.type && !(resolution as TarballResolution).integrity)) {
     const fetchedResult = await fetchResult.fetching()
-    if (fetchedResult.integrity) {
-      (resolution as TarballResolution).integrity = fetchedResult.integrity
-    }
+    resolution = (fetcherForResolution?.completeResolution ?? defaultCompleteResolution)(resolution, fetchedResult)
   }
-  // Only registry tarballs genuinely require an integrity; if one is still missing here
-  // the tarball couldn't be fetched to compute it, so we fail closed.
-  if (resolutionNeedsIntegrity(resolution)) {
+  // If the fetcher still reports the resolution as incomplete, the fetch couldn't supply
+  // what it needs (e.g. no integrity was computed), so we fail closed.
+  if (fetcherForResolution?.resolutionNeedsFetch?.(resolution) === true) {
     throw new PnpmError('MISSING_TARBALL_INTEGRITY',
       `Cannot compute the integrity of package "${id}": no integrity was provided by the resolution nor computed during fetch.`,
       { hint: 'Ensure the tarball is reachable from the registry (or that a custom fetcher returns an integrity), then re-run installation.' }
@@ -547,11 +570,11 @@ function fetchToStore (
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
       const isLocalPkg = resolution.type === 'directory'
 
-      // A registry tarball whose lockfile entry has no integrity must be
-      // re-downloaded so the worker can compute the integrity from the tarball
-      // bytes; the copy in the local store can't be reused because we have no
-      // checksum to write back to the lockfile.
-      const mustComputeIntegrity = resolutionNeedsIntegrity(resolution)
+      // A resolution that can't be completed without a fetch (e.g. a registry tarball
+      // with no integrity) must be re-downloaded so the worker can compute the missing
+      // data from the bytes; the copy in the local store can't be reused. The caller
+      // (resolveAndFetch) derives this from the fetcher's `resolutionNeedsFetch`.
+      const mustComputeIntegrity = opts.mustComputeIntegrity === true
 
       // Set to `true` only once we confirm the store already held the package
       // but it can't be served from there, so the warning below never fires on
