@@ -32,8 +32,7 @@ fn should_list_packages() {
 
     let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
-    let registry_name =
-        url_str.strip_prefix("http://").unwrap().strip_suffix("/").unwrap().replace(':', "+");
+    let registry_name = pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
     fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
     fs::write(cache_dir.join(&registry_name).join("is-negative.jsonl"), "{}").unwrap();
@@ -59,8 +58,7 @@ fn should_delete_packages() {
 
     let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
-    let registry_name =
-        url_str.strip_prefix("http://").unwrap().strip_suffix("/").unwrap().replace(':', "+");
+    let registry_name = pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
     fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
     fs::write(cache_dir.join(&registry_name).join("is-negative.jsonl"), "{}").unwrap();
