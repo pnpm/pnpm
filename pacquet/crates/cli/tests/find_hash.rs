@@ -19,15 +19,20 @@ fn find_hash_works() {
     let mut valid_hash = String::new();
     let mut expected_name = String::new();
     let mut expected_version = String::new();
-    
+
     let entries = store_index.get_many(&keys).unwrap();
     for (_key, data) in entries {
         if let Some(file) = data.files.values().next() {
             valid_hash = file.digest.clone();
-            
+
             if let Some(manifest) = &data.manifest {
-                expected_name = manifest.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-                expected_version = manifest.get("version").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+                expected_name =
+                    manifest.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+                expected_version = manifest
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
             }
         }
         if !valid_hash.is_empty() {
@@ -46,7 +51,10 @@ fn find_hash_works() {
 
     // Output should contain the package name and version we extracted the hash from
     assert!(stdout.contains(&expected_name), "Expected stdout to contain name {expected_name}");
-    assert!(stdout.contains(&expected_version), "Expected stdout to contain version {expected_version}");
+    assert!(
+        stdout.contains(&expected_version),
+        "Expected stdout to contain version {expected_version}"
+    );
 }
 
 #[test]
@@ -81,15 +89,20 @@ fn find_hash_works_with_base64() {
     let mut hex_hash = String::new();
     let mut expected_name = String::new();
     let mut expected_version = String::new();
-    
+
     let entries = store_index.get_many(&keys).unwrap();
     for (_key, data) in entries {
         if let Some(file) = data.files.values().next() {
             hex_hash = file.digest.clone();
-            
+
             if let Some(manifest) = &data.manifest {
-                expected_name = manifest.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-                expected_version = manifest.get("version").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+                expected_name =
+                    manifest.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+                expected_version = manifest
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
             }
             break;
         }
@@ -110,5 +123,8 @@ fn find_hash_works_with_base64() {
 
     println!("STDOUT: {stdout}");
     assert!(stdout.contains(&expected_name), "Expected stdout to contain name {expected_name}");
-    assert!(stdout.contains(&expected_version), "Expected stdout to contain version {expected_version}");
+    assert!(
+        stdout.contains(&expected_version),
+        "Expected stdout to contain version {expected_version}"
+    );
 }
