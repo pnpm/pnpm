@@ -364,6 +364,7 @@ pub async fn serve(config: Config) -> crate::error::Result<()> {
     // straight into `serve`, so a both-disabled config must fail loudly
     // rather than start a server that only answers `/-/ping`.
     config.ensure_a_feature_is_enabled()?;
+    log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
     let listen = config.listen;
@@ -372,6 +373,19 @@ pub async fn serve(config: Config) -> crate::error::Result<()> {
     tracing::info!(%listen, "pnpr listening");
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
     Ok(())
+}
+
+/// Log which surfaces are mounted at startup. A misconfiguration — most
+/// importantly a typo'd `registry:` / `resolver:` block name, which the
+/// intentionally verdaccio-lenient config parser silently ignores and so
+/// leaves the surface at its default-enabled state — is then immediately
+/// visible to the operator rather than only discoverable by probing.
+fn log_enabled_surfaces(config: &Config) {
+    tracing::info!(
+        registry = config.registry.enabled,
+        resolver = config.resolver.enabled,
+        "pnpr surfaces",
+    );
 }
 
 /// Serve on an already-bound listener.
@@ -385,6 +399,7 @@ pub async fn serve_listener(
 ) -> crate::error::Result<()> {
     let listen = listener.local_addr()?;
     config.ensure_a_feature_is_enabled()?;
+    log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too (when the registry is
     // enabled) — going through `router` would silently fall back to
