@@ -29,6 +29,25 @@ fn username_length_limit_matches_sql_schema() {
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
 }
 
+#[test]
+fn username_validation_rejects_htpasswd_structural_characters() {
+    for username in ["", "alice:bob", "alice\nbob", "alice\rbob", "alice\0bob", "alice\u{7f}bob"] {
+        let err = validate_username(username).unwrap_err();
+        assert_eq!(
+            err.status_code(),
+            axum::http::StatusCode::BAD_REQUEST,
+            "expected {username:?} to be rejected",
+        );
+    }
+}
+
+#[tokio::test]
+async fn user_store_rejects_invalid_username_before_persisting() {
+    let store = test_user_store();
+    let err = store.add_or_login("alice:bob", "secret").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+}
+
 #[tokio::test]
 async fn adduser_creates_then_validates() {
     let store = test_user_store();

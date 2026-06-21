@@ -138,7 +138,7 @@ where
 #[cfg(feature = "backend-postgres")]
 pub(super) mod postgres {
     use super::super::TokenRecord;
-    use super::{AuthSqlBackend, InsertUser, SqlAuth, invalid_pool_size};
+    use super::{AuthSqlBackend, InsertUser, SqlAuth, invalid_pool_size, sql_max_users};
     use crate::{
         config::{MaxUsers, SqlBackendSettings},
         error::{RegistryError, Result},
@@ -198,12 +198,13 @@ pub(super) mod postgres {
             let mut tx = self.pool.begin().await?;
             match max_users {
                 MaxUsers::Limited(max) => {
+                    let max = sql_max_users(max, "postgres")?;
                     let updated = sqlx::query(
                         "UPDATE auth_counters SET value = value + 1
                          WHERE name = $1 AND value < $2",
                     )
                     .bind("users")
-                    .bind(max as i64)
+                    .bind(max)
                     .execute(&mut *tx)
                     .await?;
                     if updated.rows_affected() == 0 {
@@ -397,7 +398,7 @@ pub(super) mod postgres {
 #[cfg(feature = "backend-mysql")]
 pub(super) mod mysql {
     use super::super::TokenRecord;
-    use super::{AuthSqlBackend, InsertUser, SqlAuth, invalid_pool_size};
+    use super::{AuthSqlBackend, InsertUser, SqlAuth, invalid_pool_size, sql_max_users};
     use crate::{
         config::{MaxUsers, SqlBackendSettings},
         error::{RegistryError, Result},
@@ -457,12 +458,13 @@ pub(super) mod mysql {
             let mut tx = self.pool.begin().await?;
             match max_users {
                 MaxUsers::Limited(max) => {
+                    let max = sql_max_users(max, "mysql")?;
                     let updated = sqlx::query(
                         "UPDATE auth_counters SET value = value + 1
                          WHERE name = ? AND value < ?",
                     )
                     .bind("users")
-                    .bind(max as i64)
+                    .bind(max)
                     .execute(&mut *tx)
                     .await?;
                     if updated.rows_affected() == 0 {
@@ -674,4 +676,10 @@ fn invalid_pool_size(backend: &str) -> RegistryError {
     RegistryError::InvalidConfig {
         reason: format!("backend.{backend}.maxConnections must be greater than 0"),
     }
+}
+
+fn sql_max_users(max: u64, backend: &str) -> Result<i64> {
+    i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
+        reason: format!("backend.{backend} auth max_users must fit a signed BIGINT"),
+    })
 }

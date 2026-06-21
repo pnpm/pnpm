@@ -59,9 +59,22 @@ mod sqlx_backend;
 pub(crate) const MAX_USERNAME_CHARS: usize = 255;
 
 pub(crate) fn validate_username(username: &str) -> Result<()> {
+    if username.is_empty() {
+        return Err(RegistryError::BadRequest { reason: "username must not be empty".to_string() });
+    }
     if username.chars().count() > MAX_USERNAME_CHARS {
         return Err(RegistryError::BadRequest {
             reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
+        });
+    }
+    if username.contains(':') {
+        return Err(RegistryError::BadRequest {
+            reason: "username must not contain ':'".to_string(),
+        });
+    }
+    if username.chars().any(char::is_control) {
+        return Err(RegistryError::BadRequest {
+            reason: "username must not contain control characters".to_string(),
         });
     }
     Ok(())
@@ -302,6 +315,7 @@ impl UserBackend for UserStore {
     /// * Unknown username, registration disabled or capped →
     ///   `RegistrationDisabled` / `TooManyUsers`.
     async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+        validate_username(username)?;
         let existing_hash = {
             let users = self.users.lock().expect("UserStore mutex poisoned");
             users.get(username).cloned()
