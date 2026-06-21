@@ -49,8 +49,14 @@ auto_approve_for_no_suggestions = true
 auto_approve_for_low_review_effort = 2
 
 [review_agent]
+# `both` keeps every finding in the review summary; the threshold only
+# controls which ones are *also* posted as standalone inline threads.
+# Keep that bar high so per-push re-reviews don't repost low-severity
+# (perf/style) nits as new inline threads on every commit — the
+# higher-severity findings still surface inline, and everything remains
+# in the summary.
 comments_location_policy = "both"
-inline_comments_severity_threshold = 2
+inline_comments_severity_threshold = 3
 issues_user_guidelines = """
 Apply the review framework in REVIEW_GUIDE.md. The repo's priority order — security first, performance second — applies to every reviewer. You are one of two bots: to avoid duplicate comments, you provide the primary depth on security and performance while CodeRabbit provides the primary depth on correctness and convention adherence; always still report any clear correctness bug or documented-convention violation you find. Lead on: (1) security vulnerabilities per REVIEW_GUIDE.md's "Security review rules"; (2) performance regressions in pnpm, pacquet, and pnpr per REVIEW_GUIDE.md's "Performance review rules". Surface only issues tied to changed code, and explain the exploit path, impact, or hot path affected.
 """
