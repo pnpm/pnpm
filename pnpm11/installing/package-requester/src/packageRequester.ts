@@ -338,12 +338,12 @@ async function resolveAndFetch (
         manifest = loadedManifest as unknown as DependencyManifest
       }
     }
-    // This fetch already happened to read the manifest (a remote tarball carries none),
-    // so fill in the integrity it computed. Gate on `resolutionNeedsFetch` so this only
-    // applies to resolutions whose fetcher declares they must carry a computed integrity:
-    // a `variations` runtime resolution (e.g. `node@runtime`) spans multiple platform
-    // variants, so a single machine's integrity must not be written into it.
-    if (resolutionNeedsFetch && fetchedResult.integrity != null && !(resolution as TarballResolution).integrity) {
+    // This fetch already happened to read the manifest (git-hosted and remote tarballs
+    // carry none), so fill in the integrity it computed for the entry that lacked one.
+    // Skip only `variations` runtime resolutions (e.g. `node@runtime`): they span multiple
+    // platform variants, so a single machine's integrity must not be written into the
+    // shared resolution.
+    if (resolution.type !== 'variations' && fetchedResult.integrity != null && !(resolution as TarballResolution).integrity) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
   }
