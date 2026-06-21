@@ -193,6 +193,116 @@ test('updates manifest for GitHub URL dependencies without aliases', async () =>
   })
 })
 
+test('updates manifest for aliasless dependencies whose specifier does not resemble the resolution (jsr)', async () => {
+  const [manifest] = await updateProjectManifest({
+    binsDir: '/project/node_modules/.bin',
+    id: '.' as ProjectId,
+    manifest: {},
+    modulesDir: '/project/node_modules',
+    rootDir: '/project' as ProjectRootDir,
+    updatePackageManifest: true,
+    wantedDependencies: [
+      {
+        bareSpecifier: 'jsr:@foo/bar',
+        dev: false,
+        optional: false,
+        updateSpec: true,
+      },
+    ],
+  } as ImporterToResolve, {
+    directDependencies: [
+      {
+        alias: '@foo/bar',
+        dev: false,
+        name: '@foo/bar',
+        normalizedBareSpecifier: 'jsr:^0.1.0',
+        optional: false,
+        pkgId: '@foo/bar@0.1.0',
+        resolution: {},
+        version: '0.1.0',
+      } as unknown as ResolvedDirectDependency,
+    ],
+    preserveWorkspaceProtocol: false,
+    saveWorkspaceProtocol: false,
+  })
+
+  expect(manifest).toStrictEqual({
+    dependencies: {
+      '@foo/bar': 'jsr:^0.1.0',
+    },
+  })
+})
+
+test('pairs multiple aliasless dependencies with their resolutions in order', async () => {
+  const [manifest] = await updateProjectManifest({
+    binsDir: '/project/node_modules/.bin',
+    id: '.' as ProjectId,
+    manifest: {},
+    modulesDir: '/project/node_modules',
+    rootDir: '/project' as ProjectRootDir,
+    targetDependenciesField: 'dependencies',
+    updatePackageManifest: true,
+    wantedDependencies: [
+      {
+        alias: 'foo',
+        bareSpecifier: '^1.0.0',
+        dev: false,
+        optional: false,
+        updateSpec: true,
+      },
+      {
+        bareSpecifier: 'jsr:@rus/greet@0.0.3',
+        dev: false,
+        optional: false,
+        updateSpec: true,
+      },
+      {
+        bareSpecifier: 'github:kevva/is-positive#97edff6',
+        dev: false,
+        optional: false,
+        updateSpec: true,
+      },
+    ],
+  } as ImporterToResolve, {
+    directDependencies: [
+      {
+        alias: 'foo',
+        name: 'foo',
+        normalizedBareSpecifier: '^1.0.0',
+        pkgId: 'foo@1.0.0',
+        resolution: {},
+        version: '1.0.0',
+      },
+      {
+        alias: '@rus/greet',
+        name: '@rus/greet',
+        normalizedBareSpecifier: 'jsr:^0.0.3',
+        pkgId: '@rus/greet@0.0.3',
+        resolution: {},
+        version: '0.0.3',
+      },
+      {
+        alias: 'is-positive',
+        name: 'is-positive',
+        normalizedBareSpecifier: 'github:kevva/is-positive#97edff6',
+        pkgId: 'is-positive@github:kevva/is-positive#97edff6',
+        resolution: {},
+        version: undefined,
+      },
+    ] as unknown as ResolvedDirectDependency[],
+    preserveWorkspaceProtocol: false,
+    saveWorkspaceProtocol: false,
+  })
+
+  expect(manifest).toStrictEqual({
+    dependencies: {
+      foo: '^1.0.0',
+      '@rus/greet': 'jsr:^0.0.3',
+      'is-positive': 'github:kevva/is-positive#97edff6',
+    },
+  })
+})
+
 function createImporter (bareSpecifier: string): ImporterToResolve {
   return {
     binsDir: '/project/node_modules/.bin',

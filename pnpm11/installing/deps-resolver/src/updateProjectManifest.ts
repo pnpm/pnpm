@@ -18,18 +18,40 @@ export async function updateProjectManifest (
   if (!importer.manifest) {
     throw new Error('Cannot save because no package.json found')
   }
-  const specsToUpsert: PackageSpecObject[] = opts.directDependencies.flatMap((rdd) => {
-    const wantedDep = importer.wantedDependencies.find((wantedDep) => wantedDepMatchesResolvedDep(wantedDep, rdd))
-    if (wantedDep == null) return []
-    return [{
+  // Pair each resolved direct dependency with the wanted dependency it was
+  // resolved from. A wanted dependency that carries an alias is matched by
+  // that alias, so a dependency that failed to resolve (e.g. an optional one)
+  // and dropped out of `directDependencies` cannot shift the pairing onto an
+  // unrelated dependency (https://github.com/pnpm/pnpm/issues/11267).
+  // Aliasless wanted dependencies — `pnpm add ./local`, `pnpm add jsr:@x/y`,
+  // a bare `owner/repo#sha`, a GitHub URL — resolve to an alias that no wanted
+  // dependency declared, so they are paired with the remaining resolved
+  // dependencies in order.
+  const wantedDepsByAlias = new Map<string, ImporterToResolve['wantedDependencies'][number]>()
+  const aliaslessWantedDeps: Array<ImporterToResolve['wantedDependencies'][number]> = []
+  for (const wantedDep of importer.wantedDependencies) {
+    if (wantedDep.alias) {
+      wantedDepsByAlias.set(wantedDep.alias, wantedDep)
+    } else if (wantedDep.updateSpec) {
+      aliaslessWantedDeps.push(wantedDep)
+    }
+  }
+  let nextAliaslessIndex = 0
+  const specsToUpsert: PackageSpecObject[] = []
+  for (const rdd of opts.directDependencies) {
+    const wantedDep = wantedDepsByAlias.has(rdd.alias)
+      ? wantedDepsByAlias.get(rdd.alias)
+      : aliaslessWantedDeps[nextAliaslessIndex++]
+    if (wantedDep?.updateSpec !== true) continue
+    specsToUpsert.push({
       alias: rdd.alias,
       peer: importer.peer,
       bareSpecifier: getBareSpecifierToSave(wantedDep, rdd, opts.preserveWorkspaceProtocol),
       resolvedVersion: rdd.version,
       pinnedVersion: importer.pinnedVersion,
       saveType: importer.targetDependenciesField,
-    }]
-  })
+    })
+  }
   for (const pkgToInstall of importer.wantedDependencies) {
     if (pkgToInstall.updateSpec && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
       specsToUpsert.push({
@@ -52,24 +74,6 @@ export async function updateProjectManifest (
     )
     : undefined
   return [hookedManifest, originalManifest]
-}
-
-function wantedDepMatchesResolvedDep (
-  wantedDep: ImporterToResolve['wantedDependencies'][number],
-  resolvedDep: ResolvedDirectDependency
-): boolean {
-  if (!wantedDep.updateSpec) return false
-  if (wantedDep.alias) return wantedDep.alias === resolvedDep.alias
-  if (wantedDep.bareSpecifier === resolvedDep.normalizedBareSpecifier) return true
-  if (resolvedDep.normalizedBareSpecifier == null) return false
-  return `github:${wantedDep.bareSpecifier}` === resolvedDep.normalizedBareSpecifier ||
-    normalizeGitHubBareSpecifier(wantedDep.bareSpecifier) === resolvedDep.normalizedBareSpecifier
-}
-
-function normalizeGitHubBareSpecifier (bareSpecifier: string): string | undefined {
-  const match = /^(?:git\+)?https:\/\/github\.com\/([^/#]+)\/([^/#]+?)(?:\.git)?(#.+)?$/.exec(bareSpecifier)
-  if (!match) return undefined
-  return `github:${match[1]}/${match[2]}${match[3] ?? ''}`
 }
 
 function getBareSpecifierToSave (
