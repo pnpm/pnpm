@@ -145,6 +145,13 @@ export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
 export interface PackageResponse {
   fetching?: () => Promise<PkgRequestFetchResult>
   filesIndexFile?: string
+  /**
+   * The resolution can't be completed without awaiting `fetching` — e.g. a registry
+   * tarball whose integrity is computed from the downloaded bytes. Set by the fetcher's
+   * `resolutionNeedsFetch`. Callers that read the resolution before fetching (the lockfile
+   * snapshot, virtual-store paths) must await `fetching` first for these.
+   */
+  resolutionNeedsFetch?: boolean
   body: {
     isLocal: boolean
     isInstallable?: boolean

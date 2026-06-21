@@ -292,6 +292,12 @@ export interface ResolvedPackage {
   dev: boolean
   optional: boolean
   fetching: () => Promise<PkgRequestFetchResult>
+  /**
+   * The resolution can't be completed without awaiting `fetching` (e.g. a registry tarball
+   * whose integrity is computed from the downloaded bytes). The lockfile snapshot and the
+   * virtual-store paths derived from the integrity must await `fetching` for these first.
+   */
+  resolutionNeedsFetch?: boolean
   filesIndexFile: string
   name: string
   version: string
@@ -2186,6 +2192,7 @@ function getResolvedPackage (
     pkgIdWithPatchHash: options.pkgIdWithPatchHash,
     dev: options.wantedDependency.dev,
     fetching: options.pkgResponse.fetching!,
+    resolutionNeedsFetch: options.pkgResponse.resolutionNeedsFetch,
     filesIndexFile: options.pkgResponse.filesIndexFile!,
     hasBin: options.hasBin,
     hasBundledDependencies: !((options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) == null),

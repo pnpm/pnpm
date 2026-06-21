@@ -334,21 +334,28 @@ async function resolveAndFetch (
         manifest = loadedManifest as unknown as DependencyManifest
       }
     }
+    // The package was downloaded to read its manifest — resolutions that don't carry one,
+    // such as git, where resolution can't proceed without fetching the repo — so the
+    // integrity the worker computed is already in hand. Fill it in for a tarball entry
+    // that lacks one. Only tarball fetch results carry an integrity, so this enriches
+    // git-hosted and file: tarballs too without per-fetcher dispatch.
+    if (fetchedResult.integrity != null && (resolution as TarballResolution).integrity == null) {
+      (resolution as TarballResolution).integrity = fetchedResult.integrity
+    }
   }
 
-  // A tarball-shaped resolution missing its integrity gets the integrity the worker
-  // computed from the downloaded bytes. To avoid blocking dependency resolution on the
-  // download, the integrity is populated when the fetch is awaited rather than here — a
-  // barrier in the resolver awaits these before the lockfile snapshot and the virtual-store
-  // paths (which hash the integrity) are built. Only tarball fetch results carry an
-  // integrity, so this enriches every tarball entry that lacks one (including file: and
-  // git-hosted tarballs) without per-fetcher dispatch.
+  // A resolution the fetcher reports it can't complete without a download (a registry
+  // tarball whose integrity must be computed from the bytes) gets that integrity filled in
+  // when its fetch is awaited rather than here, so dependency resolution isn't blocked on
+  // the download. The resolver awaits these (it sees `resolutionNeedsFetch` on the
+  // response) before the lockfile snapshot and the virtual-store paths hashed from the
+  // integrity are built.
   let fetching = fetchResult.fetching
-  if (!resolution.type && !(resolution as TarballResolution).integrity) {
+  if (resolutionNeedsFetch) {
     let populating: Promise<PkgRequestFetchResult> | undefined
     fetching = () => {
       populating ??= fetchResult.fetching().then((fetchedResult) => {
-        if (fetchedResult.integrity != null) {
+        if (fetchedResult.integrity != null && (resolution as TarballResolution).integrity == null) {
           (resolution as TarballResolution).integrity = fetchedResult.integrity
         }
         return fetchedResult
@@ -383,6 +390,7 @@ async function resolveAndFetch (
     },
     fetching,
     filesIndexFile: fetchResult.filesIndexFile,
+    resolutionNeedsFetch,
   }
 }
 
