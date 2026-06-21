@@ -407,9 +407,11 @@ export async function resolveDependencies (
   // its download finishes concurrently and is awaited later by `waitTillAllFetchingsFinish`.
   await Promise.all(Object.values(resolvedPkgsById).map(async (pkg) => {
     if (!pkg.resolutionNeedsFetch || pkg.fetching == null) return
-    try {
-      await pkg.fetching()
-    } catch {}
+    // The integrity this fetch computes is required for the lockfile entry — optional
+    // dependencies are recorded there too — so a failure can't be hidden: it's surfaced
+    // rather than left to write an unverifiable entry. (A dependency that simply can't be
+    // installed on this platform skips fetching entirely and never reaches here.)
+    await pkg.fetching()
   }))
 
   const newLockfile = updateLockfile({
