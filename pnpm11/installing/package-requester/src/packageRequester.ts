@@ -316,18 +316,22 @@ async function resolveAndFetch (
     }
   }
 
-  // A tarball resolution missing its integrity gets the integrity the worker computed
-  // from the tarball bytes.
+  // A tarball-shaped resolution missing its integrity gets the integrity the worker
+  // computed from the tarball bytes. This enriches every tarball entry that lacks one
+  // (including file: and git-hosted tarballs, which don't *require* integrity but still
+  // record it in the lockfile when it's available).
   if (!resolution.type && !(resolution as TarballResolution).integrity) {
     const fetchedResult = await fetchResult.fetching()
     if (fetchedResult.integrity) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
   }
+  // Only registry tarballs genuinely require an integrity; if one is still missing here
+  // the tarball couldn't be fetched to compute it, so we fail closed.
   if (resolutionNeedsIntegrity(resolution)) {
     throw new PnpmError('MISSING_TARBALL_INTEGRITY',
-      `Cannot compute the integrity of package "${id}": its registry metadata had no integrity and the tarball could not be downloaded to compute one.`,
-      { hint: 'Ensure the tarball is reachable from the registry, then re-run installation.' }
+      `Cannot compute the integrity of package "${id}": no integrity was provided by the resolution nor computed during fetch.`,
+      { hint: 'Ensure the tarball is reachable from the registry (or that a custom fetcher returns an integrity), then re-run installation.' }
     )
   }
   // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
@@ -544,13 +548,13 @@ function fetchToStore (
       // checksum to write back to the lockfile.
       const mustComputeIntegrity = resolutionNeedsIntegrity(resolution)
 
-      // `true` once we know the package can't be served from the local store and
-      // a refetch is required even though the store already held (some of) it.
-      let refetchingStoredPackage = mustComputeIntegrity && !opts.force && !isLocalPkg
+      // Set to `true` only once we confirm the store already held the package
+      // but it can't be served from there, so the warning below never fires on
+      // a genuine first-time download.
+      let refetchingStoredPackage = false
 
       if (
         !opts.force &&
-        !mustComputeIntegrity &&
         (
           !isLocalTarballDep ||
           await tarballIsUpToDate(opts.pkg.resolution as any, target, opts.lockfileDir) // eslint-disable-line
@@ -561,14 +565,16 @@ function fetchToStore (
           readManifest: opts.fetchRawManifest,
           expectedPkg: opts.pkg,
         })
-        if (verified) {
+        if (verified && !mustComputeIntegrity) {
           fetching.resolve({
             files,
             bundledManifest,
           })
           return
         }
-        // The store held the package but it failed verification (modified content).
+        // The store held the package but it can't be served from there: either it
+        // failed verification (modified content) or the lockfile entry has no
+        // integrity, so it must be refetched to recompute the checksum.
         refetchingStoredPackage = (files?.filesMap) != null
       }
 
