@@ -151,9 +151,8 @@ fn does_not_update_unrelated_dependency_when_optional_update_fails_to_resolve() 
         "devDependencies": { "react": "19.0.0" },
         "optionalDependencies": { "react-dom": "19.0.0" },
     }));
-    // `react-dom` is the optional dependency being updated; it fails to resolve
-    // and is absent from `direct_dependencies`. `react` is present but is not
-    // flagged `update_spec`, so it must stay untouched.
+    // `react-dom` is the failed optional update, so it is absent from
+    // `direct_dependencies`.
     let react = wanted(Some("react"), "19.0.0", false);
     apply(
         &mut manifest,
@@ -231,10 +230,8 @@ fn updates_manifest_for_aliasless_dep_whose_specifier_does_not_resemble_resoluti
 
 #[test]
 fn updates_aliasless_selector_that_resolves_to_an_existing_alias() {
-    // Re-adding `test-git-fetch` at a new commit: the requested selector is
-    // aliasless and the existing manifest entry shares the resolved alias but
-    // is not flagged for update. Because the resolution carries its own wanted
-    // dependency, the new spec is saved instead of the stale aliased entry's.
+    // The resolved alias collides with the existing (non-updating) manifest
+    // entry; the resolution carries the new selector, so its spec wins.
     let (_dir, mut manifest) = manifest_from_json(&json!({
         "dependencies": {
             "test-git-fetch": "github:pnpm/test-git-fetch#0000000000000000000000000000000000000000",
@@ -275,10 +272,8 @@ fn updates_aliasless_selector_that_resolves_to_an_existing_alias() {
 
 #[test]
 fn does_not_misattribute_a_spec_when_an_aliasless_optional_dep_fails_to_resolve() {
-    // Two aliasless selectors; the optional one fails and drops out of
-    // `direct_dependencies`. Because each resolution carries its own wanted
-    // dependency, the survivor is saved with its own spec (the fallback path:
-    // no `normalized_bare_specifier`) rather than the failed one's.
+    // The survivor omits `normalized_bare_specifier` so its spec falls back to
+    // the wanted dependency's — the path where a wrong pairing would surface.
     let (_dir, mut manifest) = manifest_from_json(&json!({}));
     let failed_optional =
         wanted(None, "github:owner/missing#1111111111111111111111111111111111111111", true);

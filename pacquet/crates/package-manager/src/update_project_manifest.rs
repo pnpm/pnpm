@@ -25,10 +25,8 @@ pub struct ResolvedDirectDependency {
     /// registry range, `github:owner/repo#sha` for a git shorthand).
     pub normalized_bare_specifier: Option<String>,
     pub catalog_lookup: Option<CatalogLookup>,
-    /// The wanted dependency this was resolved from, carried so the spec is
-    /// saved against the exact request instead of a pairing reconstructed by
-    /// alias, specifier shape, or array position. Set by the resolver, which
-    /// already has it in hand when it produces the resolution.
+    /// The wanted dependency this was resolved from, populated by the resolver.
+    /// See [`update_project_manifest`] for why the linkage is carried.
     pub wanted_dependency: Option<WantedDependencyUpdate>,
 }
 

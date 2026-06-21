@@ -159,8 +159,7 @@ fn define_dep_entry(
         ));
     };
     // Mirror pnpm's `manifest[field] = manifest[field] ?? {}`: a missing or
-    // `null` field becomes a fresh object before the entry is written. A field
-    // present as a non-object is invalid (pnpm throws on it).
+    // `null` field becomes a fresh object before the entry is written.
     let deps = obj.entry(field).or_insert_with(|| Value::Object(Map::new()));
     if deps.is_null() {
         *deps = Value::Object(Map::new());
