@@ -84,7 +84,8 @@ impl FindHashArgs {
                         .manifest
                         .as_ref()
                         .and_then(|manifest| {
-                            manifest.get("name")
+                            manifest
+                                .get("name")
                                 .and_then(|n| n.as_str())
                                 .map(std::string::ToString::to_string)
                         })
@@ -93,7 +94,8 @@ impl FindHashArgs {
                         .manifest
                         .as_ref()
                         .and_then(|manifest| {
-                            manifest.get("version")
+                            manifest
+                                .get("version")
                                 .and_then(|n| n.as_str())
                                 .map(std::string::ToString::to_string)
                         })
@@ -116,7 +118,7 @@ impl FindHashArgs {
                 "{}@{}  {}",
                 name.bright_green(),
                 version.bright_green(),
-                index_key.color(Rgb(7, 132, 135),)
+                index_key.color(Rgb(7, 132, 135)),
             );
         }
 
