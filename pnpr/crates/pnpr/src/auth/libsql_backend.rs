@@ -225,12 +225,8 @@ impl UserBackend for LibsqlAuth {
         let Some(stored) = self.stored_hash(username).await? else {
             return Ok(None);
         };
-        // A database error already propagated above; a bcrypt error here
-        // is treated as a non-match, not a store outage.
-        Ok(verify_bcrypt(password.to_string(), stored)
-            .await
-            .unwrap_or(false)
-            .then(|| username.to_string()))
+        let valid = verify_bcrypt(password.to_string(), stored).await?;
+        Ok(valid.then(|| username.to_string()))
     }
 }
 

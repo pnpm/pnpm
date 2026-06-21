@@ -62,6 +62,23 @@ async fn add_or_login_allows_existing_legacy_username() {
 }
 
 #[tokio::test]
+async fn verify_propagates_corrupt_hash_errors() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    backend
+        .conn
+        .execute(
+            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+            params!["alice", "not-a-bcrypt-hash"],
+        )
+        .await
+        .unwrap();
+
+    let err = backend.verify("alice", "secret").await.unwrap_err();
+
+    assert!(matches!(err, RegistryError::Bcrypt(_)), "got {err:?}");
+}
+
+#[tokio::test]
 async fn max_users_caps_registration() {
     let backend = local_backend(MaxUsers::Limited(1)).await;
     backend.add_or_login("alice", "x").await.unwrap();

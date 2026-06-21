@@ -134,10 +134,8 @@ where
         else {
             return Ok(None);
         };
-        Ok(verify_bcrypt(password.to_string(), stored.bcrypt_hash)
-            .await
-            .unwrap_or(false)
-            .then_some(stored.username))
+        let valid = verify_bcrypt(password.to_string(), stored.bcrypt_hash).await?;
+        Ok(valid.then_some(stored.username))
     }
 }
 
@@ -1086,6 +1084,24 @@ mod tests {
         );
 
         assert_eq!(auth.verify("alice", "secret").await.unwrap().as_deref(), Some("Alice"));
+    }
+
+    #[tokio::test]
+    async fn verify_propagates_corrupt_hash_errors() {
+        let auth = SqlAuth::new(
+            CanonicalBackend {
+                user: StoredUser {
+                    username: "Alice".to_string(),
+                    bcrypt_hash: "not-a-bcrypt-hash".to_string(),
+                },
+            },
+            MaxUsers::Unlimited,
+            Duration::from_secs(30),
+        );
+
+        let err = auth.verify("alice", "secret").await.unwrap_err();
+
+        assert!(matches!(err, RegistryError::Bcrypt(_)), "got {err:?}");
     }
 
     #[tokio::test]
