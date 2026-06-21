@@ -29,17 +29,34 @@ impl FindHashArgs {
         let mut hash = self.hash;
 
         if hash.contains('-') {
-            let Some((_, base64_part)) = hash.split_once('-') else {
+            let Some((algo, base64_part)) = hash.split_once('-') else {
                 return Err(miette::miette!(
                     "Invalid hash format. Expected something like sha512-..., got {}",
                     hash
                 ));
             };
+            if !algo.eq_ignore_ascii_case("sha512") {
+                return Err(miette::miette!(
+                    "Unsupported hash algorithm \"{algo}\". Only \"sha512\" is supported."
+                ));
+            }
             use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
             let decoded = BASE64
                 .decode(base64_part)
+                .or_else(|_| {
+                    use base64::{
+                        Engine as _, engine::general_purpose::STANDARD_NO_PAD as BASE64_NO_PAD,
+                    };
+                    BASE64_NO_PAD.decode(base64_part)
+                })
                 .into_diagnostic()
                 .wrap_err("Failed to decode base64 hash")?;
+            if decoded.len() != 64 {
+                return Err(miette::miette!(
+                    "Decoded hash is {} bytes, expected 64 bytes for sha512.",
+                    decoded.len(),
+                ));
+            }
             use std::fmt::Write as _;
             let mut hex = String::with_capacity(decoded.len() * 2);
             for b in decoded {
@@ -49,7 +66,7 @@ impl FindHashArgs {
         } else if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
             return Err(miette::miette!(
                 "Invalid hash format: \"{hash}\" contains non-hexadecimal characters. \
-                 Expected a 128-character hex string or a shaN-base64 format."
+                 Expected a 128-character hex string or a sha512-base64 format."
             ));
         } else if hash.len() != EXPECTED_HEX_LENGTH {
             return Err(miette::miette!(
@@ -62,8 +79,14 @@ impl FindHashArgs {
         let config = config()?;
         let store_dir = &config.store_dir;
 
-        let Ok(store_index) = StoreIndex::open_readonly_in(store_dir) else {
-            return Err(FindHashError::InvalidFileHash.into());
+        let store_index = if config.frozen_store {
+            StoreIndex::open_immutable(store_dir.root())
+                .into_diagnostic()
+                .wrap_err("Failed to open store index (frozen)")?
+        } else {
+            StoreIndex::open_readonly_in(store_dir)
+                .into_diagnostic()
+                .wrap_err("Failed to open store index")?
         };
 
         let keys =

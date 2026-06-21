@@ -59,9 +59,15 @@ fn find_hash_works() {
 
 #[test]
 fn should_fail_on_missing_hash() {
-    let CommandTempCwd { mut pacquet, root: _root, .. } =
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let output = pacquet.arg("find-hash").arg("sha512-MJ7MSJwS1utMxA9QyQLytNDtd+5RGnx6m808qG1M2G+YndNbxf9JlnDaNCVbRbDP2DDoH2Bdz33FVC6TrpzXbw==").assert().failure();
+    // Install a package first so the store index exists.
+    pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
+    // Use a valid-length hex string that no file matches. Create a fresh
+    // command so the args from `add` don't carry over.
+    let mut pacquet2 = std::process::Command::cargo_bin("pacquet").unwrap();
+    pacquet2.current_dir(&workspace);
+    let output = pacquet2.arg("find-hash").arg("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains("ERR_PNPM_INVALID_FILE_HASH"));
 }
