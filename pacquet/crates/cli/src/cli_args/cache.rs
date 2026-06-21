@@ -198,7 +198,7 @@ impl CacheCommand {
 
                 println!(
                     "{}",
-                    serde_json::to_string_pretty(&meta_files_by_path).into_diagnostic()?
+                    serde_json::to_string_pretty(&meta_files_by_path).into_diagnostic()?,
                 );
             }
         }
