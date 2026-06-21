@@ -3624,6 +3624,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "walkdir",
+ "wax",
  "which 8.0.4",
  "windows-sys 0.61.2",
 ]
