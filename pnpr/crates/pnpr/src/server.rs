@@ -190,6 +190,8 @@ fn router_with_auth_and_osv(
         .iter()
         .map(|(name, uplink)| (name.clone(), Upstream::new(name, uplink)))
         .collect();
+    let registry_enabled = config.registry.enabled;
+    let resolver_enabled = config.resolver.enabled;
     let state = AppState {
         inner: Arc::new(AppInner {
             storage,
@@ -201,32 +203,61 @@ fn router_with_auth_and_osv(
             osv_index,
         }),
     };
-    Router::new()
-        .route("/-/ping", get(serve_ping))
-        // pnpr resolver: opt-in, versioned endpoints layered on the
-        // registry core. Non-pnpm clients never touch these. `/-/pnpr`
-        // is the capability handshake (404 on a plain registry).
-        .route("/-/pnpr", get(serve_pnpr_handshake))
-        .route("/v1/resolve", post(serve_resolve))
-        .route("/v1/verify-lockfile", post(serve_verify_lockfile))
-        // Batch publish: one request carrying many packages' publish
-        // documents. Not part of the standard npm registry API —
-        // `pnpm publish --batch` opts into it explicitly.
-        .route("/-/pnpm/v1/publish", put(serve_batch_publish))
-        .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
-        .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
-        .route(
-            "/{first}/{second}/{third}",
-            get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
-        )
-        .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
-        .route("/{a}/{b}/{c}/{d}", get(get_four_segments).delete(delete_four_segments))
-        .route(
-            "/{a}/{b}/{c}/{d}/{e}",
-            get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
-        )
-        // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`
-        .route("/{a}/{b}/{c}/{d}/{e}/{f}", delete(delete_six_segments))
+    // `/-/ping` is a health check and is always served. The two
+    // configurable surfaces — the resolver (install accelerator) and the
+    // npm registry — are each mounted only when their feature is enabled,
+    // so an operator can run resolver-only, registry-only, or both. The
+    // config guarantees at least one is enabled.
+    let mut router = Router::new().route("/-/ping", get(serve_ping));
+    // The install-accelerator (resolver) surface. `/-/pnpr` is the
+    // capability handshake (404 on a plain registry); `/v1/resolve` and
+    // `/v1/verify-lockfile` are the resolver endpoints. These resolve
+    // against the registries the *client* sends, so the accelerator works
+    // whether or not this process also fronts a registry.
+    //
+    // When the resolver is disabled these exact paths are still
+    // registered, but to a 404 stub. They overlap the registry's
+    // catch-all param routes (`/-/pnpr` matches `/{first}/{second}`), so
+    // without the stub a capability probe would fall through to the
+    // registry and be proxied upstream — surfacing a confusing 502 where
+    // a client expects the "no resolver here" 404.
+    if resolver_enabled {
+        router = router
+            .route("/-/pnpr", get(serve_pnpr_handshake))
+            .route("/v1/resolve", post(serve_resolve))
+            .route("/v1/verify-lockfile", post(serve_verify_lockfile));
+    } else {
+        router = router
+            .route("/-/pnpr", get(resolver_disabled))
+            .route("/v1/resolve", post(resolver_disabled))
+            .route("/v1/verify-lockfile", post(resolver_disabled));
+    }
+    // The npm-registry surface: every packument/tarball read, publish,
+    // unpublish, dist-tag, search, and the user/login endpoint. When the
+    // feature is disabled, none of these routes are mounted — not merely
+    // hidden — so a resolver-only tier exposes no registry surface at all.
+    if registry_enabled {
+        router = router
+            // Batch publish: one request carrying many packages' publish
+            // documents. Not part of the standard npm registry API —
+            // `pnpm publish --batch` opts into it explicitly.
+            .route("/-/pnpm/v1/publish", put(serve_batch_publish))
+            .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
+            .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
+            .route(
+                "/{first}/{second}/{third}",
+                get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
+            )
+            .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
+            .route("/{a}/{b}/{c}/{d}", get(get_four_segments).delete(delete_four_segments))
+            .route(
+                "/{a}/{b}/{c}/{d}/{e}",
+                get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
+            )
+            // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`
+            .route("/{a}/{b}/{c}/{d}/{e}/{f}", delete(delete_six_segments));
+    }
+    router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
         // gzip metadata responses for clients that send `Accept-Encoding:
         // gzip`, matching how a real (CDN-fronted) registry serves
@@ -2044,6 +2075,15 @@ async fn serve_ping(State(_state): State<AppState>) -> Response {
 /// lists the `/vN/resolve` protocol versions this server speaks.
 async fn serve_pnpr_handshake() -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
+}
+
+/// 404 stub mounted on the resolver paths when the resolver feature is
+/// disabled. Registered so these specific paths return a clean
+/// not-found — in particular `/-/pnpr`, whose 404 is how a client
+/// detects "no resolver here" — rather than being shadowed by the
+/// registry's catch-all param routes and proxied upstream.
+async fn resolver_disabled() -> Response {
+    StatusCode::NOT_FOUND.into_response()
 }
 
 async fn serve_resolve(State(state): State<AppState>, body: axum::body::Bytes) -> Response {

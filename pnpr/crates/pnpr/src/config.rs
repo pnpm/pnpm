@@ -113,6 +113,50 @@ pub struct Config {
     /// Optional local OSV database used by the resolver to reject known
     /// vulnerable npm package versions without live API calls.
     pub osv: OsvConfig,
+    /// The npm-registry surface: packument and tarball reads, publish,
+    /// unpublish, dist-tag, search, and the user/login endpoints. Enabled
+    /// by default; disable it to run a stateless resolver tier in front
+    /// of an existing registry. See [`RegistryFeature`].
+    pub registry: RegistryFeature,
+    /// The install-accelerator surface: the `/-/pnpr` handshake and the
+    /// `/v1/resolve` / `/v1/verify-lockfile` endpoints. Enabled by
+    /// default; disable it to run a plain registry with no server-side
+    /// resolution. See [`ResolverFeature`].
+    pub resolver: ResolverFeature,
+}
+
+/// Toggle for the npm-registry surface. A dedicated type — rather than a
+/// bare `bool` on [`Config`] — so finer-grained registry sub-features
+/// (e.g. disabling `publish` for a read-only mirror) can be added here
+/// without changing the config shape.
+#[derive(Debug, Clone)]
+pub struct RegistryFeature {
+    /// Master switch for the whole npm-registry surface. When `false`,
+    /// none of the registry routes are mounted.
+    pub enabled: bool,
+}
+
+impl Default for RegistryFeature {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+/// Toggle for the install-accelerator (resolver) surface. Separate from
+/// [`RegistryFeature`] so each surface grows its own sub-features
+/// independently.
+#[derive(Debug, Clone)]
+pub struct ResolverFeature {
+    /// Master switch for the resolver surface (`/-/pnpr`, `/v1/resolve`,
+    /// `/v1/verify-lockfile`). When `false`, none of those routes are
+    /// mounted.
+    pub enabled: bool,
+}
+
+impl Default for ResolverFeature {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -760,6 +804,13 @@ struct ConfigFile {
     /// pnpr-only local OSV database settings.
     #[serde(default)]
     osv: OsvFile,
+    /// pnpr-only feature toggles for the two server surfaces. Each is on
+    /// unless explicitly disabled; absent on a stock verdaccio config, so
+    /// both stay enabled there.
+    #[serde(default)]
+    registry: FeatureFile,
+    #[serde(default)]
+    resolver: FeatureFile,
     #[serde(default)]
     uplinks: IndexMap<String, UplinkFile>,
     #[serde(default)]
@@ -845,6 +896,27 @@ struct OsvFile {
     path: Option<String>,
 }
 
+/// Disk shape of a `registry:` / `resolver:` feature block. A bare
+/// `enabled` today; per-surface sub-feature keys can be added later. The
+/// field and the whole-block defaults are both `enabled: true`, so
+/// omitting the block — or writing `registry:` with no body — keeps the
+/// surface on.
+#[derive(Debug, Deserialize)]
+struct FeatureFile {
+    #[serde(default = "default_true")]
+    enabled: bool,
+}
+
+impl Default for FeatureFile {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
 impl Config {
     /// Default `listen` when one isn't supplied by the caller.
     pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:4873";
@@ -881,6 +953,8 @@ impl Config {
             hosted_store: HostedStoreConfig::Fs,
             backend: BackendConfig::Local,
             osv: OsvConfig::default(),
+            registry: RegistryFeature::default(),
+            resolver: ResolverFeature::default(),
         }
     }
 
@@ -902,6 +976,8 @@ impl Config {
             hosted_store: HostedStoreConfig::Fs,
             backend: BackendConfig::Local,
             osv: OsvConfig::default(),
+            registry: RegistryFeature::default(),
+            resolver: ResolverFeature::default(),
         }
     }
 
@@ -1024,6 +1100,8 @@ impl Config {
         let logs = build_log_config(file.log.as_ref());
         let policies = build_policies(&file.packages)?;
         let osv = build_osv_config(&file.osv, base_dir);
+        let registry = RegistryFeature { enabled: file.registry.enabled };
+        let resolver = ResolverFeature { enabled: file.resolver.enabled };
         let uplinks = file
             .uplinks
             .into_iter()
@@ -1032,7 +1110,7 @@ impl Config {
                 Ok((name, resolved))
             })
             .collect::<Result<IndexMap<_, _>, RegistryError>>()?;
-        Ok(Self {
+        let config = Self {
             listen,
             public_url,
             storage,
@@ -1046,7 +1124,24 @@ impl Config {
             hosted_store,
             backend,
             osv,
-        })
+            registry,
+            resolver,
+        };
+        config.ensure_a_feature_is_enabled()?;
+        Ok(config)
+    }
+
+    /// At least one top-level surface must be served; a server with both
+    /// `registry` and `resolver` disabled would answer only `/-/ping`.
+    /// Checked at config load and again after CLI overrides.
+    pub fn ensure_a_feature_is_enabled(&self) -> Result<(), RegistryError> {
+        if self.registry.enabled || self.resolver.enabled {
+            Ok(())
+        } else {
+            Err(RegistryError::InvalidConfig {
+                reason: "at least one of `registry` or `resolver` must be enabled".to_string(),
+            })
+        }
     }
 
     /// Find the uplink for `package_name` by walking [`Self::packages`]

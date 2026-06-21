@@ -227,6 +227,39 @@ packages:
 }
 
 #[test]
+fn features_default_to_enabled_when_absent() {
+    let config = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
+    assert!(config.registry.enabled);
+    assert!(config.resolver.enabled);
+}
+
+#[test]
+fn from_yaml_str_parses_feature_toggles() {
+    let yaml = r"
+registry:
+  enabled: false
+resolver:
+  enabled: true
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(!config.registry.enabled);
+    assert!(config.resolver.enabled);
+}
+
+#[test]
+fn disabling_both_features_is_a_config_error() {
+    let yaml = r"
+registry:
+  enabled: false
+resolver:
+  enabled: false
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("a server with neither surface enabled must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
 fn from_yaml_str_accepts_string_and_bare_number_intervals() {
     use std::time::Duration;
     // `maxage` is a string, `timeout` a bare number (verdaccio accepts

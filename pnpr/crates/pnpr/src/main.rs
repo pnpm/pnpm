@@ -51,6 +51,18 @@ struct Args {
     /// Path to the local OSV npm database zip or extracted JSON directory.
     #[arg(long)]
     osv_db: Option<PathBuf>,
+
+    /// Disable the npm-registry surface (packument/tarball reads, publish,
+    /// unpublish, dist-tag, search, and the user/login endpoints).
+    /// Overrides `registry.enabled` from the loaded config.
+    #[arg(long)]
+    disable_registry: bool,
+
+    /// Disable the install-accelerator surface (`/-/pnpr`, `/v1/resolve`,
+    /// `/v1/verify-lockfile`). Overrides `resolver.enabled` from the
+    /// loaded config.
+    #[arg(long)]
+    disable_resolver: bool,
 }
 
 #[tokio::main]
@@ -95,6 +107,15 @@ async fn main() -> miette::Result<()> {
     if let Some(osv_db) = args.osv_db {
         config.osv.path = Some(osv_db);
     }
+    // Only flip a surface off when its flag is present, so the config's
+    // `enabled` value still wins when the flag is absent.
+    if args.disable_registry {
+        config.registry.enabled = false;
+    }
+    if args.disable_resolver {
+        config.resolver.enabled = false;
+    }
+    config.ensure_a_feature_is_enabled().map_err(|err| miette::miette!("{err}"))?;
     init_logging(&config.logs);
     log_config_source(&source);
     serve(config).await.map_err(|err| redacted_report(&err))
