@@ -15,6 +15,7 @@ use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_registry::{PackageTag, PackageVersion, PinnedVersion};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pacquet_resolving_git_resolver::{HostedGit, HostedOpts};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
     parse_bare_specifier, pick_package, pick_registry_for_package, shared_packument_fetch_locker,
@@ -192,7 +193,7 @@ where
                 manifest,
             )
             .await?
-            .unwrap_or_else(|| spec.to_string()),
+            .unwrap_or_else(|| normalized_save_specifier(spec)),
             (None, Some(prev)) => prev.to_string(),
             (None, None) => {
                 let registries: std::collections::HashMap<String, String> =
@@ -462,6 +463,17 @@ fn split_name_spec(input: &str) -> (&str, Option<&str>) {
         Some(idx) => (&input[..idx], Some(&input[idx + 1..])),
         None => (input, None),
     }
+}
+
+/// The specifier `pacquet add <name>@<spec>` saves when `<spec>` isn't a plain
+/// registry range. A hosted-git request — a bare `owner/repo#committish`
+/// shorthand or a GitHub / GitLab / Bitbucket URL — is rewritten to its
+/// `github:` / `gitlab:` / `bitbucket:` shortcut form, the same
+/// `normalizedBareSpecifier` pnpm saves. Everything else (`file:`, `link:`,
+/// `workspace:`, `npm:` aliases, tarball URLs) is kept verbatim.
+fn normalized_save_specifier(spec: &str) -> String {
+    HostedGit::from_url(spec)
+        .map_or_else(|| spec.to_string(), |hosted| hosted.shortcut(HostedOpts::default()))
 }
 
 #[cfg(test)]
