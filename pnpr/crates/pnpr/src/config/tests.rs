@@ -1,7 +1,7 @@
 use super::{
-    BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, Interval,
-    LogFormat, LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkConfig, UplinkFile,
-    config_file_in, parse_interval, pattern_matches, resolve_relative, resolve_uplink,
+    BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
+    Interval, LogFormat, LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkConfig,
+    UplinkFile, config_file_in, parse_interval, pattern_matches, resolve_relative, resolve_uplink,
 };
 use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;
@@ -262,6 +262,31 @@ packages:
     proxy: npmjs
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(!config.registry.enabled);
+    assert!(config.uplinks.is_empty());
+}
+
+#[test]
+fn cli_disable_registry_skips_uplink_resolution() {
+    // The config file enables the registry, but `--disable-registry`
+    // (a CLI override) turns it off. Uplink resolution must be skipped
+    // based on the *effective* enablement, so an unresolvable auth token
+    // doesn't fail startup of a resolver-only tier driven by the flag.
+    let yaml = r"
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    auth:
+      type: bearer
+      token_env: PNPR_DEFINITELY_UNSET_TOKEN_VAR
+packages:
+  '**':
+    proxy: npmjs
+";
+    let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
+    let config =
+        Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
+            .expect("a CLI-disabled registry must skip strict uplink resolution");
     assert!(!config.registry.enabled);
     assert!(config.uplinks.is_empty());
 }

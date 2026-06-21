@@ -159,6 +159,19 @@ impl Default for ResolverFeature {
     }
 }
 
+/// CLI-level overrides for the feature toggles, applied *during* config
+/// parse so the effective surface enablement is known before any
+/// registry-only work runs. This matters because uplink resolution is
+/// strict (a `uplink.auth` block with an unresolvable token is a config
+/// error): applying `--disable-registry` only after parsing would still
+/// force a resolver-only tier to carry upstream secrets. A `true` field
+/// forces the corresponding surface off regardless of the config file.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FeatureOverrides {
+    pub disable_registry: bool,
+    pub disable_resolver: bool,
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct OsvConfig {
     pub enabled: bool,
@@ -1001,16 +1014,27 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> std::io::Result<Self> {
+        Self::from_yaml_with_overrides(path, listen, public_url, FeatureOverrides::default())
+    }
+
+    fn from_yaml_with_overrides(
+        path: &Path,
+        listen: SocketAddr,
+        public_url: Option<String>,
+        overrides: FeatureOverrides,
+    ) -> std::io::Result<Self> {
         let raw = std::fs::read_to_string(path).map_err(|err| {
             std::io::Error::new(err.kind(), format!("read {}: {err}", path.display()))
         })?;
         let base = path.parent().unwrap_or_else(|| Path::new("."));
-        Self::from_yaml_str(&raw, base, listen, public_url).map_err(|err| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("parse {}: {err}", path.display()),
-            )
-        })
+        Self::from_yaml_str_with_overrides(&raw, base, listen, public_url, overrides).map_err(
+            |err| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("parse {}: {err}", path.display()),
+                )
+            },
+        )
     }
 
     /// Parse [`DEFAULT_CONFIG_YAML`] (the verdaccio-shaped YAML
@@ -1028,8 +1052,28 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> Self {
-        Self::from_yaml_str(DEFAULT_CONFIG_YAML, base_dir, listen, public_url)
-            .expect("bundled DEFAULT_CONFIG_YAML must always parse")
+        Self::from_default_yaml_with_overrides(
+            base_dir,
+            listen,
+            public_url,
+            FeatureOverrides::default(),
+        )
+    }
+
+    fn from_default_yaml_with_overrides(
+        base_dir: &Path,
+        listen: SocketAddr,
+        public_url: Option<String>,
+        overrides: FeatureOverrides,
+    ) -> Self {
+        Self::from_yaml_str_with_overrides(
+            DEFAULT_CONFIG_YAML,
+            base_dir,
+            listen,
+            public_url,
+            overrides,
+        )
+        .expect("bundled DEFAULT_CONFIG_YAML must always parse")
     }
 
     /// Resolve the auto-discovery path for the global `config.yaml`,
@@ -1067,22 +1111,66 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> std::io::Result<(Self, ConfigSource)> {
+        Self::resolve_with_overrides(
+            explicit,
+            default_path,
+            listen,
+            public_url,
+            FeatureOverrides::default(),
+        )
+    }
+
+    /// Like [`Self::resolve`] but applies CLI [`FeatureOverrides`] during
+    /// parse, so a surface disabled on the command line skips its parse-time
+    /// work (e.g. strict uplink token resolution) — not just its routes. The
+    /// binary uses this; tests and embedders that don't override features
+    /// call [`Self::resolve`].
+    pub fn resolve_with_overrides(
+        explicit: Option<&Path>,
+        default_path: Option<&Path>,
+        listen: SocketAddr,
+        public_url: Option<String>,
+        overrides: FeatureOverrides,
+    ) -> std::io::Result<(Self, ConfigSource)> {
         if let Some(path) = explicit {
-            let config = Self::from_yaml(path, listen, public_url)?;
+            let config = Self::from_yaml_with_overrides(path, listen, public_url, overrides)?;
             return Ok((config, ConfigSource::Cli(path.to_path_buf())));
         }
         if let Some(path) = default_path {
-            let config = Self::from_yaml(path, listen, public_url)?;
+            let config = Self::from_yaml_with_overrides(path, listen, public_url, overrides)?;
             return Ok((config, ConfigSource::DefaultPath(path.to_path_buf())));
         }
-        Ok((Self::from_default_yaml(Path::new("."), listen, public_url), ConfigSource::Bundled))
+        Ok((
+            Self::from_default_yaml_with_overrides(Path::new("."), listen, public_url, overrides),
+            ConfigSource::Bundled,
+        ))
     }
 
+    /// Override-free convenience wrapper used by the test suite's many
+    /// parse cases; the binary path always goes through
+    /// [`Self::from_yaml_str_with_overrides`].
+    #[cfg(test)]
     fn from_yaml_str(
         raw: &str,
         base_dir: &Path,
         listen: SocketAddr,
         public_url: Option<String>,
+    ) -> Result<Self, RegistryError> {
+        Self::from_yaml_str_with_overrides(
+            raw,
+            base_dir,
+            listen,
+            public_url,
+            FeatureOverrides::default(),
+        )
+    }
+
+    fn from_yaml_str_with_overrides(
+        raw: &str,
+        base_dir: &Path,
+        listen: SocketAddr,
+        public_url: Option<String>,
+        overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
         let (substituted, unresolved) = env_replace_lossy::<SystemEnv>(raw);
         if !unresolved.is_empty() {
@@ -1107,8 +1195,16 @@ impl Config {
         let logs = build_log_config(file.log.as_ref());
         let policies = build_policies(&file.packages)?;
         let osv = build_osv_config(&file.osv, base_dir);
-        let registry = RegistryFeature { enabled: file.registry.unwrap_or_default().enabled };
-        let resolver = ResolverFeature { enabled: file.resolver.unwrap_or_default().enabled };
+        // Effective enablement folds the CLI overrides in here, so the
+        // registry-only work below (uplink resolution) is skipped whether
+        // the surface was disabled in the config file or on the command
+        // line.
+        let registry = RegistryFeature {
+            enabled: file.registry.unwrap_or_default().enabled && !overrides.disable_registry,
+        };
+        let resolver = ResolverFeature {
+            enabled: file.resolver.unwrap_or_default().enabled && !overrides.disable_resolver,
+        };
         // Only the registry surface consults uplinks, and `resolve_uplink`
         // is strict — a `uplink.auth` block with an unresolvable token is a
         // config error. A resolver-only server mounts no registry routes,

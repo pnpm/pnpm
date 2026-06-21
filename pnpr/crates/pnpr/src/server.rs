@@ -169,11 +169,15 @@ pub fn try_router(config: Config) -> crate::error::Result<Router> {
 /// [`try_router_with_auth`] to handle that as a recoverable error.
 pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
     try_router_with_auth(config, auth)
-        .expect("enabled OSV database must load before building pnpr router")
+        .expect("pnpr config must be valid and any enabled OSV database must load before building the router")
 }
 
 /// Fallible counterpart to [`router_with_auth`].
 pub fn try_router_with_auth(config: Config, auth: AuthState) -> crate::error::Result<Router> {
+    // Enforce the "at least one surface enabled" invariant for embedders
+    // that build and serve the router themselves rather than going through
+    // `serve`/`serve_listener`.
+    config.ensure_a_feature_is_enabled()?;
     let osv_index = load_active_osv_index(&config)?;
     Ok(router_with_auth_and_osv(config, auth, osv_index))
 }

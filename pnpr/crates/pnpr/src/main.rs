@@ -69,11 +69,19 @@ struct Args {
 async fn main() -> miette::Result<()> {
     let args = Args::parse();
     let auto_path = Config::auto_config_path();
-    let (mut config, source) = Config::resolve(
+    // Pass the surface-disable flags into parsing so a CLI-disabled surface
+    // skips its parse-time work too (e.g. strict uplink token resolution),
+    // not just its routes — applying them after `resolve` would be too late.
+    let overrides = pnpr::FeatureOverrides {
+        disable_registry: args.disable_registry,
+        disable_resolver: args.disable_resolver,
+    };
+    let (mut config, source) = Config::resolve_with_overrides(
         args.config.as_deref(),
         auto_path.as_deref(),
         args.listen,
         args.public_url.clone(),
+        overrides,
     )
     .map_err(|err| miette::miette!("{err}"))?;
     if let Some(storage) = args.storage {
@@ -107,15 +115,8 @@ async fn main() -> miette::Result<()> {
     if let Some(osv_db) = args.osv_db {
         config.osv.path = Some(osv_db);
     }
-    // Only flip a surface off when its flag is present, so the config's
-    // `enabled` value still wins when the flag is absent.
-    if args.disable_registry {
-        config.registry.enabled = false;
-    }
-    if args.disable_resolver {
-        config.resolver.enabled = false;
-    }
-    config.ensure_a_feature_is_enabled().map_err(|err| miette::miette!("{err}"))?;
+    // Surface overrides were folded in during parse; the parse already
+    // enforced that at least one surface stays enabled.
     init_logging(&config.logs);
     log_config_source(&source);
     serve(config).await.map_err(|err| redacted_report(&err))
