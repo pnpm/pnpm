@@ -1351,6 +1351,49 @@ test('registry tarball without integrity gets integrity computed even when alrea
   expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
 })
 
+test('skipFetch still downloads the tarball to compute a missing integrity', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  // A registry that doesn't provide an integrity in its metadata.
+  const resolveWithoutIntegrity: typeof resolve = async () => ({
+    id: 'is-positive@1.0.0' as PkgResolutionId,
+    latest: '1.0.0',
+    resolution: {
+      tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+    },
+    manifest: {
+      name: 'is-positive',
+      version: '1.0.0',
+    },
+    resolvedVia: 'npm-registry',
+  })
+
+  const requestPackage = createPackageRequester({
+    resolve: resolveWithoutIntegrity,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  // Even though `skipFetch` would normally avoid a download, a registry tarball with no
+  // integrity must be fetched so the integrity can be computed for the lockfile.
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: true,
+  })
+
+  expect(pkgResponse.body.resolution).toHaveProperty('integrity')
+  expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
+})
+
 test('should pass optional flag to resolve function', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)

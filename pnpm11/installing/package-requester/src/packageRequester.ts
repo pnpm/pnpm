@@ -262,9 +262,14 @@ async function resolveAndFetch (
         })
     )
   )
+  // `--lockfile-only` (skipFetch) normally returns right after resolution without
+  // downloading. But when the registry's metadata didn't include an integrity, we still
+  // download the tarball so the integrity can be computed from its bytes — otherwise the
+  // lockfile entry would be unverifiable and fail on the next install.
+  const mustDownloadForIntegrity = options.skipFetch === true && resolutionNeedsIntegrity(resolution)
   // We can skip fetching the package only if the manifest
   // is present after resolution AND the content of the package has not changed
-  if ((options.skipFetch === true || isInstallable === false) && !integrityChanged && (manifest != null)) {
+  if ((options.skipFetch === true || isInstallable === false) && !mustDownloadForIntegrity && !integrityChanged && (manifest != null)) {
     return {
       body: {
         id,

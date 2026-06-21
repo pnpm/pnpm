@@ -13,8 +13,7 @@ import { resolutionNeedsIntegrity } from './toLockfileResolution.js'
 export function pkgSnapshotToResolution (
   depPath: string,
   pkgSnapshot: PackageSnapshot,
-  registries: Registries,
-  opts?: { allowMissingIntegrity?: boolean }
+  registries: Registries
 ): Resolution {
   const resolution = pkgSnapshot.resolution as TarballResolution
   // Tarball-shaped resolutions (no `type` field) must carry `integrity`,
@@ -30,11 +29,7 @@ export function pkgSnapshotToResolution (
   // whatever bytes the URL returned, so we fail closed here. Pacquet
   // enforces the same invariant via
   // `pacquet_package_manager::missing_tarball_integrity`.
-  //
-  // The non-frozen resolution path passes `allowMissingIntegrity` to opt out:
-  // it intends to re-download the tarball and recompute the integrity, so it
-  // wants the (integrity-less) resolution back rather than a throw.
-  if (!opts?.allowMissingIntegrity && resolutionNeedsIntegrity(resolution)) {
+  if (resolutionNeedsIntegrity(resolution)) {
     throw new PnpmError('MISSING_TARBALL_INTEGRITY',
       `Cannot install package "${depPath}": its lockfile entry has no "integrity" field, so pnpm cannot verify the downloaded tarball.`,
       { hint: 'The lockfile may be corrupted or have been tampered with. Restore it from a trusted source, or delete it and re-run installation without --frozen-lockfile to regenerate.' }
