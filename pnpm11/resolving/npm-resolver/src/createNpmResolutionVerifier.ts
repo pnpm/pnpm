@@ -186,20 +186,11 @@ export function createNpmResolutionVerifier (
     // bytes another way and are exempt from the registry-tarball checks too.
     if (!isRegistryTarballResolution(resolution)) return { ok: true }
 
-    // A registry tarball can only be verified against an integrity checksum, so an
-    // entry without one is rejected outright — otherwise the downloaded bytes would be
-    // trusted on the registry's word alone. Some registries generate tarballs on demand
-    // and omit the integrity in their metadata; pnpm computes it from the downloaded
-    // tarball at fetch time, so a complete lockfile entry always carries one. A missing
-    // integrity here means a legacy or tampered lockfile (including a canonical entry
-    // stripped down to `{}`, which reconstructs its URL from name+version). Checked before
-    // the semver guard below so a tampered entry can't dodge it with a non-semver
-    // `version`. Synchronous — no metadata fetch needed. Pacquet enforces the same
-    // invariant via `pacquet_package_manager::missing_tarball_integrity`.
-    // A valid integrity is a non-empty string. Rejecting anything else (missing, `""`, or a
-    // non-string truthy value like `true`/`[]` from a tampered YAML lockfile) closes two
-    // holes: an empty string slipping past a truthiness check, and a non-string value
-    // dodging the check here only to crash later in the worker's `parseIntegrity`.
+    // A registry tarball is only verifiable against its integrity, so reject any entry
+    // whose integrity isn't a non-empty string: missing, `""`, or a non-string truthy value
+    // from a tampered YAML lockfile (which would otherwise pass a truthiness check, then
+    // crash in the worker's `parseIntegrity`). Checked before the semver guard so a
+    // non-semver `version` can't dodge it. Pacquet enforces the same invariant.
     const integrity = (resolution as { integrity?: unknown }).integrity
     if (typeof integrity !== 'string' || integrity.length === 0) {
       return {

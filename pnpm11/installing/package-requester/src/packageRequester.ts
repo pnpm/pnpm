@@ -265,10 +265,8 @@ async function resolveAndFetch (
         })
     )
   )
-  // Ask the fetcher that will handle this resolution whether it can be completed without
-  // downloading. A registry tarball with no integrity can't (the integrity must be
-  // computed from the bytes); git-hosted, file: and typed resolutions can. A `variations`
-  // resolution picks its variant inside the fetch path, so it has no single fetcher here.
+  // A `variations` resolution picks its variant inside the fetch path, so it has no single
+  // fetcher to ask here.
   const fetcherForResolution = resolution.type === 'variations'
     ? undefined
     : await pickFetcher(ctx.fetchers, resolution as AtomicResolution, {
@@ -276,12 +274,9 @@ async function resolveAndFetch (
       packageId: id,
     })
   const resolutionNeedsFetch = fetcherForResolution?.resolutionNeedsFetch?.(resolution) ?? false
-  // We normally return right after resolution without downloading when fetching is skipped
-  // (`--lockfile-only`) or the package isn't installable on this platform. But a resolution
-  // that can't be completed without a fetch (e.g. a registry tarball whose integrity must be
-  // computed from the bytes) must still be downloaded so its lockfile entry is complete —
-  // recorded for every platform — regardless of either of those. The tarball bytes are
-  // platform-independent, so this download succeeds even when the package isn't installable.
+  // A resolution that needs a fetch to be completed is downloaded even when fetching is
+  // skipped (`--lockfile-only`) or the package isn't installable here: its lockfile entry
+  // must carry an integrity for every platform, and the tarball bytes are platform-independent.
   if ((options.skipFetch === true || isInstallable === false) && !resolutionNeedsFetch && !integrityChanged && (manifest != null)) {
     return {
       body: {
@@ -333,22 +328,16 @@ async function resolveAndFetch (
         manifest = loadedManifest as unknown as DependencyManifest
       }
     }
-    // The package was downloaded to read its manifest — resolutions that don't carry one,
-    // such as git, where resolution can't proceed without fetching the repo — so the
-    // integrity the worker computed is already in hand. Fill it in for a tarball entry
-    // that lacks one. Only tarball fetch results carry an integrity, so this enriches
-    // git-hosted and file: tarballs too without per-fetcher dispatch.
+    // This fetch already happened to read the manifest (git and other resolutions carry
+    // none), so fill in the integrity it computed for a tarball entry that lacks one.
     if (fetchedResult.integrity != null && !(resolution as TarballResolution).integrity) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
   }
 
-  // A resolution the fetcher reports it can't complete without a download (a registry
-  // tarball whose integrity must be computed from the bytes) gets that integrity filled in
-  // when its fetch is awaited rather than here, so dependency resolution isn't blocked on
-  // the download. The resolver awaits these (it sees `resolutionNeedsFetch` on the
-  // response) before the lockfile snapshot and the virtual-store paths hashed from the
-  // integrity are built.
+  // Fill in the computed integrity when the fetch is awaited instead of blocking resolution
+  // on the download here. The resolver awaits these (flagged by `resolutionNeedsFetch` on
+  // the response) before building the lockfile snapshot and virtual-store paths.
   let fetching = fetchResult.fetching
   if (resolutionNeedsFetch) {
     let populating: Promise<PkgRequestFetchResult> | undefined
@@ -571,15 +560,12 @@ function fetchToStore (
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
       const isLocalPkg = resolution.type === 'directory'
 
-      // A resolution that can't be completed without a fetch (e.g. a registry tarball
-      // with no integrity) must be re-downloaded so the worker can compute the missing
-      // data from the bytes; the copy in the local store can't be reused. The caller
-      // (resolveAndFetch) derives this from the fetcher's `resolutionNeedsFetch`.
+      // A resolution flagged `resolutionNeedsFetch` (e.g. a registry tarball with no
+      // integrity) must be downloaded to compute it, so the store copy can't be reused.
       const mustComputeIntegrity = opts.mustComputeIntegrity === true
 
-      // Set to `true` only once we confirm the store already held the package
-      // but it can't be served from there, so the warning below never fires on
-      // a genuine first-time download.
+      // True only once a store read confirms the package was there but can't be served, so
+      // the warning below doesn't fire on a genuine first-time download.
       let refetchingStoredPackage = false
 
       if (

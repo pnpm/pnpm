@@ -399,18 +399,14 @@ export async function resolveDependencies (
     }
   }
 
-  // Some resolutions can't be completed without their download — a registry tarball whose
-  // integrity is computed from the bytes. The fetcher flags these (`resolutionNeedsFetch`),
-  // and the integrity they yield is needed both for this lockfile snapshot and for the
-  // virtual-store paths derived from it, so wait for those specific fetches here.
-  // Dependency resolution itself was not blocked on them, and every other entry is skipped —
-  // its download finishes concurrently and is awaited later by `waitTillAllFetchingsFinish`.
+  // The integrity computed by these fetches (the ones the fetcher flagged
+  // `resolutionNeedsFetch`) feeds the lockfile snapshot below and the virtual-store paths
+  // hashed from it, so await them before building it. Other entries already have their
+  // integrity and are awaited later by `waitTillAllFetchingsFinish`.
   await Promise.all(Object.values(resolvedPkgsById).map(async (pkg) => {
     if (!pkg.resolutionNeedsFetch || pkg.fetching == null) return
-    // The integrity this fetch computes is required for the lockfile entry — optional
-    // dependencies are recorded there too — so a failure can't be hidden: it's surfaced
-    // rather than left to write an unverifiable entry. (A dependency that simply can't be
-    // installed on this platform skips fetching entirely and never reaches here.)
+    // A failure here is surfaced, not swallowed: the entry needs its integrity (optional
+    // deps are in the lockfile too) and we'd otherwise write an unverifiable one.
     await pkg.fetching()
   }))
 
