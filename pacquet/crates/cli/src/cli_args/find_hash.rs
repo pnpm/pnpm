@@ -29,7 +29,7 @@ impl FindHashArgs {
                 .decode(base64_part)
                 .into_diagnostic()
                 .wrap_err("Failed to decode base64 hash")?;
-            use std::fmt::Write;
+            use std::fmt::Write as _;
             let mut hex = String::with_capacity(decoded.len() * 2);
             for b in decoded {
                 write!(&mut hex, "{b:02x}").into_diagnostic()?;
@@ -83,8 +83,8 @@ impl FindHashArgs {
                     let name = data
                         .manifest
                         .as_ref()
-                        .and_then(|m| {
-                            m.get("name")
+                        .and_then(|manifest| {
+                            manifest.get("name")
                                 .and_then(|n| n.as_str())
                                 .map(std::string::ToString::to_string)
                         })
@@ -92,8 +92,8 @@ impl FindHashArgs {
                     let version = data
                         .manifest
                         .as_ref()
-                        .and_then(|m| {
-                            m.get("version")
+                        .and_then(|manifest| {
+                            manifest.get("version")
                                 .and_then(|n| n.as_str())
                                 .map(std::string::ToString::to_string)
                         })
@@ -109,14 +109,14 @@ impl FindHashArgs {
             ));
         }
 
-        // pnpm uses PACKAGE_INFO_CLR = chalk.greenBright and INDEX_PATH_CLR = chalk.hex('#078487')
-        // We will use OwoColorize to match. #078487 is rgb(7, 132, 135)
+        // pnpm uses PACKAGE_INFO_CLR = chalk.greenBright and INDEX_PATH_CLR = chalk.hex(`#078487`)
+        // We will use OwoColorize to match. `#078487` is rgb(7, 132, 135)
         for (name, version, index_key) in results {
             println!(
                 "{}@{}  {}",
                 name.bright_green(),
                 version.bright_green(),
-                index_key.color(Rgb(7, 132, 135))
+                index_key.color(Rgb(7, 132, 135),)
             );
         }
 
