@@ -277,13 +277,13 @@ async function resolveAndFetch (
     })
   const resolutionNeedsFetch = fetcherForResolution?.resolutionNeedsFetch?.(resolution) ?? false
   // `--lockfile-only` (skipFetch) normally returns right after resolution without
-  // downloading. But when the resolution can't be completed without a fetch (e.g. the
-  // registry's metadata didn't include an integrity), we still download so it can be
-  // computed — otherwise the lockfile entry would be unverifiable and fail the next install.
-  const mustDownloadForIntegrity = options.skipFetch === true && resolutionNeedsFetch
+  // downloading. But a resolution that can't be completed without a fetch (e.g. a registry
+  // tarball whose integrity must be computed from the bytes) can't honor it — download
+  // anyway so it can be completed, otherwise the lockfile entry would be incomplete.
+  const mustFetchToCompleteResolution = options.skipFetch === true && resolutionNeedsFetch
   // We can skip fetching the package only if the manifest
   // is present after resolution AND the content of the package has not changed
-  if ((options.skipFetch === true || isInstallable === false) && !mustDownloadForIntegrity && !integrityChanged && (manifest != null)) {
+  if ((options.skipFetch === true || isInstallable === false) && !mustFetchToCompleteResolution && !integrityChanged && (manifest != null)) {
     return {
       body: {
         id,
