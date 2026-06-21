@@ -255,11 +255,6 @@ pub(super) mod postgres {
         async fn insert_token(&self, token_hash: &str, record: &TokenRecord) -> Result<()> {
             let cidr_json = serde_json::to_string(&record.cidr_whitelist)
                 .expect("Vec<String> always serializes to JSON");
-            let mut tx = self.pool.begin().await?;
-            sqlx::query("DELETE FROM tokens WHERE token_hash = $1")
-                .bind(token_hash)
-                .execute(&mut *tx)
-                .await?;
             sqlx::query(
                 "INSERT INTO tokens
                     (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
@@ -271,9 +266,8 @@ pub(super) mod postgres {
             .bind(record.last_used_at as i64)
             .bind(i16::from(record.readonly))
             .bind(cidr_json)
-            .execute(&mut *tx)
+            .execute(&self.pool)
             .await?;
-            tx.commit().await?;
             Ok(())
         }
 
@@ -521,11 +515,6 @@ pub(super) mod mysql {
         async fn insert_token(&self, token_hash: &str, record: &TokenRecord) -> Result<()> {
             let cidr_json = serde_json::to_string(&record.cidr_whitelist)
                 .expect("Vec<String> always serializes to JSON");
-            let mut tx = self.pool.begin().await?;
-            sqlx::query("DELETE FROM tokens WHERE token_hash = ?")
-                .bind(token_hash)
-                .execute(&mut *tx)
-                .await?;
             sqlx::query(
                 "INSERT INTO tokens
                     (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
@@ -537,9 +526,8 @@ pub(super) mod mysql {
             .bind(record.last_used_at as i64)
             .bind(i16::from(record.readonly))
             .bind(cidr_json)
-            .execute(&mut *tx)
+            .execute(&self.pool)
             .await?;
-            tx.commit().await?;
             Ok(())
         }
 

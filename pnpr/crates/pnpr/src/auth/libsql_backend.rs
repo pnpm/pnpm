@@ -203,16 +203,14 @@ impl TokenBackend for LibsqlAuth {
         let raw = mint_token(&self.secret, nonce, username);
         let token_hash = sha256_hex(raw.as_bytes());
         let now = unix_seconds() as i64;
-        let tx = self.conn.transaction().await?;
-        tx.execute("DELETE FROM tokens WHERE token_hash = ?1", params![token_hash.clone()]).await?;
-        tx.execute(
-            "INSERT INTO tokens
+        self.conn
+            .execute(
+                "INSERT INTO tokens
                  (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
              VALUES (?1, ?2, ?3, ?3, 0, '[]')",
-            params![token_hash, username, now],
-        )
-        .await?;
-        tx.commit().await?;
+                params![token_hash, username, now],
+            )
+            .await?;
         Ok(raw)
     }
 

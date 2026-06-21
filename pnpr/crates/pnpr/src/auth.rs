@@ -501,7 +501,7 @@ impl TokenBackend for TokenStore {
             let hash_for_db = token_hash.clone();
             tokio::task::spawn_blocking(move || -> Result<()> {
                 let conn = Connection::open(&path)?;
-                upsert_token(&conn, &hash_for_db, &record)?;
+                insert_token(&conn, &hash_for_db, &record)?;
                 Ok(())
             })
             .await??;
@@ -819,12 +819,10 @@ fn delete_token(conn: &Connection, token_hash: &str) -> Result<()> {
     Ok(())
 }
 
-fn upsert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Result<()> {
+fn insert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Result<()> {
     let cidr_json = serde_json::to_string(&record.cidr_whitelist)
         .expect("Vec<String> always serializes to JSON");
-    let tx = conn.unchecked_transaction()?;
-    tx.execute("DELETE FROM tokens WHERE token_hash = ?1", rusqlite::params![token_hash])?;
-    tx.execute(
+    conn.execute(
         "INSERT INTO tokens (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![
@@ -836,7 +834,6 @@ fn upsert_token(conn: &Connection, token_hash: &str, record: &TokenRecord) -> Re
             cidr_json,
         ],
     )?;
-    tx.commit()?;
     Ok(())
 }
 
