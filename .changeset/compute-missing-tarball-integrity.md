@@ -8,7 +8,9 @@
 "@pnpm/fetching.tarball-fetcher": patch
 "@pnpm/fetching.pick-fetcher": patch
 "@pnpm/store.controller-types": patch
-"@pnpm/lockfile.utils": patch
+"@pnpm/lockfile.utils": minor
+"@pnpm/deps.graph-builder": patch
+"@pnpm/installing.deps-restorer": patch
 "@pnpm/patching.commands": patch
 "pnpm": minor
 ---
