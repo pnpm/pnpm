@@ -121,10 +121,10 @@ fn sort_deep_keys(value: &mut Value) {
         let mut keys: Vec<_> = map.keys().cloned().collect();
         keys.sort(); // Simple string comparison
 
-        for k in keys {
-            let mut v = map.remove(&k).unwrap();
-            sort_deep_keys(&mut v);
-            sorted.insert(k, v);
+        for key in keys {
+            let mut val = map.remove(&key).unwrap();
+            sort_deep_keys(&mut val);
+            sorted.insert(key, val);
         }
         *map = sorted;
     } else if let Value::Array(arr) = value {
