@@ -23,15 +23,18 @@ pub enum CacheCommand {
 }
 
 impl CacheCommand {
-    fn cache_dir(config: &Config) -> PathBuf {
-        let meta_dir = if config.resolution_mode == ResolutionMode::TimeBased
+    fn meta_dir(config: &Config) -> &'static str {
+        if config.resolution_mode == ResolutionMode::TimeBased
             && !config.registry_supports_time_field
         {
             FULL_FILTERED_META_DIR
         } else {
             ABBREVIATED_META_DIR
-        };
-        config.cache_dir.join(meta_dir)
+        }
+    }
+
+    fn cache_dir(config: &Config) -> PathBuf {
+        config.cache_dir.join(Self::meta_dir(config))
     }
 
     fn find_metadata_files(
@@ -47,8 +50,16 @@ impl CacheCommand {
         } else {
             packages
                 .iter()
-                .map(|pkg| format!("{}/{}.jsonl", registry_prefix, encode_pkg_name(pkg)))
-                .collect()
+                .map(|pkg| {
+                    if pkg.contains("..") {
+                        return Err(miette::miette!(
+                            "Invalid package name '{}': path traversal sequences are not allowed",
+                            pkg
+                        ));
+                    }
+                    Ok(format!("{}/{}.jsonl", registry_prefix, encode_pkg_name(pkg)))
+                })
+                .collect::<miette::Result<Vec<_>>>()?
         };
 
         let mut matches = Vec::new();
@@ -102,20 +113,20 @@ impl CacheCommand {
                     return Ok(());
                 }
                 let meta_files = Self::find_metadata_files(config, &cache_dir, &packages)?;
+                let selected_meta_dir = Self::meta_dir(config);
                 for meta_file in &meta_files {
                     let file_path = cache_dir.join(meta_file);
                     let _ = fs::remove_file(&file_path);
 
-                    // Also attempt to delete from other meta directories just in case
                     if let Ok(rel_path) = file_path.strip_prefix(&cache_dir) {
-                        let _ = fs::remove_file(
-                            config.cache_dir.join(ABBREVIATED_META_DIR).join(rel_path),
-                        );
-                        let _ =
-                            fs::remove_file(config.cache_dir.join(FULL_META_DIR).join(rel_path));
-                        let _ = fs::remove_file(
-                            config.cache_dir.join(FULL_FILTERED_META_DIR).join(rel_path),
-                        );
+                        for meta_dir in
+                            [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR]
+                        {
+                            if meta_dir != selected_meta_dir {
+                                let _ =
+                                    fs::remove_file(config.cache_dir.join(meta_dir).join(rel_path));
+                            }
+                        }
                     }
                 }
                 if !meta_files.is_empty() {
@@ -181,16 +192,22 @@ impl CacheCommand {
                         }
                     }
 
-                    let registry_name = PathBuf::from(&file_path)
-                        .parent()
-                        .map_or_else(|| ".".to_string(), |parent| parent.to_string_lossy().into_owned());
+                    let registry_name = PathBuf::from(&file_path).parent().map_or_else(
+                        || ".".to_string(),
+                        |parent| parent.to_string_lossy().into_owned(),
+                    );
 
                     meta_files_by_path.insert(
                         registry_name.replace('+', ":"),
                         json!({
                             "cachedVersions": cached_versions,
                             "nonCachedVersions": non_cached_versions,
-                            "cachedAt": mtime.map(|time| format!("{time:?}")),
+                            "cachedAt": mtime.map(|time| {
+                            time.duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_millis()
+                                .to_string()
+                        }),
                             "distTags": meta_object.dist_tags,
                         }),
                     );
