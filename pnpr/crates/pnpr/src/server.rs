@@ -2027,7 +2027,7 @@ fn error_response(err: &RegistryError) -> Response {
         let err = err.log_message();
         tracing::error!(%err, %error_kind, %status, "request failed");
     } else if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-        tracing::info!(%err, %error_kind, %status, "request failed");
+        tracing::debug!(%err, %error_kind, %status, "request failed");
     } else {
         tracing::warn!(%err, %error_kind, %status, "request failed");
     }
