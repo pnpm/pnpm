@@ -806,11 +806,13 @@ struct ConfigFile {
     osv: OsvFile,
     /// pnpr-only feature toggles for the two server surfaces. Each is on
     /// unless explicitly disabled; absent on a stock verdaccio config, so
-    /// both stay enabled there.
+    /// both stay enabled there. `Option` so a bare `registry:` (which
+    /// YAML parses as null) is accepted as "default" rather than failing
+    /// to deserialize into the struct.
     #[serde(default)]
-    registry: FeatureFile,
+    registry: Option<FeatureFile>,
     #[serde(default)]
-    resolver: FeatureFile,
+    resolver: Option<FeatureFile>,
     #[serde(default)]
     uplinks: IndexMap<String, UplinkFile>,
     #[serde(default)]
@@ -1100,8 +1102,8 @@ impl Config {
         let logs = build_log_config(file.log.as_ref());
         let policies = build_policies(&file.packages)?;
         let osv = build_osv_config(&file.osv, base_dir);
-        let registry = RegistryFeature { enabled: file.registry.enabled };
-        let resolver = ResolverFeature { enabled: file.resolver.enabled };
+        let registry = RegistryFeature { enabled: file.registry.unwrap_or_default().enabled };
+        let resolver = ResolverFeature { enabled: file.resolver.unwrap_or_default().enabled };
         let uplinks = file
             .uplinks
             .into_iter()

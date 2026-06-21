@@ -174,8 +174,34 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
 
 /// Fallible counterpart to [`router_with_auth`].
 pub fn try_router_with_auth(config: Config, auth: AuthState) -> crate::error::Result<Router> {
-    let osv_index = crate::resolver::load_osv_index(&config)?;
+    let osv_index = load_active_osv_index(&config)?;
     Ok(router_with_auth_and_osv(config, auth, osv_index))
+}
+
+/// Load the OSV index only for surfaces that actually consult it. Today
+/// that is the resolver, so a registry-only server (`resolver.enabled =
+/// false`) skips the load — avoiding the startup cost and the
+/// missing/invalid-database error for a feature no mounted route uses.
+/// The gate widens to the registry once registry-side OSV screening
+/// lands (pnpm/pnpm#12561).
+fn load_active_osv_index(
+    config: &Config,
+) -> crate::error::Result<Option<Arc<crate::resolver::OsvIndex>>> {
+    if config.resolver.enabled { crate::resolver::load_osv_index(config) } else { Ok(None) }
+}
+
+/// Run the registry surface's startup side effects and load its auth
+/// backends — but only when the registry is enabled. A resolver-only
+/// deployment skips publish-journal recovery and on-disk auth entirely,
+/// so it stays stateless: it creates no credential files and reads
+/// nothing from the store, and so can run on a read-only or ephemeral
+/// host. The resolver routes never consult auth.
+async fn load_startup_auth(config: &Config) -> crate::error::Result<AuthState> {
+    if !config.registry.enabled {
+        return Ok(AuthState::in_memory());
+    }
+    crate::journal::recover_publish_journal(config).await?;
+    AuthState::load(&config.auth, &config.backend).await
 }
 
 fn router_with_auth_and_osv(
@@ -313,14 +339,14 @@ fn router_with_auth_and_osv(
         .with_state(state)
 }
 
-/// Bind to `config.listen` and serve forever. Loads the configured
-/// htpasswd users and token database before binding the socket so
-/// a startup-time auth error surfaces before we accept any client
-/// connections.
+/// Bind to `config.listen` and serve forever. When the registry surface
+/// is enabled, loads its htpasswd users and token database before binding
+/// the socket so a startup-time auth error surfaces before we accept any
+/// client connections; a resolver-only server skips journal recovery and
+/// on-disk auth entirely and stays stateless.
 pub async fn serve(config: Config) -> crate::error::Result<()> {
-    crate::journal::recover_publish_journal(&config).await?;
-    let osv_index = crate::resolver::load_osv_index(&config)?;
-    let auth = AuthState::load(&config.auth, &config.backend).await?;
+    let osv_index = load_active_osv_index(&config)?;
+    let auth = load_startup_auth(&config).await?;
     let listen = config.listen;
     let app = router_with_auth_and_osv(config, auth, osv_index);
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
@@ -339,12 +365,13 @@ pub async fn serve_listener(
     listener: tokio::net::TcpListener,
 ) -> crate::error::Result<()> {
     let listen = listener.local_addr()?;
-    crate::journal::recover_publish_journal(&config).await?;
-    let osv_index = crate::resolver::load_osv_index(&config)?;
-    // Load the configured auth backends here too — going through
-    // `router` would silently fall back to in-memory auth and ignore a
-    // persisted htpasswd / SQLite store or a configured `backend:`.
-    let auth = AuthState::load(&config.auth, &config.backend).await?;
+    let osv_index = load_active_osv_index(&config)?;
+    // Load the configured auth backends here too (when the registry is
+    // enabled) — going through `router` would silently fall back to
+    // in-memory auth and ignore a persisted htpasswd / SQLite store or a
+    // configured `backend:`. A resolver-only server intentionally uses
+    // in-memory auth (see [`load_startup_auth`]).
+    let auth = load_startup_auth(&config).await?;
     let app = router_with_auth_and_osv(config, auth, osv_index);
     tracing::info!(%listen, "pnpr listening");
     axum::serve(NodelayTcpListener(listener), app)

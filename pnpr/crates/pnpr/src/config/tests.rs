@@ -234,6 +234,16 @@ fn features_default_to_enabled_when_absent() {
 }
 
 #[test]
+fn feature_blocks_present_but_empty_default_to_enabled() {
+    // A bare `registry:` parses as YAML null and `resolver: {}` as an
+    // empty map; both must mean "enabled", not fail to deserialize.
+    let yaml = "registry:\nresolver: {}\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.registry.enabled);
+    assert!(config.resolver.enabled);
+}
+
+#[test]
 fn from_yaml_str_parses_feature_toggles() {
     let yaml = r"
 registry:
