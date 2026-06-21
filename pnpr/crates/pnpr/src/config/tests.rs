@@ -267,6 +267,16 @@ packages:
 }
 
 #[test]
+fn cli_disabling_both_surfaces_with_bundled_config_errors_without_panicking() {
+    // No config file → the bundled branch. Disabling both surfaces via
+    // CLI must surface a clean error, not panic on the bundled `expect`.
+    let overrides = FeatureOverrides { disable_registry: true, disable_resolver: true };
+    let err = Config::resolve_with_overrides(None, None, listen(), None, overrides)
+        .expect_err("both surfaces disabled must error rather than panic");
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+}
+
+#[test]
 fn cli_disable_registry_skips_uplink_resolution() {
     // The config file enables the registry, but `--disable-registry`
     // (a CLI override) turns it off. Uplink resolution must be skipped

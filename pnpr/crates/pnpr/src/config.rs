@@ -1052,12 +1052,18 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> Self {
+        // With default (no) overrides the bundled config keeps both
+        // surfaces enabled, so the only way this errors is a malformed
+        // compiled-in YAML — a build-time bug, hence the `expect`. The
+        // override-taking variant returns `Result` because overrides can
+        // disable every surface (a runtime input error).
         Self::from_default_yaml_with_overrides(
             base_dir,
             listen,
             public_url,
             FeatureOverrides::default(),
         )
+        .expect("bundled DEFAULT_CONFIG_YAML must always parse")
     }
 
     fn from_default_yaml_with_overrides(
@@ -1065,7 +1071,7 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
         overrides: FeatureOverrides,
-    ) -> Self {
+    ) -> Result<Self, RegistryError> {
         Self::from_yaml_str_with_overrides(
             DEFAULT_CONFIG_YAML,
             base_dir,
@@ -1073,7 +1079,6 @@ impl Config {
             public_url,
             overrides,
         )
-        .expect("bundled DEFAULT_CONFIG_YAML must always parse")
     }
 
     /// Resolve the auto-discovery path for the global `config.yaml`,
@@ -1140,10 +1145,15 @@ impl Config {
             let config = Self::from_yaml_with_overrides(path, listen, public_url, overrides)?;
             return Ok((config, ConfigSource::DefaultPath(path.to_path_buf())));
         }
-        Ok((
-            Self::from_default_yaml_with_overrides(Path::new("."), listen, public_url, overrides),
-            ConfigSource::Bundled,
-        ))
+        let config =
+            Self::from_default_yaml_with_overrides(Path::new("."), listen, public_url, overrides)
+                .map_err(|err| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("parse bundled config: {err}"),
+                )
+            })?;
+        Ok((config, ConfigSource::Bundled))
     }
 
     /// Override-free convenience wrapper used by the test suite's many
