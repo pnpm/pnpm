@@ -47,7 +47,7 @@ impl CacheCommand {
         } else {
             packages
                 .iter()
-                .map(|p| format!("{}/{}.jsonl", registry_prefix, encode_pkg_name(p)))
+                .map(|pkg| format!("{}/{}.jsonl", registry_prefix, encode_pkg_name(pkg)))
                 .collect()
         };
 
@@ -56,7 +56,7 @@ impl CacheCommand {
             let glob = wax::Glob::new(&pattern).into_diagnostic()?;
             for entry in glob.walk(cache_dir).filter_map(std::result::Result::ok) {
                 if let Some(path_str) =
-                    entry.path().strip_prefix(cache_dir).ok().and_then(|p| p.to_str())
+                    entry.path().strip_prefix(cache_dir).ok().and_then(|path| path.to_str())
                 {
                     matches.push(path_str.replace('\\', "/"));
                 }
@@ -79,8 +79,8 @@ impl CacheCommand {
                 if let Ok(entries) = fs::read_dir(&cache_dir) {
                     let mut registries: Vec<String> = entries
                         .filter_map(std::result::Result::ok)
-                        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
-                        .map(|e| e.file_name().to_string_lossy().into_owned())
+                        .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
+                        .map(|entry| entry.file_name().to_string_lossy().into_owned())
                         .collect();
                     registries.sort();
                     if !registries.is_empty() {
@@ -137,7 +137,7 @@ impl CacheCommand {
                 let mut meta_file_paths = Vec::new();
                 for entry in glob.walk(&cache_dir).filter_map(std::result::Result::ok) {
                     if let Some(path_str) =
-                        entry.path().strip_prefix(&cache_dir).ok().and_then(|p| p.to_str())
+                        entry.path().strip_prefix(&cache_dir).ok().and_then(|path| path.to_str())
                     {
                         meta_file_paths
                             .push((path_str.replace('\\', "/"), entry.path().to_path_buf()));
@@ -152,7 +152,7 @@ impl CacheCommand {
 
                 for (file_path, full_path) in meta_file_paths {
                     let Some(meta_object) = load_meta(&full_path) else { continue };
-                    let mtime = fs::metadata(&full_path).and_then(|m| m.modified()).ok();
+                    let mtime = fs::metadata(&full_path).and_then(|meta| meta.modified()).ok();
 
                     let mut cached_versions = Vec::new();
                     let mut non_cached_versions = Vec::new();
@@ -164,8 +164,8 @@ impl CacheCommand {
                         };
                         let Some(integrity) = manifest
                             .get("dist")
-                            .and_then(|d| d.get("integrity"))
-                            .and_then(|i| i.as_str())
+                            .and_then(|dist| dist.get("integrity"))
+                            .and_then(|integrity_value| integrity_value.as_str())
                         else {
                             continue;
                         };
@@ -183,14 +183,14 @@ impl CacheCommand {
 
                     let registry_name = PathBuf::from(&file_path)
                         .parent()
-                        .map_or_else(|| ".".to_string(), |p| p.to_string_lossy().into_owned());
+                        .map_or_else(|| ".".to_string(), |parent| parent.to_string_lossy().into_owned());
 
                     meta_files_by_path.insert(
                         registry_name.replace('+', ":"),
                         json!({
                             "cachedVersions": cached_versions,
                             "nonCachedVersions": non_cached_versions,
-                            "cachedAt": mtime.map(|t| format!("{t:?}")),
+                            "cachedAt": mtime.map(|time| format!("{time:?}")),
                             "distTags": meta_object.dist_tags,
                         }),
                     );
