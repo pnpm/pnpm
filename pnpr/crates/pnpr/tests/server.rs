@@ -984,32 +984,30 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
         app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(handshake.status(), StatusCode::NOT_FOUND);
 
+    // `/-/pnpr` is the only stubbed resolver path, for every method, so
+    // capability detection cleanly concludes "no resolver here".
+    let handshake_post =
+        app.clone().oneshot(Request::post("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(handshake_post.status(), StatusCode::NOT_FOUND);
+
+    // `/v1/resolve` and `/v1/verify-lockfile` are NOT stubbed: they belong
+    // to the registry's version-manifest route (`GET|PUT /{first}/{second}`,
+    // i.e. package `v1`, tag `resolve` / `verify-lockfile`), so a POST
+    // returns 405 — proving the resolver stubs no longer shadow these
+    // legitimate registry paths.
     let resolve = app
         .clone()
         .oneshot(Request::post("/v1/resolve").body(Body::from("{}")).unwrap())
         .await
         .unwrap();
-    assert_eq!(resolve.status(), StatusCode::NOT_FOUND);
+    assert_eq!(resolve.status(), StatusCode::METHOD_NOT_ALLOWED);
 
     let verify = app
         .clone()
         .oneshot(Request::post("/v1/verify-lockfile").body(Body::from("{}")).unwrap())
         .await
         .unwrap();
-    assert_eq!(verify.status(), StatusCode::NOT_FOUND);
-
-    // A non-POST probe of a resolver path must also 404, not slip into the
-    // registry's catch-all GET routes and get proxied upstream.
-    let resolve_get = app
-        .clone()
-        .oneshot(Request::get("/v1/resolve").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(resolve_get.status(), StatusCode::NOT_FOUND);
-
-    let handshake_post =
-        app.clone().oneshot(Request::post("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(handshake_post.status(), StatusCode::NOT_FOUND);
+    assert_eq!(verify.status(), StatusCode::METHOD_NOT_ALLOWED);
 
     mock.assert_async().await;
 }

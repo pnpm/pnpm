@@ -252,25 +252,23 @@ fn router_with_auth_and_osv(
     // against the registries the *client* sends, so the accelerator works
     // whether or not this process also fronts a registry.
     //
-    // When the resolver is disabled these exact paths are still
-    // registered, but to an `any`-method 404 stub. They overlap the
-    // registry's catch-all param routes (`/-/pnpr` and `/v1/resolve` both
-    // match `/{first}/{second}`), so without the stub a probe would fall
-    // through to the registry and be proxied upstream — surfacing a
-    // confusing 502 where a client expects the "no resolver here" 404.
-    // The stub matches every method, not just the endpoint's real verb,
-    // so e.g. a `GET /v1/resolve` can't slip into the registry's GET
-    // catch-all.
+    // When the resolver is disabled, only `/-/pnpr` gets a 404 stub: it is
+    // the capability-probe path and overlaps the registry catch-all
+    // (`/-/pnpr` matches `/{first}/{second}`), so without the stub a probe
+    // would be proxied upstream, giving a confusing 502 where a client
+    // expects the "no resolver here" 404. `/v1/resolve` and
+    // `/v1/verify-lockfile` carry no capability probe and are POST-only, so
+    // they are left unmounted rather than stubbed: that keeps the registry
+    // npm-compatible for the (unusual but legitimate) version-manifest
+    // paths `GET /v1/resolve` / `GET /v1/verify-lockfile` (package `v1`,
+    // tag `resolve` / `verify-lockfile`), with their POST falling to a 405.
     if resolver_enabled {
         router = router
             .route("/-/pnpr", get(serve_pnpr_handshake))
             .route("/v1/resolve", post(serve_resolve))
             .route("/v1/verify-lockfile", post(serve_verify_lockfile));
     } else {
-        router = router
-            .route("/-/pnpr", any(resolver_disabled))
-            .route("/v1/resolve", any(resolver_disabled))
-            .route("/v1/verify-lockfile", any(resolver_disabled));
+        router = router.route("/-/pnpr", any(resolver_disabled));
     }
     // The npm-registry surface: every packument/tarball read, publish,
     // unpublish, dist-tag, search, and the user/login endpoint. When the
