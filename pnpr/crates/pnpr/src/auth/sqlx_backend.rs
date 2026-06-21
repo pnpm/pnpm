@@ -32,6 +32,9 @@ impl<Db> SqlAuth<Db> {
     }
 }
 
+/// Only use this around read-only request-path work or startup setup. Request-path
+/// writes must await the database result so callers do not observe a timeout with
+/// an unknown commit state.
 async fn with_auth_timeout<T, E>(
     timeout: Duration,
     future: impl Future<Output = std::result::Result<T, E>>,
@@ -98,8 +101,7 @@ where
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
             MaxUsers::Limited(max) => {
                 if with_auth_timeout(self.timeout, self.db.user_count()).await? >= max {
-                    with_auth_timeout(self.timeout, self.db.reconcile_user_counter_overcount())
-                        .await?;
+                    self.db.reconcile_user_counter_overcount().await?;
                     if with_auth_timeout(self.timeout, self.db.user_count()).await? >= max {
                         return Err(RegistryError::TooManyUsers { max });
                     }
@@ -109,9 +111,7 @@ where
         }
 
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        match with_auth_timeout(self.timeout, self.db.insert_user(username, &hash, self.max_users))
-            .await?
-        {
+        match self.db.insert_user(username, &hash, self.max_users).await? {
             InsertUser::Created => Ok((UpsertOutcome::Created, username.to_string())),
             InsertUser::Existing(stored) => {
                 verify_returning_user(&stored.username, password, stored.bcrypt_hash).await
@@ -178,7 +178,7 @@ where
             readonly: false,
             cidr_whitelist: Vec::new(),
         };
-        with_auth_timeout(self.timeout, self.db.insert_token(&token_hash, &record)).await?;
+        self.db.insert_token(&token_hash, &record).await?;
         Ok(raw)
     }
 
@@ -199,7 +199,7 @@ where
         let Some(record) = with_auth_timeout(self.timeout, self.db.find_token(key)).await? else {
             return Ok(None);
         };
-        with_auth_timeout(self.timeout, self.db.delete_token(key)).await?;
+        self.db.delete_token(key).await?;
         Ok(Some(record))
     }
 }
@@ -852,6 +852,8 @@ mod tests {
 
     struct SlowLookupBackend;
 
+    struct SlowWriteBackend;
+
     struct CountingLookupBackend {
         stored_user_calls: Arc<AtomicU64>,
     }
@@ -941,6 +943,52 @@ mod tests {
         }
 
         async fn delete_token(&self, _token_hash: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl AuthSqlBackend for SlowWriteBackend {
+        async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
+            Ok(None)
+        }
+
+        async fn user_count(&self) -> Result<u64> {
+            Ok(0)
+        }
+
+        async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
+            Ok(false)
+        }
+
+        async fn insert_user(
+            &self,
+            _username: &str,
+            _bcrypt_hash: &str,
+            _max_users: MaxUsers,
+        ) -> Result<InsertUser> {
+            Ok(InsertUser::Created)
+        }
+
+        async fn insert_token(&self, _token_hash: &str, _record: &TokenRecord) -> Result<()> {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            Ok(())
+        }
+
+        async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
+            Ok(None)
+        }
+
+        async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
+            Ok(None)
+        }
+
+        async fn list_tokens(&self, _username: &str) -> Result<Vec<(String, TokenRecord)>> {
+            Ok(Vec::new())
+        }
+
+        async fn delete_token(&self, _token_hash: &str) -> Result<()> {
+            tokio::time::sleep(Duration::from_millis(20)).await;
             Ok(())
         }
     }
@@ -1060,5 +1108,14 @@ mod tests {
         let err = auth.lookup("token").await.unwrap_err();
 
         assert!(matches!(err, RegistryError::AuthDatabaseTimeout));
+    }
+
+    #[tokio::test]
+    async fn token_issue_waits_for_slow_backend_write() {
+        let auth = SqlAuth::new(SlowWriteBackend, MaxUsers::Unlimited, Duration::from_millis(1));
+
+        let token = auth.issue("alice").await.unwrap();
+
+        assert!(!token.is_empty());
     }
 }
