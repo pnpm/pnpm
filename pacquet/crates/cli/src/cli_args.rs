@@ -177,25 +177,44 @@ impl CliArgs {
     /// canonicalized `--dir`, the same config layering (`.npmrc` auth
     /// file seed + `--config.<key>` overrides). Workspace-filtered and
     /// recursive installs always take the full path.
-    pub fn finished_via_install_fast_path(&self, config_overrides: &ConfigOverrides) -> bool {
+    pub fn finished_via_install_fast_path(
+        &self,
+        config_overrides: &ConfigOverrides,
+    ) -> miette::Result<bool> {
         let started_at = now_millis();
         let CliCommand::Install(install_args) = &self.command else {
-            return false;
+            return Ok(false);
         };
         if self.recursive || !self.filter.is_empty() || !self.filter_prod.is_empty() {
-            return false;
+            return Ok(false);
         }
         let Ok(dir) = dunce::canonicalize(&self.dir) else {
-            return false;
+            return Ok(false);
         };
         let loaded = Config { npmrc_auth_file: self.npmrc_auth_file.clone(), ..Config::default() }
             .current::<Host>(&dir);
         let Ok(mut config) = loaded else {
-            return false;
+            return Ok(false);
         };
         config_overrides.apply(&mut config);
         configure_default_reporter(self.reporter, &dir);
         let emit = reporter_emit(self.reporter);
+        // Validate / promote root `package.json#resolutions` before the
+        // fast-path check. An up-to-date install still needs to surface
+        // malformed-resolutions errors and the migration / ignored
+        // warnings — otherwise `pacquet install` on a cached repo
+        // silently skips them. Mirrors the call site in
+        // `InstallPipeline::run`.
+        let manifest = PackageManifest::create_if_needed(dir.join("package.json"))
+            .map_err(InitStateError::Manifest)?;
+        let warnings = crate::state::apply_root_resolutions_to_config(&mut config, &manifest)?;
+        for message in warnings {
+            emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message,
+                prefix: dir.to_string_lossy().to_string(),
+            }));
+        }
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
             // The fast path returns from `main` before `run` reaches its
@@ -207,7 +226,7 @@ impl CliArgs {
                 ended_at: now_millis(),
             }));
         }
-        finished
+        Ok(finished)
     }
 
     /// Execute the command. `config_overrides` carries `--config.<key>=<value>`
@@ -316,8 +335,6 @@ impl CliArgs {
             }
             CliCommand::Add(args) => {
                 let cfg = config()?;
-                cfg.ignore_resolutions_conflict =
-                    cfg.ignore_resolutions_conflict || args.ignore_resolutions_conflict;
                 let manifest = PackageManifest::create_if_needed(manifest_path())
                     .map_err(InitStateError::Manifest)
                     .wrap_err("initialize the state")?;
@@ -334,8 +351,6 @@ impl CliArgs {
             }
             CliCommand::Update(args) => {
                 let cfg = config()?;
-                cfg.ignore_resolutions_conflict =
-                    cfg.ignore_resolutions_conflict || args.ignore_resolutions_conflict;
                 let manifest = PackageManifest::create_if_needed(manifest_path())
                     .map_err(InitStateError::Manifest)
                     .wrap_err("initialize the state")?;
@@ -365,8 +380,6 @@ impl CliArgs {
             }
             CliCommand::Remove(args) => {
                 let cfg = config()?;
-                cfg.ignore_resolutions_conflict =
-                    cfg.ignore_resolutions_conflict || args.ignore_resolutions_conflict;
                 let manifest = PackageManifest::create_if_needed(manifest_path())
                     .map_err(InitStateError::Manifest)
                     .wrap_err("initialize the state")?;
@@ -416,8 +429,6 @@ impl CliArgs {
                 if let Some(pnpr_server) = args.pnpr_server.clone() {
                     cfg.pnpr_server = Some(pnpr_server);
                 }
-                cfg.ignore_resolutions_conflict =
-                    cfg.ignore_resolutions_conflict || args.ignore_resolutions_conflict;
                 let require_lockfile = args.frozen_lockfile;
                 let frozen_lockfile = args.frozen_lockfile;
                 // Config dependencies are workspace-level state: their
@@ -562,8 +573,8 @@ impl InstallPipeline {
         // Validate / promote root `package.json#resolutions` before any
         // side-effectful work — config-deps sync writes the env lockfile
         // document into `pnpm-lock.yaml`, and `updateConfig` hooks may
-        // mutate `cfg`. Failing fast on `RESOLUTIONS_CONFLICT_WITH_OVERRIDES`
-        // here keeps a conflicting repo from leaving half-written state
+        // mutate `cfg`. Running the resolutions handler here keeps a
+        // malformed or warn-worthy repo from leaving half-written state
         // behind. Reads the manifest once and reuses it for `State::init`
         // below.
         let manifest = PackageManifest::create_if_needed(manifest_path)

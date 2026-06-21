@@ -92,13 +92,6 @@ pub struct UpdateArgs {
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
 
-    /// Allow install when both `resolutions` in package.json and
-    /// `overrides` in pnpm-workspace.yaml exist. Overrides take
-    /// precedence; resolutions are ignored. Mirrors upstream pnpm's
-    /// `--ignore-resolutions-conflict`.
-    #[clap(long = "ignore-resolutions-conflict")]
-    pub ignore_resolutions_conflict: bool,
-
     /// Show outdated dependencies and select which ones to update.
     #[clap(short = 'i', long)]
     pub interactive: bool,

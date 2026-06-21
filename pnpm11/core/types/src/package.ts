@@ -201,7 +201,6 @@ export interface PnpmSettings {
   httpsProxy?: string
   noProxy?: string | boolean
   pnprServer?: string
-  ignoreResolutionsConflict?: boolean
 }
 
 export interface ProjectManifest extends BaseManifest {

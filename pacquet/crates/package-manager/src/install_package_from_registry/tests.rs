@@ -105,7 +105,6 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         supported_architectures: None,
         ignored_optional_dependencies: None,
         overrides: None,
-        ignore_resolutions_conflict: false,
         package_extensions: None,
         cache_dir: tempdir().unwrap().keep(),
         dlx_cache_max_age: 24 * 60,

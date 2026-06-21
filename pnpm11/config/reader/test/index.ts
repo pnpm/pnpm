@@ -3344,35 +3344,44 @@ describe('resolutions in root package.json', () => {
       workspaceDir: process.cwd(),
     })
 
-    expect(warnings).toContain(
-      'The "resolutions" field in package.json is deprecated. Use the "overrides" field in pnpm-workspace.yaml instead.'
-    )
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('The "resolutions" field in package.json is deprecated')
+    expect(warnings[0]).toContain('We attempted to migrate your resolutions to pnpm overrides')
+    expect(warnings[0]).toContain('foo: 1.0.0')
     expect(config.overrides).toStrictEqual({ foo: '1.0.0' })
   })
 
-  test('throws when both resolutions and workspace overrides exist', async () => {
+  test('strips control chars from selectors and specs in the migration warning', async () => {
+    // Repo-controlled manifest values that sneak control characters
+    // (newlines, ANSI escapes) into the warning could spoof CI log lines
+    // or hide subsequent output. `sanitizeForLog` replaces them with `?`
+    // before interpolation.
     prepareEmpty()
 
     fs.writeFileSync('package.json', JSON.stringify({
       name: 'test-pkg',
-      resolutions: { foo: '1.0.0', bar: '2.0.0' },
+      resolutions: {
+        'name\n[ERROR] injected': '1.0.0\n[ERROR] spec',
+      },
     }))
 
-    writeYamlFileSync('pnpm-workspace.yaml', {
-      overrides: { baz: '3.0.0', bar: '2.5.0' },
-    })
+    writeYamlFileSync('pnpm-workspace.yaml', {})
 
-    await expect(getConfig({
+    const { warnings } = await getConfig({
       cliOptions: {},
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: process.cwd(),
-    })).rejects.toMatchObject({
-      code: 'ERR_PNPM_RESOLUTIONS_CONFLICT_WITH_OVERRIDES',
-      message: expect.stringContaining('The "resolutions" field in package.json conflicts with "overrides" in pnpm-workspace.yaml'),
     })
+
+    expect(warnings).toHaveLength(1)
+    // Both the selector's and the spec's literal newlines must be
+    // replaced with `?`. The positive assertion below is the regression
+    // guard: if sanitization broke, the `\n` would split the entry across
+    // lines and the `?`-joined substring wouldn't match.
+    expect(warnings[0]).toContain('name?[ERROR] injected: 1.0.0?[ERROR] spec')
   })
 
-  test('warns instead of erroring when --ignore-resolutions-conflict is set', async () => {
+  test('warns and drops resolutions when both resolutions and workspace overrides exist', async () => {
     prepareEmpty()
 
     fs.writeFileSync('package.json', JSON.stringify({
@@ -3382,31 +3391,6 @@ describe('resolutions in root package.json', () => {
 
     writeYamlFileSync('pnpm-workspace.yaml', {
       overrides: { baz: '3.0.0', bar: '2.5.0' },
-    })
-
-    const { warnings, config } = await getConfig({
-      cliOptions: { 'ignore-resolutions-conflict': true },
-      packageManager: { name: 'pnpm', version: '1.0.0' },
-      workspaceDir: process.cwd(),
-    })
-
-    expect(warnings).toContain(
-      'The "resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence. Remove "resolutions" from package.json.'
-    )
-    expect(config.overrides).toStrictEqual({ baz: '3.0.0', bar: '2.5.0' })
-  })
-
-  test('warns instead of erroring when ignore-resolutions-conflict is set in pnpm-workspace.yaml', async () => {
-    prepareEmpty()
-
-    fs.writeFileSync('package.json', JSON.stringify({
-      name: 'test-pkg',
-      resolutions: { foo: '1.0.0', bar: '2.0.0' },
-    }))
-
-    writeYamlFileSync('pnpm-workspace.yaml', {
-      overrides: { baz: '3.0.0', bar: '2.5.0' },
-      ignoreResolutionsConflict: true,
     })
 
     const { warnings, config } = await getConfig({
@@ -3476,9 +3460,9 @@ describe('resolutions in root package.json', () => {
       workspaceDir: process.cwd(),
     })
 
-    expect(warnings).toContain(
-      'The "resolutions" field in package.json is deprecated. Use the "overrides" field in pnpm-workspace.yaml instead.'
-    )
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('The "resolutions" field in package.json is deprecated')
+    expect(warnings[0]).toContain('foo: 1.0.0')
     expect(config.overrides).toStrictEqual({ foo: '1.0.0' })
   })
 })

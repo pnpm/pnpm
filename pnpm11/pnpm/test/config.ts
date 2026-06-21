@@ -38,7 +38,10 @@ test('resolutions in root package.json are used as overrides when no overrides i
 
   const result = execPnpmSync(['install'])
   expect(result.status).toBe(0)
-  expect(result.stderr.toString()).toContain('The "resolutions" field in package.json is deprecated')
+  const stderr = result.stderr.toString()
+  expect(stderr).toContain('The "resolutions" field in package.json is deprecated')
+  expect(stderr).toContain('We attempted to migrate your resolutions to pnpm overrides')
+  expect(stderr).toContain('is-positive: 3.1.0')
 
   const lockfile = readYamlFileSync(WANTED_LOCKFILE) as any // eslint-disable-line
   expect(lockfile.overrides).toStrictEqual({
@@ -68,7 +71,10 @@ test('resolutions in root package.json are used as overrides without a pnpm-work
 
   const result = execPnpmSync(['install'])
   expect(result.status).toBe(0)
-  expect(result.stderr.toString()).toContain('The "resolutions" field in package.json is deprecated')
+  const stderr = result.stderr.toString()
+  expect(stderr).toContain('The "resolutions" field in package.json is deprecated')
+  expect(stderr).toContain('We attempted to migrate your resolutions to pnpm overrides')
+  expect(stderr).toContain('is-positive: 3.1.0')
 
   const lockfile = readYamlFileSync(WANTED_LOCKFILE) as any // eslint-disable-line
   expect(lockfile.overrides).toStrictEqual({
@@ -76,35 +82,7 @@ test('resolutions in root package.json are used as overrides without a pnpm-work
   })
 })
 
-test('error when both resolutions and overrides exist', async () => {
-  preparePackages([
-    {
-      name: 'project-1',
-      version: '1.0.0',
-    },
-  ])
-
-  fs.writeFileSync('package.json', JSON.stringify({
-    name: 'root',
-    private: true,
-    resolutions: {
-      'is-positive': '3.1.0',
-    },
-  }), 'utf8')
-
-  writeYamlFileSync('pnpm-workspace.yaml', {
-    packages: ['**', '!store/**'],
-    overrides: {
-      'is-negative': '1.0.0',
-    },
-  })
-
-  const result = execPnpmSync(['install'])
-  expect(result.status).not.toBe(0)
-  expect(result.stderr.toString()).toContain('resolutions" field in package.json conflicts with "overrides" in pnpm-workspace.yaml')
-})
-
-test('--ignore-resolutions-conflict allows install when both resolutions and overrides exist', async () => {
+test('warns and drops resolutions when both resolutions and overrides exist', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -130,8 +108,13 @@ test('--ignore-resolutions-conflict allows install when both resolutions and ove
     },
   })
 
-  const result = execPnpmSync(['install', '--ignore-resolutions-conflict'])
+  const result = execPnpmSync(['install'])
   expect(result.status).toBe(0)
+  const stderr = result.stderr.toString()
+  expect(stderr).toContain('"resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence')
+  // Regression guard: the deprecated-migration warning must NOT fire on
+  // the precedence path — only one of the two warnings should ever emit.
+  expect(stderr).not.toContain('We attempted to migrate your resolutions to pnpm overrides')
 
   const lockfile = readYamlFileSync(WANTED_LOCKFILE) as any // eslint-disable-line
   expect(lockfile.overrides).toStrictEqual({

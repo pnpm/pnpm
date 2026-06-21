@@ -118,7 +118,7 @@ function assertValidOverrides (overrides: unknown, fieldName: 'overrides' | 'res
 // sourced string before it is interpolated into an error/warning message.
 // Repo-controlled values can otherwise inject fake log lines or ANSI escape
 // sequences into CI output. Non-string inputs are returned unchanged.
-function sanitizeForLog (value: string): string {
+export function sanitizeForLog (value: string): string {
   // eslint-disable-next-line no-control-regex
   return value.replace(/[\u0000-\u001F\u007F]/g, '?')
 }

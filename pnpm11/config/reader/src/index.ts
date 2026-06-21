@@ -41,7 +41,7 @@ import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } fro
 import { getCacheDir, getConfigDir, getDataDir, getGlobalConfigPath, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
-import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
+import { getOptionsFromPnpmSettings, sanitizeForLog } from './getOptionsFromRootManifest.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
 import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
 import { npmDefaults } from './npmDefaults.js'
@@ -444,9 +444,10 @@ export async function getConfig (opts: {
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       // Always run the settings + resolutions handler, even when there's
       // no `pnpm-workspace.yaml`. Root `package.json#resolutions` still
-      // need to be validated and promoted to `overrides` (or conflict
-      // with workspace `overrides`); the catalog / settings merge inside
-      // the handler is a no-op when `workspaceManifest` is `undefined`.
+      // need to be validated and promoted to `overrides` (or be dropped
+      // with a warning when workspace `overrides` exist); the catalog /
+      // settings merge inside the handler is a no-op when
+      // `workspaceManifest` is `undefined`.
       addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
         configFromCliOpts,
         projectManifest: pnpmConfig.rootProjectManifest,
@@ -468,9 +469,9 @@ export async function getConfig (opts: {
       }
     } else {
       // No `pnpm-workspace.yaml` and not a global install: still process
-      // root `package.json#resolutions` so they get validated, promoted
-      // to `overrides`, or surface `RESOLUTIONS_CONFLICT_WITH_OVERRIDES`.
-      // Catalog / settings merge is a no-op without a workspace manifest.
+      // root `package.json#resolutions` so they get validated and
+      // promoted to `overrides`. Catalog / settings merge is a no-op
+      // without a workspace manifest.
       addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
         configFromCliOpts,
         projectManifest: pnpmConfig.rootProjectManifest,
@@ -1047,13 +1048,24 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest ?? {}, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
   if (newSettings.resolutionsStatus != null) {
     if (newSettings.resolutionsStatus.ignoredResolutions) {
-      if (newSettings.ignoreResolutionsConflict) {
-        warnings.push('The "resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence. Remove "resolutions" from package.json.')
-      } else {
-        throw new PnpmError('RESOLUTIONS_CONFLICT_WITH_OVERRIDES', 'The "resolutions" field in package.json conflicts with "overrides" in pnpm-workspace.yaml. Remove "resolutions" from package.json. To suppress this error, use the --ignore-resolutions-conflict flag.')
-      }
+      warnings.push('The "resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence. Remove "resolutions" from package.json.')
     } else if (newSettings.resolutionsStatus.usedResolutions) {
-      warnings.push('The "resolutions" field in package.json is deprecated. Use the "overrides" field in pnpm-workspace.yaml instead.')
+      const originalResolutions = projectManifest?.resolutions ?? {}
+      // Selectors and specs are repo-controlled manifest values — strip
+      // ASCII control chars before interpolation so a malicious or
+      // malformed `package.json` can't inject fake log lines or ANSI
+      // escapes into CI output. Mirrors `assertValidOverrides` /
+      // `warnAboutDeprecatedVersionReferences` in getOptionsFromRootManifest.ts.
+      const entries = Object.entries(newSettings.overrides ?? {}).map(([selector, resolved]) => {
+        const original = originalResolutions[selector]
+        if (original != null && original !== resolved) {
+          return `  ${sanitizeForLog(selector)}: ${sanitizeForLog(original)} -> ${sanitizeForLog(resolved)}`
+        }
+        return `  ${sanitizeForLog(selector)}: ${sanitizeForLog(resolved)}`
+      })
+      warnings.push(
+        `The "resolutions" field in package.json is deprecated. We attempted to migrate your resolutions to pnpm overrides. Please verify:\n${entries.join('\n')}\nUse the "overrides" field in pnpm-workspace.yaml instead.`
+      )
     }
     delete newSettings.resolutionsStatus
   }

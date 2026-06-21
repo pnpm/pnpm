@@ -339,14 +339,6 @@ pub struct WorkspaceSettings {
     /// [`getOutdatedLockfileSetting.ts:50-52`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L50-L52).
     pub overrides: Option<IndexMap<String, String>>,
 
-    /// `ignoreResolutionsConflict` from `pnpm-workspace.yaml`. When
-    /// `true`, suppresses the error raised when both `resolutions` in
-    /// root `package.json` and `overrides` in `pnpm-workspace.yaml`
-    /// exist, emitting a warning instead. Mirrors upstream's
-    /// `--ignore-resolutions-conflict` flag and the
-    /// `RESOLUTIONS_CONFLICT_WITH_OVERRIDES` error code.
-    pub ignore_resolutions_conflict: Option<bool>,
-
     /// `cacheDir` from `pnpm-workspace.yaml`. Resolved against the
     /// workspace dir like the other path-valued fields. Drives
     /// the lockfile-verified JSONL cache + packument mirror used
@@ -606,7 +598,6 @@ impl WorkspaceSettings {
         self.supported_architectures = None;
         self.ignored_optional_dependencies = None;
         self.overrides = None;
-        self.ignore_resolutions_conflict = None;
         self.package_extensions = None;
     }
 
@@ -845,9 +836,6 @@ impl WorkspaceSettings {
         // and that isn't in scope here.
         if let Some(v) = self.overrides {
             config.overrides = (!v.is_empty()).then_some(v);
-        }
-        if let Some(v) = self.ignore_resolutions_conflict {
-            config.ignore_resolutions_conflict = v;
         }
         // Empty map collapses to `None` so the workspace-state drift
         // check ignores it, mirroring the same shape `overrides` uses.

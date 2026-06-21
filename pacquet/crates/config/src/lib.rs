@@ -1230,13 +1230,6 @@ pub struct Config {
     /// [`WorkspaceSettings::overrides`]: crate::workspace_yaml::WorkspaceSettings::overrides
     pub overrides: Option<IndexMap<String, String>>,
 
-    /// `ignoreResolutionsConflict` from `pnpm-workspace.yaml`.
-    /// Suppresses `RESOLUTIONS_CONFLICT_WITH_OVERRIDES` when both
-    /// `resolutions` and `overrides` exist. Set via the
-    /// `--ignore-resolutions-conflict` CLI flag or the
-    /// `ignoreResolutionsConflict` yaml key.
-    pub ignore_resolutions_conflict: bool,
-
     /// `packageExtensions` from `pnpm-workspace.yaml`. Maps a
     /// `name[@range]` selector to a partial manifest fragment that
     /// gets merged into every matching package's manifest at

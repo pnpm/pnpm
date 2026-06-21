@@ -100,12 +100,6 @@ pub struct AddArgs {
     /// is created. Mirrors pnpm's `--lockfile-only`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
-    /// Allow install when both `resolutions` in package.json and
-    /// `overrides` in pnpm-workspace.yaml exist. Overrides take
-    /// precedence; resolutions are ignored. Mirrors upstream pnpm's
-    /// `--ignore-resolutions-conflict`.
-    #[clap(long = "ignore-resolutions-conflict")]
-    pub ignore_resolutions_conflict: bool,
     /// The directory with links to the store (default is `node_modules/.pacquet`).
     /// All direct and indirect dependencies of the project are linked into this directory
     #[clap(long = "virtual-store-dir", default_value = "node_modules/.pacquet")]

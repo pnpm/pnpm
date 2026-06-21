@@ -73,7 +73,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
-  'ignore-resolutions-conflict': Boolean,
   recursive: Boolean,
 })
 

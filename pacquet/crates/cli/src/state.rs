@@ -47,14 +47,6 @@ pub enum InitStateError {
     #[diagnostic(transparent)]
     Network(#[error(source)] ForInstallsError),
 
-    #[display(
-        r#"The "resolutions" field in package.json conflicts with "overrides" in \
-         pnpm-workspace.yaml. Remove "resolutions" from package.json. To suppress this \
-         error, use the --ignore-resolutions-conflict flag."#
-    )]
-    #[diagnostic(code(ERR_PNPM_RESOLUTIONS_CONFLICT_WITH_OVERRIDES))]
-    ResolutionsConflictWithOverrides,
-
     #[display("The value of resolutions.{selector} should be a string, but got {actual_type}")]
     #[diagnostic(code(ERR_PNPM_INVALID_RESOLUTIONS))]
     InvalidResolutionValue { selector: String, actual_type: String },
@@ -119,8 +111,8 @@ impl State {
 }
 
 /// Promote `resolutions` from the root `package.json` into `config.overrides`
-/// when no workspace overrides exist, or error / warn on conflict. Mirrors
-/// upstream's
+/// when no workspace overrides exist, or warn when both are present (in which
+/// case `overrides` wins and `resolutions` is dropped). Mirrors upstream's
 /// [`addSettingsFromWorkspaceManifestToConfig`].
 ///
 /// Takes the already-read project manifest so the caller can reuse it for
@@ -140,27 +132,32 @@ pub fn apply_root_resolutions_to_config(
     project_manifest: &PackageManifest,
 ) -> Result<Vec<String>, InitStateError> {
     let root_manifest_path = config.workspace_dir.as_ref().map(|dir| dir.join("package.json"));
-    let root_manifest = match root_manifest_path {
+    match root_manifest_path {
         // Workspace root differs from project root: read the workspace's
-        // package.json separately.
+        // package.json separately. The owned `Value` stays in this scope
+        // and is borrowed for the call below.
         Some(ref path) if path != project_manifest.path() => {
-            pacquet_package_manifest::safe_read_package_json_from_dir(path.parent().unwrap())
-                .map_err(InitStateError::Manifest)?
+            let root_manifest =
+                pacquet_package_manifest::safe_read_package_json_from_dir(path.parent().unwrap())
+                    .map_err(InitStateError::Manifest)?;
+            if let Some(value) = root_manifest {
+                apply_resolutions_to_config(config, &value)
+            } else {
+                Ok(Vec::new())
+            }
         }
         // Either workspace root matches project root, or there's no
         // workspace — in both cases the project manifest IS the root.
-        _ => Some(project_manifest.value().clone()),
-    };
-    let mut warnings = Vec::new();
-    if let Some(root_value) = root_manifest {
-        warnings = apply_resolutions_to_config(config, &root_value)?;
+        // Borrow directly to avoid a deep `serde_json::Value::clone()`
+        // of the entire manifest tree on every install/add/update/remove
+        // startup.
+        _ => apply_resolutions_to_config(config, project_manifest.value()),
     }
-    Ok(warnings)
 }
 
 /// Read `resolutions` from root `package.json` and either promote them to
-/// `config.overrides` (when no workspace overrides exist), error on conflict
-/// (when both exist), or record a deprecation warning. Mirrors upstream's
+/// `config.overrides` (when no workspace overrides exist) or warn and drop
+/// them (when both exist). Mirrors upstream's
 /// [`addSettingsFromWorkspaceManifestToConfig`].
 ///
 /// Returns warning strings for the caller to emit; see
@@ -187,26 +184,25 @@ fn apply_resolutions_to_config(
     for (key, value) in resolutions {
         if !value.is_string() {
             return Err(InitStateError::InvalidResolutionValue {
-                selector: key.clone(),
+                selector: sanitize_for_log(key),
                 actual_type: json_value_type_name(value),
             });
         }
     }
     let has_overrides = config.overrides.as_ref().is_some_and(|overrides| !overrides.is_empty());
     if has_overrides {
-        if config.ignore_resolutions_conflict {
-            Ok(vec![
-            r#"The "resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence. Remove "resolutions" from package.json."#
-                .to_string(),
-            ])
-        } else {
-            Err(InitStateError::ResolutionsConflictWithOverrides)
-        }
+        Ok(vec![
+        r#"The "resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence. Remove "resolutions" from package.json."#
+            .to_string(),
+        ])
     } else {
-        let overrides: IndexMap<String, String> = resolutions
+        // `(selector, original_spec, resolved_spec)`. The original is
+        // kept so the warning can show `original -> resolved` when the
+        // `$dep` version-reference rewrite actually changed the value.
+        let pairs: Vec<(String, String, String)> = resolutions
             .into_iter()
             .map(|(k, v)| {
-                let spec = v.as_str().unwrap();
+                let original = v.as_str().unwrap();
                 // Values are copied verbatim — `${VAR}` placeholders are NOT
                 // expanded. Unlike `pnpm-workspace.yaml` overrides (which
                 // expand env vars through `replaceEnvInSettings` / our
@@ -217,16 +213,40 @@ fn apply_resolutions_to_config(
                 // environment secrets into the lockfile. `$dep` version
                 // references (which start with `$`, not `${`) are still
                 // resolved against the manifest below.
-                resolve_version_reference(spec, root_manifest).map(|resolved| (k.clone(), resolved))
+                let resolved = resolve_version_reference(original, root_manifest)?;
+                Ok((k.clone(), original.to_owned(), resolved))
             })
             .collect::<Result<_, _>>()?;
+        let overrides: IndexMap<String, String> =
+            pairs.iter().map(|(k, _original, resolved)| (k.clone(), resolved.clone())).collect();
         if !overrides.is_empty() {
             config.overrides = Some(overrides);
         }
-        Ok(vec![
-            r#"The "resolutions" field in package.json is deprecated. Use the "overrides" field in pnpm-workspace.yaml instead."#
-                .to_string(),
-        ])
+        let entries: Vec<String> = pairs
+            .iter()
+            .map(|(selector, original, resolved)| {
+                // Selectors and specs are repo-controlled manifest values —
+                // strip ASCII control chars before interpolation so a
+                // malicious or malformed `package.json` can't inject fake
+                // log lines or ANSI escapes into CI output. Mirrors
+                // `sanitizeForLog` in upstream's getOptionsFromRootManifest.ts.
+                let selector = sanitize_for_log(selector);
+                let original = sanitize_for_log(original);
+                let resolved = sanitize_for_log(resolved);
+                if original == resolved {
+                    format!("  {selector}: {resolved}")
+                } else {
+                    format!("  {selector}: {original} -> {resolved}")
+                }
+            })
+            .collect();
+        let message = format!(
+            r#"The "resolutions" field in package.json is deprecated. We attempted to migrate your resolutions to pnpm overrides. Please verify:
+{}
+Use the "overrides" field in pnpm-workspace.yaml instead."#,
+            entries.join("\n"),
+        );
+        Ok(vec![message])
     }
 }
 
@@ -250,8 +270,8 @@ fn resolve_version_reference(
     match dep_version {
         Some(v) => Ok(v.to_owned()),
         None => Err(InitStateError::CannotResolveOverrideVersion {
-            spec: spec.to_owned(),
-            dep_name: dep_name.to_owned(),
+            spec: sanitize_for_log(spec),
+            dep_name: sanitize_for_log(dep_name),
         }),
     }
 }
@@ -265,6 +285,23 @@ fn json_value_type_name(value: &serde_json::Value) -> String {
         serde_json::Value::Array(_) => "array".to_owned(),
         serde_json::Value::Object(_) => "object".to_owned(),
     }
+}
+
+/// Replace ASCII control characters (C0 + DEL) with `'?'`.
+///
+/// Repo-controlled manifest values (selectors, version specs) are
+/// interpolated into warnings and errors; without stripping, a
+/// malicious `package.json` can inject fake log lines or ANSI escape
+/// sequences into CI output. Mirrors upstream's `sanitizeForLog` in
+/// `config/reader/src/getOptionsFromRootManifest.ts`.
+fn sanitize_for_log(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| {
+            let code = ch as u32;
+            if code <= 0x1F || code == 0x7F { '?' } else { ch }
+        })
+        .collect()
 }
 
 #[cfg(test)]
