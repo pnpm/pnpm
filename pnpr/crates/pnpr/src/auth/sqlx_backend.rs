@@ -247,6 +247,7 @@ pub(super) mod postgres {
     };
     use async_trait::async_trait;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
+    use std::time::Duration;
 
     #[derive(Debug)]
     pub(in crate::auth) struct PostgresDatabase {
@@ -260,29 +261,47 @@ pub(super) mod postgres {
             settings: &SqlBackendSettings,
             max_users: MaxUsers,
         ) -> Result<Self> {
-            let mut options = PgPoolOptions::new();
-            if let Some(max_connections) = settings.max_connections {
-                if max_connections == 0 {
-                    return Err(invalid_pool_size("postgres"));
-                }
-                options = options.max_connections(max_connections);
-            }
-            let statement_timeout_sql =
-                format!("SET statement_timeout = {}", timeout_millis(settings.timeout));
-            options = options.after_connect(move |conn, _meta| {
-                let statement_timeout_sql = statement_timeout_sql.clone();
-                Box::pin(async move {
-                    sqlx::query(&statement_timeout_sql).execute(conn).await?;
-                    Ok(())
-                })
-            });
-            options = options.acquire_timeout(settings.timeout);
-            let pool =
-                with_auth_timeout(settings.startup_timeout, options.connect(&settings.url)).await?;
+            let startup_options = postgres_pool_options(
+                settings,
+                settings.startup_timeout,
+                settings.startup_timeout,
+            )?;
+            let startup_pool =
+                with_auth_timeout(settings.startup_timeout, startup_options.connect(&settings.url))
+                    .await?;
+            let startup_db = PostgresDatabase { pool: startup_pool };
+            with_auth_timeout(settings.startup_timeout, startup_db.init_schema()).await?;
+            startup_db.pool.close().await;
+
+            let pool = postgres_pool_options(settings, settings.timeout, settings.timeout)?
+                .connect_lazy(&settings.url)?;
             let db = PostgresDatabase { pool };
-            with_auth_timeout(settings.startup_timeout, db.init_schema()).await?;
             Ok(SqlAuth::new(db, max_users, settings.timeout))
         }
+    }
+
+    fn postgres_pool_options(
+        settings: &SqlBackendSettings,
+        session_timeout: Duration,
+        acquire_timeout: Duration,
+    ) -> Result<PgPoolOptions> {
+        let mut options = PgPoolOptions::new();
+        if let Some(max_connections) = settings.max_connections {
+            if max_connections == 0 {
+                return Err(invalid_pool_size("postgres"));
+            }
+            options = options.max_connections(max_connections);
+        }
+        let statement_timeout_sql =
+            format!("SET statement_timeout = {}", timeout_millis(session_timeout));
+        options = options.after_connect(move |conn, _meta| {
+            let statement_timeout_sql = statement_timeout_sql.clone();
+            Box::pin(async move {
+                sqlx::query(&statement_timeout_sql).execute(conn).await?;
+                Ok(())
+            })
+        });
+        Ok(options.acquire_timeout(acquire_timeout))
     }
 
     #[async_trait]
@@ -560,6 +579,7 @@ pub(super) mod mysql {
     };
     use async_trait::async_trait;
     use sqlx::{MySqlPool, Row, mysql::MySqlPoolOptions};
+    use std::time::Duration;
 
     #[derive(Debug)]
     pub(in crate::auth) struct MysqlDatabase {
@@ -573,39 +593,52 @@ pub(super) mod mysql {
             settings: &SqlBackendSettings,
             max_users: MaxUsers,
         ) -> Result<Self> {
-            let mut options = MySqlPoolOptions::new();
-            if let Some(max_connections) = settings.max_connections {
-                if max_connections == 0 {
-                    return Err(invalid_pool_size("mysql"));
-                }
-                options = options.max_connections(max_connections);
-            }
-            let statement_timeout_sql =
-                format!("SET SESSION max_execution_time = {}", timeout_millis(settings.timeout));
-            let row_lock_timeout_sql = format!(
-                "SET SESSION innodb_lock_wait_timeout = {}",
-                timeout_seconds(settings.timeout),
-            );
-            let metadata_lock_timeout_sql =
-                format!("SET SESSION lock_wait_timeout = {}", timeout_seconds(settings.timeout));
-            options = options.after_connect(move |conn, _meta| {
-                let statement_timeout_sql = statement_timeout_sql.clone();
-                let row_lock_timeout_sql = row_lock_timeout_sql.clone();
-                let metadata_lock_timeout_sql = metadata_lock_timeout_sql.clone();
-                Box::pin(async move {
-                    sqlx::query(&statement_timeout_sql).execute(&mut *conn).await?;
-                    sqlx::query(&row_lock_timeout_sql).execute(&mut *conn).await?;
-                    sqlx::query(&metadata_lock_timeout_sql).execute(conn).await?;
-                    Ok(())
-                })
-            });
-            options = options.acquire_timeout(settings.timeout);
-            let pool =
-                with_auth_timeout(settings.startup_timeout, options.connect(&settings.url)).await?;
+            let startup_options =
+                mysql_pool_options(settings, settings.startup_timeout, settings.startup_timeout)?;
+            let startup_pool =
+                with_auth_timeout(settings.startup_timeout, startup_options.connect(&settings.url))
+                    .await?;
+            let startup_db = MysqlDatabase { pool: startup_pool };
+            with_auth_timeout(settings.startup_timeout, startup_db.init_schema()).await?;
+            startup_db.pool.close().await;
+
+            let pool = mysql_pool_options(settings, settings.timeout, settings.timeout)?
+                .connect_lazy(&settings.url)?;
             let db = MysqlDatabase { pool };
-            with_auth_timeout(settings.startup_timeout, db.init_schema()).await?;
             Ok(SqlAuth::new(db, max_users, settings.timeout))
         }
+    }
+
+    fn mysql_pool_options(
+        settings: &SqlBackendSettings,
+        session_timeout: Duration,
+        acquire_timeout: Duration,
+    ) -> Result<MySqlPoolOptions> {
+        let mut options = MySqlPoolOptions::new();
+        if let Some(max_connections) = settings.max_connections {
+            if max_connections == 0 {
+                return Err(invalid_pool_size("mysql"));
+            }
+            options = options.max_connections(max_connections);
+        }
+        let statement_timeout_sql =
+            format!("SET SESSION max_execution_time = {}", timeout_millis(session_timeout));
+        let row_lock_timeout_sql =
+            format!("SET SESSION innodb_lock_wait_timeout = {}", timeout_seconds(session_timeout));
+        let metadata_lock_timeout_sql =
+            format!("SET SESSION lock_wait_timeout = {}", timeout_seconds(session_timeout));
+        options = options.after_connect(move |conn, _meta| {
+            let statement_timeout_sql = statement_timeout_sql.clone();
+            let row_lock_timeout_sql = row_lock_timeout_sql.clone();
+            let metadata_lock_timeout_sql = metadata_lock_timeout_sql.clone();
+            Box::pin(async move {
+                sqlx::query(&statement_timeout_sql).execute(&mut *conn).await?;
+                sqlx::query(&row_lock_timeout_sql).execute(&mut *conn).await?;
+                sqlx::query(&metadata_lock_timeout_sql).execute(conn).await?;
+                Ok(())
+            })
+        });
+        Ok(options.acquire_timeout(acquire_timeout))
     }
 
     #[async_trait]
