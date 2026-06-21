@@ -179,18 +179,17 @@ export function createNpmResolutionVerifier (
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion }) => {
-    // URL/git-keyed entries are deliberate non-registry deps. They anchor their bytes
-    // another way and a registry lookup would 404, so they're exempt.
-    if (nonSemverVersion != null) return { ok: true }
     // Git / directory / binary / custom / file: / git-hosted resolutions anchor their
-    // bytes another way and are exempt from the registry-tarball checks too.
+    // bytes another way (a commit SHA, a local path) and are exempt from the
+    // registry-tarball checks.
     if (!isRegistryTarballResolution(resolution)) return { ok: true }
 
-    // A registry tarball is only verifiable against its integrity, so reject any entry
+    // An http(s) tarball is only verifiable against its integrity, so reject any entry
     // whose integrity isn't a non-empty string: missing, `""`, or a non-string truthy value
     // from a tampered YAML lockfile (which would otherwise pass a truthiness check, then
-    // crash in the worker's `parseIntegrity`). Checked before the semver guard so a
-    // non-semver `version` can't dodge it. Pacquet enforces the same invariant.
+    // crash in the worker's `parseIntegrity`). This check needs no registry lookup, so it
+    // runs before both the URL-keyed and semver short-circuits below — neither a URL-keyed
+    // entry nor a tampered non-semver `version` can dodge it. Pacquet enforces the same invariant.
     const integrity = (resolution as { integrity?: unknown }).integrity
     if (typeof integrity !== 'string' || integrity.length === 0) {
       return {
@@ -200,10 +199,14 @@ export function createNpmResolutionVerifier (
       }
     }
 
-    // The registry policy checks below (tarball-URL binding, age, trust) query the
-    // registry by version, so they need a valid semver. A registry entry with a
-    // non-semver version still carries a verified integrity, so it isn't rejected here —
-    // just not policed further.
+    // URL-keyed entries are deliberate non-registry deps: integrity above already binds
+    // their bytes, and the registry policy checks below (tarball-URL binding, age, trust)
+    // would 404 against a non-registry origin, so stop here.
+    if (nonSemverVersion != null) return { ok: true }
+
+    // The registry policy checks below query the registry by version, so they need a
+    // valid semver. A registry entry with a non-semver version still carries a verified
+    // integrity (checked above), so it isn't rejected here — just not policed further.
     if (!semver.valid(version)) return { ok: true }
 
     // A tampered lockfile could carry a non-string `tarball` (e.g. a YAML array that

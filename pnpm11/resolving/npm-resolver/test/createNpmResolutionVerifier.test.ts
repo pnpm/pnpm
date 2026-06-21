@@ -351,6 +351,29 @@ test('createNpmResolutionVerifier() enforces missing integrity even with a non-s
   expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
 })
 
+test('createNpmResolutionVerifier() enforces missing integrity on a URL-keyed (nonSemverVersion) tarball', async () => {
+  // A URL-keyed http(s) tarball entry sets `nonSemverVersion`. Integrity binds its bytes
+  // and needs no registry lookup, so the URL-keyed short-circuit must not let a tampered
+  // integrity-less entry through.
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { tarball: 'https://cdn.example/foo/-/foo-1.0.0.tgz' } as unknown as Resolution,
+    { name: 'foo', version: '1.0.0', nonSemverVersion: 'https://cdn.example/foo/-/foo-1.0.0.tgz' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() passes a URL-keyed tarball that carries integrity without a registry lookup', async () => {
+  // With integrity present, the URL-keyed entry is bound and the registry policy checks
+  // (which would 404 against a non-registry origin) are correctly skipped — no mock agent.
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { integrity: FAKE_INTEGRITY, tarball: 'https://cdn.example/foo/-/foo-1.0.0.tgz' } as unknown as Resolution,
+    { name: 'foo', version: '1.0.0', nonSemverVersion: 'https://cdn.example/foo/-/foo-1.0.0.tgz' }
+  )
+  expect(result).toStrictEqual({ ok: true })
+})
+
 test('createNpmResolutionVerifier() rejects a non-string tarball instead of crashing', async () => {
   // A YAML array `tarball` would otherwise be string-coerced into an attacker URL later;
   // the verifier fails closed rather than silently skipping the URL-binding check.
