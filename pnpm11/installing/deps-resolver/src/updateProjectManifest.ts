@@ -62,7 +62,14 @@ function wantedDepMatchesResolvedDep (
   if (wantedDep.alias) return wantedDep.alias === resolvedDep.alias
   if (wantedDep.bareSpecifier === resolvedDep.normalizedBareSpecifier) return true
   if (resolvedDep.normalizedBareSpecifier == null) return false
-  return `github:${wantedDep.bareSpecifier}` === resolvedDep.normalizedBareSpecifier
+  return `github:${wantedDep.bareSpecifier}` === resolvedDep.normalizedBareSpecifier ||
+    normalizeGitHubBareSpecifier(wantedDep.bareSpecifier) === resolvedDep.normalizedBareSpecifier
+}
+
+function normalizeGitHubBareSpecifier (bareSpecifier: string): string | undefined {
+  const match = /^(?:git\+)?https:\/\/github\.com\/([^/#]+)\/([^/#]+?)(?:\.git)?(#.+)?$/.exec(bareSpecifier)
+  if (!match) return undefined
+  return `github:${match[1]}/${match[2]}${match[3] ?? ''}`
 }
 
 function getBareSpecifierToSave (
