@@ -49,6 +49,7 @@ where
 trait AuthSqlBackend: Send + Sync {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>>;
     async fn user_count(&self) -> Result<u64>;
+    async fn reconcile_user_counter_overcount(&self) -> Result<bool>;
     async fn insert_user(
         &self,
         username: &str,
@@ -90,7 +91,11 @@ where
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
             MaxUsers::Limited(max) => {
                 if with_auth_timeout(self.timeout, self.db.user_count()).await? >= max {
-                    return Err(RegistryError::TooManyUsers { max });
+                    with_auth_timeout(self.timeout, self.db.reconcile_user_counter_overcount())
+                        .await?;
+                    if with_auth_timeout(self.timeout, self.db.user_count()).await? >= max {
+                        return Err(RegistryError::TooManyUsers { max });
+                    }
                 }
             }
             MaxUsers::Unlimited => {}
@@ -232,52 +237,66 @@ pub(super) mod postgres {
             Ok(count.max(0) as u64)
         }
 
+        async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
+            self.reconcile_user_counter_overcount().await
+        }
+
         async fn insert_user(
             &self,
             username: &str,
             bcrypt_hash: &str,
             max_users: MaxUsers,
         ) -> Result<InsertUser> {
-            let mut tx = self.pool.begin().await?;
-            match max_users {
-                MaxUsers::Limited(max) => {
-                    let max = sql_max_users(max, "postgres")?;
-                    let updated = sqlx::query(
-                        "UPDATE auth_counters SET value = value + 1
-                         WHERE name = $1 AND value < $2",
-                    )
-                    .bind("users")
-                    .bind(max)
-                    .execute(&mut *tx)
-                    .await?;
-                    if updated.rows_affected() == 0 {
+            let mut can_retry_after_reconcile = matches!(max_users, MaxUsers::Limited(_));
+            loop {
+                let mut tx = self.pool.begin().await?;
+                match max_users {
+                    MaxUsers::Limited(max) => {
+                        let max = sql_max_users(max, "postgres")?;
+                        let updated = sqlx::query(
+                            "UPDATE auth_counters SET value = value + 1
+                             WHERE name = $1 AND value < $2",
+                        )
+                        .bind("users")
+                        .bind(max)
+                        .execute(&mut *tx)
+                        .await?;
+                        if updated.rows_affected() == 0 {
+                            tx.rollback().await?;
+                            if can_retry_after_reconcile {
+                                can_retry_after_reconcile = false;
+                                if self.reconcile_user_counter_overcount().await? {
+                                    continue;
+                                }
+                            }
+                            return self.existing_or_cap_reached(username).await;
+                        }
+                    }
+                    MaxUsers::Unlimited => {
+                        sqlx::query("UPDATE auth_counters SET value = value + 1 WHERE name = $1")
+                            .bind("users")
+                            .execute(&mut *tx)
+                            .await?;
+                    }
+                    MaxUsers::Disabled => {}
+                }
+                let inserted =
+                    sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES ($1, $2)")
+                        .bind(username)
+                        .bind(bcrypt_hash)
+                        .execute(&mut *tx)
+                        .await;
+                match inserted {
+                    Ok(_) => {
+                        tx.commit().await?;
+                        return Ok(InsertUser::Created);
+                    }
+                    Err(err) if is_unique_violation(&err) => {
                         tx.rollback().await?;
                         return self.existing_or_cap_reached(username).await;
                     }
+                    Err(err) => return Err(err.into()),
                 }
-                MaxUsers::Unlimited => {
-                    sqlx::query("UPDATE auth_counters SET value = value + 1 WHERE name = $1")
-                        .bind("users")
-                        .execute(&mut *tx)
-                        .await?;
-                }
-                MaxUsers::Disabled => {}
-            }
-            let inserted = sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES ($1, $2)")
-                .bind(username)
-                .bind(bcrypt_hash)
-                .execute(&mut *tx)
-                .await;
-            match inserted {
-                Ok(_) => {
-                    tx.commit().await?;
-                    Ok(InsertUser::Created)
-                }
-                Err(err) if is_unique_violation(&err) => {
-                    tx.rollback().await?;
-                    self.existing_or_cap_reached(username).await
-                }
-                Err(err) => Err(err.into()),
             }
         }
 
@@ -396,6 +415,32 @@ pub(super) mod postgres {
             Ok(updated.rows_affected())
         }
 
+        async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
+            let mut tx = self.pool.begin().await?;
+            let Some(counter): Option<i64> =
+                sqlx::query_scalar("SELECT value FROM auth_counters WHERE name = $1 FOR UPDATE")
+                    .bind("users")
+                    .fetch_optional(&mut *tx)
+                    .await?
+            else {
+                tx.commit().await?;
+                return Ok(false);
+            };
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx).await?;
+            if counter <= count {
+                tx.commit().await?;
+                return Ok(false);
+            }
+            sqlx::query("UPDATE auth_counters SET value = $2 WHERE name = $1")
+                .bind("users")
+                .bind(count.max(0))
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            Ok(true)
+        }
+
         async fn existing_or_cap_reached(&self, username: &str) -> Result<InsertUser> {
             match self.stored_user(username).await? {
                 Some(stored) => Ok(InsertUser::Existing(stored)),
@@ -496,52 +541,66 @@ pub(super) mod mysql {
             Ok(count.max(0) as u64)
         }
 
+        async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
+            self.reconcile_user_counter_overcount().await
+        }
+
         async fn insert_user(
             &self,
             username: &str,
             bcrypt_hash: &str,
             max_users: MaxUsers,
         ) -> Result<InsertUser> {
-            let mut tx = self.pool.begin().await?;
-            match max_users {
-                MaxUsers::Limited(max) => {
-                    let max = sql_max_users(max, "mysql")?;
-                    let updated = sqlx::query(
-                        "UPDATE auth_counters SET value = value + 1
-                         WHERE name = ? AND value < ?",
-                    )
-                    .bind("users")
-                    .bind(max)
-                    .execute(&mut *tx)
-                    .await?;
-                    if updated.rows_affected() == 0 {
+            let mut can_retry_after_reconcile = matches!(max_users, MaxUsers::Limited(_));
+            loop {
+                let mut tx = self.pool.begin().await?;
+                match max_users {
+                    MaxUsers::Limited(max) => {
+                        let max = sql_max_users(max, "mysql")?;
+                        let updated = sqlx::query(
+                            "UPDATE auth_counters SET value = value + 1
+                             WHERE name = ? AND value < ?",
+                        )
+                        .bind("users")
+                        .bind(max)
+                        .execute(&mut *tx)
+                        .await?;
+                        if updated.rows_affected() == 0 {
+                            tx.rollback().await?;
+                            if can_retry_after_reconcile {
+                                can_retry_after_reconcile = false;
+                                if self.reconcile_user_counter_overcount().await? {
+                                    continue;
+                                }
+                            }
+                            return self.existing_or_cap_reached(username).await;
+                        }
+                    }
+                    MaxUsers::Unlimited => {
+                        sqlx::query("UPDATE auth_counters SET value = value + 1 WHERE name = ?")
+                            .bind("users")
+                            .execute(&mut *tx)
+                            .await?;
+                    }
+                    MaxUsers::Disabled => {}
+                }
+                let inserted =
+                    sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES (?, ?)")
+                        .bind(username)
+                        .bind(bcrypt_hash)
+                        .execute(&mut *tx)
+                        .await;
+                match inserted {
+                    Ok(_) => {
+                        tx.commit().await?;
+                        return Ok(InsertUser::Created);
+                    }
+                    Err(err) if is_unique_violation(&err) => {
                         tx.rollback().await?;
                         return self.existing_or_cap_reached(username).await;
                     }
+                    Err(err) => return Err(err.into()),
                 }
-                MaxUsers::Unlimited => {
-                    sqlx::query("UPDATE auth_counters SET value = value + 1 WHERE name = ?")
-                        .bind("users")
-                        .execute(&mut *tx)
-                        .await?;
-                }
-                MaxUsers::Disabled => {}
-            }
-            let inserted = sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES (?, ?)")
-                .bind(username)
-                .bind(bcrypt_hash)
-                .execute(&mut *tx)
-                .await;
-            match inserted {
-                Ok(_) => {
-                    tx.commit().await?;
-                    Ok(InsertUser::Created)
-                }
-                Err(err) if is_unique_violation(&err) => {
-                    tx.rollback().await?;
-                    self.existing_or_cap_reached(username).await
-                }
-                Err(err) => Err(err.into()),
             }
         }
 
@@ -661,6 +720,32 @@ pub(super) mod mysql {
             Ok(updated.rows_affected())
         }
 
+        async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
+            let mut tx = self.pool.begin().await?;
+            let Some(counter): Option<i64> =
+                sqlx::query_scalar("SELECT value FROM auth_counters WHERE name = ? FOR UPDATE")
+                    .bind("users")
+                    .fetch_optional(&mut *tx)
+                    .await?
+            else {
+                tx.commit().await?;
+                return Ok(false);
+            };
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx).await?;
+            if counter <= count {
+                tx.commit().await?;
+                return Ok(false);
+            }
+            sqlx::query("UPDATE auth_counters SET value = ? WHERE name = ?")
+                .bind(count.max(0))
+                .bind("users")
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            Ok(true)
+        }
+
         async fn existing_or_cap_reached(&self, username: &str) -> Result<InsertUser> {
             match self.stored_user(username).await? {
                 Some(stored) => Ok(InsertUser::Existing(stored)),
@@ -745,6 +830,10 @@ mod tests {
             Ok(1)
         }
 
+        async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
+            Ok(false)
+        }
+
         async fn insert_user(
             &self,
             _username: &str,
@@ -783,6 +872,10 @@ mod tests {
 
         async fn user_count(&self) -> Result<u64> {
             Ok(0)
+        }
+
+        async fn reconcile_user_counter_overcount(&self) -> Result<bool> {
+            Ok(false)
         }
 
         async fn insert_user(

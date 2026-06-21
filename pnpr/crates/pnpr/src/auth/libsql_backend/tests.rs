@@ -108,6 +108,23 @@ async fn ensure_user_counter_reconciles_a_stale_counter() {
 }
 
 #[tokio::test]
+async fn registration_cap_self_heals_an_overcounted_counter() {
+    let backend = local_backend(MaxUsers::Limited(1)).await;
+    backend.add_or_login("alice", "x").await.unwrap();
+    backend.conn.execute("DELETE FROM users WHERE username = ?1", params!["alice"]).await.unwrap();
+
+    assert!(matches!(backend.add_or_login("bob", "x").await.unwrap(), UpsertOutcome::Created,));
+
+    let mut rows = backend
+        .conn
+        .query("SELECT value FROM auth_counters WHERE name = ?1", params!["users"])
+        .await
+        .unwrap();
+    let value: i64 = rows.next().await.unwrap().unwrap().get(0).unwrap();
+    assert_eq!(value, 1, "counter should match the newly created user");
+}
+
+#[tokio::test]
 async fn tokens_round_trip_and_revoke() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     let token = backend.issue("alice").await.unwrap();

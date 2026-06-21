@@ -141,46 +141,57 @@ impl UserBackend for LibsqlAuth {
         }
 
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        let tx = self.conn.transaction().await?;
-        if let MaxUsers::Limited(max) = self.max_users {
-            let sql_max = i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
-                reason: "backend.libsql auth max_users must fit a signed BIGINT".to_string(),
-            })?;
-            let updated = tx
+        let mut can_retry_after_reconcile = matches!(self.max_users, MaxUsers::Limited(_));
+        loop {
+            let tx = self.conn.transaction().await?;
+            if let MaxUsers::Limited(max) = self.max_users {
+                let sql_max = i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
+                    reason: "backend.libsql auth max_users must fit a signed BIGINT".to_string(),
+                })?;
+                let updated = tx
+                    .execute(
+                        "UPDATE auth_counters SET value = value + 1
+                         WHERE name = ?1 AND value < ?2",
+                        params!["users", sql_max],
+                    )
+                    .await?;
+                if updated == 0 {
+                    tx.rollback().await?;
+                    if can_retry_after_reconcile {
+                        can_retry_after_reconcile = false;
+                        if reconcile_user_counter_overcount(&self.conn).await? {
+                            continue;
+                        }
+                    }
+                    if let Some(stored) = self.stored_hash(username).await? {
+                        return verify_returning_user(username, password, stored).await;
+                    }
+                    return Err(RegistryError::TooManyUsers { max });
+                }
+            }
+            let inserted = tx
                 .execute(
-                    "UPDATE auth_counters SET value = value + 1
-                     WHERE name = ?1 AND value < ?2",
-                    params!["users", sql_max],
+                    "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+                    params![username, hash],
                 )
-                .await?;
-            if updated == 0 {
-                tx.rollback().await?;
-                if let Some(stored) = self.stored_hash(username).await? {
-                    return verify_returning_user(username, password, stored).await;
+                .await;
+            match inserted {
+                Ok(_) => {
+                    tx.commit().await?;
+                    return Ok(UpsertOutcome::Created);
                 }
-                return Err(RegistryError::TooManyUsers { max });
+                Err(err) if is_unique_violation(&err) => {
+                    tx.rollback().await?;
+                    if let Some(stored) = self.stored_hash(username).await? {
+                        return verify_returning_user(username, password, stored).await;
+                    }
+                    return Err(RegistryError::Unauthenticated {
+                        resource: format!("user {username:?}"),
+                    });
+                }
+                Err(err) => return Err(err.into()),
             }
         }
-        let inserted = tx
-            .execute(
-                "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                params![username, hash],
-            )
-            .await;
-        match inserted {
-            Ok(_) => tx.commit().await?,
-            Err(err) if is_unique_violation(&err) => {
-                tx.rollback().await?;
-                if let Some(stored) = self.stored_hash(username).await? {
-                    return verify_returning_user(username, password, stored).await;
-                }
-                return Err(RegistryError::Unauthenticated {
-                    resource: format!("user {username:?}"),
-                });
-            }
-            Err(err) => return Err(err.into()),
-        }
-        Ok(UpsertOutcome::Created)
     }
 
     async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
@@ -287,6 +298,34 @@ async fn ensure_user_counter(conn: &Connection) -> Result<()> {
     .await?;
     tx.commit().await?;
     Ok(())
+}
+
+async fn reconcile_user_counter_overcount(conn: &Connection) -> Result<bool> {
+    let tx = conn.transaction().await?;
+    let mut counter_rows =
+        tx.query("SELECT value FROM auth_counters WHERE name = ?1", params!["users"]).await?;
+    let Some(counter_row) = counter_rows.next().await? else {
+        drop(counter_rows);
+        tx.commit().await?;
+        return Ok(false);
+    };
+    let counter: i64 = counter_row.get(0)?;
+    drop(counter_rows);
+    let mut count_rows = tx.query("SELECT COUNT(*) FROM users", ()).await?;
+    let count_row = count_rows.next().await?.expect("COUNT(*) returns exactly one row");
+    let count: i64 = count_row.get(0)?;
+    drop(count_rows);
+    if counter <= count {
+        tx.commit().await?;
+        return Ok(false);
+    }
+    tx.execute(
+        "UPDATE auth_counters SET value = ?2 WHERE name = ?1",
+        params!["users", count.max(0)],
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(true)
 }
 
 fn is_unique_violation(err: &LibsqlError) -> bool {
