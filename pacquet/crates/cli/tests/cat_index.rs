@@ -1,0 +1,43 @@
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pacquet_testing_utils::bin::CommandTempCwd;
+
+#[test]
+fn should_cat_index_of_installed_package() {
+    let CommandTempCwd { pacquet, workspace, root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let pacquet = pacquet;
+    pacquet.with_args(["add", "@pnpm.e2e/hello-world-js-bin-parent"]).assert().success();
+
+    let mut pacquet2 = std::process::Command::cargo_bin("pacquet").unwrap();
+    pacquet2.current_dir(&workspace);
+    let output = pacquet2
+        .with_args(["cat-index", "@pnpm.e2e/hello-world-js-bin-parent"])
+        .output()
+        .expect("run pacquet cat-index");
+
+    assert!(output.status.success(), "Failed to cat-index");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"files\": {"));
+
+    drop(root);
+}
+
+#[test]
+fn should_fail_on_missing_package() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init().add_mocked_registry();
+
+    let output = pacquet
+        .with_args(["cat-index", "@pnpm.e2e/hello-world-js-bin-parent"])
+        .output()
+        .expect("run pacquet cat-index");
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    println!("STDERR: {stderr}");
+    assert!(stderr.contains("No corresponding index file found"));
+
+    drop(root);
+}
