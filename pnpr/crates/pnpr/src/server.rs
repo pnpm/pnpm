@@ -355,6 +355,11 @@ fn router_with_auth_and_osv(
 /// client connections; a resolver-only server skips journal recovery and
 /// on-disk auth entirely and stays stateless.
 pub async fn serve(config: Config) -> crate::error::Result<()> {
+    // Enforce the "at least one surface" invariant here too, not only at
+    // YAML load / CLI: embedders build `Config` programmatically and call
+    // straight into `serve`, so a both-disabled config must fail loudly
+    // rather than start a server that only answers `/-/ping`.
+    config.ensure_a_feature_is_enabled()?;
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
     let listen = config.listen;
@@ -375,6 +380,7 @@ pub async fn serve_listener(
     listener: tokio::net::TcpListener,
 ) -> crate::error::Result<()> {
     let listen = listener.local_addr()?;
+    config.ensure_a_feature_is_enabled()?;
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too (when the registry is
     // enabled) — going through `router` would silently fall back to

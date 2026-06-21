@@ -1109,14 +1109,23 @@ impl Config {
         let osv = build_osv_config(&file.osv, base_dir);
         let registry = RegistryFeature { enabled: file.registry.unwrap_or_default().enabled };
         let resolver = ResolverFeature { enabled: file.resolver.unwrap_or_default().enabled };
-        let uplinks = file
-            .uplinks
-            .into_iter()
-            .map(|(name, uplink)| {
-                let resolved = resolve_uplink::<SystemEnv>(&name, uplink)?;
-                Ok((name, resolved))
-            })
-            .collect::<Result<IndexMap<_, _>, RegistryError>>()?;
+        // Only the registry surface consults uplinks, and `resolve_uplink`
+        // is strict — a `uplink.auth` block with an unresolvable token is a
+        // config error. A resolver-only server mounts no registry routes,
+        // so skip resolution entirely; otherwise a registry-shaped config
+        // would force the resolver tier to carry upstream secrets it never
+        // uses.
+        let uplinks = if registry.enabled {
+            file.uplinks
+                .into_iter()
+                .map(|(name, uplink)| {
+                    let resolved = resolve_uplink::<SystemEnv>(&name, uplink)?;
+                    Ok((name, resolved))
+                })
+                .collect::<Result<IndexMap<_, _>, RegistryError>>()?
+        } else {
+            IndexMap::new()
+        };
         let config = Self {
             listen,
             public_url,

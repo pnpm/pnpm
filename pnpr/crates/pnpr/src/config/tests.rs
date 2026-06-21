@@ -244,6 +244,29 @@ fn feature_blocks_present_but_empty_default_to_enabled() {
 }
 
 #[test]
+fn resolver_only_skips_uplink_resolution() {
+    // With the registry disabled, an uplink whose auth token can't be
+    // resolved must not fail config load — no registry route uses uplinks,
+    // so a resolver-only tier shouldn't need upstream secrets.
+    let yaml = r"
+registry:
+  enabled: false
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    auth:
+      type: bearer
+      token_env: PNPR_DEFINITELY_UNSET_TOKEN_VAR
+packages:
+  '**':
+    proxy: npmjs
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(!config.registry.enabled);
+    assert!(config.uplinks.is_empty());
+}
+
+#[test]
 fn unknown_key_in_feature_block_is_a_config_error() {
     // A typo'd `enable` (vs `enabled`) must fail loudly rather than
     // silently leaving the surface enabled.
