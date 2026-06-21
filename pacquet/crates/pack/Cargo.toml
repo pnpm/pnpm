@@ -1,0 +1,37 @@
+[package]
+name                  = "pacquet-pack"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pacquet-catalogs-types                    = { workspace = true }
+pacquet-cmd-shim                          = { workspace = true }
+pacquet-config                            = { workspace = true }
+pacquet-executor                          = { workspace = true }
+pacquet-exportable-manifest               = { workspace = true }
+pacquet-fs-packlist                       = { workspace = true }
+pacquet-package-manifest                  = { workspace = true }
+pacquet-reporter                          = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
+
+derive_more = { workspace = true }
+flate2      = { workspace = true }
+indexmap    = { workspace = true }
+miette      = { workspace = true }
+pathdiff    = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+tar         = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

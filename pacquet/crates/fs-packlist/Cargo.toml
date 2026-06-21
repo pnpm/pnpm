@@ -1,5 +1,5 @@
 [package]
-name                  = "pacquet-exportable-manifest"
+name                  = "pacquet-fs-packlist"
 version               = "0.0.1"
 publish               = false
 authors.workspace     = true
@@ -11,14 +11,13 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-catalogs-resolver              = { workspace = true }
-pacquet-catalogs-types                 = { workspace = true }
-pacquet-package-manifest               = { workspace = true }
-pacquet-resolving-jsr-specifier-parser = { workspace = true }
+pacquet-diagnostics      = { workspace = true }
+pacquet-package-manifest = { workspace = true }
 
 derive_more = { workspace = true }
-miette      = { workspace = true }
+ignore      = { workspace = true }
 serde_json  = { workspace = true }
+tracing     = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

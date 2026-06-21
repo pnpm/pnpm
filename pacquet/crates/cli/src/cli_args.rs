@@ -17,6 +17,7 @@ pub mod install;
 pub mod link;
 pub mod list;
 pub mod outdated;
+pub mod pack;
 pub mod patch;
 pub mod patch_commit;
 pub mod patch_remove;
@@ -61,6 +62,7 @@ use link::LinkArgs;
 use list::ListArgs;
 use miette::{Context, IntoDiagnostic};
 use outdated::{OutdatedArgs, OutdatedOutcome};
+use pack::PackArgs;
 use pacquet_config::{Config, Host};
 use pacquet_default_reporter::DefaultReporter;
 use pacquet_executor::execute_shell;
@@ -194,6 +196,8 @@ pub enum CliCommand {
     /// Rebuild a package.
     #[clap(visible_alias = "rb")]
     Rebuild(RebuildArgs),
+    /// Create a tarball from a package
+    Pack(PackArgs),
     /// Removes packages from `node_modules` and from the project's `package.json`.
     // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
     // confusion with "run" and "recursive". Mirrors pnpm's `commandNames`.
@@ -524,6 +528,25 @@ impl CliArgs {
                     println!("{}", sanitize::sanitize(&username));
                     Ok(())
                 })
+            }
+            // `pack` prints the tarball summary (or JSON) its handler
+            // returns; the reporter type only affects the lifecycle-script
+            // output, so it's threaded into `run` and the result printed
+            // here, mirroring pnpm's `handler` → CLI print split. The
+            // handler is synchronous, so this arm resolves to a ready
+            // future once the output is printed.
+            CliCommand::Pack(args) => {
+                let output = match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        args.run::<DefaultReporter>(dir_ref, config()?, recursive)?
+                    }
+                    ReporterType::Ndjson => args.run::<NdjsonReporter>(dir_ref, config()?, recursive)?,
+                    ReporterType::Silent => args.run::<SilentReporter>(dir_ref, config()?, recursive)?,
+                };
+                if !output.is_empty() {
+                    println!("{output}");
+                }
+                Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Remove(args) => {
                 let command_state = state(false)?;
