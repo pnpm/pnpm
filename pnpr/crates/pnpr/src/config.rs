@@ -199,14 +199,17 @@ pub struct SqlBackendSettings {
     /// Maximum connections in the backend pool. Defaults to the
     /// driver's pool default when omitted.
     pub max_connections: Option<u32>,
-    /// Deadline for connecting to the auth database and for each
-    /// request-path auth database operation.
+    /// Deadline for each request-path auth database operation.
     pub timeout: Duration,
+    /// Deadline for initial auth database connect and schema setup.
+    pub startup_timeout: Duration,
 }
 
 impl SqlBackendSettings {
-    /// Default auth database deadline.
+    /// Default request-path auth database deadline.
     pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+    /// Default startup auth database deadline.
+    pub const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
 }
 
 /// Auth-related runtime configuration. Built from the YAML
@@ -813,6 +816,8 @@ struct SqlBackendFile {
     max_connections: Option<u32>,
     #[serde(default)]
     timeout: Option<Interval>,
+    #[serde(default)]
+    startup_timeout: Option<Interval>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1145,7 +1150,20 @@ fn build_sql_backend_settings(
             reason: format!("backend.{backend}.timeout must be greater than 0"),
         });
     }
-    Ok(SqlBackendSettings { url: file.url, max_connections: file.max_connections, timeout })
+    let startup_timeout =
+        parse_backend_interval(backend, "startupTimeout", file.startup_timeout.as_ref())?
+            .unwrap_or(SqlBackendSettings::DEFAULT_STARTUP_TIMEOUT);
+    if startup_timeout.is_zero() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!("backend.{backend}.startupTimeout must be greater than 0"),
+        });
+    }
+    Ok(SqlBackendSettings {
+        url: file.url,
+        max_connections: file.max_connections,
+        timeout,
+        startup_timeout,
+    })
 }
 
 fn parse_backend_interval(

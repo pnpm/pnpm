@@ -201,10 +201,11 @@ pub(super) mod postgres {
                 }
                 options = options.max_connections(max_connections);
             }
-            options = options.acquire_timeout(settings.timeout);
-            let pool = with_auth_timeout(settings.timeout, options.connect(&settings.url)).await?;
+            options = options.acquire_timeout(settings.startup_timeout);
+            let pool =
+                with_auth_timeout(settings.startup_timeout, options.connect(&settings.url)).await?;
             let db = PostgresDatabase { pool };
-            with_auth_timeout(settings.timeout, db.init_schema()).await?;
+            with_auth_timeout(settings.startup_timeout, db.init_schema()).await?;
             Ok(SqlAuth::new(db, max_users, settings.timeout))
         }
     }
@@ -464,10 +465,11 @@ pub(super) mod mysql {
                 }
                 options = options.max_connections(max_connections);
             }
-            options = options.acquire_timeout(settings.timeout);
-            let pool = with_auth_timeout(settings.timeout, options.connect(&settings.url)).await?;
+            options = options.acquire_timeout(settings.startup_timeout);
+            let pool =
+                with_auth_timeout(settings.startup_timeout, options.connect(&settings.url)).await?;
             let db = MysqlDatabase { pool };
-            with_auth_timeout(settings.timeout, db.init_schema()).await?;
+            with_auth_timeout(settings.startup_timeout, db.init_schema()).await?;
             Ok(SqlAuth::new(db, max_users, settings.timeout))
         }
     }

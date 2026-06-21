@@ -567,6 +567,7 @@ backend:
     url: postgres://pnpr:secret@db.example/pnpr
     maxConnections: 12
     timeout: 5s
+    startupTimeout: 2m
 uplinks: {}
 packages: {}
 ";
@@ -576,6 +577,7 @@ packages: {}
             assert_eq!(settings.url, "postgres://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, Some(12));
             assert_eq!(settings.timeout, Duration::from_secs(5));
+            assert_eq!(settings.startup_timeout, Duration::from_mins(2));
         }
         other => panic!("expected a postgres backend, got {other:?}"),
     }
@@ -597,6 +599,10 @@ packages: {}
             assert_eq!(settings.url, "postgresql://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, None);
             assert_eq!(settings.timeout, super::SqlBackendSettings::DEFAULT_TIMEOUT);
+            assert_eq!(
+                settings.startup_timeout,
+                super::SqlBackendSettings::DEFAULT_STARTUP_TIMEOUT,
+            );
         }
         other => panic!("expected a postgres backend, got {other:?}"),
     }
@@ -618,9 +624,32 @@ packages: {}
             assert_eq!(settings.url, "mysql://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, None);
             assert_eq!(settings.timeout, super::SqlBackendSettings::DEFAULT_TIMEOUT);
+            assert_eq!(
+                settings.startup_timeout,
+                super::SqlBackendSettings::DEFAULT_STARTUP_TIMEOUT,
+            );
         }
         other => panic!("expected a mysql backend, got {other:?}"),
     }
+}
+
+#[test]
+fn sql_backend_rejects_zero_startup_timeout() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  mysql:
+    url: mysql://pnpr:secret@db.example/pnpr
+    startupTimeout: 0
+uplinks: {}
+packages: {}
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
+        .expect_err("zero startup timeout must not be accepted");
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("backend.mysql.startupTimeout")),
+        "expected an InvalidConfig naming backend.mysql.startupTimeout, got {err:?}",
+    );
 }
 
 #[test]
