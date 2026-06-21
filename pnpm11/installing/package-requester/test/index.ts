@@ -1388,8 +1388,12 @@ test('skipFetch still downloads the tarball to compute a missing integrity', asy
     preferredVersions: {},
     projectDir,
     skipFetch: true,
-  })
+  }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
 
+  // The integrity is populated when the fetch is awaited (the resolver awaits these before
+  // building the lockfile), not synchronously, so resolution isn't blocked on the download.
+  expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toBeUndefined()
+  await pkgResponse.fetching()
   expect(pkgResponse.body.resolution).toHaveProperty('integrity')
   expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
 })

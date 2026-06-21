@@ -337,23 +337,24 @@ async function resolveAndFetch (
   }
 
   // A tarball-shaped resolution missing its integrity gets the integrity the worker
-  // computed from the downloaded bytes. This enriches every tarball entry that lacks one
-  // (including file: and git-hosted tarballs, which don't *require* integrity but still
-  // record it when it's available). Only tarball fetch results carry an integrity, so
-  // this needs no per-fetcher dispatch.
+  // computed from the downloaded bytes. To avoid blocking dependency resolution on the
+  // download, the integrity is populated when the fetch is awaited rather than here — a
+  // barrier in the resolver awaits these before the lockfile snapshot and the virtual-store
+  // paths (which hash the integrity) are built. Only tarball fetch results carry an
+  // integrity, so this enriches every tarball entry that lacks one (including file: and
+  // git-hosted tarballs) without per-fetcher dispatch.
+  let fetching = fetchResult.fetching
   if (!resolution.type && !(resolution as TarballResolution).integrity) {
-    const fetchedResult = await fetchResult.fetching()
-    if (fetchedResult.integrity != null) {
-      (resolution as TarballResolution).integrity = fetchedResult.integrity
+    let populating: Promise<PkgRequestFetchResult> | undefined
+    fetching = () => {
+      populating ??= fetchResult.fetching().then((fetchedResult) => {
+        if (fetchedResult.integrity != null) {
+          (resolution as TarballResolution).integrity = fetchedResult.integrity
+        }
+        return fetchedResult
+      })
+      return populating
     }
-  }
-  // If the fetcher still reports the resolution as incomplete, the fetch couldn't supply
-  // what it needs (e.g. no integrity was computed), so we fail closed.
-  if (fetcherForResolution?.resolutionNeedsFetch?.(resolution) === true) {
-    throw new PnpmError('MISSING_TARBALL_INTEGRITY',
-      `Cannot compute the integrity of package "${id}": no integrity was provided by the resolution nor computed during fetch.`,
-      { hint: 'Ensure the tarball is reachable from the registry (or that a custom fetcher returns an integrity), then re-run installation.' }
-    )
   }
   // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
   if (isInstallable === undefined && manifest != null) {
@@ -380,7 +381,7 @@ async function resolveAndFetch (
       alias,
       policyViolation,
     },
-    fetching: fetchResult.fetching,
+    fetching,
     filesIndexFile: fetchResult.filesIndexFile,
   }
 }

@@ -399,6 +399,21 @@ export async function resolveDependencies (
     }
   }
 
+  // Tarball resolutions that came back without an integrity (e.g. registries that
+  // generate tarballs on demand and omit it from their metadata) get it computed from the
+  // downloaded bytes during fetch. That integrity is needed both for this lockfile
+  // snapshot and for the virtual-store paths derived from it, so wait for those specific
+  // fetches here. Dependency resolution itself was not blocked on them, and entries that
+  // already carry an integrity are skipped — their downloads finish concurrently and are
+  // awaited later by `waitTillAllFetchingsFinish`.
+  await Promise.all(Object.values(resolvedPkgsById).map(async (pkg) => {
+    const resolution = pkg.resolution as { type?: string, integrity?: string }
+    if (pkg.fetching == null || resolution.type != null || resolution.integrity != null) return
+    try {
+      await pkg.fetching()
+    } catch {}
+  }))
+
   const newLockfile = updateLockfile({
     dependenciesGraph,
     lockfile: opts.wantedLockfile,
