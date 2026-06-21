@@ -1,7 +1,11 @@
 //! User and token storage for the registry.
 //!
 //! Auth state is split into two record stores, each behind a narrow
-//! async trait so the backing store is config-selectable:
+//! async trait ([`UserBackend`] / [`TokenBackend`]) so the backing
+//! store is config-selectable. The concrete backend is chosen once at
+//! startup and held in a closed `enum` ([`UserBackendKind`] /
+//! [`TokenBackendKind`]), so calls dispatch statically and the futures
+//! stay unboxed:
 //!
 //! * [`UserBackend`] — username → bcrypt-hashed password.
 //! * [`TokenBackend`] — SHA-256 token hash → token record.
@@ -38,7 +42,6 @@ use std::{
     fmt::Write as _,
     future::Future,
     path::{Path, PathBuf},
-    pin::Pin,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
@@ -48,22 +51,87 @@ use std::{
 
 mod libsql_backend;
 
-/// Boxed-future return type for the async methods of [`UserBackend`]
-/// and [`TokenBackend`]. async-fn-in-trait is stable, but a `dyn`
-/// trait whose methods return `impl Future` is not, and both backends
-/// are only ever held as `Arc<dyn _>` (see [`AuthState`]). Generic over
-/// the output because the two traits expose several methods with
-/// distinct return types.
-pub type AuthFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
-
-/// Bundle of the user store and the token store, each a trait object
-/// so the rest of the server doesn't have to know whether auth is
-/// file-backed, in-memory, or networked. Built once at startup by
+/// Bundle of the user store and the token store, each a concrete
+/// backend `enum` so the rest of the server doesn't have to know
+/// whether auth is file-backed, in-memory, or networked — without
+/// paying for `dyn` dispatch or boxed futures. Built once at startup by
 /// [`Self::load`].
 #[derive(Clone)]
 pub struct AuthState {
-    pub users: Arc<dyn UserBackend>,
-    pub tokens: Arc<dyn TokenBackend>,
+    pub users: Arc<UserBackendKind>,
+    pub tokens: Arc<TokenBackendKind>,
+}
+
+/// The selected user-record backend. A closed set chosen once at
+/// startup by [`AuthState::load`], so dispatch is a concrete `enum`
+/// (static dispatch) rather than a `dyn` trait object: every
+/// [`UserBackend`] call monomorphizes and the returned futures stay
+/// unboxed.
+pub enum UserBackendKind {
+    Store(UserStore),
+    Libsql(Arc<LibsqlAuth>),
+}
+
+/// The selected token-record backend. See [`UserBackendKind`] for why
+/// this is an `enum` rather than a trait object. `Libsql` shares its
+/// [`LibsqlAuth`] with [`UserBackendKind::Libsql`] via the `Arc`, since
+/// one networked database backs both record stores.
+pub enum TokenBackendKind {
+    Store(TokenStore),
+    Libsql(Arc<LibsqlAuth>),
+}
+
+impl UserBackend for UserBackendKind {
+    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+        match self {
+            UserBackendKind::Store(store) => store.add_or_login(username, password).await,
+            UserBackendKind::Libsql(auth) => auth.add_or_login(username, password).await,
+        }
+    }
+
+    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
+        match self {
+            UserBackendKind::Store(store) => store.verify(username, password).await,
+            UserBackendKind::Libsql(auth) => auth.verify(username, password).await,
+        }
+    }
+}
+
+impl TokenBackend for TokenBackendKind {
+    async fn issue(&self, username: &str) -> Result<String> {
+        match self {
+            TokenBackendKind::Store(store) => store.issue(username).await,
+            TokenBackendKind::Libsql(auth) => auth.issue(username).await,
+        }
+    }
+
+    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
+        match self {
+            TokenBackendKind::Store(store) => store.lookup(raw).await,
+            TokenBackendKind::Libsql(auth) => auth.lookup(raw).await,
+        }
+    }
+
+    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        match self {
+            TokenBackendKind::Store(store) => store.find_by_key(key).await,
+            TokenBackendKind::Libsql(auth) => auth.find_by_key(key).await,
+        }
+    }
+
+    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
+        match self {
+            TokenBackendKind::Store(store) => store.list_for_user(username).await,
+            TokenBackendKind::Libsql(auth) => auth.list_for_user(username).await,
+        }
+    }
+
+    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        match self {
+            TokenBackendKind::Store(store) => store.revoke_by_key(key).await,
+            TokenBackendKind::Libsql(auth) => auth.revoke_by_key(key).await,
+        }
+    }
 }
 
 impl std::fmt::Debug for AuthState {
@@ -79,7 +147,10 @@ impl AuthState {
     /// persistence.
     #[must_use]
     pub fn in_memory() -> Self {
-        Self { users: Arc::new(UserStore::in_memory()), tokens: Arc::new(TokenStore::in_memory()) }
+        Self {
+            users: Arc::new(UserBackendKind::Store(UserStore::in_memory())),
+            tokens: Arc::new(TokenBackendKind::Store(TokenStore::in_memory())),
+        }
     }
 
     /// Build the auth state from the resolved config. The networked
@@ -93,19 +164,19 @@ impl AuthState {
     pub async fn load(auth: &AuthConfig, backend: &BackendConfig) -> Result<Self> {
         if let BackendConfig::Libsql(settings) = backend {
             let shared = Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
-            let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
-            let tokens: Arc<dyn TokenBackend> = shared;
+            let users = Arc::new(UserBackendKind::Libsql(Arc::clone(&shared)));
+            let tokens = Arc::new(TokenBackendKind::Libsql(shared));
             return Ok(Self { users, tokens });
         }
-        let users: Arc<dyn UserBackend> = match auth.htpasswd.file.clone() {
-            Some(path) => Arc::new(UserStore::open(path, auth.htpasswd.max_users)?),
-            None => Arc::new(UserStore::in_memory()),
+        let users = match auth.htpasswd.file.clone() {
+            Some(path) => UserBackendKind::Store(UserStore::open(path, auth.htpasswd.max_users)?),
+            None => UserBackendKind::Store(UserStore::in_memory()),
         };
-        let tokens: Arc<dyn TokenBackend> = match auth.tokens.file.clone() {
-            Some(path) => Arc::new(TokenStore::open(path)?),
-            None => Arc::new(TokenStore::in_memory()),
+        let tokens = match auth.tokens.file.clone() {
+            Some(path) => TokenBackendKind::Store(TokenStore::open(path)?),
+            None => TokenBackendKind::Store(TokenStore::in_memory()),
         };
-        Ok(Self { users, tokens })
+        Ok(Self { users: Arc::new(users), tokens: Arc::new(tokens) })
     }
 }
 
@@ -118,22 +189,22 @@ pub trait UserBackend: Send + Sync {
     /// an existing user is [`RegistryError::Unauthenticated`], and a
     /// new user past the registration cap is
     /// [`RegistryError::RegistrationDisabled`] / `TooManyUsers`.
-    fn add_or_login<'a>(
-        &'a self,
-        username: &'a str,
-        password: &'a str,
-    ) -> AuthFuture<'a, Result<UpsertOutcome>>;
+    fn add_or_login(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> impl Future<Output = Result<UpsertOutcome>> + Send;
 
     /// Verify a username+password pair. `Ok(Some(username))` on a match,
     /// `Ok(None)` when the user is unknown or the password is wrong, and
     /// `Err` only when the backing store itself fails — so a store
     /// outage surfaces as a 5xx rather than masquerading as a bad
     /// password.
-    fn verify<'a>(
-        &'a self,
-        username: &'a str,
-        password: &'a str,
-    ) -> AuthFuture<'a, Result<Option<String>>>;
+    fn verify(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> impl Future<Output = Result<Option<String>>> + Send;
 }
 
 /// Bearer-token record store. The hot read is [`Self::lookup`]
@@ -142,35 +213,35 @@ pub trait UserBackend: Send + Sync {
 pub trait TokenBackend: Send + Sync {
     /// Mint a fresh token for `username`, persist its hash, and return
     /// the raw token. The raw token is never stored.
-    fn issue<'a>(&'a self, username: &'a str) -> AuthFuture<'a, Result<String>>;
+    fn issue(&self, username: &str) -> impl Future<Output = Result<String>> + Send;
 
     /// Resolve a raw token back to its username. `Ok(None)` means the
     /// token was never issued (or was revoked); `Err` means the backing
     /// store failed — never conflate the two, or a store outage reads as
     /// "not authenticated".
-    fn lookup<'a>(&'a self, raw: &'a str) -> AuthFuture<'a, Result<Option<String>>>;
+    fn lookup(&self, raw: &str) -> impl Future<Output = Result<Option<String>>> + Send;
 
     /// Snapshot the record for a token by its key (SHA-256 hex). Used
     /// to check ownership before revocation. `Ok(None)` if no such
     /// token; `Err` on a store failure.
-    fn find_by_key<'a>(&'a self, key: &'a str) -> AuthFuture<'a, Result<Option<TokenRecord>>>;
+    fn find_by_key(&self, key: &str) -> impl Future<Output = Result<Option<TokenRecord>>> + Send;
 
     /// All tokens owned by `username`, as `(key, record)` pairs where
     /// `key` is the SHA-256 hex digest the listing endpoint surfaces.
-    fn list_for_user<'a>(
-        &'a self,
-        username: &'a str,
-    ) -> AuthFuture<'a, Result<Vec<(String, TokenRecord)>>>;
+    fn list_for_user(
+        &self,
+        username: &str,
+    ) -> impl Future<Output = Result<Vec<(String, TokenRecord)>>> + Send;
 
     /// Remove a token by its key (the SHA-256 hex digest). Returns the
     /// deleted record so a higher layer can confirm the revocation.
-    fn revoke_by_key<'a>(&'a self, key: &'a str) -> AuthFuture<'a, Result<Option<TokenRecord>>>;
+    fn revoke_by_key(&self, key: &str) -> impl Future<Output = Result<Option<TokenRecord>>> + Send;
 
     /// Remove a token by its raw value — the `DELETE /-/user/token/:tok`
     /// (npm logout) path puts the bearer token verbatim in the URL, so
     /// this hashes first and defers to [`Self::revoke_by_key`].
-    fn revoke_by_raw<'a>(&'a self, raw: &'a str) -> AuthFuture<'a, Result<Option<TokenRecord>>> {
-        Box::pin(async move { self.revoke_by_key(&sha256_hex(raw.as_bytes())).await })
+    fn revoke_by_raw(&self, raw: &str) -> impl Future<Output = Result<Option<TokenRecord>>> + Send {
+        async move { self.revoke_by_key(&sha256_hex(raw.as_bytes())).await }
     }
 }
 
@@ -246,88 +317,76 @@ impl UserBackend for UserStore {
     /// * Known username, password wrong → `Unauthenticated`.
     /// * Unknown username, registration disabled or capped →
     ///   `RegistrationDisabled` / `TooManyUsers`.
-    fn add_or_login<'a>(
-        &'a self,
-        username: &'a str,
-        password: &'a str,
-    ) -> AuthFuture<'a, Result<UpsertOutcome>> {
-        Box::pin(async move {
-            let existing_hash = {
-                let users = self.users.lock().expect("UserStore mutex poisoned");
-                users.get(username).cloned()
-            };
-            if let Some(stored) = existing_hash {
-                return verify_returning_user(username, password, stored).await;
-            }
+    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+        let existing_hash = {
+            let users = self.users.lock().expect("UserStore mutex poisoned");
+            users.get(username).cloned()
+        };
+        if let Some(stored) = existing_hash {
+            return verify_returning_user(username, password, stored).await;
+        }
 
-            // Brand-new user — check the registration cap before doing
-            // the (expensive) bcrypt hash.
-            match self.max_users {
-                MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
-                MaxUsers::Limited(max) => {
-                    let current = self.users.lock().expect("UserStore mutex poisoned").len() as u64;
-                    if current >= max {
-                        return Err(RegistryError::TooManyUsers { max });
-                    }
+        // Brand-new user — check the registration cap before doing
+        // the (expensive) bcrypt hash.
+        match self.max_users {
+            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
+            MaxUsers::Limited(max) => {
+                let current = self.users.lock().expect("UserStore mutex poisoned").len() as u64;
+                if current >= max {
+                    return Err(RegistryError::TooManyUsers { max });
                 }
-                MaxUsers::Unlimited => {}
             }
+            MaxUsers::Unlimited => {}
+        }
 
-            let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-            enum NextStep {
-                Persist(String),
-                VerifyExisting(String),
+        let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
+        enum NextStep {
+            Persist(String),
+            VerifyExisting(String),
+        }
+        let next_step = {
+            let mut users = self.users.lock().expect("UserStore mutex poisoned");
+            if let Some(stored) = users.get(username).cloned() {
+                NextStep::VerifyExisting(stored)
+            } else {
+                // Re-check the cap under the lock to make the limit hold
+                // under concurrent adduser bursts. A second writer that
+                // raced in while we were hashing could otherwise push
+                // past the cap.
+                if let MaxUsers::Limited(max) = self.max_users
+                    && (users.len() as u64) >= max
+                {
+                    return Err(RegistryError::TooManyUsers { max });
+                }
+                users.insert(username.to_string(), hash);
+                NextStep::Persist(serialize_htpasswd(&users))
             }
-            let next_step = {
-                let mut users = self.users.lock().expect("UserStore mutex poisoned");
-                if let Some(stored) = users.get(username).cloned() {
-                    NextStep::VerifyExisting(stored)
-                } else {
-                    // Re-check the cap under the lock to make the limit hold
-                    // under concurrent adduser bursts. A second writer that
-                    // raced in while we were hashing could otherwise push
-                    // past the cap.
-                    if let MaxUsers::Limited(max) = self.max_users
-                        && (users.len() as u64) >= max
-                    {
-                        return Err(RegistryError::TooManyUsers { max });
-                    }
-                    users.insert(username.to_string(), hash);
-                    NextStep::Persist(serialize_htpasswd(&users))
-                }
-            };
-            match next_step {
-                NextStep::Persist(snapshot) => {
-                    self.persist(snapshot).await?;
-                    Ok(UpsertOutcome::Created)
-                }
-                NextStep::VerifyExisting(stored) => {
-                    verify_returning_user(username, password, stored).await
-                }
+        };
+        match next_step {
+            NextStep::Persist(snapshot) => {
+                self.persist(snapshot).await?;
+                Ok(UpsertOutcome::Created)
             }
-        })
+            NextStep::VerifyExisting(stored) => {
+                verify_returning_user(username, password, stored).await
+            }
+        }
     }
 
-    fn verify<'a>(
-        &'a self,
-        username: &'a str,
-        password: &'a str,
-    ) -> AuthFuture<'a, Result<Option<String>>> {
-        Box::pin(async move {
-            let stored = {
-                let users = self.users.lock().expect("UserStore mutex poisoned");
-                users.get(username).cloned()
-            };
-            let Some(stored) = stored else {
-                return Ok(None);
-            };
-            // The in-memory read can't fail; a bcrypt error is treated as a
-            // non-match (not a store outage), so it stays `Ok(None)`.
-            Ok(verify_bcrypt(password.to_string(), stored)
-                .await
-                .unwrap_or(false)
-                .then(|| username.to_string()))
-        })
+    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
+        let stored = {
+            let users = self.users.lock().expect("UserStore mutex poisoned");
+            users.get(username).cloned()
+        };
+        let Some(stored) = stored else {
+            return Ok(None);
+        };
+        // The in-memory read can't fail; a bcrypt error is treated as a
+        // non-match (not a store outage), so it stays `Ok(None)`.
+        Ok(verify_bcrypt(password.to_string(), stored)
+            .await
+            .unwrap_or(false)
+            .then(|| username.to_string()))
     }
 }
 
@@ -403,95 +462,82 @@ impl TokenStore {
 }
 
 impl TokenBackend for TokenStore {
-    fn issue<'a>(&'a self, username: &'a str) -> AuthFuture<'a, Result<String>> {
-        Box::pin(async move {
-            let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-            let raw = mint_token(&self.secret, nonce, username);
-            let token_hash = sha256_hex(raw.as_bytes());
-            let record = TokenRecord {
-                username: username.to_string(),
-                created_at: unix_seconds(),
-                last_used_at: unix_seconds(),
-                readonly: false,
-                cidr_whitelist: Vec::new(),
-            };
-            {
-                let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                inner.tokens.insert(token_hash.clone(), record.clone());
-            }
-            if let Some(path) = self.persist.clone() {
-                let hash_for_db = token_hash.clone();
-                tokio::task::spawn_blocking(move || -> Result<()> {
-                    let conn = Connection::open(&path)?;
-                    upsert_token(&conn, &hash_for_db, &record)?;
-                    Ok(())
-                })
-                .await??;
-            }
-            Ok(raw)
-        })
+    async fn issue(&self, username: &str) -> Result<String> {
+        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
+        let raw = mint_token(&self.secret, nonce, username);
+        let token_hash = sha256_hex(raw.as_bytes());
+        let record = TokenRecord {
+            username: username.to_string(),
+            created_at: unix_seconds(),
+            last_used_at: unix_seconds(),
+            readonly: false,
+            cidr_whitelist: Vec::new(),
+        };
+        {
+            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            inner.tokens.insert(token_hash.clone(), record.clone());
+        }
+        if let Some(path) = self.persist.clone() {
+            let hash_for_db = token_hash.clone();
+            tokio::task::spawn_blocking(move || -> Result<()> {
+                let conn = Connection::open(&path)?;
+                upsert_token(&conn, &hash_for_db, &record)?;
+                Ok(())
+            })
+            .await??;
+        }
+        Ok(raw)
     }
 
     /// Resolves entirely in memory — the on-disk mirror is loaded once
     /// at startup, so this never touches the database and never fails.
-    fn lookup<'a>(&'a self, raw: &'a str) -> AuthFuture<'a, Result<Option<String>>> {
-        Box::pin(async move {
-            let token_hash = sha256_hex(raw.as_bytes());
-            let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            Ok(inner.tokens.get(&token_hash).map(|record| record.username.clone()))
-        })
+    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
+        let token_hash = sha256_hex(raw.as_bytes());
+        let inner = self.inner.lock().expect("TokenStore mutex poisoned");
+        Ok(inner.tokens.get(&token_hash).map(|record| record.username.clone()))
     }
 
-    fn find_by_key<'a>(&'a self, key: &'a str) -> AuthFuture<'a, Result<Option<TokenRecord>>> {
-        Box::pin(async move {
-            let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            Ok(inner.tokens.get(key).cloned())
-        })
+    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        let inner = self.inner.lock().expect("TokenStore mutex poisoned");
+        Ok(inner.tokens.get(key).cloned())
     }
 
-    fn list_for_user<'a>(
-        &'a self,
-        username: &'a str,
-    ) -> AuthFuture<'a, Result<Vec<(String, TokenRecord)>>> {
-        Box::pin(async move {
-            let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            Ok(inner
-                .tokens
-                .iter()
-                .filter(|(_, record)| record.username == username)
-                .map(|(hash, record)| (hash.clone(), record.clone()))
-                .collect())
-        })
+    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
+        let inner = self.inner.lock().expect("TokenStore mutex poisoned");
+        Ok(inner
+            .tokens
+            .iter()
+            .filter(|(_, record)| record.username == username)
+            .map(|(hash, record)| (hash.clone(), record.clone()))
+            .collect())
     }
 
     /// `SQLite` gets the `DELETE` *before* the in-memory map is mutated.
     /// If the disk write fails, both views still hold the token and
     /// the caller sees a 5xx — the opposite ordering would leave a
     /// "revoked in memory but resurrected on restart" hole.
-    fn revoke_by_key<'a>(&'a self, key: &'a str) -> AuthFuture<'a, Result<Option<TokenRecord>>> {
-        Box::pin(async move {
-            let snapshot = {
-                let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                inner.tokens.get(key).cloned()
-            };
-            let Some(record) = snapshot else {
-                return Ok(None);
-            };
-            if let Some(path) = self.persist.clone() {
-                let key = key.to_string();
-                tokio::task::spawn_blocking(move || -> Result<()> {
-                    let conn = Connection::open(&path)?;
-                    delete_token(&conn, &key)?;
-                    Ok(())
-                })
-                .await??;
-            }
-            {
-                let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                inner.tokens.remove(key);
-            }
-            Ok(Some(record))
-        })
+    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        let snapshot = {
+            let inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            inner.tokens.get(key).cloned()
+        };
+        let Some(record) = snapshot else {
+            return Ok(None);
+        };
+        if let Some(path) = self.persist.clone() {
+            let key = key.to_string();
+            tokio::task::spawn_blocking(move || -> Result<()> {
+                let conn = Connection::open(&path)?;
+                delete_token(&conn, &key)?;
+                Ok(())
+            })
+            .await??;
+        }
+        {
+            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            inner.tokens.remove(key);
+        }
+        Ok(Some(record))
     }
 }
 
@@ -523,8 +569,8 @@ impl Default for UserStore {
 /// a 5xx instead of a misleading 401.
 pub async fn identify(
     header_value: Option<&str>,
-    users: &dyn UserBackend,
-    tokens: &dyn TokenBackend,
+    users: &UserBackendKind,
+    tokens: &TokenBackendKind,
 ) -> Result<Option<String>> {
     let Some(value) = header_value.map(str::trim) else {
         return Ok(None);

@@ -19,9 +19,8 @@
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
 use super::{
-    AuthFuture, DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
-    fresh_secret, hash_bcrypt, mint_token, sha256_hex, unix_seconds, verify_bcrypt,
-    verify_returning_user,
+    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
+    hash_bcrypt, mint_token, sha256_hex, unix_seconds, verify_bcrypt, verify_returning_user,
 };
 use crate::{
     config::{LibsqlSettings, MaxUsers},
@@ -121,164 +120,137 @@ impl LibsqlAuth {
 }
 
 impl UserBackend for LibsqlAuth {
-    fn add_or_login<'a>(
-        &'a self,
-        username: &'a str,
-        password: &'a str,
-    ) -> AuthFuture<'a, Result<UpsertOutcome>> {
-        Box::pin(async move {
+    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+        if let Some(stored) = self.stored_hash(username).await? {
+            return verify_returning_user(username, password, stored).await;
+        }
+
+        // Brand-new user. The cheap pre-check avoids the (expensive) hash
+        // when the cap is already full; the insert below re-checks the
+        // cap atomically so it holds even under a concurrent burst.
+        match self.max_users {
+            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
+            MaxUsers::Limited(max) if self.user_count().await? >= max => {
+                return Err(RegistryError::TooManyUsers { max });
+            }
+            _ => {}
+        }
+
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        // Count-and-insert in one statement so the cap is strict, not
+        // best-effort: the `WHERE (SELECT COUNT(*) ...) < max` guard is
+        // evaluated atomically with the insert, so concurrent registrants
+        // (even on other replicas, since writes serialize on the primary)
+        // can't race past it. `DO NOTHING` absorbs a same-username race.
+        // A zero row-count means either the cap won or another writer
+        // inserted this username first; we disambiguate below.
+        let inserted = match self.max_users {
+            MaxUsers::Limited(max) => {
+                self.conn
+                    .execute(
+                        "INSERT INTO users (username, bcrypt_hash)
+                         SELECT ?1, ?2 WHERE (SELECT COUNT(*) FROM users) < ?3
+                         ON CONFLICT(username) DO NOTHING",
+                        params![username, hash, max as i64],
+                    )
+                    .await?
+            }
+            _ => {
+                self.conn
+                    .execute(
+                        "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)
+                         ON CONFLICT(username) DO NOTHING",
+                        params![username, hash],
+                    )
+                    .await?
+            }
+        };
+        if inserted == 0 {
             if let Some(stored) = self.stored_hash(username).await? {
+                // A concurrent writer registered this username first.
                 return verify_returning_user(username, password, stored).await;
             }
-
-            // Brand-new user. The cheap pre-check avoids the (expensive) hash
-            // when the cap is already full; the insert below re-checks the
-            // cap atomically so it holds even under a concurrent burst.
-            match self.max_users {
-                MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
-                MaxUsers::Limited(max) if self.user_count().await? >= max => {
-                    return Err(RegistryError::TooManyUsers { max });
-                }
-                _ => {}
+            // Nothing inserted and the user still doesn't exist, so the
+            // only thing that blocked the insert is the cap guard.
+            if let MaxUsers::Limited(max) = self.max_users {
+                return Err(RegistryError::TooManyUsers { max });
             }
-
-            let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-            // Count-and-insert in one statement so the cap is strict, not
-            // best-effort: the `WHERE (SELECT COUNT(*) ...) < max` guard is
-            // evaluated atomically with the insert, so concurrent registrants
-            // (even on other replicas, since writes serialize on the primary)
-            // can't race past it. `DO NOTHING` absorbs a same-username race.
-            // A zero row-count means either the cap won or another writer
-            // inserted this username first; we disambiguate below.
-            let inserted = match self.max_users {
-                MaxUsers::Limited(max) => {
-                    self.conn
-                        .execute(
-                            "INSERT INTO users (username, bcrypt_hash)
-                             SELECT ?1, ?2 WHERE (SELECT COUNT(*) FROM users) < ?3
-                             ON CONFLICT(username) DO NOTHING",
-                            params![username, hash, max as i64],
-                        )
-                        .await?
-                }
-                _ => {
-                    self.conn
-                        .execute(
-                            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)
-                             ON CONFLICT(username) DO NOTHING",
-                            params![username, hash],
-                        )
-                        .await?
-                }
-            };
-            if inserted == 0 {
-                if let Some(stored) = self.stored_hash(username).await? {
-                    // A concurrent writer registered this username first.
-                    return verify_returning_user(username, password, stored).await;
-                }
-                // Nothing inserted and the user still doesn't exist, so the
-                // only thing that blocked the insert is the cap guard.
-                if let MaxUsers::Limited(max) = self.max_users {
-                    return Err(RegistryError::TooManyUsers { max });
-                }
-                // Unbounded yet neither inserted nor present: a concurrent
-                // delete raced the insert. Surface a transient failure rather
-                // than silently report success.
-                return Err(RegistryError::Unauthenticated {
-                    resource: format!("user {username:?}"),
-                });
-            }
-            Ok(UpsertOutcome::Created)
-        })
+            // Unbounded yet neither inserted nor present: a concurrent
+            // delete raced the insert. Surface a transient failure rather
+            // than silently report success.
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
+        }
+        Ok(UpsertOutcome::Created)
     }
 
-    fn verify<'a>(
-        &'a self,
-        username: &'a str,
-        password: &'a str,
-    ) -> AuthFuture<'a, Result<Option<String>>> {
-        Box::pin(async move {
-            let Some(stored) = self.stored_hash(username).await? else {
-                return Ok(None);
-            };
-            // A database error already propagated above; a bcrypt error here
-            // is treated as a non-match, not a store outage.
-            Ok(verify_bcrypt(password.to_string(), stored)
-                .await
-                .unwrap_or(false)
-                .then(|| username.to_string()))
-        })
+    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
+        let Some(stored) = self.stored_hash(username).await? else {
+            return Ok(None);
+        };
+        // A database error already propagated above; a bcrypt error here
+        // is treated as a non-match, not a store outage.
+        Ok(verify_bcrypt(password.to_string(), stored)
+            .await
+            .unwrap_or(false)
+            .then(|| username.to_string()))
     }
 }
 
 impl TokenBackend for LibsqlAuth {
-    fn issue<'a>(&'a self, username: &'a str) -> AuthFuture<'a, Result<String>> {
-        Box::pin(async move {
-            let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-            let raw = mint_token(&self.secret, nonce, username);
-            let token_hash = sha256_hex(raw.as_bytes());
-            let now = unix_seconds() as i64;
-            self.conn
-                .execute(
-                    "INSERT INTO tokens
-                         (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-                     VALUES (?1, ?2, ?3, ?3, 0, '[]')
-                     ON CONFLICT(token_hash) DO UPDATE SET last_used_at = excluded.last_used_at",
-                    params![token_hash, username, now],
-                )
-                .await?;
-            Ok(raw)
-        })
+    async fn issue(&self, username: &str) -> Result<String> {
+        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
+        let raw = mint_token(&self.secret, nonce, username);
+        let token_hash = sha256_hex(raw.as_bytes());
+        let now = unix_seconds() as i64;
+        self.conn
+            .execute(
+                "INSERT INTO tokens
+                     (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
+                 VALUES (?1, ?2, ?3, ?3, 0, '[]')
+                 ON CONFLICT(token_hash) DO UPDATE SET last_used_at = excluded.last_used_at",
+                params![token_hash, username, now],
+            )
+            .await?;
+        Ok(raw)
     }
 
-    fn lookup<'a>(&'a self, raw: &'a str) -> AuthFuture<'a, Result<Option<String>>> {
-        Box::pin(async move {
-            let token_hash = sha256_hex(raw.as_bytes());
-            let mut rows = self
-                .conn
-                .query("SELECT username FROM tokens WHERE token_hash = ?1", params![token_hash])
-                .await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row.get::<String>(0)?)),
-                None => Ok(None),
-            }
-        })
+    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
+        let token_hash = sha256_hex(raw.as_bytes());
+        let mut rows = self
+            .conn
+            .query("SELECT username FROM tokens WHERE token_hash = ?1", params![token_hash])
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(Some(row.get::<String>(0)?)),
+            None => Ok(None),
+        }
     }
 
-    fn find_by_key<'a>(&'a self, key: &'a str) -> AuthFuture<'a, Result<Option<TokenRecord>>> {
-        Box::pin(async move {
-            let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
-            let mut rows = self.conn.query(&query, params![key]).await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
-                None => Ok(None),
-            }
-        })
+    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
+        let mut rows = self.conn.query(&query, params![key]).await?;
+        match rows.next().await? {
+            Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
+            None => Ok(None),
+        }
     }
 
-    fn list_for_user<'a>(
-        &'a self,
-        username: &'a str,
-    ) -> AuthFuture<'a, Result<Vec<(String, TokenRecord)>>> {
-        Box::pin(async move {
-            let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
-            let mut rows = self.conn.query(&query, params![username]).await?;
-            let mut out = Vec::new();
-            while let Some(row) = rows.next().await? {
-                out.push(row_to_keyed_record(&row)?);
-            }
-            Ok(out)
-        })
+    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
+        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
+        let mut rows = self.conn.query(&query, params![username]).await?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next().await? {
+            out.push(row_to_keyed_record(&row)?);
+        }
+        Ok(out)
     }
 
-    fn revoke_by_key<'a>(&'a self, key: &'a str) -> AuthFuture<'a, Result<Option<TokenRecord>>> {
-        Box::pin(async move {
-            let Some(record) = self.find_by_key(key).await? else {
-                return Ok(None);
-            };
-            self.conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await?;
-            Ok(Some(record))
-        })
+    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        let Some(record) = self.find_by_key(key).await? else {
+            return Ok(None);
+        };
+        self.conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await?;
+        Ok(Some(record))
     }
 }
 

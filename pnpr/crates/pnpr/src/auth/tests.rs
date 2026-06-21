@@ -1,5 +1,6 @@
 use super::{
-    TokenBackend, TokenStore, UpsertOutcome, UserBackend, UserStore, identify, parse_htpasswd,
+    TokenBackend, TokenBackendKind, TokenStore, UpsertOutcome, UserBackend, UserBackendKind,
+    UserStore, identify, parse_htpasswd,
 };
 use crate::config::MaxUsers;
 use std::sync::Arc;
@@ -218,9 +219,9 @@ async fn tokens_db_stores_hash_not_raw() {
 
 #[tokio::test]
 async fn identify_recognizes_bearer_and_basic() {
-    let users = test_user_store();
+    let users = UserBackendKind::Store(test_user_store());
     users.add_or_login("alice", "secret").await.unwrap();
-    let tokens = TokenStore::in_memory();
+    let tokens = TokenBackendKind::Store(TokenStore::in_memory());
     let token = tokens.issue("alice").await.unwrap();
 
     let header = format!("Bearer {token}");
@@ -245,9 +246,9 @@ async fn identify_recognizes_bearer_and_basic() {
 /// some clients emit) must resolve the same way.
 #[tokio::test]
 async fn identify_parses_auth_scheme_case_insensitively() {
-    let users = test_user_store();
+    let users = UserBackendKind::Store(test_user_store());
     users.add_or_login("alice", "secret").await.unwrap();
-    let tokens = TokenStore::in_memory();
+    let tokens = TokenBackendKind::Store(TokenStore::in_memory());
     let token = tokens.issue("alice").await.unwrap();
 
     for scheme in ["Bearer", "bearer", "BEARER", "BeArEr"] {

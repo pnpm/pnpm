@@ -1,5 +1,5 @@
 use crate::{
-    auth::{AuthState, UpsertOutcome, identify},
+    auth::{AuthState, TokenBackend, UpsertOutcome, UserBackend, identify},
     config::Config,
     error::RegistryError,
     journal::JournaledPublish,
