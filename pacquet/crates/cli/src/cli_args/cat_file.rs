@@ -3,7 +3,8 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_store_dir::StoreDir;
-use std::{fs::File, io::Write};
+use std::fs::File;
+use std::io::Write as _;
 
 #[derive(Debug, Args)]
 pub struct CatFileArgs {
@@ -30,7 +31,7 @@ impl CatFileArgs {
             .into_diagnostic()
             .wrap_err("Failed to decode base64 hash")?;
 
-        use std::fmt::Write;
+        use std::fmt::Write as _;
         let mut hex = String::with_capacity(decoded.len() * 2);
         for b in decoded {
             // The hex conversion produces only characters 0-9a-f, which mathematically cannot
