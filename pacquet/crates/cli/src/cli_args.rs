@@ -477,7 +477,7 @@ impl CliArgs {
                 args.run(|| config().map(|m| &*m))?;
             }
             CliCommand::Store(command) => command.run(|| config().map(|m| &*m))?,
-            CliCommand::Cache(command) => command.run(|| config().map(|m| &*m))?,
+            CliCommand::Cache(command) => command.run(config()?)?,
             CliCommand::CatFile(args) => {
                 args.run(|| config().map(|m| &*m))?;
             }

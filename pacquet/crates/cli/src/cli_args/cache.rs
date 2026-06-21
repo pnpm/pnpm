@@ -78,11 +78,7 @@ impl CacheCommand {
         Ok(matches)
     }
 
-    pub fn run<'a>(
-        self,
-        config: impl FnOnce() -> miette::Result<&'a Config>,
-    ) -> miette::Result<()> {
-        let config = config()?;
+    pub fn run(self, config: &Config) -> miette::Result<()> {
         let cache_dir = Self::cache_dir(config);
 
         match self {
