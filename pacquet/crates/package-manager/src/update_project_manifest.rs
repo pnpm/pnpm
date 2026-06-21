@@ -1,7 +1,6 @@
 use crate::{PackageSpecObject, is_workspace_local_path_specifier, update_project_manifest_object};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_registry::PinnedVersion;
-use std::collections::HashMap;
 
 /// Catalog metadata for a direct dependency requested through the `catalog:`
 /// protocol. Port of pnpm's `CatalogLookupMetadata`.
@@ -26,11 +25,18 @@ pub struct ResolvedDirectDependency {
     /// registry range, `github:owner/repo#sha` for a git shorthand).
     pub normalized_bare_specifier: Option<String>,
     pub catalog_lookup: Option<CatalogLookup>,
+    /// The wanted dependency this was resolved from, carried so the spec is
+    /// saved against the exact request instead of a pairing reconstructed by
+    /// alias, specifier shape, or array position. Set by the resolver, which
+    /// already has it in hand when it produces the resolution.
+    pub wanted_dependency: Option<WantedDependencyUpdate>,
 }
 
-/// A wanted dependency the manifest writer matches resolved deps against. Only
-/// entries flagged [`update_spec`](Self::update_spec) participate, mirroring
-/// pnpm's `wantedDependencies` filter.
+/// A wanted dependency carried alongside its resolution and matched against the
+/// failed-to-resolve set. Only entries flagged
+/// [`update_spec`](Self::update_spec) are written, mirroring pnpm's
+/// `wantedDependencies` filter.
+#[derive(Clone)]
 pub struct WantedDependencyUpdate {
     /// Install alias, when the request carried one. `None` for a no-alias
     /// shorthand such as a bare `owner/repo#sha` GitHub request.
@@ -56,47 +62,27 @@ pub struct UpdateProjectManifestOptions<'a> {
 
 /// Rewrite `manifest`'s dependency specs from a completed resolution, mirroring
 /// pnpm's `updateProjectManifest`
-/// (`installing/deps-resolver/src/updateProjectManifest.ts`), including the
-/// matching fixes from [pnpm#11373](https://github.com/pnpm/pnpm/pull/11373).
+/// (`installing/deps-resolver/src/updateProjectManifest.ts`), with the
+/// explicit-linkage matching from [pnpm#11373](https://github.com/pnpm/pnpm/pull/11373).
 ///
-/// Each resolved direct dependency is paired with the wanted dependency it came
-/// from. A wanted dependency that carries an alias is matched **by alias** (not
-/// by position), so a dependency that failed to resolve — an optional dep
-/// dropped from `direct_dependencies` — cannot shift the pairing onto an
-/// unrelated dependency ([#11267](https://github.com/pnpm/pnpm/issues/11267)).
-/// Aliasless wanted dependencies (`pacquet add ./local`, `jsr:@x/y`, a bare
-/// `owner/repo#sha`, a GitHub URL) resolve to an alias no wanted dependency
-/// declared, so they are paired with the remaining resolved dependencies in
-/// order. A wanted dep flagged `update_spec` that matched nothing is still
-/// upserted with no specifier, which preserves its existing range rather than
-/// dropping it.
+/// Each resolved direct dependency carries the wanted dependency it was resolved
+/// from ([`ResolvedDirectDependency::wanted_dependency`]), so the spec is saved
+/// against the exact request rather than a pairing reconstructed by alias,
+/// specifier shape, or array position. This keeps a failed optional update from
+/// rewriting an unrelated dependency ([#11267](https://github.com/pnpm/pnpm/issues/11267))
+/// and lets aliasless selectors (`pacquet add ./local`, `jsr:@x/y`, a bare
+/// `owner/repo#sha`, a GitHub URL) be saved even when they resolve to an alias
+/// already present in the manifest. A wanted dep flagged `update_spec` that
+/// resolved to nothing is re-saved with no specifier, so it keeps its existing
+/// version under the importer's target field — a no-op when none is set (a
+/// plain install/update).
 pub fn update_project_manifest(
     manifest: &mut PackageManifest,
     opts: &UpdateProjectManifestOptions<'_>,
 ) {
-    let mut wanted_by_alias: HashMap<&str, &WantedDependencyUpdate> = HashMap::new();
-    let mut aliasless_wanted: Vec<&WantedDependencyUpdate> = Vec::new();
-    for wanted in opts.wanted_dependencies {
-        match wanted.alias.as_deref().filter(|alias| !alias.is_empty()) {
-            Some(alias) => {
-                wanted_by_alias.insert(alias, wanted);
-            }
-            None if wanted.update_spec => aliasless_wanted.push(wanted),
-            None => {}
-        }
-    }
-
-    let mut next_aliasless = 0;
     let mut specs: Vec<PackageSpecObject> = Vec::new();
     for resolved in opts.direct_dependencies {
-        let wanted = if let Some(wanted) = wanted_by_alias.get(resolved.alias.as_str()) {
-            Some(*wanted)
-        } else {
-            let wanted = aliasless_wanted.get(next_aliasless).copied();
-            next_aliasless += 1;
-            wanted
-        };
-        let Some(wanted) = wanted else { continue };
+        let Some(wanted) = resolved.wanted_dependency.as_ref() else { continue };
         if !wanted.update_spec {
             continue;
         }
