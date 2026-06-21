@@ -402,13 +402,20 @@ export async function resolveDependencies (
   // The integrity computed by these fetches (the ones the fetcher flagged
   // `resolutionNeedsFetch`) feeds the lockfile snapshot below and the virtual-store paths
   // hashed from it, so await them before building it. Other entries already have their
-  // integrity and are awaited later by `waitTillAllFetchingsFinish`.
-  await Promise.all(Object.values(resolvedPkgsById).map(async (pkg) => {
-    if (!pkg.resolutionNeedsFetch || pkg.fetching == null) return
-    // A failure here is surfaced, not swallowed: the entry needs its integrity (optional
-    // deps are in the lockfile too) and we'd otherwise write an unverifiable one.
-    await pkg.fetching()
-  }))
+  // integrity and are awaited later by `waitTillAllFetchingsFinish`. Collect only the
+  // packages that need it — on a large graph most don't, so allocating a promise per
+  // entry (and awaiting an all-resolved `Promise.all`) is wasted work on the install path.
+  // A failure here is surfaced, not swallowed: the entry needs its integrity (optional
+  // deps are in the lockfile too) and we'd otherwise write an unverifiable one.
+  const integrityFetches: Array<Promise<unknown>> = []
+  for (const pkg of Object.values(resolvedPkgsById)) {
+    if (pkg.resolutionNeedsFetch && pkg.fetching != null) {
+      integrityFetches.push(pkg.fetching())
+    }
+  }
+  if (integrityFetches.length > 0) {
+    await Promise.all(integrityFetches)
+  }
 
   const newLockfile = updateLockfile({
     dependenciesGraph,
