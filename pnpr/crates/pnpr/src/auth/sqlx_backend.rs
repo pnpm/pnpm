@@ -246,7 +246,7 @@ pub(super) mod postgres {
                     Ok(())
                 })
             });
-            options = options.acquire_timeout(settings.startup_timeout);
+            options = options.acquire_timeout(settings.timeout);
             let pool =
                 with_auth_timeout(settings.startup_timeout, options.connect(&settings.url)).await?;
             let db = PostgresDatabase { pool };
@@ -569,7 +569,7 @@ pub(super) mod mysql {
                     Ok(())
                 })
             });
-            options = options.acquire_timeout(settings.startup_timeout);
+            options = options.acquire_timeout(settings.timeout);
             let pool =
                 with_auth_timeout(settings.startup_timeout, options.connect(&settings.url)).await?;
             let db = MysqlDatabase { pool };
