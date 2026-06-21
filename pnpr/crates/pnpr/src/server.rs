@@ -22,7 +22,7 @@ use axum::{
     extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{delete, get, post, put},
+    routing::{any, delete, get, post, put},
 };
 use chrono::Utc;
 use indexmap::IndexMap;
@@ -211,13 +211,20 @@ fn router_with_auth_and_osv(
 ) -> Router {
     let storage =
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
-    let upstreams: IndexMap<String, Upstream> = config
-        .uplinks
-        .iter()
-        .map(|(name, uplink)| (name.clone(), Upstream::new(name, uplink)))
-        .collect();
     let registry_enabled = config.registry.enabled;
     let resolver_enabled = config.resolver.enabled;
+    // Only the registry routes consult the uplinks, so a resolver-only
+    // server builds none — skipping a `ThrottledClient` allocation per
+    // configured uplink.
+    let upstreams: IndexMap<String, Upstream> = if registry_enabled {
+        config
+            .uplinks
+            .iter()
+            .map(|(name, uplink)| (name.clone(), Upstream::new(name, uplink)))
+            .collect()
+    } else {
+        IndexMap::new()
+    };
     let state = AppState {
         inner: Arc::new(AppInner {
             storage,
@@ -242,11 +249,14 @@ fn router_with_auth_and_osv(
     // whether or not this process also fronts a registry.
     //
     // When the resolver is disabled these exact paths are still
-    // registered, but to a 404 stub. They overlap the registry's
-    // catch-all param routes (`/-/pnpr` matches `/{first}/{second}`), so
-    // without the stub a capability probe would fall through to the
-    // registry and be proxied upstream — surfacing a confusing 502 where
-    // a client expects the "no resolver here" 404.
+    // registered, but to an `any`-method 404 stub. They overlap the
+    // registry's catch-all param routes (`/-/pnpr` and `/v1/resolve` both
+    // match `/{first}/{second}`), so without the stub a probe would fall
+    // through to the registry and be proxied upstream — surfacing a
+    // confusing 502 where a client expects the "no resolver here" 404.
+    // The stub matches every method, not just the endpoint's real verb,
+    // so e.g. a `GET /v1/resolve` can't slip into the registry's GET
+    // catch-all.
     if resolver_enabled {
         router = router
             .route("/-/pnpr", get(serve_pnpr_handshake))
@@ -254,9 +264,9 @@ fn router_with_auth_and_osv(
             .route("/v1/verify-lockfile", post(serve_verify_lockfile));
     } else {
         router = router
-            .route("/-/pnpr", get(resolver_disabled))
-            .route("/v1/resolve", post(resolver_disabled))
-            .route("/v1/verify-lockfile", post(resolver_disabled));
+            .route("/-/pnpr", any(resolver_disabled))
+            .route("/v1/resolve", any(resolver_disabled))
+            .route("/v1/verify-lockfile", any(resolver_disabled));
     }
     // The npm-registry surface: every packument/tarball read, publish,
     // unpublish, dist-tag, search, and the user/login endpoint. When the

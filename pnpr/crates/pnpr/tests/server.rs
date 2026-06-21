@@ -998,5 +998,18 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
         .unwrap();
     assert_eq!(verify.status(), StatusCode::NOT_FOUND);
 
+    // A non-POST probe of a resolver path must also 404, not slip into the
+    // registry's catch-all GET routes and get proxied upstream.
+    let resolve_get = app
+        .clone()
+        .oneshot(Request::get("/v1/resolve").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resolve_get.status(), StatusCode::NOT_FOUND);
+
+    let handshake_post =
+        app.clone().oneshot(Request::post("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(handshake_post.status(), StatusCode::NOT_FOUND);
+
     mock.assert_async().await;
 }

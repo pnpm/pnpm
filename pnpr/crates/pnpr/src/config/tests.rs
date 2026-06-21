@@ -244,6 +244,16 @@ fn feature_blocks_present_but_empty_default_to_enabled() {
 }
 
 #[test]
+fn unknown_key_in_feature_block_is_a_config_error() {
+    // A typo'd `enable` (vs `enabled`) must fail loudly rather than
+    // silently leaving the surface enabled.
+    let yaml = "registry:\n  enable: false\n";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("an unknown key in a feature block must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
 fn from_yaml_str_parses_feature_toggles() {
     let yaml = r"
 registry:

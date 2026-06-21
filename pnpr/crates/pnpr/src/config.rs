@@ -903,7 +903,12 @@ struct OsvFile {
 /// field and the whole-block defaults are both `enabled: true`, so
 /// omitting the block — or writing `registry:` with no body — keeps the
 /// surface on.
+/// `deny_unknown_fields` so a typo like `registry: { enable: false }`
+/// (note: `enable`, not `enabled`) is a loud config error rather than
+/// silently leaving the surface enabled — these toggles scope which
+/// endpoints are exposed, so a silent default-on is a security footgun.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct FeatureFile {
     #[serde(default = "default_true")]
     enabled: bool,
