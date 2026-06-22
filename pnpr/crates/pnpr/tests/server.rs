@@ -233,7 +233,8 @@ async fn osv_filters_packument_identity_mismatches() {
     enable_osv(&mut config, osv.path());
     let app = router(config);
 
-    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let response =
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
     let versions = body["versions"].as_object().unwrap();
@@ -246,6 +247,25 @@ async fn osv_filters_packument_identity_mismatches() {
     assert_eq!(time.len(), 2);
     assert!(time.contains_key("modified"));
     assert!(time.contains_key("1.0.0"));
+
+    let vulnerable_key_manifest =
+        app.clone().oneshot(Request::get("/foo/1.1.0").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(vulnerable_key_manifest.status(), StatusCode::NOT_FOUND);
+    let vulnerable_manifest_version = app
+        .clone()
+        .oneshot(Request::get("/foo/safe-key").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(vulnerable_manifest_version.status(), StatusCode::NOT_FOUND);
+
+    let dist_tags = app
+        .oneshot(Request::get("/-/package/foo/dist-tags").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(dist_tags.status(), StatusCode::OK);
+    let tags = body_json(dist_tags.into_body()).await;
+    assert_eq!(tags.as_object().unwrap().len(), 1);
+    assert_eq!(tags["stable"], "1.0.0");
 
     mock.assert_async().await;
 }

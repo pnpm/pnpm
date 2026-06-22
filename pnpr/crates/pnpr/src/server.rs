@@ -749,8 +749,12 @@ async fn serve_version_manifest(
         Ok(v) => v,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
-    let mut packument = packument;
-    filter_osv_vulnerable_versions(&mut packument, &name, state.inner.osv_index.as_ref());
+    if let Some(osv_index) = state.inner.osv_index.as_ref() {
+        let resolved = resolve_version_or_tag(&packument, version_or_tag);
+        if is_osv_vulnerable_packument_version(&packument, name.as_str(), resolved, osv_index) {
+            return not_found();
+        }
+    }
     let Some(manifest) =
         extract_version_manifest(&packument, &name, version_or_tag, &state.inner.config.public_url)
     else {
@@ -1666,12 +1670,12 @@ async fn get_dist_tags(state: &AppState, headers: &HeaderMap, raw_name: &str) ->
         PackumentLoad::NotFound => return not_found(),
         PackumentLoad::Err(err) => return error_response(&err),
     };
-    let mut packument: Value = match serde_json::from_slice(&bytes) {
+    let packument: Value = match serde_json::from_slice(&bytes) {
         Ok(v) => v,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
-    filter_osv_vulnerable_versions(&mut packument, &name, state.inner.osv_index.as_ref());
-    let tags = packument.get("dist-tags").cloned().unwrap_or_else(|| json!({}));
+    let mut tags = packument.get("dist-tags").cloned().unwrap_or_else(|| json!({}));
+    filter_osv_vulnerable_dist_tags(&mut tags, &packument, &name, state.inner.osv_index.as_ref());
     let bytes = serde_json::to_vec(&tags).expect("dist-tags object serializes");
     Response::builder()
         .status(StatusCode::OK)
@@ -2141,6 +2145,51 @@ fn filter_osv_vulnerable_versions(
             !blocked_keys.contains(key) && !osv_index.is_vulnerable(package_name, key)
         });
     }
+}
+
+fn filter_osv_vulnerable_dist_tags(
+    tags: &mut Value,
+    packument: &Value,
+    name: &PackageName,
+    osv_index: Option<&Arc<crate::resolver::OsvIndex>>,
+) {
+    let Some(osv_index) = osv_index else { return };
+    let Some(tags) = tags.as_object_mut() else {
+        return;
+    };
+    let package_name = name.as_str();
+    tags.retain(|_, version| {
+        version.as_str().is_none_or(|version| {
+            !is_osv_vulnerable_packument_version(packument, package_name, version, osv_index)
+        })
+    });
+}
+
+fn is_osv_vulnerable_packument_version(
+    packument: &Value,
+    package_name: &str,
+    version: &str,
+    osv_index: &crate::resolver::OsvIndex,
+) -> bool {
+    if osv_index.is_vulnerable(package_name, version) {
+        return true;
+    }
+    let manifest_version = packument
+        .get("versions")
+        .and_then(|versions| versions.get(version))
+        .and_then(|manifest| manifest.get("version"))
+        .and_then(Value::as_str);
+    manifest_version.is_some_and(|manifest_version| {
+        manifest_version != version && osv_index.is_vulnerable(package_name, manifest_version)
+    })
+}
+
+fn resolve_version_or_tag<'a>(packument: &'a Value, version_or_tag: &'a str) -> &'a str {
+    packument
+        .get("dist-tags")
+        .and_then(|tags| tags.get(version_or_tag))
+        .and_then(Value::as_str)
+        .unwrap_or(version_or_tag)
 }
 
 fn ensure_osv_allowed(
