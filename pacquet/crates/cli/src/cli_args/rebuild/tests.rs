@@ -82,3 +82,22 @@ fn defaults_to_all_groups_without_a_modules_manifest() {
         vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
 }
+
+#[test]
+fn falls_back_to_all_groups_when_included_is_empty() {
+    // A `.modules.yaml` that records no included groups (e.g. a legacy
+    // manifest) must not narrow the rebuild to the empty set.
+    let dir = tempdir().unwrap();
+    let config = config_with_included(
+        dir.path(),
+        Some(serde_json::json!({
+            "dependencies": false,
+            "devDependencies": false,
+            "optionalDependencies": false,
+        })),
+    );
+    assert_eq!(
+        rebuild_dependency_groups(&config).unwrap(),
+        vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+    );
+}

@@ -123,11 +123,15 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
 /// installed set unchanged, so it reuses exactly these groups rather than
 /// widening to all of them — otherwise a `--prod` / `--no-optional`
 /// install would have its excluded dev/optional dependencies fetched and
-/// their lifecycle scripts run. Falls back to every group only when there
-/// is no `.modules.yaml` (nothing recorded to preserve).
+/// their lifecycle scripts run. Falls back to every group when there is no
+/// `.modules.yaml`, or when it records no included groups (a legacy
+/// manifest written before `included` existed, or a corrupt one) — neither
+/// is a recorded "include nothing" intent to preserve.
 fn rebuild_dependency_groups(config: &Config) -> miette::Result<Vec<DependencyGroup>> {
+    const ALL: [DependencyGroup; 3] =
+        [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
     let Some(modules) = read_modules_layout::<Host>(&config.modules_dir).into_diagnostic()? else {
-        return Ok(vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]);
+        return Ok(ALL.to_vec());
     };
     let included = modules.included;
     let mut groups = Vec::with_capacity(3);
@@ -140,7 +144,10 @@ fn rebuild_dependency_groups(config: &Config) -> miette::Result<Vec<DependencyGr
     if included.optional_dependencies {
         groups.push(DependencyGroup::Optional);
     }
-    Ok(groups)
+    // An all-false `included` would otherwise narrow the rebuild to no
+    // groups and persist that empty state into `.modules.yaml` and the
+    // current lockfile, breaking later installs.
+    Ok(if groups.is_empty() { ALL.to_vec() } else { groups })
 }
 
 #[cfg(test)]
