@@ -3569,6 +3569,7 @@ version = "0.0.1"
 dependencies = [
  "assert_cmd",
  "base64 0.22.1",
+ "chrono",
  "clap",
  "command-extra",
  "derive_more",
@@ -3624,6 +3625,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "walkdir",
+ "wax",
  "which 8.0.4",
  "windows-sys 0.61.2",
 ]

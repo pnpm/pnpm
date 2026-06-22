@@ -43,6 +43,7 @@ pacquet-workspace-manifest-writer         = { workspace = true }
 pacquet-workspace-projects-graph          = { workspace = true }
 pacquet-workspace-state                   = { workspace = true }
 
+chrono               = { workspace = true }
 clap                 = { workspace = true }
 derive_more          = { workspace = true }
 dialoguer            = { workspace = true }
@@ -62,6 +63,7 @@ tabled               = { workspace = true }
 tokio                = { workspace = true }
 which                = { workspace = true }
 base64               = { workspace = true }
+wax                  = { workspace = true }
 
 # Windows has no process groups, so a Job Object ties the lifetime of spawned
 # children (lifecycle scripts and their descendants) to pacquet's. See

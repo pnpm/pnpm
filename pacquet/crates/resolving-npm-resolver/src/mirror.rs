@@ -185,6 +185,7 @@ pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> 
 /// sha256 hex suffix so case-insensitive filesystems (HFS+, NTFS by
 /// default) can't collide it with a lowercase sibling. Mirrors pnpm's
 /// [`encodePkgName`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L555-L560).
+#[must_use]
 pub fn encode_pkg_name(pkg_name: &str) -> String {
     let lowered = pkg_name.to_lowercase();
     if pkg_name == lowered {
@@ -431,6 +432,7 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
 /// headers, identical to pnpm's
 /// [`loadMetaHeaders`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L627-L644)
 /// catch-and-return-null.
+#[must_use]
 pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
     let mut file = File::open(pkg_mirror).ok()?;
     read_mirror_headers(&mut file)
@@ -444,6 +446,7 @@ pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
 /// catches any error from `readFile` / `JSON.parse` and returns
 /// `null`; we match that contract because the caller's response to
 /// "couldn't read" is the same as "no cache".
+#[must_use]
 pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
     let contents = fs::read(pkg_mirror).ok()?;
     let newline = contents.iter().position(|&byte| byte == b'\n')?;

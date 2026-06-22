@@ -1,4 +1,5 @@
 pub mod add;
+pub mod cache;
 pub mod cat_file;
 pub mod cat_index;
 pub mod create;
@@ -21,6 +22,7 @@ pub mod why;
 
 use crate::{State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
+use cache::CacheCommand;
 use cat_file::CatFileArgs;
 use cat_index::CatIndexArgs;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -168,6 +170,9 @@ pub enum CliCommand {
     /// Managing the package store.
     #[clap(subcommand)]
     Store(StoreCommand),
+    /// Inspect and manage the metadata cache.
+    #[clap(subcommand)]
+    Cache(CacheCommand),
     /// Prints the contents of a file based on the hash value stored in the index file.
     CatFile(CatFileArgs),
     /// Prints the index file of a specific package from the store.
@@ -472,6 +477,7 @@ impl CliArgs {
                 args.run(|| config().map(|m| &*m))?;
             }
             CliCommand::Store(command) => command.run(|| config().map(|m| &*m))?,
+            CliCommand::Cache(command) => command.run(config()?)?,
             CliCommand::CatFile(args) => {
                 args.run(|| config().map(|m| &*m))?;
             }
