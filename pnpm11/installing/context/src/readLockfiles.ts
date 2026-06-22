@@ -1,7 +1,10 @@
+import path from 'node:path'
+
 import {
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
+import { PnpmError } from '@pnpm/error'
 import {
   createLockfileObject,
   existsNonEmptyWantedLockfile,
@@ -64,7 +67,9 @@ export async function readLockfiles (
   }
   const fileReads = [] as Array<Promise<LockfileObject | undefined | null>>
   let lockfileHadConflicts: boolean = false
+  let wantedLockfileFileExists = false
   if (opts.useLockfile) {
+    wantedLockfileFileExists = await existsNonEmptyWantedLockfile(opts.lockfileDir, lockfileOpts)
     if (!opts.frozenLockfile) {
       fileReads.push(
         (async () => {
@@ -107,6 +112,9 @@ export async function readLockfiles (
     })()
   )
   const files = await Promise.all<LockfileObject | null | undefined>(fileReads)
+  if (opts.frozenLockfile && wantedLockfileFileExists && files[0] == null) {
+    throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${path.join(opts.lockfileDir, WANTED_LOCKFILE)}" is broken: it is empty`)
+  }
   const sopts = {
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,

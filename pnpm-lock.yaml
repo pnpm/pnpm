@@ -5541,6 +5541,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml

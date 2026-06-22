@@ -4,6 +4,7 @@
 "@pnpm/fetching.fetcher-base": minor
 "@pnpm/hooks.types": minor
 "@pnpm/installing.package-requester": minor
+"@pnpm/installing.context": patch
 "@pnpm/installing.deps-resolver": patch
 "@pnpm/fetching.tarball-fetcher": patch
 "@pnpm/fetching.pick-fetcher": patch
