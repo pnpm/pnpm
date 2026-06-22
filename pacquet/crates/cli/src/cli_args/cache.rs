@@ -2,12 +2,15 @@ use clap::Subcommand;
 use miette::IntoDiagnostic;
 use pacquet_config::{Config, ResolutionMode};
 use pacquet_resolving_npm_resolver::mirror::{
-    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, encode_pkg_name,
-    get_registry_name, load_meta,
+    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, encode_pkg_name, get_registry_name, load_meta,
 };
 use pacquet_store_dir::StoreIndex;
 use serde_json::json;
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
 use wax::walk::Entry;
 
 #[derive(Debug, Subcommand)]
@@ -37,27 +40,33 @@ impl CacheCommand {
         config.cache_dir.join(Self::meta_dir(config))
     }
 
+    /// Filesystem-safe slug of the configured registry, used as the top-level
+    /// directory under the metadata cache root. A malformed registry URL is a
+    /// configuration error, so we surface it rather than broadening the glob
+    /// scope to every registry — important because `delete` is destructive.
+    fn registry_prefix(config: &Config) -> miette::Result<String> {
+        get_registry_name(&config.registry).into_diagnostic()
+    }
+
     fn find_metadata_files(
         config: &Config,
-        cache_dir: &std::path::Path,
+        cache_dir: &Path,
         packages: &[String],
     ) -> miette::Result<Vec<String>> {
-        let registry_prefix =
-            get_registry_name(&config.registry).unwrap_or_else(|_| "*".to_string());
+        let registry_prefix = Self::registry_prefix(config)?;
 
         let patterns = if packages.is_empty() {
-            vec![format!("{}/**", registry_prefix)]
+            vec![format!("{registry_prefix}/**")]
         } else {
             packages
                 .iter()
                 .map(|pkg| {
                     if pkg.contains("..") {
                         return Err(miette::miette!(
-                            "Invalid package name '{}': path traversal sequences are not allowed",
-                            pkg
+                            "Invalid package name '{pkg}': path traversal sequences are not allowed"
                         ));
                     }
-                    Ok(format!("{}/{}.jsonl", registry_prefix, encode_pkg_name(pkg)))
+                    Ok(format!("{registry_prefix}/{}.jsonl", encode_pkg_name(pkg)))
                 })
                 .collect::<miette::Result<Vec<_>>>()?
         };
@@ -66,6 +75,9 @@ impl CacheCommand {
         for pattern in patterns {
             let glob = wax::Glob::new(&pattern).into_diagnostic()?;
             for entry in glob.walk(cache_dir).filter_map(std::result::Result::ok) {
+                if !entry.file_type().is_file() {
+                    continue;
+                }
                 if let Some(path_str) =
                     entry.path().strip_prefix(cache_dir).ok().and_then(|path| path.to_str())
                 {
@@ -109,21 +121,8 @@ impl CacheCommand {
                     return Ok(());
                 }
                 let meta_files = Self::find_metadata_files(config, &cache_dir, &packages)?;
-                let selected_meta_dir = Self::meta_dir(config);
                 for meta_file in &meta_files {
-                    let file_path = cache_dir.join(meta_file);
-                    let _ = fs::remove_file(&file_path);
-
-                    if let Ok(rel_path) = file_path.strip_prefix(&cache_dir) {
-                        for meta_dir in
-                            [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR]
-                        {
-                            if meta_dir != selected_meta_dir {
-                                let _ =
-                                    fs::remove_file(config.cache_dir.join(meta_dir).join(rel_path));
-                            }
-                        }
-                    }
+                    fs::remove_file(cache_dir.join(meta_file)).into_diagnostic()?;
                 }
                 if !meta_files.is_empty() {
                     println!("{}", meta_files.join("\n"));
@@ -135,14 +134,17 @@ impl CacheCommand {
                     return Ok(());
                 }
                 let encoded_name = encode_pkg_name(&package);
-                // Note: we bypass find_metadata_files to search purely by exact filename because find_metadata_files encodes again
-                let registry_prefix =
-                    get_registry_name(&config.registry).unwrap_or_else(|_| "*".to_string());
+                // Bypass find_metadata_files: the package name is matched as an
+                // exact filename here, while find_metadata_files re-encodes it.
+                let registry_prefix = Self::registry_prefix(config)?;
                 let pattern = format!("{registry_prefix}/{encoded_name}.jsonl");
 
                 let glob = wax::Glob::new(&pattern).into_diagnostic()?;
                 let mut meta_file_paths = Vec::new();
                 for entry in glob.walk(&cache_dir).filter_map(std::result::Result::ok) {
+                    if !entry.file_type().is_file() {
+                        continue;
+                    }
                     if let Some(path_str) =
                         entry.path().strip_prefix(&cache_dir).ok().and_then(|path| path.to_str())
                     {
@@ -154,8 +156,14 @@ impl CacheCommand {
 
                 let mut meta_files_by_path = HashMap::new();
 
+                // pnpm's cacheView opens a writable StoreIndex that creates
+                // index.db when absent, so a fresh/empty store reports every
+                // version as non-cached rather than erroring. `shared_readonly_in`
+                // returns None when index.db does not exist, which we treat the
+                // same way: every lookup is a miss.
+                let store_index = StoreIndex::shared_readonly_in(&config.store_dir);
                 let store_index =
-                    StoreIndex::open_readonly_in(&config.store_dir).into_diagnostic()?;
+                    store_index.as_ref().map(|index| index.lock().expect("store index mutex"));
 
                 for (file_path, full_path) in meta_file_paths {
                     let Some(meta_object) = load_meta(&full_path) else { continue };
@@ -181,16 +189,24 @@ impl CacheCommand {
                             integrity,
                             &format!("{}@{}", meta_object.name, version),
                         );
-                        if store_index.contains_key(&key).unwrap_or(false) {
+                        let is_cached = store_index
+                            .as_ref()
+                            .is_some_and(|index| index.contains_key(&key).unwrap_or(false));
+                        if is_cached {
                             cached_versions.push(version.clone());
                         } else {
                             non_cached_versions.push(version.clone());
                         }
                     }
 
-                    let registry_name = PathBuf::from(&file_path).parent().map_or_else(
+                    // The output groups versions per registry. The registry
+                    // directory is the top-level component of the cache-relative
+                    // path; for scoped packages the file lives one level deeper
+                    // (`<registry>/@scope/name.jsonl`), so `parent()` would be
+                    // wrong. Mirrors pnpm's cacheView walk to the top-most dir.
+                    let registry_name = Path::new(&file_path).components().next().map_or_else(
                         || ".".to_string(),
-                        |parent| parent.to_string_lossy().into_owned(),
+                        |component| component.as_os_str().to_string_lossy().into_owned(),
                     );
 
                     meta_files_by_path.insert(
