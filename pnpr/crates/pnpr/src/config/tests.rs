@@ -1397,6 +1397,7 @@ packages:
   '@secret/*':
     access: $authenticated
     publish: $authenticated
+    unpublish: admin
   '**':
     access: $all
     publish: $authenticated
@@ -1408,6 +1409,8 @@ packages:
     let public = config.policies.for_package("lodash");
     assert!(public.access.allows(&Identity::Anonymous));
     assert!(!public.publish.allows(&Identity::Anonymous));
+    assert!(!secret.unpublish.allows(&user("alice")));
+    assert!(secret.unpublish.allows(&user("admin")));
 }
 
 #[test]
@@ -1441,6 +1444,60 @@ packages:
     assert!(effective.access.allows(&Identity::Anonymous));
     assert!(!effective.publish.allows(&Identity::Anonymous));
     assert!(effective.publish.allows(&user("alice")));
+    assert!(!effective.unpublish.allows(&Identity::Anonymous));
+    assert!(!effective.unpublish.allows(&user("alice")));
+}
+
+#[test]
+fn policy_missing_unpublish_denies_destructive_writes() {
+    let yaml = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@team/*':
+    publish: alice
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let team = config.policies.for_package("@team/x");
+    assert!(team.publish.allows(&user("alice")));
+    assert!(!team.publish.allows(&user("bob")));
+    assert!(!team.unpublish.allows(&user("alice")));
+    assert!(!team.unpublish.allows(&user("bob")));
+}
+
+#[test]
+fn policy_empty_unpublish_denies_destructive_writes() {
+    let as_null = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@team/*':
+    publish: $authenticated
+    unpublish:
+";
+    let as_empty_string = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@team/*':
+    publish: $authenticated
+    unpublish: ''
+";
+    let as_empty_sequence = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@team/*':
+    publish: $authenticated
+    unpublish: []
+";
+    for yaml in [as_null, as_empty_string, as_empty_sequence] {
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        let team = config.policies.for_package("@team/x");
+        assert!(team.publish.allows(&user("alice")), "{yaml}");
+        assert!(!team.unpublish.allows(&Identity::Anonymous), "{yaml}");
+        assert!(!team.unpublish.allows(&user("alice")), "{yaml}");
+    }
 }
 
 #[test]

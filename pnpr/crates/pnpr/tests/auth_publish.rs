@@ -27,6 +27,19 @@ fn static_config(storage: PathBuf) -> Config {
     config
 }
 
+fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, PathBuf) {
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let storage = dir.path().join("storage");
+    std::fs::create_dir_all(&storage).unwrap();
+    let yaml =
+        format!("storage: {}\nuplinks: {{}}\npackages:\n{packages_block}\n", storage.display());
+    let config_path = dir.path().join("config.yaml");
+    std::fs::write(&config_path, yaml).unwrap();
+    let config =
+        Config::from_yaml(&config_path, listen, Some("http://example.test".to_string())).unwrap();
+    (config, storage)
+}
+
 async fn body_bytes(body: Body) -> Vec<u8> {
     to_bytes(body, usize::MAX).await.expect("read body").to_vec()
 }
@@ -1155,12 +1168,153 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
 }
 
 #[tokio::test]
-async fn unpublish_requires_publish_auth() {
+async fn missing_unpublish_policy_denies_destructive_writes() {
     let tmp = TempDir::new().unwrap();
-    let app = router(static_config(tmp.path().to_path_buf()));
-    let request = Request::delete("/some-pkg/-rev/anything").body(Body::empty()).unwrap();
-    let response = app.oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let (config, storage) = static_config_with_packages(
+        &tmp,
+        "  'missing-unpublish':
+    access: $all
+    publish: alice",
+    );
+    let app = router(config);
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = sample_publish_body("missing-unpublish", "1.0.0", b"contents");
+    let request = Request::put("/missing-unpublish")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    let request = Request::delete("/missing-unpublish/-rev/anything")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    assert!(storage.join("missing-unpublish/package.json").exists());
+}
+
+#[tokio::test]
+async fn unpublish_policy_denies_publish_authorized_package_delete() {
+    let tmp = TempDir::new().unwrap();
+    let (config, storage) = static_config_with_packages(
+        &tmp,
+        "  'unpub-policy':
+    access: $all
+    publish: $authenticated
+    unpublish: admin",
+    );
+    let app = router(config);
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+
+    let body = sample_publish_body("unpub-policy", "1.0.0", b"contents");
+    let request = Request::put("/unpub-policy")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert!(storage.join("unpub-policy/package.json").exists());
+
+    let request = Request::delete("/unpub-policy/-rev/anything")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    assert!(storage.join("unpub-policy/package.json").exists());
+
+    let request = Request::delete("/unpub-policy/-rev/anything")
+        .header("Authorization", format!("Bearer {admin}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert!(!storage.join("unpub-policy").exists());
+}
+
+#[tokio::test]
+async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
+    let tmp = TempDir::new().unwrap();
+    let (config, storage) = static_config_with_packages(
+        &tmp,
+        "  'tarball-policy':
+    access: $all
+    publish: $authenticated
+    unpublish: admin",
+    );
+    let app = router(config);
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+
+    let body = sample_publish_body("tarball-policy", "1.0.0", b"contents");
+    let request = Request::put("/tarball-policy")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert!(storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
+
+    let request = Request::delete("/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    assert!(storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
+
+    let request = Request::delete("/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
+        .header("Authorization", format!("Bearer {admin}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert!(!storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
+}
+
+#[tokio::test]
+async fn packument_replacement_requires_publish_and_unpublish_policy() {
+    let tmp = TempDir::new().unwrap();
+    let (config, storage) = static_config_with_packages(
+        &tmp,
+        "  'replace-policy':
+    access: $all
+    publish: $authenticated
+    unpublish: admin",
+    );
+    let app = router(config);
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+
+    let body = sample_publish_body("replace-policy", "1.0.0", b"contents");
+    let request = Request::put("/replace-policy")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    let packument_path = storage.join("replace-policy/package.json");
+    let mut replacement: Value =
+        serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
+    replacement["owner"] = json!("admin");
+
+    let request = Request::put("/replace-policy/-rev/anything")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    let on_disk: Value = serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
+    assert!(on_disk.get("owner").is_none());
+
+    let request = Request::put("/replace-policy/-rev/anything")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {admin}"))
+        .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    let on_disk: Value = serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
+    assert_eq!(on_disk["owner"], "admin");
 }
 
 /// Two different versions of the same package, published concurrently,
