@@ -1,4 +1,5 @@
 pub mod add;
+pub mod approve_builds;
 pub mod cache;
 pub mod cat_file;
 pub mod cat_index;
@@ -6,8 +7,10 @@ pub mod create;
 pub mod dlx;
 pub mod exec;
 pub mod find_hash;
+pub mod ignored_builds;
 pub mod install;
 pub mod outdated;
+pub mod rebuild;
 pub mod recursive;
 pub mod remove;
 pub mod restart;
@@ -23,6 +26,7 @@ pub mod why;
 
 use crate::{State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
+use approve_builds::ApproveBuildsArgs;
 use cache::CacheCommand;
 use cat_file::CatFileArgs;
 use cat_index::CatIndexArgs;
@@ -31,6 +35,7 @@ use create::CreateArgs;
 use dlx::DlxArgs;
 use exec::ExecArgs;
 use find_hash::FindHashArgs;
+use ignored_builds::IgnoredBuildsArgs;
 use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
 use outdated::{OutdatedArgs, OutdatedOutcome};
@@ -41,6 +46,7 @@ use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{
     ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, Reporter, SilentReporter,
 };
+use rebuild::RebuildArgs;
 use remove::RemoveArgs;
 use restart::RestartArgs;
 use run::RunArgs;
@@ -145,6 +151,9 @@ pub enum CliCommand {
     Outdated(OutdatedArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
+    /// Rebuild a package.
+    #[clap(visible_alias = "rb")]
+    Rebuild(RebuildArgs),
     /// Removes packages from `node_modules` and from the project's `package.json`.
     // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
     // confusion with "run" and "recursive". Mirrors pnpm's `commandNames`.
@@ -182,6 +191,10 @@ pub enum CliCommand {
     CatFile(CatFileArgs),
     /// Prints the index file of a specific package from the store.
     CatIndex(CatIndexArgs),
+    /// Print the list of packages with blocked build scripts.
+    IgnoredBuilds(IgnoredBuildsArgs),
+    /// Approve dependencies for running scripts during installation.
+    ApproveBuilds(ApproveBuildsArgs),
 }
 
 impl CliArgs {
@@ -263,7 +276,11 @@ impl CliArgs {
                 | CliCommand::Install(_)
                 | CliCommand::Dlx(_)
                 | CliCommand::Create(_)
-                | CliCommand::Runtime(_),
+                | CliCommand::Runtime(_)
+                // `rebuild` drives the frozen-install pipeline and emits
+                // the same progress events, so it shares the `Done in ...`
+                // footer.
+                | CliCommand::Rebuild(_),
         );
         let manifest_path = || dir.join("package.json");
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
@@ -503,6 +520,50 @@ impl CliArgs {
             }
             CliCommand::CatIndex(args) => {
                 args.run(&dir, || config().map(|m| &*m)).await?;
+            }
+            CliCommand::IgnoredBuilds(_) => {
+                let output = ignored_builds::render_ignored_builds(config()?)?;
+                print!("{output}");
+            }
+            CliCommand::Rebuild(args) => match reporter {
+                ReporterType::Default | ReporterType::AppendOnly => {
+                    Box::pin(args.run::<DefaultReporter>(state(true)?)).await?;
+                }
+                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(true)?)).await?,
+                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(true)?)).await?,
+            },
+            CliCommand::ApproveBuilds(args) => {
+                // The settings/prompt work is synchronous; only the rebuild
+                // is async, so the non-`Send` `config` / `state` closures
+                // stay out of the awaited future.
+                if let Some((rebuild_state, build_packages)) =
+                    args.prepare(&dir, &config, &state)?
+                {
+                    let selected = Some(build_packages);
+                    match reporter {
+                        ReporterType::Default | ReporterType::AppendOnly => {
+                            Box::pin(rebuild::run_rebuild::<DefaultReporter>(
+                                &rebuild_state,
+                                selected,
+                            ))
+                            .await?;
+                        }
+                        ReporterType::Ndjson => {
+                            Box::pin(rebuild::run_rebuild::<NdjsonReporter>(
+                                &rebuild_state,
+                                selected,
+                            ))
+                            .await?;
+                        }
+                        ReporterType::Silent => {
+                            Box::pin(rebuild::run_rebuild::<SilentReporter>(
+                                &rebuild_state,
+                                selected,
+                            ))
+                            .await?;
+                        }
+                    }
+                }
             }
         }
 

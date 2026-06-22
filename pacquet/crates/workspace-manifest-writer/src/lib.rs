@@ -18,7 +18,11 @@
 //! [`reorderRecursive`]: https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L290-L313
 //! [`propagateBlankLinesToNewPairs`]: https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L347-L385
 
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io::{self, Write as _},
+    path::Path,
+};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -97,7 +101,7 @@ pub fn update_workspace_manifest(
         return Ok(());
     }
 
-    fs::write(&path, manifest.into_text())
+    write_atomic(&path, &manifest.into_text())
         .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
 }
 
@@ -128,6 +132,63 @@ pub fn set_config_dependency(
         return Ok(());
     }
 
-    fs::write(&path, manifest.into_text())
+    write_atomic(&path, &manifest.into_text())
         .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
+}
+
+/// Upsert `name → bool` entries into `dir`'s `pnpm-workspace.yaml`
+/// `allowBuilds:` block (creating the file/block if absent), preserving the
+/// rest of the document's formatting, and write the file back only when
+/// something actually changed. Used by `pnpm approve-builds` to record
+/// which dependencies may (`true`) or may not (`false`) run build scripts.
+///
+/// `entries` is iterated in its own order; pass an ordered map for a
+/// deterministic result.
+pub fn set_allow_builds<'a, Entries>(
+    dir: &Path,
+    entries: Entries,
+) -> Result<(), UpdateWorkspaceManifestError>
+where
+    Entries: IntoIterator<Item = (&'a str, bool)>,
+{
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    let mut changed = false;
+    for (name, value) in entries {
+        changed |= edit::add_allow_build(&mut manifest, name, value);
+    }
+    if !changed {
+        return Ok(());
+    }
+
+    write_atomic(&path, &manifest.into_text())
+        .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
+}
+
+/// Write `contents` to `path` atomically: a sibling temp file in the same
+/// directory is written, flushed to disk, and renamed over `path`. The
+/// rename replaces the destination's directory entry, so a
+/// `pnpm-workspace.yaml` that is a symlink is overwritten rather than
+/// followed, and a crash mid-write cannot leave a torn manifest. Mirrors
+/// pnpm's `writeFileAtomic` use in
+/// [`updateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L32).
+fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
+    let dir = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+    tmp.write_all(contents.as_bytes())?;
+    tmp.as_file().sync_all()?;
+    tmp.persist(path).map_err(|err| err.error)?;
+    Ok(())
 }

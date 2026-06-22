@@ -1876,6 +1876,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 is_hoisted,
                 publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
                 logged_methods,
+                // The fresh-resolve path never serves an explicit
+                // `pacquet rebuild`; rebuilds always take the frozen path.
+                rebuild: None,
             },
         )
         .map_err(InstallWithFreshLockfileError::BuildPhase)?;

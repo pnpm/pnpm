@@ -18,13 +18,13 @@ indexmap     = { workspace = true }
 miette       = { workspace = true }
 serde        = { workspace = true }
 serde-saphyr = { workspace = true }
+tempfile     = { workspace = true }
 yaml_serde   = { workspace = true }
 yamlpatch    = { workspace = true }
 yamlpath     = { workspace = true }
 
 [dev-dependencies]
-insta    = { workspace = true }
-tempfile = { workspace = true }
+insta = { workspace = true }
 
 [lints]
 workspace = true

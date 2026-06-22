@@ -21,6 +21,10 @@ pub(crate) struct Manifest {
     /// here — they're only consulted to detect a no-op write of an
     /// already-present clean specifier.
     pub(crate) config_dependencies: Option<IndexMap<String, String>>,
+    /// `allowBuilds:` boolean entries. Consulted to detect a no-op write
+    /// of an already-present value (and kept in sync as entries are
+    /// upserted during a single `pnpm approve-builds` write).
+    pub(crate) allow_builds: Option<IndexMap<String, bool>>,
 }
 
 #[derive(Default, Deserialize)]
@@ -31,6 +35,19 @@ struct CatalogData {
     catalogs: Option<IndexMap<String, IndexMap<String, String>>>,
     #[serde(default, rename = "configDependencies")]
     config_dependencies: Option<IndexMap<String, ConfigDepValue>>,
+    #[serde(default, rename = "allowBuilds")]
+    allow_builds: Option<IndexMap<String, AllowBuildValue>>,
+}
+
+/// An `allowBuilds` value, tolerant of the string form pnpm also accepts
+/// (a version spec) so decoding a manifest that uses it doesn't fail. Only
+/// the boolean shape is retained — the only shape `pnpm approve-builds`
+/// writes.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum AllowBuildValue {
+    Bool(bool),
+    Other(serde::de::IgnoredAny),
 }
 
 /// A `configDependencies` value, tolerant of the legacy object form so
@@ -57,6 +74,7 @@ impl Manifest {
                 catalog: None,
                 catalogs: None,
                 config_dependencies: None,
+                allow_builds: None,
             });
         }
 
@@ -74,6 +92,15 @@ impl Manifest {
                 })
                 .collect()
         });
+        let allow_builds = data.allow_builds.map(|entries| {
+            entries
+                .into_iter()
+                .filter_map(|(name, value)| match value {
+                    AllowBuildValue::Bool(allowed) => Some((name, allowed)),
+                    AllowBuildValue::Other(_) => None,
+                })
+                .collect()
+        });
 
         Ok(Manifest {
             text,
@@ -81,6 +108,7 @@ impl Manifest {
             catalog: data.catalog,
             catalogs: data.catalogs,
             config_dependencies,
+            allow_builds,
         })
     }
 

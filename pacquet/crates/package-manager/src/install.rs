@@ -1,8 +1,8 @@
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
     InstallWithFreshLockfile, InstallWithFreshLockfileError, LockfileVerificationOverride,
-    OptimisticRepeatInstallCheck, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
-    check_optimistic_repeat_install,
+    OptimisticRepeatInstallCheck, RebuildOptions, ResolvedPackages, UpdateSeedPolicy,
+    build_resolution_verifiers, check_optimistic_repeat_install,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
 };
 use derive_more::{Display, Error};
@@ -454,19 +454,40 @@ where
 {
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(None).await
+        self.run_inner::<Reporter>(None, None).await
     }
 
     pub async fn run_with_lockfile_verification<Reporter: self::Reporter + 'static>(
         self,
         lockfile_verification_override: LockfileVerificationOverride<'a>,
     ) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(Some(lockfile_verification_override)).await
+        self.run_inner::<Reporter>(Some(lockfile_verification_override), None).await
+    }
+
+    /// Execute as a forced rebuild: take the frozen path against the
+    /// already-resolved lockfile + materialized `node_modules`, bypass the
+    /// "up to date" short-circuit, and re-run the lifecycle scripts of the
+    /// selected packages (or every build-needing package when
+    /// `rebuild.selected_names` is `None`). Drives `pacquet rebuild` and
+    /// the rebuild step of `pacquet approve-builds`.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless `frozen_lockfile` is set: a rebuild must take the
+    /// frozen path, since the fresh-resolve path drops the rebuild
+    /// selection and would silently degrade to a plain install.
+    pub async fn run_rebuild<Reporter: self::Reporter + 'static>(
+        self,
+        rebuild: RebuildOptions,
+    ) -> Result<(), InstallError> {
+        assert!(self.frozen_lockfile, "run_rebuild requires frozen_lockfile = true");
+        self.run_inner::<Reporter>(None, Some(rebuild)).await
     }
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
+        rebuild: Option<RebuildOptions>,
     ) -> Result<(), InstallError> {
         let Install {
             tarball_mem_cache,
@@ -1159,6 +1180,9 @@ where
             // build must rebuild it, even though the lockfile and layout are
             // unchanged. Mirrors pnpm's `runUnignoredDependencyBuilds`.
             && !has_newly_allowed_ignored_builds(modules, config)
+            // An explicit `pacquet rebuild` always re-runs the build phase,
+            // so it never short-circuits here.
+            && rebuild.is_none()
         {
             // Nothing to materialize means no fetch to overlap; verify
             // eagerly before the up-to-date early return.
@@ -1262,6 +1286,7 @@ where
                 node_linker,
                 tarball_mem_cache: Some(&tarball_mem_cache),
                 seed_skipped: modules_manifest.map(|manifest| manifest.skipped.clone()),
+                rebuild: rebuild.as_ref(),
             }
             .run::<Reporter>()
             .await

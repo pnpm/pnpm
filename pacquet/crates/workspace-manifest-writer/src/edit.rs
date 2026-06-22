@@ -75,6 +75,47 @@ pub(crate) fn add_config_dependency(
     Ok(true)
 }
 
+/// Upsert one `name → bool` entry into the top-level `allowBuilds:` block,
+/// creating the block if absent. Returns whether anything changed. Mirrors
+/// the `allowBuilds` half of pnpm's
+/// [`writeSettings`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/writer/src/index.ts),
+/// which `pnpm approve-builds` calls with each approved package set to
+/// `true` and each denied/unselected package set to `false`.
+pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) -> bool {
+    const BLOCK: &str = "allowBuilds";
+    let text = manifest.text();
+    let changed = if let Some(mapping) = locate(text, &[BLOCK]) {
+        if mapping.entries.iter().any(|entry| entry.key == name) {
+            // Already present with the same value — a true no-op, so don't
+            // rewrite the file (which would bump its mtime).
+            if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name)) == Some(&value) {
+                return false;
+            }
+            let new_text = replace_bool_value_at(text, &[BLOCK], name, value);
+            manifest.set_text(new_text);
+        } else {
+            let new_text = insert_rendered_entry_at(text, &[BLOCK], name, render_bool(value));
+            manifest.set_text(new_text);
+        }
+        true
+    } else {
+        let block = format!("{BLOCK}:\n  {}: {}\n", render::render_value(name), render_bool(value));
+        let new_text = insert_top_level_block(manifest, BLOCK, &block);
+        manifest.set_text(new_text);
+        manifest.top_level_keys =
+            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+        true
+    };
+    // Keep the decoded view in sync so later upserts in the same write see
+    // this entry (for both no-op detection and block-presence checks).
+    manifest.allow_builds.get_or_insert_with(IndexMap::new).insert(name.to_string(), value);
+    changed
+}
+
+fn render_bool(value: bool) -> &'static str {
+    if value { "true" } else { "false" }
+}
+
 /// Where a catalog's entries live (or should be created) in the manifest.
 enum Target {
     /// The top-level `catalog:` shorthand for the default catalog.
@@ -239,6 +280,18 @@ fn replace_value_at(
     dep: &str,
     specifier: &str,
 ) -> Result<String, Box<yamlpatch::Error>> {
+    replace_scalar_at(text, path, dep, yaml_serde::Value::from(specifier))
+}
+
+/// [`replace_value_at`] for an arbitrary scalar value, so non-string blocks
+/// (e.g. `allowBuilds`'s booleans) can reuse the same comment-preserving
+/// splice.
+fn replace_scalar_at(
+    text: &str,
+    path: &[&str],
+    dep: &str,
+    value: yaml_serde::Value,
+) -> Result<String, Box<yamlpatch::Error>> {
     let document =
         Document::new(text.to_string()).map_err(yamlpatch::Error::from).map_err(Box::new)?;
     let components: Vec<Component> = path
@@ -247,10 +300,7 @@ fn replace_value_at(
         .chain(std::iter::once(dep))
         .map(|key| Component::Key(key.into()))
         .collect();
-    let patch = Patch {
-        route: Route::from(components),
-        operation: Op::Replace(yaml_serde::Value::from(specifier)),
-    };
+    let patch = Patch { route: Route::from(components), operation: Op::Replace(value) };
     let patched = yamlpatch::apply_yaml_patches(&document, &[patch]).map_err(Box::new)?;
     Ok(patched.source().to_string())
 }
@@ -265,6 +315,13 @@ fn insert_entry(text: &str, target: &Target, dep: &str, specifier: &str) -> Stri
 /// [`insert_entry`] addressed by an explicit mapping path, so non-catalog
 /// blocks (e.g. `configDependencies`) can reuse the reorder-aware splice.
 fn insert_entry_at(text: &str, path: &[&str], dep: &str, specifier: &str) -> String {
+    insert_rendered_entry_at(text, path, dep, &render::render_value(specifier))
+}
+
+/// [`insert_entry_at`] for an already-rendered value text, so non-string
+/// blocks (e.g. `allowBuilds`'s `true` / `false`) can reuse the
+/// reorder-aware splice without going through [`render::render_value`].
+fn insert_rendered_entry_at(text: &str, path: &[&str], dep: &str, value_text: &str) -> String {
     let mapping = locate(text, path).expect("mapping exists");
     let existing: Vec<String> = mapping.entries.iter().map(|entry| entry.key.clone()).collect();
     let order = render::target_order(&existing, &[dep.to_string()]);
@@ -274,7 +331,7 @@ fn insert_entry_at(text: &str, path: &[&str], dep: &str, specifier: &str) -> Str
         "{}{}: {}\n",
         " ".repeat(mapping.entry_indent),
         render::render_value(dep),
-        render::render_value(specifier),
+        value_text,
     );
     let offset = if position == 0 {
         mapping.body_start
@@ -383,6 +440,8 @@ struct Mapping {
 /// One direct child entry of a mapping.
 struct EntryPos {
     key: String,
+    /// Byte offset where this entry's line begins.
+    line_start: usize,
     /// Byte offset just past this entry's line (after its newline).
     line_end: usize,
     /// Byte offset where this entry's whole sub-block ends (for nested maps).
@@ -425,13 +484,54 @@ fn structural_indent(content: &str) -> Option<usize> {
 }
 
 /// The mapping-key a structural line declares (`key:` or `key: value`), if any.
+///
+/// The key/value delimiter is the first `:` that ends the line or is followed
+/// by whitespace — a `:` inside the value, or inside a key (quoted or not,
+/// e.g. an `allowBuilds` artifact key like `foo@https://example.com/foo.tgz`),
+/// is not the delimiter. Splitting on the first `:` would truncate such keys.
 fn line_key(content: &str) -> Option<String> {
     let trimmed = content.trim_start();
-    let key = trimmed.split_once(':')?.0.trim_end();
+    let delimiter = structural_colon_index(trimmed)?;
+    let key = trimmed[..delimiter].trim_end();
     if key.is_empty() {
         return None;
     }
     Some(strip_quotes(key))
+}
+
+/// Byte offset of the YAML key/value delimiter in `line`: the first `:` that
+/// ends the line or is followed by whitespace. A `:` inside a value or key
+/// (e.g. `foo@https://...`) is not the delimiter.
+fn structural_colon_index(line: &str) -> Option<usize> {
+    let bytes = line.as_bytes();
+    (0..bytes.len())
+        .find(|&idx| bytes[idx] == b':' && bytes.get(idx + 1).is_none_or(u8::is_ascii_whitespace))
+}
+
+/// Rewrite the scalar value of `key`'s existing entry under `path` in place,
+/// preserving the key's text/quoting and any trailing comment. Used for
+/// `allowBuilds` instead of the `yamlpatch` route, which rejects a key
+/// containing `:` (an artifact pkgId such as `foo@https://example.com/foo.tgz`).
+fn replace_bool_value_at(text: &str, path: &[&str], key: &str, value: bool) -> String {
+    let mapping = locate(text, path).expect("mapping exists");
+    let entry = mapping.entries.iter().find(|entry| entry.key == key).expect("entry exists");
+    let line = &text[entry.line_start..entry.line_end];
+    let content = line.strip_suffix('\n').unwrap_or(line);
+    let indent_len = content.len() - content.trim_start().len();
+    let colon = indent_len
+        + structural_colon_index(&content[indent_len..]).expect("entry line has a delimiter");
+    let key_text = content[..colon].trim_end();
+    // Preserve any trailing comment after the value token.
+    let after = content[colon + 1..].trim_start();
+    let value_end = after.find(char::is_whitespace).unwrap_or(after.len());
+    let trailing = &after[value_end..];
+    let new_line = format!("{key_text}: {}{trailing}\n", render_bool(value));
+
+    let mut out = String::with_capacity(text.len());
+    out.push_str(&text[..entry.line_start]);
+    out.push_str(&new_line);
+    out.push_str(&text[entry.line_end..]);
+    out
 }
 
 fn strip_quotes(key: &str) -> String {
@@ -502,7 +602,12 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
                 })
                 .unwrap_or(to);
             let block_end = all.get(block_end_idx).map_or(all[to - 1].end, |line| line.start);
-            entries.push(EntryPos { key, line_end: all[idx].end, block_end });
+            entries.push(EntryPos {
+                key,
+                line_start: all[idx].start,
+                line_end: all[idx].end,
+                block_end,
+            });
             idx = block_end_idx;
         } else {
             idx += 1;
