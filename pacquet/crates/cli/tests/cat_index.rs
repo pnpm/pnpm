@@ -40,6 +40,30 @@ fn should_cat_index_of_installed_package() {
 }
 
 #[test]
+fn should_cat_index_of_npm_alias() {
+    let CommandTempCwd { pacquet, workspace, root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    let alias_spec = "my-alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0";
+    pacquet.with_args(["add", alias_spec]).assert().success();
+
+    let mut pacquet2 = std::process::Command::cargo_bin("pacquet").unwrap();
+    pacquet2.current_dir(&workspace);
+    let output =
+        pacquet2.with_args(["cat-index", alias_spec]).output().expect("run pacquet cat-index");
+
+    assert!(output.status.success(), "Failed to cat-index npm alias");
+
+    let stdout = String::from_utf8(output.stdout).expect("valid utf8");
+    let json: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+    let files =
+        json.get("files").expect("has 'files' object").as_object().expect("'files' is an object");
+    assert!(files.contains_key("package.json"));
+
+    drop(root);
+}
+
+#[test]
 fn should_fail_on_missing_package() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init().add_mocked_registry();
 

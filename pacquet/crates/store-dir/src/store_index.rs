@@ -566,6 +566,33 @@ impl StoreIndex {
         decode_index_value(&bytes).map(Some)
     }
 
+    /// Look up the first package-files index whose key ends with `\t{pkg_id}`.
+    ///
+    /// This is for read-only inspection commands that only know the local
+    /// package id and must not resolve against a registry to recover the
+    /// integrity half of the key.
+    pub fn get_by_pkg_id(
+        &self,
+        pkg_id: &str,
+    ) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
+        let pattern = format!("%\t{}", escape_like_pattern(pkg_id));
+        let row: Option<Vec<u8>> = self
+            .conn
+            .query_row(
+                r"SELECT data FROM package_index WHERE key LIKE ?1 ESCAPE '\' ORDER BY key LIMIT 1",
+                [pattern],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .map(Some)
+            .or_else(|err| match err {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                other => Err(StoreIndexError::Read { source: other }),
+            })?;
+
+        let Some(bytes) = row else { return Ok(None) };
+        decode_index_value(&bytes).map(Some)
+    }
+
     /// Look up many keys in one trip across the `SQLite` mutex.
     ///
     /// Returns a `key → PackageFilesIndex` map for every row that exists
@@ -808,6 +835,17 @@ fn decode_index_value(bytes: &[u8]) -> Result<PackageFilesIndex, StoreIndexError
     let plain = crate::msgpackr_records::transcode_to_plain_msgpack(bytes)
         .map_err(|source| StoreIndexError::Transcode { source })?;
     rmp_serde::from_slice(&plain).map_err(|source| StoreIndexError::Decode { source })
+}
+
+fn escape_like_pattern(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if matches!(character, '\\' | '%' | '_') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
 }
 
 /// Build the `SQLite` key pnpm uses: `"{integrity}\t{pkg_id}"`. Integrity strings
