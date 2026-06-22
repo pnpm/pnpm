@@ -113,10 +113,6 @@ impl UserBackend for CanonicalUserBackend {
         assert_eq!(username, "alice");
         Ok((UpsertOutcome::LoggedIn, "Alice".to_string()))
     }
-
-    async fn verify(&self, _username: &str, _password: &str) -> pnpr::Result<Option<String>> {
-        Ok(None)
-    }
 }
 
 #[tokio::test]

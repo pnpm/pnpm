@@ -1292,7 +1292,7 @@ async fn caller_username(
     headers: &HeaderMap,
 ) -> Result<Option<String>, RegistryError> {
     let authorization = single_authorization_header(headers)?;
-    identify(authorization, state.inner.auth.users.as_ref(), state.inner.auth.tokens.as_ref()).await
+    identify(authorization, state.inner.auth.tokens.as_ref()).await
 }
 
 async fn require_resolver_caller(
@@ -2193,8 +2193,7 @@ async fn resolve_caller(
     // Not a bearer token: Basic (or no credentials), which carries no
     // token-level restriction. `identify` does the decode + password
     // verification.
-    let username =
-        identify(header, state.inner.auth.users.as_ref(), state.inner.auth.tokens.as_ref()).await?;
+    let username = identify(header, state.inner.auth.tokens.as_ref()).await?;
     Ok(username.map_or(Identity::Anonymous, |username| Identity::User { username }))
 }
 

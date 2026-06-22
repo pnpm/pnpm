@@ -21,7 +21,7 @@
 use super::{
     DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
     hash_bcrypt, mint_token, sha256_hex, token_timestamp_from_sql, unix_seconds, validate_username,
-    verify_bcrypt, verify_returning_user,
+    verify_returning_user,
 };
 use crate::{
     config::{LibsqlSettings, MaxUsers},
@@ -219,18 +219,6 @@ impl UserBackend for LibsqlAuth {
                 Err(err) => return Err(err.into()),
             }
         }
-    }
-
-    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
-        if validate_username(username).is_err() {
-            return Ok(None);
-        }
-
-        let Some(stored) = self.stored_hash(username).await? else {
-            return Ok(None);
-        };
-        let valid = verify_bcrypt(password.to_string(), stored).await?;
-        Ok(valid.then(|| username.to_string()))
     }
 }
 

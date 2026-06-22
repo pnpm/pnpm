@@ -114,10 +114,6 @@ async fn user_store_rejects_invalid_username_before_lookup() {
             axum::http::StatusCode::BAD_REQUEST,
             "expected adduser for {username:?} to be rejected",
         );
-        assert!(
-            store.verify(username, "secret").await.unwrap().is_none(),
-            "expected Basic auth for {username:?} to be rejected",
-        );
     }
 }
 
@@ -132,9 +128,9 @@ async fn adduser_creates_then_validates() {
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
     assert_eq!(outcome.1, "alice");
 
-    assert!(store.verify("alice", "secret").await.unwrap().is_some());
-    assert!(store.verify("alice", "wrong").await.unwrap().is_none());
-    assert!(store.verify("bob", "secret").await.unwrap().is_none());
+    // A wrong password for an existing user is rejected.
+    let err = store.add_or_login("alice", "wrong").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -189,10 +185,11 @@ async fn adduser_rejects_same_username_concurrent_registration_with_different_pa
 
     assert_eq!(created, 1, "exactly one concurrent adduser should create the account");
     assert_eq!(unauthorized, 1, "the losing registration must be rejected");
-    assert_ne!(
-        store.verify("alice", "pw-a").await.unwrap().is_some(),
-        store.verify("alice", "pw-b").await.unwrap().is_some(),
-    );
+    // Exactly one of the two passwords is the one that was stored: logging in
+    // with it succeeds, the other is unauthorized.
+    let pw_a_logs_in = store.add_or_login("alice", "pw-a").await.is_ok();
+    let pw_b_logs_in = store.add_or_login("alice", "pw-b").await.is_ok();
+    assert_ne!(pw_a_logs_in, pw_b_logs_in, "exactly one password must be the stored one");
 }
 
 #[tokio::test]
@@ -204,11 +201,10 @@ async fn adduser_persists_across_reopen() {
     store.add_or_login("alice", "secret").await.unwrap();
     drop(store);
 
-    // Cold-load from disk; the hashed entry should still verify.
+    // Cold-load from disk; the hashed entry should still log in.
     let reopened = UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
     let outcome = reopened.add_or_login("alice", "secret").await.unwrap();
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
-    assert!(reopened.verify("alice", "secret").await.unwrap().is_some());
 }
 
 #[tokio::test]
@@ -408,53 +404,44 @@ async fn token_issue_rolls_back_memory_when_sqlite_persistence_fails() {
 }
 
 #[tokio::test]
-async fn identify_recognizes_bearer_and_basic() {
-    let users = test_user_store();
-    users.add_or_login("alice", "secret").await.unwrap();
+async fn identify_recognizes_bearer_and_ignores_basic() {
     let tokens = TokenStore::in_memory();
     let token = tokens.issue("alice").await.unwrap();
 
     let header = format!("Bearer {token}");
-    assert_eq!(identify(Some(&header), &users, &tokens).await.unwrap().as_deref(), Some("alice"));
+    assert_eq!(identify(Some(&header), &tokens).await.unwrap().as_deref(), Some("alice"));
 
-    // Basic: base64(alice:secret) = YWxpY2U6c2VjcmV0
+    // Basic credentials are no longer accepted on requests — the header is
+    // ignored (treated as anonymous), so request handling never pays a bcrypt.
     let basic = "Basic YWxpY2U6c2VjcmV0";
-    assert_eq!(identify(Some(basic), &users, &tokens).await.unwrap().as_deref(), Some("alice"));
+    assert!(identify(Some(basic), &tokens).await.unwrap().is_none());
 
-    let wrong = format!(
-        "Basic {}",
-        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"alice:wrong"),
-    );
-    assert!(identify(Some(&wrong), &users, &tokens).await.unwrap().is_none());
-
-    assert!(identify(None, &users, &tokens).await.unwrap().is_none());
-    assert!(identify(Some("Bearer total-nonsense"), &users, &tokens).await.unwrap().is_none());
+    assert!(identify(None, &tokens).await.unwrap().is_none());
+    assert!(identify(Some("Bearer total-nonsense"), &tokens).await.unwrap().is_none());
 }
 
 /// RFC 7235 §2.1: "the scheme is case-insensitive". All of
 /// `Bearer`, `BEARER`, and `bearer` (and the mixed-case forms
-/// some clients emit) must resolve the same way.
+/// some clients emit) must resolve the same way; `Basic` is ignored in any
+/// case.
 #[tokio::test]
 async fn identify_parses_auth_scheme_case_insensitively() {
-    let users = test_user_store();
-    users.add_or_login("alice", "secret").await.unwrap();
     let tokens = TokenStore::in_memory();
     let token = tokens.issue("alice").await.unwrap();
 
     for scheme in ["Bearer", "bearer", "BEARER", "BeArEr"] {
         let header = format!("{scheme} {token}");
         assert_eq!(
-            identify(Some(&header), &users, &tokens).await.unwrap().as_deref(),
+            identify(Some(&header), &tokens).await.unwrap().as_deref(),
             Some("alice"),
             "Bearer scheme {scheme:?} should be recognized",
         );
     }
     for scheme in ["Basic", "basic", "BASIC", "bAsIc"] {
         let header = format!("{scheme} YWxpY2U6c2VjcmV0");
-        assert_eq!(
-            identify(Some(&header), &users, &tokens).await.unwrap().as_deref(),
-            Some("alice"),
-            "Basic scheme {scheme:?} should be recognized",
+        assert!(
+            identify(Some(&header), &tokens).await.unwrap().is_none(),
+            "Basic scheme {scheme:?} must be ignored",
         );
     }
 }
