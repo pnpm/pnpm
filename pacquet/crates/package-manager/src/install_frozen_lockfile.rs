@@ -176,6 +176,11 @@ where
     /// prefetch in flight.
     pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
     pub seed_skipped: Option<Vec<String>>,
+    /// Forced-rebuild selection threaded from `pacquet rebuild` /
+    /// `approve-builds`; `None` for a normal install. Forwarded to
+    /// `run_build_phase`'s `BuildPhaseInputs`. See
+    /// [`crate::RebuildOptions`].
+    pub rebuild: Option<&'a crate::RebuildOptions>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -401,6 +406,10 @@ pub(crate) struct BuildPhaseInputs<'a> {
     /// and when no public-hoist pattern is set.
     pub(crate) publicly_hoisted_for_post_build: &'a [String],
     pub(crate) logged_methods: &'a AtomicU8,
+    /// Forced-rebuild selection threaded from `pacquet rebuild` /
+    /// `approve-builds`; `None` for a normal install. See
+    /// [`crate::RebuildOptions`].
+    pub(crate) rebuild: Option<&'a crate::RebuildOptions>,
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
@@ -438,6 +447,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         is_hoisted,
         publicly_hoisted_for_post_build,
         logged_methods,
+        rebuild,
     } = inputs;
 
     let patches = resolve_snapshot_patches(config, patch_groups, snapshots)?;
@@ -483,6 +493,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         ignore_scripts: config.ignore_scripts,
         import_method: config.package_import_method,
         logged_methods,
+        rebuild,
     }
     .run::<Reporter>()
     .map_err(BuildPhaseError::BuildModules)?;
@@ -580,6 +591,7 @@ where
             node_linker,
             tarball_mem_cache,
             seed_skipped,
+            rebuild,
         } = self;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
@@ -1296,6 +1308,7 @@ where
             is_hoisted,
             publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
             logged_methods,
+            rebuild,
         })
         .map_err(InstallFrozenLockfileError::BuildPhase)?;
 

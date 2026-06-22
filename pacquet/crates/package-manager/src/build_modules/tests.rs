@@ -1,4 +1,6 @@
-use super::{AllowBuildPolicy, BuildModules, parse_name_version_from_key};
+use super::{
+    AllowBuildPolicy, BuildModules, allow_build_key_from_ignored_build, parse_name_version_from_key,
+};
 use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
 use pacquet_config::{Config, PackageImportMethod};
 use pacquet_executor::ScriptsPrependNodePath;
@@ -348,6 +350,7 @@ fn build_modules_collects_ignored_builds() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -413,6 +416,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         ignore_scripts: true,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -466,6 +470,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -539,6 +544,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules under concurrency");
@@ -605,6 +611,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -694,6 +701,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<RecordingReporter>()
     .expect("optional build failure must NOT abort the install");
@@ -856,6 +864,7 @@ fn using_side_effects_cache_skips_rebuild() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<RecordingReporter>()
     .expect("install must succeed when the cache hit skips the rebuild");
@@ -981,6 +990,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("a corrupt cache overlay must degrade to a rebuild, not abort the install");
@@ -1097,6 +1107,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>();
 
@@ -1164,6 +1175,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect_err("with cache disabled, the failing postinstall must run and the install must fail");
@@ -1230,6 +1242,7 @@ fn fail_when_failing_postinstall_is_required() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect_err("required build failure must propagate");
@@ -1318,6 +1331,7 @@ fn frozen_backstop_run(
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
 }
@@ -1642,6 +1656,7 @@ async fn write_path_populates_side_effects_row() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1762,6 +1777,7 @@ async fn write_path_disabled_skips_upload() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1890,6 +1906,7 @@ async fn upload_error_does_not_interrupt_install() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("upload failure must not propagate; install continues");
@@ -2126,6 +2143,7 @@ new file mode 100644
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -2241,6 +2259,7 @@ new file mode 100644
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -2327,6 +2346,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect_err("missing patch_file_path must surface as PatchFilePathMissing");
@@ -2480,4 +2500,33 @@ fn pkg_root_for_key_hoisted_missing_returns_none() {
 
     let result = super::pkg_root_for_key(&layout, Some(&map), &key);
     assert!(result.is_none(), "absent key surfaces None, got {result:?}");
+}
+
+#[test]
+fn allow_build_key_strips_version_for_registry_packages() {
+    // Registry depPaths reduce to the bare package name — the
+    // `allowBuilds` key a user would approve them under.
+    assert_eq!(allow_build_key_from_ignored_build("esbuild@0.17.0"), "esbuild");
+    assert_eq!(
+        allow_build_key_from_ignored_build("@pnpm.e2e/install-script-example@1.0.0"),
+        "@pnpm.e2e/install-script-example",
+    );
+}
+
+#[test]
+fn allow_build_key_ignores_patch_hash_when_deriving_name() {
+    // A `(patch_hash=…)` segment is dropped before the version is checked,
+    // so a patched registry package still reduces to its name.
+    assert_eq!(allow_build_key_from_ignored_build("esbuild@0.17.0(patch_hash=abcdef)"), "esbuild",);
+}
+
+#[test]
+fn allow_build_key_keeps_full_id_for_non_semver_artifacts() {
+    // Git / tarball artifacts have a non-semver "version", so the whole
+    // pkgId is the key — the name alone must not approve their builds.
+    let git = "foo@github.com/foo/bar#0123456789";
+    assert_eq!(allow_build_key_from_ignored_build(git), git);
+
+    let tarball = "https://example.com/foo.tgz";
+    assert_eq!(allow_build_key_from_ignored_build(tarball), tarball);
 }

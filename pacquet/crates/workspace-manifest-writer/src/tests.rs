@@ -254,3 +254,50 @@ fn config_dependency_noop_when_unchanged_returns_false() {
         "changing the specifier should report a change",
     );
 }
+
+/// Run `set_allow_builds` against `original` (when `Some`) and return the
+/// resulting file contents (or `None` when no file exists afterward).
+fn run_allow_builds(original: Option<&str>, entries: &[(&str, bool)]) -> Option<String> {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    if let Some(text) = original {
+        fs::write(&path, text).expect("seed manifest");
+    }
+    crate::set_allow_builds(dir.path(), entries.iter().copied()).expect("update succeeds");
+    fs::read_to_string(&path).ok()
+}
+
+#[test]
+fn allow_builds_creates_block_when_absent() {
+    let out = run_allow_builds(None, &[("esbuild", true)]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true\n"));
+}
+
+#[test]
+fn allow_builds_writes_boolean_values_unquoted() {
+    let out = run_allow_builds(None, &[("esbuild", true), ("@scope/pkg", false)]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  '@scope/pkg': false\n  esbuild: true\n"),);
+}
+
+#[test]
+fn allow_builds_upserts_existing_entry() {
+    let original = "allowBuilds:\n  esbuild: false\n";
+    let out = run_allow_builds(Some(original), &[("esbuild", true)]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true\n"));
+}
+
+#[test]
+fn allow_builds_no_op_when_unchanged_keeps_file() {
+    let original = "allowBuilds:\n  esbuild: true\n";
+    let out = run_allow_builds(Some(original), &[("esbuild", true)]);
+    assert_eq!(out.as_deref(), Some(original));
+}
+
+#[test]
+fn allow_builds_preserves_other_keys_and_comments() {
+    let original = "# top comment\nstoreDir: ../store\n";
+    let out = run_allow_builds(Some(original), &[("esbuild", true)]).expect("file written");
+    assert!(out.contains("# top comment"), "comment preserved");
+    assert!(out.contains("storeDir: ../store"), "existing key preserved");
+    assert!(out.contains("allowBuilds:\n  esbuild: true"), "block appended");
+}

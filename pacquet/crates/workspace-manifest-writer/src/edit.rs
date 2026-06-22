@@ -75,6 +75,51 @@ pub(crate) fn add_config_dependency(
     Ok(true)
 }
 
+/// Upsert one `name → bool` entry into the top-level `allowBuilds:` block,
+/// creating the block if absent. Returns whether anything changed. Mirrors
+/// the `allowBuilds` half of pnpm's
+/// [`writeSettings`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/writer/src/index.ts),
+/// which `pnpm approve-builds` calls with each approved package set to
+/// `true` and each denied/unselected package set to `false`.
+pub(crate) fn add_allow_build(
+    manifest: &mut Manifest,
+    name: &str,
+    value: bool,
+) -> Result<bool, Box<yamlpatch::Error>> {
+    const BLOCK: &str = "allowBuilds";
+    let text = manifest.text();
+    let changed = if let Some(mapping) = locate(text, &[BLOCK]) {
+        if mapping.entries.iter().any(|entry| entry.key == name) {
+            // Already present with the same value — a true no-op, so don't
+            // rewrite the file (which would bump its mtime).
+            if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name)) == Some(&value) {
+                return Ok(false);
+            }
+            let new_text = replace_scalar_at(text, &[BLOCK], name, value.into())?;
+            manifest.set_text(new_text);
+        } else {
+            let new_text = insert_rendered_entry_at(text, &[BLOCK], name, render_bool(value));
+            manifest.set_text(new_text);
+        }
+        true
+    } else {
+        let block = format!("{BLOCK}:\n  {}: {}\n", render::render_value(name), render_bool(value));
+        let new_text = insert_top_level_block(manifest, BLOCK, &block);
+        manifest.set_text(new_text);
+        manifest.top_level_keys =
+            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+        true
+    };
+    // Keep the decoded view in sync so later upserts in the same write see
+    // this entry (for both no-op detection and block-presence checks).
+    manifest.allow_builds.get_or_insert_with(IndexMap::new).insert(name.to_string(), value);
+    Ok(changed)
+}
+
+fn render_bool(value: bool) -> &'static str {
+    if value { "true" } else { "false" }
+}
+
 /// Where a catalog's entries live (or should be created) in the manifest.
 enum Target {
     /// The top-level `catalog:` shorthand for the default catalog.
@@ -239,6 +284,18 @@ fn replace_value_at(
     dep: &str,
     specifier: &str,
 ) -> Result<String, Box<yamlpatch::Error>> {
+    replace_scalar_at(text, path, dep, yaml_serde::Value::from(specifier))
+}
+
+/// [`replace_value_at`] for an arbitrary scalar value, so non-string blocks
+/// (e.g. `allowBuilds`'s booleans) can reuse the same comment-preserving
+/// splice.
+fn replace_scalar_at(
+    text: &str,
+    path: &[&str],
+    dep: &str,
+    value: yaml_serde::Value,
+) -> Result<String, Box<yamlpatch::Error>> {
     let document =
         Document::new(text.to_string()).map_err(yamlpatch::Error::from).map_err(Box::new)?;
     let components: Vec<Component> = path
@@ -247,10 +304,7 @@ fn replace_value_at(
         .chain(std::iter::once(dep))
         .map(|key| Component::Key(key.into()))
         .collect();
-    let patch = Patch {
-        route: Route::from(components),
-        operation: Op::Replace(yaml_serde::Value::from(specifier)),
-    };
+    let patch = Patch { route: Route::from(components), operation: Op::Replace(value) };
     let patched = yamlpatch::apply_yaml_patches(&document, &[patch]).map_err(Box::new)?;
     Ok(patched.source().to_string())
 }
@@ -265,6 +319,13 @@ fn insert_entry(text: &str, target: &Target, dep: &str, specifier: &str) -> Stri
 /// [`insert_entry`] addressed by an explicit mapping path, so non-catalog
 /// blocks (e.g. `configDependencies`) can reuse the reorder-aware splice.
 fn insert_entry_at(text: &str, path: &[&str], dep: &str, specifier: &str) -> String {
+    insert_rendered_entry_at(text, path, dep, &render::render_value(specifier))
+}
+
+/// [`insert_entry_at`] for an already-rendered value text, so non-string
+/// blocks (e.g. `allowBuilds`'s `true` / `false`) can reuse the
+/// reorder-aware splice without going through [`render::render_value`].
+fn insert_rendered_entry_at(text: &str, path: &[&str], dep: &str, value_text: &str) -> String {
     let mapping = locate(text, path).expect("mapping exists");
     let existing: Vec<String> = mapping.entries.iter().map(|entry| entry.key.clone()).collect();
     let order = render::target_order(&existing, &[dep.to_string()]);
@@ -274,7 +335,7 @@ fn insert_entry_at(text: &str, path: &[&str], dep: &str, specifier: &str) -> Str
         "{}{}: {}\n",
         " ".repeat(mapping.entry_indent),
         render::render_value(dep),
-        render::render_value(specifier),
+        value_text,
     );
     let offset = if position == 0 {
         mapping.body_start

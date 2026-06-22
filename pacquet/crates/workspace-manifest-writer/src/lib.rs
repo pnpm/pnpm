@@ -131,3 +131,39 @@ pub fn set_config_dependency(
     fs::write(&path, manifest.into_text())
         .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
 }
+
+/// Upsert `name → bool` entries into `dir`'s `pnpm-workspace.yaml`
+/// `allowBuilds:` block (creating the file/block if absent), preserving the
+/// rest of the document's formatting, and write the file back only when
+/// something actually changed. Used by `pnpm approve-builds` to record
+/// which dependencies may (`true`) or may not (`false`) run build scripts.
+///
+/// `entries` is iterated in its own order; pass an ordered map for a
+/// deterministic result.
+pub fn set_allow_builds<'a, I>(dir: &Path, entries: I) -> Result<(), UpdateWorkspaceManifestError>
+where
+    I: IntoIterator<Item = (&'a str, bool)>,
+{
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    let mut changed = false;
+    for (name, value) in entries {
+        changed |= edit::add_allow_build(&mut manifest, name, value)
+            .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    }
+    if !changed {
+        return Ok(());
+    }
+
+    fs::write(&path, manifest.into_text())
+        .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
+}
