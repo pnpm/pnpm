@@ -212,8 +212,13 @@ export async function handler (
         cachedDir = completedDir
       } else {
         // Drop the partially-populated cache so a subsequent dlx run starts
-        // clean instead of reusing a broken install.
-        await fs.promises.rm(cachedDir, { recursive: true, force: true })
+        // clean instead of reusing a broken install. This is best-effort: on
+        // Windows the just-run install scripts (or antivirus) can briefly hold
+        // handles on freshly written files, so retry with backoff and never let
+        // a cleanup failure mask the original error. A leftover prepare dir is
+        // harmless — it has a unique name and findCache only trusts the `pkg`
+        // symlink.
+        await fs.promises.rm(cachedDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }).catch(() => {})
         throw err
       }
     }
