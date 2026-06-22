@@ -205,6 +205,17 @@ pub enum LogEvent {
     #[serde(rename = "pnpm")]
     Pnpm(PnpmLog),
 
+    /// Global-logger message (`name: "pnpm:global"`). Mirrors pnpm's
+    /// [`globalInfo` / `globalWarn`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/core/logger/src/logger.ts#L15-L23),
+    /// which write to a `bole('pnpm:global')` logger with just a message
+    /// string — no `prefix`, unlike [`LogEvent::Pnpm`]. The interactive
+    /// web-authentication flow (`pacquet-network-web-auth`) emits on this
+    /// channel to surface the auth URL / QR code and the browser-open
+    /// prompts. `@pnpm/cli.default-reporter` routes these into the "other"
+    /// log stream.
+    #[serde(rename = "pnpm:global")]
+    Global(GlobalLog),
+
     /// One per `context.log(...)` call a pnpmfile hook makes while it
     /// runs (`pnpm:hook`). `readPackage` and `afterAllResolved` hooks
     /// receive a `context` whose `log` forwards here, so a pnpmfile can
@@ -797,6 +808,15 @@ pub struct PnpmLog {
     pub level: LogLevel,
     pub message: String,
     pub prefix: String,
+}
+
+/// Global-channel (`name: "pnpm:global"`) payload. Carries only a
+/// severity and a message — pnpm's `bole('pnpm:global')` logger takes a
+/// bare string, with no `prefix`, so this struct has none either.
+#[derive(Debug, Clone, Serialize)]
+pub struct GlobalLog {
+    pub level: LogLevel,
+    pub message: String,
 }
 
 /// `pnpm:hook` payload. Field names match pnpm's `HookMessage` so
