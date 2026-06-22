@@ -45,8 +45,8 @@ storage: ./storage
 # stay enabled. (`/-/ping` is always served.)
 #registry:          # npm registry: packument/tarball reads, publish,
 #  enabled: true    # unpublish, dist-tag, search, user/login endpoints
-#resolver:          # install accelerator: /-/pnpr, /v1/resolve,
-#  enabled: true    # and /v1/verify-lockfile
+#resolver:          # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
+#  enabled: true    # and /-/pnpr/v0/verify-lockfile
 secret: pnpm-registry-mock-secret-key-32
 
 auth:

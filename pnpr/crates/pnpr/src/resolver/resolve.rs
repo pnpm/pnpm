@@ -188,7 +188,7 @@ pub async fn resolve(
         // per-user auth into the interned `&'static Config`.
         auth_override: Some(Arc::clone(auth_headers)),
         // Stream each resolved tarball to the client as the walk yields
-        // it (`/v1/resolve` NDJSON `package` frames) so tarball fetch
+        // it (`/-/pnpr/v0/resolve` NDJSON `package` frames) so tarball fetch
         // overlaps this server-side resolution. `None` falls back to a
         // single terminal `done` frame carrying the whole lockfile.
         resolution_observer: observer,

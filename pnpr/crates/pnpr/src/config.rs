@@ -119,7 +119,7 @@ pub struct Config {
     /// of an existing registry. See [`RegistryFeature`].
     pub registry: RegistryFeature,
     /// The install-accelerator surface: the `/-/pnpr` handshake and the
-    /// `/v1/resolve` / `/v1/verify-lockfile` endpoints. Enabled by
+    /// `/-/pnpr/v0/resolve` / `/-/pnpr/v0/verify-lockfile` endpoints. Enabled by
     /// default; disable it to run a plain registry with no server-side
     /// resolution. See [`ResolverFeature`].
     pub resolver: ResolverFeature,
@@ -147,8 +147,8 @@ impl Default for RegistryFeature {
 /// independently.
 #[derive(Debug, Clone)]
 pub struct ResolverFeature {
-    /// Master switch for the resolver surface (`/-/pnpr`, `/v1/resolve`,
-    /// `/v1/verify-lockfile`). When `false`, none of those routes are
+    /// Master switch for the resolver surface (`/-/pnpr`, `/-/pnpr/v0/resolve`,
+    /// `/-/pnpr/v0/verify-lockfile`). When `false`, none of those routes are
     /// mounted.
     pub enabled: bool,
 }

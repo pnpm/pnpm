@@ -6,7 +6,7 @@
 //!
 //! * `GET /-/pnpr` — capability handshake; advertises the supported
 //!   protocol versions so a client can negotiate or fail fast.
-//! * `POST /v1/resolve` — resolve a project **against the registries
+//! * `POST /-/pnpr/v0/resolve` — resolve a project **against the registries
 //!   the client sends** (so the server uses the same source of truth as
 //!   the client), verify the client's input lockfile under the client's
 //!   policy, and **stream** the result back as NDJSON: one `package`
@@ -17,7 +17,7 @@
 //!   ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)),
 //!   then fetches the rest in parallel like a normal install
 //!   ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
-//! * `POST /v1/verify-lockfile` — verify an already-fresh client
+//! * `POST /-/pnpr/v0/verify-lockfile` — verify an already-fresh client
 //!   lockfile under the same policy without resolving. A frozen restore
 //!   can start local fetch/materialization immediately and only use this
 //!   endpoint as the trust verdict.
@@ -199,7 +199,7 @@ impl Resolver {
     }
 }
 
-/// Handle `POST /v1/resolve`: verify the client's input lockfile under
+/// Handle `POST /-/pnpr/v0/resolve`: verify the client's input lockfile under
 /// the client's policy, resolve against the client's registries, and
 /// stream the result back as NDJSON.
 ///
@@ -322,7 +322,7 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     ndjson_stream_response(rx)
 }
 
-/// Handle `POST /v1/verify-lockfile`: verify the client's input
+/// Handle `POST /-/pnpr/v0/verify-lockfile`: verify the client's input
 /// lockfile under the client's policy, returning only a terminal NDJSON
 /// verdict frame. The client already knows the lockfile is fresh for
 /// the current manifests, so this endpoint deliberately does not
@@ -345,7 +345,7 @@ pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> R
     let request_auth = Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()));
 
     match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
-        // The dist stats the verifier observed feed `/v1/resolve`'s sized
+        // The dist stats the verifier observed feed `/-/pnpr/v0/resolve`'s sized
         // `package` frames; this endpoint's client prefetches from its own
         // lockfile before the verdict arrives, so only the verdict is sent.
         Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile),
@@ -435,7 +435,7 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
     Some(format!("{:x}", hasher.finalize()))
 }
 
-/// NDJSON content type for the `/v1/resolve` response. One JSON object
+/// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object
 /// per line; the client parses frames as they arrive. Excluded from the
 /// server's gzip [`CompressionLayer`](crate::server) so frames flush to
 /// the client incrementally rather than being buffered by the encoder.
