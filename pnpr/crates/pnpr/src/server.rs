@@ -859,41 +859,51 @@ async fn serve_tarball(
         }
     }
 
-    let packument = match load_packument_bytes(state, &name).await {
-        PackumentLoad::Ok(bytes) => bytes,
-        PackumentLoad::NotFound => return not_found(),
-        PackumentLoad::Err(err) => return error_response(&err),
-    };
-    let integrity = match expected_tarball_integrity(&packument, &name, &filename, &version) {
-        Ok(Some(integrity)) => integrity,
-        Ok(None) => return not_found(),
-        Err(err) => return error_response(&err),
-    };
-
     let upstream = resolve_upstream(state, &name);
     let should_read_cache = upstream.as_ref().is_none_or(|upstream| upstream.caches());
     if should_read_cache {
         match state.inner.storage.open_cached_tarball(&name, &filename).await {
             Ok(Some((file, len))) => {
-                let expected = cached_tarball_integrity(&integrity, len);
-                if state
-                    .inner
-                    .storage
-                    .read_cached_tarball_integrity(&name, &filename)
-                    .await
-                    .is_some_and(|cached| cached == expected)
-                {
-                    return tarball_response(streaming::stream_file(file), Some(len));
-                }
-                match streaming::verify_file(file, &integrity).await {
-                    Ok(file) => {
-                        record_cached_tarball_integrity(state, &name, &filename, expected).await;
+                // Fast path: a sidecar means these bytes were already verified
+                // against the packument integrity when they were cached (see the
+                // cache-miss tee below, which only promotes on an SRI match). Trust
+                // it — matched by length — rather than re-loading and re-parsing the
+                // packument and re-hashing the file on every read. The client
+                // verifies the bytes it installs against its own resolved integrity
+                // regardless, so the proxy guards what it *writes*, not every read.
+                match state.inner.storage.read_cached_tarball_integrity(&name, &filename).await {
+                    Some(sidecar) if sidecar.len == len => {
                         return tarball_response(streaming::stream_file(file), Some(len));
                     }
-                    Err(err) => {
-                        let err = tarball_stream_error(err, &name, &filename);
-                        tracing::warn!(?err, package = %name.as_str(), %filename, "cached tarball failed verification");
-                        discard_cached_tarball(state, &name, &filename).await;
+                    // No trustworthy sidecar (e.g. a cache entry from before sidecars
+                    // existed, or a size-mismatched one): verify once against the
+                    // packument integrity, then record the sidecar so later reads hit
+                    // the fast path above.
+                    _ => {
+                        let integrity =
+                            match expected_integrity_or_response(state, &name, &filename, &version)
+                                .await
+                            {
+                                Ok(integrity) => integrity,
+                                Err(response) => return response,
+                            };
+                        match streaming::verify_file(file, &integrity).await {
+                            Ok(file) => {
+                                record_cached_tarball_integrity(
+                                    state,
+                                    &name,
+                                    &filename,
+                                    cached_tarball_integrity(&integrity, len),
+                                )
+                                .await;
+                                return tarball_response(streaming::stream_file(file), Some(len));
+                            }
+                            Err(err) => {
+                                let err = tarball_stream_error(err, &name, &filename);
+                                tracing::warn!(?err, package = %name.as_str(), %filename, "cached tarball failed verification");
+                                discard_cached_tarball(state, &name, &filename).await;
+                            }
+                        }
                     }
                 }
             }
@@ -906,6 +916,12 @@ async fn serve_tarball(
 
     let Some(upstream) = upstream else {
         return not_found();
+    };
+
+    // Cache miss: the verified-streaming fetch below needs the expected integrity.
+    let integrity = match expected_integrity_or_response(state, &name, &filename, &version).await {
+        Ok(integrity) => integrity,
+        Err(response) => return response,
     };
 
     let response = match upstream.fetch_tarball_response(&name, &filename).await {
@@ -965,6 +981,27 @@ async fn serve_tarball(
             }
             Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
         }
+    }
+}
+
+/// Resolve the packument-declared tarball integrity for `version`, or the
+/// response (`not_found` / error) to return instead. Loaded lazily so the warm
+/// cache-hit path in `serve_tarball` never pays the packument load + parse.
+async fn expected_integrity_or_response(
+    state: &AppState,
+    name: &PackageName,
+    filename: &str,
+    version: &str,
+) -> Result<Integrity, Response> {
+    let packument = match load_packument_bytes(state, name).await {
+        PackumentLoad::Ok(bytes) => bytes,
+        PackumentLoad::NotFound => return Err(not_found()),
+        PackumentLoad::Err(err) => return Err(error_response(&err)),
+    };
+    match expected_tarball_integrity(&packument, name, filename, version) {
+        Ok(Some(integrity)) => Ok(integrity),
+        Ok(None) => Err(not_found()),
+        Err(err) => Err(error_response(&err)),
     }
 }
 

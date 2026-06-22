@@ -898,6 +898,35 @@ async fn tampered_upstream_tarball_is_streamed_but_not_cached() {
     tarball_mock.assert_async().await;
 }
 
+// A cache entry with a matching integrity sidecar was already verified against
+// the packument when it was stored, so serving it must not re-load and re-parse
+// the packument (the hot-path cost) or re-hash the bytes on every read.
+#[tokio::test]
+async fn cached_tarball_with_valid_sidecar_is_served_without_packument() {
+    let bytes = b"already-verified-cached-bytes";
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let cache_dir = storage.join(".pnpr-cache").join("foo");
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    std::fs::write(cache_dir.join("foo-1.0.0.tgz"), bytes).unwrap();
+    std::fs::write(
+        cache_dir.join("foo-1.0.0.tgz.integrity"),
+        json!({ "integrity": sha512_integrity(bytes), "len": bytes.len() }).to_string(),
+    )
+    .unwrap();
+
+    // Point the uplink at an unreachable address: there is no local packument, so
+    // any attempt to resolve the expected integrity would have to reach upstream
+    // and fail. The sidecar fast path must serve straight from the cache instead.
+    let app = router(config_for("http://127.0.0.1:1", storage));
+    let response = app
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+}
+
 #[tokio::test]
 async fn tarball_without_integrity_is_rejected_before_fetch() {
     let mut upstream = mockito::Server::new_async().await;
