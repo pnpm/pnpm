@@ -2119,19 +2119,25 @@ fn filter_osv_vulnerable_versions(
     let Some(osv_index) = osv_index else { return };
     let package_name = name.as_str();
     let mut blocked_keys = HashSet::new();
+    let mut retained_version_keys = HashSet::new();
+    let has_time = packument.get("time").and_then(Value::as_object).is_some();
     if let Some(versions) = packument.get_mut("versions").and_then(Value::as_object_mut) {
-        blocked_keys = versions
-            .iter()
-            .filter_map(|(key, manifest)| {
-                let manifest_version = manifest.get("version").and_then(Value::as_str);
-                let key_is_vulnerable = osv_index.is_vulnerable(package_name, key);
-                let manifest_is_vulnerable = manifest_version.is_some_and(|version| {
-                    version != key && osv_index.is_vulnerable(package_name, version)
-                });
-                (key_is_vulnerable || manifest_is_vulnerable).then(|| key.clone())
-            })
-            .collect();
-        versions.retain(|key, _| !blocked_keys.contains(key));
+        versions.retain(|key, manifest| {
+            let manifest_version = manifest.get("version").and_then(Value::as_str);
+            let key_is_vulnerable = osv_index.is_vulnerable(package_name, key);
+            let manifest_is_vulnerable = manifest_version.is_some_and(|version| {
+                version != key && osv_index.is_vulnerable(package_name, version)
+            });
+            if key_is_vulnerable || manifest_is_vulnerable {
+                blocked_keys.insert(key.clone());
+                false
+            } else {
+                if has_time {
+                    retained_version_keys.insert(key.clone());
+                }
+                true
+            }
+        });
     }
     if let Some(tags) = packument.get_mut("dist-tags").and_then(Value::as_object_mut) {
         tags.retain(|_, version| {
@@ -2142,7 +2148,10 @@ fn filter_osv_vulnerable_versions(
     }
     if let Some(time) = packument.get_mut("time").and_then(Value::as_object_mut) {
         time.retain(|key, _| {
-            !blocked_keys.contains(key) && !osv_index.is_vulnerable(package_name, key)
+            !blocked_keys.contains(key)
+                && (matches!(key.as_str(), "created" | "modified")
+                    || retained_version_keys.contains(key)
+                    || !osv_index.is_vulnerable(package_name, key))
         });
     }
 }
