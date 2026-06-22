@@ -37,6 +37,10 @@ impl PackageName {
         &self.raw
     }
 
+    pub fn tarball_name_for_version(&self, version: &str) -> String {
+        format!("{}-{version}.tgz", self.basename)
+    }
+
     /// Validate `filename` and return the canonical disk filename
     /// (`<basename>-<version>.tgz`). Used by the publish handler so
     /// libnpmpublish's `@scope/name-1.0.0.tgz` attachment lands on
@@ -66,7 +70,7 @@ impl PackageName {
         if !is_safe_segment(version) {
             return Err(invalid());
         }
-        Ok((format!("{}-{}.tgz", self.basename, version), version.to_string()))
+        Ok((self.tarball_name_for_version(version), version.to_string()))
     }
 }
 

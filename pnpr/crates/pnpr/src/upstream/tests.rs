@@ -204,14 +204,11 @@ fn rewrites_npm_form_tarball() {
 
 #[test]
 fn rewrites_verdaccio_form_tarball_for_scoped() {
-    // Verdaccio publishes scoped tarball URLs like
-    // `/@scope/name/-/@scope/name-1.0.0.tgz` — the scope is
-    // present twice. We only care about the basename.
     let mut doc = json!({
         "versions": {
             "1.0.0": {
                 "dist": {
-                    "tarball": "http://localhost:4873/@foo/no-deps/-/@foo/no-deps-1.0.0.tgz"
+                    "tarball": "http://localhost:4873/@foo/no-deps/-/@foo/no-deps-9.9.9.tgz"
                 }
             }
         }
@@ -242,7 +239,7 @@ fn extracts_version_by_dist_tag() {
                 "name": "@foo/no-deps",
                 "version": "1.0.0",
                 "dist": {
-                    "tarball": "http://localhost:4873/@foo/no-deps/-/@foo/no-deps-1.0.0.tgz",
+                    "tarball": "http://localhost:4873/@foo/no-deps/-/@foo/no-deps-2.0.0.tgz",
                     "shasum": "abc"
                 }
             }

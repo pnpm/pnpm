@@ -4,6 +4,7 @@ use super::PackageName;
 fn accepts_unscoped() {
     let name = PackageName::parse("lodash").unwrap();
     assert_eq!(name.as_str(), "lodash");
+    assert_eq!(name.tarball_name_for_version("4.17.21"), "lodash-4.17.21.tgz");
     name.parse_tarball_name("lodash-4.17.21.tgz").unwrap();
 }
 
@@ -11,6 +12,7 @@ fn accepts_unscoped() {
 fn accepts_scoped() {
     let name = PackageName::parse("@types/node").unwrap();
     assert_eq!(name.as_str(), "@types/node");
+    assert_eq!(name.tarball_name_for_version("20.0.0"), "node-20.0.0.tgz");
     name.parse_tarball_name("node-20.0.0.tgz").unwrap();
 }
 

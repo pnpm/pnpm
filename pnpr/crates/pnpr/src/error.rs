@@ -31,6 +31,15 @@ pub enum RegistryError {
         uplink: String,
     },
 
+    #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]
+    #[from(skip)]
+    TarballIntegrity {
+        #[error(not(source))]
+        package: String,
+        filename: String,
+        reason: String,
+    },
+
     #[display("Package name {name:?} is not a valid npm package name")]
     InvalidPackageName {
         #[error(not(source))]
@@ -192,6 +201,7 @@ impl RegistryError {
             RegistryError::Upstream { .. } => "upstream",
             RegistryError::UpstreamStatus { .. } => "upstream_status",
             RegistryError::UpstreamUnavailable { .. } => "upstream_unavailable",
+            RegistryError::TarballIntegrity { .. } => "tarball_integrity",
             RegistryError::InvalidPackageName { .. } => "invalid_package_name",
             RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
             RegistryError::InvalidPolicyPattern { .. } => "invalid_policy_pattern",
@@ -260,7 +270,9 @@ impl RegistryError {
                     StatusCode::BAD_GATEWAY
                 }
             }
-            RegistryError::UpstreamStatus { .. } => StatusCode::BAD_GATEWAY,
+            RegistryError::UpstreamStatus { .. } | RegistryError::TarballIntegrity { .. } => {
+                StatusCode::BAD_GATEWAY
+            }
             RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
             | RegistryError::InvalidTarballName { .. }

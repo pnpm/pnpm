@@ -9,10 +9,13 @@
 //! it inside [`tokio::task::spawn_blocking`] without blocking the
 //! async runtime, and so these helpers stay easy to unit-test.
 
-use crate::error::RegistryError;
+use crate::{
+    error::RegistryError,
+    streaming::{integrity_checker, parse_integrity},
+};
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64, read::DecoderReader};
 use serde_json::{Map, Value};
-use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
+use ssri::{Algorithm, IntegrityOpts};
 use std::{
     collections::BTreeMap,
     fmt::Write as FmtWrite,
@@ -112,12 +115,12 @@ pub fn stream_decode_verify_and_write(
         .get("integrity")
         .and_then(Value::as_str)
         .ok_or_else(|| invalid("EINTEGRITY: dist.integrity is required".to_string()))?;
-    let integrity: Integrity = declared_integrity
-        .parse()
+    let integrity = parse_integrity(declared_integrity)
         .map_err(|err| invalid(format!("EINTEGRITY: malformed dist.integrity: {err}")))?;
     let declared_shasum = dist.get("shasum").and_then(Value::as_str);
 
-    let mut checker = IntegrityChecker::new(integrity);
+    let mut checker = integrity_checker(&integrity)
+        .map_err(|err| invalid(format!("EINTEGRITY: malformed dist.integrity: {err}")))?;
     let mut shasum_hasher =
         declared_shasum.is_some().then(|| IntegrityOpts::new().algorithm(Algorithm::Sha1));
 
