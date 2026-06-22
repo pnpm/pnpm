@@ -9,6 +9,7 @@ pub mod exec;
 pub mod find_hash;
 pub mod ignored_builds;
 pub mod install;
+pub mod import;
 pub mod outdated;
 pub mod patch;
 pub mod patch_commit;
@@ -40,6 +41,7 @@ use dlx::DlxArgs;
 use exec::ExecArgs;
 use find_hash::FindHashArgs;
 use ignored_builds::IgnoredBuildsArgs;
+use import::ImportArgs;
 use install::InstallArgs;
 use miette::{Context, IntoDiagnostic};
 use outdated::{OutdatedArgs, OutdatedOutcome};
@@ -214,6 +216,8 @@ pub enum CliCommand {
     IgnoredBuilds(IgnoredBuildsArgs),
     /// Approve dependencies for running scripts during installation.
     ApproveBuilds(ApproveBuildsArgs),
+    /// Generates a pnpm-lock.yaml from an external lockfile
+    Import(ImportArgs),
 }
 
 impl CliArgs {
@@ -266,6 +270,7 @@ impl CliArgs {
     /// they're layered on top of `.npmrc` / `pnpm-workspace.yaml` whenever
     /// `Config` is loaded, mirroring pnpm 11's
     /// "CLI > yaml > .npmrc > defaults" precedence.
+    #[allow(clippy::large_stack_frames)]
     pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
         let CliArgs { command, dir, npmrc_auth_file, recursive, reporter, filter, filter_prod } =
             self;
@@ -294,6 +299,7 @@ impl CliArgs {
                 | CliCommand::Remove(_)
                 | CliCommand::Install(_)
                 | CliCommand::Dlx(_)
+                | CliCommand::Import(_)
                 | CliCommand::Create(_)
                 | CliCommand::Runtime(_)
                 // `rebuild` drives the frozen-install pipeline and emits
@@ -636,6 +642,13 @@ impl CliArgs {
                 args.run(|| config().map(|m| &*m))?;
                 Box::pin(std::future::ready(Ok(())))
             }
+            CliCommand::Import(args) => match reporter {
+                ReporterType::Default | ReporterType::AppendOnly => {
+                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+                }
+                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
+                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
+            },
             CliCommand::CatIndex(args) => Box::pin(async move {
                 args.run(dir_ref, || config().map(|m| &*m)).await?;
                 Ok(())
