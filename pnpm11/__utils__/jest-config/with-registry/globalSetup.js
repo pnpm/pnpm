@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { scheduler } from 'node:timers/promises'
@@ -26,12 +26,14 @@ export default async () => {
   const storage = mkdtempSync(path.join(tmpdir(), 'pnpm-registry-mock-storage-'))
   buildStorage(storage)
   process.env.PNPM_REGISTRY_MOCK_STORAGE = storage
+  const config = writeTestConfig(storage)
 
   const bin = resolvePnprBin()
 
   const server = spawn(
     bin,
     [
+      '--config', config,
       '--listen', `127.0.0.1:${process.env.PNPM_REGISTRY_MOCK_PORT}`,
       '--storage', storage,
       '--public-url', `http://localhost:${process.env.PNPM_REGISTRY_MOCK_PORT}`,
@@ -87,6 +89,18 @@ export default async () => {
     email: 'foo@bar.net',
   })
   process.env.REGISTRY_MOCK_TOKEN = token
+}
+
+function writeTestConfig (storage) {
+  const source = path.join(REPO_ROOT, 'pnpr', 'crates', 'pnpr', 'config.yaml')
+  const bundled = readFileSync(source, 'utf8')
+  const configured = bundled.replace('max_users: -1', 'max_users: 100')
+  if (configured === bundled) {
+    throw new Error('pnpr test config could not enable test-only registration')
+  }
+  const target = path.join(storage, 'config.yaml')
+  writeFileSync(target, configured)
+  return target
 }
 
 /**

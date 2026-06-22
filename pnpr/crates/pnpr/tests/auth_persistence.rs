@@ -10,7 +10,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::{
-    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router_with_auth,
+    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use std::{
@@ -282,4 +282,44 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn missing_max_users_disables_registration_end_to_end() {
+    let storage = TempDir::new().unwrap();
+    let config = Config::static_serve(listen(), storage.path().to_path_buf());
+    let app = router(config);
+
+    let response = app
+        .oneshot(put_json("/-/user/org.couchdb.user:newbie", adduser_body("newbie", "anything")))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let body = body_bytes(response.into_body()).await;
+    assert!(
+        !body.windows(b"\"token\"".len()).any(|window| window == b"\"token\""),
+        "registration denial must not issue a token",
+    );
+}
+
+#[tokio::test]
+async fn finite_max_users_reaches_in_memory_backend_end_to_end() {
+    let storage = TempDir::new().unwrap();
+    let mut config = Config::static_serve(listen(), storage.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Limited(1);
+    let auth = AuthState::load(&config.auth, &config.backend).await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let first = app
+        .clone()
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+
+    let second = app
+        .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret")))
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::FORBIDDEN);
 }

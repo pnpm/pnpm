@@ -18,7 +18,7 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     fmt::{self, Write as _},
-    fs::{self, File},
+    fs::{self, File, OpenOptions},
     io::Write,
     net::{Ipv4Addr, SocketAddr, TcpStream},
     path::{Path, PathBuf},
@@ -33,6 +33,9 @@ const BENCHMARK_DIAGNOSTICS_MD: &str = "BENCHMARK_DIAGNOSTICS.md";
 const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
 const PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
 const PNPR_TARBALL_REWRITE_FROM_ENV: &str = "PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM";
+const PNPR_BENCHMARK_AUTH_PAIR_BASE64: &str = "cG5wci1iZW5jaG1hcms6cGFzc3dvcmQxMjM=";
+const PNPR_BENCHMARK_HTPASSWD: &str =
+    "pnpr-benchmark:$2y$04$MpoezfOJSlhn9S4iiOJihue1IMZTZfYclKbajdz.Dt2pvAoBLNAay\n";
 
 #[derive(Debug)]
 pub struct WorkEnv {
@@ -501,6 +504,8 @@ impl WorkEnv {
             binary.is_file(),
             "pnpr binary not found at {binary:?} — the build step did not produce it",
         );
+        let pnpr_storage = bench_dir.join("pnpr-storage");
+        seed_pnpr_auth(&pnpr_storage);
         let port = pick_unused_port().expect("pick an unused port for the pnpr server");
 
         eprintln!("Starting pnpr server for {id} on 127.0.0.1:{port}...");
@@ -512,7 +517,7 @@ impl WorkEnv {
             .arg("--listen")
             .arg(format!("127.0.0.1:{port}"))
             .arg("--storage")
-            .arg(bench_dir.join("pnpr-storage"))
+            .arg(&pnpr_storage)
             // The resolver resolves against the registry the client
             // sends, caching packuments in its own store. A long TTL keeps
             // those cached packuments authoritative across the run, the
@@ -571,6 +576,7 @@ impl WorkEnv {
         // raw upstream tarball URLs even when the server resolves through a
         // latency proxy; the pacquet client rewrites this prefix to its
         // configured registry, which is `client_registry` from `.npmrc`.
+        append_pnpr_auth_to_npmrc(&bench_dir, &client_url);
         fs::write(
             bench_dir.join(".pnpr-env"),
             format!(
@@ -1360,6 +1366,34 @@ fn create_npmrc(dir: &Path, registry: &str, scenario: BenchmarkScenario) {
     writeln!(file, "auto-install-peers=true").unwrap();
     writeln!(file, "ignore-scripts=true").unwrap();
     writeln!(file, "{}", scenario.npmrc_lockfile_setting()).unwrap();
+}
+
+fn seed_pnpr_auth(pnpr_storage: &Path) {
+    fs::create_dir_all(pnpr_storage).expect("create pnpr storage before seeding auth");
+    fs::write(pnpr_storage.join("htpasswd"), PNPR_BENCHMARK_HTPASSWD)
+        .expect("seed pnpr benchmark htpasswd");
+}
+
+fn append_pnpr_auth_to_npmrc(dir: &Path, pnpr_server: &str) {
+    let path = dir.join(".npmrc");
+    let mut file =
+        OpenOptions::new().append(true).open(&path).expect("open benchmark .npmrc for pnpr auth");
+    writeln!(
+        file,
+        "{}:_auth={}",
+        pnpr_auth_config_key(pnpr_server),
+        PNPR_BENCHMARK_AUTH_PAIR_BASE64,
+    )
+    .expect("append pnpr auth to benchmark .npmrc");
+}
+
+fn pnpr_auth_config_key(pnpr_server: &str) -> String {
+    let Some(without_scheme) =
+        pnpr_server.strip_prefix("http://").or_else(|| pnpr_server.strip_prefix("https://"))
+    else {
+        panic!("pnpr server URL must include a scheme: {pnpr_server}");
+    };
+    format!("//{}/", without_scheme.trim_end_matches('/'))
 }
 
 fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Option<&Path>) {
