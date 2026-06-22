@@ -269,3 +269,6 @@ fn sort_unique(names: Vec<String>) -> Vec<String> {
     unique.sort();
     unique
 }
+
+#[cfg(test)]
+mod tests;

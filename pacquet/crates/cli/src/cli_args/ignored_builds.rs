@@ -87,3 +87,6 @@ pub(crate) fn render_ignored_builds(config: &Config) -> miette::Result<String> {
 
     Ok(output)
 }
+
+#[cfg(test)]
+mod tests;
