@@ -192,6 +192,11 @@ export function createNpmResolutionVerifier (
       }
     }
 
+    // URL/git-keyed entries are deliberate non-registry deps. They can still
+    // carry a semver `version` copied from the resolved manifest, so the
+    // semver guard below isn't enough on its own — the registry policies and
+    // the tarball-URL binding don't apply to them, and a registry lookup
+    // would 404.
     if (nonSemverVersion != null) return { ok: true }
 
     if (!semver.valid(version)) {
@@ -259,10 +264,13 @@ export function createNpmResolutionVerifier (
   return {
     verify,
     policy: {
-      // Cache records must explicitly prove they enforced the always-on
-      // tarball URL binding; absence of the flag is not trusted.
+      // Marks runs that enforced the tarball-URL binding. A cache record
+      // written before this rule existed lacks the flag, so
+      // `canTrustPastCheck` rejects it and forces a re-verification that
+      // applies the binding — otherwise an upgrade could keep trusting a
+      // lockfile that was only ever age/trust-checked.
       tarballUrlBinding: true,
-      // Same contract for the missing-integrity check.
+      // Same cache identity rule for the missing-integrity structural check.
       integrityRequired: true,
       minimumReleaseAge,
       minimumReleaseAgeExclude: sortedMinAgeExcludes,
@@ -271,9 +279,12 @@ export function createNpmResolutionVerifier (
       trustPolicyIgnoreAfter: trustPolicyIgnoreAfter ?? null,
     },
     canTrustPastCheck: (cached) => {
-      // Always-on structural checks require an explicit cache identity.
+      // The tarball-URL binding is unconditional today; a cached run that
+      // didn't record it can't be trusted to have enforced it.
       if (cached.tarballUrlBinding !== true) return false
 
+      // The missing-integrity check is also unconditional; older cache records
+      // without the flag cannot prove they rejected unverifiable tarballs.
       if (cached.integrityRequired !== true) return false
 
       // Maturity: a previously cached run under a larger cutoff
@@ -937,15 +948,21 @@ function isExcluded (policy: PackageVersionPolicy | undefined, name: string, ver
   return false
 }
 
-// Canonical registry entries may omit both `tarball` and `integrity`.
 function isRegistryTarballResolution (resolution: Resolution | unknown): boolean {
   if (resolution == null || typeof resolution !== 'object') return false
+  // Only plain tarball resolutions (npm registry / named registries) have no
+  // `type` field. Git / directory / binary / custom resolutions all carry one.
   if ('type' in resolution && (resolution as { type?: unknown }).type != null) return false
   const tarball = (resolution as { tarball?: unknown }).tarball
   if (typeof tarball === 'string') {
+    // Git-hosted tarballs (codeload/gitlab/bitbucket) are special-cased in
+    // the resolver and aren't subject to registry policy.
     if (isGitHostedTarballUrl(tarball)) return false
+    // Local/non-registry tarballs (for example `file:`) have no packument
+    // metadata, so minimumReleaseAge/trustPolicy verification cannot apply.
     const protocol = tryParseUrl(tarball)?.protocol
     if (protocol != null && protocol !== 'http:' && protocol !== 'https:') return false
   }
+  // Canonical registry entries may omit both `tarball` and `integrity`.
   return true
 }

@@ -161,10 +161,13 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
     }
 
-    /// Complete remote tarball resolutions whose integrity can only be
+    /// Populate remote tarball resolutions whose integrity can only be
     /// learned from the downloaded bytes. `file:` and git-hosted tarballs
     /// are anchored by local bytes or a commit SHA and remain unchanged.
-    async fn fill_missing_integrity(&self, result: &mut ResolveResult) -> Result<(), ResolveError> {
+    async fn populate_missing_integrity(
+        &self,
+        result: &mut ResolveResult,
+    ) -> Result<(), ResolveError> {
         let LockfileResolution::Tarball(tarball) = &result.resolution else {
             return Ok(());
         };
@@ -333,7 +336,7 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
         Box::pin(async move {
             let mut result = self.inner.resolve(wanted_dependency, opts).await?;
             if let Some(result_mut) = result.as_mut() {
-                self.fill_missing_integrity(result_mut).await?;
+                self.populate_missing_integrity(result_mut).await?;
                 self.maybe_kickoff_download(result_mut);
             }
             Ok(result)
