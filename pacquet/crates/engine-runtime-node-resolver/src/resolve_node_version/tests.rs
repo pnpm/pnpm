@@ -47,7 +47,7 @@ async fn empty_selector_picks_latest_version() {
                 { "version": "v20.10.0", "lts": "Iron" }
             ]"#,
         )
-        .expect(2)
+        .expect(4)
         .create_async()
         .await;
     let base_url = format!("{}/", server.url());
@@ -57,5 +57,11 @@ async fn empty_selector_picks_latest_version() {
     assert_eq!(picked, Some("22.1.0".to_string()));
 
     let picked = resolve_node_versions(&http_client, Some(""), Some(&base_url)).await.unwrap();
+    assert_eq!(picked, vec!["22.1.0"]);
+
+    let picked = resolve_node_version(&http_client, "  ", Some(&base_url)).await.unwrap();
+    assert_eq!(picked, Some("22.1.0".to_string()));
+
+    let picked = resolve_node_versions(&http_client, Some("  "), Some(&base_url)).await.unwrap();
     assert_eq!(picked, vec!["22.1.0"]);
 }

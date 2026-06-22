@@ -21,10 +21,11 @@ export function convertEnginesRuntimeToDependencies (
     if (runtime?.onFail !== 'download') {
       continue
     }
-    if (!runtime.version) {
+    if (typeof runtime.version !== 'string') {
       globalWarn(`Cannot download ${runtimeName} because no version is specified in ${enginesFieldName}.runtime`)
       continue
     }
+    const version = runtime.version.trim()
     if ('webcontainer' in process.versions) {
       globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
     } else {
@@ -34,7 +35,7 @@ export function convertEnginesRuntimeToDependencies (
       // `constructor`, `prototype`) becomes a regular own data property
       // instead of altering Object.prototype.
       Object.defineProperty(deps, runtimeName, {
-        value: `runtime:${runtime.version}`,
+        value: `runtime:${version}`,
         enumerable: true,
         writable: true,
         configurable: true,

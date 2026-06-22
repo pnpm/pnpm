@@ -175,6 +175,7 @@ fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> 
 }
 
 fn normalize_runtime_spec(version_spec: &str) -> &str {
+    let version_spec = version_spec.trim();
     if version_spec.is_empty() { "latest" } else { version_spec }
 }
 

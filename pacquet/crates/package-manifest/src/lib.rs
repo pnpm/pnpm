@@ -397,17 +397,28 @@ pub fn convert_engines_runtime_to_dependencies(
 /// `workspace/project-manifest-reader`: the in-memory dependency form drives
 /// resolution and lockfile checks, while the on-disk manifest keeps the
 /// `devEngines.runtime` / `engines.runtime` contract.
+///
+/// Mutates `manifest` in place and removes consumed `runtime:` dependency
+/// entries. Returns `InvalidAttribute` when a field shape prevents a
+/// lossless write.
 pub fn convert_dependencies_to_engines_runtime(
     manifest: &mut Value,
     deps_field: &str,
     engines_field: &str,
 ) -> Result<(), PackageManifestError> {
+    if manifest.get(deps_field).is_some_and(|deps| !deps.is_object()) {
+        return Err(PackageManifestError::InvalidAttribute(format!(
+            "the {deps_field} field must be an object",
+        )));
+    }
     for runtime_name in RUNTIME_NAMES {
         let version = manifest
             .get(deps_field)
+            .and_then(Value::as_object)
             .and_then(|deps| deps.get(runtime_name))
             .and_then(Value::as_str)
             .and_then(|dep| dep.strip_prefix("runtime:"))
+            .map(str::trim)
             .map(str::to_string);
         if let Some(version) = version {
             upsert_runtime_entry(manifest, engines_field, runtime_name, &version)?;
