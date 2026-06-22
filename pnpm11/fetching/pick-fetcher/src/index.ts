@@ -1,8 +1,18 @@
 import { PnpmError } from '@pnpm/error'
-import type { Fetchers, FetchFunction, FetchOptions, FetchResult, PickedFetcher } from '@pnpm/fetching.fetcher-base'
+import type {
+  BinaryFetcher,
+  DirectoryFetcher,
+  Fetchers,
+  FetchFunction,
+  FetchOptions,
+  FetchResult,
+  GitFetcher,
+} from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { type AtomicResolution, classifyResolution } from '@pnpm/resolving.resolver-base'
 import type { Cafs } from '@pnpm/store.cafs-types'
+
+export type PickedFetcher = FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher
 
 export async function pickFetcher (
   fetcherByHostingType: Fetchers,

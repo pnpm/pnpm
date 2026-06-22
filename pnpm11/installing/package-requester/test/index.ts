@@ -633,6 +633,38 @@ test('fetchPackageToStore()', async () => {
   )
 })
 
+test('fetchPackageToStore() rejects lockfile remote tarballs without integrity', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const packageRequester = createPackageRequester({
+    resolve,
+    fetchers: createFetchersForStore(storeDir),
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const fetchResult = packageRequester.fetchPackageToStore({
+    force: false,
+    lockfileDir: temporaryDirectory(),
+    pkg: {
+      name: 'is-positive',
+      version: '1.0.0',
+      id: 'is-positive@1.0.0',
+      resolution: {
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+    },
+    requireIntegrity: true,
+  })
+
+  await expect(fetchResult.fetching()).rejects.toMatchObject({
+    code: 'ERR_PNPM_MISSING_TARBALL_INTEGRITY',
+  })
+})
+
 test('fetchPackageToStore() concurrency check', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)

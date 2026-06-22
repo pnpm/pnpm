@@ -1,4 +1,9 @@
-import type { PickedFetcher } from '@pnpm/fetching.fetcher-base'
+import type {
+  BinaryFetcher,
+  DirectoryFetcher,
+  FetchFunction,
+  GitFetcher,
+} from '@pnpm/fetching.fetcher-base'
 import type {
   DirectoryResolution,
   PkgResolutionId,
@@ -64,6 +69,8 @@ export type FetchPackageToStoreFunction = (opts: FetchPackageToStoreOptions) => 
 
 export type FetchPackageToStoreFunctionAsync = (opts: FetchPackageToStoreOptions) => Promise<FetchResponse>
 
+type SelectedFetcher = FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher
+
 export type GetFilesIndexFilePath = (opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>) => {
   filesIndexFile: string
   target: string
@@ -85,14 +92,14 @@ export interface FetchPackageToStoreOptions {
    */
   mustComputeIntegrity?: boolean
   /**
-   * The fetcher already selected for this resolution by the caller, so the fetch path can
-   * reuse it instead of running `pickFetcher` (and a custom fetcher's async `canFetch`) a
-   * second time. Local-only optimization: set by `package-requester` for non-`variations`
-   * resolutions; absent for `variations` (the variant is picked at fetch time) and for
-   * callers reached over the store server (functions don't cross the IPC boundary), where
-   * the fetch path falls back to selecting the fetcher itself.
+   * Reject remote tarballs without expected integrity instead of fetching them to repair it.
    */
-  pickedFetcher?: PickedFetcher
+  requireIntegrity?: boolean
+  /**
+   * In-process callers may pass the fetcher they already selected for this resolution.
+   * Omitted when the fetcher has to be selected at fetch time, such as `variations`.
+   */
+  pickedFetcher?: SelectedFetcher
   ignoreScripts?: boolean
   lockfileDir: string
   pkg: PkgNameVersion & {

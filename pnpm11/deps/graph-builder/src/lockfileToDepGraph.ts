@@ -10,7 +10,6 @@ import * as dp from '@pnpm/deps.path'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
 import {
-  assertFetchableResolution,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
@@ -282,10 +281,6 @@ async function buildGraphFromPackages (
 
       if (!fetchResponse) {
         const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
-        // Fail closed before the fetch: an integrity-less registry tarball entry can't be
-        // verified, and the resolver's verifier is overlapped with fetching (and skipped
-        // entirely by some callers), so it can't gate this download on its own.
-        assertFetchableResolution(depPath, resolution)
         progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
 
         try {
@@ -295,6 +290,7 @@ async function buildGraphFromPackages (
             lockfileDir: opts.lockfileDir,
             ignoreScripts: opts.ignoreScripts,
             pkg: { name: pkgName, version: pkgVersion, id: packageId, resolution },
+            requireIntegrity: true,
             supportedArchitectures: opts.supportedArchitectures,
           })
         } catch (err) {

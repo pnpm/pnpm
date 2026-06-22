@@ -28,16 +28,10 @@ export interface FetchOptions {
   ignoreFilePattern?: string
 }
 
-/**
- * Optional, backward-compatible capability a fetcher may attach to describe a resolution
- * it handles. Absent on plain fetchers (and on custom fetchers that don't opt in), in
- * which case callers apply sensible defaults.
- */
 export interface ResolutionFetchContract {
   /**
-   * Returns `true` when the resolution is missing data only a fetch can supply (e.g. a
-   * registry tarball with no integrity), so a caller that would otherwise skip fetching
-   * (`--lockfile-only`) or reuse the store copy must fetch instead. Absent means `false`.
+   * Returns `true` when a resolution is missing data only this fetcher can supply, so
+   * callers must fetch before treating the resolution as complete.
    */
   resolutionNeedsFetch?: (resolution: Resolution) => boolean
 }
@@ -96,6 +90,3 @@ export interface Fetchers {
   git: GitFetcher
   binary: BinaryFetcher
 }
-
-/** The fetcher `pickFetcher` selects for a single resolution: any one of the concrete fetchers. */
-export type PickedFetcher = FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher

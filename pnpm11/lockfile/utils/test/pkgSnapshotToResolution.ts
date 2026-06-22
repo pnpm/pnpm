@@ -1,40 +1,8 @@
 import { expect, test } from '@jest/globals'
-import { assertFetchableResolution, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
+import { pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
 const GIT_TARBALL = 'https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567'
 const LEGACY_GIT_TARBALL = 'https://codeload.github.com/kevva/is-negative/tar.gz/0123456789abcdef0123456789abcdef01234567'
-
-test('assertFetchableResolution() rejects an integrity-less registry tarball before fetch', () => {
-  const missing = expect.objectContaining({ code: 'ERR_PNPM_MISSING_TARBALL_INTEGRITY' })
-  // explicit tarball URL, no integrity
-  expect(() => assertFetchableResolution('foo@1.0.0', {
-    tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
-  } as never)).toThrow(missing)
-  // canonical registry entry stripped to {} (URL reconstructed later from name+version)
-  expect(() => assertFetchableResolution('foo@1.0.0', {} as never)).toThrow(missing)
-  // empty-string integrity is treated as missing
-  expect(() => assertFetchableResolution('foo@1.0.0', {
-    integrity: '',
-    tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
-  } as never)).toThrow(missing)
-})
-
-test('assertFetchableResolution() allows verifiable and non-registry resolutions', () => {
-  // registry tarball that carries integrity
-  expect(() => assertFetchableResolution('foo@1.0.0', {
-    integrity: 'sha512-AAAA',
-    tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
-  } as never)).not.toThrow()
-  // git-hosted: anchored by commit SHA, no registry integrity
-  expect(() => assertFetchableResolution('foo@x', {
-    tarball: GIT_TARBALL,
-    gitHosted: true,
-  } as never)).not.toThrow()
-  // file: tarball (local bytes)
-  expect(() => assertFetchableResolution('foo@file:foo.tgz', { tarball: 'file:foo.tgz' } as never)).not.toThrow()
-  // directory dependency
-  expect(() => assertFetchableResolution('foo@x', { type: 'directory', directory: 'x' } as never)).not.toThrow()
-})
 
 test('pkgSnapshotToResolution() fails closed on a non-string tarball', () => {
   // A tampered lockfile (YAML) could carry a non-string `tarball` that `new URL()` would

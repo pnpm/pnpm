@@ -10,14 +10,14 @@ import type {
   Fetchers,
   FetchOptions,
   FetchResult,
-  PickedFetcher,
 } from '@pnpm/fetching.fetcher-base'
-import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
+import { type PickedFetcher, pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
 import {
   type AtomicResolution,
+  classifyResolution,
   type DirectoryResolution,
   type PlatformAssetResolution,
   type PreferredVersions,
@@ -276,6 +276,8 @@ async function resolveAndFetch (
   const resolutionNeedsFetch = typeof resolutionNeedsFetchHook === 'function'
     ? resolutionNeedsFetchHook(resolution)
     : false
+  // Fetching can be skipped only when the manifest is available, the package content
+  // did not change, and the resolution does not need fetch-derived data.
   if ((options.skipFetch === true || isInstallable === false) && !resolutionNeedsFetch && !integrityChanged && (manifest != null)) {
     return {
       body: {
@@ -328,8 +330,8 @@ async function resolveAndFetch (
         manifest = loadedManifest as unknown as DependencyManifest
       }
     }
-    // `variations` spans multiple platform variants; do not write one machine's
-    // computed integrity into the shared resolution.
+    // Add computed integrity to tarball resolutions. `variations` spans multiple
+    // platform variants, so do not write one machine's integrity into the shared resolution.
     if (resolution.type !== 'variations' && fetchedResult.integrity != null && getExpectedIntegrity(resolution) == null) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
@@ -563,6 +565,9 @@ function fetchToStore (
       const isLocalPkg = resolution.type === 'directory'
 
       const mustComputeIntegrity = opts.mustComputeIntegrity === true
+      if (opts.requireIntegrity === true) {
+        assertFetchableResolution(opts.pkg.id, resolution)
+      }
 
       let refetchingStoredPackage = false
 
@@ -667,6 +672,13 @@ function getExpectedIntegrity (resolution: unknown): string | undefined {
   return typeof integrity === 'string' && integrity.length > 0
     ? integrity
     : undefined
+}
+
+function assertFetchableResolution (depPath: string, resolution: AtomicResolution): void {
+  if (classifyResolution(resolution) !== 'remoteTarball') return
+  if (getExpectedIntegrity(resolution) != null) return
+  throw new PnpmError('MISSING_TARBALL_INTEGRITY',
+    `Cannot fetch package "${depPath}" from the lockfile: it has no "integrity" field, so the downloaded tarball cannot be verified. Run a fresh install to repair the lockfile.`)
 }
 
 async function tarballIsUpToDate (

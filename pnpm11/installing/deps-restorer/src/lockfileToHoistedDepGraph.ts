@@ -17,7 +17,6 @@ import type {
   ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import {
-  assertFetchableResolution,
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
@@ -247,10 +246,6 @@ async function fetchDeps (
       })
       fetchResponse = { filesIndexFile } as unknown as ReturnType<FetchPackageToStoreFunction>
     } else {
-      // Fail closed before the fetch: an integrity-less registry tarball entry can't be
-      // verified, and the resolver's verifier is overlapped with fetching (and skipped
-      // entirely by some callers), so it can't gate this download on its own.
-      assertFetchableResolution(depPath, resolution)
       try {
         fetchResponse = opts.storeController.fetchPackage({
           allowBuild: opts.allowBuild,
@@ -258,6 +253,7 @@ async function fetchDeps (
           lockfileDir: opts.lockfileDir,
           ignoreScripts: opts.ignoreScripts,
           pkg: pkgResolution,
+          requireIntegrity: true,
           supportedArchitectures: opts.supportedArchitectures,
         }) as unknown as ReturnType<FetchPackageToStoreFunction>
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
