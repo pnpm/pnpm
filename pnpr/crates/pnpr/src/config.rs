@@ -110,8 +110,8 @@ pub struct Config {
     /// switch both stores to one shared SQL database so several
     /// stateless pnpr replicas see a consistent set of accounts.
     pub backend: BackendConfig,
-    /// Optional local OSV database used by the resolver to reject known
-    /// vulnerable npm package versions without live API calls.
+    /// Optional local OSV database used by mounted surfaces to reject
+    /// known vulnerable npm package versions without live API calls.
     pub osv: OsvConfig,
     /// The npm-registry surface: packument and tarball reads, publish,
     /// unpublish, dist-tag, search, and the user/login endpoints. Enabled

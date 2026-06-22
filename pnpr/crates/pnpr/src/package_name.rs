@@ -37,19 +37,6 @@ impl PackageName {
         &self.raw
     }
 
-    /// Validate that `filename` is a plausible tarball name for this
-    /// package. Two forms are accepted:
-    ///
-    /// * `<basename>-<version>.tgz` — the canonical disk-and-URL form
-    ///   verdaccio uses and what client GETs send (`/foo/-/foo-1.0.0.tgz`).
-    /// * `<full-name>-<version>.tgz` — the form `libnpmpublish` puts in
-    ///   the `_attachments` key of a publish body for scoped packages
-    ///   (`@scope/name-1.0.0.tgz`). For unscoped packages this collapses
-    ///   to the first form.
-    pub fn validate_tarball_name(&self, filename: &str) -> Result<(), RegistryError> {
-        self.canonicalize_tarball_name(filename).map(|_| ())
-    }
-
     /// Validate `filename` and return the canonical disk filename
     /// (`<basename>-<version>.tgz`). Used by the publish handler so
     /// libnpmpublish's `@scope/name-1.0.0.tgz` attachment lands on
