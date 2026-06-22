@@ -34,7 +34,7 @@ fn tarball_fetch_failure_maps_to_the_fetch_failed_variant() {
         panic!("expected a violations frame");
     };
     let verify_err = build_verify_error(violations);
-    assert!(matches!(verify_err, VerifyError::TarballUrlFetchFailed { .. }), "got {verify_err:?}",);
+    assert!(matches!(verify_err, VerifyError::TarballUrlFetchFailed { .. }), "got {verify_err:?}");
 }
 
 #[test]
