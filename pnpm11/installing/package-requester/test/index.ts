@@ -891,7 +891,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
   }
   const fetchResults = await Promise.all([
     packageRequester.fetchPackageToStore({
-      calculateIntegrity: true,
+      populateMissingIntegrity: true,
       fetchRawManifest: false,
       force: false,
       lockfileDir: temporaryDirectory(),
@@ -903,7 +903,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
       },
     }),
     packageRequester.fetchPackageToStore({
-      calculateIntegrity: true,
+      populateMissingIntegrity: true,
       fetchRawManifest: true,
       force: false,
       lockfileDir: temporaryDirectory(),

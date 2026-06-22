@@ -90,7 +90,7 @@ export interface FetchPackageToStoreOptions {
    * whose integrity must be computed from the bytes), so the store copy must not be
    * reused. Determined by the fetcher's `resolutionNeedsFetch`.
    */
-  calculateIntegrity?: boolean
+  populateMissingIntegrity?: boolean
   /**
    * In-process callers may pass the fetcher they already selected for this resolution.
    * Omitted when the fetcher has to be selected at fetch time, such as `variations`.

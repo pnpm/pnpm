@@ -302,7 +302,7 @@ async function resolveAndFetch (
     allowBuild: options.allowBuild,
     fetchRawManifest: true,
     force: integrityChanged,
-    calculateIntegrity: resolutionNeedsFetch,
+    populateMissingIntegrity: resolutionNeedsFetch,
     pickedFetcher: fetcherForResolution,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
@@ -564,8 +564,8 @@ function fetchToStore (
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
       const isLocalPkg = resolution.type === 'directory'
 
-      const calculateIntegrity = opts.calculateIntegrity === true
-      if (!calculateIntegrity) {
+      const populateMissingIntegrity = opts.populateMissingIntegrity === true
+      if (!populateMissingIntegrity) {
         assertFetchableResolution(opts.pkg.id, resolution)
       }
 
@@ -573,7 +573,7 @@ function fetchToStore (
 
       if (
         !opts.force &&
-        !calculateIntegrity &&
+        !populateMissingIntegrity &&
         (
           !isLocalTarballDep ||
           await tarballIsUpToDate(opts.pkg.resolution as any, target, opts.lockfileDir) // eslint-disable-line
