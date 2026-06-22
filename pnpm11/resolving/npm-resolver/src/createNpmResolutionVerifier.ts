@@ -411,7 +411,7 @@ async function runTarballUrlCheck (
     return {
       ok: false,
       code: TARBALL_URL_FETCH_FAILED_VIOLATION_CODE,
-      reason: `could not be verified against the registry's published metadata (${error instanceof Error ? error.message : String(error)})`,
+      reason: `could not be verified against the registry's published metadata (${describeMetaFetchError(error)})`,
     }
   }
   const registryTarball = meta?.versionTarballs?.get(version)
@@ -425,6 +425,32 @@ async function runTarballUrlCheck (
       ? "could not be verified against the registry's published metadata"
       : `has a tarball URL (${lockfileTarball}) that does not match the registry's published metadata (${registryTarball})`,
   }
+}
+
+/**
+ * Describe a metadata fetch failure for a user-facing violation reason without
+ * leaking registry credentials. A `FetchError`'s `message` is `GET <url>: …`,
+ * and a registry configured as `https://user:pass@host/` embeds the credentials
+ * in that URL — so the raw message must never reach terminal/CI output. Prefer
+ * the structured HTTP status when the registry answered; otherwise fall back to
+ * the message with any embedded `user:pass@` credentials stripped.
+ */
+function describeMetaFetchError (error: unknown): string {
+  const status = (error as { response?: { status?: number } })?.response?.status
+  if (typeof status === 'number') {
+    const statusText = (error as { response?: { statusText?: string } }).response?.statusText
+    return statusText
+      ? `registry responded with ${status} ${statusText}`
+      : `registry responded with ${status}`
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return redactUrlCredentials(message)
+}
+
+// Strip `user:pass@` (or `user@`) that appears right after a URL scheme in any
+// message text, e.g. `GET https://user:pass@host/pkg: …` → `GET https://host/pkg: …`.
+function redactUrlCredentials (text: string): string {
+  return text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/gi, '$1')
 }
 
 function sameTarballUrl (a: string, b: string): boolean {
@@ -876,11 +902,13 @@ interface AbbreviatedMetaProjection {
  * rejection and be shared across every caller of the same key. The
  * tarball-URL check surfaces this error; the age shortcut ignores it and
  * falls back to per-version lookups.
+ *
+ * Modeled as a discriminated union so a result carries exactly one of `meta`
+ * or `error` — never both, never neither.
  */
-interface AbbreviatedMetaResult {
-  meta?: AbbreviatedMetaProjection
-  error?: unknown
-}
+type AbbreviatedMetaResult =
+  | { meta: AbbreviatedMetaProjection, error?: undefined }
+  | { error: unknown, meta?: undefined }
 
 function readLocalMetaTime (
   context: PublishedAtLookupContext,

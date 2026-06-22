@@ -583,6 +583,11 @@ test('createNpmResolutionVerifier() surfaces a metadata fetch failure as TARBALL
   const reason = (result as { reason: string }).reason
   expect(reason).toContain('could not be verified')
   expect(reason).toMatch(/\b403\b/)
+  // The raw fetch URL must never leak into the reason. A registry configured
+  // with embedded basic-auth (`https://user:pass@host/`) would otherwise expose
+  // those credentials in terminal/CI output on every verification failure.
+  expect(reason).not.toContain('registry.npmjs.org')
+  expect(reason).not.toMatch(/GET https?:\/\//)
 })
 
 test('createNpmResolutionVerifier() still flags a version absent from fetched metadata as TARBALL_URL_MISMATCH', async () => {

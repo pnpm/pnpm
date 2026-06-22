@@ -263,17 +263,17 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
     ? `${breakdown}\n  …and ${omitted} more`
     : breakdown
   // A pure batch of fetch failures is not a lockfile problem: the registry
-  // couldn't be reached to verify the entries (auth/network). Point the user at
-  // credentials/connectivity instead of at pnpm-lock.yaml. The string mirrors
-  // TARBALL_URL_FETCH_FAILED_VIOLATION_CODE in
+  // metadata needed to verify the entries couldn't be fetched (auth/network/5xx).
+  // Point the user at credentials/connectivity instead of at pnpm-lock.yaml. The
+  // string mirrors TARBALL_URL_FETCH_FAILED_VIOLATION_CODE in
   // resolving/npm-resolver/src/violationCodes.ts.
   const onlyFetchFailures = !isMixed && violations[0].code === 'TARBALL_URL_FETCH_FAILED'
   const hint = onlyFetchFailures
-    ? 'pnpm could not reach the registry to verify these entries (for example an ' +
-      'authentication or network failure). This is not a lockfile problem — check ' +
-      'that your registry credentials grant read access to these packages (in CI, ' +
-      'the token may lack permission for a private package), that the registry is ' +
-      'reachable, then run the install again.'
+    ? 'pnpm could not fetch the registry metadata needed to verify these entries ' +
+      '(for example an authentication, authorization, or network failure). This is ' +
+      'not a lockfile problem — check that your registry credentials grant read ' +
+      'access to these packages (in CI, the token may lack permission for a private ' +
+      'package), that the registry is reachable, then run the install again.'
     : 'The lockfile contains entries that the active policies reject. ' +
       'This can mean the lockfile is stale, or that someone committed a ' +
       'lockfile that bypassed the policy locally — inspect recent changes ' +
