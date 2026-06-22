@@ -11,6 +11,7 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
+crossterm           = { workspace = true }
 derive_more         = { workspace = true }
 dialoguer           = { workspace = true }
 open                = { workspace = true }

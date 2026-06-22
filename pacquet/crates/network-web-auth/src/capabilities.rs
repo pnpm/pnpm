@@ -13,10 +13,16 @@ use std::{
     future::Future,
     io::{self, IsTerminal},
     pin::Pin,
-    sync::LazyLock,
+    sync::{
+        Arc, LazyLock,
+        atomic::{AtomicBool, Ordering},
+    },
     task::{Context, Poll},
+    thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 
 use crate::poll_for_web_auth_token::{WebAuthFetchOptions, WebAuthFetchResponse};
 
@@ -180,14 +186,19 @@ impl OpenUrl for Host {
     }
 }
 
-/// Production [`EnterKeyListener::Handle`]. Resolves once the blocking
-/// stdin reader observes a line (Enter / EOF); dropping it drops the
-/// receiver, abandoning the reader thread's result — the close.
+/// How often the listener thread wakes to re-check the cancel flag. Bounds
+/// how long the detached thread outlives a dropped handle.
+const ENTER_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+/// Production [`EnterKeyListener::Handle`]. Resolves once the background
+/// thread observes an Enter keypress; dropping it sets the cancel flag so
+/// that thread stops within one [`ENTER_POLL_INTERVAL`] — `std`'s blocking
+/// `read_line` cannot be cancelled, so the thread polls with a timeout
+/// instead of blocking forever.
 pub struct HostEnterHandle {
-    rx: Option<tokio::sync::oneshot::Receiver<()>>,
-    // The blocking `read_line` cannot be force-cancelled, but dropping the
-    // join handle detaches it and the dropped receiver ignores its result.
-    _reader: tokio::task::JoinHandle<()>,
+    enter: tokio::sync::oneshot::Receiver<()>,
+    fired: bool,
+    cancel: Arc<AtomicBool>,
 }
 
 impl Future for HostEnterHandle {
@@ -195,36 +206,70 @@ impl Future for HostEnterHandle {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
         let this = self.get_mut();
-        let Some(rx) = this.rx.as_mut() else { return Poll::Pending };
-        match Pin::new(rx).poll(cx) {
+        if this.fired {
+            return Poll::Pending;
+        }
+        match Pin::new(&mut this.enter).poll(cx) {
             Poll::Pending => Poll::Pending,
-            // Enter pressed (or EOF): the reader sent.
+            // Enter pressed: the reader thread signalled.
             Poll::Ready(Ok(())) => {
-                this.rx = None;
+                this.fired = true;
                 Poll::Ready(())
             }
-            // Sender dropped without sending (read error): never fire, so
+            // Reader exited without signalling (read error): never fire, so
             // the browser is not opened spuriously.
             Poll::Ready(Err(_)) => {
-                this.rx = None;
+                this.fired = true;
                 Poll::Pending
             }
         }
     }
 }
 
+impl Drop for HostEnterHandle {
+    fn drop(&mut self) {
+        self.cancel.store(true, Ordering::Relaxed);
+    }
+}
+
 impl EnterKeyListener for Host {
     type Handle = HostEnterHandle;
 
+    /// Watch stdin for an Enter keypress without blocking uninterruptibly.
+    /// A background thread polls with a timeout and re-checks the cancel
+    /// flag each tick, so dropping the handle stops it promptly. `crossterm`
+    /// reads in the terminal's default (cooked) mode — no raw mode — matching
+    /// pnpm's plain `readline.createInterface({ input: process.stdin })`,
+    /// which also reacts to a submitted line rather than individual keys.
     fn listen() -> io::Result<HostEnterHandle> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        let reader = tokio::task::spawn_blocking(move || {
-            let mut line = String::new();
-            if io::stdin().read_line(&mut line).is_ok() {
-                let _ = tx.send(());
+        let (tx, enter) = tokio::sync::oneshot::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let reader_cancel = Arc::clone(&cancel);
+        thread::Builder::new().name("web-auth-enter-listener".to_owned()).spawn(move || {
+            let mut sender = Some(tx);
+            while !reader_cancel.load(Ordering::Relaxed) {
+                match event::poll(ENTER_POLL_INTERVAL) {
+                    // Input is ready: in cooked mode that means a line was
+                    // submitted, so drain events until the Enter that ends it.
+                    Ok(true) => match event::read() {
+                        Ok(Event::Key(key))
+                            if key.code == KeyCode::Enter && key.kind != KeyEventKind::Release =>
+                        {
+                            if let Some(sender) = sender.take() {
+                                let _ = sender.send(());
+                            }
+                            return;
+                        }
+                        Ok(_) => {}
+                        Err(_) => return,
+                    },
+                    // Timed out: loop back to re-check the cancel flag.
+                    Ok(false) => {}
+                    Err(_) => return,
+                }
             }
-        });
-        Ok(HostEnterHandle { rx: Some(rx), _reader: reader })
+        })?;
+        Ok(HostEnterHandle { enter, fired: false, cancel })
     }
 }
 
